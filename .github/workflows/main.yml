@@ -3,6 +3,15 @@ name: Main
 on:
   push:
     branches: [main]
+  # Recovery path for a release that tagged but failed to publish: skips the
+  # release-please steps and re-runs only the publish steps. Already-published
+  # versions are skipped, so re-running is safe.
+  workflow_dispatch:
+    inputs:
+      republish_paths:
+        description: 'JSON array of package dirs to republish, e.g. ["."]'
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -52,3 +61,148 @@ jobs:
 
       - name: Test
         run: bun test
+
+  release:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    env:
+      # bun install's prepare script installs git hooks that re-run the
+      # checks job's commands and would reject this job's bot pushes.
+      LEFTHOOK: '0'
+    steps:
+      # A release takes two runs of this job:
+      # - Run 1, after a releasable commit lands on main: release-please
+      #   opens or updates the release PR (version bump + changelog), the
+      #   sync step makes that PR pass the checks job, and auto-merge merges
+      #   it.
+      # - Run 2, triggered by that merge: release-please turns the merged
+      #   bump into a tag + GitHub release, and the publish step ships the
+      #   package to npm via OIDC.
+      #
+      # The App token exists because GITHUB_TOKEN events don't trigger
+      # workflows — a GITHUB_TOKEN merge of the release PR would never start
+      # run 2. With no App configured (see RELEASING.md), release PRs are
+      # left open to merge by hand and the chain continues from there.
+      - name: Mint GitHub App token
+        id: app-token
+        if: github.event_name == 'push' && vars.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Run release-please
+        id: release
+        if: github.event_name == 'push'
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token || github.token }}
+
+      # The release PR bumps the package.json version that bun.lock also
+      # records, and generates files oxfmt wouldn't accept — repair both so
+      # the PR passes the same checks as any other. The branch name is
+      # deterministic while separate-pull-requests is off.
+      - name: Check out release PR
+        if: steps.release.outputs.prs_created == 'true'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: release-please--branches--main
+          token: ${{ steps.app-token.outputs.token || github.token }}
+      - name: Set up bun
+        if: steps.release.outputs.prs_created == 'true'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - name: Sync lockfile and formatting on release PR
+        if: steps.release.outputs.prs_created == 'true'
+        run: |
+          bun install
+          bun run format
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -am "chore: sync lockfile and format release files"
+            git push
+          fi
+
+      # Reads no release-please outputs on purpose: prs_created is false
+      # when the open release PR needed no update (a previous run failed
+      # after creating it), and a step's env block is template-evaluated
+      # even when its if-condition is false, so fallible expressions like
+      # fromJSON must never appear in env. Mergeability is recomputed
+      # asynchronously after the sync push — poll until it settles — and a
+      # MERGEABLE read can be stale ("Base branch was modified" from the
+      # merge mutation), so the merge attempt itself retries inside the
+      # same loop rather than trusting any single read.
+      - name: Auto-merge release PRs
+        if: github.event_name == 'push' && steps.app-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          for pr in $(gh pr list --repo "$GITHUB_REPOSITORY" --head release-please--branches--main --json number --jq '.[].number'); do
+            merged=''
+            for _ in $(seq 1 12); do
+              state=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json mergeable --jq .mergeable)
+              if [ "$state" = "CONFLICTING" ]; then
+                echo "release PR #$pr has conflicts" >&2
+                exit 1
+              fi
+              if [ "$state" = "MERGEABLE" ] && gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash; then
+                merged=1
+                break
+              fi
+              sleep 5
+            done
+            if [ -z "$merged" ]; then
+              echo "release PR #$pr never became mergeable" >&2
+              exit 1
+            fi
+          done
+
+      - name: Check out merged release
+        if: steps.release.outputs.releases_created == 'true' || inputs.republish_paths != ''
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Set up bun for publish
+        if: steps.release.outputs.releases_created == 'true' || inputs.republish_paths != ''
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      # npm does the publishing, not bun: trusted publishing (OIDC) needs
+      # npm >= 11.5.1 — node 24 bundles at least 11.16 — and bun publish has
+      # no OIDC support (oven-sh/bun#15601). Never upgrade the bundled npm in
+      # place: a cross-major overlay prunes transitive deps that
+      # libnpmpublish needs at publish time (sigstore).
+      - name: Set up node
+        if: steps.release.outputs.releases_created == 'true' || inputs.republish_paths != ''
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+      - name: Install dependencies
+        if: steps.release.outputs.releases_created == 'true' || inputs.republish_paths != ''
+        run: bun install --frozen-lockfile
+      # The registry-version check makes the loop idempotent: a re-run after
+      # a failed publish skips versions already on npm instead of erroring.
+      - name: Publish released packages
+        if: steps.release.outputs.releases_created == 'true' || inputs.republish_paths != ''
+        env:
+          PATHS_RELEASED: ${{ steps.release.outputs.paths_released || inputs.republish_paths }}
+        run: |
+          for path in $(printf '%s' "${PATHS_RELEASED:-[]}" | jq -r '.[]'); do
+            name=$(jq -r .name "$path/package.json")
+            version=$(jq -r .version "$path/package.json")
+            if [ "$(jq -r '.private // false' "$path/package.json")" = "true" ]; then
+              echo "skipping $name: private"
+              continue
+            fi
+            if [ "$(npm view "$name@$version" version 2>/dev/null)" = "$version" ]; then
+              echo "skipping $name@$version: already published"
+              continue
+            fi
+            # bun pm pack resolves any bun-specific manifest fields at pack
+            # time; npm publishes the tarball it produced.
+            (cd "$path" && bun pm pack && npm publish ./*.tgz --provenance --access public)
+          done

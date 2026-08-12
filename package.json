@@ -1,12 +1,22 @@
 {
-  "name": "atc",
+  "name": "@zgeoff/atc",
   "version": "0.1.0",
-  "private": true,
   "description": "Terminal control tower for Claude Code sessions",
+  "homepage": "https://github.com/zgeoff/atc#readme",
+  "bugs": "https://github.com/zgeoff/atc/issues",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zgeoff/atc.git"
+  },
   "bin": {
     "atc": "bin/atc"
   },
+  "files": [
+    "bin",
+    "src",
+    "!src/**/*.test.ts"
+  ],
   "type": "module",
   "scripts": {
     "start": "bun src/cli.ts",
