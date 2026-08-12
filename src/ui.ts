@@ -66,6 +66,7 @@ export interface StatusView {
   readonly counts: Readonly<Record<SessionState, number>>;
   readonly focusedName: string | null;
   readonly urgentName: string | null;
+  readonly leaderLabel: string;
 }
 
 export function drawStatusBar(view: StatusView) {
@@ -93,7 +94,7 @@ export function drawStatusBar(view: StatusView) {
   }
 
   const joined = parts.join(' ▏');
-  const right = ` ${joined === '' ? 'idle' : joined} ▏^Space `;
+  const right = ` ${joined === '' ? 'idle' : joined} ▏${view.leaderLabel} `;
   const pad = Math.max(1, width - left.length - right.length);
   const bg = c.needs_you > 0 ? `${ESC}[1;97;41m` : `${ESC}[30;47m`;
   const text = truncate(left + ' '.repeat(pad) + right, width).padEnd(width);
@@ -317,7 +318,7 @@ export function drawPicker(view: PickerView) {
   drawBox(rowsList);
 }
 
-export function drawHome(fleetCount = 0) {
+export function drawHome(fleetCount = 0, leaderLabel = '^Space') {
   out(ansi.clear + ansi.hideCursor);
 
   const msgs = [
@@ -326,7 +327,7 @@ export function drawHome(fleetCount = 0) {
     'n       spawn a session',
     'r       adopt an existing session (claude --resume)',
     ...(fleetCount > 0 ? [`R       restore last fleet (${fleetCount} sessions)`] : []),
-    '^Space  session list',
+    `${leaderLabel.padEnd(7)} session list`,
     'q       quit',
   ];
 

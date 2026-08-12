@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 import { bootDaemonClient } from './boot-daemon';
+import { loadConfig } from './config';
 import { collectDirs, formatDir, pickMatches } from './dirs';
 import type { EventMsg } from './protocol';
 import { isRecord } from './report';
@@ -76,6 +77,7 @@ function scheduleStatus() {
         counts: countSessionStates(fleet),
         focusedName: focused === null ? null : focused.name,
         urgentName: urgent === undefined ? null : urgent.name,
+        leaderLabel: leader.label,
       });
     }
   }, 50);
@@ -127,7 +129,7 @@ function toBase() {
   } else {
     mode = 'home';
 
-    drawHome(fleetCount);
+    drawHome(fleetCount, leader.label);
   }
 
   scheduleStatus();
@@ -180,7 +182,7 @@ function openHelp() {
 function applyHelpKey(buf: Buffer) {
   const ch = buf.toString();
 
-  if (buf[0] === KEY.esc || ch === '?' || ch === 'q' || buf[0] === KEY.ctrlSpace) {
+  if (buf[0] === KEY.esc || ch === '?' || ch === 'q' || buf[0] === leader.code) {
     openOverlay();
   }
 }
@@ -524,8 +526,9 @@ function copyToClipboard(text: string) {
 
 // ---- input ----
 
+const leader = loadConfig().leader;
+
 const KEY = {
-  ctrlSpace: 0x00,
   ctrlC: 0x03,
   ctrlU: 0x15,
   esc: 0x1b,
@@ -578,7 +581,7 @@ function applyOverlayFilterKey(buf: Buffer): boolean {
     return true;
   }
 
-  if (buf[0] === KEY.enter || isUp(buf) || isDown(buf) || buf[0] === KEY.ctrlSpace) {
+  if (buf[0] === KEY.enter || isUp(buf) || isDown(buf) || buf[0] === leader.code) {
     return false;
   }
 
@@ -636,7 +639,7 @@ function applyOverlayKey(buf: Buffer) {
     return;
   }
 
-  if (buf[0] === KEY.ctrlSpace || (buf[0] === KEY.esc && buf.length === 1)) {
+  if (buf[0] === leader.code || (buf[0] === KEY.esc && buf.length === 1)) {
     toBase();
 
     return;
@@ -778,7 +781,7 @@ function applyTextKey(buf: Buffer, onSubmit: () => void, onCancel: () => void) {
     return;
   }
 
-  if (buf[0] === KEY.ctrlSpace) {
+  if (buf[0] === leader.code) {
     toBase();
 
     return;
@@ -877,7 +880,7 @@ const stdinDecoder = new TextDecoder('utf-8');
 process.stdin.on('data', (buf: Buffer) => {
   switch (mode) {
     case 'attached': {
-      if (buf[0] === KEY.ctrlSpace && buf.length === 1) {
+      if (buf[0] === leader.code && buf.length === 1) {
         openOverlay();
 
         return;
@@ -893,7 +896,7 @@ process.stdin.on('data', (buf: Buffer) => {
       return;
     }
     case 'home': {
-      if (buf[0] === KEY.ctrlSpace) {
+      if (buf[0] === leader.code) {
         openOverlay();
 
         return;
@@ -1037,7 +1040,7 @@ stdout.on('resize', () => {
   }
 
   if (mode === 'home') {
-    drawHome(fleetCount);
+    drawHome(fleetCount, leader.label);
   }
 
   if (mode === 'overlay') {
@@ -1072,5 +1075,5 @@ process.on('SIGHUP', () => quit());
 // ---- start ----
 stdout.write(ansi.altScreenOn);
 
-drawHome(fleetCount);
+drawHome(fleetCount, leader.label);
 scheduleStatus();

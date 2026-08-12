@@ -37,7 +37,7 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 
 | Key             | Where          | Action                                                                                         |
 | --------------- | -------------- | ---------------------------------------------------------------------------------------------- |
-| `Ctrl-Space`    | anywhere       | toggle session overlay                                                                         |
+| leader          | anywhere       | toggle session overlay — `Ctrl-Space` by default, configurable (see Config)                    |
 | `n`             | home/overlay   | spawn: pick dir (zoxide + history, fuzzy) → name → optional first prompt                       |
 | `r`             | home/overlay   | adopt: pick dir → name → `claude --resume` (Claude's session picker opens in the new PTY)      |
 | `R`             | home           | restore last fleet after a daemon death — respawns every session via `claude --resume <id>`    |
@@ -72,14 +72,28 @@ status bar turns red and names the most urgent session.
 
 ## Config
 
-`~/.config/atc/config.json`:
+`~/.config/atc/config.json` (created with defaults on first run):
 
 ```json
-{ "claudeBin": "claude", "claudeArgs": [] }
+{
+  "claudeBin": "claude",
+  "claudeArgs": [],
+  "leader": "ctrl-space"
+}
 ```
 
-`claudeArgs` is prepended to every spawn (e.g. `["--model", "opus"]`). `atc mcp` exposes the fleet
-as MCP tools (list, spawn, drive) to any MCP client, wrangled sessions included:
+| Field        | Default        | Meaning                                                                               |
+| ------------ | -------------- | ------------------------------------------------------------------------------------- |
+| `claudeBin`  | `"claude"`     | The binary spawned for every session.                                                 |
+| `claudeArgs` | `[]`           | Prepended to every spawn, e.g. `["--model", "opus"]`.                                 |
+| `leader`     | `"ctrl-space"` | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`. |
+
+Pick a different leader when `Ctrl-Space` is taken on your machine — Raycast on macOS claims it, and
+`ctrl-]` is a solid replacement that no common terminal, multiplexer, or OS shortcut wants. An
+unknown or reserved value falls back to the default.
+
+`atc mcp` exposes the fleet as MCP tools (list, spawn, drive) to any MCP client, wrangled sessions
+included:
 
 ```sh
 claude mcp add --scope user atc -- atc mcp

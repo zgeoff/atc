@@ -276,6 +276,29 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
   expect(ctx.read()).not.toInclude('alpha        ');
 });
 
+test('it opens the overlay with a configured leader key', async () => {
+  await using ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({ claudeBin: join(ctx.home, 'fake-claude'), claudeArgs: [], leader: 'ctrl-]' }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  expect(ctx.read()).toInclude('^]');
+
+  await spawnSession(ctx, pty, 'leadertest');
+
+  ctx.reset();
+  pty.write('\u001D');
+
+  await ctx.waitFor('leadertest');
+  await ctx.waitFor('sessions');
+});
+
 test('it preselects the focused session when the overlay opens', async () => {
   await using ctx = setupTest();
 
