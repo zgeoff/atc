@@ -61,7 +61,10 @@ function collectEnv(extra: Readonly<Record<string, string>>): Record<string, str
   return { ...env, ...extra };
 }
 
-function setupDaemonProc(home?: string): DaemonContext {
+function setupDaemonProc(
+  home?: string,
+  extraEnv?: Readonly<Record<string, string>>,
+): DaemonContext {
   const freshHome = home ?? mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
 
   if (home === undefined) {
@@ -94,6 +97,7 @@ sleep 30
       HOME: freshHome,
       XDG_RUNTIME_DIR: freshHome,
       PATH: '/usr/sbin:/usr/bin:/bin',
+      ...extraEnv,
     }),
     stdout: 'ignore',
     stderr: 'ignore',
@@ -603,7 +607,9 @@ test('it answers session.attach on a dead session with session_dead', async () =
 });
 
 test('it drops a slow client to desync and reports the dropped bytes', async () => {
-  const ctx = setupDaemonProc();
+  // A 64 KiB queue makes one echo burst overflow regardless of how much the
+  // host's socket buffers absorb.
+  const ctx = setupDaemonProc(undefined, { ATC_QUEUE_BYTES: '65536' });
 
   const driver = await ctx.openClient();
 
@@ -654,14 +660,11 @@ test('it drops a slow client to desync and reports the dropped bytes', async () 
 
   // The pty line discipline caps a canonical-mode line at 4095 bytes, so
   // the flood is many short lines; each echoes back at roughly double its
-  // size and exceeds the 2 MiB queue while the reader is paused.
+  // size and exceeds the shrunken queue while the reader is paused.
   const line = 'x'.repeat(3000);
   const burst = `${line}\n`.repeat(300);
 
-  for (let i = 0; i < 4; i++) {
-    await driver.sendRequest('session.input', { session: id, d: burst });
-  }
-
+  await driver.sendRequest('session.input', { session: id, d: burst });
   await Bun.sleep(500);
 
   slow.resume();

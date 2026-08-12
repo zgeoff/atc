@@ -47,6 +47,10 @@ const main = defineCommand({
           const claude = await import('./claude-adapter');
           const headless = await import('./start-headless-run');
 
+          // Test harnesses shrink the outbound queue to force overflow
+          // deterministically; unset means the production default.
+          const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
+
           const handle = daemon.startDaemon({
             headlessRunner: (runOpts, hooks) => headless.startHeadlessRun(runOpts, hooks),
             socketPath: config.daemonSocketPath,
@@ -56,6 +60,7 @@ const main = defineCommand({
             dbPath: config.dbFile,
             legacyFleetPath: config.legacyFleetFile,
             pidPath: config.daemonPidFile,
+            ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
           });
 
           process.on('SIGTERM', () => {
