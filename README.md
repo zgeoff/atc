@@ -8,17 +8,27 @@
   </p>
 
   <p>
+    <a href="https://www.npmjs.com/package/@zgeoff/atc"><img src="https://img.shields.io/npm/v/%40zgeoff%2Fatc" alt="npm version"></a>
+    <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+  </p>
+
+  <p>
     <a href="./docs/README.md">Documentation</a> •
     <a href="./docs/architecture/overview.md">Architecture</a> •
     <a href="./AGENTS.md">Agent Guidelines</a>
   </p>
 </div>
 
-## Run
+## Install
 
 ```sh
-bun src/cli.ts   # or `atc` if bin/atc is on your PATH
+bun add -g @zgeoff/atc
+atc
 ```
+
+Needs [Bun](https://bun.sh) (atc runs from source through it) and the `claude` CLI on your PATH.
+Linux and WSL2 are the tested platforms; macOS should work but is unverified. From a checkout,
+`bun src/cli.ts` runs the same thing.
 
 The first invocation auto-spawns the daemon (`atc daemon` runs it in the foreground for systemd or
 debugging); the TUI is a thin client, so quitting or crashing it leaves every session running. Runs
@@ -70,10 +80,15 @@ status bar turns red and names the most urgent session.
 ```
 
 `claudeArgs` is prepended to every spawn (e.g. `["--model", "opus"]`). `atc mcp` exposes the fleet
-as MCP tools (list, spawn, drive) to any MCP client, wrangled sessions included. Daemon state — the
-restorable fleet, spawn-dir history, and the hook-event trail — lives in `~/.local/state/atc/atc.db`
-(SQLite), next to `status.json` (read by the injected statusline); the daemon's pid file sits in
-`$XDG_RUNTIME_DIR/atc-daemon.pid`, beside its sockets.
+as MCP tools (list, spawn, drive) to any MCP client, wrangled sessions included:
+
+```sh
+claude mcp add --scope user atc -- atc mcp
+```
+
+Daemon state — the restorable fleet, spawn-dir history, and the hook-event trail — lives in
+`~/.local/state/atc/atc.db` (SQLite), next to `status.json` (read by the injected statusline); the
+daemon's pid file sits in `$XDG_RUNTIME_DIR/atc-daemon.pid`, beside its sockets.
 
 ## Crash safety
 
