@@ -105,12 +105,13 @@ jobs:
       # The release PR bumps the package.json version that bun.lock also
       # records, and generates files oxfmt wouldn't accept — repair both so
       # the PR passes the same checks as any other. The branch name is
-      # deterministic while separate-pull-requests is off.
+      # deterministic: single manifest package with a component, so
+      # release-please appends the component to its usual branch.
       - name: Check out release PR
         if: steps.release.outputs.prs_created == 'true'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: release-please--branches--main
+          ref: release-please--branches--main--components--@zgeoff/atc
           token: ${{ steps.app-token.outputs.token || github.token }}
       - name: Set up bun
         if: steps.release.outputs.prs_created == 'true'
@@ -143,7 +144,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          for pr in $(gh pr list --repo "$GITHUB_REPOSITORY" --head release-please--branches--main --json number --jq '.[].number'); do
+          for pr in $(gh pr list --repo "$GITHUB_REPOSITORY" --head "release-please--branches--main--components--@zgeoff/atc" --json number --jq '.[].number'); do
             merged=''
             for _ in $(seq 1 12); do
               state=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json mergeable --jq .mergeable)
