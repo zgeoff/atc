@@ -27,8 +27,7 @@ atc
 ```
 
 Needs [Bun](https://bun.sh) (atc runs from source through it) and the `claude` CLI on your PATH.
-Linux and WSL2 are the tested platforms; macOS should work but is unverified. From a checkout,
-`bun src/cli.ts` runs the same thing.
+From a checkout, `bun src/cli.ts` runs the same thing.
 
 The first invocation auto-spawns the daemon (`atc daemon` runs it in the foreground for systemd or
 debugging); the TUI is a thin client, so quitting or crashing it leaves every session running. Runs
