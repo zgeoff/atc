@@ -613,3 +613,30 @@ export function sortSessionViews<
 
   return [...list].toSorted((a, b) => rank[a.state] - rank[b.state] || a.createdAt - b.createdAt);
 }
+
+// Overlay display order: the urgency sort with each group's sessions pulled
+// together at the position of its most urgent member, so the renderer's
+// adjacency-based headers appear once per group and urgent groups still lead.
+export function sortGroupedSessionViews<
+  T extends {
+    readonly state: SessionState;
+    readonly createdAt: number;
+    readonly group?: string;
+    readonly cwd: string;
+  },
+>(list: readonly T[]): T[] {
+  const buckets = new Map<string, T[]>();
+
+  for (const s of sortSessionViews(list)) {
+    const key = s.group ?? s.cwd;
+    const bucket = buckets.get(key);
+
+    if (bucket === undefined) {
+      buckets.set(key, [s]);
+    } else {
+      bucket.push(s);
+    }
+  }
+
+  return [...buckets.values()].flat();
+}

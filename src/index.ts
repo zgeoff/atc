@@ -4,7 +4,7 @@ import { loadConfig } from './config';
 import { collectDirs, findFuzzyScore, formatDir, pickMatches } from './dirs';
 import type { EventMsg } from './protocol';
 import { isRecord } from './report';
-import { countSessionStates, sortSessionViews } from './sessions';
+import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from './sessions';
 import type { SessionState } from './sessions';
 import { ansi, cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar, rows } from './ui';
 
@@ -195,7 +195,7 @@ function applyHelpKey(buf: Buffer) {
 let overlayFilter: string | null = null;
 
 function pickOverlaySessions(): MirrorSession[] {
-  const sorted = sortSessionViews(fleet);
+  const sorted = sortGroupedSessionViews(fleet);
 
   if (overlayFilter === null || overlayFilter === '') {
     return sorted;
@@ -229,7 +229,7 @@ function openOverlay() {
   confirmKill = false;
   overlayFilter = null;
 
-  const focusedIndex = sortSessionViews(fleet).findIndex((s) => s.id === focusedID);
+  const focusedIndex = sortGroupedSessionViews(fleet).findIndex((s) => s.id === focusedID);
 
   overlaySelected = Math.max(0, focusedIndex);
 
