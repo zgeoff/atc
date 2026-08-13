@@ -25,6 +25,7 @@
           "quit",
           "record",
           "refresh",
+          "restart",
           "restore",
           "schedule",
           "spawn",

@@ -26,6 +26,7 @@ export interface DaemonContext {
   readonly spawnSession: (p: SpawnParams) => SessionDescriptor;
   readonly killSession: (id: string) => boolean;
   readonly updateSession: (id: string, name?: string, group?: string) => boolean;
+  readonly quitDaemon: () => void;
   readonly ackSession: (id: string) => boolean;
   readonly buildResumeCommand: (id: string) => string | null;
   readonly answerPermission: (request: string, decision: string) => AnswerResult;
@@ -212,6 +213,12 @@ export class DaemonConnection {
       }
       case 'session.spawn': {
         this.applySpawn(req);
+
+        return;
+      }
+      case 'daemon.quit': {
+        this.sendOk(req.id, {});
+        this.ctx.quitDaemon();
 
         return;
       }

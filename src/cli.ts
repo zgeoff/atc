@@ -61,6 +61,7 @@ const main = defineCommand({
             legacyFleetPath: config.legacyFleetFile,
             pidPath: config.daemonPidFile,
             ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
+            onQuit: () => process.exit(0),
           });
 
           process.on('SIGTERM', () => {

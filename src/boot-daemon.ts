@@ -4,35 +4,49 @@ import { basename, join } from 'node:path';
 import { daemonPidFile, daemonSocketPath } from './config';
 import { DaemonClient } from './daemon-client';
 import { getBuild } from './get-build';
+import { isRecord } from './report';
+
+export interface DaemonBoot {
+  readonly client: DaemonClient;
+  readonly stale: boolean;
+}
 
 /**
  * Opens a handshaken client to the daemon, booting the daemon first when its
- * socket is absent. A daemon left running from an older build is restarted,
- * so a fresh client never talks to stale daemon code — the fleet stays
- * restorable afterwards through the usual cold-boot recovery. The expected
+ * socket is absent. A daemon from an older build stays in service — killing
+ * it would kill every hosted session — and is reported as stale so the
+ * caller can offer a deliberate restart. Only a protocol mismatch, where
+ * talking would misbehave, forces the restart immediately. The expected
  * build is read from disk on every attempt: a long-lived caller holding a
- * build string from its own boot would otherwise restart daemons that are
+ * build string from its own boot would otherwise flag daemons that are
  * already current.
  */
-export async function bootDaemonClient(): Promise<DaemonClient> {
+export async function bootDaemonClient(): Promise<DaemonBoot> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const build = getBuild();
 
     const client = await openOrBootDaemon();
-    const hello = await client.sendHello(build);
 
-    const daemonBuild = hello['daemon'];
+    try {
+      const hello = await client.sendHello(build);
 
-    if (daemonBuild === build || attempt > 0) {
-      return client;
+      return { client, stale: hello['daemon'] !== build };
+    } catch (error) {
+      client.stop();
+
+      if (attempt > 0 || !isProtocolMismatch(error)) {
+        throw error;
+      }
+
+      await stopStaleDaemon();
     }
-
-    client.stop();
-
-    await stopStaleDaemon();
   }
 
   throw new Error('the atc daemon could not be restarted');
+}
+
+function isProtocolMismatch(error: unknown): boolean {
+  return isRecord(error) && error['code'] === 'protocol_mismatch';
 }
 
 async function openOrBootDaemon(): Promise<DaemonClient> {

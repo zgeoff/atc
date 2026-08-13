@@ -67,6 +67,7 @@ export interface StatusView {
   readonly focusedName: string | null;
   readonly urgentName: string | null;
   readonly leaderLabel: string;
+  readonly stale: boolean;
 }
 
 export function drawStatusBar(view: StatusView) {
@@ -91,6 +92,10 @@ export function drawStatusBar(view: StatusView) {
 
   if (c.exited > 0) {
     parts.push(`✗ ${c.exited}`);
+  }
+
+  if (view.stale) {
+    parts.push('⟳ update ready');
   }
 
   const joined = parts.join(' ▏');
@@ -161,6 +166,7 @@ export interface OverlayView {
   selected: number;
   confirmKill: boolean;
   filter: string | null;
+  stale: boolean;
 }
 
 export function drawOverlay(view: OverlayView) {
@@ -213,6 +219,10 @@ export function drawOverlay(view: OverlayView) {
   }
 
   let hint = buildOverlayHint(view.sessions[view.selected]);
+
+  if (view.stale) {
+    hint += ' · u update daemon';
+  }
 
   if (view.filter !== null) {
     hint = 'type to filter · ↑↓ move · ⏎ attach · esc clear';

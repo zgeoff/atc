@@ -311,6 +311,22 @@ test('it renames and regroups a session through session.update', async () => {
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
+test('it stops the daemon process on daemon.quit', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const answer = await client.sendRequest('daemon.quit');
+
+  expect(answer).toStrictEqual({});
+
+  const code = await ctx.proc.exited;
+
+  expect(code).toBe(0);
+});
+
 test('it kills a live session to exited and a dead one to removed', async () => {
   const ctx = setupDaemonProc();
 

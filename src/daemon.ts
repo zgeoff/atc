@@ -43,6 +43,10 @@ export interface DaemonOptions {
   // How long an eject waits for the dying terminal to report SessionEnd
   // before starting the headless run anyway.
   readonly ejectSettleMs?: number;
+
+  // Called after a client-requested quit has stopped the daemon; the real
+  // entrypoint exits the process, tests leave it unset.
+  readonly onQuit?: () => void;
 }
 
 interface HeadlessRunRequest {
@@ -77,6 +81,8 @@ export interface DaemonHandle {
  * or hostile peer.
  */
 export function startDaemon(opts: DaemonOptions): DaemonHandle {
+  let stopDaemon: (() => void) | null = null;
+
   if (opts.pidPath !== undefined) {
     writeFileSync(opts.pidPath, String(process.pid));
   }
@@ -409,6 +415,14 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       return getDescriptor(mgr, s.id);
     },
     updateSession: (id, name, group) => mgr.updateSession(id, name, group),
+    quitDaemon: () => {
+      // The ok response for the quit request must flush before the sockets
+      // close under it.
+      setTimeout(() => {
+        stopDaemon?.();
+        opts.onQuit?.();
+      }, 80);
+    },
     killSession: (id) => {
       if (!mgr.sessions.some((s) => s.id === id)) {
         return false;
@@ -605,33 +619,33 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     },
   });
 
-  return {
-    stop() {
-      for (const timer of resizeTimers.values()) {
-        clearTimeout(timer);
-      }
+  stopDaemon = () => {
+    for (const timer of resizeTimers.values()) {
+      clearTimeout(timer);
+    }
 
-      for (const timer of detectTimers.values()) {
-        clearTimeout(timer);
-      }
+    for (const timer of detectTimers.values()) {
+      clearTimeout(timer);
+    }
 
-      server.stop(true);
-      reporter.stop(true);
-      mgr.killAll();
+    server.stop(true);
+    reporter.stop(true);
+    mgr.killAll();
 
-      for (const model of screens.values()) {
-        model.stop();
-      }
+    for (const model of screens.values()) {
+      model.stop();
+    }
 
-      store.stop();
+    store.stop();
 
-      if (opts.pidPath !== undefined) {
-        try {
-          unlinkSync(opts.pidPath);
-        } catch {}
-      }
-    },
+    if (opts.pidPath !== undefined) {
+      try {
+        unlinkSync(opts.pidPath);
+      } catch {}
+    }
   };
+
+  return { stop: stopDaemon };
 }
 
 // A session reporting a transcript path that does not exist on disk yet has

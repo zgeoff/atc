@@ -52,6 +52,7 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | `Y`             | overlay        | eject: yank the resume command, then kill the session here — paste it in any pane to take over |
 | `K`             | overlay        | kill selected (confirm with `y`) — the entry stays revivable with `P`; a second `K` forgets it |
 | `?`             | overlay        | full key reference — the hint row only shows actions valid for the selected session            |
+| `u`             | overlay        | restart an outdated daemon and restore the fleet — offered only while `⟳ update ready` shows   |
 | `q`             | home/overlay   | quit the client — sessions keep running in the daemon                                          |
 
 The overlay clusters sessions under dim headers when more than one group exists: a session's
@@ -112,8 +113,11 @@ daemon's pid file sits in `$XDG_RUNTIME_DIR/atc-daemon.pid`, beside its sockets.
 ## Crash safety
 
 A client crash or closed window costs nothing: the daemon keeps hosting the fleet, and the next
-`atc` reconnects. The daemon continuously writes the live fleet (name, cwd, Claude session id) to
-its SQLite store. If the daemon itself dies — crash, SIGKILL, reboot — the child claude processes
-die with it, but every session's transcript is already on disk. Start atc and press `R`: the whole
-fleet respawns via `claude --resume`. Only deliberate kills (`K`, `Y` eject) remove entries from the
-fleet, so it stays restorable.
+`atc` reconnects. After an update, a client meeting an older daemon keeps talking to it — killing it
+would kill every hosted session — and shows `⟳ update ready` in the status bar; `u` in the overlay
+restarts the daemon and restores the fleet at a moment you choose. Only a protocol mismatch, where
+the two could miscommunicate, forces the restart immediately. The daemon continuously writes the
+live fleet (name, cwd, Claude session id) to its SQLite store. If the daemon itself dies — crash,
+SIGKILL, reboot — the child claude processes die with it, but every session's transcript is already
+on disk. Start atc and press `R`: the whole fleet respawns via `claude --resume`. Only deliberate
+kills (`K`, `Y` eject) remove entries from the fleet, so it stays restorable.

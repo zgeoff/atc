@@ -81,6 +81,7 @@ function scheduleStatus() {
         focusedName: focused === null ? null : focused.name,
         urgentName: urgent === undefined ? null : urgent.name,
         leaderLabel: leader.label,
+        stale: daemonStale,
       });
     }
   }, 50);
@@ -217,6 +218,7 @@ function renderOverlay() {
     selected: overlaySelected,
     confirmKill,
     filter: overlayFilter,
+    stale: daemonStale,
   });
 
   scheduleStatus();
@@ -727,6 +729,12 @@ function applyOverlayKey(buf: Buffer) {
     return;
   }
 
+  if (ch === 'u' && daemonStale) {
+    void restartDaemon();
+
+    return;
+  }
+
   if (ch === 'H' && sel !== undefined && sel.kind === 'pty' && sel.alive) {
     ejectTarget = sel.id;
     pickerInput = '';
@@ -883,16 +891,23 @@ function applyTextKey(buf: Buffer, onSubmit: () => void, onCancel: () => void) {
   }
 }
 
-const client = await bootDaemonClient();
+const boot = await bootDaemonClient();
+
+let client = boot.client;
+let daemonStale = boot.stale;
 
 client.onEvent = applyDaemonEvent;
 
-{
+await refreshMirror();
+
+async function refreshMirror() {
   const list = await client.sendRequest('session.list');
 
   const sessions = list['sessions'];
 
   if (Array.isArray(sessions)) {
+    fleet = [];
+
     for (const raw of sessions) {
       const d = toMirrorSession(raw);
 
@@ -907,6 +922,42 @@ client.onEvent = applyDaemonEvent;
   const entries = (answer as Record<string, unknown>)['fleet'];
 
   fleetCount = Array.isArray(entries) ? entries.length : 0;
+}
+
+/**
+ * The deliberate half of the stale-daemon story: quits the old daemon,
+ * boots one from the current build, and restores the whole fleet, so an
+ * update never interrupts sessions until the user picks the moment.
+ */
+async function restartDaemon() {
+  try {
+    await client.sendRequest('daemon.quit');
+  } catch {}
+
+  client.stop();
+
+  const deadline = Date.now() + 8000;
+
+  let next = await bootDaemonClient();
+
+  while (next.stale && Date.now() < deadline) {
+    next.client.stop();
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 200);
+    });
+
+    next = await bootDaemonClient();
+  }
+
+  client = next.client;
+  daemonStale = next.stale;
+  client.onEvent = applyDaemonEvent;
+
+  await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
+  await refreshMirror().catch(() => {});
+
+  openOverlay();
 }
 
 process.stdin.setRawMode(true);
