@@ -660,16 +660,25 @@ test('it drops a slow client to desync and reports the dropped bytes', async () 
 
   // The pty line discipline caps a canonical-mode line at 4095 bytes, so
   // the flood is many short lines; each echoes back at roughly double its
-  // size and exceeds the shrunken queue while the reader is paused.
+  // size. How much the host's socket and stream buffers absorb before the
+  // daemon's queue overflows varies by kernel, so bursts repeat until the
+  // desync lands instead of trusting any fixed volume.
   const line = 'x'.repeat(3000);
   const burst = `${line}\n`.repeat(300);
+  const desyncDeadline = Date.now() + 15_000;
 
-  await driver.sendRequest('session.input', { session: id, d: burst });
-  await Bun.sleep(500);
+  while (!received.includes('session.desync') && Date.now() < desyncDeadline) {
+    await driver.sendRequest('session.input', { session: id, d: burst });
+    await Bun.sleep(300);
+
+    slow.resume();
+
+    await Bun.sleep(50);
+
+    slow.pause();
+  }
 
   slow.resume();
-
-  const desyncDeadline = Date.now() + 10_000;
 
   while (!received.includes('session.desync') && Date.now() < desyncDeadline) {
     await Bun.sleep(50);
