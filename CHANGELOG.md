@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.2...@zgeoff/atc@0.1.3) (2026-08-13)
+
+
+### Features
+
+* keep a stale daemon in service until a deliberate restart ([#10](https://github.com/zgeoff/atc/issues/10)) ([37f5768](https://github.com/zgeoff/atc/commit/37f57682ea877646071ec4a1339aa27657859cba))
+
 ## [0.1.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.1...@zgeoff/atc@0.1.2) (2026-08-13)
 
 ### Features
