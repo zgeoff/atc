@@ -1,7 +1,7 @@
 import { basename } from 'node:path';
 import { bootDaemonClient } from './boot-daemon';
 import { loadConfig } from './config';
-import { collectDirs, formatDir, pickMatches } from './dirs';
+import { collectDirs, findFuzzyScore, formatDir, pickMatches } from './dirs';
 import type { EventMsg } from './protocol';
 import { isRecord } from './report';
 import { countSessionStates, sortSessionViews } from './sessions';
@@ -197,9 +197,9 @@ function pickOverlaySessions(): MirrorSession[] {
     return sorted;
   }
 
-  const f = overlayFilter.toLowerCase();
+  const f = overlayFilter;
 
-  return sorted.filter((s) => `${s.name} ${formatDir(s.cwd)}`.toLowerCase().includes(f));
+  return sorted.filter((s) => findFuzzyScore(`${s.name} ${formatDir(s.cwd)}`, f) !== null);
 }
 
 function renderOverlay() {
@@ -529,6 +529,7 @@ function copyToClipboard(text: string) {
 const leader = loadConfig().leader;
 
 const KEY = {
+  tab: 0x09,
   ctrlC: 0x03,
   ctrlU: 0x15,
   esc: 0x1b,
@@ -662,6 +663,16 @@ function applyOverlayKey(buf: Buffer) {
   }
 
   const ch = buf.toString();
+
+  if (buf[0] === KEY.tab) {
+    const needy = sortSessionViews(fleet).find((s) => s.state === 'needs_you' && s.alive);
+
+    if (needy !== undefined) {
+      void attach(needy.id);
+    }
+
+    return;
+  }
 
   if (buf[0] === KEY.enter && sel !== undefined && sel.alive) {
     void attach(sel.id);

@@ -43,7 +43,8 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | `R`             | home           | restore last fleet after a daemon death — respawns every session via `claude --resume <id>`    |
 | `j`/`k`/`↑`/`↓` | overlay/picker | move                                                                                           |
 | `Enter`         | overlay        | attach (auto-acks)                                                                             |
-| `/`             | overlay        | fzf-style filter: type to narrow by name/dir, `⏎` attach top match, `esc` clear                |
+| `Tab`           | overlay        | attach the most urgent needs-you session                                                       |
+| `/`             | overlay        | fuzzy filter by name/dir (chars in order), `⏎` attach top match, `esc` clear                   |
 | `a`             | overlay        | ack notification without attaching                                                             |
 | `H`             | overlay        | eject to headless: the terminal dies, a headless Agent SDK run resumes the same session        |
 | `P`             | overlay        | revive: a fresh terminal resumes a headless or killed session in place                         |
@@ -52,6 +53,9 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | `K`             | overlay        | kill selected (confirm with `y`) — the entry stays revivable with `P`; a second `K` forgets it |
 | `?`             | overlay        | full key reference — the hint row only shows actions valid for the selected session            |
 | `q`             | home/overlay   | quit the client — sessions keep running in the daemon                                          |
+
+Sessions spawned from several directories group under per-directory headers in the overlay, urgent
+groups first; the directory a session shows is the one it was spawned from.
 
 Revive (`P`) and headless eject (`H`) resume the session from its saved transcript, so both need one
 to exist: a session killed before its first exchange has nothing on disk yet, and the overlay says

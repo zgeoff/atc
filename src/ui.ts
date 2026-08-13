@@ -172,15 +172,26 @@ export function drawOverlay(view: OverlayView) {
     rowsList.push(dimRow(width, empty));
   }
 
+  // With sessions in several directories the list groups under dim dir
+  // headers; the rows keep the sorted order, so urgent groups lead.
+  const grouped = new Set(view.sessions.map((s) => s.cwd)).size > 1;
+  let lastCwd: string | null = null;
+
   for (const [i, s] of view.sessions.entries()) {
+    if (grouped && s.cwd !== lastCwd) {
+      lastCwd = s.cwd;
+
+      rowsList.push(dimRow(width, `▸ ${formatDir(s.cwd)}`));
+    }
+
     const sel = i === view.selected;
     const name = truncate(s.name, 16).padEnd(16);
     const state = STATE_LABEL[s.state].padEnd(9);
-    const dir = truncate(formatDir(s.cwd), 18).padEnd(18);
-    const msgWidth = Math.max(4, width - 4 - 2 - 17 - 10 - 19);
+    const dir = grouped ? '' : ` ${truncate(formatDir(s.cwd), 18).padEnd(18)}`;
+    const msgWidth = Math.max(4, width - 4 - 2 - 17 - 10 - (grouped ? 0 : 19));
     const msg = truncate(s.lastMsg, msgWidth).padEnd(msgWidth);
     const unread = s.unread ? `${ESC}[1;33m!${ESC}[0m` : ' ';
-    const body = `${name} ${state} ${dir} ${msg}`;
+    const body = `${name} ${state}${dir} ${msg}`;
     const styledBody = sel ? `${ESC}[7m${body}${ESC}[0m` : body;
 
     rowsList.push(boxRow(width, `${GLYPH[s.state]}${unread}${styledBody}`, 2 + body.length));
@@ -249,6 +260,7 @@ export function drawHelp() {
 
   const lines = [
     '⏎  attach the selected session',
+    '⇥  attach the most urgent needs-you session',
     'a  ack its notification without attaching',
     'H  eject to a headless run',
     'P  revive a dead or headless session',

@@ -148,6 +148,24 @@ async function spawnSession(ctx: TestContext, pty: IPty, name: string) {
   await ctx.waitFor('FAKE_CLAUDE_UP');
 }
 
+async function waitForStatus(statusPath: string, needle: string) {
+  const start = Date.now();
+
+  while (Date.now() - start < 4000) {
+    const rawStatus = await Bun.file(statusPath)
+      .text()
+      .catch(() => '');
+
+    if (rawStatus.includes(needle)) {
+      return;
+    }
+
+    await Bun.sleep(50);
+  }
+
+  throw new Error(`status.json never contained ${needle}`);
+}
+
 test('it surfaces a needs-you session in the overlay and kills it on confirm', async () => {
   await using ctx = setupTest();
 
@@ -298,6 +316,101 @@ test('it opens the overlay with a configured leader key', async () => {
   await ctx.waitFor('leadertest');
   await ctx.waitFor('sessions');
 });
+
+test('it jumps to the most urgent needs-you session on tab', async () => {
+  await using ctx = setupTest();
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await spawnSession(ctx, pty, 'needy');
+
+  pty.write(CTRL_SPACE);
+
+  await ctx.waitFor('NEEDS YOU');
+
+  pty.write('\r'); // attach needy, clearing its need
+
+  await Bun.sleep(200); // the attach repaint has no unique marker to wait for
+
+  ctx.reset();
+  pty.write(CTRL_SPACE);
+
+  await ctx.waitFor('sessions');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: directory');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('urgent\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP');
+
+  // The freshly spawned session goes needs-you on its own notification,
+  // observable through the statusline contract file while attached.
+  const statusPath = join(ctx.home, '.local', 'state', 'atc', 'status.json');
+
+  await waitForStatus(statusPath, '"needs_you":1');
+
+  ctx.reset();
+  pty.write(CTRL_SPACE);
+
+  await ctx.waitFor('sessions');
+
+  pty.write('\u0009');
+
+  // Tab attaches the needy session and attaching acks it.
+  await waitForStatus(statusPath, '"needs_you":0');
+}, 15_000);
+
+test('it groups overlay rows under directory headers when dirs differ', async () => {
+  await using ctx = setupTest();
+
+  mkdirSync(join(ctx.home, 'otherproj'), { recursive: true });
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await spawnSession(ctx, pty, 'first');
+
+  pty.write(CTRL_SPACE);
+
+  await ctx.waitFor('NEEDS YOU');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: directory');
+
+  pty.write(join(ctx.home, 'otherproj'));
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('second\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP');
+
+  ctx.reset();
+  pty.write(CTRL_SPACE);
+
+  await ctx.waitFor('▸');
+  await ctx.waitFor('otherproj');
+}, 15_000);
 
 test('it preselects the focused session when the overlay opens', async () => {
   await using ctx = setupTest();
