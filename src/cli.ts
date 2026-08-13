@@ -50,16 +50,26 @@ const main = defineCommand({
           // Test harnesses shrink the outbound queue to force overflow
           // deterministically; unset means the production default.
           const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
+          const cfg = config.loadConfig();
+
+          // Cap on how long a fleet restore waits for one revived session to
+          // report it has booted before moving to the next. Tests pin it to
+          // keep timing deterministic; unset means the production default.
+          const capOverride = Number(process.env['ATC_RESTORE_BOOT_TIMEOUT_MS']);
+
+          const restoreBootTimeoutMs =
+            Number.isFinite(capOverride) && capOverride >= 0 ? capOverride : 15_000;
 
           const handle = daemon.startDaemon({
             headlessRunner: (runOpts, hooks) => headless.startHeadlessRun(runOpts, hooks),
             socketPath: config.daemonSocketPath,
             reporterSocketPath: config.socketPath,
             build: getBuild(),
-            adapter: new claude.ClaudeAdapter(config.loadConfig()),
+            adapter: new claude.ClaudeAdapter(cfg),
             dbPath: config.dbFile,
             legacyFleetPath: config.legacyFleetFile,
             pidPath: config.daemonPidFile,
+            restoreBootTimeoutMs,
             ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
             onQuit: () => process.exit(0),
           });

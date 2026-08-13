@@ -424,6 +424,81 @@ test('it restores the fleet cold after a daemon crash', async () => {
   expect(sessions[0]).toMatchObject({ claudeId: 'fake-1', alive: true });
 });
 
+test('it revives the fleet one boot at a time, gated on SessionStart', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
+
+  onTestFinished(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  mkdirSync(join(home, '.config', 'atc'), { recursive: true });
+  mkdirSync(join(home, '.local', 'state', 'atc'), { recursive: true });
+
+  // Each revived session announces itself after a short delay, then idles.
+  // Reporting its own atc id as the Claude session keeps the ids distinct.
+  const fakeClaude = join(home, 'fake-claude');
+
+  writeFileSync(
+    fakeClaude,
+    `#!/usr/bin/env bash
+sleep 0.4
+printf '{"hook_event_name":"SessionStart","session_id":"'"$ATC_SESSION_ID"'","transcript_path":"/nonexistent"}' | "${process.execPath}" "${join(repo, 'src', 'cli.ts')}" hook-report
+sleep 30
+`,
+    { mode: 0o755 },
+  );
+
+  writeFileSync(
+    join(home, '.config', 'atc', 'config.json'),
+    JSON.stringify({ claudeBin: fakeClaude, claudeArgs: [] }),
+  );
+
+  writeFileSync(
+    join(home, '.local', 'state', 'atc', 'fleet.json'),
+    JSON.stringify([
+      { name: 'one', cwd: home, claudeId: 'fake-a' },
+      { name: 'two', cwd: home, claudeId: 'fake-b' },
+      { name: 'three', cwd: home, claudeId: 'fake-c' },
+    ]),
+  );
+
+  // A cap far longer than the test can only be reached if the SessionStart
+  // gate fails, so a fleet that fills in quickly proves the gate drives it.
+  const ctx = setupDaemonProc(home, { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' });
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  // The response reports the whole planned fleet, but only the first session
+  // has spawned by the time the immediate list comes back — the rest are
+  // still waiting on the previous session's SessionStart.
+  const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  expect(restored).toStrictEqual({ restored: 3 });
+
+  const immediate = await client.sendRequest('session.list');
+
+  expect(getRecords(immediate, 'sessions')).toHaveLength(1);
+
+  // As each revive announces itself the next one boots, so the fleet fills in
+  // rather than freezing until the last process is up.
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'session.added' && isRecord(e['session']) && e['session']['name'] === 'three',
+  );
+
+  const settled = await client.sendRequest('session.list');
+
+  expect(getRecords(settled, 'sessions')).toHaveLength(3);
+});
+
 test('it broadcasts permission.requested when a session needs input', async () => {
   const ctx = setupDaemonProc();
 

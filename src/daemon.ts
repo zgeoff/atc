@@ -10,7 +10,7 @@ import { MAX_CHUNK, PROTOCOL_V } from './protocol';
 import type { EventMsg } from './protocol';
 import { ScreenModel } from './screen-model';
 import { SessionManager } from './sessions';
-import type { SessionDescriptor, SessionState } from './sessions';
+import type { FleetEntry, Session, SessionDescriptor, SessionState } from './sessions';
 import { StateStore } from './state-store';
 
 export interface DaemonOptions {
@@ -43,6 +43,13 @@ export interface DaemonOptions {
   // How long an eject waits for the dying terminal to report SessionEnd
   // before starting the headless run anyway.
   readonly ejectSettleMs?: number;
+
+  // A fleet-wide restore revives one session at a time, waiting for each to
+  // report it has booted before starting the next so the machine is not
+  // buried under a dozen simultaneous agent boots. This caps how long a
+  // single revive waits for that signal before moving on regardless, so a
+  // session that never reports cannot stall the rest. Zero waits forever.
+  readonly restoreBootTimeoutMs?: number;
 
   // Called after a client-requested quit has stopped the daemon; the real
   // entrypoint exits the process, tests leave it unset.
@@ -126,6 +133,37 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   // (or a settle timeout) before the headless run starts.
   const pendingEjects = new Map<string, () => void>();
 
+  // A staggered fleet restore parks a resolver here while it waits for the
+  // session it just revived to report it has booted; the reporter fires it on
+  // SessionStart, and a dying revive fires it too so a failed resume does not
+  // hold up the rest. Resolving a settled promise again is a no-op.
+  const bootWaiters = new Map<string, () => void>();
+
+  // Blocks until the session reports SessionStart, it dies, or the cap
+  // elapses (a positive cap only; zero waits on the signal alone).
+  const waitForBoot = (sessionID: string, capMs: number): Promise<void> => {
+    const settled = Promise.withResolvers<void>();
+    const timer = capMs > 0 ? setTimeout(settled.resolve, capMs) : undefined;
+
+    bootWaiters.set(sessionID, settled.resolve);
+
+    if (timer !== undefined) {
+      restoreTimers.add(timer);
+    }
+
+    return (async () => {
+      await settled.promise;
+
+      bootWaiters.delete(sessionID);
+
+      if (timer !== undefined) {
+        clearTimeout(timer);
+
+        restoreTimers.delete(timer);
+      }
+    })();
+  };
+
   const startHeadlessTurn = (sessionID: string, prompt: string): boolean => {
     const runner = opts.headlessRunner;
     const s = mgr.sessions.find((x) => x.id === sessionID);
@@ -172,6 +210,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   const screens = new Map<string, ScreenModel>();
   const resizeTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const detectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const restoreTimers = new Set<ReturnType<typeof setTimeout>>();
 
   // The screen tier of the detector stack: once a session's output has
   // quiesced, judge the serialized screen and flip running/needs_you.
@@ -345,6 +384,12 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   mgr.onEvent = (kind, s) => {
     recordAttention(kind, s);
 
+    // A revive that dies before it ever announces itself must still release
+    // the staggered restore, or a failed resume would hold up the fleet.
+    if (kind === 'removed' || (kind === 'state' && s.pty === null)) {
+      bootWaiters.get(s.id)?.();
+    }
+
     if (kind === 'removed') {
       attachments.removeSession(s.id);
       seqs.delete(s.id);
@@ -395,6 +440,12 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
 
     if (e.event === 'SessionEnd') {
       pendingEjects.get(e.atcId)?.();
+    }
+
+    // A revived session announcing itself is the cue a staggered restore
+    // waits on before booting the next one.
+    if (e.event === 'SessionStart') {
+      bootWaiters.get(e.atcId)?.();
     }
 
     mgr.applyHook(e);
@@ -563,13 +614,12 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     getEffectiveDims: (sessionID) =>
       attachments.findEffectiveDims(sessionID) ?? ptyDims.get(sessionID) ?? { cols: 80, rows: 24 },
     restoreFleet: (cols, rows) => {
-      let restored = 0;
+      const isLive = (claudeId: string | undefined) =>
+        mgr.sessions.some((s) => s.pty !== null && s.claudeId === claudeId);
 
-      for (const entry of store.loadFleet()) {
-        const live = mgr.sessions.some((s) => s.pty !== null && s.claudeId === entry.claudeId);
-
-        if (live) {
-          continue;
+      const restoreEntry = (entry: FleetEntry): Session | null => {
+        if (isLive(entry.claudeId)) {
+          return null;
         }
 
         const s = mgr.spawn(
@@ -586,10 +636,37 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
         ptyDims.set(s.id, { cols, rows });
         screens.set(s.id, new ScreenModel(cols, rows));
 
-        restored++;
+        return s;
+      };
+
+      const [first, ...rest] = store.loadFleet().filter((entry) => !isLive(entry.claudeId));
+
+      if (first === undefined) {
+        return 0;
       }
 
-      return restored;
+      // The first revive is synchronous so a caller can attach at once; each
+      // later revive waits for the previous session to report it has booted,
+      // so a heavy fleet comes up one process at a time instead of all at
+      // once. A per-session cap keeps a session that never reports from
+      // stalling the rest.
+      const cap = opts.restoreBootTimeoutMs ?? 0;
+
+      const restoreRest = async (previous: Session | null) => {
+        let prev = previous;
+
+        for (const entry of rest) {
+          if (prev !== null) {
+            await waitForBoot(prev.id, cap);
+          }
+
+          prev = restoreEntry(entry);
+        }
+      };
+
+      void restoreRest(restoreEntry(first));
+
+      return 1 + rest.length;
     },
   };
 
@@ -625,6 +702,10 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     }
 
     for (const timer of detectTimers.values()) {
+      clearTimeout(timer);
+    }
+
+    for (const timer of restoreTimers) {
       clearTimeout(timer);
     }
 

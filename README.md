@@ -121,3 +121,8 @@ live fleet (name, cwd, Claude session id) to its SQLite store. If the daemon its
 SIGKILL, reboot — the child claude processes die with it, but every session's transcript is already
 on disk. Start atc and press `R`: the whole fleet respawns via `claude --resume`. Only deliberate
 kills (`K`, `Y` eject) remove entries from the fleet, so it stays restorable.
+
+Restoring revives one session at a time: the next `claude --resume` starts only once the previous
+one has reported it is up (its `SessionStart` hook), so bringing back a dozen sessions no longer
+launches a dozen Claude processes at the same instant and pins the machine. The list fills in live
+as each comes back.

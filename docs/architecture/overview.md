@@ -60,3 +60,10 @@ children die with it (PTY close → SIGHUP), but Claude streams transcripts to d
 sessions are data, not processes. `claude --resume <id>` reconstructs any of them; the fleet table
 makes that a single keypress (`R`) after a cold boot. The same mechanism powers adopt (`r`) and
 yank/eject (`y`/`Y`).
+
+Reviving a whole fleet is incremental. The first session revives at once so the caller can attach,
+then each later revive waits for the previous session to report its `SessionStart` hook before it
+starts, so an update-triggered restart does not boot a dozen Claude processes in the same instant
+and stall the machine. A per-session cap (`restoreBootTimeoutMs`) keeps a session that never reports
+— or dies mid-resume — from holding up the rest. Each revive still broadcasts `session.added`, so
+the list fills in live rather than freezing until the last process is up.
