@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.3...@zgeoff/atc@0.1.4) (2026-08-13)
+
+
+### Bug Fixes
+
+* cluster overlay rows by group so headers render once per group ([#12](https://github.com/zgeoff/atc/issues/12)) ([2e9a400](https://github.com/zgeoff/atc/commit/2e9a4001fceeb50d4a71b124fdda801b23de3f5a))
+
 ## [0.1.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.2...@zgeoff/atc@0.1.3) (2026-08-13)
 
 ### Features
