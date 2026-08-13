@@ -70,6 +70,21 @@ const TOOLS: readonly MCPTool[] = [
     },
   },
   {
+    name: 'atc_session_update',
+    description:
+      'Rename and/or regroup a session. Renames stick against auto-summaries; an empty group clears the grouping. Use this to organise the fleet: name sessions after their task and group related work.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        session: { type: 'string', description: 'The atc session id' },
+        name: { type: 'string', description: 'New display name; omit to keep' },
+        group: { type: 'string', description: 'New group; empty string clears, omit to keep' },
+      },
+      required: ['session'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'atc_session_kill',
     description: 'Kill a session. A second kill on a dead session removes it from the list.',
     inputSchema: SESSION_INPUT,
@@ -236,6 +251,15 @@ async function runTool(
       });
 
       return 'sent';
+    }
+    case 'atc_session_update': {
+      await client.sendRequest('session.update', {
+        session: args['session'],
+        ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
+        ...(typeof args['group'] === 'string' ? { group: args['group'] } : {}),
+      });
+
+      return 'updated';
     }
     case 'atc_session_kill': {
       await client.sendRequest('session.kill', { session: args['session'] });

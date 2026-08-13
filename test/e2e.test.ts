@@ -128,7 +128,7 @@ done
   };
 }
 
-async function spawnSession(ctx: TestContext, pty: IPty, name: string) {
+async function spawnSession(ctx: TestContext, pty: IPty, name: string, group = '') {
   pty.write('n');
 
   await ctx.waitFor('spawn: directory');
@@ -139,6 +139,11 @@ async function spawnSession(ctx: TestContext, pty: IPty, name: string) {
 
   ctx.reset();
   pty.write(`${name}\r`);
+
+  await ctx.waitFor('spawn: group');
+
+  ctx.reset();
+  pty.write(`${group}\r`);
 
   await ctx.waitFor('spawn: initial prompt');
 
@@ -270,6 +275,10 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 
   pty.write('bravo\r');
 
+  await ctx.waitFor('spawn: group');
+
+  pty.write('\r');
+
   await ctx.waitFor('spawn: initial prompt');
 
   pty.write('\r');
@@ -349,6 +358,10 @@ test('it jumps to the most urgent needs-you session on tab', async () => {
 
   pty.write('urgent\r');
 
+  await ctx.waitFor('spawn: group');
+
+  pty.write('\r');
+
   await ctx.waitFor('spawn: initial prompt');
 
   pty.write('\r');
@@ -370,6 +383,46 @@ test('it jumps to the most urgent needs-you session on tab', async () => {
 
   // Tab attaches the needy session and attaching acks it.
   await waitForStatus(statusPath, '"needs_you":0');
+}, 15_000);
+
+test('it groups overlay rows under an explicit group before the spawn dir', async () => {
+  await using ctx = setupTest();
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await spawnSession(ctx, pty, 'grouped', 'backend');
+
+  pty.write(CTRL_SPACE);
+
+  await ctx.waitFor('NEEDS YOU');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: directory');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('loose\r');
+
+  await ctx.waitFor('spawn: group');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP');
+
+  ctx.reset();
+  pty.write(CTRL_SPACE);
+
+  await ctx.waitFor('▸ backend');
 }, 15_000);
 
 test('it groups overlay rows under directory headers when dirs differ', async () => {
@@ -397,6 +450,10 @@ test('it groups overlay rows under directory headers when dirs differ', async ()
   await ctx.waitFor('spawn: name');
 
   pty.write('second\r');
+
+  await ctx.waitFor('spawn: group');
+
+  pty.write('\r');
 
   await ctx.waitFor('spawn: initial prompt');
 
@@ -434,6 +491,10 @@ test('it preselects the focused session when the overlay opens', async () => {
   await ctx.waitFor('spawn: name');
 
   pty.write('second\r');
+
+  await ctx.waitFor('spawn: group');
+
+  pty.write('\r');
 
   await ctx.waitFor('spawn: initial prompt');
 
@@ -488,8 +549,12 @@ test('it adopts a session with --resume and yanks its resume command', async () 
 
   await ctx.waitFor('adopt: name');
 
-  ctx.reset();
   pty.write('adopted\r');
+
+  await ctx.waitFor('adopt: group');
+
+  ctx.reset();
+  pty.write('\r');
 
   await ctx.waitFor('FAKE_CLAUDE_UP');
 

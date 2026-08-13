@@ -265,6 +265,52 @@ test('it keeps a live terminal alive when its session reports an end', async () 
   expect(sessions[0]).toMatchObject({ alive: true, state: 'needs_you', lastMsg: 'session ended' });
 });
 
+test('it renames and regroups a session through session.update', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const spawned = getRecord(ok, 'session');
+  const id = getString(spawned, 'id');
+
+  await client.sendRequest('session.update', { session: id, name: 'auth-bug', group: 'backend' });
+
+  const renamed = await waitForEvent(
+    events,
+    (e) => e.ev === 'session.renamed' && e['name'] === 'auth-bug',
+  );
+
+  expect(renamed).toMatchObject({ namedBy: 'user' });
+
+  const list = await client.sendRequest('session.list');
+
+  const sessions = getRecords(list, 'sessions');
+
+  expect(sessions[0]).toMatchObject({ name: 'auth-bug', group: 'backend', namedBy: 'user' });
+
+  await client.sendRequest('session.update', { session: id, group: '' });
+
+  const cleared = await client.sendRequest('session.list');
+
+  const clearedSessions = getRecords(cleared, 'sessions');
+
+  expect(clearedSessions[0]).not.toContainKey('group');
+
+  expect(
+    client.sendRequest('session.update', { session: 'nope', name: 'x' }),
+  ).rejects.toMatchObject({ code: 'no_such_session' });
+});
+
 test('it kills a live session to exited and a dead one to removed', async () => {
   const ctx = setupDaemonProc();
 

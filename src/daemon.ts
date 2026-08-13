@@ -367,6 +367,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
         kind: s.kind,
         alive: s.pty !== null || (s.kind === 'jsonl' && s.state !== 'exited'),
         ...(s.claudeId === undefined ? {} : { claudeId: s.claudeId }),
+        ...(s.group === undefined ? {} : { group: s.group }),
       }),
       renamed: () => ({
         v: PROTOCOL_V,
@@ -399,7 +400,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     collectSpawnDirs: () => store.collectSpawnDirs(),
     collectFleet: () => store.loadFleet(),
     spawnSession: (p) => {
-      const s = mgr.spawn(p.cwd, p.name, p.prompt, p.cols, p.rows, p.resume, p.namedBy);
+      const s = mgr.spawn(p.cwd, p.name, p.prompt, p.cols, p.rows, p.resume, p.namedBy, p.group);
 
       ptyDims.set(s.id, { cols: p.cols, rows: p.rows });
       screens.set(s.id, new ScreenModel(p.cols, p.rows));
@@ -407,6 +408,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
 
       return getDescriptor(mgr, s.id);
     },
+    updateSession: (id, name, group) => mgr.updateSession(id, name, group),
     killSession: (id) => {
       if (!mgr.sessions.some((s) => s.id === id)) {
         return false;
@@ -556,7 +558,16 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
           continue;
         }
 
-        const s = mgr.spawn(entry.cwd, entry.name, '', cols, rows, entry.claudeId);
+        const s = mgr.spawn(
+          entry.cwd,
+          entry.name,
+          '',
+          cols,
+          rows,
+          entry.claudeId,
+          'auto',
+          entry.group,
+        );
 
         ptyDims.set(s.id, { cols, rows });
         screens.set(s.id, new ScreenModel(cols, rows));

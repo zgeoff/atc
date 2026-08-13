@@ -23,7 +23,8 @@ export class StateStore {
       CREATE TABLE IF NOT EXISTS fleet (
         claude_id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        cwd TEXT NOT NULL
+        cwd TEXT NOT NULL,
+        grp TEXT
       );
       CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,6 +40,17 @@ export class StateStore {
       );
     `);
 
+    // Stores created before groups existed lack the column; the create
+    // above only applies to fresh databases.
+    const fleetColumns = this.db
+      .query<{ name: string }, []>('PRAGMA table_info(fleet)')
+      .all()
+      .map((c) => c.name);
+
+    if (!fleetColumns.includes('grp')) {
+      this.db.run('ALTER TABLE fleet ADD COLUMN grp TEXT');
+    }
+
     if (legacyFleetPath !== undefined) {
       this.adoptLegacyFleet(legacyFleetPath);
     }
@@ -46,12 +58,23 @@ export class StateStore {
 
   loadFleet(): FleetEntry[] {
     const rows = this.db
-      .query<{ claude_id: string; name: string; cwd: string }, []>(
-        'SELECT claude_id, name, cwd FROM fleet',
+      .query<{ claude_id: string; name: string; cwd: string; grp: string | null }, []>(
+        'SELECT claude_id, name, cwd, grp FROM fleet',
       )
       .all();
 
-    return rows.map((row) => ({ claudeId: row.claude_id, name: row.name, cwd: row.cwd }));
+    const entries: FleetEntry[] = [];
+
+    for (const row of rows) {
+      const entry: FleetEntry =
+        row.grp === null
+          ? { claudeId: row.claude_id, name: row.name, cwd: row.cwd }
+          : { claudeId: row.claude_id, name: row.name, cwd: row.cwd, group: row.grp };
+
+      entries.push(entry);
+    }
+
+    return entries;
   }
 
   writeFleet(entries: readonly FleetEntry[]): void {
@@ -59,11 +82,11 @@ export class StateStore {
       this.db.run('DELETE FROM fleet');
 
       const insert = this.db.query(
-        'INSERT OR REPLACE INTO fleet (claude_id, name, cwd) VALUES (?1, ?2, ?3)',
+        'INSERT OR REPLACE INTO fleet (claude_id, name, cwd, grp) VALUES (?1, ?2, ?3, ?4)',
       );
 
       for (const entry of all) {
-        insert.run(entry.claudeId, entry.name, entry.cwd);
+        insert.run(entry.claudeId, entry.name, entry.cwd, entry.group ?? null);
       }
     });
 

@@ -153,6 +153,7 @@ export interface OverlaySessionView extends SessionView {
   readonly alive: boolean;
   readonly kind: 'pty' | 'jsonl';
   readonly resumable: boolean;
+  readonly group?: string;
 }
 
 export interface OverlayView {
@@ -172,16 +173,19 @@ export function drawOverlay(view: OverlayView) {
     rowsList.push(dimRow(width, empty));
   }
 
-  // With sessions in several directories the list groups under dim dir
-  // headers; the rows keep the sorted order, so urgent groups lead.
-  const grouped = new Set(view.sessions.map((s) => s.cwd)).size > 1;
-  let lastCwd: string | null = null;
+  // Sessions cluster under dim headers when more than one group exists: an
+  // explicit group wins, sessions without one fall back to their spawn
+  // directory. The rows keep the sorted order, so urgent groups lead.
+  const grouped = new Set(view.sessions.map((s) => s.group ?? s.cwd)).size > 1;
+  let lastKey: string | null = null;
 
   for (const [i, s] of view.sessions.entries()) {
-    if (grouped && s.cwd !== lastCwd) {
-      lastCwd = s.cwd;
+    const key = s.group ?? s.cwd;
 
-      rowsList.push(dimRow(width, `▸ ${formatDir(s.cwd)}`));
+    if (grouped && key !== lastKey) {
+      lastKey = key;
+
+      rowsList.push(dimRow(width, `▸ ${s.group ?? formatDir(s.cwd)}`));
     }
 
     const sel = i === view.selected;

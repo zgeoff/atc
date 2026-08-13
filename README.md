@@ -38,7 +38,7 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | Key             | Where          | Action                                                                                         |
 | --------------- | -------------- | ---------------------------------------------------------------------------------------------- |
 | leader          | anywhere       | toggle session overlay — `Ctrl-Space` by default, configurable (see Config)                    |
-| `n`             | home/overlay   | spawn: pick dir (zoxide + history, fuzzy) → name → optional first prompt                       |
+| `n`             | home/overlay   | spawn: pick dir (zoxide + history, fuzzy) → name → optional group → optional first prompt      |
 | `r`             | home/overlay   | adopt: pick dir → name → `claude --resume` (Claude's session picker opens in the new PTY)      |
 | `R`             | home           | restore last fleet after a daemon death — respawns every session via `claude --resume <id>`    |
 | `j`/`k`/`↑`/`↓` | overlay/picker | move                                                                                           |
@@ -54,8 +54,10 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | `?`             | overlay        | full key reference — the hint row only shows actions valid for the selected session            |
 | `q`             | home/overlay   | quit the client — sessions keep running in the daemon                                          |
 
-Sessions spawned from several directories group under per-directory headers in the overlay, urgent
-groups first; the directory a session shows is the one it was spawned from.
+The overlay clusters sessions under dim headers when more than one group exists: a session's
+explicit group wins, and sessions without one fall back to the directory they were spawned from.
+Groups also come from outside — the `atc_session_update` MCP tool renames and regroups sessions, so
+an agent can organise the fleet for you.
 
 Revive (`P`) and headless eject (`H`) resume the session from its saved transcript, so both need one
 to exist: a session killed before its first exchange has nothing on disk yet, and the overlay says
@@ -96,8 +98,8 @@ Pick a different leader when `Ctrl-Space` is taken on your machine — Raycast o
 `ctrl-]` is a solid replacement that no common terminal, multiplexer, or OS shortcut wants. An
 unknown or reserved value falls back to the default.
 
-`atc mcp` exposes the fleet as MCP tools (list, spawn, drive) to any MCP client, wrangled sessions
-included:
+`atc mcp` exposes the fleet as MCP tools (list, spawn, drive, organise) to any MCP client, wrangled
+sessions included:
 
 ```sh
 claude mcp add --scope user atc -- atc mcp

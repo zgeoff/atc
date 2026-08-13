@@ -23,6 +23,7 @@ export interface SessionDescriptor {
   readonly lastMsg: string;
   readonly lastDetail?: string;
   readonly claudeId?: string;
+  readonly group?: string;
   readonly namedBy: 'user' | 'auto' | 'agent';
   readonly createdAt: number;
   readonly kind: 'pty' | 'jsonl';
@@ -41,6 +42,7 @@ export interface Session {
   lastDetail?: string;
   claudeId?: string;
   transcriptSource?: string;
+  group?: string;
 
   // who last named this session: the agent's own rename beats everything, a
   // user-typed spawn name beats auto-summaries.
@@ -54,6 +56,7 @@ export interface FleetEntry {
   readonly name: string;
   readonly cwd: string;
   readonly claudeId: string;
+  readonly group?: string;
 }
 
 const fleetFile = join(stateDir, 'fleet.json');
@@ -187,6 +190,42 @@ export class SessionManager {
   }
 
   // Reports a headless run's lifecycle into the session state machine.
+  /**
+   * Renames and/or regroups a session on a caller's behalf. A rename lands
+   * at user strength, so auto-summaries stop overwriting it while an
+   * in-session rename still wins. An empty group clears the grouping.
+   */
+  updateSession(id: string, name?: string, group?: string): boolean {
+    const s = this.sessions.find((x) => x.id === id);
+
+    if (s === undefined) {
+      return false;
+    }
+
+    if (name !== undefined && name !== '' && s.namedBy !== 'agent') {
+      s.name = name;
+      s.namedBy = 'user';
+
+      this.onEvent('renamed', s);
+    }
+
+    if (group !== undefined) {
+      if (group === '') {
+        delete s.group;
+      } else {
+        s.group = group;
+      }
+
+      this.onEvent('state', s);
+    }
+
+    this.writeFleet();
+    this.writeStatus();
+    this.emitChange();
+
+    return true;
+  }
+
   updateSurfaceState(id: string, state: SessionState, msg: string) {
     const s = this.sessions.find((x) => x.id === id);
 
@@ -240,6 +279,7 @@ export class SessionManager {
     rows: number,
     resume: boolean | string = false,
     namedBy: 'user' | 'auto' = 'auto',
+    group?: string,
   ): Session {
     const id = `s${++counter}-${Date.now().toString(36)}`;
     const plan = this.adapter.planSpawn({ prompt, resume });
@@ -268,6 +308,7 @@ export class SessionManager {
       unread: false,
       lastMsg: initialMsg,
       ...(typeof resume === 'string' ? { claudeId: resume } : {}),
+      ...(group === undefined ? {} : { group }),
       namedBy,
       createdAt: Date.now(),
     };
@@ -309,6 +350,7 @@ export class SessionManager {
       lastMsg: s.lastMsg,
       ...(s.lastDetail === undefined ? {} : { lastDetail: s.lastDetail }),
       ...(s.claudeId === undefined ? {} : { claudeId: s.claudeId }),
+      ...(s.group === undefined ? {} : { group: s.group }),
       namedBy: s.namedBy,
       createdAt: s.createdAt,
       kind: s.kind,
@@ -525,7 +567,12 @@ export class SessionManager {
       const live = s.pty !== null || (s.kind === 'jsonl' && s.state !== 'exited');
 
       if (live && s.claudeId !== undefined) {
-        fleet.push({ name: s.name, cwd: s.cwd, claudeId: s.claudeId });
+        fleet.push({
+          name: s.name,
+          cwd: s.cwd,
+          claudeId: s.claudeId,
+          ...(s.group === undefined ? {} : { group: s.group }),
+        });
       }
     }
 
