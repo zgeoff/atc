@@ -2,11 +2,12 @@
 
 ## [0.1.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.1...@zgeoff/atc@0.1.2) (2026-08-13)
 
-
 ### Features
 
-* group sessions and let agents organise the fleet ([#8](https://github.com/zgeoff/atc/issues/8)) ([ae870d7](https://github.com/zgeoff/atc/commit/ae870d783583d5fd577e472221ce302aea8d21b4))
-* scale the overlay for large fleets ([#7](https://github.com/zgeoff/atc/issues/7)) ([d2917ee](https://github.com/zgeoff/atc/commit/d2917ee4b13f9a489a0818bc68a2805d905d1ea0))
+- group sessions and let agents organise the fleet ([#8](https://github.com/zgeoff/atc/issues/8))
+  ([ae870d7](https://github.com/zgeoff/atc/commit/ae870d783583d5fd577e472221ce302aea8d21b4))
+- scale the overlay for large fleets ([#7](https://github.com/zgeoff/atc/issues/7))
+  ([d2917ee](https://github.com/zgeoff/atc/commit/d2917ee4b13f9a489a0818bc68a2805d905d1ea0))
 
 ## [0.1.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.0...@zgeoff/atc@0.1.1) (2026-08-12)
 
