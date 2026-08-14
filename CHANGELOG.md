@@ -2,10 +2,11 @@
 
 ## [0.1.5](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.4...@zgeoff/atc@0.1.5) (2026-08-14)
 
-
 ### Features
 
-* gate fleet restore on each session's SessionStart hook ([#14](https://github.com/zgeoff/atc/issues/14)) ([ad37010](https://github.com/zgeoff/atc/commit/ad370101a4bd69b492a81e3b1e8a8d970e0d5f13))
+- gate fleet restore on each session's SessionStart hook
+  ([#14](https://github.com/zgeoff/atc/issues/14))
+  ([ad37010](https://github.com/zgeoff/atc/commit/ad370101a4bd69b492a81e3b1e8a8d970e0d5f13))
 
 ## [0.1.4](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.3...@zgeoff/atc@0.1.4) (2026-08-13)
 
