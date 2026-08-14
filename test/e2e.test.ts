@@ -385,6 +385,48 @@ test('it jumps to the most urgent needs-you session on tab', async () => {
   await waitForStatus(statusPath, '"needs_you":0');
 }, 15_000);
 
+test('it tab-jumps to a finished session when none need you', async () => {
+  await using ctx = setupTest();
+
+  // This fake reports a finished turn instead of a notification, so its
+  // session lands done with nothing needing you. It idles in short sleeps so
+  // the repaint trap stays responsive to the attach jiggle.
+  writeFileSync(
+    join(ctx.home, 'fake-claude'),
+    `#!/usr/bin/env bash
+paint() { echo "FAKE_CLAUDE_UP"; }
+trap paint WINCH
+paint
+printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | "${process.execPath}" "${join(repo, 'src', 'cli.ts')}" hook-report
+sleep 0.3
+printf '{"hook_event_name":"Stop","session_id":"fake-1"}' | "${process.execPath}" "${join(repo, 'src', 'cli.ts')}" hook-report
+for _ in $(seq 1 300); do sleep 0.1; done
+`,
+    { mode: 0o755 },
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await spawnSession(ctx, pty, 'finished');
+
+  const statusPath = join(ctx.home, '.local', 'state', 'atc', 'status.json');
+
+  await waitForStatus(statusPath, '"done":1');
+
+  pty.write(CTRL_SPACE);
+
+  await ctx.waitFor('sessions');
+
+  ctx.reset();
+  pty.write('\u0009');
+
+  // Tab attaches the finished session: the attach jiggle repaints the fake,
+  // whose marker only reaches the screen while attached.
+  await ctx.waitFor('FAKE_CLAUDE_UP');
+}, 15_000);
+
 test('it groups overlay rows under an explicit group before the spawn dir', async () => {
   await using ctx = setupTest();
 

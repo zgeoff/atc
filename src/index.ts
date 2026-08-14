@@ -2,6 +2,7 @@ import { basename } from 'node:path';
 import { bootDaemonClient } from './boot-daemon';
 import { loadConfig } from './config';
 import { collectDirs, findFuzzyScore, formatDir, pickMatches } from './dirs';
+import { pickTabTarget } from './pick-tab-target';
 import type { EventMsg } from './protocol';
 import { isRecord } from './report';
 import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from './sessions';
@@ -39,6 +40,12 @@ let confirmKill = false;
 
 // The client's mirror of the daemon's fleet, kept fresh by events.
 let fleet: MirrorSession[] = [];
+
+// When each session last flipped to done, so the Tab jump can prefer the
+// most recently finished turn. Sessions already done before this client
+// connected have no entry and rank last.
+const doneAt = new Map<string, number>();
+
 let focusedID: string | null = null;
 let fleetCount = 0;
 
@@ -471,6 +478,10 @@ function applyDaemonEvent(e: EventMsg) {
       if (s !== undefined) {
         const next = SESSION_STATES.find((x) => x === e['state']);
 
+        if (next === 'done' && s.state !== 'done') {
+          doneAt.set(s.id, Date.now());
+        }
+
         if (next !== undefined) {
           s.state = next;
         }
@@ -523,6 +534,10 @@ function applyDaemonEvent(e: EventMsg) {
     }
     case 'session.removed': {
       fleet = fleet.filter((x) => x.id !== e['s']);
+
+      if (typeof e['s'] === 'string') {
+        doneAt.delete(e['s']);
+      }
 
       if (focusedID === e['s']) {
         focusedID = null;
@@ -695,10 +710,10 @@ function applyOverlayKey(buf: Buffer) {
   const ch = buf.toString();
 
   if (buf[0] === KEY.tab) {
-    const needy = sortSessionViews(fleet).find((s) => s.state === 'needs_you' && s.alive);
+    const target = pickTabTarget(fleet, (id) => doneAt.get(id));
 
-    if (needy !== undefined) {
-      void attach(needy.id);
+    if (target !== undefined) {
+      void attach(target.id);
     }
 
     return;

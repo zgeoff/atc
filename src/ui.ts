@@ -274,7 +274,7 @@ export function drawHelp() {
 
   const lines = [
     '⏎  attach the selected session',
-    '⇥  attach the most urgent needs-you session',
+    '⇥  attach the most urgent needs-you, else latest done',
     'a  ack its notification without attaching',
     'H  eject to a headless run',
     'P  revive a dead or headless session',

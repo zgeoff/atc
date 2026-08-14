@@ -43,7 +43,7 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | `R`             | home           | restore last fleet after a daemon death — respawns every session via `claude --resume <id>`    |
 | `j`/`k`/`↑`/`↓` | overlay/picker | move                                                                                           |
 | `Enter`         | overlay        | attach (auto-acks)                                                                             |
-| `Tab`           | overlay        | attach the most urgent needs-you session                                                       |
+| `Tab`           | overlay        | attach the most urgent needs-you session, else the latest turn-done one                        |
 | `/`             | overlay        | fuzzy filter by name/dir (chars in order), `⏎` attach top match, `esc` clear                   |
 | `a`             | overlay        | ack notification without attaching                                                             |
 | `H`             | overlay        | eject to headless: the terminal dies, a headless Agent SDK run resumes the same session        |
