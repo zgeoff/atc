@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.5...@zgeoff/atc@0.1.6) (2026-08-14)
+
+
+### Features
+
+* show restoring sessions up front and revive most recent first ([#16](https://github.com/zgeoff/atc/issues/16)) ([cfad791](https://github.com/zgeoff/atc/commit/cfad791836585bf78a17d7dbd95c78813ad6d2de))
+
 ## [0.1.5](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.4...@zgeoff/atc@0.1.5) (2026-08-14)
 
 ### Features
