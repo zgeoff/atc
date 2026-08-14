@@ -2,10 +2,11 @@
 
 ## [0.1.7](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.6...@zgeoff/atc@0.1.7) (2026-08-14)
 
-
 ### Features
 
-* tab-jump to the latest finished session when none need you ([#18](https://github.com/zgeoff/atc/issues/18)) ([a25d49d](https://github.com/zgeoff/atc/commit/a25d49d237e5df7e47caf98ee44bdbe5b42edff5))
+- tab-jump to the latest finished session when none need you
+  ([#18](https://github.com/zgeoff/atc/issues/18))
+  ([a25d49d](https://github.com/zgeoff/atc/commit/a25d49d237e5df7e47caf98ee44bdbe5b42edff5))
 
 ## [0.1.6](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.5...@zgeoff/atc@0.1.6) (2026-08-14)
 
