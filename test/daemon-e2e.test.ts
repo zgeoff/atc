@@ -1,3 +1,4 @@
+import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,6 +7,7 @@ import type { Subprocess } from 'bun';
 import { DaemonClient } from '../src/daemon-client';
 import type { EventMsg } from '../src/protocol';
 import { isRecord } from '../src/report';
+import { StateStore } from '../src/state-store';
 
 const repo = dirname(import.meta.dir);
 
@@ -476,27 +478,111 @@ sleep 30
 
   await client.sendHello('atc/test');
 
-  // The response reports the whole planned fleet, but only the first session
-  // has spawned by the time the immediate list comes back — the rest are
-  // still waiting on the previous session's SessionStart.
+  // The whole fleet lists immediately, but only the first session has a
+  // terminal by the time the immediate list comes back — the rest are queued
+  // behind the previous session's SessionStart.
   const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   expect(restored).toStrictEqual({ restored: 3 });
 
   const immediate = await client.sendRequest('session.list');
 
-  expect(getRecords(immediate, 'sessions')).toHaveLength(1);
+  const immediateSessions = getRecords(immediate, 'sessions');
 
-  // As each revive announces itself the next one boots, so the fleet fills in
-  // rather than freezing until the last process is up.
+  expect(immediateSessions).toHaveLength(3);
+  expect(immediateSessions.filter((s) => s['kind'] === 'pty')).toHaveLength(1);
+  expect(immediateSessions.filter((s) => s['lastMsg'] === 'waiting to restore')).toHaveLength(2);
+
+  // As each revive announces itself the next terminal attaches, so the fleet
+  // fills in rather than freezing until the last process is up.
   await waitForEvent(
     events,
-    (e) => e.ev === 'session.added' && isRecord(e['session']) && e['session']['name'] === 'three',
+    (e) => e.ev === 'session.state' && e['claudeId'] === 'fake-c' && e['kind'] === 'pty',
   );
 
   const settled = await client.sendRequest('session.list');
 
-  expect(getRecords(settled, 'sessions')).toHaveLength(3);
+  expect(getRecords(settled, 'sessions').filter((s) => s['kind'] === 'pty')).toHaveLength(3);
+});
+
+test('it revives the fleet most recently active first', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
+
+  onTestFinished(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  mkdirSync(join(home, '.config', 'atc'), { recursive: true });
+  mkdirSync(join(home, '.local', 'state', 'atc'), { recursive: true });
+
+  const fakeClaude = join(home, 'fake-claude');
+
+  writeFileSync(
+    fakeClaude,
+    `#!/usr/bin/env bash
+sleep 0.1
+printf '{"hook_event_name":"SessionStart","session_id":"'"$ATC_SESSION_ID"'","transcript_path":"/nonexistent"}' | "${process.execPath}" "${join(repo, 'src', 'cli.ts')}" hook-report
+sleep 30
+`,
+    { mode: 0o755 },
+  );
+
+  writeFileSync(
+    join(home, '.config', 'atc', 'config.json'),
+    JSON.stringify({ claudeBin: fakeClaude, claudeArgs: [] }),
+  );
+
+  const dbPath = join(home, '.local', 'state', 'atc', 'atc.db');
+
+  const seed = new StateStore(dbPath);
+
+  seed.writeFleet([
+    { name: 'one', cwd: home, claudeId: 'fake-a' },
+    { name: 'two', cwd: home, claudeId: 'fake-b' },
+    { name: 'three', cwd: home, claudeId: 'fake-c' },
+  ]);
+
+  seed.stop();
+
+  // The event trail dates 'three' most recent and 'one' oldest, inverting
+  // the stored fleet order.
+  const db = new Database(dbPath);
+
+  db.run(
+    'INSERT INTO events (ts, atc_id, event, message, session_id) VALUES ' +
+      "('2026-08-14T00:00:01.000Z', 's1', 'Stop', NULL, 'fake-a')," +
+      "('2026-08-14T00:00:03.000Z', 's2', 'Stop', NULL, 'fake-c')," +
+      "('2026-08-14T00:00:02.000Z', 's3', 'Stop', NULL, 'fake-b')",
+  );
+
+  db.close();
+
+  const ctx = setupDaemonProc(home);
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  expect(restored).toStrictEqual({ restored: 3 });
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'session.added' && isRecord(e['session']) && e['session']['name'] === 'one',
+  );
+
+  const added = events
+    .filter((e) => e.ev === 'session.added')
+    .map((e) => (isRecord(e['session']) ? e['session']['name'] : null));
+
+  expect(added).toStrictEqual(['three', 'two', 'one']);
 });
 
 test('it broadcasts permission.requested when a session needs input', async () => {

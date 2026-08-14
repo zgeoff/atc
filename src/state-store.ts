@@ -77,6 +77,18 @@ export class StateStore {
     return entries;
   }
 
+  // The latest hook-event timestamp per agent session id, from the event
+  // trail. Sessions that never reported an event are absent.
+  collectFleetRecency(): Map<string, string> {
+    const rows = this.db
+      .query<{ session_id: string; ts: string }, []>(
+        'SELECT session_id, MAX(ts) AS ts FROM events WHERE session_id IS NOT NULL GROUP BY session_id',
+      )
+      .all();
+
+    return new Map(rows.map((row) => [row.session_id, row.ts]));
+  }
+
   writeFleet(entries: readonly FleetEntry[]): void {
     const replace = this.db.transaction((all: readonly FleetEntry[]) => {
       this.db.run('DELETE FROM fleet');

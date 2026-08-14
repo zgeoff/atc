@@ -61,9 +61,11 @@ sessions are data, not processes. `claude --resume <id>` reconstructs any of the
 makes that a single keypress (`R`) after a cold boot. The same mechanism powers adopt (`r`) and
 yank/eject (`y`/`Y`).
 
-Reviving a whole fleet is incremental. The first session revives at once so the caller can attach,
-then each later revive waits for the previous session to report its `SessionStart` hook before it
-starts, so an update-triggered restart does not boot a dozen Claude processes in the same instant
-and stall the machine. A per-session cap (`restoreBootTimeoutMs`) keeps a session that never reports
-— or dies mid-resume — from holding up the rest. Each revive still broadcasts `session.added`, so
-the list fills in live rather than freezing until the last process is up.
+Reviving a whole fleet is incremental but visible from the start. Every fleet entry registers as a
+session without a terminal before any process boots — each broadcasts `session.added`, so clients
+list the full incoming fleet immediately, marked "waiting to restore". Terminals then attach one at
+a time in recency order (latest hook event in the trail first, from the events table): the first
+attaches at once so the caller can attach, and each later one waits for the previous session to
+report its `SessionStart` hook, so an update-triggered restart does not boot a dozen Claude
+processes in the same instant and stall the machine. A per-session cap (`restoreBootTimeoutMs`)
+keeps a session that never reports — or dies mid-resume — from holding up the rest.

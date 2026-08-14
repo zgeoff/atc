@@ -141,6 +141,32 @@ export class SessionManager {
     return s;
   }
 
+  // Registers a fleet entry as a session with no terminal yet, so a
+  // fleet-wide restore can show every incoming session at once; adopting it
+  // later attaches the terminal.
+  restore(entry: FleetEntry): Session {
+    const session: Session = {
+      id: `s${++counter}-${Date.now().toString(36)}`,
+      name: entry.name,
+      cwd: entry.cwd,
+      kind: 'jsonl',
+      pty: null,
+      state: 'running',
+      unread: false,
+      lastMsg: 'waiting to restore',
+      claudeId: entry.claudeId,
+      ...(entry.group === undefined ? {} : { group: entry.group }),
+      namedBy: 'auto',
+      createdAt: Date.now(),
+    };
+
+    this.sessions.push(session);
+    this.writeStatus();
+    this.onEvent('added', session);
+
+    return session;
+  }
+
   // Adopts a headless session back into a terminal: a fresh PTY resumes the
   // same agent session id.
   adoptTerminal(id: string, cols: number, rows: number): Session | null {

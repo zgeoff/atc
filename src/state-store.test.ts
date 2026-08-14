@@ -115,6 +115,38 @@ test('it records hook events into the trail', () => {
   ]);
 });
 
+test('it reports the latest event timestamp per agent session', () => {
+  const dir = setupDir();
+  const dbPath = join(dir, 'state.db');
+
+  const store = new StateStore(dbPath);
+
+  onTestFinished(() => {
+    store.stop();
+  });
+
+  const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
+
+  db.run(
+    'INSERT INTO events (ts, atc_id, event, message, session_id) VALUES ' +
+      "('2026-08-14T00:00:01.000Z', 's1', 'SessionStart', NULL, 'c1')," +
+      "('2026-08-14T00:00:03.000Z', 's1', 'Stop', NULL, 'c1')," +
+      "('2026-08-14T00:00:02.000Z', 's2', 'SessionStart', NULL, 'c2')," +
+      "('2026-08-14T00:00:04.000Z', 's3', 'SessionStart', NULL, NULL)",
+  );
+
+  expect(store.collectFleetRecency()).toStrictEqual(
+    new Map([
+      ['c1', '2026-08-14T00:00:03.000Z'],
+      ['c2', '2026-08-14T00:00:02.000Z'],
+    ]),
+  );
+});
+
 test('it lists spawn directories most recent first without duplicates', async () => {
   const store = new StateStore(join(setupDir(), 'state.db'));
 

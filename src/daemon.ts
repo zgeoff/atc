@@ -10,7 +10,7 @@ import { MAX_CHUNK, PROTOCOL_V } from './protocol';
 import type { EventMsg } from './protocol';
 import { ScreenModel } from './screen-model';
 import { SessionManager } from './sessions';
-import type { FleetEntry, Session, SessionDescriptor, SessionState } from './sessions';
+import type { Session, SessionDescriptor, SessionState } from './sessions';
 import { StateStore } from './state-store';
 
 export interface DaemonOptions {
@@ -533,6 +533,10 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
 
       ptyDims.set(id, { cols, rows });
 
+      if (!screens.has(id)) {
+        screens.set(id, new ScreenModel(cols, rows));
+      }
+
       scheduleResize(id);
 
       return 'ok';
@@ -614,59 +618,74 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     getEffectiveDims: (sessionID) =>
       attachments.findEffectiveDims(sessionID) ?? ptyDims.get(sessionID) ?? { cols: 80, rows: 24 },
     restoreFleet: (cols, rows) => {
-      const isLive = (claudeId: string | undefined) =>
-        mgr.sessions.some((s) => s.pty !== null && s.claudeId === claudeId);
-
-      const restoreEntry = (entry: FleetEntry): Session | null => {
-        if (isLive(entry.claudeId)) {
-          return null;
-        }
-
-        const s = mgr.spawn(
-          entry.cwd,
-          entry.name,
-          '',
-          cols,
-          rows,
-          entry.claudeId,
-          'auto',
-          entry.group,
+      const hasSession = (claudeId: string) =>
+        mgr.sessions.some(
+          (s) =>
+            s.claudeId === claudeId &&
+            (s.pty !== null || (s.kind === 'jsonl' && s.state !== 'exited')),
         );
 
-        ptyDims.set(s.id, { cols, rows });
-        screens.set(s.id, new ScreenModel(cols, rows));
+      const recency = store.collectFleetRecency();
 
-        return s;
+      // Most recently active sessions revive first, so the ones the user was
+      // just working in come back before long-idle ones; entries that never
+      // reported an event keep their stored order at the end.
+      const entries = store
+        .loadFleet()
+        .filter((entry) => !hasSession(entry.claudeId))
+        .toSorted((a, b) =>
+          (recency.get(b.claudeId) ?? '').localeCompare(recency.get(a.claudeId) ?? ''),
+        );
+
+      // The whole fleet registers as terminal-less sessions up front, so the
+      // list shows every incoming session immediately instead of revealing
+      // them one boot at a time.
+      const queued = entries.map((entry) => mgr.restore(entry));
+
+      const adoptQueued = (s: Session): boolean => {
+        if (mgr.adoptTerminal(s.id, cols, rows) === null) {
+          return false;
+        }
+
+        ptyDims.set(s.id, { cols, rows });
+
+        if (!screens.has(s.id)) {
+          screens.set(s.id, new ScreenModel(cols, rows));
+        }
+
+        return true;
       };
 
-      const [first, ...rest] = store.loadFleet().filter((entry) => !isLive(entry.claudeId));
+      const [first, ...rest] = queued;
 
       if (first === undefined) {
         return 0;
       }
 
-      // The first revive is synchronous so a caller can attach at once; each
-      // later revive waits for the previous session to report it has booted,
-      // so a heavy fleet comes up one process at a time instead of all at
-      // once. A per-session cap keeps a session that never reports from
-      // stalling the rest.
+      // The first terminal attaches synchronously so a caller can attach at
+      // once; each later one waits for the previous session to report it has
+      // booted, so a heavy fleet comes up one process at a time instead of
+      // all at once. A per-session cap keeps a session that never reports
+      // from stalling the rest.
       const cap = opts.restoreBootTimeoutMs ?? 0;
 
-      const restoreRest = async (previous: Session | null) => {
+      const adoptRest = async (previous: Session | null) => {
         let prev = previous;
 
-        for (const entry of rest) {
+        for (const s of rest) {
           if (prev !== null) {
             await waitForBoot(prev.id, cap);
           }
 
-          prev = restoreEntry(entry);
+          prev = adoptQueued(s) ? s : null;
         }
       };
 
-      void restoreRest(restoreEntry(first));
+      const firstBooted = adoptQueued(first) ? first : null;
 
-      return 1 + rest.length;
+      void adoptRest(firstBooted);
+
+      return queued.length;
     },
   };
 
