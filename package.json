@@ -1,6 +1,6 @@
 {
   "name": "@zgeoff/atc",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Terminal control tower for Claude Code sessions",
   "homepage": "https://github.com/zgeoff/atc#readme",
   "bugs": "https://github.com/zgeoff/atc/issues",
