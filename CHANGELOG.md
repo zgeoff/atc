@@ -2,10 +2,10 @@
 
 ## [0.1.8](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.7...@zgeoff/atc@0.1.8) (2026-08-17)
 
-
 ### Bug Fixes
 
-* match leader chords and replay input modes ([#20](https://github.com/zgeoff/atc/issues/20)) ([e2399aa](https://github.com/zgeoff/atc/commit/e2399aaee478b708b1a5fd101811c02a8abeee90))
+- match leader chords and replay input modes ([#20](https://github.com/zgeoff/atc/issues/20))
+  ([e2399aa](https://github.com/zgeoff/atc/commit/e2399aaee478b708b1a5fd101811c02a8abeee90))
 
 ## [0.1.7](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.6...@zgeoff/atc@0.1.7) (2026-08-14)
 
