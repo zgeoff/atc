@@ -128,7 +128,7 @@ done
   };
 }
 
-async function spawnSession(ctx: TestContext, pty: IPty, name: string, group = '') {
+async function spawnSession(ctx: TestContext, pty: IPty, name: string) {
   pty.write('n');
 
   await ctx.waitFor('spawn: directory');
@@ -139,11 +139,6 @@ async function spawnSession(ctx: TestContext, pty: IPty, name: string, group = '
 
   ctx.reset();
   pty.write(`${name}\r`);
-
-  await ctx.waitFor('spawn: group');
-
-  ctx.reset();
-  pty.write(`${group}\r`);
 
   await ctx.waitFor('spawn: initial prompt');
 
@@ -275,10 +270,6 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 
   pty.write('bravo\r');
 
-  await ctx.waitFor('spawn: group');
-
-  pty.write('\r');
-
   await ctx.waitFor('spawn: initial prompt');
 
   pty.write('\r');
@@ -358,10 +349,6 @@ test('it jumps to the most urgent needs-you session on tab', async () => {
 
   pty.write('urgent\r');
 
-  await ctx.waitFor('spawn: group');
-
-  pty.write('\r');
-
   await ctx.waitFor('spawn: initial prompt');
 
   pty.write('\r');
@@ -427,47 +414,26 @@ for _ in $(seq 1 300); do sleep 0.1; done
   await ctx.waitFor('FAKE_CLAUDE_UP');
 }, 15_000);
 
-test('it groups overlay rows under an explicit group before the spawn dir', async () => {
+test('it pins a session from the overlay and marks its row', async () => {
   await using ctx = setupTest();
 
   const pty = ctx.boot();
 
   await ctx.waitFor('atc — control tower');
 
-  await spawnSession(ctx, pty, 'grouped', 'backend');
+  await spawnSession(ctx, pty, 'pinme');
 
   pty.write(CTRL_SPACE);
 
   await ctx.waitFor('NEEDS YOU');
 
-  pty.write('n');
-
-  await ctx.waitFor('spawn: directory');
-
-  pty.write('\r');
-
-  await ctx.waitFor('spawn: name');
-
-  pty.write('loose\r');
-
-  await ctx.waitFor('spawn: group');
-
   ctx.reset();
-  pty.write('\r');
+  pty.write('p');
 
-  await ctx.waitFor('spawn: initial prompt');
-
-  pty.write('\r');
-
-  await ctx.waitFor('FAKE_CLAUDE_UP');
-
-  ctx.reset();
-  pty.write(CTRL_SPACE);
-
-  await ctx.waitFor('▸ backend');
+  await ctx.waitFor('⋆');
 }, 15_000);
 
-test('it groups overlay rows under directory headers when dirs differ', async () => {
+test('it clusters overlay rows under repository headers when grouping is toggled on', async () => {
   await using ctx = setupTest();
 
   mkdirSync(join(ctx.home, 'otherproj'), { recursive: true });
@@ -493,10 +459,6 @@ test('it groups overlay rows under directory headers when dirs differ', async ()
 
   pty.write('second\r');
 
-  await ctx.waitFor('spawn: group');
-
-  pty.write('\r');
-
   await ctx.waitFor('spawn: initial prompt');
 
   ctx.reset();
@@ -506,6 +468,13 @@ test('it groups overlay rows under directory headers when dirs differ', async ()
 
   ctx.reset();
   pty.write(CTRL_SPACE);
+
+  await ctx.waitFor('second');
+
+  expect(ctx.read()).not.toInclude('▸');
+
+  ctx.reset();
+  pty.write('g');
 
   await ctx.waitFor('▸');
   await ctx.waitFor('otherproj');
@@ -533,10 +502,6 @@ test('it preselects the focused session when the overlay opens', async () => {
   await ctx.waitFor('spawn: name');
 
   pty.write('second\r');
-
-  await ctx.waitFor('spawn: group');
-
-  pty.write('\r');
 
   await ctx.waitFor('spawn: initial prompt');
 
@@ -592,11 +557,6 @@ test('it adopts a session with --resume and yanks its resume command', async () 
   await ctx.waitFor('adopt: name');
 
   pty.write('adopted\r');
-
-  await ctx.waitFor('adopt: group');
-
-  ctx.reset();
-  pty.write('\r');
 
   await ctx.waitFor('FAKE_CLAUDE_UP');
 

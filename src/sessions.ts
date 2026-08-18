@@ -7,6 +7,7 @@ import { collectCleanEnv } from './collect-clean-env';
 import { socketPath, stateDir, statusFile } from './config';
 import type { HookEvent } from './hooks';
 import { isRecord } from './report';
+import { resolveRepoRoot } from './resolve-repo-root';
 
 export type SessionState = 'running' | 'needs_you' | 'done' | 'exited';
 
@@ -23,7 +24,9 @@ export interface SessionDescriptor {
   readonly lastMsg: string;
   readonly lastDetail?: string;
   readonly claudeId?: string;
-  readonly group?: string;
+  readonly pinned: boolean;
+  readonly lastAttachedAt: number;
+  readonly repoRoot: string;
   readonly namedBy: 'user' | 'auto' | 'agent';
   readonly createdAt: number;
   readonly kind: 'pty' | 'jsonl';
@@ -42,7 +45,15 @@ export interface Session {
   lastDetail?: string;
   claudeId?: string;
   transcriptSource?: string;
-  group?: string;
+  pinned: boolean;
+
+  // when the operator last attached, so lists can lead with the sessions
+  // they were just working in; starts at creation time.
+  lastAttachedAt: number;
+
+  // the repository this session's directory belongs to (the directory
+  // itself outside any repository), for clustering in the overlay.
+  repoRoot: string;
 
   // who last named this session: the agent's own rename beats everything, a
   // user-typed spawn name beats auto-summaries.
@@ -56,7 +67,8 @@ export interface FleetEntry {
   readonly name: string;
   readonly cwd: string;
   readonly claudeId: string;
-  readonly group?: string;
+  readonly pinned?: boolean;
+  readonly lastAttachedAt?: number;
 }
 
 const fleetFile = join(stateDir, 'fleet.json');
@@ -155,7 +167,9 @@ export class SessionManager {
       unread: false,
       lastMsg: 'waiting to restore',
       claudeId: entry.claudeId,
-      ...(entry.group === undefined ? {} : { group: entry.group }),
+      pinned: entry.pinned ?? false,
+      lastAttachedAt: entry.lastAttachedAt ?? Date.now(),
+      repoRoot: resolveRepoRoot(entry.cwd),
       namedBy: 'auto',
       createdAt: Date.now(),
     };
@@ -215,13 +229,12 @@ export class SessionManager {
     return s;
   }
 
-  // Reports a headless run's lifecycle into the session state machine.
   /**
-   * Renames and/or regroups a session on a caller's behalf. A rename lands
-   * at user strength, so auto-summaries stop overwriting it while an
-   * in-session rename still wins. An empty group clears the grouping.
+   * Renames and/or pins a session on a caller's behalf. A rename lands at
+   * user strength, so auto-summaries stop overwriting it while an
+   * in-session rename still wins. Pinned sessions lead every list.
    */
-  updateSession(id: string, name?: string, group?: string): boolean {
+  updateSession(id: string, name?: string, pinned?: boolean): boolean {
     const s = this.sessions.find((x) => x.id === id);
 
     if (s === undefined) {
@@ -235,12 +248,8 @@ export class SessionManager {
       this.onEvent('renamed', s);
     }
 
-    if (group !== undefined) {
-      if (group === '') {
-        delete s.group;
-      } else {
-        s.group = group;
-      }
+    if (pinned !== undefined && pinned !== s.pinned) {
+      s.pinned = pinned;
 
       this.onEvent('state', s);
     }
@@ -305,7 +314,6 @@ export class SessionManager {
     rows: number,
     resume: boolean | string = false,
     namedBy: 'user' | 'auto' = 'auto',
-    group?: string,
   ): Session {
     const id = `s${++counter}-${Date.now().toString(36)}`;
     const plan = this.adapter.planSpawn({ prompt, resume });
@@ -334,7 +342,9 @@ export class SessionManager {
       unread: false,
       lastMsg: initialMsg,
       ...(typeof resume === 'string' ? { claudeId: resume } : {}),
-      ...(group === undefined ? {} : { group }),
+      pinned: false,
+      lastAttachedAt: Date.now(),
+      repoRoot: resolveRepoRoot(cwd),
       namedBy,
       createdAt: Date.now(),
     };
@@ -376,7 +386,9 @@ export class SessionManager {
       lastMsg: s.lastMsg,
       ...(s.lastDetail === undefined ? {} : { lastDetail: s.lastDetail }),
       ...(s.claudeId === undefined ? {} : { claudeId: s.claudeId }),
-      ...(s.group === undefined ? {} : { group: s.group }),
+      pinned: s.pinned,
+      lastAttachedAt: s.lastAttachedAt,
+      repoRoot: s.repoRoot,
       namedBy: s.namedBy,
       createdAt: s.createdAt,
       kind: s.kind,
@@ -508,6 +520,9 @@ export class SessionManager {
     }
 
     s.unread = false;
+    s.lastAttachedAt = Date.now();
+
+    this.writeFleet();
 
     // Attaching answers the attention request: a still-pending prompt
     // re-flags it via the next notification.
@@ -597,7 +612,8 @@ export class SessionManager {
           name: s.name,
           cwd: s.cwd,
           claudeId: s.claudeId,
-          ...(s.group === undefined ? {} : { group: s.group }),
+          ...(s.pinned ? { pinned: true } : {}),
+          lastAttachedAt: s.lastAttachedAt,
         });
       }
     }
@@ -626,10 +642,17 @@ export function countSessionStates(
   return c;
 }
 
-// Overlay order: who needs you first, then finished turns, then busy, then dead.
-export function sortSessionViews<
-  T extends { readonly state: SessionState; readonly createdAt: number },
->(list: readonly T[]): T[] {
+interface SortableSessionView {
+  readonly state: SessionState;
+  readonly pinned: boolean;
+  readonly lastAttachedAt: number;
+  readonly createdAt: number;
+}
+
+// Overlay order: pinned sessions first in most-recently-attached order, then
+// everyone else by urgency — who needs you, finished turns, busy, dead —
+// with most-recently-attached breaking ties inside each state.
+export function sortSessionViews<T extends SortableSessionView>(list: readonly T[]): T[] {
   const rank: Record<SessionState, number> = {
     needs_you: 0,
     done: 1,
@@ -637,24 +660,31 @@ export function sortSessionViews<
     exited: 3,
   };
 
-  return [...list].toSorted((a, b) => rank[a.state] - rank[b.state] || a.createdAt - b.createdAt);
+  return [...list].toSorted((a, b) => {
+    if (a.pinned !== b.pinned) {
+      return a.pinned ? -1 : 1;
+    }
+
+    const recency = b.lastAttachedAt - a.lastAttachedAt || b.createdAt - a.createdAt;
+
+    return a.pinned ? recency : rank[a.state] - rank[b.state] || recency;
+  });
 }
 
-// Overlay display order: the urgency sort with each group's sessions pulled
-// together at the position of its most urgent member, so the renderer's
-// adjacency-based headers appear once per group and urgent groups still lead.
+// Never a filesystem path, so a repository can't collide with it.
+export const PINNED_GROUP_KEY = ' pinned';
+
+// Overlay display order for the grouped view: the flat sort with each
+// repository's sessions pulled together at the position of its best-ranked
+// member, so the renderer's adjacency-based headers appear once per group.
+// Pinned sessions form their own leading group.
 export function sortGroupedSessionViews<
-  T extends {
-    readonly state: SessionState;
-    readonly createdAt: number;
-    readonly group?: string;
-    readonly cwd: string;
-  },
+  T extends SortableSessionView & { readonly repoRoot: string },
 >(list: readonly T[]): T[] {
   const buckets = new Map<string, T[]>();
 
   for (const s of sortSessionViews(list)) {
-    const key = s.group ?? s.cwd;
+    const key = s.pinned ? PINNED_GROUP_KEY : s.repoRoot;
     const bucket = buckets.get(key);
 
     if (bucket === undefined) {

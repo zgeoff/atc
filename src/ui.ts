@@ -1,5 +1,6 @@
 import { formatDir } from './dirs';
 import { RESET_INPUT_MODES } from './reset-input-modes';
+import { PINNED_GROUP_KEY } from './sessions';
 import type { SessionState } from './sessions';
 
 // The slice of a session the drawing layer needs; satisfied by both the
@@ -160,7 +161,8 @@ export interface OverlaySessionView extends SessionView {
   readonly alive: boolean;
   readonly kind: 'pty' | 'jsonl';
   readonly resumable: boolean;
-  readonly group?: string;
+  readonly pinned: boolean;
+  readonly repoRoot: string;
 }
 
 export interface OverlayView {
@@ -169,6 +171,7 @@ export interface OverlayView {
   confirmKill: boolean;
   filter: string | null;
   stale: boolean;
+  grouped: boolean;
 }
 
 export function drawOverlay(view: OverlayView) {
@@ -181,32 +184,32 @@ export function drawOverlay(view: OverlayView) {
     rowsList.push(dimRow(width, empty));
   }
 
-  // Sessions cluster under dim headers when more than one group exists: an
-  // explicit group wins, sessions without one fall back to their spawn
-  // directory. The rows keep the sorted order, so urgent groups lead.
-  const grouped = new Set(view.sessions.map((s) => s.group ?? s.cwd)).size > 1;
+  // The grouped view clusters sessions under dim repository headers, with
+  // pinned sessions leading in their own cluster; the flat view shows a
+  // directory column instead. The rows keep the sorted order either way.
   let lastKey: string | null = null;
 
   for (const [i, s] of view.sessions.entries()) {
-    const key = s.group ?? s.cwd;
+    const key = s.pinned ? PINNED_GROUP_KEY : s.repoRoot;
 
-    if (grouped && key !== lastKey) {
+    if (view.grouped && key !== lastKey) {
       lastKey = key;
 
-      rowsList.push(dimRow(width, `▸ ${s.group ?? formatDir(s.cwd)}`));
+      rowsList.push(dimRow(width, `▸ ${s.pinned ? 'pinned' : formatDir(s.repoRoot)}`));
     }
 
     const sel = i === view.selected;
     const name = truncate(s.name, 16).padEnd(16);
     const state = STATE_LABEL[s.state].padEnd(9);
-    const dir = grouped ? '' : ` ${truncate(formatDir(s.cwd), 18).padEnd(18)}`;
-    const msgWidth = Math.max(4, width - 4 - 2 - 17 - 10 - (grouped ? 0 : 19));
+    const dir = view.grouped ? '' : ` ${truncate(formatDir(s.cwd), 18).padEnd(18)}`;
+    const msgWidth = Math.max(4, width - 4 - 3 - 17 - 10 - (view.grouped ? 0 : 19));
     const msg = truncate(s.lastMsg, msgWidth).padEnd(msgWidth);
     const unread = s.unread ? `${ESC}[1;33m!${ESC}[0m` : ' ';
+    const pin = s.pinned ? `${ESC}[93m⋆${ESC}[0m` : ' ';
     const body = `${name} ${state}${dir} ${msg}`;
     const styledBody = sel ? `${ESC}[7m${body}${ESC}[0m` : body;
 
-    rowsList.push(boxRow(width, `${GLYPH[s.state]}${unread}${styledBody}`, 2 + body.length));
+    rowsList.push(boxRow(width, `${GLYPH[s.state]}${unread}${pin}${styledBody}`, 3 + body.length));
   }
 
   rowsList.push(boxDivider(width));
@@ -239,7 +242,7 @@ export function drawOverlay(view: OverlayView) {
   drawBox(rowsList);
 }
 
-const GLOBAL_HINT = 'n new · ? keys';
+const GLOBAL_HINT = 'g groups · n new · ? keys';
 
 // Only the actions valid for the selected row appear; the full reference
 // lives behind ?.
@@ -268,6 +271,10 @@ function buildOverlayHint(s: OverlaySessionView | undefined): string {
     actions.push('K forget');
   }
 
+  const pinAction = s.pinned ? 'p unpin' : 'p pin';
+
+  actions.push(pinAction);
+
   return `${actions.join(' · ')} ▏ ${GLOBAL_HINT}`;
 }
 
@@ -283,6 +290,8 @@ export function drawHelp() {
     'y  yank the resume command to the clipboard',
     'Y  yank the resume command, then kill here',
     'K  kill (K again on a dead session forgets it)',
+    'p  pin or unpin — pinned sessions stay on top',
+    'g  toggle grouping by repository',
     'n  new session',
     'r  adopt an external session',
     '/  filter · ↑↓/jk move · q quit',

@@ -418,7 +418,8 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
         kind: s.kind,
         alive: s.pty !== null || (s.kind === 'jsonl' && s.state !== 'exited'),
         ...(s.claudeId === undefined ? {} : { claudeId: s.claudeId }),
-        ...(s.group === undefined ? {} : { group: s.group }),
+        pinned: s.pinned,
+        lastAttachedAt: s.lastAttachedAt,
       }),
       renamed: () => ({
         v: PROTOCOL_V,
@@ -457,7 +458,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     collectSpawnDirs: () => store.collectSpawnDirs(),
     collectFleet: () => store.loadFleet(),
     spawnSession: (p) => {
-      const s = mgr.spawn(p.cwd, p.name, p.prompt, p.cols, p.rows, p.resume, p.namedBy, p.group);
+      const s = mgr.spawn(p.cwd, p.name, p.prompt, p.cols, p.rows, p.resume, p.namedBy);
 
       ptyDims.set(s.id, { cols: p.cols, rows: p.rows });
       screens.set(s.id, new ScreenModel(p.cols, p.rows));
@@ -465,7 +466,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
 
       return getDescriptor(mgr, s.id);
     },
-    updateSession: (id, name, group) => mgr.updateSession(id, name, group),
+    updateSession: (id, name, pinned) => mgr.updateSession(id, name, pinned),
     quitDaemon: () => {
       // The ok response for the quit request must flush before the sockets
       // close under it.

@@ -4,6 +4,8 @@ import { sortSessionViews } from './sessions';
 interface TabCandidate {
   readonly id: string;
   readonly state: SessionState;
+  readonly pinned: boolean;
+  readonly lastAttachedAt: number;
   readonly createdAt: number;
   readonly alive: boolean;
   readonly kind: 'pty' | 'jsonl';

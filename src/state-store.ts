@@ -24,7 +24,8 @@ export class StateStore {
         claude_id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         cwd TEXT NOT NULL,
-        grp TEXT
+        pinned INTEGER NOT NULL DEFAULT 0,
+        last_attached INTEGER
       );
       CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,15 +41,21 @@ export class StateStore {
       );
     `);
 
-    // Stores created before groups existed lack the column; the create
-    // above only applies to fresh databases.
-    const fleetColumns = this.db
-      .query<{ name: string }, []>('PRAGMA table_info(fleet)')
-      .all()
-      .map((c) => c.name);
+    // Stores created before pinning and attach recency existed lack the
+    // columns; the create above only applies to fresh databases.
+    const fleetColumns = new Set(
+      this.db
+        .query<{ name: string }, []>('PRAGMA table_info(fleet)')
+        .all()
+        .map((c) => c.name),
+    );
 
-    if (!fleetColumns.includes('grp')) {
-      this.db.run('ALTER TABLE fleet ADD COLUMN grp TEXT');
+    if (!fleetColumns.has('pinned')) {
+      this.db.run('ALTER TABLE fleet ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0');
+    }
+
+    if (!fleetColumns.has('last_attached')) {
+      this.db.run('ALTER TABLE fleet ADD COLUMN last_attached INTEGER');
     }
 
     if (legacyFleetPath !== undefined) {
@@ -58,20 +65,28 @@ export class StateStore {
 
   loadFleet(): FleetEntry[] {
     const rows = this.db
-      .query<{ claude_id: string; name: string; cwd: string; grp: string | null }, []>(
-        'SELECT claude_id, name, cwd, grp FROM fleet',
-      )
+      .query<
+        {
+          claude_id: string;
+          name: string;
+          cwd: string;
+          pinned: number;
+          last_attached: number | null;
+        },
+        []
+      >('SELECT claude_id, name, cwd, pinned, last_attached FROM fleet')
       .all();
 
     const entries: FleetEntry[] = [];
 
     for (const row of rows) {
-      const entry: FleetEntry =
-        row.grp === null
-          ? { claudeId: row.claude_id, name: row.name, cwd: row.cwd }
-          : { claudeId: row.claude_id, name: row.name, cwd: row.cwd, group: row.grp };
-
-      entries.push(entry);
+      entries.push({
+        claudeId: row.claude_id,
+        name: row.name,
+        cwd: row.cwd,
+        ...(row.pinned === 0 ? {} : { pinned: true }),
+        ...(row.last_attached === null ? {} : { lastAttachedAt: row.last_attached }),
+      });
     }
 
     return entries;
@@ -94,11 +109,13 @@ export class StateStore {
       this.db.run('DELETE FROM fleet');
 
       const insert = this.db.query(
-        'INSERT OR REPLACE INTO fleet (claude_id, name, cwd, grp) VALUES (?1, ?2, ?3, ?4)',
+        'INSERT OR REPLACE INTO fleet (claude_id, name, cwd, pinned, last_attached) VALUES (?1, ?2, ?3, ?4, ?5)',
       );
 
       for (const entry of all) {
-        insert.run(entry.claudeId, entry.name, entry.cwd, entry.group ?? null);
+        const pinned = entry.pinned === true ? 1 : 0;
+
+        insert.run(entry.claudeId, entry.name, entry.cwd, pinned, entry.lastAttachedAt ?? null);
       }
     });
 

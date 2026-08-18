@@ -27,7 +27,10 @@ atc
 ```
 
 Needs [Bun](https://bun.sh) (atc runs from source through it) and the `claude` CLI on your PATH.
-From a checkout, `bun src/cli.ts` runs the same thing.
+From a checkout, `bun src/cli.ts` runs the same thing. atc is built to pair with
+[zoxide](https://github.com/ajeetdsouza/zoxide): the spawn directory picker feeds on its frecency
+list, so with zoxide installed every directory you visit is two keystrokes from a session. Without
+it the picker falls back to atc's own spawn history.
 
 The first invocation auto-spawns the daemon (`atc daemon` runs it in the foreground for systemd or
 debugging); the TUI is a thin client, so quitting or crashing it leaves every session running. Runs
@@ -38,7 +41,7 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | Key             | Where          | Action                                                                                         |
 | --------------- | -------------- | ---------------------------------------------------------------------------------------------- |
 | leader          | anywhere       | toggle session overlay — `Ctrl-Space` by default, configurable (see Config)                    |
-| `n`             | home/overlay   | spawn: pick dir (zoxide + history, fuzzy) → name → optional group → optional first prompt      |
+| `n`             | home/overlay   | spawn: pick dir (zoxide + history, fuzzy) → name → optional first prompt                       |
 | `r`             | home/overlay   | adopt: pick dir → name → `claude --resume` (Claude's session picker opens in the new PTY)      |
 | `R`             | home           | restore last fleet after a daemon death — respawns every session via `claude --resume <id>`    |
 | `j`/`k`/`↑`/`↓` | overlay/picker | move                                                                                           |
@@ -46,6 +49,8 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | `Tab`           | overlay        | attach the most urgent needs-you session, else the latest turn-done one                        |
 | `/`             | overlay        | fuzzy filter by name/dir (chars in order), `⏎` attach top match, `esc` clear                   |
 | `a`             | overlay        | ack notification without attaching                                                             |
+| `p`             | overlay        | pin or unpin the selected session — pinned sessions stay at the top of the list                |
+| `g`             | overlay        | toggle the grouped view: sessions cluster under repository headers                             |
 | `H`             | overlay        | eject to headless: the terminal dies, a headless Agent SDK run resumes the same session        |
 | `P`             | overlay        | revive: a fresh terminal resumes a headless or killed session in place                         |
 | `y`             | overlay        | yank `cd <dir> && claude --resume <id>` to clipboard (OSC 52 + clip.exe/wl-copy/xclip)         |
@@ -55,10 +60,12 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | `u`             | overlay        | restart an outdated daemon and restore the fleet — offered only while `⟳ update ready` shows   |
 | `q`             | home/overlay   | quit the client — sessions keep running in the daemon                                          |
 
-The overlay clusters sessions under dim headers when more than one group exists: a session's
-explicit group wins, and sessions without one fall back to the directory they were spawned from.
-Groups also come from outside — the `atc_session_update` MCP tool renames and regroups sessions, so
-an agent can organise the fleet for you.
+The overlay orders sessions by pinned first, then attention state, then most recently attached, so
+the session you want is nearly always near the top. The grouped view (`g`) keeps that order but
+clusters sessions under dim repository headers, with pinned sessions leading in their own cluster; a
+git worktree clusters with its main repository, and a directory outside any repository stands alone.
+The `atc_session_update` MCP tool renames and pins sessions, so an agent can organise the fleet for
+you.
 
 Revive (`P`) and headless eject (`H`) resume the session from its saved transcript, so both need one
 to exist: a session killed before its first exchange has nothing on disk yet, and the overlay says
@@ -74,8 +81,8 @@ status bar only on the home and overlay screens.
 Spawned sessions get a `--settings` file injecting `Notification`, `Stop`, `UserPromptSubmit`, and
 `SessionEnd` hooks that report to a unix socket (`$XDG_RUNTIME_DIR/atc.sock`). Your global Claude
 settings are untouched; sessions you start outside atc are unaffected. States: red `●` needs you,
-cyan `◐` running, green `✓` turn done, gray `✗` exited. The overlay sorts needs-you first; the
-status bar turns red and names the most urgent session.
+cyan `◐` running, green `✓` turn done, gray `✗` exited. The status bar turns red and names the most
+urgent session.
 
 ## Config
 

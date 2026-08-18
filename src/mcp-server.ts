@@ -72,13 +72,13 @@ const TOOLS: readonly MCPTool[] = [
   {
     name: 'atc_session_update',
     description:
-      'Rename and/or regroup a session. Renames stick against auto-summaries; an empty group clears the grouping. Use this to organise the fleet: name sessions after their task and group related work.',
+      'Rename and/or pin a session. Renames stick against auto-summaries; pinned sessions lead every list. Use this to organise the fleet: name sessions after their task.',
     inputSchema: {
       type: 'object',
       properties: {
         session: { type: 'string', description: 'The atc session id' },
         name: { type: 'string', description: 'New display name; omit to keep' },
-        group: { type: 'string', description: 'New group; empty string clears, omit to keep' },
+        pinned: { type: 'boolean', description: 'Pin or unpin; omit to keep' },
       },
       required: ['session'],
       additionalProperties: false,
@@ -258,7 +258,7 @@ async function runTool(
       await client.sendRequest('session.update', {
         session: args['session'],
         ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
-        ...(typeof args['group'] === 'string' ? { group: args['group'] } : {}),
+        ...(typeof args['pinned'] === 'boolean' ? { pinned: args['pinned'] } : {}),
       });
 
       return 'updated';

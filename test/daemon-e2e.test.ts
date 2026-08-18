@@ -267,7 +267,7 @@ test('it keeps a live terminal alive when its session reports an end', async () 
   expect(sessions[0]).toMatchObject({ alive: true, state: 'needs_you', lastMsg: 'session ended' });
 });
 
-test('it renames and regroups a session through session.update', async () => {
+test('it renames and pins a session through session.update', async () => {
   const ctx = setupDaemonProc();
 
   const client = await ctx.openClient();
@@ -285,7 +285,7 @@ test('it renames and regroups a session through session.update', async () => {
   const spawned = getRecord(ok, 'session');
   const id = getString(spawned, 'id');
 
-  await client.sendRequest('session.update', { session: id, name: 'auth-bug', group: 'backend' });
+  await client.sendRequest('session.update', { session: id, name: 'auth-bug', pinned: true });
 
   const renamed = await waitForEvent(
     events,
@@ -298,19 +298,57 @@ test('it renames and regroups a session through session.update', async () => {
 
   const sessions = getRecords(list, 'sessions');
 
-  expect(sessions[0]).toMatchObject({ name: 'auth-bug', group: 'backend', namedBy: 'user' });
+  expect(sessions[0]).toMatchObject({ name: 'auth-bug', pinned: true, namedBy: 'user' });
 
-  await client.sendRequest('session.update', { session: id, group: '' });
+  await client.sendRequest('session.update', { session: id, pinned: false });
 
   const cleared = await client.sendRequest('session.list');
 
   const clearedSessions = getRecords(cleared, 'sessions');
 
-  expect(clearedSessions[0]).not.toContainKey('group');
+  expect(clearedSessions[0]).toMatchObject({ pinned: false });
 
   expect(
     client.sendRequest('session.update', { session: 'nope', name: 'x' }),
   ).rejects.toMatchObject({ code: 'no_such_session' });
+});
+
+test('it bumps a session attach recency through session.attach', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const spawned = getRecord(ok, 'session');
+  const id = getString(spawned, 'id');
+  const before = spawned['lastAttachedAt'];
+
+  if (typeof before !== 'number') {
+    throw new TypeError('lastAttachedAt is not a number');
+  }
+
+  await Bun.sleep(5);
+  await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  const list = await client.sendRequest('session.list');
+
+  const sessions = getRecords(list, 'sessions');
+  const [first] = sessions;
+
+  if (first === undefined) {
+    throw new Error('no sessions listed');
+  }
+
+  const after = first['lastAttachedAt'];
+
+  if (typeof after !== 'number') {
+    throw new TypeError('lastAttachedAt is not a number');
+  }
+
+  expect(after).toBeGreaterThan(before);
 });
 
 test('it stops the daemon process on daemon.quit', async () => {

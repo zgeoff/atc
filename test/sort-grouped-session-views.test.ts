@@ -1,37 +1,77 @@
 import { expect, test } from 'bun:test';
 import type { SessionState } from '../src/sessions';
-import { sortGroupedSessionViews } from '../src/sessions';
+import { sortGroupedSessionViews, sortSessionViews } from '../src/sessions';
 
 interface View {
   readonly id: string;
   readonly state: SessionState;
+  readonly pinned: boolean;
+  readonly lastAttachedAt: number;
   readonly createdAt: number;
-  readonly group?: string;
-  readonly cwd: string;
+  readonly repoRoot: string;
 }
 
-function buildView(id: string, state: SessionState, createdAt: number, group?: string): View {
-  return { id, state, createdAt, cwd: `/repo/${id}`, ...(group === undefined ? {} : { group }) };
+function buildView(
+  id: string,
+  state: SessionState,
+  lastAttachedAt: number,
+  overrides: Partial<Pick<View, 'pinned' | 'repoRoot'>> = {},
+): View {
+  return {
+    id,
+    state,
+    pinned: overrides.pinned ?? false,
+    lastAttachedAt,
+    createdAt: lastAttachedAt,
+    repoRoot: overrides.repoRoot ?? `/repo/${id}`,
+  };
 }
 
-test('sessions sharing a group are adjacent even when states interleave', () => {
+test('it leads with pinned sessions in most-recently-attached order', () => {
   const fleet = [
-    buildView('a', 'running', 1, 'pocketknife'),
-    buildView('b', 'running', 2, 'spicers'),
-    buildView('c', 'needs_you', 3, 'pocketknife'),
-    buildView('d', 'done', 4, 'spicers'),
-    buildView('e', 'running', 5, 'pocketknife'),
+    buildView('busy', 'running', 9),
+    buildView('pinned-old', 'running', 1, { pinned: true }),
+    buildView('urgent', 'needs_you', 5),
+    buildView('pinned-new', 'done', 2, { pinned: true }),
+  ];
+
+  const ids = sortSessionViews(fleet).map((s) => s.id);
+
+  expect(ids).toEqual(['pinned-new', 'pinned-old', 'urgent', 'busy']);
+});
+
+test('it orders unpinned sessions by urgency, then most recently attached', () => {
+  const fleet = [
+    buildView('dead', 'exited', 9),
+    buildView('busy-stale', 'running', 1),
+    buildView('busy-fresh', 'running', 8),
+    buildView('finished', 'done', 2),
+    buildView('urgent', 'needs_you', 3),
+  ];
+
+  const ids = sortSessionViews(fleet).map((s) => s.id);
+
+  expect(ids).toEqual(['urgent', 'finished', 'busy-fresh', 'busy-stale', 'dead']);
+});
+
+test('it clusters sessions sharing a repository even when states interleave', () => {
+  const fleet = [
+    buildView('a', 'running', 1, { repoRoot: '/repo/pocketknife' }),
+    buildView('b', 'running', 2, { repoRoot: '/repo/spicers' }),
+    buildView('c', 'needs_you', 3, { repoRoot: '/repo/pocketknife' }),
+    buildView('d', 'done', 4, { repoRoot: '/repo/spicers' }),
+    buildView('e', 'running', 5, { repoRoot: '/repo/pocketknife' }),
   ];
 
   const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
 
-  expect(ids).toEqual(['c', 'a', 'e', 'd', 'b']);
+  expect(ids).toEqual(['c', 'e', 'a', 'd', 'b']);
 });
 
-test('groups are ordered by their most urgent member', () => {
+test('it orders repository clusters by their most urgent member', () => {
   const fleet = [
-    buildView('calm', 'running', 1, 'alpha'),
-    buildView('urgent', 'needs_you', 2, 'beta'),
+    buildView('calm', 'running', 9, { repoRoot: '/repo/alpha' }),
+    buildView('urgent', 'needs_you', 1, { repoRoot: '/repo/beta' }),
   ];
 
   const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
@@ -39,28 +79,13 @@ test('groups are ordered by their most urgent member', () => {
   expect(ids).toEqual(['urgent', 'calm']);
 });
 
-test('ungrouped sessions cluster by spawn directory', () => {
-  const shared = { state: 'running' as const, cwd: '/repo/shared' };
-
+test('it pulls pinned sessions out of their repositories into a leading cluster', () => {
   const fleet = [
-    { id: 'x', createdAt: 1, ...shared },
-    buildView('y', 'running', 2, 'alpha'),
-    { id: 'z', createdAt: 3, ...shared },
+    buildView('worker', 'needs_you', 9, { repoRoot: '/repo/alpha' }),
+    buildView('starred', 'running', 1, { pinned: true, repoRoot: '/repo/alpha' }),
   ];
 
   const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
 
-  expect(ids).toEqual(['x', 'z', 'y']);
-});
-
-test('within a group the urgency order survives', () => {
-  const fleet = [
-    buildView('late-needy', 'needs_you', 9, 'alpha'),
-    buildView('early-busy', 'running', 1, 'alpha'),
-    buildView('early-done', 'done', 2, 'alpha'),
-  ];
-
-  const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
-
-  expect(ids).toEqual(['late-needy', 'early-done', 'early-busy']);
+  expect(ids).toEqual(['starred', 'worker']);
 });

@@ -15,7 +15,6 @@ interface SpawnParams {
   readonly rows: number;
   readonly resume: boolean | string;
   readonly namedBy: 'user' | 'auto';
-  readonly group?: string;
 }
 
 export interface DaemonContext {
@@ -25,7 +24,7 @@ export interface DaemonContext {
   readonly collectFleet: () => FleetEntry[];
   readonly spawnSession: (p: SpawnParams) => SessionDescriptor;
   readonly killSession: (id: string) => boolean;
-  readonly updateSession: (id: string, name?: string, group?: string) => boolean;
+  readonly updateSession: (id: string, name?: string, pinned?: boolean) => boolean;
   readonly quitDaemon: () => void;
   readonly ackSession: (id: string) => boolean;
   readonly buildResumeCommand: (id: string) => string | null;
@@ -225,9 +224,9 @@ export class DaemonConnection {
       case 'session.update': {
         const sessionID = typeof req.p?.['session'] === 'string' ? req.p['session'] : '';
         const name = typeof req.p?.['name'] === 'string' ? req.p['name'] : undefined;
-        const group = typeof req.p?.['group'] === 'string' ? req.p['group'] : undefined;
+        const pinned = typeof req.p?.['pinned'] === 'boolean' ? req.p['pinned'] : undefined;
 
-        if (this.ctx.updateSession(sessionID, name, group)) {
+        if (this.ctx.updateSession(sessionID, name, pinned)) {
           this.sendOk(req.id, {});
         } else {
           this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
@@ -370,8 +369,6 @@ export class DaemonConnection {
       resume = rawResume;
     }
 
-    const group = typeof req.p?.['group'] === 'string' ? req.p['group'] : '';
-
     const session = this.ctx.spawnSession({
       cwd,
       name: name === '' ? basename(cwd) : name,
@@ -380,7 +377,6 @@ export class DaemonConnection {
       rows: typeof req.p?.['rows'] === 'number' ? req.p['rows'] : 24,
       resume,
       namedBy: name === '' ? 'auto' : 'user',
-      ...(group === '' ? {} : { group }),
     });
 
     this.sendOk(req.id, { session });

@@ -17,7 +17,6 @@ type Mode =
   | 'help'
   | 'picker-dir'
   | 'picker-name'
-  | 'picker-group'
   | 'picker-prompt'
   | 'picker-eject';
 
@@ -25,7 +24,9 @@ interface MirrorSession {
   id: string;
   name: string;
   cwd: string;
-  group?: string;
+  pinned: boolean;
+  lastAttachedAt: number;
+  repoRoot: string;
   state: SessionState;
   unread: boolean;
   lastMsg: string;
@@ -56,7 +57,6 @@ let pickerInput = '';
 let pickerSelected = 0;
 let spawnDir = '';
 let spawnName = '';
-let spawnGroup = '';
 let spawnResume = false;
 const stdout = process.stdout;
 
@@ -202,8 +202,11 @@ function applyHelpKey(buf: Buffer) {
 // fzf-style overlay search: null when inactive, the pattern while active.
 let overlayFilter: string | null = null;
 
+// Flat list by default; g toggles clustering under repository headers.
+let overlayGrouped = false;
+
 function pickOverlaySessions(): MirrorSession[] {
-  const sorted = sortGroupedSessionViews(fleet);
+  const sorted = overlayGrouped ? sortGroupedSessionViews(fleet) : sortSessionViews(fleet);
 
   if (overlayFilter === null || overlayFilter === '') {
     return sorted;
@@ -211,9 +214,7 @@ function pickOverlaySessions(): MirrorSession[] {
 
   const f = overlayFilter;
 
-  return sorted.filter(
-    (s) => findFuzzyScore(`${s.name} ${s.group ?? ''} ${formatDir(s.cwd)}`, f) !== null,
-  );
+  return sorted.filter((s) => findFuzzyScore(`${s.name} ${formatDir(s.cwd)}`, f) !== null);
 }
 
 function renderOverlay() {
@@ -227,6 +228,7 @@ function renderOverlay() {
     confirmKill,
     filter: overlayFilter,
     stale: daemonStale,
+    grouped: overlayGrouped,
   });
 
   scheduleStatus();
@@ -237,7 +239,7 @@ function openOverlay() {
   confirmKill = false;
   overlayFilter = null;
 
-  const focusedIndex = sortGroupedSessionViews(fleet).findIndex((s) => s.id === focusedID);
+  const focusedIndex = pickOverlaySessions().findIndex((s) => s.id === focusedID);
 
   overlaySelected = Math.max(0, focusedIndex);
 
@@ -270,18 +272,6 @@ function renderPicker() {
       placeholder: basename(spawnDir),
       hint: `session name for ${formatDir(spawnDir)} · ⏎ accept · esc back`,
     });
-  } else if (mode === 'picker-group') {
-    const groups = [...new Set(fleet.map((s) => s.group).filter((g) => g !== undefined))];
-    const known = groups.length === 0 ? '' : ` · existing: ${groups.slice(0, 4).join(', ')}`;
-
-    drawPicker({
-      title: `${verb}: group`,
-      items: [],
-      selected: -1,
-      input: pickerInput,
-      placeholder: 'optional — ⏎ to skip',
-      hint: `group for the overlay hierarchy${known} · ⏎ accept · esc back`,
-    });
   } else if (mode === 'picker-eject') {
     drawPicker({
       title: 'eject: headless instruction',
@@ -307,7 +297,6 @@ function renderPicker() {
 
 async function openDirPicker(resume = false) {
   spawnResume = resume;
-  spawnGroup = '';
 
   let recent: string[] = [];
 
@@ -355,7 +344,6 @@ async function spawnFromPicker(prompt: string) {
       cols: cols(),
       rows: ptyRows(),
       ...(spawnResume ? { resume: true } : {}),
-      ...(spawnGroup === '' ? {} : { group: spawnGroup }),
     });
 
     const spawned = toMirrorSession(ok['session']);
@@ -411,7 +399,10 @@ function toMirrorSession(value: unknown): MirrorSession | null {
     id: value['id'],
     name: value['name'],
     cwd: value['cwd'],
-    ...(typeof value['group'] === 'string' ? { group: value['group'] } : {}),
+    pinned: value['pinned'] === true,
+    lastAttachedAt:
+      typeof value['lastAttachedAt'] === 'number' ? value['lastAttachedAt'] : value['createdAt'],
+    repoRoot: typeof value['repoRoot'] === 'string' ? value['repoRoot'] : value['cwd'],
     state,
     unread: value['unread'],
     lastMsg: value['lastMsg'],
@@ -429,6 +420,9 @@ function upsertMirror(d: Readonly<MirrorSession>) {
     fleet.push({ ...d });
   } else {
     existing.name = d.name;
+    existing.pinned = d.pinned;
+    existing.lastAttachedAt = d.lastAttachedAt;
+    existing.repoRoot = d.repoRoot;
     existing.state = d.state;
     existing.unread = d.unread;
     existing.lastMsg = d.lastMsg;
@@ -497,12 +491,12 @@ function applyDaemonEvent(e: EventMsg) {
           s.kind = e['kind'];
         }
 
-        if (typeof e['group'] === 'string') {
-          if (e['group'] === '') {
-            delete s.group;
-          } else {
-            s.group = e['group'];
-          }
+        if (typeof e['pinned'] === 'boolean') {
+          s.pinned = e['pinned'];
+        }
+
+        if (typeof e['lastAttachedAt'] === 'number') {
+          s.lastAttachedAt = e['lastAttachedAt'];
         }
 
         if (typeof e['unread'] === 'boolean') {
@@ -742,6 +736,26 @@ function applyOverlayKey(buf: Buffer) {
 
   if (ch === 'n') {
     void openDirPicker();
+
+    return;
+  }
+
+  if (ch === 'g') {
+    overlayGrouped = !overlayGrouped;
+
+    stdout.write(ansi.clear);
+
+    renderOverlay();
+
+    return;
+  }
+
+  if (ch === 'p' && sel !== undefined) {
+    // Flipped locally too so the repaint is immediate; the daemon's state
+    // event confirms it.
+    sel.pinned = !sel.pinned;
+    void sendQuiet('session.update', { session: sel.id, pinned: sel.pinned });
+    renderOverlay();
 
     return;
   }
@@ -1088,30 +1102,6 @@ process.stdin.on('data', (buf: Buffer) => {
         () => {
           spawnName = pickerInput.trim();
           pickerInput = '';
-          mode = 'picker-group';
-
-          stdout.write(ansi.clear);
-
-          renderPicker();
-        },
-        () => {
-          pickerInput = '';
-          mode = 'picker-dir';
-
-          stdout.write(ansi.clear);
-
-          renderPicker();
-        },
-      );
-
-      return;
-    }
-    case 'picker-group': {
-      applyTextKey(
-        buf,
-        () => {
-          spawnGroup = pickerInput.trim();
-          pickerInput = '';
 
           // Adopt skips the prompt step: claude --resume opens its own
           // session picker inside the new PTY.
@@ -1129,7 +1119,7 @@ process.stdin.on('data', (buf: Buffer) => {
         },
         () => {
           pickerInput = '';
-          mode = 'picker-name';
+          mode = 'picker-dir';
 
           stdout.write(ansi.clear);
 
@@ -1147,7 +1137,7 @@ process.stdin.on('data', (buf: Buffer) => {
         },
         () => {
           pickerInput = '';
-          mode = 'picker-group';
+          mode = 'picker-name';
 
           stdout.write(ansi.clear);
 

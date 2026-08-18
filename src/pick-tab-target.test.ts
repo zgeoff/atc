@@ -4,8 +4,24 @@ import { pickTabTarget } from './pick-tab-target';
 test('it prefers the most urgent needs-you session over any done session', () => {
   const target = pickTabTarget(
     [
-      { id: 'a', state: 'done', createdAt: 1, alive: true, kind: 'pty' },
-      { id: 'b', state: 'needs_you', createdAt: 2, alive: true, kind: 'pty' },
+      {
+        id: 'a',
+        state: 'done',
+        pinned: false,
+        lastAttachedAt: 1,
+        createdAt: 1,
+        alive: true,
+        kind: 'pty',
+      },
+      {
+        id: 'b',
+        state: 'needs_you',
+        pinned: false,
+        lastAttachedAt: 2,
+        createdAt: 2,
+        alive: true,
+        kind: 'pty',
+      },
     ],
     (id) => new Map([['a', 500]]).get(id),
   );
@@ -16,9 +32,33 @@ test('it prefers the most urgent needs-you session over any done session', () =>
 test('it falls back to the terminal session whose turn finished most recently', () => {
   const target = pickTabTarget(
     [
-      { id: 'a', state: 'done', createdAt: 1, alive: true, kind: 'pty' },
-      { id: 'b', state: 'done', createdAt: 2, alive: true, kind: 'pty' },
-      { id: 'c', state: 'running', createdAt: 3, alive: true, kind: 'pty' },
+      {
+        id: 'a',
+        state: 'done',
+        pinned: false,
+        lastAttachedAt: 1,
+        createdAt: 1,
+        alive: true,
+        kind: 'pty',
+      },
+      {
+        id: 'b',
+        state: 'done',
+        pinned: false,
+        lastAttachedAt: 2,
+        createdAt: 2,
+        alive: true,
+        kind: 'pty',
+      },
+      {
+        id: 'c',
+        state: 'running',
+        pinned: false,
+        lastAttachedAt: 3,
+        createdAt: 3,
+        alive: true,
+        kind: 'pty',
+      },
     ],
     (id) =>
       new Map([
@@ -33,8 +73,24 @@ test('it falls back to the terminal session whose turn finished most recently', 
 test('it ranks done sessions without a recorded finish time last', () => {
   const target = pickTabTarget(
     [
-      { id: 'a', state: 'done', createdAt: 1, alive: true, kind: 'pty' },
-      { id: 'b', state: 'done', createdAt: 2, alive: true, kind: 'pty' },
+      {
+        id: 'a',
+        state: 'done',
+        pinned: false,
+        lastAttachedAt: 1,
+        createdAt: 1,
+        alive: true,
+        kind: 'pty',
+      },
+      {
+        id: 'b',
+        state: 'done',
+        pinned: false,
+        lastAttachedAt: 2,
+        createdAt: 2,
+        alive: true,
+        kind: 'pty',
+      },
     ],
     (id) => new Map([['b', 200]]).get(id),
   );
@@ -45,9 +101,33 @@ test('it ranks done sessions without a recorded finish time last', () => {
 test('it skips headless and dead sessions in the done fallback', () => {
   const target = pickTabTarget(
     [
-      { id: 'a', state: 'done', createdAt: 1, alive: true, kind: 'jsonl' },
-      { id: 'b', state: 'done', createdAt: 2, alive: false, kind: 'pty' },
-      { id: 'c', state: 'done', createdAt: 3, alive: true, kind: 'pty' },
+      {
+        id: 'a',
+        state: 'done',
+        pinned: false,
+        lastAttachedAt: 1,
+        createdAt: 1,
+        alive: true,
+        kind: 'jsonl',
+      },
+      {
+        id: 'b',
+        state: 'done',
+        pinned: false,
+        lastAttachedAt: 2,
+        createdAt: 2,
+        alive: false,
+        kind: 'pty',
+      },
+      {
+        id: 'c',
+        state: 'done',
+        pinned: false,
+        lastAttachedAt: 3,
+        createdAt: 3,
+        alive: true,
+        kind: 'pty',
+      },
     ],
     (id) =>
       new Map([
@@ -62,7 +142,17 @@ test('it skips headless and dead sessions in the done fallback', () => {
 
 test('it picks nothing when no session needs you and none are done', () => {
   const target = pickTabTarget(
-    [{ id: 'a', state: 'running', createdAt: 1, alive: true, kind: 'pty' }],
+    [
+      {
+        id: 'a',
+        state: 'running',
+        pinned: false,
+        lastAttachedAt: 1,
+        createdAt: 1,
+        alive: true,
+        kind: 'pty',
+      },
+    ],
     (id) => new Map<string, number>().get(id),
   );
 
