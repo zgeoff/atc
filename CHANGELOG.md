@@ -2,10 +2,11 @@
 
 ## [0.1.9](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.8...@zgeoff/atc@0.1.9) (2026-08-18)
 
-
 ### Features
 
-* replace groups with pinning, attach recency, and a grouping toggle ([#22](https://github.com/zgeoff/atc/issues/22)) ([990609a](https://github.com/zgeoff/atc/commit/990609abb72dbade3a8c31d5a559749591c5b1d1))
+- replace groups with pinning, attach recency, and a grouping toggle
+  ([#22](https://github.com/zgeoff/atc/issues/22))
+  ([990609a](https://github.com/zgeoff/atc/commit/990609abb72dbade3a8c31d5a559749591c5b1d1))
 
 ## [0.1.8](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.7...@zgeoff/atc@0.1.8) (2026-08-17)
 
