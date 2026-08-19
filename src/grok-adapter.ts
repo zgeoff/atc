@@ -26,7 +26,8 @@ interface GrokSessionHookState {
 export class GrokAdapter implements AgentAdapter {
   readonly kind = 'grok';
 
-  readonly supportsHeadless = false;
+  // Grok has no headless handoff.
+  readonly headlessRunner = null;
 
   // Grok's hooks are authoritative; no screen heuristics needed.
   readonly screenDetector = null;

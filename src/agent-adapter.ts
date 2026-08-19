@@ -61,6 +61,24 @@ export interface ResumeCheck {
   readonly transcriptSource?: string;
 }
 
+interface HeadlessRunRequest {
+  readonly cwd: string;
+  readonly prompt: string;
+  readonly resume?: string;
+  readonly permissionMode?: string;
+}
+
+interface HeadlessRunEvents {
+  readonly onOutput: (text: string) => void;
+  readonly onDone: (summary: string) => void;
+  readonly onNeedsYou: (msg: string) => void;
+}
+
+export type HeadlessRunner = (
+  opts: HeadlessRunRequest,
+  hooks: HeadlessRunEvents,
+) => { readonly stop: () => void };
+
 /**
  * Everything specific to one agent CLI: how to spawn it, how to read its
  * hook payloads, where its session names come from, and how to resume a
@@ -68,7 +86,10 @@ export interface ResumeCheck {
  */
 export interface AgentAdapter {
   readonly kind: AgentKind;
-  readonly supportsHeadless: boolean;
+
+  // Runs one headless turn over a session; null means eject is unsupported
+  // for this agent.
+  readonly headlessRunner: HeadlessRunner | null;
 
   // The detector stack's screen tier; null when hooks are authoritative.
   readonly screenDetector: ScreenDetector | null;

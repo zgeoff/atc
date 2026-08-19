@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
 import { toAgentKind } from './agent-adapter';
-import type { AgentAdapter, AgentKind } from './agent-adapter';
+import type { AdapterEvent, AgentAdapter, AgentKind } from './agent-adapter';
 import { collectCleanEnv } from './collect-clean-env';
 import { socketPath, stateDir, statusFile } from './config';
 import type { HookEvent } from './hooks';
@@ -463,22 +463,29 @@ export class SessionManager {
     }));
   }
 
-  applyHook(e: HookEvent) {
+  // Returns the normalized event kind so the caller can key lifecycle
+  // bookkeeping on it, or null when no session or adapter matches.
+  applyHook(e: HookEvent): AdapterEvent['kind'] | null {
     const s = this.sessions.find((x) => x.id === e.atcId);
 
-    // Reporters belong to the terminal process; once a session is headless,
-    // late reports from the dying terminal must not clobber its state.
-    if (!s || s.kind === 'headless') {
-      return;
+    if (!s) {
+      return null;
     }
 
     const adapter = this.findAdapter(s.agent);
 
     if (adapter === null) {
-      return;
+      return null;
     }
 
     const ev = adapter.normalizeHook(e);
+
+    // Reporters belong to the terminal process; once a session is headless,
+    // late reports from the dying terminal must not clobber its state.
+    if (s.kind === 'headless') {
+      return ev.kind;
+    }
+
     const focused = this.focusedId === s.id;
     let dirty = false;
 
@@ -557,6 +564,8 @@ export class SessionManager {
       this.onEvent('state', s);
       this.emitChange();
     }
+
+    return ev.kind;
   }
 
   private async refreshName(s: Session, source: string) {

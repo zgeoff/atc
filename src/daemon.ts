@@ -39,11 +39,6 @@ export interface DaemonOptions {
   // Outbound queue capacity per client; small values force desync in tests.
   readonly queueBytes?: number;
 
-  // Runs one headless turn over a session; the real one drives the Agent
-  // SDK, which spawns real claude — a boundary tests never cross. Absent
-  // means eject is unsupported.
-  readonly headlessRunner?: HeadlessRunner;
-
   // How long an eject waits for the dying terminal to report SessionEnd
   // before starting the headless run anyway.
   readonly ejectSettleMs?: number;
@@ -59,24 +54,6 @@ export interface DaemonOptions {
   // entrypoint exits the process, tests leave it unset.
   readonly onQuit?: () => void;
 }
-
-interface HeadlessRunRequest {
-  readonly cwd: string;
-  readonly prompt: string;
-  readonly resume?: string;
-  readonly permissionMode?: string;
-}
-
-interface HeadlessRunEvents {
-  readonly onOutput: (text: string) => void;
-  readonly onDone: (summary: string) => void;
-  readonly onNeedsYou: (msg: string) => void;
-}
-
-export type HeadlessRunner = (
-  opts: HeadlessRunRequest,
-  hooks: HeadlessRunEvents,
-) => { readonly stop: () => void };
 
 export interface DaemonHandle {
   readonly stop: () => void;
@@ -164,17 +141,10 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   };
 
   const startHeadlessTurn = (sessionID: string, prompt: string): boolean => {
-    const runner = opts.headlessRunner;
     const s = mgr.sessions.find((x) => x.id === sessionID);
-    const adapter = s === undefined ? null : mgr.findAdapter(s.agent);
+    const runner = s === undefined ? null : (mgr.findAdapter(s.agent)?.headlessRunner ?? null);
 
-    if (
-      runner === undefined ||
-      s === undefined ||
-      adapter === null ||
-      !adapter.supportsHeadless ||
-      headlessRuns.has(sessionID)
-    ) {
+    if (s === undefined || runner === null || headlessRuns.has(sessionID)) {
       return false;
     }
 
@@ -449,13 +419,15 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       store.recordEvent(e);
     }
 
-    if (e.event === 'SessionEnd') {
+    const kind = mgr.applyHook(e);
+
+    if (kind === 'ended') {
       pendingEjects.get(e.atcId)?.();
     }
 
     // A revived session announcing itself is the cue a staggered restore
     // waits on before booting the next one.
-    if (e.event === 'SessionStart') {
+    if (kind === 'started') {
       bootWaiters.get(e.atcId)?.();
       const started = mgr.sessions.find((s) => s.id === e.atcId);
 
@@ -463,8 +435,6 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
         store.writeLastUsedAgent(started.agent);
       }
     }
-
-    mgr.applyHook(e);
   }, opts.reporterSocketPath);
 
   const ctx: DaemonContext = {
@@ -513,11 +483,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
 
       const adapter = mgr.findAdapter(s.agent);
 
-      if (adapter === null || !adapter.supportsHeadless) {
-        return 'unsupported_agent';
-      }
-
-      if (opts.headlessRunner === undefined) {
+      if (adapter === null || adapter.headlessRunner === null) {
         return 'unsupported';
       }
 
