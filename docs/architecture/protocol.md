@@ -24,14 +24,14 @@ version) so a socket tap can interpret lines standalone.
 
 ```jsonc
 // request  (client -> daemon); id is client-assigned, monotonic per connection
-{ "v": 1, "id": 7, "m": "session.spawn", "p": { "cwd": "/x", "name": "auth-bug" } }
+{ "v": 2, "id": 7, "m": "session.spawn", "p": { "cwd": "/x", "name": "auth-bug" } }
 
 // response (daemon -> client); exactly one per request
-{ "v": 1, "id": 7, "ok": { "session": "s7-m4x2p" } }
-{ "v": 1, "id": 7, "err": { "code": "no_such_session", "msg": "…" } }
+{ "v": 2, "id": 7, "ok": { "session": "s7-m4x2p" } }
+{ "v": 2, "id": 7, "err": { "code": "no_such_session", "msg": "…" } }
 
 // event    (daemon -> client, unsolicited, never acknowledged)
-{ "v": 1, "ev": "session.output", "s": "s7-m4x2p", "seq": 41, "d": "[1mhello[0m" }
+{ "v": 2, "ev": "session.output", "s": "s7-m4x2p", "seq": 41, "d": "[1mhello[0m" }
 ```
 
 Methods are `noun.verb`; the future MCP tools map onto them mechanically (`session.spawn` → tool
@@ -50,10 +50,10 @@ failure must be actionable, not cryptic: the error names both versions and both 
 says to restart the daemon.
 
 ```jsonc
-{ "v": 1, "id": 1, "m": "daemon.hello",
+{ "v": 2, "id": 1, "m": "daemon.hello",
   "p": { "client": "atc/0.4.0", "auth": { "scheme": "none" } } }
 
-{ "v": 1, "id": 1, "ok": { "daemon": "atc/0.4.0",
+{ "v": 2, "id": 1, "ok": { "daemon": "atc/0.4.0",
                            "limits": { "maxLine": 1048576, "maxChunk": 65536 },
                            "lastUsedAgent": "claude" } }
 ```
@@ -118,9 +118,9 @@ from the screen model) as ordinary `session.output` events, then live output beh
 cannot tell replay from live and does not need to. Before the screen model exists, attach falls back
 to the resize-jiggle repaint: correct, slower, flickers.
 
-Sessions have a `kind`: `pty` (output is terminal text) or, later, `jsonl` (output is structured
-agent messages, e.g. SDK sessions). Same attach flow, same events, different payload discipline —
-this is one field now instead of a protocol version later.
+Sessions have a `kind`: `pty` (output is terminal text) or `headless` (output is structured agent
+messages, e.g. SDK sessions). Same attach flow, same events, different payload discipline — this is
+one field now instead of a protocol version later.
 
 ## Backpressure
 
@@ -137,7 +137,7 @@ serialization — is where output and control genuinely differ:
   dropped without a resync, because a byte stream cut mid-escape corrupts the client's terminal
   state.
 - Control is not droppable: a control-queue overflow is a bug or a hostile peer — disconnect.
-- `jsonl` sessions never drop-and-resync (structured messages are semantic, not idempotent screen
+- `headless` sessions never drop-and-resync (structured messages are semantic, not idempotent screen
   state): their queue is bounded and overflow fails the attach with `too_slow`. The transcript on
   disk is the durable copy; the socket is not a durability layer.
 

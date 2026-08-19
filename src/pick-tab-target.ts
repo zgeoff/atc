@@ -8,7 +8,7 @@ interface TabCandidate {
   readonly lastAttachedAt: number;
   readonly createdAt: number;
   readonly alive: boolean;
-  readonly kind: 'pty' | 'jsonl';
+  readonly kind: 'pty' | 'headless';
 }
 
 /**

@@ -130,7 +130,7 @@ test('it answers daemon.hello with the build and limits', async () => {
 test('it rejects a protocol version mismatch naming both builds', async () => {
   const raw = await setupRawClient();
 
-  raw.sendLine('{"v":2,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}');
+  raw.sendLine('{"v":3,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}');
 
   const [line] = await raw.waitForLine();
 
@@ -139,15 +139,15 @@ test('it rejects a protocol version mismatch naming both builds', async () => {
   }
 
   expect(JSON.parse(line)).toStrictEqual({
-    v: 1,
+    v: 2,
     id: 1,
     err: {
       code: 'protocol_mismatch',
       msg: expect.toSatisfy(
         (msg: string) =>
           msg.includes('atc/newer-build') &&
+          msg.includes('v3') &&
           msg.includes('v2') &&
-          msg.includes('v1') &&
           msg.includes('restart the daemon'),
       ) as string,
     },
@@ -196,7 +196,7 @@ test('it closes the connection on a malformed line', async () => {
   }
 
   expect(JSON.parse(line)).toStrictEqual({
-    v: 1,
+    v: 2,
     id: 0,
     err: { code: 'bad_args', msg: 'malformed line: not valid JSON' },
   });
@@ -216,7 +216,7 @@ test('it closes the connection on an oversized line', async () => {
   }
 
   expect(JSON.parse(line)).toStrictEqual({
-    v: 1,
+    v: 2,
     id: 0,
     err: { code: 'bad_args', msg: 'line exceeds 1048576 bytes' },
   });

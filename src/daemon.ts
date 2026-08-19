@@ -184,7 +184,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       {
         cwd: s.cwd,
         prompt,
-        ...(s.claudeId === undefined ? {} : { resume: s.claudeId }),
+        ...(s.agentSessionID === undefined ? {} : { resume: s.agentSessionID }),
         permissionMode: 'auto',
       },
       {
@@ -425,8 +425,8 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
         unread: s.unread,
         lastMsg: s.lastMsg,
         kind: s.kind,
-        alive: s.pty !== null || (s.kind === 'jsonl' && s.state !== 'exited'),
-        ...(s.claudeId === undefined ? {} : { claudeId: s.claudeId }),
+        alive: s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'),
+        ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
         agent: s.agent,
         pinned: s.pinned,
         lastAttachedAt: s.lastAttachedAt,
@@ -619,7 +619,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
         return 'missing';
       }
 
-      if (s.kind === 'jsonl') {
+      if (s.kind === 'headless') {
         if (headlessRuns.has(sessionID)) {
           return 'busy';
         }
@@ -649,11 +649,11 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     getEffectiveDims: (sessionID) =>
       attachments.findEffectiveDims(sessionID) ?? ptyDims.get(sessionID) ?? { cols: 80, rows: 24 },
     restoreFleet: (cols, rows) => {
-      const hasSession = (claudeId: string) =>
+      const hasSession = (agentSessionID: string) =>
         mgr.sessions.some(
           (s) =>
-            s.claudeId === claudeId &&
-            (s.pty !== null || (s.kind === 'jsonl' && s.state !== 'exited')),
+            s.agentSessionID === agentSessionID &&
+            (s.pty !== null || (s.kind === 'headless' && s.state !== 'exited')),
         );
 
       const recency = store.collectFleetRecency();
@@ -663,9 +663,9 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       // reported an event keep their stored order at the end.
       const entries = store
         .loadFleet()
-        .filter((entry) => !hasSession(entry.claudeId))
+        .filter((entry) => !hasSession(entry.agentSessionID))
         .toSorted((a, b) =>
-          (recency.get(b.claudeId) ?? '').localeCompare(recency.get(a.claudeId) ?? ''),
+          (recency.get(b.agentSessionID) ?? '').localeCompare(recency.get(a.agentSessionID) ?? ''),
         );
 
       // The whole fleet registers as terminal-less sessions up front, so the
@@ -793,7 +793,7 @@ function hasResumableTranscript(mgr: SessionManager, id: string): boolean {
   }
 
   return adapter.canResume({
-    ...(s.claudeId === undefined ? {} : { agentSessionID: s.claudeId }),
+    ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
     ...(s.transcriptSource === undefined ? {} : { transcriptSource: s.transcriptSource }),
   });
 }

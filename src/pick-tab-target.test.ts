@@ -108,7 +108,7 @@ test('it skips headless and dead sessions in the done fallback', () => {
         lastAttachedAt: 1,
         createdAt: 1,
         alive: true,
-        kind: 'jsonl',
+        kind: 'headless',
       },
       {
         id: 'b',

@@ -160,7 +160,7 @@ test('it ejects a terminal session into a headless run with its agent id', async
     throw new TypeError('sessions is not an array');
   }
 
-  expect(sessions[0]).toMatchObject({ kind: 'jsonl', alive: true, state: 'running' });
+  expect(sessions[0]).toMatchObject({ kind: 'headless', alive: true, state: 'running' });
 });
 
 test('it reports a finished headless turn as done', async () => {

@@ -39,7 +39,7 @@ interface MirrorSession {
   unread: boolean;
   lastMsg: string;
   createdAt: number;
-  kind: 'pty' | 'jsonl';
+  kind: 'pty' | 'headless';
   alive: boolean;
   resumable: boolean;
   agent: AgentKind;
@@ -439,9 +439,9 @@ function toMirrorSession(value: unknown): MirrorSession | null {
     unread: value['unread'],
     lastMsg: value['lastMsg'],
     createdAt: value['createdAt'],
-    kind: value['kind'] === 'jsonl' ? 'jsonl' : 'pty',
+    kind: value['kind'] === 'headless' ? 'headless' : 'pty',
     alive: value['alive'],
-    resumable: typeof value['claudeId'] === 'string',
+    resumable: typeof value['agentSessionID'] === 'string',
     agent: value['agent'] === 'grok' ? 'grok' : 'claude',
   };
 }
@@ -521,7 +521,7 @@ function applyDaemonEvent(e: EventMsg) {
           s.alive = false;
         }
 
-        if (e['kind'] === 'pty' || e['kind'] === 'jsonl') {
+        if (e['kind'] === 'pty' || e['kind'] === 'headless') {
           s.kind = e['kind'];
         }
 
@@ -545,7 +545,7 @@ function applyDaemonEvent(e: EventMsg) {
           s.agent = e['agent'];
         }
 
-        if (typeof e['claudeId'] === 'string') {
+        if (typeof e['agentSessionID'] === 'string') {
           if (!s.resumable) {
             lastUsedAgent = s.agent;
           }
@@ -826,7 +826,7 @@ function applyOverlayKey(buf: Buffer) {
     return;
   }
 
-  if (ch === 'P' && sel !== undefined && sel.resumable && (sel.kind === 'jsonl' || !sel.alive)) {
+  if (ch === 'P' && sel !== undefined && sel.resumable && (sel.kind === 'headless' || !sel.alive)) {
     void adoptSession(sel.id);
 
     return;

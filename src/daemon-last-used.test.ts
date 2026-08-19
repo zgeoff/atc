@@ -31,7 +31,7 @@ test('it does not write last-used when a restored session reports SessionStart',
 
   const store = new StateStore(dbPath);
 
-  store.writeFleet([{ name: 'old-grok', cwd: '/tmp', claudeId: 'g-restore', agent: 'grok' }]);
+  store.writeFleet([{ name: 'old-grok', cwd: '/tmp', agentSessionID: 'g-restore', agent: 'grok' }]);
   store.writeLastUsedAgent('claude');
 
   const grok = new GrokAdapter({

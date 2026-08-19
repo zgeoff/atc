@@ -23,7 +23,7 @@ export class StateStore {
 
     this.db.run(`
       CREATE TABLE IF NOT EXISTS fleet (
-        claude_id TEXT PRIMARY KEY,
+        agent_session_id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         cwd TEXT NOT NULL,
         pinned INTEGER NOT NULL DEFAULT 0,
@@ -57,6 +57,12 @@ export class StateStore {
         .map((c) => c.name),
     );
 
+    // Stores created before the id column was agent-neutral carry it under
+    // its Claude-era name.
+    if (fleetColumns.has('claude_id')) {
+      this.db.run('ALTER TABLE fleet RENAME COLUMN claude_id TO agent_session_id');
+    }
+
     if (!fleetColumns.has('pinned')) {
       this.db.run('ALTER TABLE fleet ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0');
     }
@@ -78,7 +84,7 @@ export class StateStore {
     const rows = this.db
       .query<
         {
-          claude_id: string;
+          agent_session_id: string;
           name: string;
           cwd: string;
           pinned: number;
@@ -86,14 +92,14 @@ export class StateStore {
           agent: string | null;
         },
         []
-      >('SELECT claude_id, name, cwd, pinned, last_attached, agent FROM fleet')
+      >('SELECT agent_session_id, name, cwd, pinned, last_attached, agent FROM fleet')
       .all();
 
     const entries: FleetEntry[] = [];
 
     for (const row of rows) {
       entries.push({
-        claudeId: row.claude_id,
+        agentSessionID: row.agent_session_id,
         name: row.name,
         cwd: row.cwd,
         agent: toAgentKind(row.agent),
@@ -122,14 +128,14 @@ export class StateStore {
       this.db.run('DELETE FROM fleet');
 
       const insert = this.db.query(
-        'INSERT OR REPLACE INTO fleet (claude_id, name, cwd, pinned, last_attached, agent) VALUES (?1, ?2, ?3, ?4, ?5, ?6)',
+        'INSERT OR REPLACE INTO fleet (agent_session_id, name, cwd, pinned, last_attached, agent) VALUES (?1, ?2, ?3, ?4, ?5, ?6)',
       );
 
       for (const entry of all) {
         const pinned = entry.pinned === true ? 1 : 0;
 
         insert.run(
-          entry.claudeId,
+          entry.agentSessionID,
           entry.name,
           entry.cwd,
           pinned,

@@ -161,7 +161,7 @@ function dimRow(width: number, text: string): Row {
 // Selection-dependent hints need the liveness facts of each row.
 export interface OverlaySessionView extends SessionView {
   readonly alive: boolean;
-  readonly kind: 'pty' | 'jsonl';
+  readonly kind: 'pty' | 'headless';
   readonly resumable: boolean;
   readonly agent: AgentKind;
   readonly pinned: boolean;
@@ -260,7 +260,7 @@ export function buildOverlayHint(s: OverlaySessionView | undefined): string {
 
   const actions: string[] = [];
 
-  if (s.kind === 'jsonl' && s.alive) {
+  if (s.kind === 'headless' && s.alive) {
     actions.push('P reattach', 'K kill');
   } else if (s.alive) {
     actions.push('⏎ attach');
