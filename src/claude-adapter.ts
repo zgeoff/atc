@@ -29,14 +29,16 @@ export class ClaudeAdapter implements AgentAdapter {
 
   private readonly config: Config;
 
-  private readonly settingsFile: string;
+  // Written on first spawn so constructing the adapter touches no state.
+  private settingsFile: string | undefined;
 
   constructor(config: Config) {
     this.config = config;
-    this.settingsFile = writeHookSettings();
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
+    this.settingsFile ??= writeHookSettings();
+
     return {
       bin: this.config.claudeBin,
       args: [

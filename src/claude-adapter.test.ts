@@ -1,9 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ClaudeAdapter } from './claude-adapter';
-import { stateDir } from './config';
 import type { Config } from './config';
 
 function buildClaudeConfig(): Config {
@@ -22,8 +21,6 @@ test('it resumes when no transcript was reported or the reported file exists', (
   onTestFinished(() => {
     rmSync(dir, { recursive: true, force: true });
   });
-
-  mkdirSync(stateDir, { recursive: true });
 
   const transcript = join(dir, 'transcript.jsonl');
 
