@@ -24,14 +24,14 @@ export interface SessionDescriptor {
   readonly unread: boolean;
   readonly lastMsg: string;
   readonly lastDetail?: string;
-  readonly claudeId?: string;
+  readonly agentSessionID?: string;
   readonly agent: AgentKind;
   readonly pinned: boolean;
   readonly lastAttachedAt: number;
   readonly repoRoot: string;
   readonly namedBy: 'user' | 'auto' | 'agent';
   readonly createdAt: number;
-  readonly kind: 'pty' | 'jsonl';
+  readonly kind: 'pty' | 'headless';
   readonly alive: boolean;
 }
 
@@ -39,13 +39,13 @@ export interface Session {
   id: string;
   name: string;
   cwd: string;
-  kind: 'pty' | 'jsonl';
+  kind: 'pty' | 'headless';
   pty: IPty | null;
   state: SessionState;
   unread: boolean;
   lastMsg: string;
   lastDetail?: string;
-  claudeId?: string;
+  agentSessionID?: string;
   agent: AgentKind;
   transcriptSource?: string;
   pinned: boolean;
@@ -69,7 +69,7 @@ let counter = 0;
 export interface FleetEntry {
   readonly name: string;
   readonly cwd: string;
-  readonly claudeId: string;
+  readonly agentSessionID: string;
   readonly agent: AgentKind;
   readonly pinned?: boolean;
   readonly lastAttachedAt?: number;
@@ -92,19 +92,22 @@ const jsonFleetStore: FleetStore = {
 };
 
 export function parseFleetEntry(raw: unknown): FleetEntry | undefined {
-  if (
-    !isRecord(raw) ||
-    typeof raw['name'] !== 'string' ||
-    typeof raw['cwd'] !== 'string' ||
-    typeof raw['claudeId'] !== 'string'
-  ) {
+  if (!isRecord(raw) || typeof raw['name'] !== 'string' || typeof raw['cwd'] !== 'string') {
+    return undefined;
+  }
+
+  // Fleet files written before the id key was agent-neutral carry it under
+  // its Claude-era name.
+  const agentSessionID = raw['agentSessionID'] ?? raw['claudeId'];
+
+  if (typeof agentSessionID !== 'string') {
     return undefined;
   }
 
   return {
     name: raw['name'],
     cwd: raw['cwd'],
-    claudeId: raw['claudeId'],
+    agentSessionID,
     agent: toAgentKind(raw['agent']),
     ...(raw['pinned'] === true ? { pinned: true } : {}),
     ...(typeof raw['lastAttachedAt'] === 'number' ? { lastAttachedAt: raw['lastAttachedAt'] } : {}),
@@ -179,18 +182,18 @@ export class SessionManager {
   }
 
   // Hands a live terminal session off to a headless run: the terminal dies,
-  // the record lives on as a jsonl session and keeps its screen history.
+  // the record lives on as a headless session and keeps its screen history.
   yankHeadless(id: string): Session | null {
     const s = this.sessions.find((x) => x.id === id);
 
-    if (!s || s.pty === null || s.claudeId === undefined) {
+    if (!s || s.pty === null || s.agentSessionID === undefined) {
       return null;
     }
 
     const pty = s.pty;
 
     s.pty = null;
-    s.kind = 'jsonl';
+    s.kind = 'headless';
     s.state = 'running';
     s.lastMsg = 'ejected to headless';
 
@@ -209,12 +212,12 @@ export class SessionManager {
       id: `s${++counter}-${Date.now().toString(36)}`,
       name: entry.name,
       cwd: entry.cwd,
-      kind: 'jsonl',
+      kind: 'headless',
       pty: null,
       state: 'running',
       unread: false,
       lastMsg: 'waiting to restore',
-      claudeId: entry.claudeId,
+      agentSessionID: entry.agentSessionID,
       agent: entry.agent,
       pinned: entry.pinned ?? false,
       lastAttachedAt: entry.lastAttachedAt ?? Date.now(),
@@ -235,7 +238,7 @@ export class SessionManager {
   adoptTerminal(id: string, cols: number, rows: number): Session | null {
     const s = this.sessions.find((x) => x.id === id);
 
-    if (!s || s.pty !== null || s.claudeId === undefined) {
+    if (!s || s.pty !== null || s.agentSessionID === undefined) {
       return null;
     }
 
@@ -245,7 +248,7 @@ export class SessionManager {
       return null;
     }
 
-    const plan = adapter.planSpawn({ prompt: '', resume: s.claudeId });
+    const plan = adapter.planSpawn({ prompt: '', resume: s.agentSessionID });
 
     const pty = spawn(plan.bin, plan.args, {
       name: 'xterm-256color',
@@ -319,7 +322,7 @@ export class SessionManager {
   updateSurfaceState(id: string, state: SessionState, msg: string) {
     const s = this.sessions.find((x) => x.id === id);
 
-    if (!s || s.kind !== 'jsonl') {
+    if (!s || s.kind !== 'headless') {
       return;
     }
 
@@ -403,7 +406,7 @@ export class SessionManager {
       state: 'running',
       unread: false,
       lastMsg: initialMsg,
-      ...(typeof resume === 'string' ? { claudeId: resume } : {}),
+      ...(typeof resume === 'string' ? { agentSessionID: resume } : {}),
       agent,
       pinned: false,
       lastAttachedAt: Date.now(),
@@ -448,7 +451,7 @@ export class SessionManager {
       unread: s.unread,
       lastMsg: s.lastMsg,
       ...(s.lastDetail === undefined ? {} : { lastDetail: s.lastDetail }),
-      ...(s.claudeId === undefined ? {} : { claudeId: s.claudeId }),
+      ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
       agent: s.agent,
       pinned: s.pinned,
       lastAttachedAt: s.lastAttachedAt,
@@ -456,7 +459,7 @@ export class SessionManager {
       namedBy: s.namedBy,
       createdAt: s.createdAt,
       kind: s.kind,
-      alive: s.pty !== null || (s.kind === 'jsonl' && s.state !== 'exited'),
+      alive: s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'),
     }));
   }
 
@@ -465,7 +468,7 @@ export class SessionManager {
 
     // Reporters belong to the terminal process; once a session is headless,
     // late reports from the dying terminal must not clobber its state.
-    if (!s || s.kind === 'jsonl') {
+    if (!s || s.kind === 'headless') {
       return;
     }
 
@@ -479,8 +482,8 @@ export class SessionManager {
     const focused = this.focusedId === s.id;
     let dirty = false;
 
-    if (ev.agentSessionID !== undefined && s.claudeId !== ev.agentSessionID) {
-      s.claudeId = ev.agentSessionID;
+    if (ev.agentSessionID !== undefined && s.agentSessionID !== ev.agentSessionID) {
+      s.agentSessionID = ev.agentSessionID;
 
       this.writeFleet();
 
@@ -588,7 +591,7 @@ export class SessionManager {
       return null;
     }
 
-    return this.findAdapter(s.agent)?.buildResumeCommand(s.cwd, s.claudeId) ?? null;
+    return this.findAdapter(s.agent)?.buildResumeCommand(s.cwd, s.agentSessionID) ?? null;
   }
 
   attach(id: string) {
@@ -684,13 +687,13 @@ export class SessionManager {
     const fleet: FleetEntry[] = [];
 
     for (const s of this.sessions) {
-      const live = s.pty !== null || (s.kind === 'jsonl' && s.state !== 'exited');
+      const live = s.pty !== null || (s.kind === 'headless' && s.state !== 'exited');
 
-      if (live && s.claudeId !== undefined) {
+      if (live && s.agentSessionID !== undefined) {
         fleet.push({
           name: s.name,
           cwd: s.cwd,
-          claudeId: s.claudeId,
+          agentSessionID: s.agentSessionID,
           agent: s.agent,
           ...(s.pinned ? { pinned: true } : {}),
           lastAttachedAt: s.lastAttachedAt,

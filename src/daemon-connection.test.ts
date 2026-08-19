@@ -73,7 +73,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
 
   const conn = new DaemonConnection(peer, ctx);
 
-  conn.applyChunk('{"v":1,"id":1,"m":"daemon.hello","p":{"client":"atc/test"}}\n');
+  conn.applyChunk('{"v":2,"id":1,"m":"daemon.hello","p":{"client":"atc/test"}}\n');
 
   return {
     conn,

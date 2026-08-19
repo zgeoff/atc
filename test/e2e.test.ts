@@ -753,7 +753,7 @@ test('it restores the fleet from disk after a crash', async () => {
     try {
       const db = new Database(dbPath, { readonly: true });
 
-      fleet = db.query('SELECT name, cwd, claude_id AS claudeId FROM fleet').all();
+      fleet = db.query('SELECT name, cwd, agent_session_id AS agentSessionID FROM fleet').all();
 
       db.close();
     } catch {}
@@ -777,7 +777,7 @@ test('it restores the fleet from disk after a crash', async () => {
 
   await Bun.sleep(300); // let the killed processes release their sockets before rebooting
 
-  expect(fleet).toStrictEqual([{ name: 'fleettest', cwd: ctx.home, claudeId: 'fake-1' }]);
+  expect(fleet).toStrictEqual([{ name: 'fleettest', cwd: ctx.home, agentSessionID: 'fake-1' }]);
 
   ctx.reset();
 
@@ -874,7 +874,9 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
     try {
       const db = new Database(dbPath, { readonly: true });
 
-      fleet = db.query('SELECT name, cwd, claude_id AS claudeId, agent FROM fleet').all();
+      fleet = db
+        .query('SELECT name, cwd, agent_session_id AS agentSessionID, agent FROM fleet')
+        .all();
 
       db.close();
     } catch {}
@@ -887,7 +889,7 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
   }
 
   expect(fleet).toStrictEqual([
-    { name: 'groksess', cwd: ctx.home, claudeId: 'fake-grok-1', agent: 'grok' },
+    { name: 'groksess', cwd: ctx.home, agentSessionID: 'fake-grok-1', agent: 'grok' },
   ]);
 
   pty.write(CTRL_SPACE);
@@ -993,7 +995,9 @@ test('it restores a grok session with grok --resume after a crash', async () => 
     try {
       const db = new Database(dbPath, { readonly: true });
 
-      fleet = db.query('SELECT name, cwd, claude_id AS claudeId, agent FROM fleet').all();
+      fleet = db
+        .query('SELECT name, cwd, agent_session_id AS agentSessionID, agent FROM fleet')
+        .all();
 
       db.close();
     } catch {}
@@ -1016,7 +1020,7 @@ test('it restores a grok session with grok --resume after a crash', async () => 
   await Bun.sleep(300); // let the killed processes release their sockets before rebooting
 
   expect(fleet).toStrictEqual([
-    { name: 'grokfleet', cwd: ctx.home, claudeId: 'fake-grok-1', agent: 'grok' },
+    { name: 'grokfleet', cwd: ctx.home, agentSessionID: 'fake-grok-1', agent: 'grok' },
   ]);
 
   ctx.reset();

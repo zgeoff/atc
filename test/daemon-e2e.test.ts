@@ -246,7 +246,7 @@ test('it turns hook notifications into session.state broadcasts', async () => {
   expect(sessions[0]).toMatchObject({
     state: 'needs_you',
     lastMsg: 'needs permission',
-    claudeId: 'fake-1',
+    agentSessionID: 'fake-1',
   });
 });
 
@@ -491,7 +491,7 @@ test('it restores the fleet cold after a daemon crash', async () => {
   const sessions = getRecords(list, 'sessions');
 
   expect(sessions).toHaveLength(1);
-  expect(sessions[0]).toMatchObject({ claudeId: 'fake-1', alive: true });
+  expect(sessions[0]).toMatchObject({ agentSessionID: 'fake-1', alive: true });
 });
 
 test('it revives the fleet one boot at a time, gated on SessionStart', async () => {
@@ -533,9 +533,9 @@ sleep 30
   writeFileSync(
     join(home, '.local', 'state', 'atc', 'fleet.json'),
     JSON.stringify([
-      { name: 'one', cwd: home, claudeId: 'fake-a' },
-      { name: 'two', cwd: home, claudeId: 'fake-b' },
-      { name: 'three', cwd: home, claudeId: 'fake-c' },
+      { name: 'one', cwd: home, agentSessionID: 'fake-a' },
+      { name: 'two', cwd: home, agentSessionID: 'fake-b' },
+      { name: 'three', cwd: home, agentSessionID: 'fake-c' },
     ]),
   );
 
@@ -572,7 +572,7 @@ sleep 30
   // fills in rather than freezing until the last process is up.
   await waitForEvent(
     events,
-    (e) => e.ev === 'session.state' && e['claudeId'] === 'fake-c' && e['kind'] === 'pty',
+    (e) => e.ev === 'session.state' && e['agentSessionID'] === 'fake-c' && e['kind'] === 'pty',
   );
 
   const settled = await client.sendRequest('session.list');
@@ -619,9 +619,9 @@ sleep 30
   const seed = new StateStore(dbPath);
 
   seed.writeFleet([
-    { name: 'one', cwd: home, claudeId: 'fake-a', agent: 'claude' },
-    { name: 'two', cwd: home, claudeId: 'fake-b', agent: 'claude' },
-    { name: 'three', cwd: home, claudeId: 'fake-c', agent: 'claude' },
+    { name: 'one', cwd: home, agentSessionID: 'fake-a', agent: 'claude' },
+    { name: 'two', cwd: home, agentSessionID: 'fake-b', agent: 'claude' },
+    { name: 'three', cwd: home, agentSessionID: 'fake-c', agent: 'claude' },
   ]);
 
   seed.stop();
@@ -943,7 +943,7 @@ test('it spawns a grok session and captures a grok descriptor from SessionStart'
 
   expect(sessions[0]).toMatchObject({
     state: 'needs_you',
-    claudeId: 'fake-grok-1',
+    agentSessionID: 'fake-grok-1',
     agent: 'grok',
     lastMsg: 'allow edit?',
   });
@@ -1053,7 +1053,11 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
     throw new Error('no restored grok session');
   }
 
-  expect(restoredSession).toMatchObject({ claudeId: 'fake-grok-1', agent: 'grok', alive: true });
+  expect(restoredSession).toMatchObject({
+    agentSessionID: 'fake-grok-1',
+    agent: 'grok',
+    alive: true,
+  });
 
   const id = getString(restoredSession, 'id');
 
