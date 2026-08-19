@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.10](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.9...@zgeoff/atc@0.1.10) (2026-08-19)
+
+### Features
+
+- host grok CLI sessions in a mixed fleet ([#24](https://github.com/zgeoff/atc/issues/24))
+  ([eac9b9e](https://github.com/zgeoff/atc/commit/eac9b9e9a5cd174415ace22d4d214946c6851da5))
+
+### Bug Fixes
+
+- write the claude settings file on first spawn, not construction
+  ([#26](https://github.com/zgeoff/atc/issues/26))
+  ([febf231](https://github.com/zgeoff/atc/commit/febf2311c565eb81a111942966f43ddbdba41b02))
+
 ## [0.1.9](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.8...@zgeoff/atc@0.1.9) (2026-08-18)
 
 ### Features
