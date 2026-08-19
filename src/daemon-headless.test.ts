@@ -298,6 +298,8 @@ test('it refuses to eject a grok session and does not start a headless runner', 
     claudeArgs: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
+    codexBin: 'codex',
+    codexArgs: [],
     leader: { code: 0, label: '^Space' },
   });
 

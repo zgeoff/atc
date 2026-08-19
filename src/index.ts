@@ -10,7 +10,7 @@ import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from '.
 import type { SessionState } from './sessions';
 import { ansi, cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar, rows } from './ui';
 
-type AgentKind = 'claude' | 'grok';
+type AgentKind = 'claude' | 'grok' | 'codex';
 
 type Mode =
   | 'home'
@@ -26,6 +26,7 @@ type Mode =
 const AGENT_PICKS = [
   { agent: 'claude' as const, label: 'Claude' },
   { agent: 'grok' as const, label: 'Grok' },
+  { agent: 'codex' as const, label: 'Codex' },
 ];
 
 interface MirrorSession {
@@ -320,7 +321,12 @@ function openAgentPicker(resume = false) {
   spawnResume = resume;
   spawnAgent = lastUsedAgent;
   pickerInput = '';
-  pickerSelected = lastUsedAgent === 'grok' ? 1 : 0;
+
+  pickerSelected = Math.max(
+    0,
+    AGENT_PICKS.findIndex((p) => p.agent === lastUsedAgent),
+  );
+
   mode = 'picker-agent';
 
   stdout.write(ansi.clear);
@@ -442,7 +448,7 @@ function toMirrorSession(value: unknown): MirrorSession | null {
     kind: value['kind'] === 'headless' ? 'headless' : 'pty',
     alive: value['alive'],
     resumable: typeof value['agentSessionID'] === 'string',
-    agent: value['agent'] === 'grok' ? 'grok' : 'claude',
+    agent: value['agent'] === 'grok' || value['agent'] === 'codex' ? value['agent'] : 'claude',
   };
 }
 
@@ -541,7 +547,7 @@ function applyDaemonEvent(e: EventMsg) {
           s.lastMsg = e['lastMsg'];
         }
 
-        if (e['agent'] === 'grok' || e['agent'] === 'claude') {
+        if (e['agent'] === 'grok' || e['agent'] === 'codex' || e['agent'] === 'claude') {
           s.agent = e['agent'];
         }
 
@@ -814,7 +820,13 @@ function applyOverlayKey(buf: Buffer) {
     return;
   }
 
-  if (ch === 'H' && sel !== undefined && sel.kind === 'pty' && sel.alive && sel.agent !== 'grok') {
+  if (
+    ch === 'H' &&
+    sel !== undefined &&
+    sel.kind === 'pty' &&
+    sel.alive &&
+    sel.agent === 'claude'
+  ) {
     ejectTarget = sel.id;
     pickerInput = '';
     mode = 'picker-eject';
@@ -1149,7 +1161,12 @@ process.stdin.on('data', (buf: Buffer) => {
         },
         () => {
           pickerInput = '';
-          pickerSelected = spawnAgent === 'grok' ? 1 : 0;
+
+          pickerSelected = Math.max(
+            0,
+            AGENT_PICKS.findIndex((p) => p.agent === spawnAgent),
+          );
+
           mode = 'picker-agent';
 
           stdout.write(ansi.clear);

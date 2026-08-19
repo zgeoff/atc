@@ -46,6 +46,7 @@ const main = defineCommand({
           const config = await import('./config');
           const claude = await import('./claude-adapter');
           const grok = await import('./grok-adapter');
+          const codex = await import('./codex-adapter');
           const headless = await import('./start-headless-run');
 
           // Test harnesses shrink the outbound queue to force overflow
@@ -66,13 +67,14 @@ const main = defineCommand({
           );
 
           const grokAdapter = new grok.GrokAdapter(cfg);
+          const codexAdapter = new codex.CodexAdapter(cfg);
 
           const handle = daemon.startDaemon({
             socketPath: config.daemonSocketPath,
             reporterSocketPath: config.socketPath,
             build: getBuild(),
             adapter: claudeAdapter,
-            adapters: { claude: claudeAdapter, grok: grokAdapter },
+            adapters: { claude: claudeAdapter, grok: grokAdapter, codex: codexAdapter },
             dbPath: config.dbFile,
             legacyFleetPath: config.legacyFleetFile,
             pidPath: config.daemonPidFile,
@@ -85,6 +87,19 @@ const main = defineCommand({
             handle.stop();
             process.exit(0);
           });
+        },
+      }),
+    'codex-hooks': () =>
+      defineCommand({
+        meta: {
+          name: 'codex-hooks',
+          description:
+            'Print the Codex hook entries to merge into $CODEX_HOME/hooks.json (trust them once in the Codex TUI)',
+        },
+        async run() {
+          const hook = await import('./print-codex-hook-file');
+
+          hook.printCodexHookFile();
         },
       }),
     'grok-hooks': () =>

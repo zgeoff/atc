@@ -269,7 +269,7 @@ export function buildOverlayHint(s: OverlaySessionView | undefined): string {
       actions.push('a ack');
     }
 
-    if (s.agent !== 'grok') {
+    if (s.agent === 'claude') {
       actions.push('H headless');
     }
 

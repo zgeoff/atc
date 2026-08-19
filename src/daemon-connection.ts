@@ -375,13 +375,18 @@ export class DaemonConnection {
 
     const rawAgent = req.p?.['agent'];
 
-    if (rawAgent !== undefined && rawAgent !== 'claude' && rawAgent !== 'grok') {
-      this.sendErr(req.id, 'bad_args', "session.spawn agent must be 'claude' or 'grok'");
+    if (
+      rawAgent !== undefined &&
+      rawAgent !== 'claude' &&
+      rawAgent !== 'grok' &&
+      rawAgent !== 'codex'
+    ) {
+      this.sendErr(req.id, 'bad_args', "session.spawn agent must be 'claude', 'grok', or 'codex'");
 
       return;
     }
 
-    const agent: AgentKind = rawAgent === 'grok' ? 'grok' : 'claude';
+    const agent: AgentKind = rawAgent === 'grok' || rawAgent === 'codex' ? rawAgent : 'claude';
 
     if (this.ctx.findAdapter(agent) === null) {
       this.sendErr(req.id, 'unsupported', `no adapter for agent '${agent}'`);

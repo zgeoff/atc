@@ -75,6 +75,7 @@ function setupDaemonProc(
 
     const fakeClaude = join(freshHome, 'fake-claude');
     const fakeGrok = join(freshHome, 'fake-grok');
+    const fakeCodex = join(freshHome, 'fake-codex');
     const hookReport = `"${process.execPath}" "${join(repo, 'src', 'cli.ts')}" hook-report`;
 
     writeFileSync(
@@ -119,8 +120,28 @@ sleep 30
     );
 
     writeFileSync(
+      fakeCodex,
+      `#!/usr/bin/env bash
+echo "FAKE_CODEX_UP args: $@"
+printf '{"hook_event_name":"SessionStart","session_id":"fake-codex-1","transcript_path":"'"$HOME"'/fake-rollout.jsonl","cwd":"%s","source":"startup"}' "$PWD" | ${hookReport}
+sleep 0.3
+printf '{"hook_event_name":"Stop","session_id":"fake-codex-1","transcript_path":"'"$HOME"'/fake-rollout.jsonl","last_assistant_message":"pong"}' | ${hookReport}
+while read -r line; do echo "GOT:$line"; done
+sleep 30
+`,
+      { mode: 0o755 },
+    );
+
+    writeFileSync(
       join(freshHome, '.config', 'atc', 'config.json'),
-      JSON.stringify({ claudeBin: fakeClaude, claudeArgs: [], grokBin: fakeGrok, grokArgs: [] }),
+      JSON.stringify({
+        claudeBin: fakeClaude,
+        claudeArgs: [],
+        grokBin: fakeGrok,
+        grokArgs: [],
+        codexBin: fakeCodex,
+        codexArgs: [],
+      }),
     );
   }
 
@@ -1211,4 +1232,71 @@ test('it keeps grok needs_you when idle_prompt follows permission_prompt', async
   }
 
   expect(listed).toMatchObject({ state: 'needs_you', agent: 'grok' });
+});
+
+test('it spawns a codex session and captures its descriptor from SessionStart', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'codex',
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(ok['session']).toMatchObject({ agent: 'codex', alive: true });
+
+  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'done');
+
+  const list = await client.sendRequest('session.list');
+
+  const sessions = getRecords(list, 'sessions');
+
+  expect(sessions).toHaveLength(1);
+
+  expect(sessions[0]).toMatchObject({
+    state: 'done',
+    agentSessionID: 'fake-codex-1',
+    agent: 'codex',
+  });
+});
+
+test('it builds codex resume commands and keeps codex in the fleet on kill', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'codex',
+    cols: 80,
+    rows: 24,
+  });
+
+  const spawned = getRecord(ok, 'session');
+  const id = getString(spawned, 'id');
+
+  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'done');
+
+  const answer = await client.sendRequest('session.resumeCommand', { session: id });
+
+  expect(answer['command']).toBe(`cd '${ctx.home}' && codex resume fake-codex-1`);
 });

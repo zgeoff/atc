@@ -31,6 +31,8 @@ function buildGrokConfig(): Config {
     claudeArgs: [],
     grokBin: 'grok',
     grokArgs: [],
+    codexBin: 'codex',
+    codexArgs: [],
     leader: { code: 0, label: '^Space' },
   };
 }
@@ -79,6 +81,8 @@ test('it drops a user --leader from grokArgs and still appends --no-leader', () 
   const plan = new GrokAdapter({
     ...buildGrokConfig(),
     grokArgs: ['--leader', '--yolo'],
+    codexBin: 'codex',
+    codexArgs: [],
   }).planSpawn({ prompt: '', resume: false });
 
   expect(plan.args).toStrictEqual(['--yolo', '--no-leader']);
