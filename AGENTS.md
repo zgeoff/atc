@@ -148,11 +148,11 @@ implementing that algorithm — forcing list verbs onto textbook terms hides the
 
 # atc
 
-atc is a terminal control tower for Claude Code sessions: a daemon (`atc daemon`) hosts stock
-`claude` instances in PTYs, and thin TUI clients drive them over an NDJSON protocol behind a
-keyboard-driven session list with hook-driven attention routing. No panes, no tiling, no mouse. See
-`docs/architecture/overview.md` for how the pieces fit; the README documents keys and user-facing
-behavior.
+atc is a terminal control tower for coding-agent sessions (Claude Code and Grok Build): a daemon
+(`atc daemon`) hosts stock agent CLIs in PTYs, and thin TUI clients drive them over an NDJSON
+protocol behind a keyboard-driven session list with hook-driven attention routing. No panes, no
+tiling, no mouse. See `docs/architecture/overview.md` for how the pieces fit; the README documents
+keys and user-facing behavior.
 
 ## Layout
 
@@ -171,16 +171,19 @@ tooling, not app code.
 - Everything the hooks and CI run is a root `package.json` script; invoke gates by script name,
   never by re-spelling the underlying command.
 
-## Claude integration contract
+## Agent integration contract
 
-- Wrangled sessions are instrumented only via the generated `--settings` file (`writeHookSettings`):
+- Everything specific to one agent CLI lives in its adapter behind the `AgentAdapter` interface — a
+  new agent CLI is an adapter, not a refactor.
+- Claude sessions are instrumented only via the generated `--settings` file (`writeHookSettings`):
   hooks (`SessionStart`, `Notification`, `Stop`, `UserPromptSubmit`, `SessionEnd`) and a chained
-  statusline. Never touch the user's own Claude settings.
+  statusline. Never write into the user's own agent config (Claude, Grok, or any future agent);
+  instrumentation an agent cannot take per-invocation is a documented self-install step.
 - Grok attention is a user-installed hook file at `$GROK_HOME/hooks/atc-reporter.json`. atc prints
   that file (`atc grok-hooks`) and never writes into the user's Grok config.
 - Hook and statusline reporters run inside the wrangled session and must always exit 0 — a broken
   reporter must never break the session it reports on.
-- Claude is the naming authority for sessions: `/rename` custom-titles beat user-typed names beat
+- The agent is the naming authority for sessions: `/rename` custom-titles beat user-typed names beat
   auto-summaries.
 - State lives in `~/.local/state/atc/`: `atc.db` (SQLite — fleet, hook-event trail, spawn history)
   plus `status.json`, which stays a plain file because statusline reporters read it without speaking
