@@ -2,9 +2,8 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AgentAdapter } from './agent-adapter';
+import type { AgentAdapter, HeadlessRunner } from './agent-adapter';
 import { startDaemon } from './daemon';
-import type { HeadlessRunner } from './daemon';
 import { DaemonClient } from './daemon-client';
 import { GrokAdapter } from './grok-adapter';
 import type { EventMsg } from './protocol';
@@ -12,7 +11,7 @@ import { isRecord } from './report';
 
 const sleepAdapter: AgentAdapter = {
   kind: 'claude',
-  supportsHeadless: true,
+  headlessRunner: null,
   screenDetector: null,
   planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
   normalizeHook: () => ({ kind: 'heartbeat' }),
@@ -70,11 +69,10 @@ async function setupHeadlessDaemon(withRunner = true): Promise<HeadlessContext> 
     socketPath: join(dir, 'daemon.sock'),
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
-    adapter: sleepAdapter,
+    adapter: withRunner ? { ...sleepAdapter, headlessRunner: startFakeRun } : sleepAdapter,
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),
     ejectSettleMs: 30,
-    ...(withRunner ? { headlessRunner: startFakeRun } : {}),
   });
 
   const client = await DaemonClient.open(join(dir, 'daemon.sock'));
@@ -318,12 +316,11 @@ test('it refuses to eject a grok session and does not start a headless runner', 
     socketPath: join(dir, 'daemon.sock'),
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
-    adapter: sleepAdapter,
+    adapter: { ...sleepAdapter, headlessRunner: startFakeRun },
     adapters: { grok },
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),
     ejectSettleMs: 30,
-    headlessRunner: startFakeRun,
   });
 
   const client = await DaemonClient.open(join(dir, 'daemon.sock'));
@@ -360,7 +357,7 @@ test('it refuses to eject a grok session and does not start a headless runner', 
 
   expect(client.sendRequest('session.eject', { session: spawned['id'] })).rejects.toMatchObject({
     code: 'unsupported',
-    message: 'grok sessions have no headless handoff',
+    message: "this session's agent has no headless handoff",
   });
 
   // Eject settle is 30ms; wait it out so a mistaken runner start would have landed.

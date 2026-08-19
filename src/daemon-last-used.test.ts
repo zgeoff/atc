@@ -11,7 +11,7 @@ import { StateStore } from './state-store';
 
 const idleAdapter: AgentAdapter = {
   kind: 'claude',
-  supportsHeadless: true,
+  headlessRunner: null,
   screenDetector: null,
   planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
   normalizeHook: () => ({ kind: 'heartbeat' }),

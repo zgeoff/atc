@@ -61,11 +61,13 @@ const main = defineCommand({
           const restoreBootTimeoutMs =
             Number.isFinite(capOverride) && capOverride >= 0 ? capOverride : 15_000;
 
-          const claudeAdapter = new claude.ClaudeAdapter(cfg);
+          const claudeAdapter = new claude.ClaudeAdapter(cfg, (runOpts, hooks) =>
+            headless.startHeadlessRun(runOpts, hooks),
+          );
+
           const grokAdapter = new grok.GrokAdapter(cfg);
 
           const handle = daemon.startDaemon({
-            headlessRunner: (runOpts, hooks) => headless.startHeadlessRun(runOpts, hooks),
             socketPath: config.daemonSocketPath,
             reporterSocketPath: config.socketPath,
             build: getBuild(),

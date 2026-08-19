@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type {
   AdapterEvent,
   AgentAdapter,
+  HeadlessRunner,
   NameUpdate,
   ResumeCheck,
   SpawnOptions,
@@ -22,7 +23,7 @@ import { isRecord } from './report';
 export class ClaudeAdapter implements AgentAdapter {
   readonly kind = 'claude';
 
-  readonly supportsHeadless = true;
+  readonly headlessRunner: HeadlessRunner | null;
 
   // Claude's hooks are authoritative; no screen heuristics needed.
   readonly screenDetector = null;
@@ -32,8 +33,9 @@ export class ClaudeAdapter implements AgentAdapter {
   // Written on first spawn so constructing the adapter touches no state.
   private settingsFile: string | undefined;
 
-  constructor(config: Config) {
+  constructor(config: Config, headlessRunner: HeadlessRunner | null = null) {
     this.config = config;
+    this.headlessRunner = headlessRunner;
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {

@@ -48,7 +48,7 @@ export interface DaemonContext {
   readonly ejectSession: (
     id: string,
     prompt: string,
-  ) => 'ok' | 'missing' | 'unsupported' | 'unsupported_agent' | 'no_transcript';
+  ) => 'ok' | 'missing' | 'unsupported' | 'no_transcript';
   readonly adoptSession: (
     id: string,
     cols: number,
@@ -273,9 +273,7 @@ export class DaemonConnection {
         if (result === 'ok') {
           this.sendOk(req.id, {});
         } else if (result === 'unsupported') {
-          this.sendErr(req.id, 'unsupported', 'this daemon has no headless runner');
-        } else if (result === 'unsupported_agent') {
-          this.sendErr(req.id, 'unsupported', 'grok sessions have no headless handoff');
+          this.sendErr(req.id, 'unsupported', "this session's agent has no headless handoff");
         } else if (result === 'no_transcript') {
           this.sendErr(
             req.id,
