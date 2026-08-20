@@ -2,10 +2,10 @@
 
 ## [0.1.11](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.10...@zgeoff/atc@0.1.11) (2026-08-20)
 
-
 ### Features
 
-* host codex CLI sessions in a mixed fleet ([#31](https://github.com/zgeoff/atc/issues/31)) ([d24a106](https://github.com/zgeoff/atc/commit/d24a106c18c3b679dee79f86b49e53a9e6c91edb))
+- host codex CLI sessions in a mixed fleet ([#31](https://github.com/zgeoff/atc/issues/31))
+  ([d24a106](https://github.com/zgeoff/atc/commit/d24a106c18c3b679dee79f86b49e53a9e6c91edb))
 
 ## [0.1.10](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.9...@zgeoff/atc@0.1.10) (2026-08-19)
 
