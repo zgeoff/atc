@@ -861,10 +861,17 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
 
   await spawnGrokSession(ctx, pty, 'groksess');
 
-  expect(ctx.read()).toInclude('FAKE_GROK_UP args: --no-leader');
-  expect(ctx.read()).not.toInclude('--resume');
-  expect(ctx.read()).not.toInclude('-p');
-  expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
+  const captured = ctx.read();
+  const argsLine = captured.split(/\r?\n/).find((line) => line.includes('FAKE_GROK_UP args:'));
+
+  if (argsLine === undefined) {
+    throw new Error('no FAKE_GROK_UP args line was captured');
+  }
+
+  expect(argsLine).toInclude('FAKE_GROK_UP args: --no-leader');
+  expect(argsLine).not.toInclude('--resume');
+  expect(argsLine).not.toInclude('-p');
+  expect(captured).not.toInclude('FAKE_CLAUDE_UP');
 
   const dbPath = join(ctx.home, '.local', 'state', 'atc', 'atc.db');
   const start = Date.now();
@@ -1156,10 +1163,17 @@ test('it adopts grok with --no-leader and without --resume', async () => {
 
   await ctx.waitFor('FAKE_GROK_UP');
 
-  expect(ctx.read()).toInclude('FAKE_GROK_UP args: --no-leader');
-  expect(ctx.read()).not.toInclude('--resume');
-  expect(ctx.read()).not.toInclude('-p');
-  expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
+  const captured = ctx.read();
+  const argsLine = captured.split(/\r?\n/).find((line) => line.includes('FAKE_GROK_UP args:'));
+
+  if (argsLine === undefined) {
+    throw new Error('no FAKE_GROK_UP args line was captured');
+  }
+
+  expect(argsLine).toInclude('FAKE_GROK_UP args: --no-leader');
+  expect(argsLine).not.toInclude('--resume');
+  expect(argsLine).not.toInclude('-p');
+  expect(captured).not.toInclude('FAKE_CLAUDE_UP');
 }, 15_000);
 
 test('it keeps NEEDS YOU when grok emits idle_prompt after permission_prompt', async () => {
