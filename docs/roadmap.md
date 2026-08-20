@@ -82,5 +82,4 @@ Named so earlier phases don't foreclose them; each gets its own scoping when it 
   client).
 - Structured permission approval from any client (the protocol already carries `respondable`;
   dormant until a gated workflow wants it).
-- Codex (or other CLI agent) adapter.
 - Windows support beyond WSL (ConPTY via the PTY provider interface).
