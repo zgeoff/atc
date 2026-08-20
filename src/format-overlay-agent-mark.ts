@@ -5,5 +5,13 @@ import type { AgentKind } from './agent-adapter';
  * Claude, so session names stay aligned across a mixed fleet.
  */
 export function formatOverlayAgentMark(agent: AgentKind): string {
-  return agent === 'grok' ? 'g' : ' ';
+  if (agent === 'grok') {
+    return 'g';
+  }
+
+  if (agent === 'codex') {
+    return 'x';
+  }
+
+  return ' ';
 }

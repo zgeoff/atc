@@ -39,6 +39,8 @@ test('it does not write last-used when a restored session reports SessionStart',
     claudeArgs: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
+    codexBin: 'codex',
+    codexArgs: [],
     leader: { code: 0, label: '^Space' },
   });
 

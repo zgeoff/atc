@@ -311,6 +311,8 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     claudeArgs: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
+    codexBin: 'codex',
+    codexArgs: [],
     leader: { code: 0, label: '^Space' },
   });
 
@@ -362,6 +364,8 @@ test('it yanks a grok session by id and without an id', async () => {
     claudeArgs: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
+    codexBin: 'codex',
+    codexArgs: [],
     leader: { code: 0, label: '^Space' },
   });
 
@@ -440,6 +444,8 @@ test('it revives a grok session from a captured id when summary.json is missing'
     claudeArgs: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
+    codexBin: 'codex',
+    codexArgs: [],
     leader: { code: 0, label: '^Space' },
   });
 
@@ -509,6 +515,8 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
     claudeArgs: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
+    codexBin: 'codex',
+    codexArgs: [],
     leader: { code: 0, label: '^Space' },
   });
 
@@ -587,7 +595,7 @@ test('it rejects session.spawn with an unknown agent as bad_args', async () => {
   await client.sendHello('atc/test-build');
 
   expect(
-    client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'codex' }),
+    client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'gemini' }),
   ).rejects.toMatchObject({ code: 'bad_args' });
 });
 

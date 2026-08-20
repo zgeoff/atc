@@ -11,6 +11,8 @@ function buildClaudeConfig(): Config {
     claudeArgs: [],
     grokBin: 'grok',
     grokArgs: [],
+    codexBin: 'codex',
+    codexArgs: [],
     leader: { code: 0, label: '^Space' },
   };
 }

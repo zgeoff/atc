@@ -27,10 +27,11 @@ atc
 ```
 
 Needs [Bun](https://bun.sh) (atc runs from source through it) and the `claude` CLI on your PATH.
-Grok sessions also need the `grok` CLI. From a checkout, `bun src/cli.ts` runs the same thing. atc
-is built to pair with [zoxide](https://github.com/ajeetdsouza/zoxide): the spawn directory picker
-feeds on its frecency list, so with zoxide installed every directory you visit is two keystrokes
-from a session. Without it the picker falls back to atc's own spawn history.
+Grok sessions also need the `grok` CLI, and Codex sessions the `codex` CLI. From a checkout,
+`bun src/cli.ts` runs the same thing. atc is built to pair with
+[zoxide](https://github.com/ajeetdsouza/zoxide): the spawn directory picker feeds on its frecency
+list, so with zoxide installed every directory you visit is two keystrokes from a session. Without
+it the picker falls back to atc's own spawn history.
 
 The first invocation auto-spawns the daemon (`atc daemon` runs it in the foreground for systemd or
 debugging); the TUI is a thin client, so quitting or crashing it leaves every session running. Runs
@@ -42,7 +43,7 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | --------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | leader          | anywhere       | toggle session overlay — `Ctrl-Space` by default, configurable (see Config)                                                                                             |
 | `n`             | home/overlay   | spawn: pick agent → dir (zoxide + history, fuzzy) → name → optional first prompt. Fresh clients default to Claude; last-used is the last deliberate-spawn SessionStart. |
-| `r`             | home/overlay   | adopt: pick agent → dir → name. Claude opens `claude --resume`. Grok opens plain `grok`.                                                                                |
+| `r`             | home/overlay   | adopt: pick agent → dir → name. Claude opens `claude --resume`, Codex `codex resume`. Grok opens plain `grok`.                                                          |
 | `R`             | home           | restore last fleet after a daemon death — each session with its matching CLI                                                                                            |
 | `j`/`k`/`↑`/`↓` | overlay/picker | move                                                                                                                                                                    |
 | `Enter`         | overlay        | attach (auto-acks)                                                                                                                                                      |
@@ -53,7 +54,7 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | `g`             | overlay        | toggle the grouped view: sessions cluster under repository headers                                                                                                      |
 | `H`             | overlay        | eject to headless (Claude only). Hidden and ignored on a Grok row.                                                                                                      |
 | `P`             | overlay        | revive: a fresh terminal resumes a headless or killed session in place                                                                                                  |
-| `y`             | overlay        | yank the resume command (`claude --resume <id>` or `grok --resume <id>`)                                                                                                |
+| `y`             | overlay        | yank the resume command (`claude --resume <id>`, `grok --resume <id>`, or `codex resume <id>`)                                                                          |
 | `Y`             | overlay        | eject: yank the resume command, then kill the session here                                                                                                              |
 | `K`             | overlay        | kill selected (confirm with `y`) — the entry stays revivable with `P`; a second `K` forgets it                                                                          |
 | `?`             | overlay        | full key reference — the hint row only shows actions valid for the selected session                                                                                     |
@@ -90,6 +91,17 @@ path. Install it yourself:
 mkdir -p ~/.grok/hooks
 atc grok-hooks > ~/.grok/hooks/atc-reporter.json
 ```
+
+Codex attention comes from hook entries in `$CODEX_HOME/hooks.json` (`~/.codex` when `CODEX_HOME` is
+unset). atc never writes that path either — `atc codex-hooks` prints the entries to merge in:
+
+```sh
+atc codex-hooks
+```
+
+Codex parses new hooks but never runs them until you trust them once: open `codex`, review the atc
+hooks in its hooks list, and approve them. Sessions you start outside atc report events too; the
+reporter exits immediately when no atc session id is present.
 
 `atc grok-hooks` prints this file, with the `hook-report` command resolved for this install:
 
@@ -133,6 +145,8 @@ session.
   "claudeArgs": [],
   "grokBin": "grok",
   "grokArgs": [],
+  "codexBin": "codex",
+  "codexArgs": [],
   "leader": "ctrl-space"
 }
 ```
@@ -143,6 +157,8 @@ session.
 | `claudeArgs` | `[]`           | Prepended to every Claude spawn, e.g. `["--model", "opus"]`.                                                |
 | `grokBin`    | `"grok"`       | The binary spawned for Grok sessions.                                                                       |
 | `grokArgs`   | `[]`           | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`. |
+| `codexBin`   | `"codex"`      | The binary spawned for Codex sessions.                                                                      |
+| `codexArgs`  | `[]`           | Prepended to every Codex spawn.                                                                             |
 | `leader`     | `"ctrl-space"` | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                       |
 
 Pick a different leader when `Ctrl-Space` is taken on your machine — Raycast on macOS claims it, and
@@ -150,8 +166,8 @@ Pick a different leader when `Ctrl-Space` is taken on your machine — Raycast o
 unknown or reserved value falls back to the default.
 
 `atc mcp` exposes the fleet as MCP tools (list, spawn, drive, organise) to any MCP client, wrangled
-sessions included. `atc_session_spawn` takes an optional `agent` (`claude` or `grok`) and defaults
-to Claude; it never reads the TUI last-used value.
+sessions included. `atc_session_spawn` takes an optional `agent` (`claude`, `grok`, or `codex`) and
+defaults to Claude; it never reads the TUI last-used value.
 
 ```sh
 claude mcp add --scope user atc -- atc mcp

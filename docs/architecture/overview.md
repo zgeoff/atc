@@ -1,18 +1,18 @@
 # Architecture overview
 
-atc multiplexes Claude Code and Grok Build sessions without a tiling layout engine: one focused
-session owns the whole terminal, and everything else is reached through a keyboard-driven overlay.
-The design bet is that the pain of many-session work is attention routing, not window management.
-`n` and `r` open an agent picker first; last-used comes from `daemon.hello` and is written on
-SessionStart of a deliberate spawn. A fleet restore does not stamp it. MCP spawn ignores last-used
-and defaults to Claude.
+atc multiplexes Claude Code, Grok Build, and Codex CLI sessions without a tiling layout engine: one
+focused session owns the whole terminal, and everything else is reached through a keyboard-driven
+overlay. The design bet is that the pain of many-session work is attention routing, not window
+management. `n` and `r` open an agent picker first; last-used comes from `daemon.hello` and is
+written on SessionStart of a deliberate spawn. A fleet restore does not stamp it. MCP spawn ignores
+last-used and defaults to Claude.
 
 ## Process model
 
 ```text
 atc (client TUI) ── NDJSON protocol ──> atcd (atc daemon)
                                          ├── PTY per session ──> claude --settings <generated>
-                                         │                    or grok --no-leader
+                                         │                    or grok --no-leader, or codex
                                          ├── reporter socket (hook + statusline reports)
                                          └── SQLite state in ~/.local/state/atc/
 ```
@@ -20,9 +20,9 @@ atc (client TUI) ── NDJSON protocol ──> atcd (atc daemon)
 - The daemon owns the sessions; the first `atc` invocation boots it if its socket is absent, then
   connects as a thin client speaking the [wire protocol](./protocol.md). Clients are disposable —
   quitting or crashing one leaves the fleet running. See the [daemon architecture](./daemon.md).
-- Each session is a `claude` or `grok` child process on its own PTY (`bun-pty`) inside the daemon.
-  Attached clients receive the session's output as sequenced events; a slow client desyncs and
-  resynchronizes rather than stalling the PTY or other clients.
+- Each session is a `claude`, `grok`, or `codex` child process on its own PTY (`bun-pty`) inside the
+  daemon. Attached clients receive the session's output as sequenced events; a slow client desyncs
+  and resynchronizes rather than stalling the PTY or other clients.
 - A per-session vt state machine (`@xterm/headless`) consumes every PTY byte continuously, so
   attaching is an instant serialized-screen replay — no resize jiggle, no reliance on the hosted
   agent repainting itself.

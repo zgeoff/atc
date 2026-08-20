@@ -42,5 +42,10 @@ const GROK_PARENT_KEYS = new Set([
 ]);
 
 function isParentSessionKey(key: string): boolean {
-  return key === 'CLAUDECODE' || key.startsWith('CLAUDE_CODE_') || GROK_PARENT_KEYS.has(key);
+  return (
+    key === 'CLAUDECODE' ||
+    key.startsWith('CLAUDE_CODE_') ||
+    key.startsWith('CODEX_SANDBOX') ||
+    GROK_PARENT_KEYS.has(key)
+  );
 }

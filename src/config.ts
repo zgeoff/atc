@@ -8,6 +8,8 @@ export interface Config {
   claudeArgs: string[];
   grokBin: string;
   grokArgs: string[];
+  codexBin: string;
+  codexArgs: string[];
   leader: LeaderKey;
 }
 
@@ -21,6 +23,8 @@ const DEFAULTS: Config = {
   claudeArgs: [],
   grokBin: 'grok',
   grokArgs: [],
+  codexBin: 'codex',
+  codexArgs: [],
   leader: { code: 0, label: '^Space' },
 };
 
@@ -67,11 +71,18 @@ export function loadConfig(): Config {
       ? parsed['grokArgs'].filter((a): a is string => typeof a === 'string')
       : DEFAULTS.grokArgs;
 
+    const codexBin =
+      typeof parsed['codexBin'] === 'string' ? parsed['codexBin'] : DEFAULTS.codexBin;
+
+    const codexArgs = Array.isArray(parsed['codexArgs'])
+      ? parsed['codexArgs'].filter((a): a is string => typeof a === 'string')
+      : DEFAULTS.codexArgs;
+
     const leader =
       (typeof parsed['leader'] === 'string' ? decodeLeader(parsed['leader']) : null) ??
       DEFAULTS.leader;
 
-    return { claudeBin, claudeArgs, grokBin, grokArgs, leader };
+    return { claudeBin, claudeArgs, grokBin, grokArgs, codexBin, codexArgs, leader };
   } catch {
     return { ...DEFAULTS };
   }

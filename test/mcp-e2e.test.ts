@@ -274,13 +274,13 @@ test('it advertises agent on atc_session_spawn and rejects an unknown value', as
     throw new TypeError('atc_session_spawn schema has no agent field');
   }
 
-  expect(properties['agent']['enum']).toStrictEqual(['claude', 'grok']);
+  expect(properties['agent']['enum']).toStrictEqual(['claude', 'grok', 'codex']);
 
   ctx.sendRPC({
     jsonrpc: '2.0',
     id: 3,
     method: 'tools/call',
-    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home, agent: 'codex' } },
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home, agent: 'gemini' } },
   });
 
   const failResponse = await ctx.waitForResponse(3);
