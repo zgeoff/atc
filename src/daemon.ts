@@ -615,29 +615,40 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     getEffectiveDims: (sessionID) =>
       attachments.findEffectiveDims(sessionID) ?? ptyDims.get(sessionID) ?? { cols: 80, rows: 24 },
     restoreFleet: (cols, rows) => {
-      const hasSession = (agentSessionID: string) =>
+      const hasLiveSession = (agentSessionID: string) =>
         mgr.sessions.some(
           (s) =>
             s.agentSessionID === agentSessionID &&
             (s.pty !== null || (s.kind === 'headless' && s.state !== 'exited')),
         );
 
+      const hasAnySession = (agentSessionID: string) =>
+        mgr.sessions.some((s) => s.agentSessionID === agentSessionID);
+
       const recency = store.collectFleetRecency();
 
       // Most recently active sessions revive first, so the ones the user was
       // just working in come back before long-idle ones; entries that never
-      // reported an event keep their stored order at the end.
+      // reported an event keep their stored order at the end. Exited entries
+      // dedupe against every listed session, so repeated restores never
+      // double up the killed archive.
       const entries = store
         .loadFleet()
-        .filter((entry) => !hasSession(entry.agentSessionID))
+        .filter((entry) =>
+          entry.exited === true
+            ? !hasAnySession(entry.agentSessionID)
+            : !hasLiveSession(entry.agentSessionID),
+        )
         .toSorted((a, b) =>
           (recency.get(b.agentSessionID) ?? '').localeCompare(recency.get(a.agentSessionID) ?? ''),
         );
 
       // The whole fleet registers as terminal-less sessions up front, so the
       // list shows every incoming session immediately instead of revealing
-      // them one boot at a time.
-      const queued = entries.map((entry) => mgr.restore(entry));
+      // them one boot at a time. Exited entries only register — they stay
+      // killed until revived by hand, so no terminal is adopted for them.
+      const registered = entries.map((entry) => mgr.restore(entry));
+      const queued = registered.filter((s) => s.state !== 'exited');
 
       const adoptQueued = (s: Session): boolean => {
         if (mgr.adoptTerminal(s.id, cols, rows) === null) {
@@ -656,7 +667,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       const [first, ...rest] = queued;
 
       if (first === undefined) {
-        return 0;
+        return registered.length;
       }
 
       // The first terminal attaches synchronously so a caller can attach at
@@ -682,7 +693,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
 
       void adoptRest(firstBooted);
 
-      return queued.length;
+      return registered.length;
     },
   };
 

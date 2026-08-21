@@ -28,7 +28,8 @@ export class StateStore {
         cwd TEXT NOT NULL,
         pinned INTEGER NOT NULL DEFAULT 0,
         last_attached INTEGER,
-        agent TEXT NOT NULL DEFAULT 'claude'
+        agent TEXT NOT NULL DEFAULT 'claude',
+        exited INTEGER NOT NULL DEFAULT 0
       );
       CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,6 +76,10 @@ export class StateStore {
       this.db.run("ALTER TABLE fleet ADD COLUMN agent TEXT NOT NULL DEFAULT 'claude'");
     }
 
+    if (!fleetColumns.has('exited')) {
+      this.db.run('ALTER TABLE fleet ADD COLUMN exited INTEGER NOT NULL DEFAULT 0');
+    }
+
     if (legacyFleetPath !== undefined) {
       this.adoptLegacyFleet(legacyFleetPath);
     }
@@ -90,9 +95,10 @@ export class StateStore {
           pinned: number;
           last_attached: number | null;
           agent: string | null;
+          exited: number;
         },
         []
-      >('SELECT agent_session_id, name, cwd, pinned, last_attached, agent FROM fleet')
+      >('SELECT agent_session_id, name, cwd, pinned, last_attached, agent, exited FROM fleet')
       .all();
 
     const entries: FleetEntry[] = [];
@@ -105,6 +111,7 @@ export class StateStore {
         agent: toAgentKind(row.agent),
         ...(row.pinned === 0 ? {} : { pinned: true }),
         ...(row.last_attached === null ? {} : { lastAttachedAt: row.last_attached }),
+        ...(row.exited === 0 ? {} : { exited: true }),
       });
     }
 
@@ -128,11 +135,12 @@ export class StateStore {
       this.db.run('DELETE FROM fleet');
 
       const insert = this.db.query(
-        'INSERT OR REPLACE INTO fleet (agent_session_id, name, cwd, pinned, last_attached, agent) VALUES (?1, ?2, ?3, ?4, ?5, ?6)',
+        'INSERT OR REPLACE INTO fleet (agent_session_id, name, cwd, pinned, last_attached, agent, exited) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)',
       );
 
       for (const entry of all) {
         const pinned = entry.pinned === true ? 1 : 0;
+        const exited = entry.exited === true ? 1 : 0;
 
         insert.run(
           entry.agentSessionID,
@@ -141,6 +149,7 @@ export class StateStore {
           pinned,
           entry.lastAttachedAt ?? null,
           entry.agent,
+          exited,
         );
       }
     });

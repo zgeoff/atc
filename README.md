@@ -56,7 +56,7 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | `P`             | overlay        | revive: a fresh terminal resumes a headless or killed session in place                                                                                                  |
 | `y`             | overlay        | yank the resume command (`claude --resume <id>`, `grok --resume <id>`, or `codex resume <id>`)                                                                          |
 | `Y`             | overlay        | eject: yank the resume command, then kill the session here                                                                                                              |
-| `K`             | overlay        | kill selected (confirm with `y`) — the entry stays revivable with `P`; a second `K` forgets it                                                                          |
+| `K`             | overlay        | kill selected (confirm with `y`) — the entry stays revivable with `P`, even across daemon restarts; a second `K` forgets it                                             |
 | `?`             | overlay        | full key reference — the hint row only shows actions valid for the selected session                                                                                     |
 | `u`             | overlay        | restart an outdated daemon and restore the fleet — offered only while `⟳ update ready` shows                                                                            |
 | `q`             | home/overlay   | quit the client — sessions keep running in the daemon                                                                                                                   |
@@ -186,8 +186,9 @@ restarts the daemon and restores the fleet at a moment you choose. Only a protoc
 the two could miscommunicate, forces the restart immediately. The daemon continuously writes the
 live fleet (name, cwd, agent, session id) to its SQLite store. If the daemon itself dies — crash,
 SIGKILL, reboot — the child processes die with it, but every session's transcript is already on
-disk. Start atc and press `R`: the whole fleet respawns with the matching CLI. Only deliberate kills
-(`K`, `Y` eject) remove entries from the fleet, so it stays restorable.
+disk. Start atc and press `R`: the whole fleet respawns with the matching CLI. Killed sessions (`K`,
+`Y` eject) stay in the fleet as exited entries — restore lists them as killed without booting a
+terminal, and `P` still revives them. A second `K` forgets an entry for good.
 
 Restoring shows the whole fleet immediately — every incoming session appears in the list marked
 "waiting to restore" — and revives one at a time, most recently active first: the next resume starts

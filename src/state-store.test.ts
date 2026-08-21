@@ -237,6 +237,24 @@ test('it round-trips a grok fleet row', () => {
   ]);
 });
 
+test('it round-trips an exited fleet row', () => {
+  const store = new StateStore(join(setupDir(), 'state.db'));
+
+  onTestFinished(() => {
+    store.stop();
+  });
+
+  store.writeFleet([
+    { name: 'archived', cwd: '/x', agentSessionID: 'c1', agent: 'claude', exited: true },
+    { name: 'live', cwd: '/y', agentSessionID: 'c2', agent: 'claude' },
+  ]);
+
+  expect(store.loadFleet()).toStrictEqual([
+    { name: 'archived', cwd: '/x', agentSessionID: 'c1', agent: 'claude', exited: true },
+    { name: 'live', cwd: '/y', agentSessionID: 'c2', agent: 'claude' },
+  ]);
+});
+
 test('it defaults last-used agent to claude and round-trips a write', () => {
   const store = new StateStore(join(setupDir(), 'state.db'));
 
