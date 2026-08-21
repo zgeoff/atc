@@ -55,10 +55,10 @@ eject (`H`) is Claude-only; a Grok row hides and ignores it.
 
 All in `~/.local/state/atc/`:
 
-| File          | Purpose                                                                                                                                                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `atc.db`      | SQLite: the restorable fleet (rewritten on deliberate kills only), the hook-event trail, the spawn-directory history for the picker, and last-used agent (written on a deliberate-spawn SessionStart, advertised on `daemon.hello`). |
-| `status.json` | Counts + most urgent session, read by the injected statusline on each render — a plain file because reporters read it without speaking the protocol.                                                                                 |
+| File          | Purpose                                                                                                                                                                                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `atc.db`      | SQLite: the restorable fleet (rewritten on deliberate kills only; killed sessions persist as exited entries), the hook-event trail, the spawn-directory history for the picker, and last-used agent (written on a deliberate-spawn SessionStart, advertised on `daemon.hello`). |
+| `status.json` | Counts + most urgent session, read by the injected statusline on each render — a plain file because reporters read it without speaking the protocol.                                                                                                                            |
 
 The daemon's pid file (`atc-daemon.pid`) lives beside its sockets in `$XDG_RUNTIME_DIR`, not in the
 state directory: a pid is only meaningful for the daemon owning those sockets, and a shared location

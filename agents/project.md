@@ -43,7 +43,7 @@ tooling, not app code.
 - State lives in `~/.local/state/atc/`: `atc.db` (SQLite — fleet, hook-event trail, spawn history)
   plus `status.json`, which stays a plain file because statusline reporters read it without speaking
   the protocol. The fleet is rewritten on deliberate kills only, so crashes leave a restorable
-  fleet.
+  fleet; killed sessions persist as exited entries until a second kill removes them.
 
 ## Function naming — project verbs
 

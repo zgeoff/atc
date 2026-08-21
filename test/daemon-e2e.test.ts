@@ -515,6 +515,63 @@ test('it restores the fleet cold after a daemon crash', async () => {
   expect(sessions[0]).toMatchObject({ agentSessionID: 'fake-1', alive: true });
 });
 
+test('it restores a killed session as exited across a daemon restart', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const spawned = getRecord(ok, 'session');
+  const id = getString(spawned, 'id');
+
+  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'needs_you');
+
+  await client.sendRequest('session.kill', { session: id });
+
+  await waitForEvent(events, (e) => e.ev === 'session.state' && e['lastMsg'] === 'killed');
+
+  ctx.proc.kill(9);
+
+  await ctx.proc.exited;
+
+  const revived = setupDaemonProc(ctx.home);
+
+  const client2 = await revived.openClient();
+
+  await client2.sendHello('atc/test');
+
+  const restored = await client2.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  expect(restored).toStrictEqual({ restored: 1 });
+
+  const list = await client2.sendRequest('session.list');
+
+  const sessions = getRecords(list, 'sessions');
+
+  expect(sessions).toHaveLength(1);
+
+  expect(sessions[0]).toMatchObject({
+    agentSessionID: 'fake-1',
+    state: 'exited',
+    lastMsg: 'killed',
+    alive: false,
+    kind: 'headless',
+  });
+
+  const again = await client2.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  expect(again).toStrictEqual({ restored: 0 });
+});
+
 test('it revives the fleet one boot at a time, gated on SessionStart', async () => {
   const home = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
 

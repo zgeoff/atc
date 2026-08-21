@@ -73,6 +73,7 @@ export interface FleetEntry {
   readonly agent: AgentKind;
   readonly pinned?: boolean;
   readonly lastAttachedAt?: number;
+  readonly exited?: boolean;
 }
 
 const fleetFile = join(stateDir, 'fleet.json');
@@ -111,6 +112,7 @@ export function parseFleetEntry(raw: unknown): FleetEntry | undefined {
     agent: toAgentKind(raw['agent']),
     ...(raw['pinned'] === true ? { pinned: true } : {}),
     ...(typeof raw['lastAttachedAt'] === 'number' ? { lastAttachedAt: raw['lastAttachedAt'] } : {}),
+    ...(raw['exited'] === true ? { exited: true } : {}),
   };
 }
 
@@ -206,17 +208,20 @@ export class SessionManager {
 
   // Registers a fleet entry as a session with no terminal yet, so a
   // fleet-wide restore can show every incoming session at once; adopting it
-  // later attaches the terminal.
+  // later attaches the terminal. Exited entries come back as killed
+  // sessions: still listed and revivable, never auto-adopted.
   restore(entry: FleetEntry): Session {
+    const exited = entry.exited === true;
+
     const session: Session = {
       id: `s${++counter}-${Date.now().toString(36)}`,
       name: entry.name,
       cwd: entry.cwd,
       kind: 'headless',
       pty: null,
-      state: 'running',
+      state: exited ? 'exited' : 'running',
       unread: false,
-      lastMsg: 'waiting to restore',
+      lastMsg: exited ? 'killed' : 'waiting to restore',
       agentSessionID: entry.agentSessionID,
       agent: entry.agent,
       pinned: entry.pinned ?? false,
@@ -691,23 +696,28 @@ export class SessionManager {
 
   // Persisted continuously so a crash (or quit) leaves a restorable fleet.
   // Deliberate kills rewrite the file; unexpected session/atc deaths do not,
-  // so the last known fleet survives for `R` restore.
+  // so the last known fleet survives for `R` restore. Sessions whose
+  // terminal is gone persist as exited entries, so the killed archive
+  // survives a daemon restart too.
   writeFleet() {
     const fleet: FleetEntry[] = [];
 
     for (const s of this.sessions) {
+      if (s.agentSessionID === undefined) {
+        continue;
+      }
+
       const live = s.pty !== null || (s.kind === 'headless' && s.state !== 'exited');
 
-      if (live && s.agentSessionID !== undefined) {
-        fleet.push({
-          name: s.name,
-          cwd: s.cwd,
-          agentSessionID: s.agentSessionID,
-          agent: s.agent,
-          ...(s.pinned ? { pinned: true } : {}),
-          lastAttachedAt: s.lastAttachedAt,
-        });
-      }
+      fleet.push({
+        name: s.name,
+        cwd: s.cwd,
+        agentSessionID: s.agentSessionID,
+        agent: s.agent,
+        ...(s.pinned ? { pinned: true } : {}),
+        lastAttachedAt: s.lastAttachedAt,
+        ...(live ? {} : { exited: true }),
+      });
     }
 
     this.store.writeFleet(fleet);
