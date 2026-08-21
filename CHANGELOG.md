@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.11...@zgeoff/atc@0.1.12) (2026-08-21)
+
+### Features
+
+- retain killed sessions across daemon restarts ([#35](https://github.com/zgeoff/atc/issues/35))
+  ([e938a7e](https://github.com/zgeoff/atc/commit/e938a7ee1b8383019b2038c623a830281a64a26a))
+
 ## [0.1.11](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.10...@zgeoff/atc@0.1.11) (2026-08-20)
 
 ### Features
