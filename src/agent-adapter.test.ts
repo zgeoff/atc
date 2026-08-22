@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
+import type { AgentKind } from './agent-adapter';
 import { parseAgentKind } from './agent-adapter';
 
-test.each([
-  ['claude', 'claude'],
-  ['grok', 'grok'],
-  ['codex', 'codex'],
-])('it parses %s as the %s agent kind', (raw, expected) => {
-  expect(parseAgentKind(raw)).toBe(expected);
-});
+test.each<readonly [AgentKind]>([['claude'], ['grok'], ['codex']])(
+  'it parses %s as itself',
+  (kind) => {
+    expect(parseAgentKind(kind)).toBe(kind);
+  },
+);
 
 test.each([[undefined], [null], [''], ['gemini'], [42]])(
   'it rejects %p as no known agent kind',
