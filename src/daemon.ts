@@ -10,7 +10,7 @@ import { MAX_CHUNK, PROTOCOL_V } from './protocol';
 import type { EventMsg } from './protocol';
 import { ScreenModel } from './screen-model';
 import { SessionManager } from './sessions';
-import type { Session, SessionDescriptor, SessionState } from './sessions';
+import type { Session, SessionDescriptor, SessionEventKind, SessionState } from './sessions';
 import { StateStore } from './state-store';
 
 export interface DaemonOptions {
@@ -386,20 +386,11 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       }
     }
 
-    const builders: Record<typeof kind, () => EventMsg> = {
-      added: () => ({ v: PROTOCOL_V, ev: 'session.added', session: getDescriptor(mgr, s.id) }),
-      state: () => ({ v: PROTOCOL_V, ev: 'session.state', session: getDescriptor(mgr, s.id) }),
-      renamed: () => ({
-        v: PROTOCOL_V,
-        ev: 'session.renamed',
-        s: s.id,
-        name: s.name,
-        namedBy: s.namedBy,
-      }),
-      removed: () => ({ v: PROTOCOL_V, ev: 'session.removed', s: s.id }),
-    };
+    const event = buildSessionEvent(mgr, kind, s);
 
-    emitEvent(builders[kind]());
+    if (event !== null) {
+      emitEvent(event);
+    }
   };
 
   const reporter = startHookServer((e) => {
@@ -761,6 +752,45 @@ function hasResumableTranscript(mgr: SessionManager, id: string): boolean {
     ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
     ...(s.transcriptSource === undefined ? {} : { transcriptSource: s.transcriptSource }),
   });
+}
+
+/**
+ * Builds the wire event for a session-manager notification, or null when the
+ * notification carries no descriptor to send: `added` and `state` fold in
+ * the current descriptor and skip emitting if the session is gone by the
+ * time the descriptor is collected.
+ */
+export function buildSessionEvent(
+  mgr: SessionManager,
+  kind: SessionEventKind,
+  s: Session,
+): EventMsg | null {
+  const builders: Record<SessionEventKind, () => EventMsg | null> = {
+    added: () => {
+      const session = findDescriptor(mgr, s.id);
+
+      return session === null ? null : { v: PROTOCOL_V, ev: 'session.added', session };
+    },
+    state: () => {
+      const session = findDescriptor(mgr, s.id);
+
+      return session === null ? null : { v: PROTOCOL_V, ev: 'session.state', session };
+    },
+    renamed: () => ({
+      v: PROTOCOL_V,
+      ev: 'session.renamed',
+      s: s.id,
+      name: s.name,
+      namedBy: s.namedBy,
+    }),
+    removed: () => ({ v: PROTOCOL_V, ev: 'session.removed', s: s.id }),
+  };
+
+  return builders[kind]();
+}
+
+function findDescriptor(mgr: SessionManager, id: string): SessionDescriptor | null {
+  return mgr.collectDescriptors().find((x) => x.id === id) ?? null;
 }
 
 function getDescriptor(mgr: SessionManager, id: string): SessionDescriptor {
