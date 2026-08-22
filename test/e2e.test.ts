@@ -99,7 +99,17 @@ idle
 
   writeFileSync(
     join(home, '.config', 'atc', 'config.json'),
-    JSON.stringify({ claudeBin: fakeClaude, claudeArgs: [], grokBin: fakeGrok, grokArgs: [] }),
+    JSON.stringify({
+      claudeBin: fakeClaude,
+      claudeArgs: [],
+      grokBin: fakeGrok,
+      grokArgs: [],
+
+      // No codex binary is written to the temp home, so the agent picker
+      // sees Codex as uninstalled whatever the host machine has.
+      codexBin: join(home, 'fake-codex'),
+      codexArgs: [],
+    }),
   );
 
   let pty: IPty | null = null;
@@ -1204,4 +1214,36 @@ test('it keeps NEEDS YOU when grok emits idle_prompt after permission_prompt', a
   pty.write(CTRL_SPACE);
 
   await ctx.waitFor('NEEDS YOU');
+}, 15_000);
+
+test('it marks an uninstalled agent in the picker and refuses to select it', async () => {
+  await using ctx = setupTest();
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  ctx.reset();
+  pty.write('n');
+
+  await ctx.waitFor('Codex — not installed');
+
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7mGrok');
+
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7mCodex');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await Bun.sleep(300); // a refused pick repaints nothing, so there is no signal to wait on
+
+  pty.write('\u001B[A');
+
+  await ctx.waitFor('\u001B[7mGrok');
+
+  expect(ctx.read()).not.toInclude('spawn: directory');
 }, 15_000);

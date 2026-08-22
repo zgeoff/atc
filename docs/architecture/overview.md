@@ -5,7 +5,10 @@ focused session owns the whole terminal, and everything else is reached through 
 overlay. The design bet is that the pain of many-session work is attention routing, not window
 management. `n` and `r` open an agent picker first; last-used comes from `daemon.hello` and is
 written on SessionStart of a deliberate spawn. A fleet restore does not stamp it. MCP spawn ignores
-last-used and defaults to Claude.
+last-used and defaults to Claude. The picker resolves each agent's configured binary as it opens,
+lists an unresolved one as not installed, and refuses to select it — otherwise a missing CLI shows
+up three steps later as a PTY that dies on exec. An uninstalled last-used agent gives up the opening
+selection to the first installed one.
 
 ## Process model
 

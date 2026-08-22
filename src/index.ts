@@ -1,8 +1,13 @@
+// oxlint-disable import/max-dependencies -- the TUI client entry wires every client-side module
 import { basename } from 'node:path';
 import { bootDaemonClient } from './boot-daemon';
 import { buildLeaderChords } from './build-leader-chords';
+import { collectAgentPicks } from './collect-agent-picks';
+import type { AgentPick } from './collect-agent-picks';
 import { loadConfig } from './config';
 import { collectDirs, findFuzzyScore, formatDir, pickMatches } from './dirs';
+import { formatAgentPick } from './format-agent-pick';
+import { pickDefaultAgent } from './pick-default-agent';
 import { pickTabTarget } from './pick-tab-target';
 import type { EventMsg } from './protocol';
 import { isRecord } from './report';
@@ -22,12 +27,6 @@ type Mode =
   | 'picker-name'
   | 'picker-prompt'
   | 'picker-eject';
-
-const AGENT_PICKS = [
-  { agent: 'claude' as const, label: 'Claude' },
-  { agent: 'grok' as const, label: 'Grok' },
-  { agent: 'codex' as const, label: 'Codex' },
-];
 
 interface MirrorSession {
   id: string;
@@ -70,6 +69,10 @@ let spawnName = '';
 let spawnResume = false;
 let spawnAgent: AgentKind = 'claude';
 let lastUsedAgent: AgentKind = 'claude';
+
+// The agent menu, rebuilt each time it opens so a config edit or a freshly
+// installed agent CLI lands without a client restart.
+let agentPicks: AgentPick[] = [];
 const stdout = process.stdout;
 
 // Full height: the atc status bar only exists on home/overlay screens;
@@ -264,14 +267,21 @@ function renderPicker() {
   const verb = spawnResume ? 'adopt' : 'spawn';
 
   if (mode === 'picker-agent') {
-    pickerSelected = Math.min(pickerSelected, AGENT_PICKS.length - 1);
+    pickerSelected = Math.min(pickerSelected, agentPicks.length - 1);
+
+    const pick = agentPicks[pickerSelected];
+
+    const hint =
+      pick === undefined || pick.binPath !== null
+        ? '↑↓ move · ⏎ select · esc cancel'
+        : `${pick.bin} is not on PATH — set ${pick.agent}Bin in config.json · ↑↓ move · esc cancel`;
 
     drawPicker({
       title: `${verb}: agent`,
-      items: AGENT_PICKS.map((pick) => pick.label),
+      items: agentPicks.map((p) => formatAgentPick(p)),
       selected: pickerSelected,
       input: pickerInput,
-      hint: '↑↓ move · ⏎ select · esc cancel',
+      hint,
     });
   } else if (mode === 'picker-dir') {
     const items = pickMatches(allDirs, pickerInput).map((d) => formatDir(d));
@@ -319,12 +329,13 @@ function renderPicker() {
 
 function openAgentPicker(resume = false) {
   spawnResume = resume;
-  spawnAgent = lastUsedAgent;
+  agentPicks = collectAgentPicks(loadConfig());
+  spawnAgent = pickDefaultAgent(agentPicks, lastUsedAgent);
   pickerInput = '';
 
   pickerSelected = Math.max(
     0,
-    AGENT_PICKS.findIndex((p) => p.agent === lastUsedAgent),
+    agentPicks.findIndex((p) => p.agent === spawnAgent),
   );
 
   mode = 'picker-agent';
@@ -1125,7 +1136,15 @@ process.stdin.on('data', (buf: Buffer) => {
       applyTextKey(
         buf,
         () => {
-          spawnAgent = AGENT_PICKS[pickerSelected]?.agent ?? 'claude';
+          const pick = agentPicks[pickerSelected];
+
+          // A missing binary would spawn a PTY that dies on exec, three
+          // steps after the choice was made.
+          if (pick === undefined || pick.binPath === null) {
+            return;
+          }
+
+          spawnAgent = pick.agent;
           void openDirPicker();
         },
         () => {
@@ -1164,7 +1183,7 @@ process.stdin.on('data', (buf: Buffer) => {
 
           pickerSelected = Math.max(
             0,
-            AGENT_PICKS.findIndex((p) => p.agent === spawnAgent),
+            agentPicks.findIndex((p) => p.agent === spawnAgent),
           );
 
           mode = 'picker-agent';

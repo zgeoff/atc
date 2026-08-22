@@ -27,7 +27,8 @@ atc
 ```
 
 Needs [Bun](https://bun.sh) (atc runs from source through it) and the `claude` CLI on your PATH.
-Grok sessions also need the `grok` CLI, and Codex sessions the `codex` CLI. From a checkout,
+Grok sessions also need the `grok` CLI, and Codex sessions the `codex` CLI — the agent picker marks
+an agent whose binary it cannot find as not installed and will not spawn it. From a checkout,
 `bun src/cli.ts` runs the same thing. atc is built to pair with
 [zoxide](https://github.com/ajeetdsouza/zoxide): the spawn directory picker feeds on its frecency
 list, so with zoxide installed every directory you visit is two keystrokes from a session. Without
