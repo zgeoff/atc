@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type {
   AdapterEvent,
@@ -12,6 +11,9 @@ import type {
 import type { Config } from './config';
 import type { HookEvent } from './hooks';
 import { isRecord } from './report';
+import { resolveAgentHome } from './resolve-agent-home';
+import { toShellArg } from './to-shell-arg';
+import { truncateDetail } from './truncate-detail';
 
 /**
  * The Codex CLI adapter: spawn arguments, hook payload mapping, resume
@@ -116,7 +118,7 @@ export class CodexAdapter implements AgentAdapter {
       return Promise.resolve(null);
     }
 
-    const index = join(resolveCodexHome(), 'session_index.jsonl');
+    const index = join(resolveAgentHome('CODEX_HOME', '.codex'), 'session_index.jsonl');
     let text: string;
 
     try {
@@ -161,18 +163,7 @@ export class CodexAdapter implements AgentAdapter {
   // Shell command that re-opens this session outside atc (or anywhere).
   buildResumeCommand(cwd: string, agentSessionID: string | undefined): string | null {
     const resume = agentSessionID === undefined ? 'codex resume' : `codex resume ${agentSessionID}`;
-    const quoted = cwd.replaceAll("'", String.raw`'\''`);
 
-    return `cd '${quoted}' && ${resume}`;
+    return `cd ${toShellArg(cwd)} && ${resume}`;
   }
-}
-
-function resolveCodexHome(): string {
-  const home = process.env['CODEX_HOME'];
-
-  return home !== undefined && home !== '' ? home : join(homedir(), '.codex');
-}
-
-function truncateDetail(text: string): string {
-  return text.length <= 600 ? text : `${text.slice(0, 599)}…`;
 }

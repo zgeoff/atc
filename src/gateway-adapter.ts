@@ -12,6 +12,7 @@ import { ClaudeAdapter } from './claude-adapter';
 import type { GatewayConfig } from './collect-gateways';
 import type { Config } from './config';
 import type { HookEvent } from './hooks';
+import { toShellArg } from './to-shell-arg';
 import { writeHookSettings } from './write-hook-settings';
 
 /**
@@ -84,11 +85,10 @@ export class GatewayAdapter implements AgentAdapter {
   // generated settings file, because without it the CLI would resume the
   // session against the default backend.
   buildResumeCommand(cwd: string, agentSessionID: string | undefined): string | null {
-    const settings = this.writeSettings().replaceAll("'", String.raw`'\''`);
-    const quoted = cwd.replaceAll("'", String.raw`'\''`);
+    const settings = toShellArg(this.writeSettings());
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
 
-    return `cd '${quoted}' && ${this.gateway.bin} --settings '${settings}' --resume${resume}`;
+    return `cd ${toShellArg(cwd)} && ${this.gateway.bin} --settings ${settings} --resume${resume}`;
   }
 
   private writeSettings(): string {

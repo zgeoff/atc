@@ -194,6 +194,10 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   // The screen tier of the detector stack: once a session's output has
   // quiesced, judge the serialized screen and flip running/needs_you.
   const scheduleDetect = (sessionID: string) => {
+    if (!mgr.hasScreenDetector) {
+      return;
+    }
+
     const s = mgr.sessions.find((x) => x.id === sessionID);
     const detector = s === undefined ? null : (mgr.findAdapter(s.agent)?.screenDetector ?? null);
 

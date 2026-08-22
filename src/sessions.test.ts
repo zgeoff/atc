@@ -69,3 +69,22 @@ test('it resolves an agent id to the adapter that declares it, not to the defaul
   expect(mgr.findAdapter('claude')).toBe(idleAdapter);
   expect(mgr.findAdapter('grok')).toBeNull();
 });
+
+test('it reports no screen detector when no registered adapter provides one', () => {
+  const other: AgentAdapter = { ...idleAdapter, id: 'zai' };
+  const mgr = setupManager([other]);
+
+  expect(mgr.hasScreenDetector).toBe(false);
+});
+
+test('it reports a screen detector when a registered adapter provides one', () => {
+  const withDetector: AgentAdapter = {
+    ...idleAdapter,
+    id: 'zai',
+    screenDetector: { detectAttention: () => null },
+  };
+
+  const mgr = setupManager([withDetector]);
+
+  expect(mgr.hasScreenDetector).toBe(true);
+});
