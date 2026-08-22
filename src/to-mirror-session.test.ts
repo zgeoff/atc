@@ -69,3 +69,26 @@ test('it returns null for a descriptor missing a required field, rather than thr
 
   expect(mirror).toBeNull();
 });
+
+// canEject is what keeps the H key on a row whose adapter can run a headless
+// turn. A gateway session is a Claude binary under another id, so the flag —
+// not the agent id — has to decide.
+test('it keeps canEject when the descriptor sets it', () => {
+  const mirror = toMirrorSession(buildDescriptor({ agent: 'zai', canEject: true }));
+
+  if (mirror === null) {
+    throw new Error('expected a mirror session');
+  }
+
+  expect(mirror.canEject).toBe(true);
+});
+
+test('it reports canEject as false when the descriptor omits it', () => {
+  const mirror = toMirrorSession(buildDescriptor());
+
+  if (mirror === null) {
+    throw new Error('expected a mirror session');
+  }
+
+  expect(mirror.canEject).toBe(false);
+});
