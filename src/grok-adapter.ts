@@ -1,5 +1,4 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type {
   AdapterEvent,
@@ -13,6 +12,9 @@ import type { Config } from './config';
 import type { HookEvent } from './hooks';
 import { normalizeHookEventName } from './normalize-hook-event';
 import { isRecord } from './report';
+import { resolveAgentHome } from './resolve-agent-home';
+import { toShellArg } from './to-shell-arg';
+import { truncateDetail } from './truncate-detail';
 
 interface GrokSessionHookState {
   latestPromptID?: string;
@@ -187,9 +189,8 @@ export class GrokAdapter implements AgentAdapter {
   // Shell command that re-opens this session outside atc (or anywhere).
   buildResumeCommand(cwd: string, agentSessionID: string | undefined): string | null {
     const resume = agentSessionID === undefined ? 'grok' : `grok --resume ${agentSessionID}`;
-    const quoted = cwd.replaceAll("'", String.raw`'\''`);
 
-    return `cd '${quoted}' && ${resume}`;
+    return `cd ${toShellArg(cwd)} && ${resume}`;
   }
 
   private emitHook(atcID: string, event: Readonly<AdapterEvent>, promptID?: string): AdapterEvent {
@@ -225,14 +226,14 @@ export class GrokAdapter implements AgentAdapter {
   }
 }
 
-function resolveGrokHome(): string {
-  const home = process.env['GROK_HOME'];
-
-  return home !== undefined && home !== '' ? home : join(homedir(), '.grok');
-}
-
 function buildGrokNameSource(sessionID: string, cwd: string): string {
-  return join(resolveGrokHome(), 'sessions', encodeURIComponent(cwd), sessionID, 'summary.json');
+  return join(
+    resolveAgentHome('GROK_HOME', '.grok'),
+    'sessions',
+    encodeURIComponent(cwd),
+    sessionID,
+    'summary.json',
+  );
 }
 
 function buildTurnDoneEvent(
@@ -271,7 +272,7 @@ function findGrokSummary(source: string): string | null {
     return null;
   }
 
-  const root = join(resolveGrokHome(), 'sessions');
+  const root = join(resolveAgentHome('GROK_HOME', '.grok'), 'sessions');
 
   try {
     for (const group of readdirSync(root)) {
@@ -284,8 +285,4 @@ function findGrokSummary(source: string): string | null {
   } catch {}
 
   return null;
-}
-
-function truncateDetail(text: string): string {
-  return text.length <= 600 ? text : `${text.slice(0, 599)}…`;
 }

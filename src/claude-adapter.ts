@@ -11,6 +11,8 @@ import type {
 import type { Config } from './config';
 import type { HookEvent } from './hooks';
 import { isRecord } from './report';
+import { toShellArg } from './to-shell-arg';
+import { truncateDetail } from './truncate-detail';
 import { writeHookSettings } from './write-hook-settings';
 
 /**
@@ -179,12 +181,6 @@ export class ClaudeAdapter implements AgentAdapter {
     const resume =
       agentSessionID === undefined ? 'claude --resume' : `claude --resume ${agentSessionID}`;
 
-    const quoted = cwd.replaceAll("'", String.raw`'\''`);
-
-    return `cd '${quoted}' && ${resume}`;
+    return `cd ${toShellArg(cwd)} && ${resume}`;
   }
-}
-
-function truncateDetail(text: string): string {
-  return text.length <= 600 ? text : `${text.slice(0, 599)}…`;
 }
