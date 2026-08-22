@@ -11,16 +11,20 @@ const liveClaude: OverlaySessionView = {
   alive: true,
   kind: 'pty',
   resumable: true,
+  canEject: true,
   agent: 'claude',
   pinned: false,
   repoRoot: '/x',
 };
 
-test('it includes headless on a live Claude row and omits it on Grok', () => {
+test('it includes headless on a row whose agent can run a headless turn', () => {
   expect(buildOverlayHint(liveClaude)).toInclude('H headless');
-  expect(buildOverlayHint({ ...liveClaude, agent: 'grok' })).not.toInclude('H');
+});
+
+test('it omits headless on a row whose agent cannot run one', () => {
+  expect(buildOverlayHint({ ...liveClaude, agent: 'grok', canEject: false })).not.toInclude('H');
 });
 
 test('it still names yank on a live Grok row', () => {
-  expect(buildOverlayHint({ ...liveClaude, agent: 'grok' })).toInclude('y yank');
+  expect(buildOverlayHint({ ...liveClaude, agent: 'grok', canEject: false })).toInclude('y yank');
 });

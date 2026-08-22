@@ -31,6 +31,10 @@ export interface SessionDescriptor {
   readonly createdAt: number;
   readonly kind: 'pty' | 'headless';
   readonly alive: boolean;
+
+  // Whether this session's agent can run a headless turn, so the client can
+  // offer the eject action without knowing which agent it is.
+  readonly canEject: boolean;
 }
 
 export interface Session {
@@ -396,6 +400,7 @@ export class SessionManager {
       createdAt: s.createdAt,
       kind: s.kind,
       alive: s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'),
+      canEject: (this.findAdapter(s.agent)?.headlessRunner ?? null) !== null,
     }));
   }
 

@@ -25,7 +25,7 @@ interface MCPContext {
   readonly waitForResponse: (id: number) => Promise<Record<string, unknown>>;
 }
 
-function setupMCP(): MCPContext {
+function setupMCP(extraConfig: Readonly<Record<string, unknown>> = {}): MCPContext {
   const home = mkdtempSync(join(tmpdir(), 'atc-mcp-'));
 
   mkdirSync(join(home, '.config', 'atc'), { recursive: true });
@@ -57,7 +57,13 @@ sleep 30
 
   writeFileSync(
     join(home, '.config', 'atc', 'config.json'),
-    JSON.stringify({ claudeBin: fakeClaude, claudeArgs: [], grokBin: fakeGrok, grokArgs: [] }),
+    JSON.stringify({
+      claudeBin: fakeClaude,
+      claudeArgs: [],
+      grokBin: fakeGrok,
+      grokArgs: [],
+      ...extraConfig,
+    }),
   );
 
   const proc: Subprocess<'pipe', 'pipe', 'ignore'> = Bun.spawn(
@@ -360,4 +366,77 @@ test('it answers an unknown rpc method with a json-rpc error', async () => {
   const response = await ctx.waitForResponse(1);
 
   expect(response['error']).toMatchObject({ code: -32_601 });
+});
+
+test('it spawns a session under a configured backend id', async () => {
+  const ctx = setupMCP({
+    gateways: {
+      zai: { label: 'GLM (z.ai)', mark: 'z', baseURL: 'https://api.z.ai/api/anthropic' },
+    },
+  });
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: {
+      name: 'atc_session_spawn',
+      arguments: { cwd: ctx.home, name: 'glm-work', agent: 'zai' },
+    },
+  });
+
+  const spawnResponse = await ctx.waitForResponse(2);
+
+  const spawned = getResult(spawnResponse);
+
+  expect(spawned['isError']).toBeUndefined();
+  expect(getText(spawned)).toInclude('"agent": "zai"');
+  expect(getText(spawned)).toInclude('"canEject": false');
+});
+
+test('it writes a backend settings file that carries the base URL and no credential', async () => {
+  const ctx = setupMCP({
+    gateways: {
+      zai: {
+        label: 'GLM (z.ai)',
+        mark: 'z',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        apiKeyHelper: '/usr/bin/true',
+        env: { ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-5.2' },
+      },
+    },
+  });
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home, agent: 'zai' } },
+  });
+
+  await ctx.waitForResponse(2);
+
+  const settingsPath = join(ctx.home, '.local', 'state', 'atc', 'hook-settings-zai.json');
+  const written: unknown = JSON.parse(readFileSync(settingsPath, 'utf8'));
+
+  if (!isRecord(written)) {
+    throw new TypeError('settings file is not an object');
+  }
+
+  expect(written['env']).toStrictEqual({
+    ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
+    ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-5.2',
+  });
+
+  expect(written['apiKeyHelper']).toBe('/usr/bin/true');
+  expect(readFileSync(settingsPath, 'utf8')).not.toInclude('ANTHROPIC_AUTH_TOKEN');
+  expect(written['hooks']).toBeDefined();
 });

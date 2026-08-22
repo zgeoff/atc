@@ -179,6 +179,9 @@ tooling, not app code.
   hooks (`SessionStart`, `Notification`, `Stop`, `UserPromptSubmit`, `SessionEnd`) and a chained
   statusline. Never write into the user's own agent config (Claude, Grok, or any future agent);
   instrumentation an agent cannot take per-invocation is a documented self-install step.
+- A Claude-compatible backend is a configured gateway, not a new adapter class per vendor: it gets
+  its own agent id, its own generated settings file, and its `ANTHROPIC_BASE_URL` in that file's
+  `env` block. The credential never goes in the file — a helper command supplies it.
 - Grok attention is a user-installed hook file at `$GROK_HOME/hooks/atc-reporter.json`. atc prints
   that file (`atc grok-hooks`) and never writes into the user's Grok config.
 - Codex attention is user-installed hook entries in `$CODEX_HOME/hooks.json`, printed by

@@ -11,7 +11,6 @@ import { StateStore } from './state-store';
 
 const idleAdapter: AgentAdapter = {
   id: 'claude',
-  kind: 'claude',
   headlessRunner: null,
   screenDetector: null,
   planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
@@ -42,6 +41,7 @@ test('it does not write last-used when a restored session reports SessionStart',
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',
     codexArgs: [],
+    gateways: [],
     leader: { code: 0, label: '^Space' },
   });
 

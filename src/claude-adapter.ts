@@ -1,21 +1,17 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import type {
   AdapterEvent,
   AgentAdapter,
-  AgentKind,
   HeadlessRunner,
   NameUpdate,
   ResumeCheck,
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
-import { buildCLICommand } from './build-cli-command';
 import type { Config } from './config';
-import { stateDir } from './config';
 import type { HookEvent } from './hooks';
 import { isRecord } from './report';
+import { writeHookSettings } from './write-hook-settings';
 
 /**
  * The Claude Code adapter: spawn arguments, `--settings` instrumentation,
@@ -23,8 +19,6 @@ import { isRecord } from './report';
  */
 export class ClaudeAdapter implements AgentAdapter {
   readonly id = 'claude';
-
-  readonly kind: AgentKind = 'claude';
 
   readonly headlessRunner: HeadlessRunner | null;
 
@@ -42,7 +36,7 @@ export class ClaudeAdapter implements AgentAdapter {
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
-    this.settingsFile ??= writeHookSettings();
+    this.settingsFile ??= writeHookSettings({ id: this.id });
 
     return {
       bin: this.config.claudeBin,
@@ -189,56 +183,6 @@ export class ClaudeAdapter implements AgentAdapter {
 
     return `cd '${quoted}' && ${resume}`;
   }
-}
-
-// Settings file injected into wrangled sessions via `claude --settings`.
-// The user's own settings are untouched; these hooks only exist in sessions
-// atc spawns, and identify themselves via ATC_SESSION_ID in the env.
-function writeHookSettings(): string {
-  const cmd = buildCLICommand('hook-report');
-  const entry = [{ hooks: [{ type: 'command', command: cmd, timeout: 5 }] }];
-
-  const settings = {
-    hooks: {
-      // SessionStart carries the session id at spawn/resume time, before any
-      // interaction — without it a session only enters the fleet file after
-      // its first prompt/notification.
-      SessionStart: entry,
-      Notification: entry,
-      Stop: entry,
-      UserPromptSubmit: entry,
-      SessionEnd: entry,
-    },
-  };
-
-  // Fleet status renders inside Claude Code's own status line; the injected
-  // command chains the user's configured statusline first, so mirror their
-  // padding.
-  let padding = 0;
-
-  try {
-    const settingsPath = join(homedir(), '.claude', 'settings.json');
-    const raw = readFileSync(settingsPath, 'utf8');
-    const user: unknown = JSON.parse(raw);
-    const statusLine = isRecord(user) ? user['statusLine'] : undefined;
-    const userPadding = isRecord(statusLine) ? statusLine['padding'] : undefined;
-
-    if (typeof userPadding === 'number') {
-      padding = userPadding;
-    }
-  } catch {}
-
-  const statusline = {
-    type: 'command',
-    command: buildCLICommand('statusline'),
-    padding,
-  };
-
-  const file = join(stateDir, 'hook-settings.json');
-
-  writeFileSync(file, JSON.stringify({ ...settings, statusLine: statusline }, null, 2));
-
-  return file;
 }
 
 function truncateDetail(text: string): string {

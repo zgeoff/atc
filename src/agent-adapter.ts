@@ -1,7 +1,5 @@
 import type { HookEvent } from './hooks';
 
-export type AgentKind = 'claude' | 'grok' | 'codex';
-
 /**
  * Which agent a session runs under: the key the adapter registry is looked
  * up by. Every agent CLI supplies one, and so does every configured backend
@@ -97,10 +95,6 @@ export interface AgentAdapter {
   // What the registry is keyed by, and what a session records. Unique across
   // registered adapters.
   readonly id: AgentID;
-
-  // Which CLI this adapter drives. Several ids can share one kind when they
-  // differ only in the backend the CLI is pointed at.
-  readonly kind: AgentKind;
 
   // Runs one headless turn over a session; null means eject is unsupported
   // for this agent.

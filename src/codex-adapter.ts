@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import type {
   AdapterEvent,
   AgentAdapter,
-  AgentKind,
   NameUpdate,
   ResumeCheck,
   SpawnOptions,
@@ -22,8 +21,6 @@ import { isRecord } from './report';
  */
 export class CodexAdapter implements AgentAdapter {
   readonly id = 'codex';
-
-  readonly kind: AgentKind = 'codex';
 
   // Codex has no headless handoff.
   readonly headlessRunner = null;

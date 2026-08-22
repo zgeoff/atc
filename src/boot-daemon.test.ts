@@ -9,7 +9,6 @@ import { StateStore } from './state-store';
 
 const idleAdapter: AgentAdapter = {
   id: 'claude',
-  kind: 'claude',
   headlessRunner: null,
   screenDetector: null,
   planSpawn: () => ({ bin: 'sleep', args: ['30'] }),

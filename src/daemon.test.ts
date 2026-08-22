@@ -13,7 +13,6 @@ import { isRecord } from './report';
 // Session behavior against a real fake-claude lives in test/daemon-e2e.test.ts.
 const idleAdapter: AgentAdapter = {
   id: 'claude',
-  kind: 'claude',
   headlessRunner: null,
   screenDetector: null,
   planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
@@ -314,6 +313,7 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',
     codexArgs: [],
+    gateways: [],
     leader: { code: 0, label: '^Space' },
   });
 
@@ -367,6 +367,7 @@ test('it yanks a grok session by id and without an id', async () => {
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',
     codexArgs: [],
+    gateways: [],
     leader: { code: 0, label: '^Space' },
   });
 
@@ -447,6 +448,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',
     codexArgs: [],
+    gateways: [],
     leader: { code: 0, label: '^Space' },
   });
 
@@ -518,6 +520,7 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',
     codexArgs: [],
+    gateways: [],
     leader: { code: 0, label: '^Space' },
   });
 

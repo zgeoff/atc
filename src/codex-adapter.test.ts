@@ -13,6 +13,7 @@ function buildCodexConfig(): Config {
     grokArgs: [],
     codexBin: 'codex',
     codexArgs: [],
+    gateways: [],
     leader: { code: 0, label: '^Space' },
   };
 }

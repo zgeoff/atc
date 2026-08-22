@@ -12,7 +12,6 @@ import { isRecord } from './report';
 // visibly, then prompts again. Attention comes only from the screen tier.
 const promptAdapter: AgentAdapter = {
   id: 'claude',
-  kind: 'claude',
   headlessRunner: null,
   screenDetector: {
     detectAttention: (screen) => (screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working'),

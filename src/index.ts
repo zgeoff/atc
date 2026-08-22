@@ -1,3 +1,4 @@
+import { toAgentID } from './agent-adapter';
 import type { AgentID } from './agent-adapter';
 import { bootDaemonClient } from './boot-daemon';
 import { buildLeaderChords } from './build-leader-chords';
@@ -28,6 +29,7 @@ interface MirrorSession {
   kind: 'pty' | 'headless';
   alive: boolean;
   resumable: boolean;
+  canEject: boolean;
   agent: AgentID;
 }
 
@@ -46,6 +48,13 @@ const doneAt = new Map<string, number>();
 let focusedID: string | null = null;
 let fleetCount = 0;
 let lastUsedAgent: AgentID = 'claude';
+
+// Read once at start, like the leader key: a newly configured backend gets
+// its overlay letter on the next client run.
+const agentMarks: Readonly<Record<AgentID, string>> = Object.fromEntries(
+  loadConfig().gateways.map((g) => [g.id, g.mark]),
+);
+
 const stdout = process.stdout;
 
 // Full height: the atc status bar only exists on home/overlay screens;
@@ -213,6 +222,7 @@ function renderOverlay() {
 
   drawOverlay({
     sessions,
+    agentMarks,
     selected: overlaySelected,
     confirmKill,
     filter: overlayFilter,
@@ -340,7 +350,8 @@ function toMirrorSession(value: unknown): MirrorSession | null {
     kind: value['kind'] === 'headless' ? 'headless' : 'pty',
     alive: value['alive'],
     resumable: typeof value['agentSessionID'] === 'string',
-    agent: value['agent'] === 'grok' || value['agent'] === 'codex' ? value['agent'] : 'claude',
+    canEject: value['canEject'] === true,
+    agent: toAgentID(value['agent']),
   };
 }
 
@@ -360,6 +371,7 @@ function upsertMirror(d: Readonly<MirrorSession>) {
     existing.kind = d.kind;
     existing.alive = d.alive;
     existing.resumable = d.resumable;
+    existing.canEject = d.canEject;
     existing.agent = d.agent;
   }
 }
@@ -695,13 +707,7 @@ function applyOverlayKey(buf: Buffer) {
     return;
   }
 
-  if (
-    ch === 'H' &&
-    sel !== undefined &&
-    sel.kind === 'pty' &&
-    sel.alive &&
-    sel.agent === 'claude'
-  ) {
+  if (ch === 'H' && sel !== undefined && sel.kind === 'pty' && sel.alive && sel.canEject) {
     ejectTarget = sel.id;
     ejectInput = '';
     mode = 'picker-eject';

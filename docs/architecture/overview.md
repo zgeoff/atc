@@ -11,6 +11,12 @@ would otherwise show up three steps later as a PTY that dies on exec. An uninsta
 gives up the opening selection to the first installed one, and a menu with no rows at all carries
 the config keys to set.
 
+A session records which agent it runs under as an id, and the daemon keys its adapter registry by
+that id. A configured gateway is an id of its own: the Claude CLI against a Claude-compatible
+backend, with its own picker row, its own generated settings file, and its own fleet rows. A fleet
+row whose id has no registered adapter keeps its place and refuses to revive, so a backend dropped
+from the config never comes back as Claude.
+
 ## Process model
 
 ```text

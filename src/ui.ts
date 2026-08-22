@@ -163,6 +163,7 @@ export interface OverlaySessionView extends SessionView {
   readonly alive: boolean;
   readonly kind: 'pty' | 'headless';
   readonly resumable: boolean;
+  readonly canEject: boolean;
   readonly agent: AgentID;
   readonly pinned: boolean;
   readonly repoRoot: string;
@@ -170,6 +171,10 @@ export interface OverlaySessionView extends SessionView {
 
 export interface OverlayView {
   sessions: readonly OverlaySessionView[];
+
+  // The overlay column character per agent id, for the ids that do not use
+  // the built-in one.
+  agentMarks: Readonly<Record<AgentID, string>>;
   selected: number;
   confirmKill: boolean;
   filter: string | null;
@@ -209,8 +214,8 @@ export function drawOverlay(view: OverlayView) {
     const msg = truncate(s.lastMsg, msgWidth).padEnd(msgWidth);
     const unread = s.unread ? `${ESC}[1;33m!${ESC}[0m` : ' ';
     const pin = s.pinned ? `${ESC}[93m⋆${ESC}[0m` : ' ';
-    const mark = formatOverlayAgentMark(s.agent);
-    const styledMark = mark === 'g' ? `${ESC}[90m${mark}${ESC}[0m` : mark;
+    const mark = formatOverlayAgentMark(s.agent, view.agentMarks);
+    const styledMark = mark === ' ' ? mark : `${ESC}[90m${mark}${ESC}[0m`;
     const body = `${name} ${state}${dir} ${msg}`;
     const styledBody = sel ? `${ESC}[7m${body}${ESC}[0m` : body;
 
@@ -269,7 +274,7 @@ export function buildOverlayHint(s: OverlaySessionView | undefined): string {
       actions.push('a ack');
     }
 
-    if (s.agent === 'claude') {
+    if (s.canEject) {
       actions.push('H headless');
     }
 

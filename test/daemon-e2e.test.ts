@@ -141,6 +141,7 @@ sleep 30
         grokArgs: [],
         codexBin: fakeCodex,
         codexArgs: [],
+        gateways: [],
       }),
     );
   }
