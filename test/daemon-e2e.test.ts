@@ -5,8 +5,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
 import { DaemonClient } from '../src/daemon-client';
+import { getRecord } from '../src/get-record';
 import type { EventMsg } from '../src/protocol';
-import { getRecord, isRecord } from '../src/report';
+import { isRecord } from '../src/report';
 import { StateStore } from '../src/state-store';
 
 const repo = dirname(import.meta.dir);

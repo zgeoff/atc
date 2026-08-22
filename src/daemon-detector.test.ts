@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import type { AgentAdapter } from './agent-adapter';
 import { startDaemon } from './daemon';
 import { DaemonClient } from './daemon-client';
+import { getRecord } from './get-record';
 import type { EventMsg } from './protocol';
-import { getRecord, isRecord } from './report';
+import { isRecord } from './report';
 
 // A hook-less agent: a shell that paints a prompt, waits for input, works
 // visibly, then prompts again. Attention comes only from the screen tier.

@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import type { AgentAdapter, HeadlessRunner } from './agent-adapter';
 import { startDaemon } from './daemon';
 import { DaemonClient } from './daemon-client';
+import { getRecord } from './get-record';
 import { GrokAdapter } from './grok-adapter';
 import type { EventMsg } from './protocol';
-import { getRecord, isRecord } from './report';
+import { isRecord } from './report';
 
 const sleepAdapter: AgentAdapter = {
   id: 'claude',
