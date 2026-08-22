@@ -30,9 +30,10 @@ export function parseRequestParams<M extends RequestMethod>(
 }
 
 /**
- * The session id shape callers outside the wire protocol require: present
- * and described for a tool-facing schema. Methods that tolerate an absent
- * session extend this with a defaulted field instead of restating it.
+ * The session id shape MCP tool schemas require: present and described.
+ * The wire request schemas below each define their own `session` field
+ * directly, since the wire protocol's tolerance for an absent session
+ * differs method by method.
  */
 export const SESSION_ID_BASE = z.object({
   session: z.string().describe('The atc session id, from atc_session_list'),
@@ -66,8 +67,8 @@ export const REQUEST_PARAM_SCHEMAS = {
       .min(1, 'session.spawn agent must be a non-empty agent id')
       .optional(),
   }),
-  'session.kill': SESSION_ID_BASE.extend({ session: buildDefaultedString('') }),
-  'session.ack': SESSION_ID_BASE.extend({ session: buildDefaultedString('') }),
+  'session.kill': z.object({ session: buildDefaultedString('') }),
+  'session.ack': z.object({ session: buildDefaultedString('') }),
   'session.update': z.object({
     session: buildDefaultedString(''),
     name: buildOptionalString(),
@@ -92,7 +93,7 @@ export const REQUEST_PARAM_SCHEMAS = {
     .refine((v) => v.cols >= 1 && v.rows >= 1, {
       message: 'session.resize requires positive cols and rows',
     }),
-  'session.resumeCommand': SESSION_ID_BASE.extend({ session: buildDefaultedString('') }),
+  'session.resumeCommand': z.object({ session: buildDefaultedString('') }),
   'session.eject': z.object({
     session: buildDefaultedString(''),
     prompt: buildDefaultedNonEmptyString(EJECT_DEFAULT_PROMPT),
