@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { collectGateways } from './collect-gateways';
 import type { GatewayConfig } from './collect-gateways';
-import { isRecord } from './report';
 
 export interface Config {
   claudeBin: string;
@@ -42,6 +42,22 @@ export const dbFile = join(stateDir, 'atc.db');
 export const legacyFleetFile = join(stateDir, 'fleet.json');
 export const daemonPidFile = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-daemon.pid');
 
+// A user-written config.json's top-level keys. Every field is read once at
+// the top of loadConfig instead of indexing the raw parse throughout; an
+// absent or wrong-typed field parses to undefined rather than failing the
+// file, so a bad config falls back to a default instead of refusing to
+// start atc.
+const CONFIG_SCHEMA = z.object({
+  claudeBin: buildOptionalString(),
+  claudeArgs: buildOptionalStringArray(),
+  grokBin: buildOptionalString(),
+  grokArgs: buildOptionalStringArray(),
+  codexBin: buildOptionalString(),
+  codexArgs: buildOptionalStringArray(),
+  gateways: z.unknown().optional(),
+  leader: buildOptionalString(),
+});
+
 export function loadConfig(): Config {
   mkdirSync(configDir, { recursive: true });
   mkdirSync(stateDir, { recursive: true });
@@ -55,43 +71,37 @@ export function loadConfig(): Config {
   }
 
   try {
-    const raw = readFileSync(file, 'utf8');
-    const parsed: unknown = JSON.parse(raw);
-
-    if (!isRecord(parsed)) {
-      return { ...DEFAULTS };
-    }
-
-    const claudeBin =
-      typeof parsed['claudeBin'] === 'string' ? parsed['claudeBin'] : DEFAULTS.claudeBin;
-
-    const claudeArgs = Array.isArray(parsed['claudeArgs'])
-      ? parsed['claudeArgs'].filter((a): a is string => typeof a === 'string')
-      : DEFAULTS.claudeArgs;
-
-    const grokBin = typeof parsed['grokBin'] === 'string' ? parsed['grokBin'] : DEFAULTS.grokBin;
-
-    const grokArgs = Array.isArray(parsed['grokArgs'])
-      ? parsed['grokArgs'].filter((a): a is string => typeof a === 'string')
-      : DEFAULTS.grokArgs;
-
-    const codexBin =
-      typeof parsed['codexBin'] === 'string' ? parsed['codexBin'] : DEFAULTS.codexBin;
-
-    const codexArgs = Array.isArray(parsed['codexArgs'])
-      ? parsed['codexArgs'].filter((a): a is string => typeof a === 'string')
-      : DEFAULTS.codexArgs;
-
-    const gateways = collectGateways(parsed['gateways'], claudeBin, claudeArgs);
-
-    const leader =
-      (typeof parsed['leader'] === 'string' ? decodeLeader(parsed['leader']) : null) ??
-      DEFAULTS.leader;
-
-    return { claudeBin, claudeArgs, grokBin, grokArgs, codexBin, codexArgs, gateways, leader };
+    return parseConfig(JSON.parse(readFileSync(file, 'utf8')));
   } catch {
     return { ...DEFAULTS };
   }
+}
+
+/**
+ * Parses a user-written config.json's already-decoded JSON value into a
+ * Config, applying every default a malformed or absent field falls back to.
+ * Total: no shape of `raw` throws, so a hand-edited config never stops atc
+ * starting.
+ */
+export function parseConfig(raw: unknown): Config {
+  const parsed = CONFIG_SCHEMA.safeParse(raw);
+
+  if (!parsed.success) {
+    return { ...DEFAULTS };
+  }
+
+  const claudeBin = parsed.data.claudeBin ?? DEFAULTS.claudeBin;
+  const claudeArgs = parsed.data.claudeArgs ?? DEFAULTS.claudeArgs;
+  const grokBin = parsed.data.grokBin ?? DEFAULTS.grokBin;
+  const grokArgs = parsed.data.grokArgs ?? DEFAULTS.grokArgs;
+  const codexBin = parsed.data.codexBin ?? DEFAULTS.codexBin;
+  const codexArgs = parsed.data.codexArgs ?? DEFAULTS.codexArgs;
+  const gateways = collectGateways(parsed.data.gateways, claudeBin, claudeArgs);
+
+  const leader =
+    (parsed.data.leader === undefined ? null : decodeLeader(parsed.data.leader)) ?? DEFAULTS.leader;
+
+  return { claudeBin, claudeArgs, grokBin, grokArgs, codexBin, codexArgs, gateways, leader };
 }
 
 // Control bytes the terminal needs for its own input: enter, tab, and esc
@@ -138,4 +148,15 @@ function decodeLeader(name: string): LeaderKey | null {
   }
 
   return { code, label: `^${key.toUpperCase()}` };
+}
+
+function buildOptionalString() {
+  return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().optional());
+}
+
+function buildOptionalStringArray() {
+  return z.preprocess(
+    (v) => (Array.isArray(v) ? v.filter((a): a is string => typeof a === 'string') : undefined),
+    z.array(z.string()).optional(),
+  );
 }
