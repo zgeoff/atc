@@ -78,7 +78,7 @@ test('it plans adopt without --resume', () => {
 test('it plans restore with --resume after --no-leader', () => {
   const plan = new GrokAdapter(buildGrokConfig()).planSpawn({
     prompt: '',
-    resume: '01a0148d-f30c-7091-9bbf-548c4a7ed49e',
+    resume: toAgentSessionID('01a0148d-f30c-7091-9bbf-548c4a7ed49e'),
   });
 
   expect(plan.args).toStrictEqual([

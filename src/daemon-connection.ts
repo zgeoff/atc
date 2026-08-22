@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import type { AgentAdapter, AgentID } from './agent-adapter';
+import type { AgentAdapter, AgentID, SpawnOptions } from './agent-adapter';
 import type { Dims } from './attach-registry';
 import type { FleetEntry } from './fleet-entry';
 import { OutboundQueue } from './outbound-queue';
@@ -17,7 +17,7 @@ interface SpawnParams {
   readonly prompt: string;
   readonly cols: number;
   readonly rows: number;
-  readonly resume: boolean | string;
+  readonly resume: SpawnOptions['resume'];
   readonly namedBy: 'user' | 'auto';
   readonly agent: AgentID;
 }

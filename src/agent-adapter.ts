@@ -21,9 +21,9 @@ export function toAgentID(raw: unknown): AgentID {
 export interface SpawnOptions {
   readonly prompt: string;
 
-  // true opens the agent's own session picker; a string resumes that
-  // specific agent session id.
-  readonly resume: boolean | string;
+  // true opens the agent's own session picker; an agent session id resumes
+  // that specific session.
+  readonly resume: boolean | AgentSessionID;
 }
 
 export interface SpawnPlan {

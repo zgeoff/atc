@@ -311,15 +311,15 @@ export class SessionManager {
     return this.sessions.find((s) => s.id === this.focusedId) ?? null;
   }
 
-  // resume: true opens the agent's own session picker; a string resumes that
-  // specific agent session id (fleet restore).
+  // resume: true opens the agent's own session picker; an agent session id
+  // resumes that specific session (fleet restore).
   spawn(
     cwd: string,
     name: string,
     prompt: string,
     cols: number,
     rows: number,
-    resume: boolean | string = false,
+    resume: boolean | AgentSessionID = false,
     namedBy: 'user' | 'auto' = 'auto',
     agent: AgentID = 'claude',
   ): Session {
@@ -357,8 +357,7 @@ export class SessionManager {
       unread: false,
       lastMsg: initialMsg,
 
-      // oxlint-disable-next-line no-unsafe-type-assertion -- a string resume argument is an agent session id to resume, by this method's own contract
-      ...(typeof resume === 'string' ? { agentSessionID: resume as AgentSessionID } : {}),
+      ...(typeof resume === 'string' ? { agentSessionID: resume } : {}),
       agent,
       pinned: false,
       lastAttachedAt: Date.now(),

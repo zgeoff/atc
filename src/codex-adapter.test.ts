@@ -64,7 +64,7 @@ test('it spawns fresh, picker-resume, and id-resume codex commands', () => {
     args: ['resume'],
   });
 
-  expect(adapter.planSpawn({ prompt: '', resume: 'c-1' })).toStrictEqual({
+  expect(adapter.planSpawn({ prompt: '', resume: toAgentSessionID('c-1') })).toStrictEqual({
     bin: 'codex',
     args: ['resume', 'c-1'],
   });
