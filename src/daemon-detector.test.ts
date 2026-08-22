@@ -30,7 +30,11 @@ const promptAdapter: AgentAdapter = {
   buildResumeCommand: () => null,
 };
 
-async function setupDetectorDaemon(): Promise<{
+// Same visible prompt, but the adapter offers no screen tier at all — the
+// shape every real adapter has today.
+const undetectedAdapter: AgentAdapter = { ...promptAdapter, screenDetector: null };
+
+async function setupDetectorDaemon(adapter: AgentAdapter = promptAdapter): Promise<{
   readonly client: DaemonClient;
   readonly events: EventMsg[];
 }> {
@@ -40,7 +44,7 @@ async function setupDetectorDaemon(): Promise<{
     socketPath: join(dir, 'daemon.sock'),
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
-    adapter: promptAdapter,
+    adapter,
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),
   });
@@ -147,4 +151,20 @@ test('it opens a permission request from a screen-detected prompt', async () => 
   const requested = await waitForEvent(ctx.events, (e) => e.ev === 'permission.requested');
 
   expect(requested).toMatchObject({ message: 'waiting at a prompt', respondable: false });
+});
+
+test('it never flags a prompt as needing input when the adapter has no screen detector', async () => {
+  const ctx = await setupDetectorDaemon(undetectedAdapter);
+
+  await ctx.client.sendRequest('session.spawn', { cwd: '/tmp', cols: 60, rows: 12 });
+
+  // Long enough to clear the 300ms detect debounce were a detector present.
+  await Bun.sleep(500);
+
+  const needy = ctx.events.find(
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
+
+  expect(needy).toBeUndefined();
 });

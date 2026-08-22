@@ -79,6 +79,11 @@ export class SessionManager {
 
   onEvent: (kind: SessionEventKind, s: Session) => void = () => {};
 
+  // Whether any registered adapter has a screen detector, decided once at
+  // construction since the registry never changes afterward. Lets a hot path
+  // that only cares about this answer skip walking live sessions to find it.
+  readonly hasScreenDetector: boolean;
+
   private readonly adapters: Readonly<Record<AgentID, AgentAdapter>>;
 
   private readonly store: FleetStore;
@@ -94,6 +99,7 @@ export class SessionManager {
     // Each adapter names the id it answers to, so a registry key can never
     // disagree with the adapter behind it. A later one wins the id.
     this.adapters = Object.fromEntries([fallback, ...adapters].map((a) => [a.id, a]));
+    this.hasScreenDetector = Object.values(this.adapters).some((a) => a.screenDetector !== null);
     this.store = store;
     this.statusPath = statusPath ?? statusFile;
   }
