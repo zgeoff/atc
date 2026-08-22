@@ -8,8 +8,8 @@ import { SessionManager } from './sessions';
 import type { Session } from './sessions';
 import { StateStore } from './state-store';
 
-// Unit tests for daemon.ts's session-event builder, split out from
-// daemon.test.ts to stay under its dependency budget.
+// Unit tests for the session-event builder: which notifications carry a
+// descriptor and which emit nothing.
 const idleAdapter: AgentAdapter = {
   id: 'claude',
   headlessRunner: null,
