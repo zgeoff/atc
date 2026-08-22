@@ -30,8 +30,7 @@ const promptAdapter: AgentAdapter = {
   buildResumeCommand: () => null,
 };
 
-// Same visible prompt, but the adapter offers no screen tier at all — the
-// shape every real adapter has today.
+// Same visible prompt, but no screen tier — its output must never be judged.
 const undetectedAdapter: AgentAdapter = { ...promptAdapter, screenDetector: null };
 
 async function setupDetectorDaemon(adapter: AgentAdapter = promptAdapter): Promise<{
@@ -156,10 +155,27 @@ test('it opens a permission request from a screen-detected prompt', async () => 
 test('it never flags a prompt as needing input when the adapter has no screen detector', async () => {
   const ctx = await setupDetectorDaemon(undetectedAdapter);
 
-  await ctx.client.sendRequest('session.spawn', { cwd: '/tmp', cols: 60, rows: 12 });
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    cols: 60,
+    rows: 12,
+  });
 
-  // Long enough to clear the 300ms detect debounce were a detector present.
-  await Bun.sleep(500);
+  // Output only reaches an attached client, and the painted prompt is the one
+  // observable signal that this session reached the state a detector would
+  // judge. Attaching does not perturb detection: it runs off PTY output either
+  // way, and the session is running rather than needing input at this point.
+  const id = getRecord(spawned, 'session')['id'];
+
+  await ctx.client.sendRequest('session.attach', { session: id, cols: 60, rows: 12 });
+
+  await waitForEvent(
+    ctx.events,
+    (e) => e.ev === 'session.output' && typeof e['d'] === 'string' && e['d'].includes('READY>'),
+  );
+
+  // Then out past the 300ms detect debounce a detector would have needed.
+  await Bun.sleep(400);
 
   const needy = ctx.events.find(
     (e) =>
