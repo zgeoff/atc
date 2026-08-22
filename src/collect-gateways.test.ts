@@ -141,3 +141,45 @@ test.each([[undefined], [null], ['zai'], [42], [[]]])(
     expect(collectGateways(raw, 'claude', [])).toStrictEqual([]);
   },
 );
+
+test.each([
+  [null],
+  ['https://api.z.ai/api/anthropic'],
+  [42],
+  [[]],
+  [{}],
+  [{ baseURL: 42 }],
+  [{ baseURL: '' }],
+])('it leaves out %p as a malformed gateway entry', (entry) => {
+  expect(collectGateways({ zai: entry }, 'claude', [])).toStrictEqual([]);
+});
+
+test('it falls back to every default when an entry has a valid base URL but every other field is wrong-typed', () => {
+  expect(
+    collectGateways(
+      {
+        zai: {
+          baseURL: 'https://api.z.ai/api/anthropic',
+          label: 7,
+          mark: 7,
+          bin: 42,
+          args: 'not-an-array',
+          apiKeyHelper: 42,
+          env: 'nope',
+        },
+      },
+      'claude',
+      ['--verbose'],
+    ),
+  ).toStrictEqual([
+    {
+      id: 'zai',
+      label: 'zai',
+      mark: 'z',
+      bin: 'claude',
+      args: ['--verbose'],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+    },
+  ]);
+});
