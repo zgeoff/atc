@@ -1,5 +1,3 @@
-import { z } from 'zod';
-import { toAgentID } from './agent-adapter';
 import type { AgentID } from './agent-adapter';
 import { bootDaemonClient } from './boot-daemon';
 import { buildLeaderChords } from './build-leader-chords';
@@ -9,29 +7,12 @@ import { KEY, isDown, isUp, planTextEdit } from './keys';
 import { pickTabTarget } from './pick-tab-target';
 import type { EventMsg } from './protocol';
 import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from './sessions';
-import type { SessionState } from './sessions';
 import { SpawnPicker } from './spawn-picker';
+import { toMirrorSession } from './to-mirror-session';
+import type { MirrorSession } from './to-mirror-session';
 import { ansi, cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar, rows } from './ui';
 
 type Mode = 'home' | 'attached' | 'overlay' | 'help' | 'picker' | 'picker-eject';
-
-interface MirrorSession {
-  id: string;
-  name: string;
-  cwd: string;
-  pinned: boolean;
-  lastAttachedAt: number;
-  repoRoot: string;
-  state: SessionState;
-  unread: boolean;
-  lastMsg: string;
-  createdAt: number;
-  kind: 'pty' | 'headless';
-  alive: boolean;
-  resumable: boolean;
-  canEject: boolean;
-  agent: AgentID;
-}
 
 let mode: Mode = 'home';
 let overlaySelected = 0;
@@ -311,49 +292,6 @@ function quit(code = 0): never {
   } catch {}
 
   process.exit(code);
-}
-
-// Only the fields a mirror can't function without; an unparseable descriptor
-// is skipped rather than thrown into the event loop. Unknown keys pass
-// through so the lenient fallbacks below can still read them.
-const REQUIRED_MIRROR_FIELDS_SCHEMA = z.looseObject({
-  id: z.string(),
-  name: z.string(),
-  cwd: z.string(),
-  state: z.enum(['running', 'needs_you', 'done', 'exited']),
-  unread: z.boolean(),
-  lastMsg: z.string(),
-  createdAt: z.number(),
-  alive: z.boolean(),
-});
-
-function toMirrorSession(value: unknown): MirrorSession | null {
-  const parsed = REQUIRED_MIRROR_FIELDS_SCHEMA.safeParse(value);
-
-  if (!parsed.success) {
-    return null;
-  }
-
-  const record = parsed.data;
-
-  return {
-    id: record.id,
-    name: record.name,
-    cwd: record.cwd,
-    pinned: record['pinned'] === true,
-    lastAttachedAt:
-      typeof record['lastAttachedAt'] === 'number' ? record['lastAttachedAt'] : record.createdAt,
-    repoRoot: typeof record['repoRoot'] === 'string' ? record['repoRoot'] : record.cwd,
-    state: record.state,
-    unread: record.unread,
-    lastMsg: record.lastMsg,
-    createdAt: record.createdAt,
-    kind: record['kind'] === 'headless' ? 'headless' : 'pty',
-    alive: record.alive,
-    resumable: typeof record['agentSessionID'] === 'string',
-    canEject: record['canEject'] === true,
-    agent: toAgentID(record['agent']),
-  };
 }
 
 function upsertMirror(d: Readonly<MirrorSession>) {
