@@ -309,7 +309,7 @@ test('it reports an unregistered agent id as a failed tool call', async () => {
   expect(getText(failed)).toInclude("unsupported: no adapter for agent 'gemini'");
 });
 
-test('it rejects an empty agent id before it reaches the daemon', async () => {
+test("it rejects an empty agent id with the daemon's shared-schema message", async () => {
   const ctx = setupMCP();
 
   ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
@@ -328,7 +328,7 @@ test('it rejects an empty agent id before it reaches the daemon', async () => {
   const failed = getResult(failResponse);
 
   expect(failed['isError']).toBeTrue();
-  expect(getText(failed)).toInclude('agent must be a non-empty agent id');
+  expect(getText(failed)).toInclude('session.spawn agent must be a non-empty agent id');
 });
 
 test('it reports a failed tool call with isError instead of crashing', async () => {

@@ -232,12 +232,6 @@ async function runTool(
     case 'atc_session_spawn': {
       const rawAgent = args['agent'];
 
-      // Which ids exist is the daemon's to answer, since it holds the
-      // registry; this only rejects a value that could not be one.
-      if (rawAgent !== undefined && (typeof rawAgent !== 'string' || rawAgent === '')) {
-        throw new Error('agent must be a non-empty agent id');
-      }
-
       const ok = await client.sendRequest('session.spawn', {
         cwd: args['cwd'],
         ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
