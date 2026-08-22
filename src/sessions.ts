@@ -356,7 +356,6 @@ export class SessionManager {
       state: 'running',
       unread: false,
       lastMsg: initialMsg,
-
       ...(typeof resume === 'string' ? { agentSessionID: resume } : {}),
       agent,
       pinned: false,
