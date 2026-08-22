@@ -1216,7 +1216,7 @@ test('it keeps NEEDS YOU when grok emits idle_prompt after permission_prompt', a
   await ctx.waitFor('NEEDS YOU');
 }, 15_000);
 
-test('it marks an uninstalled agent in the picker and refuses to select it', async () => {
+test('it leaves an agent with no installed binary out of the picker', async () => {
   await using ctx = setupTest();
 
   const pty = ctx.boot();
@@ -1226,24 +1226,19 @@ test('it marks an uninstalled agent in the picker and refuses to select it', asy
   ctx.reset();
   pty.write('n');
 
-  await ctx.waitFor('Codex — not installed');
+  await ctx.waitFor('spawn: agent');
+
+  const menu = ctx.read();
+
+  expect(menu).toInclude('Claude');
+  expect(menu).toInclude('Grok');
+  expect(menu).not.toInclude('Codex');
 
   pty.write('\u001B[B');
 
   await ctx.waitFor('\u001B[7mGrok');
 
-  pty.write('\u001B[B');
-
-  await ctx.waitFor('\u001B[7mCodex');
-
-  ctx.reset();
   pty.write('\r');
 
-  await Bun.sleep(300); // a refused pick repaints nothing, so there is no signal to wait on
-
-  pty.write('\u001B[A');
-
-  await ctx.waitFor('\u001B[7mGrok');
-
-  expect(ctx.read()).not.toInclude('spawn: directory');
+  await ctx.waitFor('spawn: directory');
 }, 15_000);

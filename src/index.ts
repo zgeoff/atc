@@ -1,13 +1,9 @@
-// oxlint-disable import/max-dependencies -- the TUI client entry wires every client-side module
-import { basename } from 'node:path';
 import { bootDaemonClient } from './boot-daemon';
 import { buildLeaderChords } from './build-leader-chords';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
 import { loadConfig } from './config';
-import { collectDirs, findFuzzyScore, formatDir, pickMatches } from './dirs';
-import { formatAgentPick } from './format-agent-pick';
-import { pickDefaultAgent } from './pick-default-agent';
+import { collectDirs, findFuzzyScore, formatDir, formatDirName, pickMatches } from './dirs';
 import { pickTabTarget } from './pick-tab-target';
 import type { EventMsg } from './protocol';
 import { isRecord } from './report';
@@ -70,8 +66,8 @@ let spawnResume = false;
 let spawnAgent: AgentKind = 'claude';
 let lastUsedAgent: AgentKind = 'claude';
 
-// The agent menu, rebuilt each time it opens so a config edit or a freshly
-// installed agent CLI lands without a client restart.
+// The installed agents, collected each time the menu opens so a config edit
+// or a fresh install lands without a client restart.
 let agentPicks: AgentPick[] = [];
 const stdout = process.stdout;
 
@@ -269,16 +265,16 @@ function renderPicker() {
   if (mode === 'picker-agent') {
     pickerSelected = Math.min(pickerSelected, agentPicks.length - 1);
 
-    const pick = agentPicks[pickerSelected];
-
+    // An empty menu means every configured binary is missing, so the hint
+    // carries the fix instead of the movement keys.
     const hint =
-      pick === undefined || pick.binPath !== null
-        ? '↑↓ move · ⏎ select · esc cancel'
-        : `${pick.bin} is not on PATH — set ${pick.agent}Bin in config.json · ↑↓ move · esc cancel`;
+      agentPicks.length === 0
+        ? 'no agent CLI found — set claudeBin, grokBin, or codexBin in config.json · esc cancel'
+        : '↑↓ move · ⏎ select · esc cancel';
 
     drawPicker({
       title: `${verb}: agent`,
-      items: agentPicks.map((p) => formatAgentPick(p)),
+      items: agentPicks.map((p) => p.label),
       selected: pickerSelected,
       input: pickerInput,
       hint,
@@ -301,7 +297,7 @@ function renderPicker() {
       items: [],
       selected: -1,
       input: pickerInput,
-      placeholder: basename(spawnDir),
+      placeholder: formatDirName(spawnDir),
       hint: `session name for ${formatDir(spawnDir)} · ⏎ accept · esc back`,
     });
   } else if (mode === 'picker-eject') {
@@ -330,14 +326,16 @@ function renderPicker() {
 function openAgentPicker(resume = false) {
   spawnResume = resume;
   agentPicks = collectAgentPicks(loadConfig());
-  spawnAgent = pickDefaultAgent(agentPicks, lastUsedAgent);
   pickerInput = '';
 
+  // A last-used agent that is no longer installed is not in the menu, so
+  // the selection falls to the first one that is.
   pickerSelected = Math.max(
     0,
-    agentPicks.findIndex((p) => p.agent === spawnAgent),
+    agentPicks.findIndex((p) => p.agent === lastUsedAgent),
   );
 
+  spawnAgent = agentPicks[pickerSelected]?.agent ?? lastUsedAgent;
   mode = 'picker-agent';
 
   stdout.write(ansi.clear);
@@ -1138,9 +1136,9 @@ process.stdin.on('data', (buf: Buffer) => {
         () => {
           const pick = agentPicks[pickerSelected];
 
-          // A missing binary would spawn a PTY that dies on exec, three
-          // steps after the choice was made.
-          if (pick === undefined || pick.binPath === null) {
+          // With no agent installed the menu is empty and there is nothing
+          // to spawn.
+          if (pick === undefined) {
             return;
           }
 

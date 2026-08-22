@@ -61,6 +61,14 @@ export function formatDir(d: string): string {
   return d.startsWith(home) ? `~${d.slice(home.length)}` : d;
 }
 
+/**
+ * The short display name for a directory: its leaf, which is the name a
+ * session spawned there takes when its own name is left blank.
+ */
+export function formatDirName(d: string): string {
+  return basename(d);
+}
+
 const SEPARATORS = new Set(['/', '-', '_', '.', ' ']);
 
 /**

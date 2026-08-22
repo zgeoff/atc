@@ -21,7 +21,7 @@ function setupBinDir(bins: readonly { readonly name: string; readonly executable
   return dir;
 }
 
-test('it resolves configured binary paths and leaves a missing one unresolved', () => {
+test('it lists only the agents whose configured binary resolves', () => {
   const dir = setupBinDir([
     { name: 'my-claude', executable: true },
     { name: 'my-codex', executable: true },
@@ -38,14 +38,8 @@ test('it resolves configured binary paths and leaves a missing one unresolved', 
       leader: { code: 0, label: '^Space' },
     }),
   ).toStrictEqual([
-    {
-      agent: 'claude',
-      label: 'Claude',
-      bin: join(dir, 'my-claude'),
-      binPath: join(dir, 'my-claude'),
-    },
-    { agent: 'grok', label: 'Grok', bin: join(dir, 'my-grok'), binPath: null },
-    { agent: 'codex', label: 'Codex', bin: join(dir, 'my-codex'), binPath: join(dir, 'my-codex') },
+    { agent: 'claude', label: 'Claude' },
+    { agent: 'codex', label: 'Codex' },
   ]);
 });
 
@@ -59,41 +53,31 @@ test('it resolves a bare binary name off PATH', () => {
     process.env['PATH'] = prev;
   });
 
-  const picks = collectAgentPicks({
-    claudeBin: 'claude',
-    claudeArgs: [],
-    grokBin: 'grok',
-    grokArgs: [],
-    codexBin: 'codex',
-    codexArgs: [],
-    leader: { code: 0, label: '^Space' },
-  });
-
-  expect(picks[1]).toStrictEqual({
-    agent: 'grok',
-    label: 'Grok',
-    bin: 'grok',
-    binPath: join(dir, 'grok'),
-  });
+  expect(
+    collectAgentPicks({
+      claudeBin: 'claude',
+      claudeArgs: [],
+      grokBin: 'grok',
+      grokArgs: [],
+      codexBin: 'codex',
+      codexArgs: [],
+      leader: { code: 0, label: '^Space' },
+    }),
+  ).toStrictEqual([{ agent: 'grok', label: 'Grok' }]);
 });
 
-test('it leaves a binary that exists without the executable bit unresolved', () => {
+test('it leaves out a binary that exists without the executable bit', () => {
   const dir = setupBinDir([{ name: 'my-codex', executable: false }]);
 
-  const picks = collectAgentPicks({
-    claudeBin: 'claude',
-    claudeArgs: [],
-    grokBin: 'grok',
-    grokArgs: [],
-    codexBin: join(dir, 'my-codex'),
-    codexArgs: [],
-    leader: { code: 0, label: '^Space' },
-  });
-
-  expect(picks[2]).toStrictEqual({
-    agent: 'codex',
-    label: 'Codex',
-    bin: join(dir, 'my-codex'),
-    binPath: null,
-  });
+  expect(
+    collectAgentPicks({
+      claudeBin: join(dir, 'my-claude'),
+      claudeArgs: [],
+      grokBin: join(dir, 'my-grok'),
+      grokArgs: [],
+      codexBin: join(dir, 'my-codex'),
+      codexArgs: [],
+      leader: { code: 0, label: '^Space' },
+    }),
+  ).toStrictEqual([]);
 });

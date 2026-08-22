@@ -27,12 +27,11 @@ atc
 ```
 
 Needs [Bun](https://bun.sh) (atc runs from source through it) and the `claude` CLI on your PATH.
-Grok sessions also need the `grok` CLI, and Codex sessions the `codex` CLI — the agent picker marks
-an agent whose binary it cannot find as not installed and will not spawn it. From a checkout,
-`bun src/cli.ts` runs the same thing. atc is built to pair with
-[zoxide](https://github.com/ajeetdsouza/zoxide): the spawn directory picker feeds on its frecency
-list, so with zoxide installed every directory you visit is two keystrokes from a session. Without
-it the picker falls back to atc's own spawn history.
+Grok sessions also need the `grok` CLI, and Codex sessions the `codex` CLI — the agent picker lists
+only the agents whose binary it can find. From a checkout, `bun src/cli.ts` runs the same thing. atc
+is built to pair with [zoxide](https://github.com/ajeetdsouza/zoxide): the spawn directory picker
+feeds on its frecency list, so with zoxide installed every directory you visit is two keystrokes
+from a session. Without it the picker falls back to atc's own spawn history.
 
 The first invocation auto-spawns the daemon (`atc daemon` runs it in the foreground for systemd or
 debugging); the TUI is a thin client, so quitting or crashing it leaves every session running. Runs
