@@ -1,12 +1,14 @@
 import { basename } from 'node:path';
+import { parseAgentKind } from './agent-adapter';
 import type { AgentAdapter, AgentKind } from './agent-adapter';
 import type { Dims } from './attach-registry';
+import type { FleetEntry } from './fleet-entry';
 import { OutboundQueue } from './outbound-queue';
 import type { SocketWriter } from './outbound-queue';
 import type { AnswerResult } from './permission-registry';
 import { MAX_CHUNK, MAX_LINE, PROTOCOL_V, decodeMessage, encodeMessage } from './protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from './protocol';
-import type { FleetEntry, SessionDescriptor } from './sessions';
+import type { SessionDescriptor } from './sessions';
 
 interface SpawnParams {
   readonly cwd: string;
@@ -374,19 +376,15 @@ export class DaemonConnection {
     }
 
     const rawAgent = req.p?.['agent'];
+    const parsedAgent = rawAgent === undefined ? 'claude' : parseAgentKind(rawAgent);
 
-    if (
-      rawAgent !== undefined &&
-      rawAgent !== 'claude' &&
-      rawAgent !== 'grok' &&
-      rawAgent !== 'codex'
-    ) {
+    if (parsedAgent === null) {
       this.sendErr(req.id, 'bad_args', "session.spawn agent must be 'claude', 'grok', or 'codex'");
 
       return;
     }
 
-    const agent: AgentKind = rawAgent === 'grok' || rawAgent === 'codex' ? rawAgent : 'claude';
+    const agent: AgentKind = parsedAgent;
 
     if (this.ctx.findAdapter(agent) === null) {
       this.sendErr(req.id, 'unsupported', `no adapter for agent '${agent}'`);

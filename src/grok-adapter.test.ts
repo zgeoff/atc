@@ -155,6 +155,46 @@ test('it ignores session-end Stop and any event with a subagent type', () => {
   ).toBe('heartbeat');
 });
 
+test('it evicts the oldest session and retains the newest once hook state passes 256 entries', () => {
+  const adapter = new GrokAdapter(buildGrokConfig());
+
+  adapter.normalizeHook({
+    atcId: 's-0',
+    event: 'UserPromptSubmit',
+    payload: { sessionId: 's-0', promptId: 'p2', prompt: 'first' },
+  });
+
+  for (let i = 1; i <= 255; i++) {
+    adapter.normalizeHook({
+      atcId: `s-${i}`,
+      event: 'SessionStart',
+      payload: { sessionId: `s-${i}`, cwd: '/tmp' },
+    });
+  }
+
+  adapter.normalizeHook({
+    atcId: 's-256',
+    event: 'UserPromptSubmit',
+    payload: { sessionId: 's-256', promptId: 'p2', prompt: 'last' },
+  });
+
+  expect(
+    adapter.normalizeHook({
+      atcId: 's-0',
+      event: 'Stop',
+      payload: { sessionId: 's-0', reason: 'end_turn', promptId: 'p1' },
+    }).kind,
+  ).toBe('turn-done');
+
+  expect(
+    adapter.normalizeHook({
+      atcId: 's-256',
+      event: 'Stop',
+      payload: { sessionId: 's-256', reason: 'end_turn', promptId: 'p1' },
+    }).kind,
+  ).toBe('heartbeat');
+});
+
 test('it ignores a stale promptId after a later submit', () => {
   const adapter = new GrokAdapter(buildGrokConfig());
 

@@ -2,9 +2,9 @@ import { Database } from 'bun:sqlite';
 import { existsSync, readFileSync } from 'node:fs';
 import { toAgentKind } from './agent-adapter';
 import type { AgentKind } from './agent-adapter';
+import { parseFleetEntry } from './fleet-entry';
+import type { FleetEntry } from './fleet-entry';
 import type { HookEvent } from './hooks';
-import { parseFleetEntry } from './sessions';
-import type { FleetEntry } from './sessions';
 
 /**
  * Daemon state in one SQLite store: the restorable fleet, the hook-event

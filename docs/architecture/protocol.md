@@ -58,9 +58,9 @@ says to restart the daemon.
                            "lastUsedAgent": "claude" } }
 ```
 
-`lastUsedAgent` is the agent of the last deliberate spawn that reported SessionStart (`claude` or
-`grok`). A spawn that never reports SessionStart does not change it. A fleet restore SessionStart
-does not change it. MCP spawn ignores the value and defaults to Claude.
+`lastUsedAgent` is the agent of the last deliberate spawn that reported SessionStart (`claude`,
+`grok`, or `codex`). A spawn that never reports SessionStart does not change it. A fleet restore
+SessionStart does not change it. MCP spawn ignores the value and defaults to Claude.
 
 `auth` is present from day one (`{"scheme": "none"}` on the unix socket) so a TCP or SSH transport
 later adds a scheme, not a handshake redesign. The transport is assumed to be an ordered, reliable
@@ -69,21 +69,27 @@ semantics.
 
 ## Methods
 
-| Method                  | Purpose                                                                                                                     |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `daemon.hello`          | handshake; must be first. The ok includes `lastUsedAgent` (`claude` or `grok`), written on a deliberate-spawn SessionStart. |
-| `daemon.ping`           | liveness / latency probe                                                                                                    |
-| `session.list`          | fleet listing (descriptors mirror the `Session` shape, minus the PTY handle, plus `kind` and `agent`)                       |
-| `session.spawn`         | spawn (cwd, name, prompt, resume, dims, optional `agent`). Omitted `agent` is Claude. Unknown is `bad_args`.                |
-| `session.kill`          | kill process; explicit, never implied by disconnect                                                                         |
-| `session.ack`           | clear unread without attaching                                                                                              |
-| `session.attach`        | subscribe to a session's output; returns replay + current dims                                                              |
-| `session.detach`        | unsubscribe; session keeps running                                                                                          |
-| `session.input`         | keyboard input to a session (`{ session, d }`)                                                                              |
-| `session.resize`        | client reports its dims; effective size is the min across attached clients (broadcast as `session.resized`)                 |
-| `session.resumeCommand` | build the resume command for that session's agent (`claude --resume` or `grok --resume`)                                    |
-| `fleet.restore`         | cold-boot recovery: respawn the persisted fleet                                                                             |
-| `permission.respond`    | answer a permission request (`{ request, decision }`)                                                                       |
+| Method                  | Purpose                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `daemon.hello`          | handshake; must be first. The ok includes `lastUsedAgent` (`claude`, `grok`, or `codex`), written on a deliberate-spawn SessionStart. |
+| `daemon.ping`           | liveness / latency probe                                                                                                              |
+| `daemon.quit`           | stop the daemon; every hosted session goes down with it                                                                               |
+| `session.list`          | fleet listing (descriptors mirror the `Session` shape, minus the PTY handle, plus `kind` and `agent`)                                 |
+| `dirs.list`             | recent spawn directories, most recent first, for the picker                                                                           |
+| `fleet.list`            | the persisted fleet rows, independent of which sessions are currently live                                                            |
+| `session.spawn`         | spawn (cwd, name, prompt, resume, dims, optional `agent`). Omitted `agent` is Claude. Unknown is `bad_args`.                          |
+| `session.update`        | rename and/or pin a session (`{ session, name?, pinned? }`)                                                                           |
+| `session.kill`          | kill process; explicit, never implied by disconnect                                                                                   |
+| `session.ack`           | clear unread without attaching                                                                                                        |
+| `session.attach`        | subscribe to a session's output; returns replay + current dims                                                                        |
+| `session.detach`        | unsubscribe; session keeps running                                                                                                    |
+| `session.input`         | keyboard input to a session (`{ session, d }`)                                                                                        |
+| `session.resize`        | client reports its dims; effective size is the min across attached clients (broadcast as `session.resized`)                           |
+| `session.resumeCommand` | build the resume command for that session's agent (`claude --resume`, `grok --resume`, or `codex resume`)                             |
+| `session.eject`         | hand a live session off to a headless run so it keeps working unattended                                                              |
+| `session.adopt`         | bring a dead or headless session back onto a live terminal                                                                            |
+| `fleet.restore`         | cold-boot recovery: respawn the persisted fleet                                                                                       |
+| `permission.respond`    | answer a permission request (`{ request, decision }`)                                                                                 |
 
 `session.input` is a request (it gets an ok, preserving the rule that state-changing messages are
 acknowledged) but clients need not await it — measured cost of the JSON round trip is ~0.2µs against
@@ -103,8 +109,7 @@ Multi-client rules, chosen to cover the realistic conflicts without a write-lock
 ## Events
 
 `session.added`, `session.state`, `session.renamed`, `session.removed`, `session.resized`,
-`session.output`, `session.desync`, `session.closed`, `permission.requested`, `permission.resolved`,
-`daemon.shutdown`.
+`session.output`, `session.desync`, `permission.requested`, `permission.resolved`.
 
 State/lifecycle events broadcast to every client (every overlay needs them). `session.output` goes
 only to clients attached to that session — an unfocused session costs a client zero bytes. Output

@@ -1,3 +1,4 @@
+import type { AgentKind } from './agent-adapter';
 import { bootDaemonClient } from './boot-daemon';
 import { buildLeaderChords } from './build-leader-chords';
 import { loadConfig } from './config';
@@ -10,8 +11,6 @@ import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from '.
 import type { SessionState } from './sessions';
 import { SpawnPicker } from './spawn-picker';
 import { ansi, cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar, rows } from './ui';
-
-type AgentKind = 'claude' | 'grok' | 'codex';
 
 type Mode = 'home' | 'attached' | 'overlay' | 'help' | 'picker' | 'picker-eject';
 

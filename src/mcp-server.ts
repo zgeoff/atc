@@ -1,3 +1,4 @@
+import { parseAgentKind } from './agent-adapter';
 import { bootDaemonClient } from './boot-daemon';
 import { DaemonError } from './daemon-error';
 import { isRecord } from './report';
@@ -243,12 +244,7 @@ async function runTool(
     case 'atc_session_spawn': {
       const rawAgent = args['agent'];
 
-      if (
-        rawAgent !== undefined &&
-        rawAgent !== 'claude' &&
-        rawAgent !== 'grok' &&
-        rawAgent !== 'codex'
-      ) {
+      if (rawAgent !== undefined && parseAgentKind(rawAgent) === null) {
         throw new Error("agent must be 'claude', 'grok', or 'codex'");
       }
 

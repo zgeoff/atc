@@ -1,6 +1,7 @@
 import { spawn as spawnChild } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { toAgentKind } from './agent-adapter';
 import type { AgentKind } from './agent-adapter';
 import { daemonPidFile, daemonSocketPath } from './config';
 import { DaemonClient } from './daemon-client';
@@ -35,7 +36,7 @@ export async function bootDaemonClient(): Promise<DaemonBoot> {
       return {
         client,
         stale: hello['daemon'] !== build,
-        lastUsedAgent: hello['lastUsedAgent'] === 'grok' ? 'grok' : 'claude',
+        lastUsedAgent: toAgentKind(hello['lastUsedAgent']),
       };
     } catch (error) {
       client.stop();
