@@ -14,6 +14,7 @@ import type { HookEvent } from './hooks';
 import { normalizeHookEventName } from './normalize-hook-event';
 import { isRecord } from './report';
 import { resolveAgentHome } from './resolve-agent-home';
+import type { SessionID } from './session-id';
 import { toShellArg } from './to-shell-arg';
 import { truncateDetail } from './truncate-detail';
 
@@ -41,7 +42,7 @@ export class GrokAdapter implements AgentAdapter {
 
   private readonly config: Config;
 
-  private readonly hookState = new Map<string, GrokSessionHookState>();
+  private readonly hookState = new Map<SessionID, GrokSessionHookState>();
 
   constructor(config: Config) {
     this.config = config;
@@ -196,7 +197,11 @@ export class GrokAdapter implements AgentAdapter {
     return `cd ${toShellArg(cwd)} && ${resume}`;
   }
 
-  private emitHook(atcID: string, event: Readonly<AdapterEvent>, promptID?: string): AdapterEvent {
+  private emitHook(
+    atcID: SessionID,
+    event: Readonly<AdapterEvent>,
+    promptID?: string,
+  ): AdapterEvent {
     const prior = this.hookState.get(atcID);
     const latestPromptID = promptID ?? prior?.latestPromptID;
 

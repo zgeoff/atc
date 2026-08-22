@@ -1,6 +1,8 @@
+import type { SessionID } from './session-id';
+
 export interface PermissionRequest {
   readonly id: string;
-  readonly sessionID: string;
+  readonly sessionID: SessionID;
   readonly message: string;
   readonly respondable: boolean;
 }
@@ -36,7 +38,7 @@ export class PermissionRegistry {
     this.timeoutMs = timeoutMs;
   }
 
-  open(sessionID: string, message: string, respondable: boolean): PermissionRequest {
+  open(sessionID: SessionID, message: string, respondable: boolean): PermissionRequest {
     const id = `p${++this.counter}`;
     const req: PermissionRequest = { id, sessionID, message, respondable };
 
@@ -70,7 +72,7 @@ export class PermissionRegistry {
     return 'ok';
   }
 
-  answerAll(sessionID: string, decision: string): void {
+  answerAll(sessionID: SessionID, decision: string): void {
     for (const [id, entry] of this.pending) {
       if (entry.req.sessionID === sessionID) {
         this.removeRequest(id, decision);

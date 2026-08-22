@@ -1,5 +1,6 @@
 import { PROTOCOL_V } from './protocol';
 import type { EventMsg } from './protocol';
+import type { SessionID } from './session-id';
 import type { Session, SessionDescriptor, SessionEventKind, SessionManager } from './sessions';
 
 /**
@@ -37,6 +38,6 @@ export function buildSessionEvent(
   return builders[kind]();
 }
 
-function findDescriptor(mgr: SessionManager, id: string): SessionDescriptor | null {
+function findDescriptor(mgr: SessionManager, id: SessionID): SessionDescriptor | null {
   return mgr.collectDescriptors().find((x) => x.id === id) ?? null;
 }

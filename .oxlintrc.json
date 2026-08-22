@@ -103,10 +103,10 @@
     },
     {
       "files": ["src/grok-adapter.ts"],
-      // the adapter's own dependencies plus the branded agent-session id
-      // type it mints at its one hook-payload boundary
+      // the adapter's own dependencies plus the branded session and
+      // agent-session id types it keys and mints at its hook boundary
       "rules": {
-        "import/max-dependencies": ["error", { "max": 11 }]
+        "import/max-dependencies": ["error", { "max": 12 }]
       }
     },
     {
