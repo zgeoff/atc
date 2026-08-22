@@ -1,9 +1,6 @@
 import { z } from 'zod';
 import { isRecord } from './report';
 
-const EJECT_DEFAULT_PROMPT =
-  'Continue the task autonomously. Verify your work as you go and stop when it is complete.';
-
 export type RequestMethod = keyof typeof REQUEST_PARAM_SCHEMAS;
 
 type RequestParams<M extends RequestMethod> = z.infer<(typeof REQUEST_PARAM_SCHEMAS)[M]>;
@@ -28,11 +25,23 @@ export function parseRequestParams<M extends RequestMethod>(
     return { ok: false, message: result.error.issues[0]?.message ?? 'invalid params' };
   }
 
-  // oxlint-disable-next-line no-unsafe-type-assertion -- method narrows M, but TS can't follow that through an indexed lookup into REQUEST_PARAM_SCHEMAS; a successful safeParse against that same lookup guarantees the shape at runtime
+  // oxlint-disable-next-line no-unsafe-type-assertion -- method narrows M, but TS can't follow that through an indexed lookup into the schema map; a successful safeParse against that same lookup guarantees the shape at runtime
   return { ok: true, data: result.data as RequestParams<M> };
 }
 
-const REQUEST_PARAM_SCHEMAS = {
+/**
+ * The session id shape callers outside the wire protocol require: present
+ * and described for a tool-facing schema. Methods that tolerate an absent
+ * session extend this with a defaulted field instead of restating it.
+ */
+export const SESSION_ID_BASE = z.object({
+  session: z.string().describe('The atc session id, from atc_session_list'),
+});
+
+const EJECT_DEFAULT_PROMPT =
+  'Continue the task autonomously. Verify your work as you go and stop when it is complete.';
+
+export const REQUEST_PARAM_SCHEMAS = {
   'daemon.hello': z.object({
     client: buildDefaultedString('unknown client'),
   }),
@@ -57,8 +66,8 @@ const REQUEST_PARAM_SCHEMAS = {
       .min(1, 'session.spawn agent must be a non-empty agent id')
       .optional(),
   }),
-  'session.kill': z.object({ session: buildDefaultedString('') }),
-  'session.ack': z.object({ session: buildDefaultedString('') }),
+  'session.kill': SESSION_ID_BASE.extend({ session: buildDefaultedString('') }),
+  'session.ack': SESSION_ID_BASE.extend({ session: buildDefaultedString('') }),
   'session.update': z.object({
     session: buildDefaultedString(''),
     name: buildOptionalString(),
@@ -83,7 +92,7 @@ const REQUEST_PARAM_SCHEMAS = {
     .refine((v) => v.cols >= 1 && v.rows >= 1, {
       message: 'session.resize requires positive cols and rows',
     }),
-  'session.resumeCommand': z.object({ session: buildDefaultedString('') }),
+  'session.resumeCommand': SESSION_ID_BASE.extend({ session: buildDefaultedString('') }),
   'session.eject': z.object({
     session: buildDefaultedString(''),
     prompt: buildDefaultedNonEmptyString(EJECT_DEFAULT_PROMPT),
@@ -103,9 +112,8 @@ const REQUEST_PARAM_SCHEMAS = {
     }),
 } as const;
 
-// Any value of the wrong type falls back to the default instead of failing
-// parse, matching the tolerant `typeof x === 'string' ? x : fallback` guards
-// this schema module replaces.
+// A value of the wrong type falls back to the default instead of failing
+// the parse.
 function buildDefaultedString(fallback: string) {
   return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().default(fallback));
 }
@@ -131,8 +139,8 @@ function buildOptionalBoolean() {
   return z.preprocess((v) => (typeof v === 'boolean' ? v : undefined), z.boolean().optional());
 }
 
-// Like buildDefaultedString, but an explicit empty string also falls back
-// to the default instead of standing as a deliberate empty value.
+// An explicit empty string also falls back to the default instead of
+// standing as a deliberate empty value.
 function buildDefaultedNonEmptyString(fallback: string) {
   return z.preprocess(
     (v) => (typeof v === 'string' && v !== '' ? v : undefined),

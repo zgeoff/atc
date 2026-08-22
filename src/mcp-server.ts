@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { bootDaemonClient } from './boot-daemon';
 import { DaemonError } from './daemon-error';
+import { REQUEST_PARAM_SCHEMAS, SESSION_ID_BASE } from './parse-request-params';
 import { isRecord } from './report';
 
 // The slice of the daemon client the tool handlers need.
@@ -20,20 +21,19 @@ interface MCPTool {
 }
 
 const NO_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(z.strictObject({}));
-
-const SESSION_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
-  z.strictObject({
-    session: z.string().describe('The atc session id, from atc_session_list'),
-  }),
-);
+const SESSION_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(SESSION_ID_BASE.strict());
+const SPAWN_SCHEMA = REQUEST_PARAM_SCHEMAS['session.spawn'];
 
 const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   z.strictObject({
-    cwd: z.string().describe('Absolute path of the working directory'),
-    name: z.string().describe('Session name; defaults to the directory basename').optional(),
-    prompt: z.string().describe('First message for the session').optional(),
-    agent: z.string().describe('Which registered agent id to spawn; defaults to claude').optional(),
+    cwd: SPAWN_SCHEMA.shape.cwd.describe('Absolute path of the working directory'),
+    name: SPAWN_SCHEMA.shape.name.describe('Session name; defaults to the directory basename'),
+    prompt: SPAWN_SCHEMA.shape.prompt.describe('First message for the session'),
+    agent: SPAWN_SCHEMA.shape.agent.describe(
+      'Which registered agent id to spawn; defaults to claude',
+    ),
   }),
+  { io: 'input' },
 );
 
 const TOOLS: readonly MCPTool[] = [

@@ -282,6 +282,7 @@ test('it advertises agent on atc_session_spawn as an open string', async () => {
 
   expect(properties['agent']).toStrictEqual({
     type: 'string',
+    minLength: 1,
     description: 'Which registered agent id to spawn; defaults to claude',
   });
 });
