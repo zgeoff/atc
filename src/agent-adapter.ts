@@ -10,6 +10,15 @@ export function toAgentKind(raw: unknown): AgentKind {
   return raw === 'grok' || raw === 'codex' ? raw : 'claude';
 }
 
+/**
+ * Strict counterpart to toAgentKind: an unrecognised value is null, never
+ * silently coerced to Claude, for call sites that must reject rather than
+ * guess.
+ */
+export function parseAgentKind(raw: unknown): AgentKind | null {
+  return raw === 'claude' || raw === 'grok' || raw === 'codex' ? raw : null;
+}
+
 export interface SpawnOptions {
   readonly prompt: string;
 
