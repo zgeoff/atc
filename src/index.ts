@@ -1,9 +1,13 @@
+import { match } from 'ts-pattern';
+import { createActor } from 'xstate';
 import type { AgentID } from './agent-adapter';
 import { bootDaemonClient } from './boot-daemon';
+import { buildClientMachine } from './build-client-machine';
 import { buildLeaderChords } from './build-leader-chords';
 import { loadConfig } from './config';
 import { findFuzzyScore, formatDir } from './dirs';
 import { KEY, isDown, isUp, planTextEdit } from './keys';
+import { parseDaemonEvent } from './parse-daemon-event';
 import { pickTabTarget } from './pick-tab-target';
 import type { EventMsg } from './protocol';
 import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from './sessions';
@@ -12,9 +16,6 @@ import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
 import { ansi, cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar, rows } from './ui';
 
-type Mode = 'home' | 'attached' | 'overlay' | 'help' | 'picker' | 'picker-eject';
-
-let mode: Mode = 'home';
 let overlaySelected = 0;
 let confirmKill = false;
 
@@ -48,6 +49,19 @@ function findFocused(): MirrorSession | null {
   return fleet.find((s) => s.id === focusedID) ?? null;
 }
 
+function openHome() {
+  drawHome(fleetCount, leader.label);
+  scheduleStatus();
+}
+
+function openAttached(sessionID: string) {
+  focusedID = sessionID;
+
+  stdout.write(ansi.clear + ansi.showCursor);
+
+  scheduleStatus();
+}
+
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleStatus() {
@@ -58,7 +72,7 @@ function scheduleStatus() {
   statusTimer = setTimeout(() => {
     statusTimer = null;
 
-    if (mode !== 'attached') {
+    if (service.getSnapshot().value !== 'attached') {
       const focused = findFocused();
       const urgent = sortSessionViews(fleet).find((s) => s.state === 'needs_you');
 
@@ -80,10 +94,7 @@ async function sendQuiet(m: string, p?: Readonly<Record<string, unknown>>) {
 }
 
 async function attach(sessionID: string) {
-  focusedID = sessionID;
-  mode = 'attached';
-
-  stdout.write(ansi.clear + ansi.showCursor);
+  service.send({ type: 'ATTACH', sessionID });
 
   try {
     await client.sendRequest('session.attach', {
@@ -92,14 +103,8 @@ async function attach(sessionID: string) {
       rows: ptyRows(),
     });
   } catch {
-    mode = 'overlay';
-
-    openOverlay();
-
-    return;
+    service.send({ type: 'OVERLAY' });
   }
-
-  scheduleStatus();
 }
 
 function detachFocused() {
@@ -112,17 +117,11 @@ function toBase() {
   const f = findFocused();
 
   if (f !== null && f.alive) {
-    mode = 'attached';
-
-    stdout.write(ansi.clear + ansi.showCursor);
+    service.send({ type: 'ATTACH', sessionID: f.id });
     void sendQuiet('session.attach', { session: f.id, cols: cols(), rows: ptyRows() });
   } else {
-    mode = 'home';
-
-    drawHome(fleetCount, leader.label);
+    service.send({ type: 'HOME' });
   }
-
-  scheduleStatus();
 }
 
 let ejectTarget = '';
@@ -138,7 +137,7 @@ async function yankToHeadless(instruction: string) {
     recordActionFailure(ejectTarget, error);
   }
 
-  openOverlay();
+  service.send({ type: 'OVERLAY' });
 }
 
 async function adoptSession(id: string) {
@@ -148,7 +147,8 @@ async function adoptSession(id: string) {
     await attach(id);
   } catch (error) {
     recordActionFailure(id, error);
-    openOverlay();
+
+    service.send({ type: 'OVERLAY' });
   }
 }
 
@@ -163,8 +163,6 @@ function recordActionFailure(id: string, error: unknown) {
 }
 
 function openHelp() {
-  mode = 'help';
-
   stdout.write(ansi.clear);
 
   drawHelp();
@@ -174,7 +172,7 @@ function applyHelpKey(buf: Buffer) {
   const ch = buf.toString();
 
   if (buf[0] === KEY.esc || ch === '?' || ch === 'q' || isLeaderKey(buf)) {
-    openOverlay();
+    service.send({ type: 'OVERLAY' });
   }
 }
 
@@ -215,7 +213,6 @@ function renderOverlay() {
 }
 
 function openOverlay() {
-  mode = 'overlay';
   confirmKill = false;
   overlayFilter = null;
 
@@ -241,6 +238,15 @@ function renderEject() {
   scheduleStatus();
 }
 
+function openEject(sessionID: string) {
+  ejectTarget = sessionID;
+  ejectInput = '';
+
+  stdout.write(ansi.clear);
+
+  renderEject();
+}
+
 const picker = new SpawnPicker<MirrorSession>({
   sendRequest,
   ptyRows,
@@ -253,9 +259,7 @@ const picker = new SpawnPicker<MirrorSession>({
   upsertMirror,
 });
 
-function openSpawnPicker(resume = false) {
-  mode = 'picker';
-
+function openPicker(resume: boolean) {
   picker.open(resume);
 }
 
@@ -316,93 +320,86 @@ function upsertMirror(d: Readonly<MirrorSession>) {
 }
 
 function refreshScreens() {
-  if (mode === 'overlay') {
+  const currentMode = service.getSnapshot().value;
+
+  if (currentMode === 'overlay') {
     renderOverlay();
   }
 
   // Focused session died under us: surface the list instead of a dead screen.
   const f = findFocused();
 
-  if (mode === 'attached' && f !== null && f.state === 'exited') {
-    openOverlay();
+  if (currentMode === 'attached' && f !== null && f.state === 'exited') {
+    service.send({ type: 'OVERLAY' });
   }
 
   scheduleStatus();
 }
 
-function applyDaemonEvent(e: EventMsg) {
-  switch (e.ev) {
-    case 'session.output': {
-      if (mode === 'attached' && e['s'] === focusedID && typeof e['d'] === 'string') {
-        stdout.write(e['d']);
+function applyDaemonEvent(raw: EventMsg) {
+  const event = parseDaemonEvent(raw);
+
+  if (event === null) {
+    return;
+  }
+
+  match(event)
+    .with({ ev: 'session.output' }, (e) => {
+      if (service.getSnapshot().value === 'attached' && e.s === focusedID) {
+        stdout.write(e.d);
       }
-
-      return;
-    }
-    case 'session.added': {
-      const d = toMirrorSession(e['session']);
-
-      if (d !== null) {
-        upsertMirror(d);
-      }
-
+    })
+    .with({ ev: 'session.added' }, (e) => {
+      upsertMirror(e.session);
       refreshScreens();
+    })
+    .with({ ev: 'session.state' }, (e) => {
+      const existing = fleet.find((x) => x.id === e.session.id);
 
-      return;
-    }
-    case 'session.state': {
-      const d = toMirrorSession(e['session']);
-
-      if (d !== null) {
-        const existing = fleet.find((x) => x.id === d.id);
-
-        if (existing !== undefined) {
-          if (d.state === 'done' && existing.state !== 'done') {
-            doneAt.set(d.id, Date.now());
-          }
-
-          if (d.resumable && !existing.resumable) {
-            lastUsedAgent = d.agent;
-          }
+      if (existing !== undefined) {
+        if (e.session.state === 'done' && existing.state !== 'done') {
+          doneAt.set(e.session.id, Date.now());
         }
 
-        upsertMirror(d);
+        if (e.session.resumable && !existing.resumable) {
+          lastUsedAgent = e.session.agent;
+        }
+      }
+
+      upsertMirror(e.session);
+      refreshScreens();
+    })
+    .with({ ev: 'session.renamed' }, (e) => {
+      const s = fleet.find((x) => x.id === e.s);
+
+      if (s !== undefined) {
+        s.name = e.name;
       }
 
       refreshScreens();
+    })
+    .with({ ev: 'session.removed' }, (e) => {
+      fleet = fleet.filter((x) => x.id !== e.s);
 
-      return;
-    }
-    case 'session.renamed': {
-      const s = fleet.find((x) => x.id === e['s']);
+      doneAt.delete(e.s);
 
-      if (s !== undefined && typeof e['name'] === 'string') {
-        s.name = e['name'];
-      }
-
-      refreshScreens();
-
-      return;
-    }
-    case 'session.removed': {
-      fleet = fleet.filter((x) => x.id !== e['s']);
-
-      if (typeof e['s'] === 'string') {
-        doneAt.delete(e['s']);
-      }
-
-      if (focusedID === e['s']) {
+      if (focusedID === e.s) {
         focusedID = null;
       }
 
       refreshScreens();
-      break;
-    }
+    })
 
-    // Desync recovery arrives as ordinary repaint output; permission
-    // events matter to structured clients, not this passthrough TUI.
-    default:
-  }
+    // Desync recovery arrives as ordinary repaint output; permission and
+    // resize events matter to structured clients, not this passthrough TUI.
+    .with(
+      { ev: 'session.resized' },
+      { ev: 'session.desync' },
+      { ev: 'permission.requested' },
+      { ev: 'permission.resolved' },
+      () => {},
+    )
+    .exhaustive();
 }
 
 // Best-effort clipboard: OSC 52 (works through zellij/tmux/ssh) plus any
@@ -575,7 +572,7 @@ function applyOverlayKey(buf: Buffer) {
   }
 
   if (ch === 'n') {
-    openSpawnPicker();
+    service.send({ type: 'SPAWN', resume: false });
 
     return;
   }
@@ -601,7 +598,7 @@ function applyOverlayKey(buf: Buffer) {
   }
 
   if (ch === '?') {
-    openHelp();
+    service.send({ type: 'HELP' });
 
     return;
   }
@@ -613,13 +610,7 @@ function applyOverlayKey(buf: Buffer) {
   }
 
   if (ch === 'H' && sel !== undefined && sel.kind === 'pty' && sel.alive && sel.canEject) {
-    ejectTarget = sel.id;
-    ejectInput = '';
-    mode = 'picker-eject';
-
-    stdout.write(ansi.clear);
-
-    renderEject();
+    service.send({ type: 'EJECT', sessionID: sel.id });
 
     return;
   }
@@ -631,7 +622,7 @@ function applyOverlayKey(buf: Buffer) {
   }
 
   if (ch === 'r') {
-    openSpawnPicker(true);
+    service.send({ type: 'SPAWN', resume: true });
 
     return;
   }
@@ -678,7 +669,7 @@ async function yankResume(sessionID: string, eject: boolean) {
       void sendQuiet('session.kill', { session: sessionID });
     }
 
-    if (mode === 'overlay') {
+    if (service.getSnapshot().value === 'overlay') {
       renderOverlay();
     }
   } catch {}
@@ -693,7 +684,7 @@ function applyEjectKey(buf: Buffer) {
       return;
     }
     case 'cancel': {
-      openOverlay();
+      service.send({ type: 'OVERLAY' });
 
       return;
     }
@@ -715,6 +706,17 @@ function applyEjectKey(buf: Buffer) {
     }
   }
 }
+
+const service = createActor(
+  buildClientMachine({
+    openHome,
+    openAttached,
+    openOverlay,
+    openHelp,
+    openPicker,
+    openEject,
+  }),
+);
 
 const boot = await bootDaemonClient();
 
@@ -784,7 +786,7 @@ async function restartDaemon() {
   await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
   await refreshMirror().catch(() => {});
 
-  openOverlay();
+  service.send({ type: 'OVERLAY' });
 }
 
 process.stdin.setRawMode(true);
@@ -795,10 +797,10 @@ process.stdin.resume();
 const stdinDecoder = new TextDecoder('utf-8');
 
 process.stdin.on('data', (buf: Buffer) => {
-  switch (mode) {
+  switch (service.getSnapshot().value) {
     case 'attached': {
       if (isLeaderKey(buf)) {
-        openOverlay();
+        service.send({ type: 'OVERLAY' });
 
         return;
       }
@@ -814,7 +816,7 @@ process.stdin.on('data', (buf: Buffer) => {
     }
     case 'home': {
       if (isLeaderKey(buf)) {
-        openOverlay();
+        service.send({ type: 'OVERLAY' });
 
         return;
       }
@@ -822,13 +824,13 @@ process.stdin.on('data', (buf: Buffer) => {
       const ch = buf.toString();
 
       if (ch === 'n') {
-        openSpawnPicker();
+        service.send({ type: 'SPAWN', resume: false });
 
         return;
       }
 
       if (ch === 'r') {
-        openSpawnPicker(true);
+        service.send({ type: 'SPAWN', resume: true });
 
         return;
       }
@@ -867,26 +869,28 @@ process.stdin.on('data', (buf: Buffer) => {
 });
 
 stdout.on('resize', () => {
-  if (mode === 'attached' && focusedID !== null) {
+  const currentMode = service.getSnapshot().value;
+
+  if (currentMode === 'attached' && focusedID !== null) {
     void sendQuiet('session.resize', { session: focusedID, cols: cols(), rows: ptyRows() });
   }
 
-  if (mode === 'home') {
+  if (currentMode === 'home') {
     drawHome(fleetCount, leader.label);
   }
 
-  if (mode === 'overlay') {
+  if (currentMode === 'overlay') {
     stdout.write(ansi.clear);
 
     renderOverlay();
   }
 
-  if (mode === 'picker') {
+  if (currentMode === 'picker') {
     stdout.write(ansi.clear);
     picker.render();
   }
 
-  if (mode === 'picker-eject') {
+  if (currentMode === 'picker-eject') {
     stdout.write(ansi.clear);
 
     renderEject();
@@ -911,6 +915,4 @@ process.on('SIGHUP', () => quit());
 
 // ---- start ----
 stdout.write(ansi.altScreenOn);
-
-drawHome(fleetCount, leader.label);
-scheduleStatus();
+service.start();
