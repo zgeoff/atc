@@ -67,6 +67,14 @@
           { "from": "file", "name": "SessionRuntime" },
           // wraps a live db connection; not meaningfully freezable
           { "from": "file", "name": "StateStore" },
+          // wraps a live db connection; not meaningfully freezable
+          { "from": "package", "name": "Database", "package": "bun:sqlite" },
+          // a query builder bound to a live connection; not meaningfully
+          // freezable
+          { "from": "package", "name": "Kysely", "package": "kysely" },
+          // every field is already readonly; the type itself has no
+          // readonly form to wrap it in
+          { "from": "package", "name": "CompiledQuery", "package": "kysely" },
           { "from": "file", "name": "Config" },
           { "from": "file", "name": "HookEvent" },
           { "from": "file", "name": "OverlayView" },
