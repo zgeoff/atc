@@ -1,5 +1,6 @@
 import { test } from 'bun:test';
 import type { AgentSessionID } from './agent-session-id';
+import { PermissionRegistry } from './permission-registry';
 import type { SessionID } from './session-id';
 
 // Its only job is compile-time constraint of its argument: a call that
@@ -25,4 +26,16 @@ test('it rejects an AgentSessionID where a SessionID is required, and the revers
 
   // @ts-expect-error -- an atc session id is not an agent-minted session id
   defineAgentSessionID(sessionID);
+});
+
+test('it rejects an AgentSessionID passed as a PermissionRegistry sessionID', () => {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- stand-in value to exercise the two branded types against each other
+  const agentSessionID = 'a1' as AgentSessionID;
+
+  const registry = new PermissionRegistry();
+
+  // @ts-expect-error -- an agent-minted session id is not an atc session id
+  const req = registry.open(agentSessionID, 'needs permission', false);
+
+  registry.answer(req.id, 'dismissed');
 });
