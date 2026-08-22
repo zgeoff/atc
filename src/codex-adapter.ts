@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type {
   AdapterEvent,
   AgentAdapter,
+  AgentKind,
   NameUpdate,
   ResumeCheck,
   SpawnOptions,
@@ -20,7 +21,9 @@ import { isRecord } from './report';
  * trusts once in the Codex TUI; atc never writes into the user's Codex config.
  */
 export class CodexAdapter implements AgentAdapter {
-  readonly kind = 'codex';
+  readonly id = 'codex';
+
+  readonly kind: AgentKind = 'codex';
 
   // Codex has no headless handoff.
   readonly headlessRunner = null;

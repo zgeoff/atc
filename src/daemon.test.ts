@@ -12,6 +12,7 @@ import { isRecord } from './report';
 // Protocol-level tests: handshake, errors, and spawn-parameter validation.
 // Session behavior against a real fake-claude lives in test/daemon-e2e.test.ts.
 const idleAdapter: AgentAdapter = {
+  id: 'claude',
   kind: 'claude',
   headlessRunner: null,
   screenDetector: null,
@@ -321,7 +322,7 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: idleAdapter,
-    adapters: { grok },
+    adapters: [grok],
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),
   });
@@ -374,7 +375,7 @@ test('it yanks a grok session by id and without an id', async () => {
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: idleAdapter,
-    adapters: { grok },
+    adapters: [grok],
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),
   });
@@ -454,7 +455,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: idleAdapter,
-    adapters: { grok },
+    adapters: [grok],
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),
   });
@@ -525,7 +526,7 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
     reporterSocketPath: reporterPath,
     build: 'atc/test-build',
     adapter: idleAdapter,
-    adapters: { grok },
+    adapters: [grok],
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),
   });
@@ -589,14 +590,24 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
   expect(claudeSpawn['session']).toMatchObject({ agent: 'claude' });
 });
 
-test('it rejects session.spawn with an unknown agent as bad_args', async () => {
+test('it rejects session.spawn with an unregistered agent id as unsupported', async () => {
   const client = await setupClient();
 
   await client.sendHello('atc/test-build');
 
   expect(
     client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'gemini' }),
-  ).rejects.toMatchObject({ code: 'bad_args' });
+  ).rejects.toMatchObject({ code: 'unsupported' });
+});
+
+test('it rejects session.spawn with an empty agent id as bad_args', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  expect(client.sendRequest('session.spawn', { cwd: '/tmp', agent: '' })).rejects.toMatchObject({
+    code: 'bad_args',
+  });
 });
 
 interface HookEventLine {

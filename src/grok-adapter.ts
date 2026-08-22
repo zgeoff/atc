@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type {
   AdapterEvent,
   AgentAdapter,
+  AgentKind,
   NameUpdate,
   ResumeCheck,
   SpawnOptions,
@@ -28,7 +29,9 @@ const MAX_HOOK_STATE_ENTRIES = 256;
  * resume semantics, and summary.json name-pulling.
  */
 export class GrokAdapter implements AgentAdapter {
-  readonly kind = 'grok';
+  readonly id = 'grok';
+
+  readonly kind: AgentKind = 'grok';
 
   // Grok has no headless handoff.
   readonly headlessRunner = null;

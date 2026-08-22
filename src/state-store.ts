@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { existsSync, readFileSync } from 'node:fs';
-import { toAgentKind } from './agent-adapter';
-import type { AgentKind } from './agent-adapter';
+import { toAgentID } from './agent-adapter';
+import type { AgentID } from './agent-adapter';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry } from './fleet-entry';
 import type { HookEvent } from './hooks';
@@ -108,7 +108,7 @@ export class StateStore {
         agentSessionID: row.agent_session_id,
         name: row.name,
         cwd: row.cwd,
-        agent: toAgentKind(row.agent),
+        agent: toAgentID(row.agent),
         ...(row.pinned === 0 ? {} : { pinned: true }),
         ...(row.last_attached === null ? {} : { lastAttachedAt: row.last_attached }),
         ...(row.exited === 0 ? {} : { exited: true }),
@@ -186,15 +186,15 @@ export class StateStore {
     return rows.map((row) => row.cwd);
   }
 
-  loadLastUsedAgent(): AgentKind {
+  loadLastUsedAgent(): AgentID {
     const row = this.db
       .query<{ value: string }, []>("SELECT value FROM prefs WHERE key = 'last_used_agent'")
       .get();
 
-    return toAgentKind(row?.value);
+    return toAgentID(row?.value);
   }
 
-  writeLastUsedAgent(agent: AgentKind): void {
+  writeLastUsedAgent(agent: AgentID): void {
     this.db
       .query(
         'INSERT INTO prefs (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2',

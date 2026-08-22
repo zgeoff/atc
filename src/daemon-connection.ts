@@ -1,6 +1,5 @@
 import { basename } from 'node:path';
-import { parseAgentKind } from './agent-adapter';
-import type { AgentAdapter, AgentKind } from './agent-adapter';
+import type { AgentAdapter, AgentID } from './agent-adapter';
 import type { Dims } from './attach-registry';
 import type { FleetEntry } from './fleet-entry';
 import { OutboundQueue } from './outbound-queue';
@@ -18,7 +17,7 @@ interface SpawnParams {
   readonly rows: number;
   readonly resume: boolean | string;
   readonly namedBy: 'user' | 'auto';
-  readonly agent: AgentKind;
+  readonly agent: AgentID;
 }
 
 export interface DaemonContext {
@@ -26,8 +25,8 @@ export interface DaemonContext {
   readonly collectSessions: () => SessionDescriptor[];
   readonly collectSpawnDirs: () => string[];
   readonly collectFleet: () => FleetEntry[];
-  readonly loadLastUsedAgent: () => AgentKind;
-  readonly findAdapter: (kind: AgentKind) => AgentAdapter | null;
+  readonly loadLastUsedAgent: () => AgentID;
+  readonly findAdapter: (id: AgentID) => AgentAdapter | null;
   readonly spawnSession: (p: SpawnParams) => SessionDescriptor;
   readonly killSession: (id: string) => boolean;
   readonly updateSession: (id: string, name?: string, pinned?: boolean) => boolean;
@@ -376,15 +375,14 @@ export class DaemonConnection {
     }
 
     const rawAgent = req.p?.['agent'];
-    const parsedAgent = rawAgent === undefined ? 'claude' : parseAgentKind(rawAgent);
 
-    if (parsedAgent === null) {
-      this.sendErr(req.id, 'bad_args', "session.spawn agent must be 'claude', 'grok', or 'codex'");
+    if (rawAgent !== undefined && (typeof rawAgent !== 'string' || rawAgent === '')) {
+      this.sendErr(req.id, 'bad_args', 'session.spawn agent must be a non-empty agent id');
 
       return;
     }
 
-    const agent: AgentKind = parsedAgent;
+    const agent: AgentID = rawAgent ?? 'claude';
 
     if (this.ctx.findAdapter(agent) === null) {
       this.sendErr(req.id, 'unsupported', `no adapter for agent '${agent}'`);

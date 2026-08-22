@@ -74,7 +74,7 @@ const main = defineCommand({
             reporterSocketPath: config.socketPath,
             build: getBuild(),
             adapter: claudeAdapter,
-            adapters: { claude: claudeAdapter, grok: grokAdapter, codex: codexAdapter },
+            adapters: [claudeAdapter, grokAdapter, codexAdapter],
             dbPath: config.dbFile,
             legacyFleetPath: config.legacyFleetFile,
             pidPath: config.daemonPidFile,

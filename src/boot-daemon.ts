@@ -1,8 +1,8 @@
 import { spawn as spawnChild } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { toAgentKind } from './agent-adapter';
-import type { AgentKind } from './agent-adapter';
+import { toAgentID } from './agent-adapter';
+import type { AgentID } from './agent-adapter';
 import { daemonPidFile, daemonSocketPath } from './config';
 import { DaemonClient } from './daemon-client';
 import { getBuild } from './get-build';
@@ -11,7 +11,7 @@ import { isRecord } from './report';
 export interface DaemonBoot {
   readonly client: DaemonClient;
   readonly stale: boolean;
-  readonly lastUsedAgent: AgentKind;
+  readonly lastUsedAgent: AgentID;
 }
 
 /**
@@ -36,7 +36,7 @@ export async function bootDaemonClient(): Promise<DaemonBoot> {
       return {
         client,
         stale: hello['daemon'] !== build,
-        lastUsedAgent: toAgentKind(hello['lastUsedAgent']),
+        lastUsedAgent: toAgentID(hello['lastUsedAgent']),
       };
     } catch (error) {
       client.stop();

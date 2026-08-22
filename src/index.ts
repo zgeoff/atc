@@ -1,4 +1,4 @@
-import type { AgentKind } from './agent-adapter';
+import type { AgentID } from './agent-adapter';
 import { bootDaemonClient } from './boot-daemon';
 import { buildLeaderChords } from './build-leader-chords';
 import { loadConfig } from './config';
@@ -28,7 +28,7 @@ interface MirrorSession {
   kind: 'pty' | 'headless';
   alive: boolean;
   resumable: boolean;
-  agent: AgentKind;
+  agent: AgentID;
 }
 
 let mode: Mode = 'home';
@@ -45,7 +45,7 @@ const doneAt = new Map<string, number>();
 
 let focusedID: string | null = null;
 let fleetCount = 0;
-let lastUsedAgent: AgentKind = 'claude';
+let lastUsedAgent: AgentID = 'claude';
 const stdout = process.stdout;
 
 // Full height: the atc status bar only exists on home/overlay screens;
@@ -272,7 +272,7 @@ function sendRequest(m: string, p?: Readonly<Record<string, unknown>>) {
   return client.sendRequest(m, p);
 }
 
-function getLastUsedAgent(): AgentKind {
+function getLastUsedAgent(): AgentID {
   return lastUsedAgent;
 }
 

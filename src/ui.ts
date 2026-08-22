@@ -1,4 +1,4 @@
-import type { AgentKind } from './agent-adapter';
+import type { AgentID } from './agent-adapter';
 import { formatDir } from './dirs';
 import { formatOverlayAgentMark } from './format-overlay-agent-mark';
 import { RESET_INPUT_MODES } from './reset-input-modes';
@@ -163,7 +163,7 @@ export interface OverlaySessionView extends SessionView {
   readonly alive: boolean;
   readonly kind: 'pty' | 'headless';
   readonly resumable: boolean;
-  readonly agent: AgentKind;
+  readonly agent: AgentID;
   readonly pinned: boolean;
   readonly repoRoot: string;
 }

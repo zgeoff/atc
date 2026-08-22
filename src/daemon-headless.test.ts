@@ -10,6 +10,7 @@ import type { EventMsg } from './protocol';
 import { isRecord } from './report';
 
 const sleepAdapter: AgentAdapter = {
+  id: 'claude',
   kind: 'claude',
   headlessRunner: null,
   screenDetector: null,
@@ -319,7 +320,7 @@ test('it refuses to eject a grok session and does not start a headless runner', 
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: { ...sleepAdapter, headlessRunner: startFakeRun },
-    adapters: { grok },
+    adapters: [grok],
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),
     ejectSettleMs: 30,

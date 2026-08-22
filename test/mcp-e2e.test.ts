@@ -242,7 +242,7 @@ test('it spawns and lists a session through tool calls', async () => {
   expect(getText(listed)).toInclude('mcp-spawned');
 });
 
-test('it advertises agent on atc_session_spawn and rejects an unknown value', async () => {
+test('it advertises agent on atc_session_spawn as an open string', async () => {
   const ctx = setupMCP();
 
   ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
@@ -274,21 +274,54 @@ test('it advertises agent on atc_session_spawn and rejects an unknown value', as
     throw new TypeError('atc_session_spawn schema has no agent field');
   }
 
-  expect(properties['agent']['enum']).toStrictEqual(['claude', 'grok', 'codex']);
+  expect(properties['agent']).toStrictEqual({
+    type: 'string',
+    description: 'Which registered agent id to spawn; defaults to claude',
+  });
+});
+
+test('it reports an unregistered agent id as a failed tool call', async () => {
+  const ctx = setupMCP();
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
 
   ctx.sendRPC({
     jsonrpc: '2.0',
-    id: 3,
+    id: 2,
     method: 'tools/call',
     params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home, agent: 'gemini' } },
   });
 
-  const failResponse = await ctx.waitForResponse(3);
+  const failResponse = await ctx.waitForResponse(2);
 
   const failed = getResult(failResponse);
 
   expect(failed['isError']).toBeTrue();
-  expect(getText(failed)).toInclude('agent must be');
+  expect(getText(failed)).toInclude("unsupported: no adapter for agent 'gemini'");
+});
+
+test('it rejects an empty agent id before it reaches the daemon', async () => {
+  const ctx = setupMCP();
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home, agent: '' } },
+  });
+
+  const failResponse = await ctx.waitForResponse(2);
+
+  const failed = getResult(failResponse);
+
+  expect(failed['isError']).toBeTrue();
+  expect(getText(failed)).toInclude('agent must be a non-empty agent id');
 });
 
 test('it reports a failed tool call with isError instead of crashing', async () => {

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type {
   AdapterEvent,
   AgentAdapter,
+  AgentKind,
   HeadlessRunner,
   NameUpdate,
   ResumeCheck,
@@ -21,7 +22,9 @@ import { isRecord } from './report';
  * resume semantics, transcript name-pulling, and statusline chaining.
  */
 export class ClaudeAdapter implements AgentAdapter {
-  readonly kind = 'claude';
+  readonly id = 'claude';
+
+  readonly kind: AgentKind = 'claude';
 
   readonly headlessRunner: HeadlessRunner | null;
 
