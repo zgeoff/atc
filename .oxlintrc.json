@@ -20,6 +20,7 @@
           "boot",
           "copy",
           "detach",
+          "dispose",
           "draw",
           "jiggle",
           "kill",
@@ -61,6 +62,11 @@
           // mutable by design: sessions are live state, views borrow them
           { "from": "file", "name": "Session" },
           { "from": "file", "name": "SessionManager" },
+          // the daemon's per-session bookkeeping: screen, timers, and
+          // headless-run handle, mutated in place by the daemon
+          { "from": "file", "name": "SessionRuntime" },
+          // wraps a live db connection; not meaningfully freezable
+          { "from": "file", "name": "StateStore" },
           { "from": "file", "name": "Config" },
           { "from": "file", "name": "HookEvent" },
           { "from": "file", "name": "OverlayView" },

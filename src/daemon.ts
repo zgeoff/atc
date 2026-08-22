@@ -1,8 +1,6 @@
 import { unlinkSync, writeFileSync } from 'node:fs';
 import type { AgentAdapter } from './agent-adapter';
-import type { AgentSessionID } from './agent-session-id';
 import { AttachRegistry } from './attach-registry';
-import type { Dims } from './attach-registry';
 import { buildSessionEvent } from './build-session-event';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext, OutputClient } from './daemon-connection';
@@ -10,10 +8,14 @@ import { startHookServer } from './hooks';
 import { PermissionRegistry } from './permission-registry';
 import { MAX_CHUNK, PROTOCOL_V } from './protocol';
 import type { EventMsg } from './protocol';
+import { restoreFleet } from './restore-fleet';
+import { runEjectHandoff } from './run-eject-handoff';
 import { ScreenModel } from './screen-model';
 import type { SessionID } from './session-id';
+import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
-import type { Session, SessionDescriptor, SessionState } from './sessions';
+import type { SessionDescriptor, SessionState } from './sessions';
+import { startHeadlessTurn } from './start-headless-turn';
 import { StateStore } from './state-store';
 
 export interface DaemonOptions {
@@ -106,92 +108,16 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     emitEvent({ v: PROTOCOL_V, ev: 'permission.resolved', request: id, decision });
   };
 
-  const headlessRuns = new Map<SessionID, { readonly stop: () => void }>();
+  // One runtime per live session: its screen model, output sequence
+  // counter, PTY dims, its resize/detect/boot timers, its live headless
+  // run, and its pending eject and boot waiters. Created when the session
+  // manager announces the session and disposed the moment it is removed, so
+  // removal is always a single lookup plus dispose.
+  const runtimes = new Map<SessionID, SessionRuntime>();
 
-  // Resuming an agent session while its old process is still shutting down
-  // corrupts the handoff, so an eject waits for the terminal's final report
-  // (or a settle timeout) before the headless run starts.
-  const pendingEjects = new Map<SessionID, () => void>();
-
-  // A staggered fleet restore parks a resolver here while it waits for the
-  // session it just revived to report it has booted; the reporter fires it on
-  // SessionStart, and a dying revive fires it too so a failed resume does not
-  // hold up the rest. Resolving a settled promise again is a no-op.
-  const bootWaiters = new Map<SessionID, () => void>();
-
-  // Blocks until the session reports SessionStart, it dies, or the cap
-  // elapses (a positive cap only; zero waits on the signal alone).
-  const waitForBoot = (sessionID: SessionID, capMs: number): Promise<void> => {
-    const settled = Promise.withResolvers<void>();
-    const timer = capMs > 0 ? setTimeout(settled.resolve, capMs) : undefined;
-
-    bootWaiters.set(sessionID, settled.resolve);
-
-    if (timer !== undefined) {
-      restoreTimers.add(timer);
-    }
-
-    return (async () => {
-      await settled.promise;
-
-      bootWaiters.delete(sessionID);
-
-      if (timer !== undefined) {
-        clearTimeout(timer);
-
-        restoreTimers.delete(timer);
-      }
-    })();
-  };
-
-  const startHeadlessTurn = (sessionID: SessionID, prompt: string): boolean => {
-    const s = mgr.sessions.find((x) => x.id === sessionID);
-    const runner = s === undefined ? null : (mgr.findAdapter(s.agent)?.headlessRunner ?? null);
-
-    if (s === undefined || runner === null || headlessRuns.has(sessionID)) {
-      return false;
-    }
-
-    mgr.updateSurfaceState(sessionID, 'running', 'headless turn running');
-
-    const handle = runner(
-      {
-        cwd: s.cwd,
-        prompt,
-        ...(s.agentSessionID === undefined ? {} : { resume: s.agentSessionID }),
-        permissionMode: 'auto',
-      },
-      {
-        onOutput: (text) => {
-          mgr.onOutput(s, text);
-        },
-        onDone: (summary) => {
-          headlessRuns.delete(sessionID);
-
-          const doneMsg = summary === '' ? 'headless turn done' : summary;
-
-          mgr.updateSurfaceState(sessionID, 'done', doneMsg);
-        },
-        onNeedsYou: (msg) => {
-          headlessRuns.delete(sessionID);
-          mgr.updateSurfaceState(sessionID, 'needs_you', msg);
-        },
-      },
-    );
-
-    headlessRuns.set(sessionID, handle);
-
-    return true;
-  };
+  const findRuntime = (sessionID: SessionID) => runtimes.get(sessionID);
 
   const attachments = new AttachRegistry<OutputClient>();
-  const seqs = new Map<SessionID, number>();
-  const ptyDims = new Map<SessionID, Dims>();
-  const screens = new Map<SessionID, ScreenModel>();
-  const resizeTimers = new Map<SessionID, ReturnType<typeof setTimeout>>();
-  const detectTimers = new Map<SessionID, ReturnType<typeof setTimeout>>();
-  const restoreTimers = new Set<ReturnType<typeof setTimeout>>();
-  const pendingLastUsed = new Set<SessionID>();
 
   // The screen tier of the detector stack: once a session's output has
   // quiesced, judge the serialized screen and flip running/needs_you.
@@ -202,38 +128,32 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
 
     const s = mgr.sessions.find((x) => x.id === sessionID);
     const detector = s === undefined ? null : (mgr.findAdapter(s.agent)?.screenDetector ?? null);
+    const runtime = runtimes.get(sessionID);
 
-    if (detector === null) {
+    if (detector === null || runtime === undefined) {
       return;
     }
 
-    const pending = detectTimers.get(sessionID);
+    clearTimeout(runtime.detectTimer);
 
-    if (pending !== undefined) {
-      clearTimeout(pending);
-    }
-
-    detectTimers.set(
-      sessionID,
-      setTimeout(() => {
-        detectTimers.delete(sessionID);
-        void applyScreenJudgment(sessionID);
-      }, 300),
-    );
+    runtime.detectTimer = setTimeout(() => {
+      runtime.detectTimer = undefined;
+      void applyScreenJudgment(sessionID);
+    }, 300);
   };
 
   // Replay is the serialized screen sent as ordinary output events: the
   // client cannot tell replay from live and does not need to. A clear leads
   // so a stale or desynced client screen resets first.
   const sendReplay = async (sessionID: SessionID, client: OutputClient) => {
-    const model = screens.get(sessionID);
+    const runtime = runtimes.get(sessionID);
 
-    if (model === undefined) {
+    if (runtime === undefined || runtime.screen === null) {
       return;
     }
 
-    const replay = `\u001B[2J\u001B[H${await model.renderReplay()}`;
-    const seq = seqs.get(sessionID) ?? 0;
+    const replay = `\u001B[2J\u001B[H${await runtime.screen.renderReplay()}`;
+    const seq = runtime.seq;
 
     for (let i = 0; i < replay.length; i += MAX_CHUNK) {
       const chunk = replay.slice(i, i + MAX_CHUNK);
@@ -253,17 +173,21 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       return;
     }
 
-    const prev = ptyDims.get(sessionID);
+    const runtime = runtimes.get(sessionID);
+    const prev = runtime?.dims ?? null;
 
-    if (prev !== undefined && prev.cols === dims.cols && prev.rows === dims.rows) {
+    if (prev !== null && prev.cols === dims.cols && prev.rows === dims.rows) {
       return;
     }
 
     const s = mgr.sessions.find((x) => x.id === sessionID);
 
     s?.pty?.resize(dims.cols, dims.rows);
-    screens.get(sessionID)?.updateDims(dims.cols, dims.rows);
-    ptyDims.set(sessionID, dims);
+    runtime?.screen?.updateDims(dims.cols, dims.rows);
+
+    if (runtime !== undefined) {
+      runtime.dims = dims;
+    }
 
     emitEvent({
       v: PROTOCOL_V,
@@ -277,26 +201,25 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   // Debounced so two clients resizing in opposite directions cannot produce
   // a SIGWINCH storm; a no-op effective size never reaches the PTY.
   const scheduleResize = (sessionID: SessionID) => {
-    if (resizeTimers.has(sessionID)) {
+    const runtime = runtimes.get(sessionID);
+
+    if (runtime === undefined || runtime.resizeTimer !== undefined) {
       return;
     }
 
-    resizeTimers.set(
-      sessionID,
-      setTimeout(() => {
-        resizeTimers.delete(sessionID);
+    runtime.resizeTimer = setTimeout(() => {
+      runtime.resizeTimer = undefined;
 
-        applyEffectiveDims(sessionID);
-      }, 50),
-    );
+      applyEffectiveDims(sessionID);
+    }, 50);
   };
 
   const applyScreenJudgment = async (sessionID: SessionID) => {
     const s = mgr.sessions.find((x) => x.id === sessionID);
     const detector = s === undefined ? null : (mgr.findAdapter(s.agent)?.screenDetector ?? null);
-    const model = screens.get(sessionID);
+    const model = runtimes.get(sessionID)?.screen ?? null;
 
-    if (detector === null || model === undefined) {
+    if (detector === null || model === null) {
       return;
     }
 
@@ -314,9 +237,11 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   };
 
   mgr.onOutput = (s, data) => {
+    const runtime = runtimes.get(s.id);
+
     // The screen model consumes every byte continuously — background output
     // is consumed, not discarded.
-    screens.get(s.id)?.record(data);
+    runtime?.screen?.record(data);
     scheduleDetect(s.id);
 
     const conns = attachments.collectClients(s.id);
@@ -325,7 +250,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       return;
     }
 
-    let seq = seqs.get(s.id) ?? 0;
+    let seq = runtime?.seq ?? 0;
 
     for (let i = 0; i < data.length; i += MAX_CHUNK) {
       const chunk = data.slice(i, i + MAX_CHUNK);
@@ -339,12 +264,15 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       }
     }
 
-    seqs.set(s.id, seq);
+    if (runtime !== undefined) {
+      runtime.seq = seq;
+    }
   };
 
   // Permission requests are synthesized from attention transitions: entering
   // needs_you opens one, and leaving it (answered directly in the terminal,
-  // or the session dying) dismisses whatever is pending.
+  // or the session dying) dismisses whatever is pending. Each session's
+  // previous state is tracked purely to detect that transition.
   const lastStates = new Map<SessionID, SessionState>();
 
   const recordAttention: SessionManager['onEvent'] = (kind, s) => {
@@ -371,26 +299,20 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   mgr.onEvent = (kind, s) => {
     recordAttention(kind, s);
 
+    if (kind === 'added') {
+      runtimes.set(s.id, new SessionRuntime());
+    }
+
     // A revive that dies before it ever announces itself must still release
     // the staggered restore, or a failed resume would hold up the fleet.
-    if (kind === 'removed' || (kind === 'state' && s.pty === null)) {
-      bootWaiters.get(s.id)?.();
+    if (kind === 'state' && s.pty === null) {
+      runtimes.get(s.id)?.bootWaiter?.();
     }
 
     if (kind === 'removed') {
       attachments.removeSession(s.id);
-      seqs.delete(s.id);
-      ptyDims.delete(s.id);
-      screens.get(s.id)?.stop();
-      screens.delete(s.id);
-
-      const pendingDetect = detectTimers.get(s.id);
-
-      if (pendingDetect !== undefined) {
-        clearTimeout(pendingDetect);
-
-        detectTimers.delete(s.id);
-      }
+      runtimes.get(s.id)?.dispose();
+      runtimes.delete(s.id);
     }
 
     const event = buildSessionEvent(mgr, kind, s);
@@ -406,18 +328,21 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     }
 
     const kind = mgr.applyHook(e);
+    const runtime = runtimes.get(e.atcId);
 
     if (kind === 'ended') {
-      pendingEjects.get(e.atcId)?.();
+      runtime?.pendingEject?.();
     }
 
     // A revived session announcing itself is the cue a staggered restore
     // waits on before booting the next one.
     if (kind === 'started') {
-      bootWaiters.get(e.atcId)?.();
+      runtime?.bootWaiter?.();
       const started = mgr.sessions.find((s) => s.id === e.atcId);
 
-      if (started !== undefined && pendingLastUsed.delete(started.id)) {
+      if (started !== undefined && runtime !== undefined && runtime.pendingLastUsed) {
+        runtime.pendingLastUsed = false;
+
         store.writeLastUsedAgent(started.agent);
       }
     }
@@ -432,10 +357,15 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     findAdapter: (kind) => mgr.findAdapter(kind),
     spawnSession: (p) => {
       const s = mgr.spawn(p.cwd, p.name, p.prompt, p.cols, p.rows, p.resume, p.namedBy, p.agent);
+      const runtime = runtimes.get(s.id);
 
-      pendingLastUsed.add(s.id);
-      ptyDims.set(s.id, { cols: p.cols, rows: p.rows });
-      screens.set(s.id, new ScreenModel(p.cols, p.rows));
+      if (runtime !== undefined) {
+        runtime.pendingLastUsed = true;
+        runtime.dims = { cols: p.cols, rows: p.rows };
+
+        runtime.screen = new ScreenModel(p.cols, p.rows);
+      }
+
       store.recordSpawnDir(p.cwd);
 
       return getDescriptor(mgr, s.id);
@@ -454,8 +384,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
         return false;
       }
 
-      headlessRuns.get(id)?.stop();
-      headlessRuns.delete(id);
+      runtimes.get(id)?.stopHeadlessRun();
       mgr.kill(id);
 
       return true;
@@ -483,20 +412,19 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
         return 'missing';
       }
 
-      const settled = Promise.withResolvers<void>();
-      const timer = setTimeout(settled.resolve, opts.ejectSettleMs ?? 4000);
+      const runtime = runtimes.get(id);
 
-      pendingEjects.set(id, settled.resolve);
+      if (runtime === undefined) {
+        return 'missing';
+      }
 
-      void (async () => {
-        await settled.promise;
-
-        clearTimeout(timer);
-
-        pendingEjects.delete(id);
-
-        startHeadlessTurn(id, prompt);
-      })();
+      runEjectHandoff({
+        sessionID: id,
+        prompt,
+        settleMs: opts.ejectSettleMs ?? 4000,
+        runtime,
+        startHeadlessTurn: (sid, p) => startHeadlessTurn(mgr, findRuntime, sid, p),
+      });
 
       return 'ok';
     },
@@ -505,19 +433,19 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
         return 'no_transcript';
       }
 
-      headlessRuns.get(id)?.stop();
-      headlessRuns.delete(id);
+      const runtime = runtimes.get(id);
 
+      runtime?.stopHeadlessRun();
       const adopted = mgr.adoptTerminal(id, cols, rows);
 
       if (adopted === null) {
         return 'missing';
       }
 
-      ptyDims.set(id, { cols, rows });
+      if (runtime !== undefined) {
+        runtime.dims = { cols, rows };
 
-      if (!screens.has(id)) {
-        screens.set(id, new ScreenModel(cols, rows));
+        runtime.screen ??= new ScreenModel(cols, rows);
       }
 
       scheduleResize(id);
@@ -572,11 +500,11 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       }
 
       if (s.kind === 'headless') {
-        if (headlessRuns.has(sessionID)) {
+        if ((runtimes.get(sessionID)?.headlessRun ?? null) !== null) {
           return 'busy';
         }
 
-        return startHeadlessTurn(sessionID, data.trimEnd()) ? 'ok' : 'dead';
+        return startHeadlessTurn(mgr, findRuntime, sessionID, data.trimEnd()) ? 'ok' : 'dead';
       }
 
       if (s.pty === null) {
@@ -599,88 +527,10 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     resyncClient: sendReplay,
     ...(opts.queueBytes === undefined ? {} : { queueBytes: opts.queueBytes }),
     getEffectiveDims: (sessionID) =>
-      attachments.findEffectiveDims(sessionID) ?? ptyDims.get(sessionID) ?? { cols: 80, rows: 24 },
-    restoreFleet: (cols, rows) => {
-      const hasLiveSession = (agentSessionID: AgentSessionID) =>
-        mgr.sessions.some(
-          (s) =>
-            s.agentSessionID === agentSessionID &&
-            (s.pty !== null || (s.kind === 'headless' && s.state !== 'exited')),
-        );
-
-      const hasAnySession = (agentSessionID: AgentSessionID) =>
-        mgr.sessions.some((s) => s.agentSessionID === agentSessionID);
-
-      const recency = store.collectFleetRecency();
-
-      // Most recently active sessions revive first, so the ones the user was
-      // just working in come back before long-idle ones; entries that never
-      // reported an event keep their stored order at the end. Exited entries
-      // dedupe against every listed session, so repeated restores never
-      // double up the killed archive.
-      const entries = store
-        .loadFleet()
-        .filter((entry) =>
-          entry.exited === true
-            ? !hasAnySession(entry.agentSessionID)
-            : !hasLiveSession(entry.agentSessionID),
-        )
-        .toSorted((a, b) =>
-          (recency.get(b.agentSessionID) ?? '').localeCompare(recency.get(a.agentSessionID) ?? ''),
-        );
-
-      // The whole fleet registers as terminal-less sessions up front, so the
-      // list shows every incoming session immediately instead of revealing
-      // them one boot at a time. Exited entries only register — they stay
-      // killed until revived by hand, so no terminal is adopted for them.
-      const registered = entries.map((entry) => mgr.restore(entry));
-      const queued = registered.filter((s) => s.state !== 'exited');
-
-      const adoptQueued = (s: Session): boolean => {
-        if (mgr.adoptTerminal(s.id, cols, rows) === null) {
-          return false;
-        }
-
-        ptyDims.set(s.id, { cols, rows });
-
-        if (!screens.has(s.id)) {
-          screens.set(s.id, new ScreenModel(cols, rows));
-        }
-
-        return true;
-      };
-
-      const [first, ...rest] = queued;
-
-      if (first === undefined) {
-        return registered.length;
-      }
-
-      // The first terminal attaches synchronously so a caller can attach at
-      // once; each later one waits for the previous session to report it has
-      // booted, so a heavy fleet comes up one process at a time instead of
-      // all at once. A per-session cap keeps a session that never reports
-      // from stalling the rest.
-      const cap = opts.restoreBootTimeoutMs ?? 0;
-
-      const adoptRest = async (previous: Session | null) => {
-        let prev = previous;
-
-        for (const s of rest) {
-          if (prev !== null) {
-            await waitForBoot(prev.id, cap);
-          }
-
-          prev = adoptQueued(s) ? s : null;
-        }
-      };
-
-      const firstBooted = adoptQueued(first) ? first : null;
-
-      void adoptRest(firstBooted);
-
-      return registered.length;
-    },
+      attachments.findEffectiveDims(sessionID) ??
+      runtimes.get(sessionID)?.dims ?? { cols: 80, rows: 24 },
+    restoreFleet: (cols, rows) =>
+      restoreFleet({ mgr, store, findRuntime, cols, rows, capMs: opts.restoreBootTimeoutMs ?? 0 }),
   };
 
   try {
@@ -710,26 +560,15 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   });
 
   stopDaemon = () => {
-    for (const timer of resizeTimers.values()) {
-      clearTimeout(timer);
-    }
-
-    for (const timer of detectTimers.values()) {
-      clearTimeout(timer);
-    }
-
-    for (const timer of restoreTimers) {
-      clearTimeout(timer);
-    }
-
     server.stop(true);
     reporter.stop(true);
     mgr.killAll();
 
-    for (const model of screens.values()) {
-      model.stop();
+    for (const runtime of runtimes.values()) {
+      runtime.dispose();
     }
 
+    runtimes.clear();
     store.stop();
 
     if (opts.pidPath !== undefined) {

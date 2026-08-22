@@ -199,9 +199,12 @@ tooling, not app code.
 ## Function naming — project verbs
 
 Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
-`.oxlintrc.json`): `ack`, `adopt`, `answer`, `attach`, `boot`, `copy`, `detach`, `draw`, `jiggle`,
-`kill`, `log`, `open`, `quit`, `record`, `refresh`, `restart`, `restore`, `schedule`, `spawn`,
-`truncate`, `yank`.
+`.oxlintrc.json`): `ack`, `adopt`, `answer`, `attach`, `boot`, `copy`, `detach`, `dispose`, `draw`,
+`jiggle`, `kill`, `log`, `open`, `quit`, `record`, `refresh`, `restart`, `restore`, `schedule`,
+`spawn`, `truncate`, `yank`.
+
+`dispose` releases every resource an object holds in one call (`SessionRuntime.dispose`), and is
+safe to call more than once.
 
 Exempt names (tiny geometry/row helpers and script entrypoints): `cols`, `rows`, `ptyRows`, `out`,
 `main`, `boxTop`, `boxDivider`, `boxBottom`, `boxRow`, `dimRow`.
