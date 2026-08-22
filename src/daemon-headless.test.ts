@@ -24,6 +24,7 @@ const sleepAdapter: AgentAdapter = {
 interface FakeRun {
   readonly opts: Readonly<Record<string, unknown>>;
   readonly finish: (how: 'done' | 'stuck') => void;
+  readonly stopped: boolean;
 }
 
 interface HeadlessContext {
@@ -51,6 +52,7 @@ async function setupHeadlessDaemon(withRunner = true): Promise<HeadlessContext> 
   const startFakeRun: HeadlessRunner = (opts, hooks) => {
     const entry = {
       opts: { ...opts },
+      stopped: false,
       finish(how: 'done' | 'stuck') {
         if (how === 'done') {
           hooks.onDone('wrapped up cleanly');
@@ -63,7 +65,11 @@ async function setupHeadlessDaemon(withRunner = true): Promise<HeadlessContext> 
     runs.push(entry);
     hooks.onOutput('HEADLESS LINE\r\n');
 
-    return { stop() {} };
+    return {
+      stop() {
+        entry.stopped = true;
+      },
+    };
   };
 
   const daemon = startDaemon({
@@ -326,6 +332,7 @@ test('it refuses to eject a grok session and does not start a headless runner', 
   const startFakeRun: HeadlessRunner = (opts, hooks) => {
     runs.push({
       opts: { ...opts },
+      stopped: false,
       finish() {},
     });
 
@@ -386,4 +393,31 @@ test('it refuses to eject a grok session and does not start a headless runner', 
   await Bun.sleep(50);
 
   expect(runs).toHaveLength(0);
+});
+
+test("it stops a killed session's headless run and refuses further input for it", async () => {
+  const ctx = await setupHeadlessDaemon();
+  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+
+  await ctx.client.sendRequest('session.eject', { session: id });
+
+  await waitForRun(ctx.runs, 1);
+
+  await ctx.client.sendRequest('session.kill', { session: id });
+
+  expect(ctx.runs[0]?.stopped).toBe(true);
+
+  const list = await ctx.client.sendRequest('session.list');
+
+  const sessions = list['sessions'];
+
+  if (!Array.isArray(sessions)) {
+    throw new TypeError('sessions is not an array');
+  }
+
+  expect(sessions).toHaveLength(0);
+
+  expect(
+    ctx.client.sendRequest('session.input', { session: id, d: 'anything\n' }),
+  ).rejects.toMatchObject({ code: 'no_such_session' });
 });

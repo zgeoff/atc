@@ -686,6 +686,91 @@ sleep 30
   expect(getRecords(settled, 'sessions').filter((s) => s['kind'] === 'pty')).toHaveLength(3);
 });
 
+test('it moves on to the next revive when one dies before announcing itself', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
+
+  onTestFinished(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  mkdirSync(join(home, '.config', 'atc'), { recursive: true });
+  mkdirSync(join(home, '.local', 'state', 'atc'), { recursive: true });
+
+  // The first revive's process exits immediately without ever announcing a
+  // SessionStart; the second reports normally after a short delay. Nothing
+  // adopts the second terminal unless the first revive's death still
+  // releases the boot wait it left queued behind.
+  const fakeClaude = join(home, 'fake-claude');
+
+  writeFileSync(
+    fakeClaude,
+    `#!/usr/bin/env bash
+if [[ "$@" == *"dies-immediately"* ]]; then
+  exit 0
+fi
+sleep 0.2
+printf '{"hook_event_name":"SessionStart","session_id":"'"$ATC_SESSION_ID"'","transcript_path":"/nonexistent"}' | "${process.execPath}" "${join(repo, 'src', 'cli.ts')}" hook-report
+sleep 30
+`,
+    { mode: 0o755 },
+  );
+
+  writeFileSync(
+    join(home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      claudeBin: fakeClaude,
+      claudeArgs: [],
+      grokBin: join(home, 'fake-grok'),
+      grokArgs: [],
+    }),
+  );
+
+  writeFileSync(join(home, 'fake-grok'), '#!/usr/bin/env bash\nsleep 30\n', { mode: 0o755 });
+
+  writeFileSync(
+    join(home, '.local', 'state', 'atc', 'fleet.json'),
+    JSON.stringify([
+      { name: 'dying', cwd: home, agentSessionID: 'dies-immediately' },
+      { name: 'survivor', cwd: home, agentSessionID: 'fake-b' },
+    ]),
+  );
+
+  // A cap far longer than the test's own wait, so a fleet that fills in
+  // quickly proves the death itself released the wait rather than the cap
+  // expiring.
+  const ctx = setupDaemonProc(home, { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' });
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  expect(restored).toStrictEqual({ restored: 2 });
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' &&
+      isRecord(e['session']) &&
+      e['session']['agentSessionID'] === 'fake-b' &&
+      e['session']['kind'] === 'pty',
+    5000,
+  );
+
+  const settled = await client.sendRequest('session.list');
+
+  const survivor = getRecords(settled, 'sessions').find((s) => s['agentSessionID'] === 'fake-b');
+
+  expect(survivor).toMatchObject({ kind: 'pty' });
+});
+
 test('it revives the fleet most recently active first', async () => {
   const home = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
 
