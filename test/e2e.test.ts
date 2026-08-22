@@ -872,11 +872,16 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
   await spawnGrokSession(ctx, pty, 'groksess');
 
   const captured = ctx.read();
-  const argsLine = captured.split(/\r?\n/).find((line) => line.includes('FAKE_GROK_UP args:'));
 
-  if (argsLine === undefined) {
+  // The TUI paints with cursor moves and no newlines, so the args reach the
+  // capture on the same line as a whole screen of session names.
+  const args = /FAKE_GROK_UP args:[^\r\n]*/.exec(captured);
+
+  if (args === null) {
     throw new Error('no FAKE_GROK_UP args line was captured');
   }
+
+  const [argsLine] = args;
 
   expect(argsLine).toInclude('FAKE_GROK_UP args: --no-leader');
   expect(argsLine).not.toInclude('--resume');
@@ -1174,11 +1179,16 @@ test('it adopts grok with --no-leader and without --resume', async () => {
   await ctx.waitFor('FAKE_GROK_UP');
 
   const captured = ctx.read();
-  const argsLine = captured.split(/\r?\n/).find((line) => line.includes('FAKE_GROK_UP args:'));
 
-  if (argsLine === undefined) {
+  // The TUI paints with cursor moves and no newlines, so the args reach the
+  // capture on the same line as a whole screen of session names.
+  const args = /FAKE_GROK_UP args:[^\r\n]*/.exec(captured);
+
+  if (args === null) {
     throw new Error('no FAKE_GROK_UP args line was captured');
   }
+
+  const [argsLine] = args;
 
   expect(argsLine).toInclude('FAKE_GROK_UP args: --no-leader');
   expect(argsLine).not.toInclude('--resume');

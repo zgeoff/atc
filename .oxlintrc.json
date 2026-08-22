@@ -77,5 +77,16 @@
     "promise/avoid-new": "off",
     "require-unicode-regexp": "off"
   },
+  "overrides": [
+    {
+      "files": ["src/index.ts"],
+      // the TUI client entry holds the screens, the key routing and the
+      // fleet mirror together, and every import it keeps is read by two or
+      // more of them
+      "rules": {
+        "import/max-dependencies": ["error", { "max": 11 }]
+      }
+    }
+  ],
   "ignorePatterns": [".claude/**"]
 }

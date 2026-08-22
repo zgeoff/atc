@@ -1,28 +1,19 @@
 import { bootDaemonClient } from './boot-daemon';
 import { buildLeaderChords } from './build-leader-chords';
-import { collectAgentPicks } from './collect-agent-picks';
-import type { AgentPick } from './collect-agent-picks';
 import { loadConfig } from './config';
-import { collectDirs, findFuzzyScore, formatDir, formatDirName, pickMatches } from './dirs';
+import { findFuzzyScore, formatDir } from './dirs';
+import { KEY, isDown, isUp, planTextEdit } from './keys';
 import { pickTabTarget } from './pick-tab-target';
 import type { EventMsg } from './protocol';
 import { isRecord } from './report';
 import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from './sessions';
 import type { SessionState } from './sessions';
+import { SpawnPicker } from './spawn-picker';
 import { ansi, cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar, rows } from './ui';
 
 type AgentKind = 'claude' | 'grok' | 'codex';
 
-type Mode =
-  | 'home'
-  | 'attached'
-  | 'overlay'
-  | 'help'
-  | 'picker-agent'
-  | 'picker-dir'
-  | 'picker-name'
-  | 'picker-prompt'
-  | 'picker-eject';
+type Mode = 'home' | 'attached' | 'overlay' | 'help' | 'picker' | 'picker-eject';
 
 interface MirrorSession {
   id: string;
@@ -55,20 +46,7 @@ const doneAt = new Map<string, number>();
 
 let focusedID: string | null = null;
 let fleetCount = 0;
-
-// picker state carried across the dir -> name -> prompt steps
-let allDirs: string[] = [];
-let pickerInput = '';
-let pickerSelected = 0;
-let spawnDir = '';
-let spawnName = '';
-let spawnResume = false;
-let spawnAgent: AgentKind = 'claude';
 let lastUsedAgent: AgentKind = 'claude';
-
-// The installed agents, collected each time the menu opens so a config edit
-// or a fresh install lands without a client restart.
-let agentPicks: AgentPick[] = [];
 const stdout = process.stdout;
 
 // Full height: the atc status bar only exists on home/overlay screens;
@@ -159,6 +137,7 @@ function toBase() {
 }
 
 let ejectTarget = '';
+let ejectInput = '';
 
 async function yankToHeadless(instruction: string) {
   try {
@@ -259,112 +238,43 @@ function openOverlay() {
   renderOverlay();
 }
 
-function renderPicker() {
-  const verb = spawnResume ? 'adopt' : 'spawn';
-
-  if (mode === 'picker-agent') {
-    pickerSelected = Math.min(pickerSelected, agentPicks.length - 1);
-
-    // An empty menu means every configured binary is missing, so the hint
-    // carries the fix instead of the movement keys.
-    const hint =
-      agentPicks.length === 0
-        ? 'no agent CLI found — set claudeBin, grokBin, or codexBin in config.json · esc cancel'
-        : '↑↓ move · ⏎ select · esc cancel';
-
-    drawPicker({
-      title: `${verb}: agent`,
-      items: agentPicks.map((p) => p.label),
-      selected: pickerSelected,
-      input: pickerInput,
-      hint,
-    });
-  } else if (mode === 'picker-dir') {
-    const items = pickMatches(allDirs, pickerInput).map((d) => formatDir(d));
-
-    pickerSelected = Math.min(pickerSelected, Math.max(0, Math.min(items.length, 10) - 1));
-
-    drawPicker({
-      title: `${verb}: directory`,
-      items,
-      selected: pickerSelected,
-      input: pickerInput,
-      hint: 'type to filter · ↑↓ move · ⏎ select · esc cancel',
-    });
-  } else if (mode === 'picker-name') {
-    drawPicker({
-      title: `${verb}: name`,
-      items: [],
-      selected: -1,
-      input: pickerInput,
-      placeholder: formatDirName(spawnDir),
-      hint: `session name for ${formatDir(spawnDir)} · ⏎ accept · esc back`,
-    });
-  } else if (mode === 'picker-eject') {
-    drawPicker({
-      title: 'eject: headless instruction',
-      items: [],
-      selected: -1,
-      input: pickerInput,
-      placeholder: 'continue the task autonomously',
-      hint: 'instruction for the headless run · ⏎ eject · esc back',
-    });
-  } else {
-    drawPicker({
-      title: 'spawn: initial prompt',
-      items: [],
-      selected: -1,
-      input: pickerInput,
-      placeholder: 'optional — ⏎ to start interactive',
-      hint: 'first message for the session · ⏎ spawn · esc back',
-    });
-  }
+function renderEject() {
+  drawPicker({
+    title: 'eject: headless instruction',
+    items: [],
+    selected: -1,
+    input: ejectInput,
+    placeholder: 'continue the task autonomously',
+    hint: 'instruction for the headless run · ⏎ eject · esc back',
+  });
 
   scheduleStatus();
 }
 
-function openAgentPicker(resume = false) {
-  spawnResume = resume;
-  agentPicks = collectAgentPicks(loadConfig());
-  pickerInput = '';
+const picker = new SpawnPicker<MirrorSession>({
+  sendRequest,
+  ptyRows,
+  isLeaderKey,
+  getLastUsedAgent,
+  scheduleStatus,
+  toBase,
+  attach,
+  toMirrorSession,
+  upsertMirror,
+});
 
-  // A last-used agent that is no longer installed is not in the menu, so
-  // the selection falls to the first one that is.
-  pickerSelected = Math.max(
-    0,
-    agentPicks.findIndex((p) => p.agent === lastUsedAgent),
-  );
+function openSpawnPicker(resume = false) {
+  mode = 'picker';
 
-  spawnAgent = agentPicks[pickerSelected]?.agent ?? lastUsedAgent;
-  mode = 'picker-agent';
-
-  stdout.write(ansi.clear);
-
-  renderPicker();
+  picker.open(resume);
 }
 
-async function openDirPicker() {
-  let recent: string[] = [];
+function sendRequest(m: string, p?: Readonly<Record<string, unknown>>) {
+  return client.sendRequest(m, p);
+}
 
-  try {
-    const answer = await client.sendRequest('dirs.list');
-
-    const dirs = answer['dirs'];
-
-    if (Array.isArray(dirs)) {
-      recent = dirs.filter((d): d is string => typeof d === 'string');
-    }
-  } catch {}
-
-  allDirs = await collectDirs(recent);
-
-  pickerInput = '';
-  pickerSelected = 0;
-  mode = 'picker-dir';
-
-  stdout.write(ansi.clear);
-
-  renderPicker();
+function getLastUsedAgent(): AgentKind {
+  return lastUsedAgent;
 }
 
 async function restoreFleet() {
@@ -379,32 +289,6 @@ async function restoreFleet() {
   if (first !== undefined) {
     await attach(first.id);
   }
-}
-
-async function spawnFromPicker(prompt: string) {
-  try {
-    const ok = await client.sendRequest('session.spawn', {
-      cwd: spawnDir,
-      name: spawnName,
-      prompt,
-      cols: cols(),
-      rows: ptyRows(),
-      ...(spawnResume ? { resume: true } : {}),
-      agent: spawnAgent,
-    });
-
-    const spawned = toMirrorSession(ok['session']);
-
-    if (spawned !== null) {
-      upsertMirror(spawned);
-
-      await attach(spawned.id);
-
-      return;
-    }
-  } catch {}
-
-  toBase();
 }
 
 function quit(code = 0): never {
@@ -626,23 +510,6 @@ function copyToClipboard(text: string) {
 const leader = loadConfig().leader;
 const leaderChords = buildLeaderChords(leader.code);
 
-const KEY = {
-  tab: 0x09,
-  ctrlC: 0x03,
-  ctrlU: 0x15,
-  esc: 0x1b,
-  enter: 0x0d,
-  backspace: 0x7f,
-} as const;
-
-function isUp(buf: Buffer): boolean {
-  return buf.toString() === '\u001B[A' || buf.toString() === '\u001BOA';
-}
-
-function isDown(buf: Buffer): boolean {
-  return buf.toString() === '\u001B[B' || buf.toString() === '\u001BOB';
-}
-
 // A fullscreen session can leave the terminal in an enhanced keyboard
 // encoding, so the leader arrives as a CSI chord instead of its bare byte.
 function isLeaderKey(buf: Buffer): boolean {
@@ -792,7 +659,7 @@ function applyOverlayKey(buf: Buffer) {
   }
 
   if (ch === 'n') {
-    openAgentPicker();
+    openSpawnPicker();
 
     return;
   }
@@ -837,12 +704,12 @@ function applyOverlayKey(buf: Buffer) {
     sel.agent === 'claude'
   ) {
     ejectTarget = sel.id;
-    pickerInput = '';
+    ejectInput = '';
     mode = 'picker-eject';
 
     stdout.write(ansi.clear);
 
-    renderPicker();
+    renderEject();
 
     return;
   }
@@ -854,7 +721,7 @@ function applyOverlayKey(buf: Buffer) {
   }
 
   if (ch === 'r') {
-    openAgentPicker(true);
+    openSpawnPicker(true);
 
     return;
   }
@@ -907,87 +774,35 @@ async function yankResume(sessionID: string, eject: boolean) {
   } catch {}
 }
 
-function applyTextKey(buf: Buffer, onSubmit: () => void, onCancel: () => void) {
-  // Pasted chunks arrive as one buffer: split into per-char events so a
-  // trailing newline still submits. Escape sequences stay intact.
-  if (buf.length > 1 && buf[0] !== KEY.esc) {
-    for (const ch of buf.toString()) {
-      applyTextKey(Buffer.from(ch), onSubmit, onCancel);
+function applyEjectKey(buf: Buffer) {
+  const edit = planTextEdit(buf, ejectInput, { isLeaderKey, moves: false });
 
-      if (mode === 'attached' || ch === '\r') {
-        return;
-      }
+  switch (edit.kind) {
+    case 'none':
+    case 'move': {
+      return;
     }
-
-    return;
-  }
-
-  if (buf[0] === KEY.esc && buf.length === 1) {
-    onCancel();
-
-    return;
-  }
-
-  if (isLeaderKey(buf)) {
-    toBase();
-
-    return;
-  }
-
-  if (buf[0] === KEY.enter) {
-    onSubmit();
-
-    return;
-  }
-
-  if (buf[0] === KEY.backspace) {
-    pickerInput = pickerInput.slice(0, -1);
-
-    renderPicker();
-
-    return;
-  }
-
-  if (buf[0] === KEY.ctrlU) {
-    pickerInput = '';
-
-    renderPicker();
-
-    return;
-  }
-
-  if (mode === 'picker-dir' || mode === 'picker-agent') {
-    if (isDown(buf)) {
-      pickerSelected++;
-
-      renderPicker();
+    case 'cancel': {
+      openOverlay();
 
       return;
     }
-
-    if (isUp(buf)) {
-      pickerSelected = Math.max(0, pickerSelected - 1);
-
-      renderPicker();
+    case 'leader': {
+      toBase();
 
       return;
     }
-  }
+    case 'submit': {
+      ejectInput = edit.value;
+      void yankToHeadless(ejectInput.trim());
 
-  const text = buf.toString();
-  let printable = true;
-
-  for (const c of text) {
-    if (c < ' ' || c === '\u007F') {
-      printable = false;
-      break;
+      return;
     }
-  }
+    case 'input': {
+      ejectInput = edit.value;
 
-  if (printable) {
-    pickerInput += text;
-
-    renderPicker();
+      renderEject();
+    }
   }
 }
 
@@ -1097,13 +912,13 @@ process.stdin.on('data', (buf: Buffer) => {
       const ch = buf.toString();
 
       if (ch === 'n') {
-        openAgentPicker();
+        openSpawnPicker();
 
         return;
       }
 
       if (ch === 'r') {
-        openAgentPicker(true);
+        openSpawnPicker(true);
 
         return;
       }
@@ -1130,131 +945,13 @@ process.stdin.on('data', (buf: Buffer) => {
 
       return;
     }
-    case 'picker-agent': {
-      applyTextKey(
-        buf,
-        () => {
-          const pick = agentPicks[pickerSelected];
-
-          // With no agent installed the menu is empty and there is nothing
-          // to spawn.
-          if (pick === undefined) {
-            return;
-          }
-
-          spawnAgent = pick.agent;
-          void openDirPicker();
-        },
-        () => {
-          toBase();
-        },
-      );
-
-      return;
-    }
-    case 'picker-dir': {
-      applyTextKey(
-        buf,
-        () => {
-          const items = pickMatches(allDirs, pickerInput);
-          const raw = pickerInput.trim();
-          let chosen = items[pickerSelected] ?? null;
-
-          if (chosen === null && (raw.startsWith('/') || raw.startsWith('~'))) {
-            chosen = raw.replace(/^~/u, process.env['HOME'] ?? '~');
-          }
-
-          if (chosen === null) {
-            return;
-          }
-
-          spawnDir = chosen;
-          pickerInput = '';
-          mode = 'picker-name';
-
-          stdout.write(ansi.clear);
-
-          renderPicker();
-        },
-        () => {
-          pickerInput = '';
-
-          pickerSelected = Math.max(
-            0,
-            agentPicks.findIndex((p) => p.agent === spawnAgent),
-          );
-
-          mode = 'picker-agent';
-
-          stdout.write(ansi.clear);
-
-          renderPicker();
-        },
-      );
-
-      return;
-    }
-    case 'picker-name': {
-      applyTextKey(
-        buf,
-        () => {
-          spawnName = pickerInput.trim();
-          pickerInput = '';
-
-          // Adopt skips the prompt step: claude --resume opens its own
-          // session picker inside the new PTY.
-          if (spawnResume) {
-            void spawnFromPicker('');
-
-            return;
-          }
-
-          mode = 'picker-prompt';
-
-          stdout.write(ansi.clear);
-
-          renderPicker();
-        },
-        () => {
-          pickerInput = '';
-          mode = 'picker-dir';
-
-          stdout.write(ansi.clear);
-
-          renderPicker();
-        },
-      );
-
-      return;
-    }
-    case 'picker-prompt': {
-      applyTextKey(
-        buf,
-        () => {
-          void spawnFromPicker(pickerInput.trim());
-        },
-        () => {
-          pickerInput = '';
-          mode = 'picker-name';
-
-          stdout.write(ansi.clear);
-
-          renderPicker();
-        },
-      );
+    case 'picker': {
+      picker.applyKey(buf);
 
       return;
     }
     case 'picker-eject': {
-      applyTextKey(
-        buf,
-        () => {
-          void yankToHeadless(pickerInput.trim());
-        },
-        () => {
-          openOverlay();
-        },
-      );
+      applyEjectKey(buf);
     }
   }
 });
@@ -1274,10 +971,15 @@ stdout.on('resize', () => {
     renderOverlay();
   }
 
-  if (mode.startsWith('picker')) {
+  if (mode === 'picker') {
+    stdout.write(ansi.clear);
+    picker.render();
+  }
+
+  if (mode === 'picker-eject') {
     stdout.write(ansi.clear);
 
-    renderPicker();
+    renderEject();
   }
 
   scheduleStatus();
