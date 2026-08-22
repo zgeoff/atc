@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { bootDaemonClient } from './boot-daemon';
 import { DaemonError } from './daemon-error';
 import { isRecord } from './report';
@@ -18,20 +19,22 @@ interface MCPTool {
   readonly inputSchema: Readonly<Record<string, unknown>>;
 }
 
-const NO_INPUT: Readonly<Record<string, unknown>> = {
-  type: 'object',
-  properties: {},
-  additionalProperties: false,
-};
+const NO_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(z.strictObject({}));
 
-const SESSION_INPUT: Readonly<Record<string, unknown>> = {
-  type: 'object',
-  properties: {
-    session: { type: 'string', description: 'The atc session id, from atc_session_list' },
-  },
-  required: ['session'],
-  additionalProperties: false,
-};
+const SESSION_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
+  z.strictObject({
+    session: z.string().describe('The atc session id, from atc_session_list'),
+  }),
+);
+
+const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
+  z.strictObject({
+    cwd: z.string().describe('Absolute path of the working directory'),
+    name: z.string().describe('Session name; defaults to the directory basename').optional(),
+    prompt: z.string().describe('First message for the session').optional(),
+    agent: z.string().describe('Which registered agent id to spawn; defaults to claude').optional(),
+  }),
+);
 
 const TOOLS: readonly MCPTool[] = [
   {
@@ -44,20 +47,7 @@ const TOOLS: readonly MCPTool[] = [
     name: 'atc_session_spawn',
     description:
       'Spawn a new session in a directory. Optional agent is an agent id the daemon has registered, such as claude, grok, or codex; omitted agent is always Claude, never the TUI last-used value. An unregistered id is rejected. Returns the new session descriptor. Give it a prompt to start it working immediately.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        cwd: { type: 'string', description: 'Absolute path of the working directory' },
-        name: { type: 'string', description: 'Session name; defaults to the directory basename' },
-        prompt: { type: 'string', description: 'First message for the session' },
-        agent: {
-          type: 'string',
-          description: 'Which registered agent id to spawn; defaults to claude',
-        },
-      },
-      required: ['cwd'],
-      additionalProperties: false,
-    },
+    inputSchema: SPAWN_INPUT,
   },
   {
     name: 'atc_session_input',
