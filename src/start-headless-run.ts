@@ -1,4 +1,5 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentSessionID } from './agent-session-id';
 import { collectCleanEnv } from './collect-clean-env';
 import { isRecord } from './report';
 
@@ -14,7 +15,7 @@ const PERMISSION_MODES = [
 interface HeadlessRunOptions {
   readonly cwd: string;
   readonly prompt: string;
-  readonly resume?: string;
+  readonly resume?: AgentSessionID;
   readonly permissionMode?: string;
   readonly settings?: string;
 }

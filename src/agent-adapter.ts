@@ -72,7 +72,7 @@ export interface ResumeCheck {
 interface HeadlessRunRequest {
   readonly cwd: string;
   readonly prompt: string;
-  readonly resume?: string;
+  readonly resume?: AgentSessionID;
   readonly permissionMode?: string;
 
   // Settings file the run's CLI is started with, so a headless turn reaches
