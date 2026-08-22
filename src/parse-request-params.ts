@@ -6,7 +6,7 @@ const EJECT_DEFAULT_PROMPT =
 
 export type RequestMethod = keyof typeof REQUEST_PARAM_SCHEMAS;
 
-export type RequestParams<M extends RequestMethod> = z.infer<(typeof REQUEST_PARAM_SCHEMAS)[M]>;
+type RequestParams<M extends RequestMethod> = z.infer<(typeof REQUEST_PARAM_SCHEMAS)[M]>;
 
 export type ParsedRequestParams<M extends RequestMethod> =
   | { readonly ok: true; readonly data: RequestParams<M> }
