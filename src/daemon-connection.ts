@@ -2,12 +2,13 @@ import { basename } from 'node:path';
 import { parseAgentKind } from './agent-adapter';
 import type { AgentAdapter, AgentKind } from './agent-adapter';
 import type { Dims } from './attach-registry';
+import type { FleetEntry } from './fleet-entry';
 import { OutboundQueue } from './outbound-queue';
 import type { SocketWriter } from './outbound-queue';
 import type { AnswerResult } from './permission-registry';
 import { MAX_CHUNK, MAX_LINE, PROTOCOL_V, decodeMessage, encodeMessage } from './protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from './protocol';
-import type { FleetEntry, SessionDescriptor } from './sessions';
+import type { SessionDescriptor } from './sessions';
 
 interface SpawnParams {
   readonly cwd: string;
