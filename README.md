@@ -52,7 +52,7 @@ fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches 
 | `a`             | overlay        | ack notification without attaching                                                                                                                                      |
 | `p`             | overlay        | pin or unpin the selected session — pinned sessions stay at the top of the list                                                                                         |
 | `g`             | overlay        | toggle the grouped view: sessions cluster under repository headers                                                                                                      |
-| `H`             | overlay        | eject to headless (Claude only). Hidden and ignored on a Grok row.                                                                                                      |
+| `H`             | overlay        | eject to headless. Hidden and ignored on a row whose agent has no headless handoff.                                                                                     |
 | `P`             | overlay        | revive: a fresh terminal resumes a headless or killed session in place                                                                                                  |
 | `y`             | overlay        | yank the resume command (`claude --resume <id>`, `grok --resume <id>`, or `codex resume <id>`)                                                                          |
 | `Y`             | overlay        | eject: yank the resume command, then kill the session here                                                                                                              |
@@ -65,13 +65,14 @@ The overlay orders sessions by pinned first, then attention state, then most rec
 the session you want is nearly always near the top. The grouped view (`g`) keeps that order but
 clusters sessions under dim repository headers, with pinned sessions leading in their own cluster; a
 git worktree clusters with its main repository, and a directory outside any repository stands alone.
-A reserved column after the pin mark shows a dim `g` on Grok rows; Claude rows keep a space so names
-stay aligned. The `atc_session_update` MCP tool renames and pins sessions, so an agent can organise
-the fleet for you.
+A reserved column after the pin mark shows a dim letter per agent — `g` on Grok rows, `x` on Codex
+rows, and whatever letter a gateway was given; Claude rows keep a space so names stay aligned. The
+`atc_session_update` MCP tool renames and pins sessions, so an agent can organise the fleet for you.
 
 Revive (`P`) resumes the session from its saved transcript, so a session killed before its first
 exchange has nothing on disk yet, and the overlay says so in its message column instead of resuming.
-Headless eject (`H`) is Claude-only and uses the same transcript; Grok has no headless handoff.
+Headless eject (`H`) uses the same transcript. Grok, Codex, and gateway sessions have no headless
+handoff, so the key is hidden on their rows.
 
 Everything else is passed through to the focused session, which owns the full screen. Fleet state
 renders inside Claude Code's own status line (injected via the same `--settings` file): your
@@ -147,6 +148,7 @@ session.
   "grokArgs": [],
   "codexBin": "codex",
   "codexArgs": [],
+  "gateways": {},
   "leader": "ctrl-space"
 }
 ```
@@ -159,15 +161,49 @@ session.
 | `grokArgs`   | `[]`           | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`. |
 | `codexBin`   | `"codex"`      | The binary spawned for Codex sessions.                                                                      |
 | `codexArgs`  | `[]`           | Prepended to every Codex spawn.                                                                             |
+| `gateways`   | `{}`           | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                |
 | `leader`     | `"ctrl-space"` | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                       |
 
 Pick a different leader when `Ctrl-Space` is taken on your machine — Raycast on macOS claims it, and
 `ctrl-]` is a solid replacement that no common terminal, multiplexer, or OS shortcut wants. An
 unknown or reserved value falls back to the default.
 
+### Gateways
+
+A gateway runs the Claude CLI against a Claude-compatible backend, under its own agent id. Claude
+and GLM sessions then sit side by side in one fleet:
+
+```json
+{
+  "gateways": {
+    "zai": {
+      "label": "GLM (z.ai)",
+      "mark": "z",
+      "baseURL": "https://api.z.ai/api/anthropic",
+      "apiKeyHelper": "~/.local/bin/atc-zai-key",
+      "env": { "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.2" }
+    }
+  }
+}
+```
+
+| Field          | Default     | Meaning                                                                                         |
+| -------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| `baseURL`      | required    | The backend's Anthropic-format endpoint. An entry without one is left out of the picker.        |
+| `label`        | the id      | The row shown in the agent picker.                                                              |
+| `mark`         | the id      | The overlay column letter; the first character is used.                                         |
+| `bin`, `args`  | `claudeBin` | The binary and leading arguments, when the backend needs a different build of the CLI.          |
+| `apiKeyHelper` | none        | Command the CLI runs to read the credential, so no token is written into atc's state directory. |
+| `env`          | `{}`        | Extra environment for the session, such as the model each Claude tier maps to.                  |
+
+The id may not be `claude`, `grok`, or `codex`. atc writes one settings file per id and passes it as
+`--settings`, so a gateway session's backend is decided there rather than by whatever the terminal
+exported. Ejecting to headless is refused on a gateway session, because that turn would run against
+the default backend.
+
 `atc mcp` exposes the fleet as MCP tools (list, spawn, drive, organise) to any MCP client, wrangled
-sessions included. `atc_session_spawn` takes an optional `agent` (`claude`, `grok`, or `codex`) and
-defaults to Claude; it never reads the TUI last-used value.
+sessions included. `atc_session_spawn` takes an optional `agent` id and defaults to Claude; it never
+reads the TUI last-used value.
 
 ```sh
 claude mcp add --scope user atc -- atc mcp

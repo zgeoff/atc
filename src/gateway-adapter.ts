@@ -1,0 +1,94 @@
+import type {
+  AdapterEvent,
+  AgentAdapter,
+  AgentID,
+  NameUpdate,
+  ResumeCheck,
+  SpawnOptions,
+  SpawnPlan,
+} from './agent-adapter';
+import { ClaudeAdapter } from './claude-adapter';
+import type { Config, GatewayConfig } from './config';
+import type { HookEvent } from './hooks';
+import { writeHookSettings } from './write-hook-settings';
+
+/**
+ * The Claude CLI pointed at a Claude-compatible backend other than the
+ * default one. Hooks, transcripts, and resume semantics are the CLI's, so
+ * they come straight from the Claude adapter; only the spawn plan and the
+ * resume command differ, because both have to name the settings file that
+ * carries the backend.
+ */
+export class GatewayAdapter implements AgentAdapter {
+  readonly id: AgentID;
+
+  // Ejecting to headless would run the turn against the default backend,
+  // which is a different account and a different bill, so it is refused.
+  readonly headlessRunner = null;
+
+  // The CLI's hooks are authoritative; no screen heuristics needed.
+  readonly screenDetector = null;
+
+  private readonly gateway: GatewayConfig;
+
+  private readonly claude: ClaudeAdapter;
+
+  // Written on first spawn so constructing the adapter touches no state.
+  private settingsFile: string | undefined;
+
+  constructor(gateway: GatewayConfig, config: Config) {
+    this.gateway = gateway;
+    this.id = gateway.id;
+
+    this.claude = new ClaudeAdapter(config);
+  }
+
+  planSpawn(opts: SpawnOptions): SpawnPlan {
+    return {
+      bin: this.gateway.bin,
+      args: [
+        ...this.gateway.args,
+        '--settings',
+        this.writeSettings(),
+        ...(opts.resume === true ? ['--resume'] : []),
+        ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
+        ...(opts.prompt === '' ? [] : [opts.prompt]),
+      ],
+    };
+  }
+
+  normalizeHook(e: HookEvent): AdapterEvent {
+    return this.claude.normalizeHook(e);
+  }
+
+  loadName(source: string, namedBy: 'user' | 'auto' | 'agent'): Promise<NameUpdate | null> {
+    return this.claude.loadName(source, namedBy);
+  }
+
+  canResume(session: ResumeCheck): boolean {
+    return this.claude.canResume(session);
+  }
+
+  // Shell command that re-opens this session outside atc. It names the
+  // generated settings file, because without it the CLI would resume the
+  // session against the default backend.
+  buildResumeCommand(cwd: string, agentSessionID: string | undefined): string | null {
+    const settings = this.writeSettings().replaceAll("'", String.raw`'\''`);
+    const quoted = cwd.replaceAll("'", String.raw`'\''`);
+    const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
+
+    return `cd '${quoted}' && ${this.gateway.bin} --settings '${settings}' --resume${resume}`;
+  }
+
+  private writeSettings(): string {
+    this.settingsFile ??= writeHookSettings({
+      id: this.id,
+      env: { ANTHROPIC_BASE_URL: this.gateway.baseURL, ...this.gateway.env },
+      ...(this.gateway.apiKeyHelper === undefined
+        ? {}
+        : { apiKeyHelper: this.gateway.apiKeyHelper }),
+    });
+
+    return this.settingsFile;
+  }
+}

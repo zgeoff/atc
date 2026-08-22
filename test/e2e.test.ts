@@ -109,6 +109,7 @@ idle
       // sees Codex as uninstalled whatever the host machine has.
       codexBin: join(home, 'fake-codex'),
       codexArgs: [],
+      gateways: [],
     }),
   );
 

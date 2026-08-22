@@ -35,6 +35,7 @@ test('it lists only the agents whose configured binary resolves', () => {
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
+      gateways: [],
       leader: { code: 0, label: '^Space' },
     }),
   ).toStrictEqual([
@@ -61,6 +62,7 @@ test('it resolves a bare binary name off PATH', () => {
       grokArgs: [],
       codexBin: 'codex',
       codexArgs: [],
+      gateways: [],
       leader: { code: 0, label: '^Space' },
     }),
   ).toStrictEqual([{ agent: 'grok', label: 'Grok' }]);
@@ -77,7 +79,65 @@ test('it leaves out a binary that exists without the executable bit', () => {
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
+      gateways: [],
       leader: { code: 0, label: '^Space' },
     }),
   ).toStrictEqual([]);
+});
+
+test('it lists a configured backend after the built-in agents', () => {
+  const dir = setupBinDir([{ name: 'my-claude', executable: true }]);
+
+  expect(
+    collectAgentPicks({
+      claudeBin: join(dir, 'my-claude'),
+      claudeArgs: [],
+      grokBin: join(dir, 'my-grok'),
+      grokArgs: [],
+      codexBin: join(dir, 'my-codex'),
+      codexArgs: [],
+      gateways: [
+        {
+          id: 'zai',
+          label: 'GLM (z.ai)',
+          mark: 'z',
+          bin: join(dir, 'my-claude'),
+          args: [],
+          baseURL: 'https://api.z.ai/api/anthropic',
+          env: {},
+        },
+      ],
+      leader: { code: 0, label: '^Space' },
+    }),
+  ).toStrictEqual([
+    { agent: 'claude', label: 'Claude' },
+    { agent: 'zai', label: 'GLM (z.ai)' },
+  ]);
+});
+
+test('it leaves out a configured backend whose binary does not resolve', () => {
+  const dir = setupBinDir([{ name: 'my-claude', executable: true }]);
+
+  expect(
+    collectAgentPicks({
+      claudeBin: join(dir, 'my-claude'),
+      claudeArgs: [],
+      grokBin: join(dir, 'my-grok'),
+      grokArgs: [],
+      codexBin: join(dir, 'my-codex'),
+      codexArgs: [],
+      gateways: [
+        {
+          id: 'zai',
+          label: 'GLM (z.ai)',
+          mark: 'z',
+          bin: join(dir, 'missing-claude'),
+          args: [],
+          baseURL: 'https://api.z.ai/api/anthropic',
+          env: {},
+        },
+      ],
+      leader: { code: 0, label: '^Space' },
+    }),
+  ).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
 });

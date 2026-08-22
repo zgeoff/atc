@@ -10,7 +10,6 @@ import { StateStore } from './state-store';
 // restored session does when its id resolves to none.
 const idleAdapter: AgentAdapter = {
   id: 'claude',
-  kind: 'claude',
   headlessRunner: null,
   screenDetector: null,
   planSpawn: () => ({ bin: 'sleep', args: ['30'] }),

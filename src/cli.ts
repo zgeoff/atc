@@ -47,6 +47,7 @@ const main = defineCommand({
           const claude = await import('./claude-adapter');
           const grok = await import('./grok-adapter');
           const codex = await import('./codex-adapter');
+          const gateway = await import('./gateway-adapter');
           const headless = await import('./start-headless-run');
 
           // Test harnesses shrink the outbound queue to force overflow
@@ -69,12 +70,16 @@ const main = defineCommand({
           const grokAdapter = new grok.GrokAdapter(cfg);
           const codexAdapter = new codex.CodexAdapter(cfg);
 
+          const gatewayAdapters = cfg.gateways.map(
+            (entry) => new gateway.GatewayAdapter(entry, cfg),
+          );
+
           const handle = daemon.startDaemon({
             socketPath: config.daemonSocketPath,
             reporterSocketPath: config.socketPath,
             build: getBuild(),
             adapter: claudeAdapter,
-            adapters: [claudeAdapter, grokAdapter, codexAdapter],
+            adapters: [claudeAdapter, grokAdapter, codexAdapter, ...gatewayAdapters],
             dbPath: config.dbFile,
             legacyFleetPath: config.legacyFleetFile,
             pidPath: config.daemonPidFile,

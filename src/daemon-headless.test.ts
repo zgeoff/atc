@@ -11,7 +11,6 @@ import { isRecord } from './report';
 
 const sleepAdapter: AgentAdapter = {
   id: 'claude',
-  kind: 'claude',
   headlessRunner: null,
   screenDetector: null,
   planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
@@ -301,6 +300,7 @@ test('it refuses to eject a grok session and does not start a headless runner', 
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',
     codexArgs: [],
+    gateways: [],
     leader: { code: 0, label: '^Space' },
   });
 
