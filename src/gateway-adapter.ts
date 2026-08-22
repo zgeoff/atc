@@ -9,7 +9,8 @@ import type {
   SpawnPlan,
 } from './agent-adapter';
 import { ClaudeAdapter } from './claude-adapter';
-import type { Config, GatewayConfig } from './config';
+import type { GatewayConfig } from './collect-gateways';
+import type { Config } from './config';
 import type { HookEvent } from './hooks';
 import { writeHookSettings } from './write-hook-settings';
 
