@@ -4,6 +4,7 @@ import type { Dims } from './attach-registry';
 import type { FleetEntry } from './fleet-entry';
 import { OutboundQueue } from './outbound-queue';
 import type { SocketWriter } from './outbound-queue';
+import { parseRequestParams } from './parse-request-params';
 import type { AnswerResult } from './permission-registry';
 import { MAX_CHUNK, MAX_LINE, PROTOCOL_V, decodeMessage, encodeMessage } from './protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from './protocol';
@@ -227,11 +228,17 @@ export class DaemonConnection {
         return;
       }
       case 'session.update': {
-        const sessionID = typeof req.p?.['session'] === 'string' ? req.p['session'] : '';
-        const name = typeof req.p?.['name'] === 'string' ? req.p['name'] : undefined;
-        const pinned = typeof req.p?.['pinned'] === 'boolean' ? req.p['pinned'] : undefined;
+        const parsed = parseRequestParams('session.update', req.p);
 
-        if (this.ctx.updateSession(sessionID, name, pinned)) {
+        if (!parsed.ok) {
+          this.sendErr(req.id, 'bad_args', parsed.message);
+
+          return;
+        }
+
+        const sessionID = parsed.data.session;
+
+        if (this.ctx.updateSession(sessionID, parsed.data.name, parsed.data.pinned)) {
           this.sendOk(req.id, {});
         } else {
           this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
@@ -240,17 +247,25 @@ export class DaemonConnection {
         return;
       }
       case 'session.kill': {
-        this.applySessionVerb(req, this.ctx.killSession);
+        this.applySessionVerb(req, 'session.kill', this.ctx.killSession);
 
         return;
       }
       case 'session.ack': {
-        this.applySessionVerb(req, this.ctx.ackSession);
+        this.applySessionVerb(req, 'session.ack', this.ctx.ackSession);
 
         return;
       }
       case 'session.resumeCommand': {
-        const id = typeof req.p?.['session'] === 'string' ? req.p['session'] : '';
+        const parsed = parseRequestParams('session.resumeCommand', req.p);
+
+        if (!parsed.ok) {
+          this.sendErr(req.id, 'bad_args', parsed.message);
+
+          return;
+        }
+
+        const id = parsed.data.session;
         const command = this.ctx.buildResumeCommand(id);
 
         if (command === null) {
@@ -262,14 +277,16 @@ export class DaemonConnection {
         return;
       }
       case 'session.eject': {
-        const sessionID = typeof req.p?.['session'] === 'string' ? req.p['session'] : '';
+        const parsed = parseRequestParams('session.eject', req.p);
 
-        const prompt =
-          typeof req.p?.['prompt'] === 'string' && req.p['prompt'] !== ''
-            ? req.p['prompt']
-            : 'Continue the task autonomously. Verify your work as you go and stop when it is complete.';
+        if (!parsed.ok) {
+          this.sendErr(req.id, 'bad_args', parsed.message);
 
-        const result = this.ctx.ejectSession(sessionID, prompt);
+          return;
+        }
+
+        const sessionID = parsed.data.session;
+        const result = this.ctx.ejectSession(sessionID, parsed.data.prompt);
 
         if (result === 'ok') {
           this.sendOk(req.id, {});
@@ -292,10 +309,16 @@ export class DaemonConnection {
         return;
       }
       case 'session.adopt': {
-        const sessionID = typeof req.p?.['session'] === 'string' ? req.p['session'] : '';
-        const cols = typeof req.p?.['cols'] === 'number' ? req.p['cols'] : 80;
-        const rows = typeof req.p?.['rows'] === 'number' ? req.p['rows'] : 24;
-        const adoptResult = this.ctx.adoptSession(sessionID, cols, rows);
+        const parsed = parseRequestParams('session.adopt', req.p);
+
+        if (!parsed.ok) {
+          this.sendErr(req.id, 'bad_args', parsed.message);
+
+          return;
+        }
+
+        const sessionID = parsed.data.session;
+        const adoptResult = this.ctx.adoptSession(sessionID, parsed.data.cols, parsed.data.rows);
 
         if (adoptResult === 'ok') {
           this.sendOk(req.id, {});
@@ -321,9 +344,15 @@ export class DaemonConnection {
         return;
       }
       case 'session.detach': {
-        const sessionID = typeof req.p?.['session'] === 'string' ? req.p['session'] : '';
+        const parsed = parseRequestParams('session.detach', req.p);
 
-        this.ctx.detachSession(this, sessionID);
+        if (!parsed.ok) {
+          this.sendErr(req.id, 'bad_args', parsed.message);
+
+          return;
+        }
+
+        this.ctx.detachSession(this, parsed.data.session);
         this.sendOk(req.id, {});
 
         return;
@@ -344,10 +373,17 @@ export class DaemonConnection {
         return;
       }
       case 'fleet.restore': {
-        const cols = typeof req.p?.['cols'] === 'number' ? req.p['cols'] : 80;
-        const rows = typeof req.p?.['rows'] === 'number' ? req.p['rows'] : 24;
+        const parsed = parseRequestParams('fleet.restore', req.p);
 
-        this.sendOk(req.id, { restored: this.ctx.restoreFleet(cols, rows) });
+        if (!parsed.ok) {
+          this.sendErr(req.id, 'bad_args', parsed.message);
+
+          return;
+        }
+
+        this.sendOk(req.id, {
+          restored: this.ctx.restoreFleet(parsed.data.cols, parsed.data.rows),
+        });
 
         return;
       }
@@ -358,31 +394,17 @@ export class DaemonConnection {
   }
 
   private applySpawn(req: RequestMsg): void {
-    const cwd = req.p?.['cwd'];
+    const parsed = parseRequestParams('session.spawn', req.p);
 
-    if (typeof cwd !== 'string' || cwd === '') {
-      this.sendErr(req.id, 'bad_args', 'session.spawn requires a cwd');
-
-      return;
-    }
-
-    const name = typeof req.p?.['name'] === 'string' ? req.p['name'] : '';
-    const rawResume = req.p?.['resume'];
-    let resume: boolean | string = false;
-
-    if (typeof rawResume === 'boolean' || typeof rawResume === 'string') {
-      resume = rawResume;
-    }
-
-    const rawAgent = req.p?.['agent'];
-
-    if (rawAgent !== undefined && (typeof rawAgent !== 'string' || rawAgent === '')) {
-      this.sendErr(req.id, 'bad_args', 'session.spawn agent must be a non-empty agent id');
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
 
       return;
     }
 
-    const agent: AgentID = rawAgent ?? 'claude';
+    const cwd = parsed.data.cwd;
+    const name = parsed.data.name;
+    const agent: AgentID = parsed.data.agent ?? 'claude';
 
     if (this.ctx.findAdapter(agent) === null) {
       this.sendErr(req.id, 'unsupported', `no adapter for agent '${agent}'`);
@@ -393,10 +415,10 @@ export class DaemonConnection {
     const session = this.ctx.spawnSession({
       cwd,
       name: name === '' ? basename(cwd) : name,
-      prompt: typeof req.p?.['prompt'] === 'string' ? req.p['prompt'] : '',
-      cols: typeof req.p?.['cols'] === 'number' ? req.p['cols'] : 80,
-      rows: typeof req.p?.['rows'] === 'number' ? req.p['rows'] : 24,
-      resume,
+      prompt: parsed.data.prompt,
+      cols: parsed.data.cols,
+      rows: parsed.data.rows,
+      resume: parsed.data.resume,
       namedBy: name === '' ? 'auto' : 'user',
       agent,
     });
@@ -405,10 +427,20 @@ export class DaemonConnection {
   }
 
   private applyAttach(req: RequestMsg): void {
-    const sessionID = typeof req.p?.['session'] === 'string' ? req.p['session'] : '';
-    const cols = typeof req.p?.['cols'] === 'number' ? req.p['cols'] : 80;
-    const rows = typeof req.p?.['rows'] === 'number' ? req.p['rows'] : 24;
-    const result = this.ctx.attachSession(this, sessionID, { cols, rows });
+    const parsed = parseRequestParams('session.attach', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const sessionID = parsed.data.session;
+
+    const result = this.ctx.attachSession(this, sessionID, {
+      cols: parsed.data.cols,
+      rows: parsed.data.rows,
+    });
 
     if (result === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
@@ -428,9 +460,16 @@ export class DaemonConnection {
   }
 
   private applyInput(req: RequestMsg): void {
-    const sessionID = typeof req.p?.['session'] === 'string' ? req.p['session'] : '';
-    const data = typeof req.p?.['d'] === 'string' ? req.p['d'] : '';
-    const result = this.ctx.writeSessionInput(sessionID, data);
+    const parsed = parseRequestParams('session.input', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const sessionID = parsed.data.session;
+    const result = this.ctx.writeSessionInput(sessionID, parsed.data.d);
 
     if (result === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
@@ -458,17 +497,19 @@ export class DaemonConnection {
   }
 
   private applyResize(req: RequestMsg): void {
-    const sessionID = typeof req.p?.['session'] === 'string' ? req.p['session'] : '';
-    const cols = typeof req.p?.['cols'] === 'number' ? req.p['cols'] : 0;
-    const rows = typeof req.p?.['rows'] === 'number' ? req.p['rows'] : 0;
+    const parsed = parseRequestParams('session.resize', req.p);
 
-    if (cols < 1 || rows < 1) {
-      this.sendErr(req.id, 'bad_args', 'session.resize requires positive cols and rows');
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
 
       return;
     }
 
-    if (!this.ctx.resizeSession(this, sessionID, { cols, rows })) {
+    const sessionID = parsed.data.session;
+
+    if (
+      !this.ctx.resizeSession(this, sessionID, { cols: parsed.data.cols, rows: parsed.data.rows })
+    ) {
       this.sendErr(req.id, 'bad_args', `not attached to session '${sessionID}'`);
 
       return;
@@ -478,15 +519,16 @@ export class DaemonConnection {
   }
 
   private applyPermissionRespond(req: RequestMsg): void {
-    const request = typeof req.p?.['request'] === 'string' ? req.p['request'] : '';
-    const decision = typeof req.p?.['decision'] === 'string' ? req.p['decision'] : '';
+    const parsed = parseRequestParams('permission.respond', req.p);
 
-    if (request === '' || decision === '') {
-      this.sendErr(req.id, 'bad_args', 'permission.respond requires a request and a decision');
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
 
       return;
     }
 
+    const request = parsed.data.request;
+    const decision = parsed.data.decision;
     const result = this.ctx.answerPermission(request, decision);
 
     switch (result) {
@@ -511,8 +553,20 @@ export class DaemonConnection {
     }
   }
 
-  private applySessionVerb(req: RequestMsg, verb: (id: string) => boolean): void {
-    const id = typeof req.p?.['session'] === 'string' ? req.p['session'] : '';
+  private applySessionVerb(
+    req: RequestMsg,
+    method: 'session.kill' | 'session.ack',
+    verb: (id: string) => boolean,
+  ): void {
+    const parsed = parseRequestParams(method, req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const id = parsed.data.session;
 
     if (verb(id)) {
       this.sendOk(req.id, {});
@@ -522,7 +576,8 @@ export class DaemonConnection {
   }
 
   private applyHello(req: RequestMsg): boolean {
-    const client = typeof req.p?.['client'] === 'string' ? req.p['client'] : 'unknown client';
+    const parsedHello = parseRequestParams('daemon.hello', req.p);
+    const client = parsedHello.ok ? parsedHello.data.client : 'unknown client';
 
     if (req.v !== PROTOCOL_V) {
       this.sendErr(
