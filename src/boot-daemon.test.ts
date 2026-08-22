@@ -21,10 +21,9 @@ const idleAdapter: AgentAdapter = {
 test('it surfaces a codex hello as the last-used agent instead of coercing it to claude', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'atc-boot-daemon-'));
 
-  // bootDaemonClient reads its socket path from config.ts constants, which
-  // are derived from XDG_RUNTIME_DIR at import time — so the probe below
-  // runs in a subprocess with that env var pointed at this temp dir, rather
-  // than importing boot-daemon into this process.
+  // The socket path is derived from XDG_RUNTIME_DIR at import time, so the
+  // probe below runs in a subprocess with that variable pointed at this
+  // temp dir, rather than importing the client into this process.
   const sockPath = join(dir, 'atc-daemon.sock');
 
   const store = new StateStore(join(dir, 'state.db'));

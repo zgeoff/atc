@@ -164,13 +164,19 @@ test('it evicts the oldest session and retains the newest once hook state passes
     payload: { sessionId: 's-0', promptId: 'p2', prompt: 'first' },
   });
 
-  for (let i = 1; i <= 256; i++) {
+  for (let i = 1; i <= 255; i++) {
     adapter.normalizeHook({
       atcId: `s-${i}`,
       event: 'SessionStart',
       payload: { sessionId: `s-${i}`, cwd: '/tmp' },
     });
   }
+
+  adapter.normalizeHook({
+    atcId: 's-256',
+    event: 'UserPromptSubmit',
+    payload: { sessionId: 's-256', promptId: 'p2', prompt: 'last' },
+  });
 
   expect(
     adapter.normalizeHook({
@@ -179,12 +185,6 @@ test('it evicts the oldest session and retains the newest once hook state passes
       payload: { sessionId: 's-0', reason: 'end_turn', promptId: 'p1' },
     }).kind,
   ).toBe('turn-done');
-
-  adapter.normalizeHook({
-    atcId: 's-256',
-    event: 'UserPromptSubmit',
-    payload: { sessionId: 's-256', promptId: 'p2', prompt: 'last' },
-  });
 
   expect(
     adapter.normalizeHook({

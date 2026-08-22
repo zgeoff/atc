@@ -19,8 +19,8 @@ interface GrokSessionHookState {
   lastKind: AdapterEvent['kind'];
 }
 
-// Caps hookState so a Grok session killed or crashed without a SessionEnd
-// hook cannot grow the map for the daemon's whole lifetime.
+// Bounds per-session hook state so a Grok session killed or crashed without
+// a SessionEnd hook cannot grow it for the daemon's whole lifetime.
 const MAX_HOOK_STATE_ENTRIES = 256;
 
 /**
