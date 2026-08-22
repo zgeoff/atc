@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { z } from 'zod';
 import type {
   AdapterEvent,
   AgentAdapter,
@@ -15,6 +16,20 @@ import { isRecord } from './report';
 import { toShellArg } from './to-shell-arg';
 import { truncateDetail } from './truncate-detail';
 import { writeHookSettings } from './write-hook-settings';
+
+// Claude's hook payload keys, snake_case. Every field is read once at the
+// top of normalizeHook instead of indexing the raw payload throughout; an
+// absent or wrong-typed field parses to undefined rather than failing the
+// payload.
+const CLAUDE_HOOK_PAYLOAD_SCHEMA = z.object({
+  session_id: buildOptionalString(),
+  transcript_path: buildOptionalString(),
+  message: buildOptionalString(),
+  last_assistant_message: buildOptionalString(),
+  prompt: buildOptionalString(),
+});
+
+type ClaudeHookPayload = z.infer<typeof CLAUDE_HOOK_PAYLOAD_SCHEMA>;
 
 /**
  * The Claude Code adapter: spawn arguments, `--settings` instrumentation,
@@ -55,21 +70,22 @@ export class ClaudeAdapter implements AgentAdapter {
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {
-    const sessionID = e.payload['session_id'];
-    const transcript = e.payload['transcript_path'];
+    const parsed = CLAUDE_HOOK_PAYLOAD_SCHEMA.safeParse(e.payload);
+    const payload: ClaudeHookPayload = parsed.success ? parsed.data : {};
 
     const base: AdapterEvent = {
       kind: 'heartbeat',
-
-      // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's session_id is an agent session id by contract; this is the one point where it is trusted
-      ...(typeof sessionID === 'string' ? { agentSessionID: sessionID as AgentSessionID } : {}),
+      ...(payload.session_id === undefined
+        ? {}
+        : // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's session_id is an agent session id by contract; this is the one point where it is trusted
+          { agentSessionID: payload.session_id as AgentSessionID }),
     };
 
     const named: AdapterEvent = {
       ...base,
-      ...(typeof transcript === 'string'
-        ? { nameSource: transcript, transcriptSource: transcript }
-        : {}),
+      ...(payload.transcript_path === undefined
+        ? {}
+        : { nameSource: payload.transcript_path, transcriptSource: payload.transcript_path }),
     };
 
     switch (e.event) {
@@ -77,30 +93,29 @@ export class ClaudeAdapter implements AgentAdapter {
         return { ...named, kind: 'started' };
       }
       case 'Notification': {
-        const message = e.payload['message'];
+        const message = payload.message;
 
         return {
           ...base,
           kind: 'needs-input',
-          ...(typeof message === 'string' && message !== ''
+          ...(message !== undefined && message !== ''
             ? { message, detail: truncateDetail(message) }
             : {}),
         };
       }
       case 'Stop': {
-        const lastMessage = e.payload['last_assistant_message'];
+        const lastMessage = payload.last_assistant_message;
 
         return {
           ...named,
           kind: 'turn-done',
-          ...(typeof lastMessage === 'string' && lastMessage !== ''
+          ...(lastMessage !== undefined && lastMessage !== ''
             ? { detail: truncateDetail(lastMessage) }
             : {}),
         };
       }
       case 'UserPromptSubmit': {
-        const prompt = e.payload['prompt'];
-        const preview = typeof prompt === 'string' ? prompt.slice(0, 80) : '';
+        const preview = payload.prompt === undefined ? '' : payload.prompt.slice(0, 80);
 
         return {
           ...named,
@@ -186,4 +201,8 @@ export class ClaudeAdapter implements AgentAdapter {
 
     return `cd ${toShellArg(cwd)} && ${resume}`;
   }
+}
+
+function buildOptionalString() {
+  return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().optional());
 }

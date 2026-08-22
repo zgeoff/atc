@@ -160,6 +160,36 @@ test('it resumes when no transcript was reported or the reported rollout exists'
   expect(adapter.canResume({ transcriptSource: join(dir, 'missing.jsonl') })).toBe(false);
 });
 
+test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
+  const adapter = new CodexAdapter(buildCodexConfig());
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'Stop',
+
+    // oxlint-disable-next-line no-unsafe-type-assertion -- exercising a payload shape the HookEvent type rules out but a hostile or buggy reporter could still send
+    payload: 'garbage' as unknown as Record<string, unknown>,
+  });
+
+  expect(ev).toStrictEqual({ kind: 'turn-done' });
+});
+
+test('it treats wrong-typed hook payload fields as absent instead of throwing', () => {
+  const adapter = new CodexAdapter(buildCodexConfig());
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'PermissionRequest',
+    payload: { session_id: null, tool_name: 7 },
+  });
+
+  expect(ev).toStrictEqual({
+    kind: 'needs-input',
+    message: 'waiting for approval',
+    detail: 'waiting for approval',
+  });
+});
+
 test('it builds codex resume commands with and without a captured id', () => {
   const adapter = new CodexAdapter(buildCodexConfig());
 

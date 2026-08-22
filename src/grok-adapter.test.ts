@@ -307,6 +307,30 @@ test('it loads an auto title only when the session was not user-named', async ()
   expect(user).toBeNull();
 });
 
+test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
+  const adapter = new GrokAdapter(buildGrokConfig());
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'Stop',
+
+    // oxlint-disable-next-line no-unsafe-type-assertion -- exercising a payload shape the HookEvent type rules out but a hostile or buggy reporter could still send
+    payload: 'garbage' as unknown as Record<string, unknown>,
+  });
+
+  expect(ev).toStrictEqual({ kind: 'heartbeat' });
+});
+
+test('it treats wrong-typed hook payload fields as absent instead of throwing', () => {
+  const adapter = new GrokAdapter(buildGrokConfig());
+
+  const ev = adapter.normalizeHook(
+    buildGrokHook('Stop', { sessionId: 9, cwd: null, reason: ['end_turn'], promptId: 12 }),
+  );
+
+  expect(ev).toStrictEqual({ kind: 'heartbeat' });
+});
+
 test('it resumes when a session id was captured and not from a summary path', () => {
   const adapter = new GrokAdapter(buildGrokConfig());
 

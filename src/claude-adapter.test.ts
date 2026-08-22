@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ClaudeAdapter } from './claude-adapter';
 import type { Config } from './config';
+import type { SessionID } from './session-id';
 
 function buildClaudeConfig(): Config {
   return {
@@ -16,6 +17,11 @@ function buildClaudeConfig(): Config {
     gateways: [],
     leader: { code: 0, label: '^Space' },
   };
+}
+
+function toSessionID(id: string): SessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
+  return id as SessionID;
 }
 
 test('it resumes when no transcript was reported or the reported file exists', () => {
@@ -34,4 +40,30 @@ test('it resumes when no transcript was reported or the reported file exists', (
   expect(adapter.canResume({})).toBe(true);
   expect(adapter.canResume({ transcriptSource: transcript })).toBe(true);
   expect(adapter.canResume({ transcriptSource: join(dir, 'missing.jsonl') })).toBe(false);
+});
+
+test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
+  const adapter = new ClaudeAdapter(buildClaudeConfig());
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'Stop',
+
+    // oxlint-disable-next-line no-unsafe-type-assertion -- exercising a payload shape the HookEvent type rules out but a hostile or buggy reporter could still send
+    payload: 'garbage' as unknown as Record<string, unknown>,
+  });
+
+  expect(ev).toStrictEqual({ kind: 'turn-done' });
+});
+
+test('it treats wrong-typed hook payload fields as absent instead of throwing', () => {
+  const adapter = new ClaudeAdapter(buildClaudeConfig());
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'Stop',
+    payload: { session_id: 42, transcript_path: null, last_assistant_message: ['pong'] },
+  });
+
+  expect(ev).toStrictEqual({ kind: 'turn-done' });
 });
