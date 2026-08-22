@@ -8,11 +8,13 @@ import type {
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
+import type { AgentSessionID } from './agent-session-id';
 import type { Config } from './config';
 import type { HookEvent } from './hooks';
 import { normalizeHookEventName } from './normalize-hook-event';
 import { isRecord } from './report';
 import { resolveAgentHome } from './resolve-agent-home';
+import type { SessionID } from './session-id';
 import { toShellArg } from './to-shell-arg';
 import { truncateDetail } from './truncate-detail';
 
@@ -40,7 +42,7 @@ export class GrokAdapter implements AgentAdapter {
 
   private readonly config: Config;
 
-  private readonly hookState = new Map<string, GrokSessionHookState>();
+  private readonly hookState = new Map<SessionID, GrokSessionHookState>();
 
   constructor(config: Config) {
     this.config = config;
@@ -64,15 +66,21 @@ export class GrokAdapter implements AgentAdapter {
     const promptID = e.payload['promptId'];
     const subagentType = e.payload['subagentType'];
 
+    const agentSessionID =
+      typeof sessionID === 'string'
+        ? // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's sessionId is an agent session id by contract; this is the one point where it is trusted
+          (sessionID as AgentSessionID)
+        : undefined;
+
     const base: AdapterEvent = {
       kind: 'heartbeat',
-      ...(typeof sessionID === 'string' ? { agentSessionID: sessionID } : {}),
+      ...(agentSessionID === undefined ? {} : { agentSessionID }),
     };
 
     const named: AdapterEvent = {
       ...base,
-      ...(typeof sessionID === 'string' && typeof cwd === 'string'
-        ? { nameSource: buildGrokNameSource(sessionID, cwd) }
+      ...(agentSessionID !== undefined && typeof cwd === 'string'
+        ? { nameSource: buildGrokNameSource(agentSessionID, cwd) }
         : {}),
     };
 
@@ -187,13 +195,17 @@ export class GrokAdapter implements AgentAdapter {
   }
 
   // Shell command that re-opens this session outside atc (or anywhere).
-  buildResumeCommand(cwd: string, agentSessionID: string | undefined): string | null {
+  buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
     const resume = agentSessionID === undefined ? 'grok' : `grok --resume ${agentSessionID}`;
 
     return `cd ${toShellArg(cwd)} && ${resume}`;
   }
 
-  private emitHook(atcID: string, event: Readonly<AdapterEvent>, promptID?: string): AdapterEvent {
+  private emitHook(
+    atcID: SessionID,
+    event: Readonly<AdapterEvent>,
+    promptID?: string,
+  ): AdapterEvent {
     const prior = this.hookState.get(atcID);
     const latestPromptID = promptID ?? prior?.latestPromptID;
 
@@ -226,7 +238,7 @@ export class GrokAdapter implements AgentAdapter {
   }
 }
 
-function buildGrokNameSource(sessionID: string, cwd: string): string {
+function buildGrokNameSource(sessionID: AgentSessionID, cwd: string): string {
   return join(
     resolveAgentHome('GROK_HOME', '.grok'),
     'sessions',

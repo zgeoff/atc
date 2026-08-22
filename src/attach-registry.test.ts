@@ -1,52 +1,58 @@
 import { expect, test } from 'bun:test';
 import { AttachRegistry } from './attach-registry';
+import type { SessionID } from './session-id';
+
+function toSessionID(id: string): SessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literals stand in for minted session ids
+  return id as SessionID;
+}
 
 test('it reports the smallest width and height across attached clients', () => {
   const registry = new AttachRegistry<string>();
 
-  registry.attach('s1', 'a', { cols: 100, rows: 24 });
-  registry.attach('s1', 'b', { cols: 80, rows: 30 });
+  registry.attach(toSessionID('s1'), 'a', { cols: 100, rows: 24 });
+  registry.attach(toSessionID('s1'), 'b', { cols: 80, rows: 30 });
 
-  expect(registry.findEffectiveDims('s1')).toStrictEqual({ cols: 80, rows: 24 });
+  expect(registry.findEffectiveDims(toSessionID('s1'))).toStrictEqual({ cols: 80, rows: 24 });
 });
 
 test('it reports no dims for a session with no attached clients', () => {
   const registry = new AttachRegistry<string>();
 
-  expect(registry.findEffectiveDims('s1')).toBeNull();
+  expect(registry.findEffectiveDims(toSessionID('s1'))).toBeNull();
 });
 
 test('it updates dims only for an attached client', () => {
   const registry = new AttachRegistry<string>();
 
-  registry.attach('s1', 'a', { cols: 100, rows: 24 });
+  registry.attach(toSessionID('s1'), 'a', { cols: 100, rows: 24 });
 
-  expect(registry.updateDims('s1', 'a', { cols: 90, rows: 20 })).toBeTrue();
-  expect(registry.updateDims('s1', 'stranger', { cols: 10, rows: 10 })).toBeFalse();
-  expect(registry.findEffectiveDims('s1')).toStrictEqual({ cols: 90, rows: 20 });
+  expect(registry.updateDims(toSessionID('s1'), 'a', { cols: 90, rows: 20 })).toBeTrue();
+  expect(registry.updateDims(toSessionID('s1'), 'stranger', { cols: 10, rows: 10 })).toBeFalse();
+  expect(registry.findEffectiveDims(toSessionID('s1'))).toStrictEqual({ cols: 90, rows: 20 });
 });
 
 test('it detaches one client from every session it watched', () => {
   const registry = new AttachRegistry<string>();
 
-  registry.attach('s1', 'a', { cols: 80, rows: 24 });
-  registry.attach('s2', 'a', { cols: 80, rows: 24 });
-  registry.attach('s2', 'b', { cols: 100, rows: 30 });
+  registry.attach(toSessionID('s1'), 'a', { cols: 80, rows: 24 });
+  registry.attach(toSessionID('s2'), 'a', { cols: 80, rows: 24 });
+  registry.attach(toSessionID('s2'), 'b', { cols: 100, rows: 30 });
 
   const affected = registry.detachAll('a');
 
-  expect(affected).toStrictEqual(['s1', 's2']);
-  expect(registry.collectClients('s1')).toStrictEqual([]);
-  expect(registry.collectClients('s2')).toStrictEqual(['b']);
+  expect(affected).toStrictEqual([toSessionID('s1'), toSessionID('s2')]);
+  expect(registry.collectClients(toSessionID('s1'))).toStrictEqual([]);
+  expect(registry.collectClients(toSessionID('s2'))).toStrictEqual(['b']);
 });
 
 test('it keeps other sessions when one is removed', () => {
   const registry = new AttachRegistry<string>();
 
-  registry.attach('s1', 'a', { cols: 80, rows: 24 });
-  registry.attach('s2', 'a', { cols: 80, rows: 24 });
-  registry.removeSession('s1');
+  registry.attach(toSessionID('s1'), 'a', { cols: 80, rows: 24 });
+  registry.attach(toSessionID('s2'), 'a', { cols: 80, rows: 24 });
+  registry.removeSession(toSessionID('s1'));
 
-  expect(registry.hasClient('s1', 'a')).toBeFalse();
-  expect(registry.hasClient('s2', 'a')).toBeTrue();
+  expect(registry.hasClient(toSessionID('s1'), 'a')).toBeFalse();
+  expect(registry.hasClient(toSessionID('s2'), 'a')).toBeTrue();
 });

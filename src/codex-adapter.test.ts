@@ -2,8 +2,20 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { AgentSessionID } from './agent-session-id';
 import { CodexAdapter } from './codex-adapter';
 import type { Config } from './config';
+import type { SessionID } from './session-id';
+
+function toSessionID(id: string): SessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
+  return id as SessionID;
+}
+
+function toAgentSessionID(id: string): AgentSessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for an agent-minted session id
+  return id as AgentSessionID;
+}
 
 function buildCodexConfig(): Config {
   return {
@@ -52,7 +64,7 @@ test('it spawns fresh, picker-resume, and id-resume codex commands', () => {
     args: ['resume'],
   });
 
-  expect(adapter.planSpawn({ prompt: '', resume: 'c-1' })).toStrictEqual({
+  expect(adapter.planSpawn({ prompt: '', resume: toAgentSessionID('c-1') })).toStrictEqual({
     bin: 'codex',
     args: ['resume', 'c-1'],
   });
@@ -62,7 +74,7 @@ test('it maps a codex session start to started with id, name, and transcript sou
   const adapter = new CodexAdapter(buildCodexConfig());
 
   const ev = adapter.normalizeHook({
-    atcId: 's1',
+    atcId: toSessionID('s1'),
     event: 'SessionStart',
     payload: {
       session_id: 'c-1',
@@ -75,7 +87,7 @@ test('it maps a codex session start to started with id, name, and transcript sou
 
   expect(ev).toStrictEqual({
     kind: 'started',
-    agentSessionID: 'c-1',
+    agentSessionID: toAgentSessionID('c-1'),
     nameSource: 'c-1',
     transcriptSource: '/tmp/rollout-c-1.jsonl',
   });
@@ -85,7 +97,7 @@ test('it maps codex prompt, stop, permission, and end events to session kinds', 
   const adapter = new CodexAdapter(buildCodexConfig());
 
   const submitted = adapter.normalizeHook({
-    atcId: 's1',
+    atcId: toSessionID('s1'),
     event: 'UserPromptSubmit',
     payload: { session_id: 'c-1', prompt: 'do the thing' },
   });
@@ -93,7 +105,7 @@ test('it maps codex prompt, stop, permission, and end events to session kinds', 
   expect(submitted).toMatchObject({ kind: 'prompt-submitted', message: 'do the thing' });
 
   const stopped = adapter.normalizeHook({
-    atcId: 's1',
+    atcId: toSessionID('s1'),
     event: 'Stop',
     payload: { session_id: 'c-1', last_assistant_message: 'pong' },
   });
@@ -101,7 +113,7 @@ test('it maps codex prompt, stop, permission, and end events to session kinds', 
   expect(stopped).toMatchObject({ kind: 'turn-done', detail: 'pong' });
 
   const approval = adapter.normalizeHook({
-    atcId: 's1',
+    atcId: toSessionID('s1'),
     event: 'PermissionRequest',
     payload: { session_id: 'c-1', tool_name: 'shell' },
   });
@@ -109,12 +121,12 @@ test('it maps codex prompt, stop, permission, and end events to session kinds', 
   expect(approval).toMatchObject({ kind: 'needs-input', message: 'waiting for approval: shell' });
 
   const ended = adapter.normalizeHook({
-    atcId: 's1',
+    atcId: toSessionID('s1'),
     event: 'SessionEnd',
     payload: { session_id: 'c-1', reason: 'other' },
   });
 
-  expect(ended).toStrictEqual({ kind: 'ended', agentSessionID: 'c-1' });
+  expect(ended).toStrictEqual({ kind: 'ended', agentSessionID: toAgentSessionID('c-1') });
 });
 
 test('it loads the latest indexed thread name but never over a user-typed name', async () => {
@@ -151,7 +163,7 @@ test('it resumes when no transcript was reported or the reported rollout exists'
 test('it builds codex resume commands with and without a captured id', () => {
   const adapter = new CodexAdapter(buildCodexConfig());
 
-  expect(adapter.buildResumeCommand("/tmp/it's", 'c-1')).toBe(
+  expect(adapter.buildResumeCommand("/tmp/it's", toAgentSessionID('c-1'))).toBe(
     String.raw`cd '/tmp/it'\''s' && codex resume c-1`,
   );
 

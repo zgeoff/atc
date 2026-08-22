@@ -1,11 +1,18 @@
 import { z } from 'zod';
+import type { AgentSessionID } from './agent-session-id';
+import type { SessionID } from './session-id';
 
 const EJECT_DEFAULT_PROMPT =
   'Continue the task autonomously. Verify your work as you go and stop when it is complete.';
 
 // The `session` field every wire schema below carries: absent or
 // wrong-typed falls back to an empty string instead of failing the parse.
-const SESSION_DEFAULTED = z.object({ session: buildDefaultedString('') });
+// This is the one point where a session id arriving off the wire is typed
+// as the branded atc session id every daemon-side session lookup expects.
+const SESSION_DEFAULTED = z.object({
+  // oxlint-disable-next-line no-unsafe-type-assertion -- the session field arrives off the wire as a plain string; this asserts its parsed type as the branded atc session id without adding a runtime step
+  session: buildDefaultedString('') as unknown as z.ZodType<SessionID>,
+});
 
 export const REQUEST_PARAM_SCHEMAS = {
   'daemon.hello': z.object({
@@ -26,7 +33,9 @@ export const REQUEST_PARAM_SCHEMAS = {
     prompt: buildDefaultedString(''),
     cols: buildDefaultedNumber(80),
     rows: buildDefaultedNumber(24),
-    resume: buildDefaultedBooleanOrString(false),
+
+    // oxlint-disable-next-line no-unsafe-type-assertion -- a string resume value arrives off the wire as an agent session id to resume; this asserts its parsed type into the branded agent session id without adding a runtime step
+    resume: buildDefaultedBooleanOrString(false) as unknown as z.ZodType<boolean | AgentSessionID>,
     agent: z
       .string({ error: 'session.spawn agent must be a non-empty agent id' })
       .min(1, 'session.spawn agent must be a non-empty agent id')

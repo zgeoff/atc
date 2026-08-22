@@ -1,3 +1,4 @@
+import type { AgentSessionID } from './agent-session-id';
 import type { HookEvent } from './hooks';
 
 /**
@@ -20,9 +21,9 @@ export function toAgentID(raw: unknown): AgentID {
 export interface SpawnOptions {
   readonly prompt: string;
 
-  // true opens the agent's own session picker; a string resumes that
-  // specific agent session id.
-  readonly resume: boolean | string;
+  // true opens the agent's own session picker; an agent session id resumes
+  // that specific session.
+  readonly resume: boolean | AgentSessionID;
 }
 
 export interface SpawnPlan {
@@ -32,7 +33,7 @@ export interface SpawnPlan {
 
 export interface AdapterEvent {
   kind: 'started' | 'needs-input' | 'turn-done' | 'prompt-submitted' | 'ended' | 'heartbeat';
-  agentSessionID?: string;
+  agentSessionID?: AgentSessionID;
   message?: string;
 
   // Fuller activity text than message: what the agent last said or was
@@ -64,14 +65,14 @@ interface ScreenDetector {
 }
 
 export interface ResumeCheck {
-  readonly agentSessionID?: string;
+  readonly agentSessionID?: AgentSessionID;
   readonly transcriptSource?: string;
 }
 
 interface HeadlessRunRequest {
   readonly cwd: string;
   readonly prompt: string;
-  readonly resume?: string;
+  readonly resume?: AgentSessionID;
   readonly permissionMode?: string;
 
   // Settings file the run's CLI is started with, so a headless turn reaches
@@ -113,5 +114,8 @@ export interface AgentAdapter {
     namedBy: 'user' | 'auto' | 'agent',
   ) => Promise<NameUpdate | null>;
   readonly canResume: (session: ResumeCheck) => boolean;
-  readonly buildResumeCommand: (cwd: string, agentSessionID: string | undefined) => string | null;
+  readonly buildResumeCommand: (
+    cwd: string,
+    agentSessionID: AgentSessionID | undefined,
+  ) => string | null;
 }

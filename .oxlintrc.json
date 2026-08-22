@@ -62,7 +62,11 @@
           { "from": "file", "name": "HookEvent" },
           { "from": "file", "name": "OverlayView" },
           { "from": "file", "name": "PickerView" },
-          { "from": "file", "name": "TestContext" }
+          { "from": "file", "name": "TestContext" },
+          // branded primitives: the tag is a readonly symbol key carrying no
+          // mutable state, so there is nothing for a readonly wrapper to add
+          { "from": "file", "name": "SessionID" },
+          { "from": "file", "name": "AgentSessionID" }
         ]
       }
     ],
@@ -91,7 +95,24 @@
       "files": ["src/daemon.ts"],
       // the daemon entry wires the two listeners to the session manager, the
       // screen models, the attach and permission registries and the store,
-      // and each import belongs to one of those connections
+      // and each import belongs to one of those connections; the branded
+      // session and agent-session id types add one import each
+      "rules": {
+        "import/max-dependencies": ["error", { "max": 13 }]
+      }
+    },
+    {
+      "files": ["src/grok-adapter.ts"],
+      // the adapter's own dependencies plus the branded session and
+      // agent-session id types it keys and mints at its hook boundary
+      "rules": {
+        "import/max-dependencies": ["error", { "max": 12 }]
+      }
+    },
+    {
+      "files": ["src/daemon-last-used.test.ts"],
+      // drives a whole daemon plus a grok adapter and the branded
+      // agent-session id its fixture fleet entry needs
       "rules": {
         "import/max-dependencies": ["error", { "max": 11 }]
       }
@@ -99,10 +120,11 @@
     {
       "files": ["src/daemon-headless.test.ts", "test/daemon-e2e.test.ts"],
       // these drive a whole daemon end to end: its options, the adapters they
-      // register, a client to talk to it, and the helpers their assertions
-      // narrow wire payloads with
+      // register, a client to talk to it, the helpers their assertions
+      // narrow wire payloads with, and the branded agent-session id their
+      // fixture fleet entries need
       "rules": {
-        "import/max-dependencies": ["error", { "max": 11 }]
+        "import/max-dependencies": ["error", { "max": 12 }]
       }
     }
   ],

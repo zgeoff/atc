@@ -1,5 +1,11 @@
 import { expect, test } from 'bun:test';
 import { parseRequestParams } from './parse-request-params';
+import type { SessionID } from './session-id';
+
+function toSessionID(id: string): SessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
+  return id as SessionID;
+}
 
 test.each([
   ['daemon.hello', { client: 'atc/1.0' }, { client: 'atc/1.0' }],
@@ -14,32 +20,36 @@ test.each([
     { cwd: '/tmp', name: 'n', prompt: 'p', cols: 100, rows: 30, resume: 'abc', agent: 'grok' },
     { cwd: '/tmp', name: 'n', prompt: 'p', cols: 100, rows: 30, resume: 'abc', agent: 'grok' },
   ],
-  ['session.kill', { session: 's1' }, { session: 's1' }],
-  ['session.ack', { session: 's1' }, { session: 's1' }],
+  ['session.kill', { session: 's1' }, { session: toSessionID('s1') }],
+  ['session.ack', { session: 's1' }, { session: toSessionID('s1') }],
   [
     'session.update',
     { session: 's1', name: 'n', pinned: true },
-    { session: 's1', name: 'n', pinned: true },
+    { session: toSessionID('s1'), name: 'n', pinned: true },
   ],
   [
     'session.attach',
     { session: 's1', cols: 100, rows: 30 },
-    { session: 's1', cols: 100, rows: 30 },
+    { session: toSessionID('s1'), cols: 100, rows: 30 },
   ],
-  ['session.detach', { session: 's1' }, { session: 's1' }],
-  ['session.input', { session: 's1', d: 'x' }, { session: 's1', d: 'x' }],
+  ['session.detach', { session: 's1' }, { session: toSessionID('s1') }],
+  ['session.input', { session: 's1', d: 'x' }, { session: toSessionID('s1'), d: 'x' }],
   [
     'session.resize',
     { session: 's1', cols: 100, rows: 30 },
-    { session: 's1', cols: 100, rows: 30 },
+    { session: toSessionID('s1'), cols: 100, rows: 30 },
   ],
-  ['session.resumeCommand', { session: 's1' }, { session: 's1' }],
+  ['session.resumeCommand', { session: 's1' }, { session: toSessionID('s1') }],
   [
     'session.eject',
     { session: 's1', prompt: 'keep going' },
-    { session: 's1', prompt: 'keep going' },
+    { session: toSessionID('s1'), prompt: 'keep going' },
   ],
-  ['session.adopt', { session: 's1', cols: 100, rows: 30 }, { session: 's1', cols: 100, rows: 30 }],
+  [
+    'session.adopt',
+    { session: 's1', cols: 100, rows: 30 },
+    { session: toSessionID('s1'), cols: 100, rows: 30 },
+  ],
   [
     'permission.respond',
     { request: 'r1', decision: 'allow' },
@@ -118,13 +128,19 @@ test('it defaults session.spawn cols, rows, name, prompt, and resume', () => {
 test('it defaults session.attach cols and rows to 80 and 24', () => {
   const parsed = parseRequestParams('session.attach', { session: 's1' });
 
-  expect(parsed).toStrictEqual({ ok: true, data: { session: 's1', cols: 80, rows: 24 } });
+  expect(parsed).toStrictEqual({
+    ok: true,
+    data: { session: toSessionID('s1'), cols: 80, rows: 24 },
+  });
 });
 
 test('it defaults session.adopt cols and rows to 80 and 24', () => {
   const parsed = parseRequestParams('session.adopt', { session: 's1' });
 
-  expect(parsed).toStrictEqual({ ok: true, data: { session: 's1', cols: 80, rows: 24 } });
+  expect(parsed).toStrictEqual({
+    ok: true,
+    data: { session: toSessionID('s1'), cols: 80, rows: 24 },
+  });
 });
 
 test('it defaults fleet.restore cols and rows to 80 and 24', () => {
@@ -139,7 +155,7 @@ test('it defaults the eject prompt to the standalone-continue instruction', () =
   expect(parsed).toStrictEqual({
     ok: true,
     data: {
-      session: 's1',
+      session: toSessionID('s1'),
       prompt:
         'Continue the task autonomously. Verify your work as you go and stop when it is complete.',
     },

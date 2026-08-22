@@ -1,5 +1,6 @@
 import { unlinkSync, writeFileSync } from 'node:fs';
 import type { AgentAdapter } from './agent-adapter';
+import type { AgentSessionID } from './agent-session-id';
 import { AttachRegistry } from './attach-registry';
 import type { Dims } from './attach-registry';
 import { buildSessionEvent } from './build-session-event';
@@ -10,6 +11,7 @@ import { PermissionRegistry } from './permission-registry';
 import { MAX_CHUNK, PROTOCOL_V } from './protocol';
 import type { EventMsg } from './protocol';
 import { ScreenModel } from './screen-model';
+import type { SessionID } from './session-id';
 import { SessionManager } from './sessions';
 import type { Session, SessionDescriptor, SessionState } from './sessions';
 import { StateStore } from './state-store';
@@ -104,22 +106,22 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     emitEvent({ v: PROTOCOL_V, ev: 'permission.resolved', request: id, decision });
   };
 
-  const headlessRuns = new Map<string, { readonly stop: () => void }>();
+  const headlessRuns = new Map<SessionID, { readonly stop: () => void }>();
 
   // Resuming an agent session while its old process is still shutting down
   // corrupts the handoff, so an eject waits for the terminal's final report
   // (or a settle timeout) before the headless run starts.
-  const pendingEjects = new Map<string, () => void>();
+  const pendingEjects = new Map<SessionID, () => void>();
 
   // A staggered fleet restore parks a resolver here while it waits for the
   // session it just revived to report it has booted; the reporter fires it on
   // SessionStart, and a dying revive fires it too so a failed resume does not
   // hold up the rest. Resolving a settled promise again is a no-op.
-  const bootWaiters = new Map<string, () => void>();
+  const bootWaiters = new Map<SessionID, () => void>();
 
   // Blocks until the session reports SessionStart, it dies, or the cap
   // elapses (a positive cap only; zero waits on the signal alone).
-  const waitForBoot = (sessionID: string, capMs: number): Promise<void> => {
+  const waitForBoot = (sessionID: SessionID, capMs: number): Promise<void> => {
     const settled = Promise.withResolvers<void>();
     const timer = capMs > 0 ? setTimeout(settled.resolve, capMs) : undefined;
 
@@ -142,7 +144,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     })();
   };
 
-  const startHeadlessTurn = (sessionID: string, prompt: string): boolean => {
+  const startHeadlessTurn = (sessionID: SessionID, prompt: string): boolean => {
     const s = mgr.sessions.find((x) => x.id === sessionID);
     const runner = s === undefined ? null : (mgr.findAdapter(s.agent)?.headlessRunner ?? null);
 
@@ -183,17 +185,17 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   };
 
   const attachments = new AttachRegistry<OutputClient>();
-  const seqs = new Map<string, number>();
-  const ptyDims = new Map<string, Dims>();
-  const screens = new Map<string, ScreenModel>();
-  const resizeTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  const detectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const seqs = new Map<SessionID, number>();
+  const ptyDims = new Map<SessionID, Dims>();
+  const screens = new Map<SessionID, ScreenModel>();
+  const resizeTimers = new Map<SessionID, ReturnType<typeof setTimeout>>();
+  const detectTimers = new Map<SessionID, ReturnType<typeof setTimeout>>();
   const restoreTimers = new Set<ReturnType<typeof setTimeout>>();
-  const pendingLastUsed = new Set<string>();
+  const pendingLastUsed = new Set<SessionID>();
 
   // The screen tier of the detector stack: once a session's output has
   // quiesced, judge the serialized screen and flip running/needs_you.
-  const scheduleDetect = (sessionID: string) => {
+  const scheduleDetect = (sessionID: SessionID) => {
     if (!mgr.hasScreenDetector) {
       return;
     }
@@ -223,7 +225,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   // Replay is the serialized screen sent as ordinary output events: the
   // client cannot tell replay from live and does not need to. A clear leads
   // so a stale or desynced client screen resets first.
-  const sendReplay = async (sessionID: string, client: OutputClient) => {
+  const sendReplay = async (sessionID: SessionID, client: OutputClient) => {
     const model = screens.get(sessionID);
 
     if (model === undefined) {
@@ -244,7 +246,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     }
   };
 
-  const applyEffectiveDims = (sessionID: string) => {
+  const applyEffectiveDims = (sessionID: SessionID) => {
     const dims = attachments.findEffectiveDims(sessionID);
 
     if (dims === null) {
@@ -274,7 +276,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
 
   // Debounced so two clients resizing in opposite directions cannot produce
   // a SIGWINCH storm; a no-op effective size never reaches the PTY.
-  const scheduleResize = (sessionID: string) => {
+  const scheduleResize = (sessionID: SessionID) => {
     if (resizeTimers.has(sessionID)) {
       return;
     }
@@ -289,7 +291,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     );
   };
 
-  const applyScreenJudgment = async (sessionID: string) => {
+  const applyScreenJudgment = async (sessionID: SessionID) => {
     const s = mgr.sessions.find((x) => x.id === sessionID);
     const detector = s === undefined ? null : (mgr.findAdapter(s.agent)?.screenDetector ?? null);
     const model = screens.get(sessionID);
@@ -343,7 +345,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   // Permission requests are synthesized from attention transitions: entering
   // needs_you opens one, and leaving it (answered directly in the terminal,
   // or the session dying) dismisses whatever is pending.
-  const lastStates = new Map<string, SessionState>();
+  const lastStates = new Map<SessionID, SessionState>();
 
   const recordAttention: SessionManager['onEvent'] = (kind, s) => {
     if (kind === 'removed') {
@@ -599,14 +601,14 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     getEffectiveDims: (sessionID) =>
       attachments.findEffectiveDims(sessionID) ?? ptyDims.get(sessionID) ?? { cols: 80, rows: 24 },
     restoreFleet: (cols, rows) => {
-      const hasLiveSession = (agentSessionID: string) =>
+      const hasLiveSession = (agentSessionID: AgentSessionID) =>
         mgr.sessions.some(
           (s) =>
             s.agentSessionID === agentSessionID &&
             (s.pty !== null || (s.kind === 'headless' && s.state !== 'exited')),
         );
 
-      const hasAnySession = (agentSessionID: string) =>
+      const hasAnySession = (agentSessionID: AgentSessionID) =>
         mgr.sessions.some((s) => s.agentSessionID === agentSessionID);
 
       const recency = store.collectFleetRecency();
@@ -740,7 +742,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   return { stop: stopDaemon };
 }
 
-function hasResumableTranscript(mgr: SessionManager, id: string): boolean {
+function hasResumableTranscript(mgr: SessionManager, id: SessionID): boolean {
   const s = mgr.sessions.find((x) => x.id === id);
 
   if (s === undefined) {
@@ -759,7 +761,7 @@ function hasResumableTranscript(mgr: SessionManager, id: string): boolean {
   });
 }
 
-function getDescriptor(mgr: SessionManager, id: string): SessionDescriptor {
+function getDescriptor(mgr: SessionManager, id: SessionID): SessionDescriptor {
   const d = mgr.collectDescriptors().find((x) => x.id === id);
 
   if (d === undefined) {

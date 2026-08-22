@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import type { AgentAdapter, AgentID } from './agent-adapter';
+import type { AgentAdapter, AgentID, SpawnOptions } from './agent-adapter';
 import type { Dims } from './attach-registry';
 import type { FleetEntry } from './fleet-entry';
 import { OutboundQueue } from './outbound-queue';
@@ -8,6 +8,7 @@ import { parseRequestParams } from './parse-request-params';
 import type { AnswerResult } from './permission-registry';
 import { MAX_CHUNK, MAX_LINE, PROTOCOL_V, decodeMessage, encodeMessage } from './protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from './protocol';
+import type { SessionID } from './session-id';
 import type { SessionDescriptor } from './sessions';
 
 interface SpawnParams {
@@ -16,7 +17,7 @@ interface SpawnParams {
   readonly prompt: string;
   readonly cols: number;
   readonly rows: number;
-  readonly resume: boolean | string;
+  readonly resume: SpawnOptions['resume'];
   readonly namedBy: 'user' | 'auto';
   readonly agent: AgentID;
 }
@@ -29,43 +30,43 @@ export interface DaemonContext {
   readonly loadLastUsedAgent: () => AgentID;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
   readonly spawnSession: (p: SpawnParams) => SessionDescriptor;
-  readonly killSession: (id: string) => boolean;
-  readonly updateSession: (id: string, name?: string, pinned?: boolean) => boolean;
+  readonly killSession: (id: SessionID) => boolean;
+  readonly updateSession: (id: SessionID, name?: string, pinned?: boolean) => boolean;
   readonly quitDaemon: () => void;
-  readonly ackSession: (id: string) => boolean;
-  readonly buildResumeCommand: (id: string) => string | null;
+  readonly ackSession: (id: SessionID) => boolean;
+  readonly buildResumeCommand: (id: SessionID) => string | null;
   readonly answerPermission: (request: string, decision: string) => AnswerResult;
   readonly restoreFleet: (cols: number, rows: number) => number;
   readonly attachSession: (
     client: OutputClient,
-    sessionID: string,
+    sessionID: SessionID,
     dims: Dims,
   ) => 'ok' | 'missing' | 'dead';
-  readonly detachSession: (client: OutputClient, sessionID: string) => void;
+  readonly detachSession: (client: OutputClient, sessionID: SessionID) => void;
   readonly detachClient: (client: OutputClient) => void;
   readonly writeSessionInput: (
-    sessionID: string,
+    sessionID: SessionID,
     data: string,
   ) => 'busy' | 'ok' | 'missing' | 'dead';
   readonly ejectSession: (
-    id: string,
+    id: SessionID,
     prompt: string,
   ) => 'ok' | 'missing' | 'unsupported' | 'no_transcript';
   readonly adoptSession: (
-    id: string,
+    id: SessionID,
     cols: number,
     rows: number,
   ) => 'ok' | 'missing' | 'no_transcript';
-  readonly resizeSession: (client: OutputClient, sessionID: string, dims: Dims) => boolean;
-  readonly resyncClient: (sessionID: string, client: OutputClient) => Promise<void>;
+  readonly resizeSession: (client: OutputClient, sessionID: SessionID, dims: Dims) => boolean;
+  readonly resyncClient: (sessionID: SessionID, client: OutputClient) => Promise<void>;
   readonly queueBytes?: number;
-  readonly getEffectiveDims: (sessionID: string) => Dims;
+  readonly getEffectiveDims: (sessionID: SessionID) => Dims;
 }
 
 // The slice of a connection the attach bookkeeping needs: identity plus the
 // ability to receive output events.
 export interface OutputClient {
-  readonly sendOutput: (sessionID: string, event: EventMsg, byteLength: number) => void;
+  readonly sendOutput: (sessionID: SessionID, event: EventMsg, byteLength: number) => void;
 }
 
 interface PeerSocket extends SocketWriter {
@@ -83,7 +84,7 @@ export class DaemonConnection {
 
   private helloed = false;
 
-  private readonly desynced = new Map<string, number>();
+  private readonly desynced = new Map<SessionID, number>();
 
   constructor(peer: PeerSocket, ctx: DaemonContext) {
     this.peer = peer;
@@ -102,7 +103,7 @@ export class DaemonConnection {
   // this client and resynchronizes with a repaint once the queue drains. An
   // intermediate chunk is never dropped without that resync, because a byte
   // stream cut mid-escape corrupts the client's terminal state.
-  sendOutput(sessionID: string, event: EventMsg, byteLength: number): void {
+  sendOutput(sessionID: SessionID, event: EventMsg, byteLength: number): void {
     if (!this.helloed) {
       return;
     }
@@ -556,7 +557,7 @@ export class DaemonConnection {
   private applySessionVerb(
     req: RequestMsg,
     method: 'session.kill' | 'session.ack',
-    verb: (id: string) => boolean,
+    verb: (id: SessionID) => boolean,
   ): void {
     const parsed = parseRequestParams(method, req.p);
 

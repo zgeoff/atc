@@ -1,11 +1,12 @@
 import { toAgentID } from './agent-adapter';
 import type { AgentID } from './agent-adapter';
+import type { AgentSessionID } from './agent-session-id';
 import { isRecord } from './report';
 
 export interface FleetEntry {
   readonly name: string;
   readonly cwd: string;
-  readonly agentSessionID: string;
+  readonly agentSessionID: AgentSessionID;
   readonly agent: AgentID;
   readonly pinned?: boolean;
   readonly lastAttachedAt?: number;
@@ -33,7 +34,9 @@ export function parseFleetEntry(raw: unknown): FleetEntry | undefined {
   return {
     name: raw['name'],
     cwd: raw['cwd'],
-    agentSessionID,
+
+    // oxlint-disable-next-line no-unsafe-type-assertion -- a legacy fleet file's id column is a stored agent session id by contract; this is the one point where it is trusted
+    agentSessionID: agentSessionID as AgentSessionID,
     agent: toAgentID(raw['agent']),
     ...(raw['pinned'] === true ? { pinned: true } : {}),
     ...(typeof raw['lastAttachedAt'] === 'number' ? { lastAttachedAt: raw['lastAttachedAt'] } : {}),
