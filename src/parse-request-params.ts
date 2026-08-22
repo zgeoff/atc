@@ -31,13 +31,17 @@ export function parseRequestParams<M extends RequestMethod>(
 
 /**
  * The session id shape MCP tool schemas require: present and described.
- * The wire request schemas below each define their own `session` field
- * directly, since the wire protocol's tolerance for an absent session
- * differs method by method.
+ * The wire request schemas below share a defaulted-session shape instead,
+ * since they tolerate an absent session by defaulting it to an empty
+ * string.
  */
 export const SESSION_ID_BASE = z.object({
   session: z.string().describe('The atc session id, from atc_session_list'),
 });
+
+// The `session` field every wire schema below carries: absent or
+// wrong-typed falls back to an empty string instead of failing the parse.
+const SESSION_DEFAULTED = z.object({ session: buildDefaultedString('') });
 
 const EJECT_DEFAULT_PROMPT =
   'Continue the task autonomously. Verify your work as you go and stop when it is complete.';
@@ -67,39 +71,31 @@ export const REQUEST_PARAM_SCHEMAS = {
       .min(1, 'session.spawn agent must be a non-empty agent id')
       .optional(),
   }),
-  'session.kill': z.object({ session: buildDefaultedString('') }),
-  'session.ack': z.object({ session: buildDefaultedString('') }),
-  'session.update': z.object({
-    session: buildDefaultedString(''),
+  'session.kill': SESSION_DEFAULTED,
+  'session.ack': SESSION_DEFAULTED,
+  'session.update': SESSION_DEFAULTED.extend({
     name: buildOptionalString(),
     pinned: buildOptionalBoolean(),
   }),
-  'session.attach': z.object({
-    session: buildDefaultedString(''),
+  'session.attach': SESSION_DEFAULTED.extend({
     cols: buildDefaultedNumber(80),
     rows: buildDefaultedNumber(24),
   }),
-  'session.detach': z.object({ session: buildDefaultedString('') }),
-  'session.input': z.object({
-    session: buildDefaultedString(''),
+  'session.detach': SESSION_DEFAULTED,
+  'session.input': SESSION_DEFAULTED.extend({
     d: buildDefaultedString(''),
   }),
-  'session.resize': z
-    .object({
-      session: buildDefaultedString(''),
-      cols: buildDefaultedNumber(0),
-      rows: buildDefaultedNumber(0),
-    })
-    .refine((v) => v.cols >= 1 && v.rows >= 1, {
-      message: 'session.resize requires positive cols and rows',
-    }),
-  'session.resumeCommand': z.object({ session: buildDefaultedString('') }),
-  'session.eject': z.object({
-    session: buildDefaultedString(''),
+  'session.resize': SESSION_DEFAULTED.extend({
+    cols: buildDefaultedNumber(0),
+    rows: buildDefaultedNumber(0),
+  }).refine((v) => v.cols >= 1 && v.rows >= 1, {
+    message: 'session.resize requires positive cols and rows',
+  }),
+  'session.resumeCommand': SESSION_DEFAULTED,
+  'session.eject': SESSION_DEFAULTED.extend({
     prompt: buildDefaultedNonEmptyString(EJECT_DEFAULT_PROMPT),
   }),
-  'session.adopt': z.object({
-    session: buildDefaultedString(''),
+  'session.adopt': SESSION_DEFAULTED.extend({
     cols: buildDefaultedNumber(80),
     rows: buildDefaultedNumber(24),
   }),
