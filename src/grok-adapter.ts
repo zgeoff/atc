@@ -19,6 +19,10 @@ interface GrokSessionHookState {
   lastKind: AdapterEvent['kind'];
 }
 
+// Caps hookState so a Grok session killed or crashed without a SessionEnd
+// hook cannot grow the map for the daemon's whole lifetime.
+const MAX_HOOK_STATE_ENTRIES = 256;
+
 /**
  * The Grok Build adapter: spawn arguments, hook payload mapping,
  * resume semantics, and summary.json name-pulling.
@@ -199,12 +203,25 @@ export class GrokAdapter implements AgentAdapter {
         ? event.kind
         : (prior?.lastKind ?? event.kind);
 
+    if (prior === undefined && this.hookState.size >= MAX_HOOK_STATE_ENTRIES) {
+      this.removeOldestHookState();
+    }
+
     this.hookState.set(atcID, {
       lastKind: tracked,
       ...(latestPromptID === undefined ? {} : { latestPromptID }),
     });
 
     return event;
+  }
+
+  // A Map preserves insertion order, so the first key is the oldest entry.
+  private removeOldestHookState(): void {
+    const oldest = this.hookState.keys().next().value;
+
+    if (oldest !== undefined) {
+      this.hookState.delete(oldest);
+    }
   }
 }
 
