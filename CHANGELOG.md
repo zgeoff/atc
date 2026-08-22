@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.13](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.12...@zgeoff/atc@0.1.13) (2026-08-22)
+
+### Features
+
+- brand SessionID and AgentSessionID types ([#49](https://github.com/zgeoff/atc/issues/49))
+  ([d5cf101](https://github.com/zgeoff/atc/commit/d5cf101d7882a04519646ebc014c506c5b7b1355))
+- hide uninstalled agents from the spawn picker ([#37](https://github.com/zgeoff/atc/issues/37))
+  ([b0b94b7](https://github.com/zgeoff/atc/commit/b0b94b7ebe4897e64697fca4f8ff03ef65a5a482))
+- keep a headless turn on its session's backend ([#44](https://github.com/zgeoff/atc/issues/44))
+  ([448690a](https://github.com/zgeoff/atc/commit/448690acfba87d980111f42f357f97d92798b151))
+- spawn a configured backend as its own agent ([#43](https://github.com/zgeoff/atc/issues/43))
+  ([1bddfff](https://github.com/zgeoff/atc/commit/1bddfff60157bc362ee84a402471696c552b1ad4))
+
+### Bug Fixes
+
+- correct structural defects found in the architecture audit
+  ([#40](https://github.com/zgeoff/atc/issues/40))
+  ([f529d91](https://github.com/zgeoff/atc/commit/f529d91357840673115c63936e1d4aa8fffda5a1))
+
 ## [0.1.12](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.11...@zgeoff/atc@0.1.12) (2026-08-21)
 
 ### Features
