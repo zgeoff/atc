@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { toAgentID } from './agent-adapter';
 import type { AgentID } from './agent-adapter';
 import type { AgentSessionID } from './agent-session-id';
@@ -18,28 +19,57 @@ export interface FleetStore {
   readonly writeFleet: (entries: readonly FleetEntry[]) => void;
 }
 
+// A stored fleet row's keys. name, cwd, and the resolved agentSessionID are
+// required: a row missing any of them cannot restore a session, so the whole
+// row parses to undefined rather than a half-built entry. Fleet files
+// written before the id key was agent-neutral carry it under its Claude-era
+// name, so agentSessionID is read off whichever key the row actually has
+// before validation.
+const FLEET_ENTRY_SCHEMA = z.preprocess(
+  (value) => {
+    if (!isRecord(value)) {
+      return value;
+    }
+
+    return { ...value, agentSessionID: value['agentSessionID'] ?? value['claudeId'] };
+  },
+  z.object({
+    name: z.string(),
+    cwd: z.string(),
+    agentSessionID: z.string(),
+    agent: z.unknown().optional(),
+    pinned: buildOptionalBoolean(),
+    lastAttachedAt: buildOptionalNumber(),
+    exited: buildOptionalBoolean(),
+  }),
+);
+
 export function parseFleetEntry(raw: unknown): FleetEntry | undefined {
-  if (!isRecord(raw) || typeof raw['name'] !== 'string' || typeof raw['cwd'] !== 'string') {
-    return undefined;
-  }
+  const parsed = FLEET_ENTRY_SCHEMA.safeParse(raw);
 
-  // Fleet files written before the id key was agent-neutral carry it under
-  // its Claude-era name.
-  const agentSessionID = raw['agentSessionID'] ?? raw['claudeId'];
-
-  if (typeof agentSessionID !== 'string') {
+  if (!parsed.success) {
     return undefined;
   }
 
   return {
-    name: raw['name'],
-    cwd: raw['cwd'],
+    name: parsed.data.name,
+    cwd: parsed.data.cwd,
 
-    // oxlint-disable-next-line no-unsafe-type-assertion -- a legacy fleet file's id column is a stored agent session id by contract; this is the one point where it is trusted
-    agentSessionID: agentSessionID as AgentSessionID,
-    agent: toAgentID(raw['agent']),
-    ...(raw['pinned'] === true ? { pinned: true } : {}),
-    ...(typeof raw['lastAttachedAt'] === 'number' ? { lastAttachedAt: raw['lastAttachedAt'] } : {}),
-    ...(raw['exited'] === true ? { exited: true } : {}),
+    // oxlint-disable-next-line no-unsafe-type-assertion -- a stored fleet row's id column is an agent session id by contract; this is the one point where it is trusted
+    agentSessionID: parsed.data.agentSessionID as AgentSessionID,
+    agent: toAgentID(parsed.data.agent),
+    ...(parsed.data.pinned === true ? { pinned: true } : {}),
+    ...(parsed.data.lastAttachedAt === undefined
+      ? {}
+      : { lastAttachedAt: parsed.data.lastAttachedAt }),
+    ...(parsed.data.exited === true ? { exited: true } : {}),
   };
+}
+
+function buildOptionalBoolean() {
+  return z.preprocess((v) => (typeof v === 'boolean' ? v : undefined), z.boolean().optional());
+}
+
+function buildOptionalNumber() {
+  return z.preprocess((v) => (typeof v === 'number' ? v : undefined), z.number().optional());
 }
