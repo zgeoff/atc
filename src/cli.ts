@@ -71,7 +71,10 @@ const main = defineCommand({
           const codexAdapter = new codex.CodexAdapter(cfg);
 
           const gatewayAdapters = cfg.gateways.map(
-            (entry) => new gateway.GatewayAdapter(entry, cfg),
+            (entry) =>
+              new gateway.GatewayAdapter(entry, cfg, (runOpts, hooks) =>
+                headless.startHeadlessRun(runOpts, hooks),
+              ),
           );
 
           const handle = daemon.startDaemon({

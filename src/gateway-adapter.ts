@@ -2,6 +2,7 @@ import type {
   AdapterEvent,
   AgentAdapter,
   AgentID,
+  HeadlessRunner,
   NameUpdate,
   ResumeCheck,
   SpawnOptions,
@@ -22,9 +23,9 @@ import { writeHookSettings } from './write-hook-settings';
 export class GatewayAdapter implements AgentAdapter {
   readonly id: AgentID;
 
-  // Ejecting to headless would run the turn against the default backend,
-  // which is a different account and a different bill, so it is refused.
-  readonly headlessRunner = null;
+  // A headless turn carries the same settings file the terminal spawn does,
+  // so it reaches this backend rather than the default one.
+  readonly headlessRunner: HeadlessRunner | null;
 
   // The CLI's hooks are authoritative; no screen heuristics needed.
   readonly screenDetector = null;
@@ -36,11 +37,20 @@ export class GatewayAdapter implements AgentAdapter {
   // Written on first spawn so constructing the adapter touches no state.
   private settingsFile: string | undefined;
 
-  constructor(gateway: GatewayConfig, config: Config) {
+  constructor(
+    gateway: GatewayConfig,
+    config: Config,
+    headlessRunner: HeadlessRunner | null = null,
+  ) {
     this.gateway = gateway;
     this.id = gateway.id;
 
     this.claude = new ClaudeAdapter(config);
+
+    this.headlessRunner =
+      headlessRunner === null
+        ? null
+        : (opts, hooks) => headlessRunner({ ...opts, settings: this.writeSettings() }, hooks);
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {

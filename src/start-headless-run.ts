@@ -16,6 +16,7 @@ interface HeadlessRunOptions {
   readonly prompt: string;
   readonly resume?: string;
   readonly permissionMode?: string;
+  readonly settings?: string;
 }
 
 interface HeadlessRunHooks {
@@ -56,6 +57,10 @@ export function startHeadlessRun(
           },
           ...(opts.resume === undefined ? {} : { resume: opts.resume }),
           ...(mode === undefined ? {} : { permissionMode: mode }),
+
+          // The same generated file the terminal spawn passes, so the turn
+          // runs against the session's own backend and instrumentation.
+          ...(opts.settings === undefined ? {} : { extraArgs: { settings: opts.settings } }),
         },
       });
 
