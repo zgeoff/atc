@@ -6,20 +6,10 @@ import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
 import { DaemonClient } from '../src/daemon-client';
 import type { EventMsg } from '../src/protocol';
-import { isRecord } from '../src/report';
+import { getRecord, isRecord } from '../src/report';
 import { StateStore } from '../src/state-store';
 
 const repo = dirname(import.meta.dir);
-
-function getRecord(value: Readonly<Record<string, unknown>>, key: string): Record<string, unknown> {
-  const inner = value[key];
-
-  if (!isRecord(inner)) {
-    throw new TypeError(`${key} is not an object`);
-  }
-
-  return inner;
-}
 
 function getString(value: Readonly<Record<string, unknown>>, key: string): string {
   const inner = value[key];

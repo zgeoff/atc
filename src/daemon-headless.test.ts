@@ -7,7 +7,7 @@ import { startDaemon } from './daemon';
 import { DaemonClient } from './daemon-client';
 import { GrokAdapter } from './grok-adapter';
 import type { EventMsg } from './protocol';
-import { isRecord } from './report';
+import { getRecord, isRecord } from './report';
 
 const sleepAdapter: AgentAdapter = {
   id: 'claude',
@@ -180,11 +180,7 @@ test('it reports a finished headless turn as done', async () => {
       e['session']['state'] === 'done',
   );
 
-  const doneSession = done['session'];
-
-  if (!isRecord(doneSession)) {
-    throw new TypeError('session.state carried no session descriptor');
-  }
+  const doneSession = getRecord(done, 'session');
 
   expect(doneSession['lastMsg']).toBe('wrapped up cleanly');
 });
@@ -208,11 +204,7 @@ test('it reports a stuck headless turn as needs_you', async () => {
       e['session']['state'] === 'needs_you',
   );
 
-  const needySession = needy['session'];
-
-  if (!isRecord(needySession)) {
-    throw new TypeError('session.state carried no session descriptor');
-  }
+  const needySession = getRecord(needy, 'session');
 
   expect(needySession['lastMsg']).toBe('stuck on a decision');
 });

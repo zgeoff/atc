@@ -6,7 +6,7 @@ import type { AgentAdapter } from './agent-adapter';
 import { startDaemon } from './daemon';
 import { DaemonClient } from './daemon-client';
 import type { EventMsg } from './protocol';
-import { isRecord } from './report';
+import { getRecord, isRecord } from './report';
 
 // A hook-less agent: a shell that paints a prompt, waits for input, works
 // visibly, then prompts again. Attention comes only from the screen tier.
@@ -99,11 +99,7 @@ test('it flags a hook-less agent waiting at a prompt via the screen detector', a
       e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
-  const needySession = needy['session'];
-
-  if (!isRecord(needySession)) {
-    throw new TypeError('session.state carried no session descriptor');
-  }
+  const needySession = getRecord(needy, 'session');
 
   expect(needySession['lastMsg']).toBe('waiting at a prompt');
 });
@@ -137,11 +133,7 @@ test('it flips the session back to working once the prompt is answered', async (
       e['session']['lastMsg'] === 'working',
   );
 
-  const workingSession = working['session'];
-
-  if (!isRecord(workingSession)) {
-    throw new TypeError('session.state carried no session descriptor');
-  }
+  const workingSession = getRecord(working, 'session');
 
   expect(workingSession['id']).toBe(id);
 });
