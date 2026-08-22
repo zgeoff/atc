@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { AgentAdapter, HeadlessRunner } from './agent-adapter';
 import { startDaemon } from './daemon';
 import { DaemonClient } from './daemon-client';
+import { getRecord } from './get-record';
 import { GrokAdapter } from './grok-adapter';
 import type { EventMsg } from './protocol';
 import { isRecord } from './report';
@@ -173,10 +174,16 @@ test('it reports a finished headless turn as done', async () => {
 
   const done = await waitForEvent(
     ctx.events,
-    (e) => e.ev === 'session.state' && e['s'] === id && e['state'] === 'done',
+    (e) =>
+      e.ev === 'session.state' &&
+      isRecord(e['session']) &&
+      e['session']['id'] === id &&
+      e['session']['state'] === 'done',
   );
 
-  expect(done['lastMsg']).toBe('wrapped up cleanly');
+  const doneSession = getRecord(done, 'session');
+
+  expect(doneSession['lastMsg']).toBe('wrapped up cleanly');
 });
 
 test('it reports a stuck headless turn as needs_you', async () => {
@@ -191,10 +198,16 @@ test('it reports a stuck headless turn as needs_you', async () => {
 
   const needy = await waitForEvent(
     ctx.events,
-    (e) => e.ev === 'session.state' && e['s'] === id && e['state'] === 'needs_you',
+    (e) =>
+      e.ev === 'session.state' &&
+      isRecord(e['session']) &&
+      e['session']['id'] === id &&
+      e['session']['state'] === 'needs_you',
   );
 
-  expect(needy['lastMsg']).toBe('stuck on a decision');
+  const needySession = getRecord(needy, 'session');
+
+  expect(needySession['lastMsg']).toBe('stuck on a decision');
 });
 
 test('it starts the next headless turn from session input once idle', async () => {
@@ -207,7 +220,10 @@ test('it starts the next headless turn from session input once idle', async () =
 
   ctx.runs[0]?.finish('done');
 
-  await waitForEvent(ctx.events, (e) => e.ev === 'session.state' && e['state'] === 'done');
+  await waitForEvent(
+    ctx.events,
+    (e) => e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'done',
+  );
 
   const ok = await ctx.client.sendRequest('session.input', { session: id, d: 'next task\n' });
 
@@ -239,7 +255,10 @@ test('it adopts a headless session back into a terminal', async () => {
 
   ctx.runs[0]?.finish('done');
 
-  await waitForEvent(ctx.events, (e) => e.ev === 'session.state' && e['state'] === 'done');
+  await waitForEvent(
+    ctx.events,
+    (e) => e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'done',
+  );
 
   const ok = await ctx.client.sendRequest('session.adopt', { session: id, cols: 90, rows: 28 });
 

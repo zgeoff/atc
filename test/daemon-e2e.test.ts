@@ -5,21 +5,12 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
 import { DaemonClient } from '../src/daemon-client';
+import { getRecord } from '../src/get-record';
 import type { EventMsg } from '../src/protocol';
 import { isRecord } from '../src/report';
 import { StateStore } from '../src/state-store';
 
 const repo = dirname(import.meta.dir);
-
-function getRecord(value: Readonly<Record<string, unknown>>, key: string): Record<string, unknown> {
-  const inner = value[key];
-
-  if (!isRecord(inner)) {
-    throw new TypeError(`${key} is not an object`);
-  }
-
-  return inner;
-}
 
 function getString(value: Readonly<Record<string, unknown>>, key: string): string {
   const inner = value[key];
@@ -257,7 +248,11 @@ test('it turns hook notifications into session.state broadcasts', async () => {
   await client.sendHello('atc/test');
   await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'needs_you');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
 
   const list = await client.sendRequest('session.list');
 
@@ -290,7 +285,11 @@ test('it keeps a live terminal alive when its session reports an end', async () 
   const spawned = getRecord(ok, 'session');
   const id = getString(spawned, 'id');
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'needs_you');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
 
   const reporter = Bun.spawn([process.execPath, join(repo, 'src', 'cli.ts'), 'hook-report'], {
     stdin: new TextEncoder().encode(
@@ -307,10 +306,13 @@ test('it keeps a live terminal alive when its session reports an end', async () 
 
   const ended = await waitForEvent(
     events,
-    (e) => e.ev === 'session.state' && e['lastMsg'] === 'session ended',
+    (e) =>
+      e.ev === 'session.state' &&
+      isRecord(e['session']) &&
+      e['session']['lastMsg'] === 'session ended',
   );
 
-  expect(ended).toMatchObject({ alive: true, kind: 'pty', state: 'needs_you' });
+  expect(ended).toMatchObject({ session: { alive: true, kind: 'pty', state: 'needs_you' } });
 
   const list = await client.sendRequest('session.list');
 
@@ -439,7 +441,11 @@ test('it kills a live session to exited and a dead one to removed', async () => 
 
   await client.sendRequest('session.kill', { session: id });
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['lastMsg'] === 'killed');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
+  );
 
   await client.sendRequest('session.kill', { session: id });
 
@@ -468,7 +474,11 @@ test('it builds a resume command once the claude id is captured', async () => {
   const spawned = getRecord(ok, 'session');
   const id = getString(spawned, 'id');
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'needs_you');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
 
   const answer = await client.sendRequest('session.resumeCommand', { session: id });
 
@@ -492,7 +502,11 @@ test('it restores the fleet cold after a daemon crash', async () => {
   await client.sendHello('atc/test');
   await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'needs_you');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
 
   ctx.proc.kill(9);
 
@@ -534,11 +548,19 @@ test('it restores a killed session as exited across a daemon restart', async () 
   const spawned = getRecord(ok, 'session');
   const id = getString(spawned, 'id');
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'needs_you');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
 
   await client.sendRequest('session.kill', { session: id });
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['lastMsg'] === 'killed');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
+  );
 
   ctx.proc.kill(9);
 
@@ -651,7 +673,11 @@ sleep 30
   // fills in rather than freezing until the last process is up.
   await waitForEvent(
     events,
-    (e) => e.ev === 'session.state' && e['agentSessionID'] === 'fake-c' && e['kind'] === 'pty',
+    (e) =>
+      e.ev === 'session.state' &&
+      isRecord(e['session']) &&
+      e['session']['agentSessionID'] === 'fake-c' &&
+      e['session']['kind'] === 'pty',
   );
 
   const settled = await client.sendRequest('session.list');
@@ -956,7 +982,11 @@ test('it answers session.input on a dead session with session_dead', async () =>
 
   await client.sendRequest('session.kill', { session: id });
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['lastMsg'] === 'killed');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
+  );
 
   expect(client.sendRequest('session.input', { session: id, d: 'x' })).rejects.toMatchObject({
     code: 'session_dead',
@@ -983,7 +1013,11 @@ test('it answers session.attach on a dead session with session_dead', async () =
 
   await client.sendRequest('session.kill', { session: id });
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['lastMsg'] === 'killed');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
+  );
 
   expect(
     client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 }),
@@ -1012,7 +1046,11 @@ test('it spawns a grok session and captures a grok descriptor from SessionStart'
 
   expect(ok['session']).toMatchObject({ agent: 'grok', alive: true });
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'needs_you');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
 
   const list = await client.sendRequest('session.list');
 
@@ -1071,7 +1109,11 @@ test('it yanks grok --resume after capture and grok before SessionStart', async 
   const capturedSession = getRecord(captured, 'session');
   const capturedID = getString(capturedSession, 'id');
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'needs_you');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
 
   const resumed = await client.sendRequest('session.resumeCommand', { session: capturedID });
 
@@ -1098,7 +1140,11 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
     rows: 24,
   });
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'needs_you');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
 
   ctx.proc.kill(9);
 
@@ -1181,7 +1227,10 @@ test('it marks a grok session done on end-turn Stop', async () => {
     rows: 24,
   });
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'done');
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'done',
+  );
 });
 
 test('it ignores a grok hook event that names a subagent', async () => {
@@ -1260,7 +1309,11 @@ test('it keeps grok needs_you when idle_prompt follows permission_prompt', async
 
   const spawned = getRecord(ok, 'session');
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'needs_you');
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
 
   const reporter = Bun.spawn([process.execPath, join(repo, 'src', 'cli.ts'), 'hook-report'], {
     stdin: new TextEncoder().encode(
@@ -1314,7 +1367,10 @@ test('it spawns a codex session and captures its descriptor from SessionStart', 
 
   expect(ok['session']).toMatchObject({ agent: 'codex', alive: true });
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'done');
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'done',
+  );
 
   const list = await client.sendRequest('session.list');
 
@@ -1352,7 +1408,10 @@ test('it builds codex resume commands and keeps codex in the fleet on kill', asy
   const spawned = getRecord(ok, 'session');
   const id = getString(spawned, 'id');
 
-  await waitForEvent(events, (e) => e.ev === 'session.state' && e['state'] === 'done');
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'done',
+  );
 
   const answer = await client.sendRequest('session.resumeCommand', { session: id });
 

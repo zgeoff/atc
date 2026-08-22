@@ -2,6 +2,7 @@ import { unlinkSync, writeFileSync } from 'node:fs';
 import type { AgentAdapter } from './agent-adapter';
 import { AttachRegistry } from './attach-registry';
 import type { Dims } from './attach-registry';
+import { buildSessionEvent } from './build-session-event';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext, OutputClient } from './daemon-connection';
 import { startHookServer } from './hooks';
@@ -386,33 +387,11 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       }
     }
 
-    const builders: Record<typeof kind, () => EventMsg> = {
-      added: () => ({ v: PROTOCOL_V, ev: 'session.added', session: getDescriptor(mgr, s.id) }),
-      state: () => ({
-        v: PROTOCOL_V,
-        ev: 'session.state',
-        s: s.id,
-        state: s.state,
-        unread: s.unread,
-        lastMsg: s.lastMsg,
-        kind: s.kind,
-        alive: s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'),
-        ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
-        agent: s.agent,
-        pinned: s.pinned,
-        lastAttachedAt: s.lastAttachedAt,
-      }),
-      renamed: () => ({
-        v: PROTOCOL_V,
-        ev: 'session.renamed',
-        s: s.id,
-        name: s.name,
-        namedBy: s.namedBy,
-      }),
-      removed: () => ({ v: PROTOCOL_V, ev: 'session.removed', s: s.id }),
-    };
+    const event = buildSessionEvent(mgr, kind, s);
 
-    emitEvent(builders[kind]());
+    if (event !== null) {
+      emitEvent(event);
+    }
   };
 
   const reporter = startHookServer((e) => {

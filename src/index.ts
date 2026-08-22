@@ -1,4 +1,3 @@
-import { toAgentID } from './agent-adapter';
 import type { AgentID } from './agent-adapter';
 import { bootDaemonClient } from './boot-daemon';
 import { buildLeaderChords } from './build-leader-chords';
@@ -7,31 +6,13 @@ import { findFuzzyScore, formatDir } from './dirs';
 import { KEY, isDown, isUp, planTextEdit } from './keys';
 import { pickTabTarget } from './pick-tab-target';
 import type { EventMsg } from './protocol';
-import { isRecord } from './report';
 import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from './sessions';
-import type { SessionState } from './sessions';
 import { SpawnPicker } from './spawn-picker';
+import { toMirrorSession } from './to-mirror-session';
+import type { MirrorSession } from './to-mirror-session';
 import { ansi, cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar, rows } from './ui';
 
 type Mode = 'home' | 'attached' | 'overlay' | 'help' | 'picker' | 'picker-eject';
-
-interface MirrorSession {
-  id: string;
-  name: string;
-  cwd: string;
-  pinned: boolean;
-  lastAttachedAt: number;
-  repoRoot: string;
-  state: SessionState;
-  unread: boolean;
-  lastMsg: string;
-  createdAt: number;
-  kind: 'pty' | 'headless';
-  alive: boolean;
-  resumable: boolean;
-  canEject: boolean;
-  agent: AgentID;
-}
 
 let mode: Mode = 'home';
 let overlaySelected = 0;
@@ -313,48 +294,6 @@ function quit(code = 0): never {
   process.exit(code);
 }
 
-const SESSION_STATES: readonly SessionState[] = ['running', 'needs_you', 'done', 'exited'];
-
-function toMirrorSession(value: unknown): MirrorSession | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const state = SESSION_STATES.find((x) => x === value['state']);
-
-  if (
-    typeof value['id'] !== 'string' ||
-    typeof value['name'] !== 'string' ||
-    typeof value['cwd'] !== 'string' ||
-    state === undefined ||
-    typeof value['unread'] !== 'boolean' ||
-    typeof value['lastMsg'] !== 'string' ||
-    typeof value['createdAt'] !== 'number' ||
-    typeof value['alive'] !== 'boolean'
-  ) {
-    return null;
-  }
-
-  return {
-    id: value['id'],
-    name: value['name'],
-    cwd: value['cwd'],
-    pinned: value['pinned'] === true,
-    lastAttachedAt:
-      typeof value['lastAttachedAt'] === 'number' ? value['lastAttachedAt'] : value['createdAt'],
-    repoRoot: typeof value['repoRoot'] === 'string' ? value['repoRoot'] : value['cwd'],
-    state,
-    unread: value['unread'],
-    lastMsg: value['lastMsg'],
-    createdAt: value['createdAt'],
-    kind: value['kind'] === 'headless' ? 'headless' : 'pty',
-    alive: value['alive'],
-    resumable: typeof value['agentSessionID'] === 'string',
-    canEject: value['canEject'] === true,
-    agent: toAgentID(value['agent']),
-  };
-}
-
 function upsertMirror(d: Readonly<MirrorSession>) {
   const existing = fleet.find((s) => s.id === d.id);
 
@@ -412,56 +351,22 @@ function applyDaemonEvent(e: EventMsg) {
       return;
     }
     case 'session.state': {
-      const s = fleet.find((x) => x.id === e['s']);
+      const d = toMirrorSession(e['session']);
 
-      if (s !== undefined) {
-        const next = SESSION_STATES.find((x) => x === e['state']);
+      if (d !== null) {
+        const existing = fleet.find((x) => x.id === d.id);
 
-        if (next === 'done' && s.state !== 'done') {
-          doneAt.set(s.id, Date.now());
-        }
-
-        if (next !== undefined) {
-          s.state = next;
-        }
-
-        if (typeof e['alive'] === 'boolean') {
-          s.alive = e['alive'];
-        } else if (next === 'exited') {
-          s.alive = false;
-        }
-
-        if (e['kind'] === 'pty' || e['kind'] === 'headless') {
-          s.kind = e['kind'];
-        }
-
-        if (typeof e['pinned'] === 'boolean') {
-          s.pinned = e['pinned'];
-        }
-
-        if (typeof e['lastAttachedAt'] === 'number') {
-          s.lastAttachedAt = e['lastAttachedAt'];
-        }
-
-        if (typeof e['unread'] === 'boolean') {
-          s.unread = e['unread'];
-        }
-
-        if (typeof e['lastMsg'] === 'string') {
-          s.lastMsg = e['lastMsg'];
-        }
-
-        if (e['agent'] === 'grok' || e['agent'] === 'codex' || e['agent'] === 'claude') {
-          s.agent = e['agent'];
-        }
-
-        if (typeof e['agentSessionID'] === 'string') {
-          if (!s.resumable) {
-            lastUsedAgent = s.agent;
+        if (existing !== undefined) {
+          if (d.state === 'done' && existing.state !== 'done') {
+            doneAt.set(d.id, Date.now());
           }
 
-          s.resumable = true;
+          if (d.resumable && !existing.resumable) {
+            lastUsedAgent = d.agent;
+          }
         }
+
+        upsertMirror(d);
       }
 
       refreshScreens();

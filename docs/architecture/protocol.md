@@ -116,6 +116,34 @@ State/lifecycle events broadcast to every client (every overlay needs them). `se
 only to clients attached to that session — an unfocused session costs a client zero bytes. Output
 events carry a per-session `seq` so a client can detect gaps.
 
+`session.added` and `session.state` both carry the full session descriptor under a `session` key
+(the same shape `session.list` returns), rather than a hand-picked subset of fields — a client
+decodes both through one path instead of tracking which fields each event happens to carry.
+
+```jsonc
+{
+  "v": 2,
+  "ev": "session.state",
+  "session": {
+    "id": "s7-m4x2p",
+    "name": "auth-bug",
+    "cwd": "/x",
+    "state": "needs_you",
+    "unread": true,
+    "lastMsg": "needs input",
+    "agent": "claude",
+    "pinned": false,
+    "lastAttachedAt": 1732000000000,
+    "repoRoot": "/x",
+    "namedBy": "auto",
+    "createdAt": 1732000000000,
+    "kind": "pty",
+    "alive": true,
+    "canEject": true,
+  },
+}
+```
+
 ## Attach and streaming
 
 The daemon reads every PTY continuously — background output is consumed, not discarded — and feeds

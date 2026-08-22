@@ -1,6 +1,8 @@
+import { z } from 'zod';
 import { bootDaemonClient } from './boot-daemon';
 import { DaemonError } from './daemon-error';
 import { isRecord } from './report';
+import { REQUEST_PARAM_SCHEMAS } from './request-param-schemas';
 
 // The slice of the daemon client the tool handlers need.
 interface FleetCaller {
@@ -18,20 +20,32 @@ interface MCPTool {
   readonly inputSchema: Readonly<Record<string, unknown>>;
 }
 
-const NO_INPUT: Readonly<Record<string, unknown>> = {
-  type: 'object',
-  properties: {},
-  additionalProperties: false,
-};
+const NO_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(z.strictObject({}));
 
-const SESSION_INPUT: Readonly<Record<string, unknown>> = {
-  type: 'object',
-  properties: {
-    session: { type: 'string', description: 'The atc session id, from atc_session_list' },
-  },
-  required: ['session'],
-  additionalProperties: false,
-};
+/**
+ * The session id shape MCP tool schemas require: present and described.
+ * The wire request schemas below share a defaulted-session shape instead,
+ * since they tolerate an absent session by defaulting it to an empty
+ * string.
+ */
+const SESSION_ID_BASE = z.object({
+  session: z.string().describe('The atc session id, from atc_session_list'),
+});
+
+const SESSION_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(SESSION_ID_BASE.strict());
+const SPAWN_SCHEMA = REQUEST_PARAM_SCHEMAS['session.spawn'];
+
+const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
+  z.strictObject({
+    cwd: SPAWN_SCHEMA.shape.cwd.describe('Absolute path of the working directory'),
+    name: SPAWN_SCHEMA.shape.name.describe('Session name; defaults to the directory basename'),
+    prompt: SPAWN_SCHEMA.shape.prompt.describe('First message for the session'),
+    agent: SPAWN_SCHEMA.shape.agent.describe(
+      'Which registered agent id to spawn; defaults to claude',
+    ),
+  }),
+  { io: 'input' },
+);
 
 const TOOLS: readonly MCPTool[] = [
   {
@@ -44,20 +58,7 @@ const TOOLS: readonly MCPTool[] = [
     name: 'atc_session_spawn',
     description:
       'Spawn a new session in a directory. Optional agent is an agent id the daemon has registered, such as claude, grok, or codex; omitted agent is always Claude, never the TUI last-used value. An unregistered id is rejected. Returns the new session descriptor. Give it a prompt to start it working immediately.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        cwd: { type: 'string', description: 'Absolute path of the working directory' },
-        name: { type: 'string', description: 'Session name; defaults to the directory basename' },
-        prompt: { type: 'string', description: 'First message for the session' },
-        agent: {
-          type: 'string',
-          description: 'Which registered agent id to spawn; defaults to claude',
-        },
-      },
-      required: ['cwd'],
-      additionalProperties: false,
-    },
+    inputSchema: SPAWN_INPUT,
   },
   {
     name: 'atc_session_input',
@@ -241,12 +242,6 @@ async function runTool(
     }
     case 'atc_session_spawn': {
       const rawAgent = args['agent'];
-
-      // Which ids exist is the daemon's to answer, since it holds the
-      // registry; this only rejects a value that could not be one.
-      if (rawAgent !== undefined && (typeof rawAgent !== 'string' || rawAgent === '')) {
-        throw new Error('agent must be a non-empty agent id');
-      }
 
       const ok = await client.sendRequest('session.spawn', {
         cwd: args['cwd'],
