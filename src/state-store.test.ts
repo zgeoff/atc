@@ -17,6 +17,76 @@ function setupDir(): string {
   return dir;
 }
 
+interface ColumnInfo {
+  name: string;
+  type: string;
+  notnull: number;
+  dflt_value: unknown;
+}
+
+interface TableSchema {
+  table: string;
+  columns: ColumnInfo[];
+}
+
+function collectSchema(db: Database): TableSchema[] {
+  return db
+    .query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type = 'table'")
+    .all()
+    .map((row) => row.name)
+    .toSorted()
+    .map((table) => ({ table, columns: collectTableColumns(db, table) }));
+}
+
+function collectTableColumns(db: Database, table: string): ColumnInfo[] {
+  return db
+    .query<ColumnInfo, []>(`PRAGMA table_info(${table})`)
+    .all()
+    .map((column) => ({
+      name: column.name,
+      type: column.type,
+      notnull: column.notnull,
+      dflt_value: column.dflt_value,
+    }))
+    .toSorted((a, b) => a.name.localeCompare(b.name));
+}
+
+interface MigrationRecord {
+  name: string;
+  appliedAt: string;
+}
+
+function collectMigrationLedger(dbPath: string): MigrationRecord[] {
+  const db = new Database(dbPath, { readonly: true });
+
+  const rows = db
+    .query<{ name: string; applied_at: string }, []>(
+      'SELECT name, applied_at FROM schema_migrations ORDER BY name',
+    )
+    .all();
+
+  db.close();
+
+  return rows.map((row) => ({ name: row.name, appliedAt: row.applied_at }));
+}
+
+function updateMigrationLedger(dbPath: string, stamp: string): void {
+  const db = new Database(dbPath);
+
+  db.run('UPDATE schema_migrations SET applied_at = ?1', [stamp]);
+  db.close();
+}
+
+function readLegacyColumn(dbPath: string, column: string): unknown[] {
+  const db = new Database(dbPath, { readonly: true });
+
+  const rows = db.query<Record<string, unknown>, []>(`SELECT ${column} FROM fleet`).all();
+
+  db.close();
+
+  return rows.map((row) => row[column]);
+}
+
 test('it round-trips the fleet', () => {
   const store = new StateStore(join(setupDir(), 'state.db'));
 
@@ -328,7 +398,7 @@ test('it renames the id column and defaults agent for a store written before bot
     );
   `);
 
-  db.run("INSERT INTO fleet (claude_id, name, cwd, grp) VALUES ('c1', 'old', '/x', NULL)");
+  db.run("INSERT INTO fleet (claude_id, name, cwd, grp) VALUES ('c1', 'old', '/x', 'squad-a')");
   db.close();
 
   const store = new StateStore(dbPath);
@@ -340,4 +410,305 @@ test('it renames the id column and defaults agent for a store written before bot
   expect(store.loadFleet()).toStrictEqual([
     { name: 'old', cwd: '/x', agentSessionID: toAgentSessionID('c1'), agent: 'claude' },
   ]);
+
+  expect(readLegacyColumn(dbPath, 'grp')).toStrictEqual(['squad-a']);
+});
+
+test('it adds pinned to a fleet row that predates it', () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const db = new Database(dbPath);
+
+  db.run(`
+    CREATE TABLE fleet (
+      agent_session_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL,
+      last_attached INTEGER,
+      agent TEXT NOT NULL DEFAULT 'claude',
+      exited INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+
+  db.run(
+    "INSERT INTO fleet (agent_session_id, name, cwd, last_attached, agent, exited) VALUES ('c1', 'old', '/x', 555, 'grok', 1)",
+  );
+
+  db.close();
+
+  const store = new StateStore(dbPath);
+
+  onTestFinished(() => {
+    store.stop();
+  });
+
+  expect(store.loadFleet()).toStrictEqual([
+    {
+      name: 'old',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'grok',
+      lastAttachedAt: 555,
+      exited: true,
+    },
+  ]);
+});
+
+test('it adds last_attached to a fleet row that predates it', () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const db = new Database(dbPath);
+
+  db.run(`
+    CREATE TABLE fleet (
+      agent_session_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      agent TEXT NOT NULL DEFAULT 'claude',
+      exited INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+
+  db.run(
+    "INSERT INTO fleet (agent_session_id, name, cwd, pinned, agent, exited) VALUES ('c1', 'old', '/x', 1, 'grok', 1)",
+  );
+
+  db.close();
+
+  const store = new StateStore(dbPath);
+
+  onTestFinished(() => {
+    store.stop();
+  });
+
+  expect(store.loadFleet()).toStrictEqual([
+    {
+      name: 'old',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'grok',
+      pinned: true,
+      exited: true,
+    },
+  ]);
+});
+
+test('it adds agent to a fleet row that predates it', () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const db = new Database(dbPath);
+
+  db.run(`
+    CREATE TABLE fleet (
+      agent_session_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      last_attached INTEGER,
+      exited INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+
+  db.run(
+    "INSERT INTO fleet (agent_session_id, name, cwd, pinned, last_attached, exited) VALUES ('c1', 'old', '/x', 1, 555, 1)",
+  );
+
+  db.close();
+
+  const store = new StateStore(dbPath);
+
+  onTestFinished(() => {
+    store.stop();
+  });
+
+  expect(store.loadFleet()).toStrictEqual([
+    {
+      name: 'old',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      pinned: true,
+      lastAttachedAt: 555,
+      exited: true,
+    },
+  ]);
+});
+
+test('it adds exited to a fleet row that predates it', () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const db = new Database(dbPath);
+
+  db.run(`
+    CREATE TABLE fleet (
+      agent_session_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      last_attached INTEGER,
+      agent TEXT NOT NULL DEFAULT 'claude'
+    );
+  `);
+
+  db.run(
+    "INSERT INTO fleet (agent_session_id, name, cwd, pinned, last_attached, agent) VALUES ('c1', 'old', '/x', 1, 555, 'grok')",
+  );
+
+  db.close();
+
+  const store = new StateStore(dbPath);
+
+  onTestFinished(() => {
+    store.stop();
+  });
+
+  expect(store.loadFleet()).toStrictEqual([
+    {
+      name: 'old',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'grok',
+      pinned: true,
+      lastAttachedAt: 555,
+    },
+  ]);
+});
+
+test('it opens a database twice without re-running migrations or corrupting data', () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const legacy = new Database(dbPath);
+
+  legacy.run(`
+    CREATE TABLE fleet (
+      claude_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL
+    );
+  `);
+
+  legacy.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'first', '/x')");
+  legacy.close();
+
+  const first = new StateStore(dbPath);
+
+  first.writeFleet([
+    ...first.loadFleet(),
+    { name: 'second', cwd: '/y', agentSessionID: toAgentSessionID('c2'), agent: 'claude' },
+  ]);
+
+  first.stop();
+
+  const ledgerAfterFirstOpen = collectMigrationLedger(dbPath);
+
+  expect(ledgerAfterFirstOpen.map((row) => row.name)).toStrictEqual([
+    '001_create_initial_schema',
+    '002_rename_fleet_claude_id_to_agent_session_id',
+    '003_add_fleet_pinned',
+    '004_add_fleet_last_attached',
+    '005_add_fleet_agent',
+    '006_add_fleet_exited',
+  ]);
+
+  updateMigrationLedger(dbPath, 'sentinel');
+
+  const second = new StateStore(dbPath);
+
+  expect(second.loadFleet()).toStrictEqual([
+    { name: 'first', cwd: '/x', agentSessionID: toAgentSessionID('c1'), agent: 'claude' },
+    { name: 'second', cwd: '/y', agentSessionID: toAgentSessionID('c2'), agent: 'claude' },
+  ]);
+
+  second.stop();
+
+  expect(collectMigrationLedger(dbPath).map((row) => row.appliedAt)).toStrictEqual(
+    Array.from({ length: ledgerAfterFirstOpen.length }, () => 'sentinel'),
+  );
+});
+
+test('it ends a fresh database at the same fleet schema as a fully migrated old one', () => {
+  const freshPath = join(setupDir(), 'fresh.db');
+  const oldPath = join(setupDir(), 'old.db');
+
+  const old = new Database(oldPath);
+
+  old.run(`
+    CREATE TABLE fleet (
+      agent_session_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      last_attached INTEGER,
+      agent TEXT NOT NULL DEFAULT 'claude',
+      exited INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+
+  old.close();
+
+  const freshStore = new StateStore(freshPath);
+  const oldStore = new StateStore(oldPath);
+
+  freshStore.stop();
+  oldStore.stop();
+
+  const freshDB = new Database(freshPath, { readonly: true });
+  const oldDB = new Database(oldPath, { readonly: true });
+
+  onTestFinished(() => {
+    freshDB.close();
+    oldDB.close();
+  });
+
+  const freshSchema = collectSchema(freshDB);
+  const oldSchema = collectSchema(oldDB);
+
+  expect(freshSchema).toStrictEqual(oldSchema);
+});
+
+test('it creates prefs for a database that predates the table', () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const db = new Database(dbPath);
+
+  db.run(`
+    CREATE TABLE fleet (
+      claude_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL
+    );
+  `);
+
+  db.run(`
+    CREATE TABLE events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts TEXT NOT NULL,
+      atc_id TEXT NOT NULL,
+      event TEXT NOT NULL,
+      message TEXT,
+      session_id TEXT
+    );
+  `);
+
+  db.run(`
+    CREATE TABLE spawn_history (
+      cwd TEXT PRIMARY KEY,
+      last_spawn INTEGER NOT NULL
+    );
+  `);
+
+  db.close();
+
+  const store = new StateStore(dbPath);
+
+  onTestFinished(() => {
+    store.stop();
+  });
+
+  expect(store.loadLastUsedAgent()).toBe('claude');
+
+  store.writeLastUsedAgent('grok');
+
+  expect(store.loadLastUsedAgent()).toBe('grok');
 });
