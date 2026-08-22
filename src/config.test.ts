@@ -12,11 +12,23 @@ test('it falls back to every default when the file is not an object', () => {
     gateways: [],
     leader: { code: 0, label: '^Space' },
   });
-
-  expect(parseConfig([])).toStrictEqual(parseConfig(undefined));
-  expect(parseConfig('garbage')).toStrictEqual(parseConfig(undefined));
-  expect(parseConfig(42)).toStrictEqual(parseConfig(undefined));
 });
+
+test.each([[null], [undefined], [[]], ['garbage'], [42]])(
+  'it falls back to every default when the file holds %p',
+  (raw) => {
+    expect(parseConfig(raw)).toStrictEqual({
+      claudeBin: 'claude',
+      claudeArgs: [],
+      grokBin: 'grok',
+      grokArgs: [],
+      codexBin: 'codex',
+      codexArgs: [],
+      gateways: [],
+      leader: { code: 0, label: '^Space' },
+    });
+  },
+);
 
 test('it falls back field by field when a field is wrong-typed instead of failing the whole file', () => {
   const config = parseConfig({

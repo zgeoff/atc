@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AgentID } from './agent-adapter';
+import { buildOptionalStringArray } from './build-optional-string-array';
 import { isRecord } from './report';
 
 /**
@@ -23,8 +24,8 @@ export interface GatewayConfig {
 const BUILT_IN_IDS = new Set(['claude', 'grok', 'codex']);
 
 // One gateway map entry's keys. An absent or wrong-typed field parses to
-// undefined rather than failing the entry, so a malformed gateway is left
-// out rather than registered half-formed.
+// undefined rather than failing the entry, so a gateway with one bad field
+// still registers with the default for it.
 const GATEWAY_ENTRY_SCHEMA = z.object({
   label: buildOptionalNonEmptyString(),
   mark: buildOptionalNonEmptyString(),
@@ -85,13 +86,6 @@ function buildOptionalNonEmptyString() {
   return z.preprocess(
     (v) => (typeof v === 'string' && v !== '' ? v : undefined),
     z.string().optional(),
-  );
-}
-
-function buildOptionalStringArray() {
-  return z.preprocess(
-    (v) => (Array.isArray(v) ? v.filter((a): a is string => typeof a === 'string') : undefined),
-    z.array(z.string()).optional(),
   );
 }
 

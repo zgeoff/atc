@@ -10,6 +10,7 @@ import type {
   SpawnPlan,
 } from './agent-adapter';
 import type { AgentSessionID } from './agent-session-id';
+import { buildOptionalString } from './build-optional-string';
 import type { Config } from './config';
 import type { HookEvent } from './hooks';
 import { normalizeHookEventName } from './normalize-hook-event';
@@ -309,8 +310,4 @@ function findGrokSummary(source: string): string | null {
   } catch {}
 
   return null;
-}
-
-function buildOptionalString() {
-  return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().optional());
 }

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { toAgentID } from './agent-adapter';
 import type { AgentID } from './agent-adapter';
 import type { AgentSessionID } from './agent-session-id';
+import { buildOptionalBoolean } from './build-optional-boolean';
 import { isRecord } from './report';
 
 export interface FleetEntry {
@@ -64,10 +65,6 @@ export function parseFleetEntry(raw: unknown): FleetEntry | undefined {
       : { lastAttachedAt: parsed.data.lastAttachedAt }),
     ...(parsed.data.exited === true ? { exited: true } : {}),
   };
-}
-
-function buildOptionalBoolean() {
-  return z.preprocess((v) => (typeof v === 'boolean' ? v : undefined), z.boolean().optional());
 }
 
 function buildOptionalNumber() {

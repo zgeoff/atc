@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { buildOptionalString } from './build-optional-string';
+import { buildOptionalStringArray } from './build-optional-string-array';
 import { collectGateways } from './collect-gateways';
 import type { GatewayConfig } from './collect-gateways';
 
@@ -146,15 +148,4 @@ function decodeLeader(name: string): LeaderKey | null {
   }
 
   return { code, label: `^${key.toUpperCase()}` };
-}
-
-function buildOptionalString() {
-  return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().optional());
-}
-
-function buildOptionalStringArray() {
-  return z.preprocess(
-    (v) => (Array.isArray(v) ? v.filter((a): a is string => typeof a === 'string') : undefined),
-    z.array(z.string()).optional(),
-  );
 }

@@ -10,6 +10,7 @@ import type {
   SpawnPlan,
 } from './agent-adapter';
 import type { AgentSessionID } from './agent-session-id';
+import { buildOptionalString } from './build-optional-string';
 import type { Config } from './config';
 import type { HookEvent } from './hooks';
 import { isRecord } from './report';
@@ -185,8 +186,4 @@ export class CodexAdapter implements AgentAdapter {
 
     return `cd ${toShellArg(cwd)} && ${resume}`;
   }
-}
-
-function buildOptionalString() {
-  return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().optional());
 }

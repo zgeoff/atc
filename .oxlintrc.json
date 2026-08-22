@@ -104,17 +104,26 @@
     {
       "files": ["src/grok-adapter.ts"],
       // the adapter's own dependencies plus the branded session and
-      // agent-session id types it keys and mints at its hook boundary, plus
-      // zod for its hook payload schema
+      // agent-session id types it keys and mints at its hook boundary, and the
+      // zod schema helpers its hook payload is parsed with
       "rules": {
-        "import/max-dependencies": ["error", { "max": 13 }]
+        "import/max-dependencies": ["error", { "max": 14 }]
+      }
+    },
+    {
+      "files": ["src/claude-adapter.ts"],
+      // the adapter's own dependencies plus the zod schema helpers its hook
+      // payload is parsed with
+      "rules": {
+        "import/max-dependencies": ["error", { "max": 11 }]
       }
     },
     {
       "files": ["src/codex-adapter.ts"],
-      // the adapter's own dependencies plus zod for its hook payload schema
+      // the adapter's own dependencies plus the zod schema helpers its hook
+      // payload is parsed with
       "rules": {
-        "import/max-dependencies": ["error", { "max": 11 }]
+        "import/max-dependencies": ["error", { "max": 12 }]
       }
     },
     {
