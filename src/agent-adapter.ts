@@ -73,6 +73,10 @@ interface HeadlessRunRequest {
   readonly prompt: string;
   readonly resume?: string;
   readonly permissionMode?: string;
+
+  // Settings file the run's CLI is started with, so a headless turn reaches
+  // the same backend the session's terminal did.
+  readonly settings?: string;
 }
 
 interface HeadlessRunEvents {

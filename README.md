@@ -71,8 +71,8 @@ rows, and whatever letter a gateway was given; Claude rows keep a space so names
 
 Revive (`P`) resumes the session from its saved transcript, so a session killed before its first
 exchange has nothing on disk yet, and the overlay says so in its message column instead of resuming.
-Headless eject (`H`) uses the same transcript. Grok, Codex, and gateway sessions have no headless
-handoff, so the key is hidden on their rows.
+Headless eject (`H`) uses the same transcript, and a gateway session ejects to its own backend. Grok
+and Codex have no headless handoff, so the key is hidden on their rows.
 
 Everything else is passed through to the focused session, which owns the full screen. Fleet state
 renders inside Claude Code's own status line (injected via the same `--settings` file): your
@@ -197,9 +197,8 @@ and GLM sessions then sit side by side in one fleet:
 | `env`          | `{}`        | Extra environment for the session, such as the model each Claude tier maps to.                  |
 
 The id may not be `claude`, `grok`, or `codex`. atc writes one settings file per id and passes it as
-`--settings`, so a gateway session's backend is decided there rather than by whatever the terminal
-exported. Ejecting to headless is refused on a gateway session, because that turn would run against
-the default backend.
+`--settings`, on the terminal spawn and on a headless turn alike, so a gateway session reaches its
+own backend rather than whatever the terminal exported.
 
 `atc mcp` exposes the fleet as MCP tools (list, spawn, drive, organise) to any MCP client, wrangled
 sessions included. `atc_session_spawn` takes an optional `agent` id and defaults to Claude; it never

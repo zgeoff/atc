@@ -35,7 +35,7 @@ test('it answers to the id its backend was configured under', () => {
   expect(buildGatewayAdapter().id).toBe('zai');
 });
 
-test('it refuses a headless turn, so no turn runs against the default backend', () => {
+test('it runs no headless turn when the daemon gave it no runner', () => {
   expect(buildGatewayAdapter().headlessRunner).toBeNull();
 });
 

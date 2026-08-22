@@ -13,9 +13,10 @@ the config keys to set.
 
 A session records which agent it runs under as an id, and the daemon keys its adapter registry by
 that id. A configured gateway is an id of its own: the Claude CLI against a Claude-compatible
-backend, with its own picker row, its own generated settings file, and its own fleet rows. A fleet
-row whose id has no registered adapter keeps its place and refuses to revive, so a backend dropped
-from the config never comes back as Claude.
+backend, with its own picker row, its own generated settings file, and its own fleet rows. That
+settings file is passed to the terminal spawn and to a headless turn alike, so ejecting a gateway
+session keeps it on its backend. A fleet row whose id has no registered adapter keeps its place and
+refuses to revive, so a backend dropped from the config never comes back as Claude.
 
 ## Process model
 

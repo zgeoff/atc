@@ -395,7 +395,7 @@ test('it spawns a session under a configured backend id', async () => {
 
   expect(spawned['isError']).toBeUndefined();
   expect(getText(spawned)).toInclude('"agent": "zai"');
-  expect(getText(spawned)).toInclude('"canEject": false');
+  expect(getText(spawned)).toInclude('"canEject": true');
 });
 
 test('it writes a backend settings file that carries the base URL and no credential', async () => {
