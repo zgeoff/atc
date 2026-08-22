@@ -1,8 +1,9 @@
-import { basename } from 'node:path';
 import { bootDaemonClient } from './boot-daemon';
 import { buildLeaderChords } from './build-leader-chords';
+import { collectAgentPicks } from './collect-agent-picks';
+import type { AgentPick } from './collect-agent-picks';
 import { loadConfig } from './config';
-import { collectDirs, findFuzzyScore, formatDir, pickMatches } from './dirs';
+import { collectDirs, findFuzzyScore, formatDir, formatDirName, pickMatches } from './dirs';
 import { pickTabTarget } from './pick-tab-target';
 import type { EventMsg } from './protocol';
 import { isRecord } from './report';
@@ -22,12 +23,6 @@ type Mode =
   | 'picker-name'
   | 'picker-prompt'
   | 'picker-eject';
-
-const AGENT_PICKS = [
-  { agent: 'claude' as const, label: 'Claude' },
-  { agent: 'grok' as const, label: 'Grok' },
-  { agent: 'codex' as const, label: 'Codex' },
-];
 
 interface MirrorSession {
   id: string;
@@ -70,6 +65,10 @@ let spawnName = '';
 let spawnResume = false;
 let spawnAgent: AgentKind = 'claude';
 let lastUsedAgent: AgentKind = 'claude';
+
+// The installed agents, collected each time the menu opens so a config edit
+// or a fresh install lands without a client restart.
+let agentPicks: AgentPick[] = [];
 const stdout = process.stdout;
 
 // Full height: the atc status bar only exists on home/overlay screens;
@@ -264,14 +263,21 @@ function renderPicker() {
   const verb = spawnResume ? 'adopt' : 'spawn';
 
   if (mode === 'picker-agent') {
-    pickerSelected = Math.min(pickerSelected, AGENT_PICKS.length - 1);
+    pickerSelected = Math.min(pickerSelected, agentPicks.length - 1);
+
+    // An empty menu means every configured binary is missing, so the hint
+    // carries the fix instead of the movement keys.
+    const hint =
+      agentPicks.length === 0
+        ? 'no agent CLI found — set claudeBin, grokBin, or codexBin in config.json · esc cancel'
+        : '↑↓ move · ⏎ select · esc cancel';
 
     drawPicker({
       title: `${verb}: agent`,
-      items: AGENT_PICKS.map((pick) => pick.label),
+      items: agentPicks.map((p) => p.label),
       selected: pickerSelected,
       input: pickerInput,
-      hint: '↑↓ move · ⏎ select · esc cancel',
+      hint,
     });
   } else if (mode === 'picker-dir') {
     const items = pickMatches(allDirs, pickerInput).map((d) => formatDir(d));
@@ -291,7 +297,7 @@ function renderPicker() {
       items: [],
       selected: -1,
       input: pickerInput,
-      placeholder: basename(spawnDir),
+      placeholder: formatDirName(spawnDir),
       hint: `session name for ${formatDir(spawnDir)} · ⏎ accept · esc back`,
     });
   } else if (mode === 'picker-eject') {
@@ -319,14 +325,17 @@ function renderPicker() {
 
 function openAgentPicker(resume = false) {
   spawnResume = resume;
-  spawnAgent = lastUsedAgent;
+  agentPicks = collectAgentPicks(loadConfig());
   pickerInput = '';
 
+  // A last-used agent that is no longer installed is not in the menu, so
+  // the selection falls to the first one that is.
   pickerSelected = Math.max(
     0,
-    AGENT_PICKS.findIndex((p) => p.agent === lastUsedAgent),
+    agentPicks.findIndex((p) => p.agent === lastUsedAgent),
   );
 
+  spawnAgent = agentPicks[pickerSelected]?.agent ?? lastUsedAgent;
   mode = 'picker-agent';
 
   stdout.write(ansi.clear);
@@ -1125,7 +1134,15 @@ process.stdin.on('data', (buf: Buffer) => {
       applyTextKey(
         buf,
         () => {
-          spawnAgent = AGENT_PICKS[pickerSelected]?.agent ?? 'claude';
+          const pick = agentPicks[pickerSelected];
+
+          // With no agent installed the menu is empty and there is nothing
+          // to spawn.
+          if (pick === undefined) {
+            return;
+          }
+
+          spawnAgent = pick.agent;
           void openDirPicker();
         },
         () => {
@@ -1164,7 +1181,7 @@ process.stdin.on('data', (buf: Buffer) => {
 
           pickerSelected = Math.max(
             0,
-            AGENT_PICKS.findIndex((p) => p.agent === spawnAgent),
+            agentPicks.findIndex((p) => p.agent === spawnAgent),
           );
 
           mode = 'picker-agent';
