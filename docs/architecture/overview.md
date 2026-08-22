@@ -73,9 +73,9 @@ would let one runtime's stale-daemon restart kill another runtime's healthy daem
 A client crash costs nothing — the daemon keeps hosting the fleet. If the daemon itself dies, its
 children die with it (PTY close → SIGHUP), but each agent streams transcripts to disk continuously,
 so sessions are data, not processes. Restore reconstructs each row with the matching CLI
-(`claude --resume <id>` or `grok --resume <id>`); the fleet table makes that a single keypress (`R`)
-after a cold boot. The same mechanism powers adopt (`r`) and yank/eject (`y`/`Y`). `H` is
-unsupported for Grok.
+(`claude --resume <id>`, `grok --resume <id>`, or `codex resume <id>`); the fleet table makes that a
+single keypress (`R`) after a cold boot. The same mechanism powers adopt (`r`) and yank/eject
+(`y`/`Y`). `H` is unsupported for Grok.
 
 Reviving a whole fleet is incremental but visible from the start. Every fleet entry registers as a
 session without a terminal before any process boots — each broadcasts `session.added`, so clients
