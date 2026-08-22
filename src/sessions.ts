@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
-import type { AdapterEvent, AgentAdapter, AgentKind } from './agent-adapter';
+import type { AdapterEvent, AgentAdapter, AgentID } from './agent-adapter';
 import { collectCleanEnv } from './collect-clean-env';
 import { socketPath, statusFile } from './config';
 import type { FleetEntry, FleetStore } from './fleet-entry';
@@ -23,7 +23,7 @@ export interface SessionDescriptor {
   readonly lastMsg: string;
   readonly lastDetail?: string;
   readonly agentSessionID?: string;
-  readonly agent: AgentKind;
+  readonly agent: AgentID;
   readonly pinned: boolean;
   readonly lastAttachedAt: number;
   readonly repoRoot: string;
@@ -44,7 +44,7 @@ export interface Session {
   lastMsg: string;
   lastDetail?: string;
   agentSessionID?: string;
-  agent: AgentKind;
+  agent: AgentID;
   transcriptSource?: string;
   pinned: boolean;
 
@@ -75,9 +75,7 @@ export class SessionManager {
 
   onEvent: (kind: SessionEventKind, s: Session) => void = () => {};
 
-  private readonly fallback: AgentAdapter;
-
-  private readonly adapters: Partial<Readonly<Record<AgentKind, AgentAdapter>>>;
+  private readonly adapters: Readonly<Record<AgentID, AgentAdapter>>;
 
   private readonly store: FleetStore;
 
@@ -87,24 +85,22 @@ export class SessionManager {
     fallback: AgentAdapter,
     store: FleetStore,
     statusPath: string | undefined = statusFile,
-    adapters: Partial<Readonly<Record<AgentKind, AgentAdapter>>> = {},
+    adapters: readonly AgentAdapter[] = [],
   ) {
-    this.fallback = fallback;
-    this.adapters = adapters;
+    // Each adapter names the id it answers to, so a registry key can never
+    // disagree with the adapter behind it. A later one wins the id.
+    this.adapters = Object.fromEntries([fallback, ...adapters].map((a) => [a.id, a]));
     this.store = store;
     this.statusPath = statusPath ?? statusFile;
   }
 
   /**
-   * Adapter for this kind, or null when none is registered. Never returns a
-   * different kind than the one asked for.
+   * Adapter registered under this id, or null when there is none. Lookup
+   * never falls back to another id: a session whose agent is not registered
+   * is unsupported, not somebody else's spawn.
    */
-  findAdapter(kind: AgentKind): AgentAdapter | null {
-    if (kind === 'claude') {
-      return this.adapters.claude ?? this.fallback;
-    }
-
-    return this.adapters[kind] ?? null;
+  findAdapter(id: AgentID): AgentAdapter | null {
+    return this.adapters[id] ?? null;
   }
 
   // Hands a live terminal session off to a headless run: the terminal dies,
@@ -137,6 +133,17 @@ export class SessionManager {
   restore(entry: FleetEntry): Session {
     const exited = entry.exited === true;
 
+    // An entry whose agent is no longer registered still gets its row, so a
+    // backend dropped from the config shows as itself instead of vanishing or
+    // reviving under another agent. Adopting a terminal for it is refused.
+    let lastMsg = 'waiting to restore';
+
+    if (exited) {
+      lastMsg = 'killed';
+    } else if (this.findAdapter(entry.agent) === null) {
+      lastMsg = `no adapter for '${entry.agent}'`;
+    }
+
     const session: Session = {
       id: `s${++counter}-${Date.now().toString(36)}`,
       name: entry.name,
@@ -145,7 +152,7 @@ export class SessionManager {
       pty: null,
       state: exited ? 'exited' : 'running',
       unread: false,
-      lastMsg: exited ? 'killed' : 'waiting to restore',
+      lastMsg,
       agentSessionID: entry.agentSessionID,
       agent: entry.agent,
       pinned: entry.pinned ?? false,
@@ -301,7 +308,7 @@ export class SessionManager {
     rows: number,
     resume: boolean | string = false,
     namedBy: 'user' | 'auto' = 'auto',
-    agent: AgentKind = 'claude',
+    agent: AgentID = 'claude',
   ): Session {
     const adapter = this.findAdapter(agent);
 

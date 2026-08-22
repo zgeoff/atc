@@ -1,4 +1,4 @@
-import type { AgentKind } from './agent-adapter';
+import type { AgentID } from './agent-adapter';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
 import { loadConfig } from './config';
@@ -17,7 +17,7 @@ export interface SpawnPickerDeps<TMirror> {
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly ptyRows: () => number;
   readonly isLeaderKey: (buf: Buffer) => boolean;
-  readonly getLastUsedAgent: () => AgentKind;
+  readonly getLastUsedAgent: () => AgentID;
   readonly scheduleStatus: () => void;
   readonly toBase: () => void;
   readonly attach: (sessionID: string) => Promise<void>;
@@ -51,7 +51,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private resume = false;
 
-  private agent: AgentKind = 'claude';
+  private agent: AgentID = 'claude';
 
   constructor(deps: SpawnPickerDeps<TMirror>) {
     this.deps = deps;

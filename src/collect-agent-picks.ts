@@ -1,8 +1,8 @@
-import type { AgentKind } from './agent-adapter';
+import type { AgentID } from './agent-adapter';
 import type { Config } from './config';
 
 export interface AgentPick {
-  readonly agent: AgentKind;
+  readonly agent: AgentID;
   readonly label: string;
 }
 

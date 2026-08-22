@@ -10,6 +10,7 @@ import { isRecord } from './report';
 import { StateStore } from './state-store';
 
 const idleAdapter: AgentAdapter = {
+  id: 'claude',
   kind: 'claude',
   headlessRunner: null,
   screenDetector: null,
@@ -49,7 +50,7 @@ test('it does not write last-used when a restored session reports SessionStart',
     reporterSocketPath: reporterPath,
     build: 'atc/test-build',
     adapter: idleAdapter,
-    adapters: { grok },
+    adapters: [grok],
     dbPath,
     statusPath: join(dir, 'status.json'),
   });

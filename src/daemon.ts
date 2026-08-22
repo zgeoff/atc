@@ -1,5 +1,5 @@
 import { unlinkSync, writeFileSync } from 'node:fs';
-import type { AgentAdapter, AgentKind } from './agent-adapter';
+import type { AgentAdapter } from './agent-adapter';
 import { AttachRegistry } from './attach-registry';
 import type { Dims } from './attach-registry';
 import { DaemonConnection } from './daemon-connection';
@@ -21,9 +21,10 @@ export interface DaemonOptions {
   readonly build: string;
   readonly adapter: AgentAdapter;
 
-  // Optional per-kind adapters. Lookup never falls back across kinds: a
-  // grok session with no grok adapter is unsupported, not a Claude spawn.
-  readonly adapters?: Partial<Readonly<Record<AgentKind, AgentAdapter>>>;
+  // Adapters registered over and above the default one, each keyed by the id
+  // it declares. Lookup never falls back across ids: a grok session with no
+  // grok adapter is unsupported, not a Claude spawn.
+  readonly adapters?: readonly AgentAdapter[];
 
   // SQLite path for daemon state; a fleet.json at legacyFleetPath seeds the
   // fleet table once so upgrading keeps the restorable fleet.
@@ -76,7 +77,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
   }
 
   const store = new StateStore(opts.dbPath, opts.legacyFleetPath);
-  const mgr = new SessionManager(opts.adapter, store, opts.statusPath, opts.adapters ?? {});
+  const mgr = new SessionManager(opts.adapter, store, opts.statusPath, opts.adapters ?? []);
   const clients = new Set<DaemonConnection>();
 
   const emitEvent = (event: EventMsg) => {

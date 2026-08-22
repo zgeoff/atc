@@ -3,19 +3,20 @@ import type { HookEvent } from './hooks';
 export type AgentKind = 'claude' | 'grok' | 'codex';
 
 /**
- * Missing, empty, and unknown values become Claude so a fleet written
- * before the agent column still restores as Claude.
+ * Which agent a session runs under: the key the adapter registry is looked
+ * up by. Every agent CLI supplies one, and so does every configured backend
+ * that drives a CLI it does not own, so two ids can share one kind.
  */
-export function toAgentKind(raw: unknown): AgentKind {
-  return raw === 'grok' || raw === 'codex' ? raw : 'claude';
-}
+export type AgentID = string;
 
 /**
- * An unrecognised value is null, never coerced to a known kind, for call
- * sites that must reject rather than guess.
+ * Missing and empty values become Claude so a fleet written before the agent
+ * column still restores as Claude. Any other string is returned as it stands,
+ * registered or not: an id whose adapter is gone must reach the caller intact
+ * so the session can be shown and refused, never quietly run as Claude.
  */
-export function parseAgentKind(raw: unknown): AgentKind | null {
-  return raw === 'claude' || raw === 'grok' || raw === 'codex' ? raw : null;
+export function toAgentID(raw: unknown): AgentID {
+  return typeof raw === 'string' && raw !== '' ? raw : 'claude';
 }
 
 export interface SpawnOptions {
@@ -93,6 +94,12 @@ export type HeadlessRunner = (
  * session outside atc. The session core never sees past this interface.
  */
 export interface AgentAdapter {
+  // What the registry is keyed by, and what a session records. Unique across
+  // registered adapters.
+  readonly id: AgentID;
+
+  // Which CLI this adapter drives. Several ids can share one kind when they
+  // differ only in the backend the CLI is pointed at.
   readonly kind: AgentKind;
 
   // Runs one headless turn over a session; null means eject is unsupported

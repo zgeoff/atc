@@ -1,12 +1,12 @@
-import { toAgentKind } from './agent-adapter';
-import type { AgentKind } from './agent-adapter';
+import { toAgentID } from './agent-adapter';
+import type { AgentID } from './agent-adapter';
 import { isRecord } from './report';
 
 export interface FleetEntry {
   readonly name: string;
   readonly cwd: string;
   readonly agentSessionID: string;
-  readonly agent: AgentKind;
+  readonly agent: AgentID;
   readonly pinned?: boolean;
   readonly lastAttachedAt?: number;
   readonly exited?: boolean;
@@ -34,7 +34,7 @@ export function parseFleetEntry(raw: unknown): FleetEntry | undefined {
     name: raw['name'],
     cwd: raw['cwd'],
     agentSessionID,
-    agent: toAgentKind(raw['agent']),
+    agent: toAgentID(raw['agent']),
     ...(raw['pinned'] === true ? { pinned: true } : {}),
     ...(typeof raw['lastAttachedAt'] === 'number' ? { lastAttachedAt: raw['lastAttachedAt'] } : {}),
     ...(raw['exited'] === true ? { exited: true } : {}),
