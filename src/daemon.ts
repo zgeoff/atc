@@ -388,20 +388,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
 
     const builders: Record<typeof kind, () => EventMsg> = {
       added: () => ({ v: PROTOCOL_V, ev: 'session.added', session: getDescriptor(mgr, s.id) }),
-      state: () => ({
-        v: PROTOCOL_V,
-        ev: 'session.state',
-        s: s.id,
-        state: s.state,
-        unread: s.unread,
-        lastMsg: s.lastMsg,
-        kind: s.kind,
-        alive: s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'),
-        ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
-        agent: s.agent,
-        pinned: s.pinned,
-        lastAttachedAt: s.lastAttachedAt,
-      }),
+      state: () => ({ v: PROTOCOL_V, ev: 'session.state', session: getDescriptor(mgr, s.id) }),
       renamed: () => ({
         v: PROTOCOL_V,
         ev: 'session.renamed',

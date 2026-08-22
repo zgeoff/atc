@@ -95,10 +95,17 @@ test('it flags a hook-less agent waiting at a prompt via the screen detector', a
 
   const needy = await waitForEvent(
     ctx.events,
-    (e) => e.ev === 'session.state' && e['state'] === 'needs_you',
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
-  expect(needy['lastMsg']).toBe('waiting at a prompt');
+  const needySession = needy['session'];
+
+  if (!isRecord(needySession)) {
+    throw new TypeError('session.state carried no session descriptor');
+  }
+
+  expect(needySession['lastMsg']).toBe('waiting at a prompt');
 });
 
 test('it flips the session back to working once the prompt is answered', async () => {
@@ -113,16 +120,30 @@ test('it flips the session back to working once the prompt is answered', async (
 
   const id = spawned['id'];
 
-  await waitForEvent(ctx.events, (e) => e.ev === 'session.state' && e['state'] === 'needs_you');
+  await waitForEvent(
+    ctx.events,
+    (e) =>
+      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
 
   await ctx.client.sendRequest('session.input', { session: id, d: 'go\n' });
 
   const working = await waitForEvent(
     ctx.events,
-    (e) => e.ev === 'session.state' && e['state'] === 'running' && e['lastMsg'] === 'working',
+    (e) =>
+      e.ev === 'session.state' &&
+      isRecord(e['session']) &&
+      e['session']['state'] === 'running' &&
+      e['session']['lastMsg'] === 'working',
   );
 
-  expect(working['s']).toBe(id);
+  const workingSession = working['session'];
+
+  if (!isRecord(workingSession)) {
+    throw new TypeError('session.state carried no session descriptor');
+  }
+
+  expect(workingSession['id']).toBe(id);
 });
 
 test('it opens a permission request from a screen-detected prompt', async () => {
