@@ -1,11 +1,6 @@
 import { expect, test } from 'bun:test';
-import type { AgentSessionID } from './agent-session-id';
 import { parseFleetEntry } from './fleet-entry';
-
-function toAgentSessionID(id: string): AgentSessionID {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for an agent-minted session id
-  return id as AgentSessionID;
-}
+import { toAgentSessionID } from './to-agent-session-id';
 
 test('it parses a well-formed row into a fleet entry', () => {
   expect(

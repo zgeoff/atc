@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ClaudeAdapter } from './claude-adapter';
 import type { Config } from './config';
-import type { SessionID } from './session-id';
+import { toSessionID } from './to-session-id';
 
 function buildClaudeConfig(): Config {
   return {
@@ -17,11 +17,6 @@ function buildClaudeConfig(): Config {
     gateways: [],
     leader: { code: 0, label: '^Space' },
   };
-}
-
-function toSessionID(id: string): SessionID {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
-  return id as SessionID;
 }
 
 test('it resumes when no transcript was reported or the reported file exists', () => {

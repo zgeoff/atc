@@ -3,19 +3,9 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AgentSessionID } from './agent-session-id';
-import type { SessionID } from './session-id';
 import { StateStore } from './state-store';
-
-function toSessionID(id: string): SessionID {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
-  return id as SessionID;
-}
-
-function toAgentSessionID(id: string): AgentSessionID {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for an agent-minted session id
-  return id as AgentSessionID;
-}
+import { toAgentSessionID } from './to-agent-session-id';
+import { toSessionID } from './to-session-id';
 
 function setupDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'atc-store-'));

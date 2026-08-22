@@ -1,11 +1,6 @@
 import { expect, test } from 'bun:test';
 import { PermissionRegistry } from './permission-registry';
-import type { SessionID } from './session-id';
-
-function toSessionID(id: string): SessionID {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literals stand in for minted session ids
-  return id as SessionID;
-}
+import { toSessionID } from './to-session-id';
 
 test('it emits the request with its respondable flag on open', () => {
   const registry = new PermissionRegistry();
