@@ -196,6 +196,9 @@ and GLM sessions then sit side by side in one fleet:
 | `apiKeyHelper` | none        | Command the CLI runs to read the credential, so no token is written into atc's state directory. |
 | `env`          | `{}`        | Extra environment for the session, such as the model each Claude tier maps to.                  |
 
+Two backends may be given the same `mark`. atc does not check, and a clash makes them
+indistinguishable in the overlay column.
+
 The id may not be `claude`, `grok`, or `codex`. atc writes one settings file per id and passes it as
 `--settings`, on the terminal spawn and on a headless turn alike, so a gateway session reaches its
 own backend rather than whatever the terminal exported.
