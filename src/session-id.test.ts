@@ -1,4 +1,4 @@
-import { test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import type { AgentSessionID } from './agent-session-id';
 import { PermissionRegistry } from './permission-registry';
 import type { SessionID } from './session-id';
@@ -34,8 +34,10 @@ test('it rejects an AgentSessionID passed as a PermissionRegistry sessionID', ()
 
   const registry = new PermissionRegistry();
 
+  // Respondable, so the answer below resolves the request and clears the
+  // registry's pending timeout rather than leaving it running past the test.
   // @ts-expect-error -- an agent-minted session id is not an atc session id
-  const req = registry.open(agentSessionID, 'needs permission', false);
+  const req = registry.open(agentSessionID, 'needs permission', true);
 
-  registry.answer(req.id, 'dismissed');
+  expect(registry.answer(req.id, 'dismissed')).toBe('ok');
 });

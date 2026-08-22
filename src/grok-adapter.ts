@@ -66,17 +66,21 @@ export class GrokAdapter implements AgentAdapter {
     const promptID = e.payload['promptId'];
     const subagentType = e.payload['subagentType'];
 
+    const agentSessionID =
+      typeof sessionID === 'string'
+        ? // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's sessionId is an agent session id by contract; this is the one point where it is trusted
+          (sessionID as AgentSessionID)
+        : undefined;
+
     const base: AdapterEvent = {
       kind: 'heartbeat',
-
-      // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's sessionId is an agent session id by contract; this is the one point where it is trusted
-      ...(typeof sessionID === 'string' ? { agentSessionID: sessionID as AgentSessionID } : {}),
+      ...(agentSessionID === undefined ? {} : { agentSessionID }),
     };
 
     const named: AdapterEvent = {
       ...base,
-      ...(typeof sessionID === 'string' && typeof cwd === 'string'
-        ? { nameSource: buildGrokNameSource(sessionID, cwd) }
+      ...(agentSessionID !== undefined && typeof cwd === 'string'
+        ? { nameSource: buildGrokNameSource(agentSessionID, cwd) }
         : {}),
     };
 
@@ -234,7 +238,7 @@ export class GrokAdapter implements AgentAdapter {
   }
 }
 
-function buildGrokNameSource(sessionID: string, cwd: string): string {
+function buildGrokNameSource(sessionID: AgentSessionID, cwd: string): string {
   return join(
     resolveAgentHome('GROK_HOME', '.grok'),
     'sessions',
