@@ -28,9 +28,9 @@ interface GrokSessionHookState {
 // a SessionEnd hook cannot grow it for the daemon's whole lifetime.
 const MAX_HOOK_STATE_ENTRIES = 256;
 
-// Grok's hook payload keys, camelCase. Every field is read once at the top
-// of normalizeHook instead of indexing the raw payload throughout; an absent
-// or wrong-typed field parses to undefined rather than failing the payload.
+// Grok's hook payload keys, camelCase. An absent or wrong-typed field parses
+// to undefined rather than failing the payload, so a broken reporter never
+// breaks the session it reports on.
 const GROK_HOOK_PAYLOAD_SCHEMA = z.object({
   sessionId: buildOptionalString(),
   cwd: buildOptionalString(),

@@ -17,10 +17,9 @@ import { toShellArg } from './to-shell-arg';
 import { truncateDetail } from './truncate-detail';
 import { writeHookSettings } from './write-hook-settings';
 
-// Claude's hook payload keys, snake_case. Every field is read once at the
-// top of normalizeHook instead of indexing the raw payload throughout; an
-// absent or wrong-typed field parses to undefined rather than failing the
-// payload.
+// Claude's hook payload keys, snake_case. An absent or wrong-typed field
+// parses to undefined rather than failing the payload, so a broken reporter
+// never breaks the session it reports on.
 const CLAUDE_HOOK_PAYLOAD_SCHEMA = z.object({
   session_id: buildOptionalString(),
   transcript_path: buildOptionalString(),

@@ -22,10 +22,9 @@ export interface GatewayConfig {
 // Ids the built-in adapters answer to; a gateway may not take one.
 const BUILT_IN_IDS = new Set(['claude', 'grok', 'codex']);
 
-// One gateway map entry's keys. Every field is read once instead of
-// indexing the raw entry throughout; an absent or wrong-typed field parses
-// to undefined rather than failing the entry, so a malformed gateway is
-// left out rather than registered half-formed.
+// One gateway map entry's keys. An absent or wrong-typed field parses to
+// undefined rather than failing the entry, so a malformed gateway is left
+// out rather than registered half-formed.
 const GATEWAY_ENTRY_SCHEMA = z.object({
   label: buildOptionalNonEmptyString(),
   mark: buildOptionalNonEmptyString(),

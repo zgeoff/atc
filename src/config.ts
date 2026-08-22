@@ -42,11 +42,9 @@ export const dbFile = join(stateDir, 'atc.db');
 export const legacyFleetFile = join(stateDir, 'fleet.json');
 export const daemonPidFile = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-daemon.pid');
 
-// A user-written config.json's top-level keys. Every field is read once at
-// the top of loadConfig instead of indexing the raw parse throughout; an
-// absent or wrong-typed field parses to undefined rather than failing the
-// file, so a bad config falls back to a default instead of refusing to
-// start atc.
+// A user-written config.json's top-level keys. An absent or wrong-typed
+// field parses to undefined rather than failing the file, so a bad config
+// falls back to a default instead of refusing to start atc.
 const CONFIG_SCHEMA = z.object({
   claudeBin: buildOptionalString(),
   claudeArgs: buildOptionalStringArray(),
