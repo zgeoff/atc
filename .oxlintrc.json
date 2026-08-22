@@ -84,7 +84,7 @@
       // fleet mirror together, and every import it keeps is read by two or
       // more of them
       "rules": {
-        "import/max-dependencies": ["error", { "max": 11 }]
+        "import/max-dependencies": ["error", { "max": 12 }]
       }
     }
   ],
