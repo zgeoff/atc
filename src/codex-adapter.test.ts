@@ -2,20 +2,10 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AgentSessionID } from './agent-session-id';
 import { CodexAdapter } from './codex-adapter';
 import type { Config } from './config';
-import type { SessionID } from './session-id';
-
-function toSessionID(id: string): SessionID {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
-  return id as SessionID;
-}
-
-function toAgentSessionID(id: string): AgentSessionID {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for an agent-minted session id
-  return id as AgentSessionID;
-}
+import { toAgentSessionID } from './to-agent-session-id';
+import { toSessionID } from './to-session-id';
 
 function buildCodexConfig(): Config {
   return {
@@ -158,6 +148,36 @@ test('it resumes when no transcript was reported or the reported rollout exists'
   expect(adapter.canResume({})).toBe(true);
   expect(adapter.canResume({ transcriptSource: rollout })).toBe(true);
   expect(adapter.canResume({ transcriptSource: join(dir, 'missing.jsonl') })).toBe(false);
+});
+
+test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
+  const adapter = new CodexAdapter(buildCodexConfig());
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'Stop',
+
+    // oxlint-disable-next-line no-unsafe-type-assertion -- exercising a payload shape the HookEvent type rules out but a hostile or buggy reporter could still send
+    payload: 'garbage' as unknown as Record<string, unknown>,
+  });
+
+  expect(ev).toStrictEqual({ kind: 'turn-done' });
+});
+
+test('it treats wrong-typed hook payload fields as absent instead of throwing', () => {
+  const adapter = new CodexAdapter(buildCodexConfig());
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'PermissionRequest',
+    payload: { session_id: null, tool_name: 7 },
+  });
+
+  expect(ev).toStrictEqual({
+    kind: 'needs-input',
+    message: 'waiting for approval',
+    detail: 'waiting for approval',
+  });
 });
 
 test('it builds codex resume commands with and without a captured id', () => {

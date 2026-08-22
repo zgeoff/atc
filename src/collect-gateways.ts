@@ -1,4 +1,6 @@
+import { z } from 'zod';
 import type { AgentID } from './agent-adapter';
+import { buildOptionalStringArray } from './build-optional-string-array';
 import { isRecord } from './report';
 
 /**
@@ -21,6 +23,19 @@ export interface GatewayConfig {
 // Ids the built-in adapters answer to; a gateway may not take one.
 const BUILT_IN_IDS = new Set(['claude', 'grok', 'codex']);
 
+// One gateway map entry's keys. An absent or wrong-typed field parses to
+// undefined rather than failing the entry, so a gateway with one bad field
+// still registers with the default for it.
+const GATEWAY_ENTRY_SCHEMA = z.object({
+  label: buildOptionalNonEmptyString(),
+  mark: buildOptionalNonEmptyString(),
+  baseURL: buildOptionalNonEmptyString(),
+  bin: buildOptionalNonEmptyString(),
+  args: buildOptionalStringArray(),
+  apiKeyHelper: buildOptionalNonEmptyString(),
+  env: buildStringEnvRecord(),
+});
+
 /**
  * Reads the gateway map into menu order. An entry without a base URL, or
  * under an id another adapter already answers to, is left out rather than
@@ -38,50 +53,61 @@ export function collectGateways(
   const gateways: GatewayConfig[] = [];
 
   for (const [id, entry] of Object.entries(raw)) {
-    if (id === '' || BUILT_IN_IDS.has(id) || gateways.some((g) => g.id === id)) {
+    if (id === '' || BUILT_IN_IDS.has(id)) {
       continue;
     }
 
-    if (!isRecord(entry) || typeof entry['baseURL'] !== 'string' || entry['baseURL'] === '') {
+    const parsed = GATEWAY_ENTRY_SCHEMA.safeParse(entry);
+
+    if (!parsed.success || parsed.data.baseURL === undefined) {
       continue;
     }
 
-    const label = typeof entry['label'] === 'string' && entry['label'] !== '' ? entry['label'] : id;
-    const mark = typeof entry['mark'] === 'string' && entry['mark'] !== '' ? entry['mark'] : id;
-    const firstOfMark = mark.codePointAt(0);
-    const apiKeyHelper = entry['apiKeyHelper'];
+    const firstOfMark = (parsed.data.mark ?? id).codePointAt(0);
 
     gateways.push({
       id,
-      label,
-      mark: firstOfMark === undefined ? id : String.fromCodePoint(firstOfMark),
-      bin: typeof entry['bin'] === 'string' && entry['bin'] !== '' ? entry['bin'] : claudeBin,
-      args: Array.isArray(entry['args'])
-        ? entry['args'].filter((a): a is string => typeof a === 'string')
-        : claudeArgs,
-      baseURL: entry['baseURL'],
-      ...(typeof apiKeyHelper === 'string' && apiKeyHelper !== '' ? { apiKeyHelper } : {}),
-      env: collectGatewayEnv(entry['env']),
+      label: parsed.data.label ?? id,
+
+      // oxlint-disable-next-line no-unsafe-type-assertion -- mark falls back to id, and both are checked non-empty above, so codePointAt(0) always returns a code point
+      mark: String.fromCodePoint(firstOfMark as number),
+      bin: parsed.data.bin ?? claudeBin,
+      args: parsed.data.args ?? claudeArgs,
+      baseURL: parsed.data.baseURL,
+      ...(parsed.data.apiKeyHelper === undefined ? {} : { apiKeyHelper: parsed.data.apiKeyHelper }),
+      env: parsed.data.env,
     });
   }
 
   return gateways;
 }
 
+function buildOptionalNonEmptyString() {
+  return z.preprocess(
+    (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+    z.string().optional(),
+  );
+}
+
 // String values only: everything here is handed to a child process as an
 // environment variable.
-function collectGatewayEnv(raw: unknown): Record<string, string> {
-  const env: Record<string, string> = {};
+function buildStringEnvRecord() {
+  return z.preprocess(
+    (v) => {
+      if (!isRecord(v)) {
+        return {};
+      }
 
-  if (!isRecord(raw)) {
-    return env;
-  }
+      const env: Record<string, string> = {};
 
-  for (const [key, value] of Object.entries(raw)) {
-    if (typeof value === 'string') {
-      env[key] = value;
-    }
-  }
+      for (const [key, value] of Object.entries(v)) {
+        if (typeof value === 'string') {
+          env[key] = value;
+        }
+      }
 
-  return env;
+      return env;
+    },
+    z.record(z.string(), z.string()),
+  );
 }

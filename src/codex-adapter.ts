@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { z } from 'zod';
 import type {
   AdapterEvent,
   AgentAdapter,
@@ -9,12 +10,26 @@ import type {
   SpawnPlan,
 } from './agent-adapter';
 import type { AgentSessionID } from './agent-session-id';
+import { buildOptionalString } from './build-optional-string';
 import type { Config } from './config';
 import type { HookEvent } from './hooks';
 import { isRecord } from './report';
 import { resolveAgentHome } from './resolve-agent-home';
 import { toShellArg } from './to-shell-arg';
 import { truncateDetail } from './truncate-detail';
+
+// Codex's hook payload keys, snake_case. An absent or wrong-typed field
+// parses to undefined rather than failing the payload, so a broken reporter
+// never breaks the session it reports on.
+const CODEX_HOOK_PAYLOAD_SCHEMA = z.object({
+  session_id: buildOptionalString(),
+  transcript_path: buildOptionalString(),
+  prompt: buildOptionalString(),
+  last_assistant_message: buildOptionalString(),
+  tool_name: buildOptionalString(),
+});
+
+type CodexHookPayload = z.infer<typeof CODEX_HOOK_PAYLOAD_SCHEMA>;
 
 /**
  * The Codex CLI adapter: spawn arguments, hook payload mapping, resume
@@ -53,20 +68,23 @@ export class CodexAdapter implements AgentAdapter {
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {
-    const sessionID = e.payload['session_id'];
-    const transcript = e.payload['transcript_path'];
+    const parsed = CODEX_HOOK_PAYLOAD_SCHEMA.safeParse(e.payload);
+    const payload: CodexHookPayload = parsed.success ? parsed.data : {};
 
     const base: AdapterEvent = {
       kind: 'heartbeat',
-
-      // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's session_id is an agent session id by contract; this is the one point where it is trusted
-      ...(typeof sessionID === 'string' ? { agentSessionID: sessionID as AgentSessionID } : {}),
+      ...(payload.session_id === undefined
+        ? {}
+        : // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's session_id is an agent session id by contract; this is the one point where it is trusted
+          { agentSessionID: payload.session_id as AgentSessionID }),
     };
 
     const named: AdapterEvent = {
       ...base,
-      ...(typeof sessionID === 'string' ? { nameSource: sessionID } : {}),
-      ...(typeof transcript === 'string' ? { transcriptSource: transcript } : {}),
+      ...(payload.session_id === undefined ? {} : { nameSource: payload.session_id }),
+      ...(payload.transcript_path === undefined
+        ? {}
+        : { transcriptSource: payload.transcript_path }),
     };
 
     switch (e.event) {
@@ -74,18 +92,17 @@ export class CodexAdapter implements AgentAdapter {
         return { ...named, kind: 'started' };
       }
       case 'PermissionRequest': {
-        const toolName = e.payload['tool_name'];
+        const toolName = payload.tool_name;
 
         const message =
-          typeof toolName === 'string' && toolName !== ''
+          toolName !== undefined && toolName !== ''
             ? `waiting for approval: ${toolName}`
             : 'waiting for approval';
 
         return { ...base, kind: 'needs-input', message, detail: message };
       }
       case 'UserPromptSubmit': {
-        const prompt = e.payload['prompt'];
-        const preview = typeof prompt === 'string' ? prompt.slice(0, 80) : '';
+        const preview = payload.prompt === undefined ? '' : payload.prompt.slice(0, 80);
 
         return {
           ...named,
@@ -94,12 +111,12 @@ export class CodexAdapter implements AgentAdapter {
         };
       }
       case 'Stop': {
-        const lastMessage = e.payload['last_assistant_message'];
+        const lastMessage = payload.last_assistant_message;
 
         return {
           ...named,
           kind: 'turn-done',
-          ...(typeof lastMessage === 'string' && lastMessage !== ''
+          ...(lastMessage !== undefined && lastMessage !== ''
             ? { detail: truncateDetail(lastMessage) }
             : {}),
         };

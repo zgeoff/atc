@@ -4,14 +4,10 @@ import type { DaemonContext } from './daemon-connection';
 import { PROTOCOL_V } from './protocol';
 import type { EventMsg } from './protocol';
 import type { SessionID } from './session-id';
+import { toSessionID } from './to-session-id';
 
 function assertUnreachable(): never {
   throw new Error('unreachable in this test');
-}
-
-function toSessionID(id: string): SessionID {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
-  return id as SessionID;
 }
 
 interface ConnectionHarness {

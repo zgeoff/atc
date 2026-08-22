@@ -3,9 +3,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentAdapter } from './agent-adapter';
-import type { AgentSessionID } from './agent-session-id';
 import { SessionManager } from './sessions';
 import { StateStore } from './state-store';
+import { toAgentSessionID } from './to-agent-session-id';
 
 // Registry-level tests: which agent id resolves to which adapter, and what a
 // restored session does when its id resolves to none.
@@ -42,8 +42,7 @@ test('it restores an entry whose agent id is registered as waiting for its termi
     name: 'claude work',
     cwd: '/tmp/proj',
 
-    // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for an agent-minted session id
-    agentSessionID: 'c-1' as AgentSessionID,
+    agentSessionID: toAgentSessionID('c-1'),
     agent: 'claude',
   });
 
@@ -57,8 +56,7 @@ test('it restores an entry whose agent id is unregistered without reviving it as
     name: 'glm work',
     cwd: '/tmp/proj',
 
-    // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for an agent-minted session id
-    agentSessionID: 'z-1' as AgentSessionID,
+    agentSessionID: toAgentSessionID('z-1'),
     agent: 'zai',
   });
 

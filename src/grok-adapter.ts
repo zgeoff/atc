@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { z } from 'zod';
 import type {
   AdapterEvent,
   AgentAdapter,
@@ -9,6 +10,7 @@ import type {
   SpawnPlan,
 } from './agent-adapter';
 import type { AgentSessionID } from './agent-session-id';
+import { buildOptionalString } from './build-optional-string';
 import type { Config } from './config';
 import type { HookEvent } from './hooks';
 import { normalizeHookEventName } from './normalize-hook-event';
@@ -26,6 +28,23 @@ interface GrokSessionHookState {
 // Bounds per-session hook state so a Grok session killed or crashed without
 // a SessionEnd hook cannot grow it for the daemon's whole lifetime.
 const MAX_HOOK_STATE_ENTRIES = 256;
+
+// Grok's hook payload keys, camelCase. An absent or wrong-typed field parses
+// to undefined rather than failing the payload, so a broken reporter never
+// breaks the session it reports on.
+const GROK_HOOK_PAYLOAD_SCHEMA = z.object({
+  sessionId: buildOptionalString(),
+  cwd: buildOptionalString(),
+  promptId: buildOptionalString(),
+  subagentType: buildOptionalString(),
+  prompt: buildOptionalString(),
+  notificationType: buildOptionalString(),
+  message: buildOptionalString(),
+  reason: buildOptionalString(),
+  lastAssistantMessage: buildOptionalString(),
+});
+
+type GrokHookPayload = z.infer<typeof GROK_HOOK_PAYLOAD_SCHEMA>;
 
 /**
  * The Grok Build adapter: spawn arguments, hook payload mapping,
@@ -61,16 +80,14 @@ export class GrokAdapter implements AgentAdapter {
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {
-    const sessionID = e.payload['sessionId'];
-    const cwd = e.payload['cwd'];
-    const promptID = e.payload['promptId'];
-    const subagentType = e.payload['subagentType'];
+    const parsed = GROK_HOOK_PAYLOAD_SCHEMA.safeParse(e.payload);
+    const payload: GrokHookPayload = parsed.success ? parsed.data : {};
 
     const agentSessionID =
-      typeof sessionID === 'string'
-        ? // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's sessionId is an agent session id by contract; this is the one point where it is trusted
-          (sessionID as AgentSessionID)
-        : undefined;
+      payload.sessionId === undefined
+        ? undefined
+        : // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's sessionId is an agent session id by contract; this is the one point where it is trusted
+          (payload.sessionId as AgentSessionID);
 
     const base: AdapterEvent = {
       kind: 'heartbeat',
@@ -79,20 +96,21 @@ export class GrokAdapter implements AgentAdapter {
 
     const named: AdapterEvent = {
       ...base,
-      ...(agentSessionID !== undefined && typeof cwd === 'string'
-        ? { nameSource: buildGrokNameSource(agentSessionID, cwd) }
+      ...(agentSessionID !== undefined && payload.cwd !== undefined
+        ? { nameSource: buildGrokNameSource(agentSessionID, payload.cwd) }
         : {}),
     };
 
-    if (typeof subagentType === 'string' && subagentType !== '') {
+    if (payload.subagentType !== undefined && payload.subagentType !== '') {
       return this.emitHook(e.atcId, { ...base, kind: 'heartbeat' });
     }
 
     const event = normalizeHookEventName(e.event);
     const prior = this.hookState.get(e.atcId);
+    const promptID = payload.promptId;
 
     const stale =
-      typeof promptID === 'string' &&
+      promptID !== undefined &&
       prior?.latestPromptID !== undefined &&
       promptID !== prior.latestPromptID;
 
@@ -101,9 +119,7 @@ export class GrokAdapter implements AgentAdapter {
         return this.emitHook(e.atcId, { ...named, kind: 'started' });
       }
       case 'UserPromptSubmit': {
-        const prompt = e.payload['prompt'];
-        const preview = typeof prompt === 'string' ? prompt.slice(0, 80) : '';
-        const submittedID = typeof promptID === 'string' ? promptID : undefined;
+        const preview = payload.prompt === undefined ? '' : payload.prompt.slice(0, 80);
 
         return this.emitHook(
           e.atcId,
@@ -112,18 +128,18 @@ export class GrokAdapter implements AgentAdapter {
             kind: 'prompt-submitted',
             ...(preview === '' ? {} : { message: preview, detail: truncateDetail(preview) }),
           },
-          submittedID,
+          promptID,
         );
       }
       case 'Notification': {
-        const notificationType = e.payload['notificationType'];
-        const message = e.payload['message'];
+        const notificationType = payload.notificationType;
+        const message = payload.message;
 
         if (notificationType === 'permission_prompt') {
           return this.emitHook(e.atcId, {
             ...base,
             kind: 'needs-input',
-            ...(typeof message === 'string' && message !== ''
+            ...(message !== undefined && message !== ''
               ? { message, detail: truncateDetail(message) }
               : {}),
           });
@@ -138,11 +154,11 @@ export class GrokAdapter implements AgentAdapter {
         return this.emitHook(e.atcId, base);
       }
       case 'Stop': {
-        if (e.payload['reason'] !== 'end_turn' || stale) {
+        if (payload.reason !== 'end_turn' || stale) {
           return this.emitHook(e.atcId, base);
         }
 
-        return this.emitHook(e.atcId, buildTurnDoneEvent(named, e.payload));
+        return this.emitHook(e.atcId, buildTurnDoneEvent(named, payload));
       }
       case 'StopFailure':
       case 'StopCancelled': {
@@ -150,7 +166,7 @@ export class GrokAdapter implements AgentAdapter {
           return this.emitHook(e.atcId, base);
         }
 
-        return this.emitHook(e.atcId, buildTurnDoneEvent(named, e.payload));
+        return this.emitHook(e.atcId, buildTurnDoneEvent(named, payload));
       }
       case 'SessionEnd': {
         this.hookState.delete(e.atcId);
@@ -248,16 +264,13 @@ function buildGrokNameSource(sessionID: AgentSessionID, cwd: string): string {
   );
 }
 
-function buildTurnDoneEvent(
-  named: Readonly<AdapterEvent>,
-  payload: Readonly<Record<string, unknown>>,
-): AdapterEvent {
-  const lastMessage = payload['lastAssistantMessage'];
+function buildTurnDoneEvent(named: Readonly<AdapterEvent>, payload: GrokHookPayload): AdapterEvent {
+  const lastMessage = payload.lastAssistantMessage;
 
   return {
     ...named,
     kind: 'turn-done',
-    ...(typeof lastMessage === 'string' && lastMessage !== ''
+    ...(lastMessage !== undefined && lastMessage !== ''
       ? { detail: truncateDetail(lastMessage) }
       : {}),
   };

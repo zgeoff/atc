@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { AgentSessionID } from './agent-session-id';
+import { buildOptionalBoolean } from './build-optional-boolean';
+import { buildOptionalString } from './build-optional-string';
 import type { SessionID } from './session-id';
 
 const EJECT_DEFAULT_PROMPT =
@@ -96,13 +98,6 @@ function buildDefaultedBooleanOrString(fallback: boolean | string) {
 
 // Absent or wrong-typed stays undefined rather than falling back to a
 // value, so the caller can tell "not given" from "given" and skip an update.
-function buildOptionalString() {
-  return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().optional());
-}
-
-function buildOptionalBoolean() {
-  return z.preprocess((v) => (typeof v === 'boolean' ? v : undefined), z.boolean().optional());
-}
 
 // An explicit empty string also falls back to the default instead of
 // standing as a deliberate empty value.

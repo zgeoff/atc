@@ -1,11 +1,6 @@
 import { expect, test } from 'bun:test';
 import { AttachRegistry } from './attach-registry';
-import type { SessionID } from './session-id';
-
-function toSessionID(id: string): SessionID {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literals stand in for minted session ids
-  return id as SessionID;
-}
+import { toSessionID } from './to-session-id';
 
 test('it reports the smallest width and height across attached clients', () => {
   const registry = new AttachRegistry<string>();

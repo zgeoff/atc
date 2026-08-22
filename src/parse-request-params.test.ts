@@ -1,11 +1,6 @@
 import { expect, test } from 'bun:test';
 import { parseRequestParams } from './parse-request-params';
-import type { SessionID } from './session-id';
-
-function toSessionID(id: string): SessionID {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
-  return id as SessionID;
-}
+import { toSessionID } from './to-session-id';
 
 test.each([
   ['daemon.hello', { client: 'atc/1.0' }, { client: 'atc/1.0' }],

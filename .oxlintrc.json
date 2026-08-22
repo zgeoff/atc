@@ -6,6 +6,9 @@
     "es2024": true
   },
   "rules": {
+    // every file that tripped this needed an exemption rather than a change,
+    // so the count was never the thing worth holding down
+    "import/max-dependencies": "off",
     "zgeoff/function-verb": [
       "error",
       {
@@ -81,52 +84,5 @@
     "promise/avoid-new": "off",
     "require-unicode-regexp": "off"
   },
-  "overrides": [
-    {
-      "files": ["src/index.ts"],
-      // the TUI client entry holds the screens, the key routing and the
-      // fleet mirror together, and every import it keeps is read by two or
-      // more of them
-      "rules": {
-        "import/max-dependencies": ["error", { "max": 12 }]
-      }
-    },
-    {
-      "files": ["src/daemon.ts"],
-      // the daemon entry wires the two listeners to the session manager, the
-      // screen models, the attach and permission registries and the store,
-      // and each import belongs to one of those connections; the branded
-      // session and agent-session id types add one import each
-      "rules": {
-        "import/max-dependencies": ["error", { "max": 13 }]
-      }
-    },
-    {
-      "files": ["src/grok-adapter.ts"],
-      // the adapter's own dependencies plus the branded session and
-      // agent-session id types it keys and mints at its hook boundary
-      "rules": {
-        "import/max-dependencies": ["error", { "max": 12 }]
-      }
-    },
-    {
-      "files": ["src/daemon-last-used.test.ts"],
-      // drives a whole daemon plus a grok adapter and the branded
-      // agent-session id its fixture fleet entry needs
-      "rules": {
-        "import/max-dependencies": ["error", { "max": 11 }]
-      }
-    },
-    {
-      "files": ["src/daemon-headless.test.ts", "test/daemon-e2e.test.ts"],
-      // these drive a whole daemon end to end: its options, the adapters they
-      // register, a client to talk to it, the helpers their assertions
-      // narrow wire payloads with, and the branded agent-session id their
-      // fixture fleet entries need
-      "rules": {
-        "import/max-dependencies": ["error", { "max": 12 }]
-      }
-    }
-  ],
   "ignorePatterns": [".claude/**"]
 }

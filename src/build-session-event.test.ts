@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentAdapter } from './agent-adapter';
 import { buildSessionEvent } from './build-session-event';
-import type { SessionID } from './session-id';
 import { SessionManager } from './sessions';
 import type { Session } from './sessions';
 import { StateStore } from './state-store';
+import { toSessionID } from './to-session-id';
 
 // Unit tests for the session-event builder: which notifications carry a
 // descriptor and which emit nothing.
@@ -39,8 +39,7 @@ function setupManager(): SessionManager {
 
 function buildGhostSession(): Session {
   return {
-    // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
-    id: 'ghost-session' as SessionID,
+    id: toSessionID('ghost-session'),
     name: 'ghost',
     cwd: '/tmp',
     kind: 'pty',

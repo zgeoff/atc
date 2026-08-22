@@ -3,12 +3,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentAdapter } from './agent-adapter';
-import type { AgentSessionID } from './agent-session-id';
 import { startDaemon } from './daemon';
 import { DaemonClient } from './daemon-client';
 import { GrokAdapter } from './grok-adapter';
 import { isRecord } from './report';
 import { StateStore } from './state-store';
+import { toAgentSessionID } from './to-agent-session-id';
 
 const idleAdapter: AgentAdapter = {
   id: 'claude',
@@ -33,8 +33,7 @@ test('it does not write last-used when a restored session reports SessionStart',
   const store = new StateStore(dbPath);
 
   store.writeFleet([
-    // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for an agent-minted session id
-    { name: 'old-grok', cwd: '/tmp', agentSessionID: 'g-restore' as AgentSessionID, agent: 'grok' },
+    { name: 'old-grok', cwd: '/tmp', agentSessionID: toAgentSessionID('g-restore'), agent: 'grok' },
   ]);
 
   store.writeLastUsedAgent('claude');
