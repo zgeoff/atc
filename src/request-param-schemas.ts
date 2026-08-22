@@ -1,11 +1,14 @@
 import { z } from 'zod';
+import type { SessionID } from './session-id';
 
 const EJECT_DEFAULT_PROMPT =
   'Continue the task autonomously. Verify your work as you go and stop when it is complete.';
 
 // The `session` field every wire schema below carries: absent or
 // wrong-typed falls back to an empty string instead of failing the parse.
-const SESSION_DEFAULTED = z.object({ session: buildDefaultedString('') });
+// This is the one point where a session id arriving off the wire is trusted
+// into the branded type every daemon-side session lookup expects.
+const SESSION_DEFAULTED = z.object({ session: buildDefaultedString('').transform(toSessionID) });
 
 export const REQUEST_PARAM_SCHEMAS = {
   'daemon.hello': z.object({
@@ -72,6 +75,11 @@ export const REQUEST_PARAM_SCHEMAS = {
 
 function buildDefaultedString(fallback: string) {
   return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().default(fallback));
+}
+
+function toSessionID(v: string): SessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- the session field arrives off the wire; this is the one point where it is trusted as the branded atc session id
+  return v as SessionID;
 }
 
 function buildDefaultedNumber(fallback: number) {

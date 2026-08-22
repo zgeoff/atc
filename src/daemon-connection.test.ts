@@ -3,14 +3,20 @@ import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext } from './daemon-connection';
 import { PROTOCOL_V } from './protocol';
 import type { EventMsg } from './protocol';
+import type { SessionID } from './session-id';
 
 function assertUnreachable(): never {
   throw new Error('unreachable in this test');
 }
 
+function toSessionID(id: string): SessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
+  return id as SessionID;
+}
+
 interface ConnectionHarness {
   readonly conn: DaemonConnection;
-  readonly resyncs: string[];
+  readonly resyncs: SessionID[];
   readonly collectWrittenLines: () => string[];
   readonly setAccepting: (accepting: boolean) => void;
 }
@@ -22,7 +28,7 @@ interface ConnectionHarness {
 function setupConnection(queueBytes: number): ConnectionHarness {
   let accepting = true;
   let written = '';
-  const resyncs: string[] = [];
+  const resyncs: SessionID[] = [];
 
   const decoder = new TextDecoder();
 
@@ -62,7 +68,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     ejectSession: assertUnreachable,
     adoptSession: assertUnreachable,
     resizeSession: assertUnreachable,
-    resyncClient: (sessionID: string) => {
+    resyncClient: (sessionID: SessionID) => {
       resyncs.push(sessionID);
 
       return Promise.resolve();
@@ -93,9 +99,9 @@ test('it drops an overflowing session backlog and reports the dropped bytes on d
   const harness = setupConnection(64);
 
   harness.setAccepting(false);
-  harness.conn.sendOutput('s1', buildOutputEvent('a'), 40);
-  harness.conn.sendOutput('s1', buildOutputEvent('b'), 100);
-  harness.conn.sendOutput('s1', buildOutputEvent('c'), 50);
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('a'), 40);
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('b'), 100);
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('c'), 50);
   harness.setAccepting(true);
   harness.conn.drain();
 
@@ -118,31 +124,31 @@ test('it drops an overflowing session backlog and reports the dropped bytes on d
     dropped: 150,
   });
 
-  expect(harness.resyncs).toStrictEqual(['s1']);
+  expect(harness.resyncs).toStrictEqual([toSessionID('s1')]);
 });
 
 test('it delivers output again after the desync is reported', () => {
   const harness = setupConnection(64);
 
   harness.setAccepting(false);
-  harness.conn.sendOutput('s1', buildOutputEvent('a'), 40);
-  harness.conn.sendOutput('s1', buildOutputEvent('b'), 100);
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('a'), 40);
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('b'), 100);
   harness.setAccepting(true);
   harness.conn.drain();
-  harness.conn.sendOutput('s1', buildOutputEvent('z'), 40);
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('z'), 40);
 
   const lines = harness.collectWrittenLines();
 
   expect(lines.at(-1)).toInclude('z'.repeat(40));
-  expect(harness.resyncs).toStrictEqual(['s1']);
+  expect(harness.resyncs).toStrictEqual([toSessionID('s1')]);
 });
 
 test('it reports no desync while the queue still holds a backlog', () => {
   const harness = setupConnection(64);
 
   harness.setAccepting(false);
-  harness.conn.sendOutput('s1', buildOutputEvent('a'), 40);
-  harness.conn.sendOutput('s1', buildOutputEvent('b'), 100);
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('a'), 40);
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('b'), 100);
   harness.conn.drain();
 
   expect(

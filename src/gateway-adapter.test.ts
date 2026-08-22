@@ -2,8 +2,10 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { AgentSessionID } from './agent-session-id';
 import type { Config } from './config';
 import { GatewayAdapter } from './gateway-adapter';
+import type { SessionID } from './session-id';
 
 function buildGatewayAdapter(): GatewayAdapter {
   const config: Config = {
@@ -44,13 +46,16 @@ test('it reads a session id and transcript out of a Claude hook payload', () => 
 
   expect(
     adapter.normalizeHook({
-      atcId: 's1',
+      // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
+      atcId: 's1' as SessionID,
       event: 'SessionStart',
       payload: { session_id: 'z-1', transcript_path: '/tmp/t.jsonl' },
     }),
   ).toStrictEqual({
     kind: 'started',
-    agentSessionID: 'z-1',
+
+    // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for an agent-minted session id
+    agentSessionID: 'z-1' as AgentSessionID,
     nameSource: '/tmp/t.jsonl',
     transcriptSource: '/tmp/t.jsonl',
   });

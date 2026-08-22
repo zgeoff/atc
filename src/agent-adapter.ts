@@ -1,3 +1,4 @@
+import type { AgentSessionID } from './agent-session-id';
 import type { HookEvent } from './hooks';
 
 /**
@@ -32,7 +33,7 @@ export interface SpawnPlan {
 
 export interface AdapterEvent {
   kind: 'started' | 'needs-input' | 'turn-done' | 'prompt-submitted' | 'ended' | 'heartbeat';
-  agentSessionID?: string;
+  agentSessionID?: AgentSessionID;
   message?: string;
 
   // Fuller activity text than message: what the agent last said or was
@@ -64,7 +65,7 @@ interface ScreenDetector {
 }
 
 export interface ResumeCheck {
-  readonly agentSessionID?: string;
+  readonly agentSessionID?: AgentSessionID;
   readonly transcriptSource?: string;
 }
 
@@ -113,5 +114,8 @@ export interface AgentAdapter {
     namedBy: 'user' | 'auto' | 'agent',
   ) => Promise<NameUpdate | null>;
   readonly canResume: (session: ResumeCheck) => boolean;
-  readonly buildResumeCommand: (cwd: string, agentSessionID: string | undefined) => string | null;
+  readonly buildResumeCommand: (
+    cwd: string,
+    agentSessionID: AgentSessionID | undefined,
+  ) => string | null;
 }

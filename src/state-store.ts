@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { existsSync, readFileSync } from 'node:fs';
 import { toAgentID } from './agent-adapter';
 import type { AgentID } from './agent-adapter';
+import type { AgentSessionID } from './agent-session-id';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry } from './fleet-entry';
 import type { HookEvent } from './hooks';
@@ -105,7 +106,8 @@ export class StateStore {
 
     for (const row of rows) {
       entries.push({
-        agentSessionID: row.agent_session_id,
+        // oxlint-disable-next-line no-unsafe-type-assertion -- the fleet table's primary key is a stored agent session id by schema contract; this is the one point where it is trusted
+        agentSessionID: row.agent_session_id as AgentSessionID,
         name: row.name,
         cwd: row.cwd,
         agent: toAgentID(row.agent),
@@ -120,14 +122,15 @@ export class StateStore {
 
   // The latest hook-event timestamp per agent session id, from the event
   // trail. Sessions that never reported an event are absent.
-  collectFleetRecency(): Map<string, string> {
+  collectFleetRecency(): Map<AgentSessionID, string> {
     const rows = this.db
       .query<{ session_id: string; ts: string }, []>(
         'SELECT session_id, MAX(ts) AS ts FROM events WHERE session_id IS NOT NULL GROUP BY session_id',
       )
       .all();
 
-    return new Map(rows.map((row) => [row.session_id, row.ts]));
+    // oxlint-disable-next-line no-unsafe-type-assertion -- the events table's session_id column is a recorded agent session id by contract; this is the one point where it is trusted
+    return new Map(rows.map((row) => [row.session_id as AgentSessionID, row.ts]));
   }
 
   writeFleet(entries: readonly FleetEntry[]): void {

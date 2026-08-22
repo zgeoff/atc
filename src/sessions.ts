@@ -2,11 +2,13 @@ import { writeFileSync } from 'node:fs';
 import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
 import type { AdapterEvent, AgentAdapter, AgentID } from './agent-adapter';
+import type { AgentSessionID } from './agent-session-id';
 import { collectCleanEnv } from './collect-clean-env';
 import { socketPath, statusFile } from './config';
 import type { FleetEntry, FleetStore } from './fleet-entry';
 import type { HookEvent } from './hooks';
 import { resolveRepoRoot } from './resolve-repo-root';
+import type { SessionID } from './session-id';
 
 export type SessionState = 'running' | 'needs_you' | 'done' | 'exited';
 
@@ -15,14 +17,14 @@ export type SessionEventKind = 'added' | 'state' | 'renamed' | 'removed';
 // The over-the-wire view of a session: everything but the PTY handle, plus
 // the surface kind.
 export interface SessionDescriptor {
-  readonly id: string;
+  readonly id: SessionID;
   readonly name: string;
   readonly cwd: string;
   readonly state: SessionState;
   readonly unread: boolean;
   readonly lastMsg: string;
   readonly lastDetail?: string;
-  readonly agentSessionID?: string;
+  readonly agentSessionID?: AgentSessionID;
   readonly agent: AgentID;
   readonly pinned: boolean;
   readonly lastAttachedAt: number;
@@ -38,7 +40,7 @@ export interface SessionDescriptor {
 }
 
 export interface Session {
-  id: string;
+  id: SessionID;
   name: string;
   cwd: string;
   kind: 'pty' | 'headless';
@@ -47,7 +49,7 @@ export interface Session {
   unread: boolean;
   lastMsg: string;
   lastDetail?: string;
-  agentSessionID?: string;
+  agentSessionID?: AgentSessionID;
   agent: AgentID;
   transcriptSource?: string;
   pinned: boolean;
@@ -71,7 +73,7 @@ let counter = 0;
 export class SessionManager {
   sessions: Session[] = [];
 
-  focusedId: string | null = null;
+  focusedId: SessionID | null = null;
 
   onOutput: (s: Session, data: string) => void = () => {};
 
@@ -115,7 +117,7 @@ export class SessionManager {
 
   // Hands a live terminal session off to a headless run: the terminal dies,
   // the record lives on as a headless session and keeps its screen history.
-  yankHeadless(id: string): Session | null {
+  yankHeadless(id: SessionID): Session | null {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s || s.pty === null || s.agentSessionID === undefined) {
@@ -155,7 +157,8 @@ export class SessionManager {
     }
 
     const session: Session = {
-      id: `s${++counter}-${Date.now().toString(36)}`,
+      // oxlint-disable-next-line no-unsafe-type-assertion -- this is where atc mints a session id
+      id: `s${++counter}-${Date.now().toString(36)}` as SessionID,
       name: entry.name,
       cwd: entry.cwd,
       kind: 'headless',
@@ -181,7 +184,7 @@ export class SessionManager {
 
   // Adopts a headless session back into a terminal: a fresh PTY resumes the
   // same agent session id.
-  adoptTerminal(id: string, cols: number, rows: number): Session | null {
+  adoptTerminal(id: SessionID, cols: number, rows: number): Session | null {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s || s.pty !== null || s.agentSessionID === undefined) {
@@ -238,7 +241,7 @@ export class SessionManager {
    * user strength, so auto-summaries stop overwriting it while an
    * in-session rename still wins. Pinned sessions lead every list.
    */
-  updateSession(id: string, name?: string, pinned?: boolean): boolean {
+  updateSession(id: SessionID, name?: string, pinned?: boolean): boolean {
     const s = this.sessions.find((x) => x.id === id);
 
     if (s === undefined) {
@@ -265,7 +268,7 @@ export class SessionManager {
     return true;
   }
 
-  updateSurfaceState(id: string, state: SessionState, msg: string) {
+  updateSurfaceState(id: SessionID, state: SessionState, msg: string) {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s || s.kind !== 'headless') {
@@ -282,7 +285,7 @@ export class SessionManager {
 
   // The detector-stack screen tier reports through here: only flips between
   // running and needs_you — hook-driven done/exited states always win.
-  updateAttention(id: string, state: 'needs_you' | 'running', msg: string) {
+  updateAttention(id: SessionID, state: 'needs_you' | 'running', msg: string) {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s || s.pty === null || s.state === state) {
@@ -326,7 +329,8 @@ export class SessionManager {
       throw new Error(`no adapter for agent '${agent}'`);
     }
 
-    const id = `s${++counter}-${Date.now().toString(36)}`;
+    // oxlint-disable-next-line no-unsafe-type-assertion -- this is where atc mints a session id
+    const id = `s${++counter}-${Date.now().toString(36)}` as SessionID;
     const plan = adapter.planSpawn({ prompt, resume });
 
     const pty = spawn(plan.bin, plan.args, {
@@ -352,7 +356,9 @@ export class SessionManager {
       state: 'running',
       unread: false,
       lastMsg: initialMsg,
-      ...(typeof resume === 'string' ? { agentSessionID: resume } : {}),
+
+      // oxlint-disable-next-line no-unsafe-type-assertion -- a string resume argument is an agent session id to resume, by this method's own contract
+      ...(typeof resume === 'string' ? { agentSessionID: resume as AgentSessionID } : {}),
       agent,
       pinned: false,
       lastAttachedAt: Date.now(),
@@ -540,7 +546,7 @@ export class SessionManager {
   }
 
   // Shell command that re-opens this session outside atc (or anywhere).
-  buildResumeCommand(id: string): string | null {
+  buildResumeCommand(id: SessionID): string | null {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s) {
@@ -550,7 +556,7 @@ export class SessionManager {
     return this.findAdapter(s.agent)?.buildResumeCommand(s.cwd, s.agentSessionID) ?? null;
   }
 
-  attach(id: string) {
+  attach(id: SessionID) {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s) {
@@ -573,7 +579,7 @@ export class SessionManager {
     this.emitChange();
   }
 
-  ack(id: string) {
+  ack(id: SessionID) {
     const s = this.sessions.find((x) => x.id === id);
 
     if (s) {
@@ -585,7 +591,7 @@ export class SessionManager {
     this.emitChange();
   }
 
-  kill(id: string) {
+  kill(id: SessionID) {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s) {

@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
+import type { AgentSessionID } from '../src/agent-session-id';
 import { DaemonClient } from '../src/daemon-client';
 import { getRecord } from '../src/get-record';
 import type { EventMsg } from '../src/protocol';
@@ -11,6 +12,11 @@ import { isRecord } from '../src/report';
 import { StateStore } from '../src/state-store';
 
 const repo = dirname(import.meta.dir);
+
+function toAgentSessionID(id: string): AgentSessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for an agent-minted session id
+  return id as AgentSessionID;
+}
 
 function getString(value: Readonly<Record<string, unknown>>, key: string): string {
   const inner = value[key];
@@ -724,9 +730,9 @@ sleep 30
   const seed = new StateStore(dbPath);
 
   seed.writeFleet([
-    { name: 'one', cwd: home, agentSessionID: 'fake-a', agent: 'claude' },
-    { name: 'two', cwd: home, agentSessionID: 'fake-b', agent: 'claude' },
-    { name: 'three', cwd: home, agentSessionID: 'fake-c', agent: 'claude' },
+    { name: 'one', cwd: home, agentSessionID: toAgentSessionID('fake-a'), agent: 'claude' },
+    { name: 'two', cwd: home, agentSessionID: toAgentSessionID('fake-b'), agent: 'claude' },
+    { name: 'three', cwd: home, agentSessionID: toAgentSessionID('fake-c'), agent: 'claude' },
   ]);
 
   seed.stop();

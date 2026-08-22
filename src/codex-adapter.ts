@@ -8,6 +8,7 @@ import type {
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
+import type { AgentSessionID } from './agent-session-id';
 import type { Config } from './config';
 import type { HookEvent } from './hooks';
 import { isRecord } from './report';
@@ -57,7 +58,9 @@ export class CodexAdapter implements AgentAdapter {
 
     const base: AdapterEvent = {
       kind: 'heartbeat',
-      ...(typeof sessionID === 'string' ? { agentSessionID: sessionID } : {}),
+
+      // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's session_id is an agent session id by contract; this is the one point where it is trusted
+      ...(typeof sessionID === 'string' ? { agentSessionID: sessionID as AgentSessionID } : {}),
     };
 
     const named: AdapterEvent = {
@@ -161,7 +164,7 @@ export class CodexAdapter implements AgentAdapter {
   }
 
   // Shell command that re-opens this session outside atc (or anywhere).
-  buildResumeCommand(cwd: string, agentSessionID: string | undefined): string | null {
+  buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
     const resume = agentSessionID === undefined ? 'codex resume' : `codex resume ${agentSessionID}`;
 
     return `cd ${toShellArg(cwd)} && ${resume}`;

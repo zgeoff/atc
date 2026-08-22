@@ -8,6 +8,7 @@ import type {
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
+import type { AgentSessionID } from './agent-session-id';
 import { ClaudeAdapter } from './claude-adapter';
 import type { GatewayConfig } from './collect-gateways';
 import type { Config } from './config';
@@ -84,7 +85,7 @@ export class GatewayAdapter implements AgentAdapter {
   // Shell command that re-opens this session outside atc. It names the
   // generated settings file, because without it the CLI would resume the
   // session against the default backend.
-  buildResumeCommand(cwd: string, agentSessionID: string | undefined): string | null {
+  buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
     const settings = toShellArg(this.writeSettings());
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
 

@@ -3,7 +3,19 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { AgentSessionID } from './agent-session-id';
+import type { SessionID } from './session-id';
 import { StateStore } from './state-store';
+
+function toSessionID(id: string): SessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
+  return id as SessionID;
+}
+
+function toAgentSessionID(id: string): AgentSessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for an agent-minted session id
+  return id as AgentSessionID;
+}
 
 function setupDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'atc-store-'));
@@ -23,13 +35,13 @@ test('it round-trips the fleet', () => {
   });
 
   store.writeFleet([
-    { name: 'auth-bug', cwd: '/x', agentSessionID: 'c1', agent: 'claude' },
-    { name: 'refactor', cwd: '/y', agentSessionID: 'c2', agent: 'claude' },
+    { name: 'auth-bug', cwd: '/x', agentSessionID: toAgentSessionID('c1'), agent: 'claude' },
+    { name: 'refactor', cwd: '/y', agentSessionID: toAgentSessionID('c2'), agent: 'claude' },
   ]);
 
   expect(store.loadFleet()).toStrictEqual([
-    { name: 'auth-bug', cwd: '/x', agentSessionID: 'c1', agent: 'claude' },
-    { name: 'refactor', cwd: '/y', agentSessionID: 'c2', agent: 'claude' },
+    { name: 'auth-bug', cwd: '/x', agentSessionID: toAgentSessionID('c1'), agent: 'claude' },
+    { name: 'refactor', cwd: '/y', agentSessionID: toAgentSessionID('c2'), agent: 'claude' },
   ]);
 });
 
@@ -40,11 +52,16 @@ test('it replaces the fleet wholesale on write', () => {
     store.stop();
   });
 
-  store.writeFleet([{ name: 'one', cwd: '/x', agentSessionID: 'c1', agent: 'claude' }]);
-  store.writeFleet([{ name: 'two', cwd: '/y', agentSessionID: 'c2', agent: 'claude' }]);
+  store.writeFleet([
+    { name: 'one', cwd: '/x', agentSessionID: toAgentSessionID('c1'), agent: 'claude' },
+  ]);
+
+  store.writeFleet([
+    { name: 'two', cwd: '/y', agentSessionID: toAgentSessionID('c2'), agent: 'claude' },
+  ]);
 
   expect(store.loadFleet()).toStrictEqual([
-    { name: 'two', cwd: '/y', agentSessionID: 'c2', agent: 'claude' },
+    { name: 'two', cwd: '/y', agentSessionID: toAgentSessionID('c2'), agent: 'claude' },
   ]);
 });
 
@@ -61,7 +78,7 @@ test('it seeds the fleet from a legacy fleet.json once', () => {
   });
 
   expect(store.loadFleet()).toStrictEqual([
-    { name: 'seeded', cwd: '/z', agentSessionID: 'c9', agent: 'claude' },
+    { name: 'seeded', cwd: '/z', agentSessionID: toAgentSessionID('c9'), agent: 'claude' },
   ]);
 });
 
@@ -74,7 +91,10 @@ test('it never overwrites an existing fleet table from the legacy file', () => {
 
   const first = new StateStore(dbPath, legacy);
 
-  first.writeFleet([{ name: 'fresh', cwd: '/new', agentSessionID: 'c1', agent: 'claude' }]);
+  first.writeFleet([
+    { name: 'fresh', cwd: '/new', agentSessionID: toAgentSessionID('c1'), agent: 'claude' },
+  ]);
+
   first.stop();
 
   const second = new StateStore(dbPath, legacy);
@@ -84,7 +104,7 @@ test('it never overwrites an existing fleet table from the legacy file', () => {
   });
 
   expect(second.loadFleet()).toStrictEqual([
-    { name: 'fresh', cwd: '/new', agentSessionID: 'c1', agent: 'claude' },
+    { name: 'fresh', cwd: '/new', agentSessionID: toAgentSessionID('c1'), agent: 'claude' },
   ]);
 });
 
@@ -99,7 +119,7 @@ test('it records hook events into the trail', () => {
   });
 
   store.recordEvent({
-    atcId: 's1',
+    atcId: toSessionID('s1'),
     event: 'Notification',
     payload: { message: 'needs permission', session_id: 'c1' },
   });
@@ -132,7 +152,7 @@ test('it records a Grok session id from the camelCase payload key', () => {
   });
 
   store.recordEvent({
-    atcId: 's1',
+    atcId: toSessionID('s1'),
     event: 'SessionStart',
     payload: { hookEventName: 'session_start', sessionId: 'g1' },
   });
@@ -162,12 +182,12 @@ test('it reports recency for a Grok session id', () => {
   });
 
   store.recordEvent({
-    atcId: 's1',
+    atcId: toSessionID('s1'),
     event: 'SessionStart',
     payload: { hookEventName: 'session_start', sessionId: 'g1' },
   });
 
-  expect([...store.collectFleetRecency().keys()]).toStrictEqual(['g1']);
+  expect([...store.collectFleetRecency().keys()]).toStrictEqual([toAgentSessionID('g1')]);
 });
 
 test('it reports the latest event timestamp per agent session', () => {
@@ -196,8 +216,8 @@ test('it reports the latest event timestamp per agent session', () => {
 
   expect(store.collectFleetRecency()).toStrictEqual(
     new Map([
-      ['c1', '2026-08-14T00:00:03.000Z'],
-      ['c2', '2026-08-14T00:00:02.000Z'],
+      [toAgentSessionID('c1'), '2026-08-14T00:00:03.000Z'],
+      [toAgentSessionID('c2'), '2026-08-14T00:00:02.000Z'],
     ]),
   );
 });
@@ -230,10 +250,12 @@ test('it round-trips a grok fleet row', () => {
     store.stop();
   });
 
-  store.writeFleet([{ name: 'mixed', cwd: '/g', agentSessionID: 'g1', agent: 'grok' }]);
+  store.writeFleet([
+    { name: 'mixed', cwd: '/g', agentSessionID: toAgentSessionID('g1'), agent: 'grok' },
+  ]);
 
   expect(store.loadFleet()).toStrictEqual([
-    { name: 'mixed', cwd: '/g', agentSessionID: 'g1', agent: 'grok' },
+    { name: 'mixed', cwd: '/g', agentSessionID: toAgentSessionID('g1'), agent: 'grok' },
   ]);
 });
 
@@ -245,13 +267,25 @@ test('it round-trips an exited fleet row', () => {
   });
 
   store.writeFleet([
-    { name: 'archived', cwd: '/x', agentSessionID: 'c1', agent: 'claude', exited: true },
-    { name: 'live', cwd: '/y', agentSessionID: 'c2', agent: 'claude' },
+    {
+      name: 'archived',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      exited: true,
+    },
+    { name: 'live', cwd: '/y', agentSessionID: toAgentSessionID('c2'), agent: 'claude' },
   ]);
 
   expect(store.loadFleet()).toStrictEqual([
-    { name: 'archived', cwd: '/x', agentSessionID: 'c1', agent: 'claude', exited: true },
-    { name: 'live', cwd: '/y', agentSessionID: 'c2', agent: 'claude' },
+    {
+      name: 'archived',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      exited: true,
+    },
+    { name: 'live', cwd: '/y', agentSessionID: toAgentSessionID('c2'), agent: 'claude' },
   ]);
 });
 
@@ -314,6 +348,6 @@ test('it renames the id column and defaults agent for a store written before bot
   });
 
   expect(store.loadFleet()).toStrictEqual([
-    { name: 'old', cwd: '/x', agentSessionID: 'c1', agent: 'claude' },
+    { name: 'old', cwd: '/x', agentSessionID: toAgentSessionID('c1'), agent: 'claude' },
   ]);
 });

@@ -1,3 +1,5 @@
+import type { SessionID } from './session-id';
+
 export interface Dims {
   readonly cols: number;
   readonly rows: number;
@@ -10,16 +12,16 @@ export interface Dims {
  * the whole screen.
  */
 export class AttachRegistry<TClient> {
-  private readonly bySession = new Map<string, Map<TClient, Dims>>();
+  private readonly bySession = new Map<SessionID, Map<TClient, Dims>>();
 
-  attach(sessionID: string, client: TClient, dims: Dims): void {
+  attach(sessionID: SessionID, client: TClient, dims: Dims): void {
     const clients = this.bySession.get(sessionID) ?? new Map<TClient, Dims>();
 
     clients.set(client, dims);
     this.bySession.set(sessionID, clients);
   }
 
-  detach(sessionID: string, client: TClient): void {
+  detach(sessionID: SessionID, client: TClient): void {
     const clients = this.bySession.get(sessionID);
 
     clients?.delete(client);
@@ -29,8 +31,8 @@ export class AttachRegistry<TClient> {
     }
   }
 
-  detachAll(client: TClient): string[] {
-    const affected: string[] = [];
+  detachAll(client: TClient): SessionID[] {
+    const affected: SessionID[] = [];
 
     for (const [sessionID, clients] of this.bySession) {
       if (clients.delete(client)) {
@@ -45,15 +47,15 @@ export class AttachRegistry<TClient> {
     return affected;
   }
 
-  removeSession(sessionID: string): void {
+  removeSession(sessionID: SessionID): void {
     this.bySession.delete(sessionID);
   }
 
-  hasClient(sessionID: string, client: TClient): boolean {
+  hasClient(sessionID: SessionID, client: TClient): boolean {
     return this.bySession.get(sessionID)?.has(client) ?? false;
   }
 
-  updateDims(sessionID: string, client: TClient, dims: Dims): boolean {
+  updateDims(sessionID: SessionID, client: TClient, dims: Dims): boolean {
     const clients = this.bySession.get(sessionID);
 
     if (clients === undefined || !clients.has(client)) {
@@ -65,11 +67,11 @@ export class AttachRegistry<TClient> {
     return true;
   }
 
-  collectClients(sessionID: string): TClient[] {
+  collectClients(sessionID: SessionID): TClient[] {
     return [...(this.bySession.get(sessionID)?.keys() ?? [])];
   }
 
-  findEffectiveDims(sessionID: string): Dims | null {
+  findEffectiveDims(sessionID: SessionID): Dims | null {
     const clients = this.bySession.get(sessionID);
 
     if (clients === undefined || clients.size === 0) {

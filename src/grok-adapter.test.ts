@@ -2,9 +2,21 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { AgentSessionID } from './agent-session-id';
 import type { Config } from './config';
 import { GrokAdapter } from './grok-adapter';
 import type { HookEvent } from './hooks';
+import type { SessionID } from './session-id';
+
+function toSessionID(id: string): SessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for a minted session id
+  return id as SessionID;
+}
+
+function toAgentSessionID(id: string): AgentSessionID {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- test fixture literal stands in for an agent-minted session id
+  return id as AgentSessionID;
+}
 
 function setupGrokHome(): string {
   const dir = mkdtempSync(join(tmpdir(), 'atc-grok-home-'));
@@ -39,7 +51,7 @@ function buildGrokConfig(): Config {
 }
 
 function buildGrokHook(event: string, payload: Readonly<Record<string, unknown>>): HookEvent {
-  return { atcId: 's1', event, payload };
+  return { atcId: toSessionID('s1'), event, payload };
 }
 
 test('it plans a new spawn without resume or -p and appends --no-leader', () => {
@@ -93,7 +105,7 @@ test('it drops a user --leader from grokArgs and still appends --no-leader', () 
 test('it yanks a captured id as grok --resume and an uncaptured session as grok', () => {
   const adapter = new GrokAdapter(buildGrokConfig());
 
-  expect(adapter.buildResumeCommand("/tmp/o'reilly", 'sess-9')).toBe(
+  expect(adapter.buildResumeCommand("/tmp/o'reilly", toAgentSessionID('sess-9'))).toBe(
     String.raw`cd '/tmp/o'\''reilly' && grok --resume sess-9`,
   );
 
@@ -111,7 +123,7 @@ test('it maps permission_prompt to needs-input', () => {
 
   expect(ev).toStrictEqual({
     kind: 'needs-input',
-    agentSessionID: 'g1',
+    agentSessionID: toAgentSessionID('g1'),
     message: 'allow edit?',
     detail: 'allow edit?',
   });
@@ -161,28 +173,28 @@ test('it evicts the oldest session and retains the newest once hook state passes
   const adapter = new GrokAdapter(buildGrokConfig());
 
   adapter.normalizeHook({
-    atcId: 's-0',
+    atcId: toSessionID('s-0'),
     event: 'UserPromptSubmit',
     payload: { sessionId: 's-0', promptId: 'p2', prompt: 'first' },
   });
 
   for (let i = 1; i <= 255; i++) {
     adapter.normalizeHook({
-      atcId: `s-${i}`,
+      atcId: toSessionID(`s-${i}`),
       event: 'SessionStart',
       payload: { sessionId: `s-${i}`, cwd: '/tmp' },
     });
   }
 
   adapter.normalizeHook({
-    atcId: 's-256',
+    atcId: toSessionID('s-256'),
     event: 'UserPromptSubmit',
     payload: { sessionId: 's-256', promptId: 'p2', prompt: 'last' },
   });
 
   expect(
     adapter.normalizeHook({
-      atcId: 's-0',
+      atcId: toSessionID('s-0'),
       event: 'Stop',
       payload: { sessionId: 's-0', reason: 'end_turn', promptId: 'p1' },
     }).kind,
@@ -190,7 +202,7 @@ test('it evicts the oldest session and retains the newest once hook state passes
 
   expect(
     adapter.normalizeHook({
-      atcId: 's-256',
+      atcId: toSessionID('s-256'),
       event: 'Stop',
       payload: { sessionId: 's-256', reason: 'end_turn', promptId: 'p1' },
     }).kind,
@@ -251,7 +263,7 @@ test('it captures SessionStart without a transcript path', () => {
   );
 
   expect(ev.kind).toBe('started');
-  expect(ev.agentSessionID).toBe('g1');
+  expect(ev.agentSessionID).toBe(toAgentSessionID('g1'));
   expect(ev.transcriptSource).toBeUndefined();
 
   expect(ev.nameSource).toEndWith(
@@ -298,10 +310,13 @@ test('it loads an auto title only when the session was not user-named', async ()
 test('it resumes when a session id was captured and not from a summary path', () => {
   const adapter = new GrokAdapter(buildGrokConfig());
 
-  expect(adapter.canResume({ agentSessionID: 'g1' })).toBe(true);
+  expect(adapter.canResume({ agentSessionID: toAgentSessionID('g1') })).toBe(true);
 
   expect(
-    adapter.canResume({ agentSessionID: 'g1', transcriptSource: '/missing/summary.json' }),
+    adapter.canResume({
+      agentSessionID: toAgentSessionID('g1'),
+      transcriptSource: '/missing/summary.json',
+    }),
   ).toBe(true);
 
   expect(adapter.canResume({})).toBe(false);
