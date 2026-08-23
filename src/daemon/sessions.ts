@@ -9,6 +9,7 @@ import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { SessionID } from '../shared/session-id';
 import type { FleetEntry, FleetStore } from '../store/fleet-entry';
 import type { HookEvent } from './hooks';
+import { mintSessionID } from './mint-session-id';
 
 export type SessionState = 'running' | 'needs_you' | 'done' | 'exited';
 
@@ -67,8 +68,6 @@ export interface Session {
   namedBy: 'user' | 'auto' | 'agent';
   createdAt: number;
 }
-
-let counter = 0;
 
 export class SessionManager {
   sessions: Session[] = [];
@@ -157,8 +156,7 @@ export class SessionManager {
     }
 
     const session: Session = {
-      // oxlint-disable-next-line no-unsafe-type-assertion -- this is where atc mints a session id
-      id: `s${++counter}-${Date.now().toString(36)}` as SessionID,
+      id: mintSessionID(),
       name: entry.name,
       cwd: entry.cwd,
       kind: 'headless',
@@ -329,8 +327,7 @@ export class SessionManager {
       throw new Error(`no adapter for agent '${agent}'`);
     }
 
-    // oxlint-disable-next-line no-unsafe-type-assertion -- this is where atc mints a session id
-    const id = `s${++counter}-${Date.now().toString(36)}` as SessionID;
+    const id = mintSessionID();
     const plan = adapter.planSpawn({ prompt, resume });
 
     const pty = spawn(plan.bin, plan.args, {

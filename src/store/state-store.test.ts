@@ -359,6 +359,33 @@ test('it reports the latest event timestamp per agent session', async () => {
   );
 });
 
+test('it returns an empty recency map when no event carries a session id', async () => {
+  const dir = setupDir();
+  const dbPath = join(dir, 'state.db');
+
+  const store = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
+
+  db.run(
+    'INSERT INTO events (ts, atc_id, event, message, session_id) VALUES ' +
+      "('2026-08-14T00:00:01.000Z', 's1', 'SessionStart', NULL, NULL)," +
+      "('2026-08-14T00:00:02.000Z', 's2', 'SessionStart', NULL, NULL)",
+  );
+
+  const recency = await store.collectFleetRecency();
+
+  expect(recency).toStrictEqual(new Map());
+});
+
 test('it lists spawn directories most recent first without duplicates', async () => {
   const store = await StateStore.open(join(setupDir(), 'state.db'));
 

@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalBoolean } from '../shared/build-optional-boolean';
 import { buildOptionalString } from '../shared/build-optional-string';
-import type { SessionID } from '../shared/session-id';
+import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toSessionID } from '../shared/to-session-id';
 
 const EJECT_DEFAULT_PROMPT =
   'Continue the task autonomously. Verify your work as you go and stop when it is complete.';
@@ -12,8 +12,7 @@ const EJECT_DEFAULT_PROMPT =
 // This is the one point where a session id arriving off the wire is typed
 // as the branded atc session id every daemon-side session lookup expects.
 const SESSION_DEFAULTED = z.object({
-  // oxlint-disable-next-line no-unsafe-type-assertion -- the session field arrives off the wire as a plain string; this asserts its parsed type as the branded atc session id without adding a runtime step
-  session: buildDefaultedString('') as unknown as z.ZodType<SessionID>,
+  session: buildDefaultedString('').transform(toSessionID),
 });
 
 export const REQUEST_PARAM_SCHEMAS = {
@@ -36,8 +35,9 @@ export const REQUEST_PARAM_SCHEMAS = {
     cols: buildDefaultedNumber(80),
     rows: buildDefaultedNumber(24),
 
-    // oxlint-disable-next-line no-unsafe-type-assertion -- a string resume value arrives off the wire as an agent session id to resume; this asserts its parsed type into the branded agent session id without adding a runtime step
-    resume: buildDefaultedBooleanOrString(false) as unknown as z.ZodType<boolean | AgentSessionID>,
+    resume: buildDefaultedBooleanOrString(false).transform((v) =>
+      typeof v === 'string' ? toAgentSessionID(v) : v,
+    ),
     agent: z
       .string({ error: 'session.spawn agent must be a non-empty agent id' })
       .min(1, 'session.spawn agent must be a non-empty agent id')

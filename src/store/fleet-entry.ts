@@ -4,6 +4,7 @@ import type { AgentID } from '../agents/agent-adapter';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalBoolean } from '../shared/build-optional-boolean';
 import { isRecord } from '../shared/report';
+import { toAgentSessionID } from '../shared/to-agent-session-id';
 
 export interface FleetEntry {
   readonly name: string;
@@ -56,8 +57,7 @@ export function parseFleetEntry(raw: unknown): FleetEntry | undefined {
     name: parsed.data.name,
     cwd: parsed.data.cwd,
 
-    // oxlint-disable-next-line no-unsafe-type-assertion -- a stored fleet row's id column is an agent session id by contract; this is the one point where it is trusted
-    agentSessionID: parsed.data.agentSessionID as AgentSessionID,
+    agentSessionID: toAgentSessionID(parsed.data.agentSessionID),
     agent: toAgentID(parsed.data.agent),
     ...(parsed.data.pinned === true ? { pinned: true } : {}),
     ...(parsed.data.lastAttachedAt === undefined

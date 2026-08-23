@@ -5,6 +5,7 @@ import { toAgentID } from '../agents/agent-adapter';
 import type { AgentID } from '../agents/agent-adapter';
 import type { HookEvent } from '../daemon/hooks';
 import type { AgentSessionID } from '../shared/agent-session-id';
+import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry } from './fleet-entry';
@@ -69,8 +70,7 @@ export class StateStore {
 
     for (const row of rows) {
       entries.push({
-        // oxlint-disable-next-line no-unsafe-type-assertion -- the fleet table's primary key is a stored agent session id by schema contract; this is the one point where it is trusted
-        agentSessionID: row.agent_session_id as AgentSessionID,
+        agentSessionID: toAgentSessionID(row.agent_session_id),
         name: row.name,
         cwd: row.cwd,
         agent: toAgentID(row.agent),
@@ -93,13 +93,17 @@ export class StateStore {
       .groupBy('session_id')
       .execute();
 
-    return new Map(
-      rows.map((row) => [
-        // oxlint-disable-next-line no-unsafe-type-assertion -- the events table's session_id column is a recorded agent session id by contract; this is the one point where it is trusted
-        row.session_id as AgentSessionID,
-        row.ts,
-      ]),
-    );
+    const recency = new Map<AgentSessionID, string>();
+
+    for (const row of rows) {
+      if (row.session_id === null) {
+        continue;
+      }
+
+      recency.set(toAgentSessionID(row.session_id), row.ts);
+    }
+
+    return recency;
   }
 
   async writeFleet(entries: readonly FleetEntry[]): Promise<void> {
