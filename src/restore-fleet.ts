@@ -25,7 +25,7 @@ export interface RestoreFleetParams {
  * waiting for each session to report it has booted before starting the
  * next.
  */
-export function restoreFleet(params: RestoreFleetParams): number {
+export async function restoreFleet(params: RestoreFleetParams): Promise<number> {
   const mgr = params.mgr;
   const store = params.store;
   const findRuntime = params.findRuntime;
@@ -43,15 +43,15 @@ export function restoreFleet(params: RestoreFleetParams): number {
   const hasAnySession = (agentSessionID: AgentSessionID) =>
     mgr.sessions.some((s) => s.agentSessionID === agentSessionID);
 
-  const recency = store.collectFleetRecency();
+  const recency = await store.collectFleetRecency();
+  const stored = await store.loadFleet();
 
   // Most recently active sessions revive first, so the ones the user was
   // just working in come back before long-idle ones; entries that never
   // reported an event keep their stored order at the end. Exited entries
   // dedupe against every listed session, so repeated restores never double
   // up the killed archive.
-  const entries = store
-    .loadFleet()
+  const entries = stored
     .filter((entry) =>
       entry.exited === true
         ? !hasAnySession(entry.agentSessionID)

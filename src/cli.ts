@@ -77,7 +77,7 @@ const main = defineCommand({
               ),
           );
 
-          const handle = daemon.startDaemon({
+          const handle = await daemon.startDaemon({
             socketPath: config.daemonSocketPath,
             reporterSocketPath: config.socketPath,
             build: getBuild(),
@@ -92,8 +92,11 @@ const main = defineCommand({
           });
 
           process.on('SIGTERM', () => {
-            handle.stop();
-            process.exit(0);
+            void (async () => {
+              await handle.stop();
+
+              process.exit(0);
+            })();
           });
         },
       }),

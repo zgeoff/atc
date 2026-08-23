@@ -72,7 +72,7 @@ async function setupHeadlessDaemon(withRunner = true): Promise<HeadlessContext> 
     };
   };
 
-  const daemon = startDaemon({
+  const daemon = await startDaemon({
     socketPath: join(dir, 'daemon.sock'),
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
@@ -90,9 +90,10 @@ async function setupHeadlessDaemon(withRunner = true): Promise<HeadlessContext> 
     events.push(e);
   };
 
-  onTestFinished(() => {
+  onTestFinished(async () => {
     client.stop();
-    daemon.stop();
+
+    await daemon.stop();
 
     rmSync(dir, { recursive: true, force: true });
   });
@@ -341,7 +342,7 @@ test('it refuses to eject a grok session and does not start a headless runner', 
     return { stop() {} };
   };
 
-  const daemon = startDaemon({
+  const daemon = await startDaemon({
     socketPath: join(dir, 'daemon.sock'),
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
@@ -354,9 +355,10 @@ test('it refuses to eject a grok session and does not start a headless runner', 
 
   const client = await DaemonClient.open(join(dir, 'daemon.sock'));
 
-  onTestFinished(() => {
+  onTestFinished(async () => {
     client.stop();
-    daemon.stop();
+
+    await daemon.stop();
 
     if (prevHome === undefined) {
       delete process.env['GROK_HOME'];

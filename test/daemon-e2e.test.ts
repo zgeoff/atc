@@ -807,15 +807,15 @@ sleep 30
 
   const dbPath = join(home, '.local', 'state', 'atc', 'atc.db');
 
-  const seed = new StateStore(dbPath);
+  const seed = await StateStore.open(dbPath);
 
-  seed.writeFleet([
+  await seed.writeFleet([
     { name: 'one', cwd: home, agentSessionID: toAgentSessionID('fake-a'), agent: 'claude' },
     { name: 'two', cwd: home, agentSessionID: toAgentSessionID('fake-b'), agent: 'claude' },
     { name: 'three', cwd: home, agentSessionID: toAgentSessionID('fake-c'), agent: 'claude' },
   ]);
 
-  seed.stop();
+  await seed.stop();
 
   // The event trail dates 'three' most recent and 'one' oldest, inverting
   // the stored fleet order.

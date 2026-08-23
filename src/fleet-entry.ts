@@ -16,8 +16,8 @@ export interface FleetEntry {
 }
 
 export interface FleetStore {
-  readonly loadFleet: () => FleetEntry[];
-  readonly writeFleet: (entries: readonly FleetEntry[]) => void;
+  readonly loadFleet: () => Promise<FleetEntry[]>;
+  readonly writeFleet: (entries: readonly FleetEntry[]) => Promise<void>;
 }
 
 // A stored fleet row's keys. name, cwd, and the resolved agentSessionID are

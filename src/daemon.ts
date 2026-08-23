@@ -62,7 +62,7 @@ export interface DaemonOptions {
 }
 
 export interface DaemonHandle {
-  readonly stop: () => void;
+  readonly stop: () => Promise<void>;
 }
 
 /**
@@ -74,14 +74,15 @@ export interface DaemonHandle {
  * because transports guarantee byte integrity and such a line means a buggy
  * or hostile peer.
  */
-export function startDaemon(opts: DaemonOptions): DaemonHandle {
-  let stopDaemon: (() => void) | null = null;
+export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
+  let stopDaemon: (() => Promise<void>) | null = null;
 
   if (opts.pidPath !== undefined) {
     writeFileSync(opts.pidPath, String(process.pid));
   }
 
-  const store = new StateStore(opts.dbPath, opts.legacyFleetPath);
+  const store = await StateStore.open(opts.dbPath, opts.legacyFleetPath);
+
   const mgr = new SessionManager(opts.adapter, store, opts.statusPath, opts.adapters ?? []);
   const clients = new Set<DaemonConnection>();
 
@@ -324,7 +325,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
 
   const reporter = startHookServer((e) => {
     if (e.event !== 'Statusline') {
-      store.recordEvent(e);
+      void store.recordEvent(e);
     }
 
     const kind = mgr.applyHook(e);
@@ -342,8 +343,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
 
       if (started !== undefined && runtime !== undefined && runtime.pendingLastUsed) {
         runtime.pendingLastUsed = false;
-
-        store.writeLastUsedAgent(started.agent);
+        void store.writeLastUsedAgent(started.agent);
       }
     }
   }, opts.reporterSocketPath);
@@ -366,7 +366,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
         runtime.screen = new ScreenModel(p.cols, p.rows);
       }
 
-      store.recordSpawnDir(p.cwd);
+      void store.recordSpawnDir(p.cwd);
 
       return getDescriptor(mgr, s.id);
     },
@@ -375,17 +375,21 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
       // The ok response for the quit request must flush before the sockets
       // close under it.
       setTimeout(() => {
-        stopDaemon?.();
-        opts.onQuit?.();
+        void (async () => {
+          await stopDaemon?.();
+
+          opts.onQuit?.();
+        })();
       }, 80);
     },
-    killSession: (id) => {
+    killSession: async (id) => {
       if (!mgr.sessions.some((s) => s.id === id)) {
         return false;
       }
 
       runtimes.get(id)?.stopHeadlessRun();
-      mgr.kill(id);
+
+      await mgr.kill(id);
 
       return true;
     },
@@ -559,7 +563,7 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     },
   });
 
-  stopDaemon = () => {
+  stopDaemon = async () => {
     server.stop(true);
     reporter.stop(true);
     mgr.killAll();
@@ -569,7 +573,8 @@ export function startDaemon(opts: DaemonOptions): DaemonHandle {
     }
 
     runtimes.clear();
-    store.stop();
+
+    await store.stop();
 
     if (opts.pidPath !== undefined) {
       try {

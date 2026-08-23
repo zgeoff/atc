@@ -22,11 +22,11 @@ const idleAdapter: AgentAdapter = {
   buildResumeCommand: () => null,
 };
 
-function setupDaemon(): string {
+async function setupDaemon(): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
   const sockPath = join(dir, 'daemon.sock');
 
-  const daemon = startDaemon({
+  const daemon = await startDaemon({
     socketPath: sockPath,
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
@@ -35,8 +35,8 @@ function setupDaemon(): string {
     statusPath: join(dir, 'status.json'),
   });
 
-  onTestFinished(() => {
-    daemon.stop();
+  onTestFinished(async () => {
+    await daemon.stop();
 
     rmSync(dir, { recursive: true, force: true });
   });
@@ -45,7 +45,8 @@ function setupDaemon(): string {
 }
 
 async function setupClient(): Promise<DaemonClient> {
-  const client = await DaemonClient.open(setupDaemon());
+  const sockPath = await setupDaemon();
+  const client = await DaemonClient.open(sockPath);
 
   onTestFinished(() => {
     client.stop();
@@ -61,7 +62,8 @@ interface RawClient {
 }
 
 async function setupRawClient(): Promise<RawClient> {
-  const sockPath = setupDaemon();
+  const sockPath = await setupDaemon();
+
   const lines: string[] = [];
   let buffer = '';
   let queue: OutboundQueue | null = null;
@@ -317,7 +319,7 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     leader: { code: 0, label: '^Space' },
   });
 
-  const daemon = startDaemon({
+  const daemon = await startDaemon({
     socketPath: join(dir, 'daemon.sock'),
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
@@ -329,9 +331,10 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
 
   const client = await DaemonClient.open(join(dir, 'daemon.sock'));
 
-  onTestFinished(() => {
+  onTestFinished(async () => {
     client.stop();
-    daemon.stop();
+
+    await daemon.stop();
 
     if (prevHome === undefined) {
       delete process.env['GROK_HOME'];
@@ -371,7 +374,7 @@ test('it yanks a grok session by id and without an id', async () => {
     leader: { code: 0, label: '^Space' },
   });
 
-  const daemon = startDaemon({
+  const daemon = await startDaemon({
     socketPath: join(dir, 'daemon.sock'),
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
@@ -383,9 +386,10 @@ test('it yanks a grok session by id and without an id', async () => {
 
   const client = await DaemonClient.open(join(dir, 'daemon.sock'));
 
-  onTestFinished(() => {
+  onTestFinished(async () => {
     client.stop();
-    daemon.stop();
+
+    await daemon.stop();
 
     if (prevHome === undefined) {
       delete process.env['GROK_HOME'];
@@ -452,7 +456,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
     leader: { code: 0, label: '^Space' },
   });
 
-  const daemon = startDaemon({
+  const daemon = await startDaemon({
     socketPath: join(dir, 'daemon.sock'),
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
@@ -464,9 +468,10 @@ test('it revives a grok session from a captured id when summary.json is missing'
 
   const client = await DaemonClient.open(join(dir, 'daemon.sock'));
 
-  onTestFinished(() => {
+  onTestFinished(async () => {
     client.stop();
-    daemon.stop();
+
+    await daemon.stop();
 
     if (prevHome === undefined) {
       delete process.env['GROK_HOME'];
@@ -524,7 +529,7 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
     leader: { code: 0, label: '^Space' },
   });
 
-  const daemon = startDaemon({
+  const daemon = await startDaemon({
     socketPath: sockPath,
     reporterSocketPath: reporterPath,
     build: 'atc/test-build',
@@ -536,9 +541,10 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
 
   const client = await DaemonClient.open(sockPath);
 
-  onTestFinished(() => {
+  onTestFinished(async () => {
     client.stop();
-    daemon.stop();
+
+    await daemon.stop();
 
     if (prevHome === undefined) {
       delete process.env['GROK_HOME'];

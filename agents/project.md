@@ -61,6 +61,10 @@ safe to call more than once.
 Exempt names (tiny geometry/row helpers and script entrypoints): `cols`, `rows`, `ptyRows`, `out`,
 `main`, `boxTop`, `boxDivider`, `boxBottom`, `boxRow`, `dimRow`.
 
+`init`, `acquireConnection`, `beginTransaction`, `commitTransaction`, `rollbackTransaction`,
+`releaseConnection`, and `destroy` are also exempt: kysely's `Driver` interface fixes these method
+names, so the state store's driver implements them under the names the library requires.
+
 ## Comments
 
 - JSDoc is always multi-line, never single-line `/** … */`.
