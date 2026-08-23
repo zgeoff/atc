@@ -37,7 +37,7 @@ atc (client TUI) ── NDJSON protocol ──> atcd (atc daemon)
 - A per-session vt state machine (`@xterm/headless`) consumes every PTY byte continuously, so
   attaching is an instant serialized-screen replay — no resize jiggle, no reliance on the hosted
   agent repainting itself.
-- `src/sessions.ts` is the state machine: session states are `running`, `needs_you`, `done`,
+- `src/daemon/sessions.ts` is the state machine: session states are `running`, `needs_you`, `done`,
   `exited`, each with an `unread` attention flag.
 
 ## Agent integration

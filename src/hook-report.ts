@@ -1,5 +1,5 @@
-import { normalizeHookEventName } from './normalize-hook-event';
-import { isRecord, sendReport } from './report';
+import { normalizeHookEventName } from './agents/normalize-hook-event';
+import { isRecord, sendReport } from './shared/report';
 
 /**
  * Runs as a hook inside wrangled sessions. Reads the hook event from stdin

@@ -1,0 +1,72 @@
+import { expect, onTestFinished, test } from 'bun:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { AgentAdapter } from '../agents/agent-adapter';
+import { toSessionID } from '../shared/to-session-id';
+import { StateStore } from '../store/state-store';
+import { buildSessionEvent } from './build-session-event';
+import { SessionManager } from './sessions';
+import type { Session } from './sessions';
+
+// Unit tests for the session-event builder: which notifications carry a
+// descriptor and which emit nothing.
+const idleAdapter: AgentAdapter = {
+  id: 'claude',
+  headlessRunner: null,
+  screenDetector: null,
+  planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
+  normalizeHook: () => ({ kind: 'heartbeat' }),
+  loadName: () => Promise.resolve(null),
+  canResume: () => true,
+  buildResumeCommand: () => null,
+};
+
+async function setupManager(): Promise<SessionManager> {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-events-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  return new SessionManager(idleAdapter, store, join(dir, 'status.json'), []);
+}
+
+function buildGhostSession(): Session {
+  return {
+    id: toSessionID('ghost-session'),
+    name: 'ghost',
+    cwd: '/tmp',
+    kind: 'pty',
+    pty: null,
+    state: 'exited',
+    unread: false,
+    lastMsg: '',
+    agent: 'claude',
+    pinned: false,
+    lastAttachedAt: Date.now(),
+    repoRoot: '/tmp',
+    namedBy: 'auto',
+    createdAt: Date.now(),
+  };
+}
+
+test('it builds nothing for a session.state notification whose id has no descriptor', async () => {
+  const mgr = await setupManager();
+
+  let event: unknown = 'not called';
+
+  expect(() => {
+    event = buildSessionEvent(mgr, 'state', buildGhostSession());
+  }).not.toThrow();
+
+  expect(event).toBeNull();
+});
+
+test('it builds nothing for a session.added notification whose id has no descriptor', async () => {
+  const mgr = await setupManager();
+
+  expect(buildSessionEvent(mgr, 'added', buildGhostSession())).toBeNull();
+});
