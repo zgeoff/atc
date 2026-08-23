@@ -2,7 +2,7 @@
 // `statusline` are the commands injected into wrangled sessions.
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
-import { getBuild } from './get-build';
+import { getBuild } from './shared/get-build';
 
 const main = defineCommand({
   meta: {
@@ -20,7 +20,7 @@ const main = defineCommand({
           hidden: true,
         },
         async run() {
-          await import('./index');
+          await import('./client/index');
         },
       }),
     mcp: () =>
@@ -42,13 +42,13 @@ const main = defineCommand({
           description: 'Run the atc daemon in the foreground',
         },
         async run() {
-          const daemon = await import('./daemon');
-          const config = await import('./config');
-          const claude = await import('./claude-adapter');
-          const grok = await import('./grok-adapter');
-          const codex = await import('./codex-adapter');
-          const gateway = await import('./gateway-adapter');
-          const headless = await import('./start-headless-run');
+          const daemon = await import('./daemon/daemon');
+          const config = await import('./shared/config');
+          const claude = await import('./agents/claude-adapter');
+          const grok = await import('./agents/grok-adapter');
+          const codex = await import('./agents/codex-adapter');
+          const gateway = await import('./agents/gateway-adapter');
+          const headless = await import('./daemon/start-headless-run');
 
           // Test harnesses shrink the outbound queue to force overflow
           // deterministically; unset means the production default.
@@ -108,7 +108,7 @@ const main = defineCommand({
             'Print the Codex hook entries to merge into $CODEX_HOME/hooks.json (trust them once in the Codex TUI)',
         },
         async run() {
-          const hook = await import('./print-codex-hook-file');
+          const hook = await import('./agents/print-codex-hook-file');
 
           hook.printCodexHookFile();
         },
@@ -120,7 +120,7 @@ const main = defineCommand({
           description: 'Print the Grok hook file to install at $GROK_HOME/hooks/atc-reporter.json',
         },
         async run() {
-          const hook = await import('./print-grok-hook-file');
+          const hook = await import('./agents/print-grok-hook-file');
 
           hook.printGrokHookFile();
         },

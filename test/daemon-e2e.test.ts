@@ -4,12 +4,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
-import { DaemonClient } from '../src/daemon-client';
-import { getRecord } from '../src/get-record';
-import type { EventMsg } from '../src/protocol';
-import { isRecord } from '../src/report';
-import { StateStore } from '../src/state-store';
-import { toAgentSessionID } from '../src/to-agent-session-id';
+import { DaemonClient } from '../src/client/daemon-client';
+import type { EventMsg } from '../src/protocol/protocol';
+import { getRecord } from '../src/shared/get-record';
+import { isRecord } from '../src/shared/report';
+import { toAgentSessionID } from '../src/shared/to-agent-session-id';
+import { StateStore } from '../src/store/state-store';
 
 const repo = dirname(import.meta.dir);
 

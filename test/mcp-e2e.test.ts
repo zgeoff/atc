@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
-import { isRecord } from '../src/report';
+import { isRecord } from '../src/shared/report';
 
 const repo = dirname(import.meta.dir);
 

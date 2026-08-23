@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { bootDaemonClient } from './boot-daemon';
-import { DaemonError } from './daemon-error';
-import { isRecord } from './report';
-import { REQUEST_PARAM_SCHEMAS } from './request-param-schemas';
+import { bootDaemonClient } from './client/boot-daemon';
+import { DaemonError } from './protocol/daemon-error';
+import { REQUEST_PARAM_SCHEMAS } from './protocol/request-param-schemas';
+import { isRecord } from './shared/report';
 
 // The slice of the daemon client the tool handlers need.
 interface FleetCaller {
