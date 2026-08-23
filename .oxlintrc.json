@@ -46,7 +46,16 @@
           "boxDivider",
           "boxBottom",
           "boxRow",
-          "dimRow"
+          "dimRow",
+          // kysely's Driver interface: BunSqliteDriver implements it, so
+          // these method names are fixed by the library contract
+          "init",
+          "acquireConnection",
+          "beginTransaction",
+          "commitTransaction",
+          "rollbackTransaction",
+          "releaseConnection",
+          "destroy"
         ]
       }
     ],
@@ -67,6 +76,14 @@
           { "from": "file", "name": "SessionRuntime" },
           // wraps a live db connection; not meaningfully freezable
           { "from": "file", "name": "StateStore" },
+          // wraps a live db connection; not meaningfully freezable
+          { "from": "package", "name": "Database", "package": "bun:sqlite" },
+          // a query builder bound to a live connection; not meaningfully
+          // freezable
+          { "from": "package", "name": "Kysely", "package": "kysely" },
+          // every field is already readonly; the type itself has no
+          // readonly form to wrap it in
+          { "from": "package", "name": "CompiledQuery", "package": "kysely" },
           { "from": "file", "name": "Config" },
           { "from": "file", "name": "HookEvent" },
           { "from": "file", "name": "OverlayView" },
@@ -75,7 +92,13 @@
           // branded primitives: the tag is a readonly symbol key carrying no
           // mutable state, so there is nothing for a readonly wrapper to add
           { "from": "file", "name": "SessionID" },
-          { "from": "file", "name": "AgentSessionID" }
+          { "from": "file", "name": "AgentSessionID" },
+          // already the readonly form; the rule doesn't recognize it as such
+          { "from": "lib", "name": "ReadonlySet" },
+          // a kysely connection bound to a live driver; not meaningfully freezable
+          { "from": "package", "name": "DatabaseConnection", "package": "kysely" },
+          // a migrator result read once for its error field, never mutated
+          { "from": "package", "name": "MigrationResultSet", "package": "kysely" }
         ]
       }
     ],

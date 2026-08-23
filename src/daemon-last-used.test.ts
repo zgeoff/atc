@@ -30,13 +30,13 @@ test('it does not write last-used when a restored session reports SessionStart',
 
   process.env['GROK_HOME'] = join(dir, 'grok-home');
 
-  const store = new StateStore(dbPath);
+  const store = await StateStore.open(dbPath);
 
-  store.writeFleet([
+  await store.writeFleet([
     { name: 'old-grok', cwd: '/tmp', agentSessionID: toAgentSessionID('g-restore'), agent: 'grok' },
   ]);
 
-  store.writeLastUsedAgent('claude');
+  await store.writeLastUsedAgent('claude');
 
   const grok = new GrokAdapter({
     claudeBin: 'claude',
@@ -49,7 +49,7 @@ test('it does not write last-used when a restored session reports SessionStart',
     leader: { code: 0, label: '^Space' },
   });
 
-  const daemon = startDaemon({
+  const daemon = await startDaemon({
     socketPath: sockPath,
     reporterSocketPath: reporterPath,
     build: 'atc/test-build',
@@ -61,9 +61,10 @@ test('it does not write last-used when a restored session reports SessionStart',
 
   const client = await DaemonClient.open(sockPath);
 
-  onTestFinished(() => {
+  onTestFinished(async () => {
     client.stop();
-    daemon.stop();
+
+    await daemon.stop();
 
     if (prevHome === undefined) {
       delete process.env['GROK_HOME'];

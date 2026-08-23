@@ -25,18 +25,18 @@ interface SpawnParams {
 export interface DaemonContext {
   readonly build: string;
   readonly collectSessions: () => SessionDescriptor[];
-  readonly collectSpawnDirs: () => string[];
-  readonly collectFleet: () => FleetEntry[];
-  readonly loadLastUsedAgent: () => AgentID;
+  readonly collectSpawnDirs: () => Promise<string[]>;
+  readonly collectFleet: () => Promise<FleetEntry[]>;
+  readonly loadLastUsedAgent: () => Promise<AgentID>;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
   readonly spawnSession: (p: SpawnParams) => SessionDescriptor;
-  readonly killSession: (id: SessionID) => boolean;
+  readonly killSession: (id: SessionID) => Promise<boolean>;
   readonly updateSession: (id: SessionID, name?: string, pinned?: boolean) => boolean;
   readonly quitDaemon: () => void;
   readonly ackSession: (id: SessionID) => boolean;
   readonly buildResumeCommand: (id: SessionID) => string | null;
   readonly answerPermission: (request: string, decision: string) => AnswerResult;
-  readonly restoreFleet: (cols: number, rows: number) => number;
+  readonly restoreFleet: (cols: number, rows: number) => Promise<number>;
   readonly attachSession: (
     client: OutputClient,
     sessionID: SessionID,
@@ -83,6 +83,11 @@ export class DaemonConnection {
   private buffer = '';
 
   private helloed = false;
+
+  // The handshake answer is written before any other response on this
+  // connection, even though building it reads the store: a request that
+  // arrives while that read is in flight waits behind it.
+  private helloAnswered: Promise<void> = Promise.resolve();
 
   private readonly desynced = new Map<SessionID, number>();
 
@@ -190,12 +195,28 @@ export class DaemonConnection {
       return false;
     }
 
-    this.applyRequest(req);
+    this.answerAsync(req.id, () => this.applyRequest(req));
 
     return true;
   }
 
-  private applyRequest(req: RequestMsg): void {
+  // A store query that rejects must end one request, never the daemon: a
+  // floating promise here would take the whole process down with it.
+  private answerAsync(id: number, answered: () => Promise<void>): void {
+    void (async () => {
+      try {
+        await answered();
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+
+        this.sendErr(id, 'internal', reason);
+      }
+    })();
+  }
+
+  private async applyRequest(req: RequestMsg): Promise<void> {
+    await this.helloAnswered;
+
     switch (req.m) {
       case 'daemon.ping': {
         this.sendOk(req.id, {});
@@ -208,12 +229,12 @@ export class DaemonConnection {
         return;
       }
       case 'dirs.list': {
-        this.sendOk(req.id, { dirs: this.ctx.collectSpawnDirs() });
+        this.sendOk(req.id, { dirs: await this.ctx.collectSpawnDirs() });
 
         return;
       }
       case 'fleet.list': {
-        this.sendOk(req.id, { fleet: this.ctx.collectFleet() });
+        this.sendOk(req.id, { fleet: await this.ctx.collectFleet() });
 
         return;
       }
@@ -248,12 +269,12 @@ export class DaemonConnection {
         return;
       }
       case 'session.kill': {
-        this.applySessionVerb(req, 'session.kill', this.ctx.killSession);
+        await this.applySessionVerb(req, 'session.kill', this.ctx.killSession);
 
         return;
       }
       case 'session.ack': {
-        this.applySessionVerb(req, 'session.ack', this.ctx.ackSession);
+        await this.applySessionVerb(req, 'session.ack', this.ctx.ackSession);
 
         return;
       }
@@ -383,7 +404,7 @@ export class DaemonConnection {
         }
 
         this.sendOk(req.id, {
-          restored: this.ctx.restoreFleet(parsed.data.cols, parsed.data.rows),
+          restored: await this.ctx.restoreFleet(parsed.data.cols, parsed.data.rows),
         });
 
         return;
@@ -554,11 +575,11 @@ export class DaemonConnection {
     }
   }
 
-  private applySessionVerb(
+  private async applySessionVerb(
     req: RequestMsg,
     method: 'session.kill' | 'session.ack',
-    verb: (id: SessionID) => boolean,
-  ): void {
+    verb: (id: SessionID) => boolean | Promise<boolean>,
+  ): Promise<void> {
     const parsed = parseRequestParams(method, req.p);
 
     if (!parsed.ok) {
@@ -569,7 +590,9 @@ export class DaemonConnection {
 
     const id = parsed.data.session;
 
-    if (verb(id)) {
+    const ok = await verb(id);
+
+    if (ok) {
       this.sendOk(req.id, {});
     } else {
       this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
@@ -591,14 +614,19 @@ export class DaemonConnection {
     }
 
     this.helloed = true;
+    this.helloAnswered = this.sendHelloOk(req.id);
 
-    this.sendOk(req.id, {
-      daemon: this.ctx.build,
-      limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
-      lastUsedAgent: this.ctx.loadLastUsedAgent(),
-    });
+    this.answerAsync(req.id, () => this.helloAnswered);
 
     return true;
+  }
+
+  private async sendHelloOk(id: number): Promise<void> {
+    this.sendOk(id, {
+      daemon: this.ctx.build,
+      limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
+      lastUsedAgent: await this.ctx.loadLastUsedAgent(),
+    });
   }
 
   private sendOk(id: number, ok: Readonly<Record<string, unknown>>): void {

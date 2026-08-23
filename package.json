@@ -37,6 +37,7 @@
     "@xterm/headless": "6.0.0",
     "bun-pty": "0.4.10",
     "citty": "0.2.2",
+    "kysely": "0.29.5",
     "ts-pattern": "5.9.0",
     "xstate": "5.32.5",
     "zod": "4.4.3"

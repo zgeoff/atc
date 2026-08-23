@@ -1,11 +1,15 @@
 import { Database } from 'bun:sqlite';
 import { existsSync, readFileSync } from 'node:fs';
+import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
 import { toAgentID } from './agent-adapter';
 import type { AgentID } from './agent-adapter';
 import type { AgentSessionID } from './agent-session-id';
+import { BunSqliteDriver } from './bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry } from './fleet-entry';
 import type { HookEvent } from './hooks';
+import { runMigrations } from './run-migrations';
+import type { StateStoreSchema } from './run-migrations';
 
 /**
  * Daemon state in one SQLite store: the restorable fleet, the hook-event
@@ -13,94 +17,53 @@ import type { HookEvent } from './hooks';
  * file (status.json) stays a plain file because reporters inside wrangled
  * sessions read it without speaking to the daemon. An existing fleet.json
  * seeds the fleet table once, so upgrading never loses a restorable fleet.
+ * Every query runs through kysely against the schema the migration ladder
+ * maintains, executed by a driver over the one bun:sqlite connection this
+ * store owns. That makes every method here asynchronous; the driver's
+ * connection mutex is what keeps every write ordered regardless.
  */
 export class StateStore {
-  private readonly db: Database;
+  private readonly sqlite: Database;
 
-  constructor(dbPath: string, legacyFleetPath?: string) {
-    this.db = new Database(dbPath, { create: true });
+  private readonly db: Kysely<StateStoreSchema>;
 
-    this.db.run('PRAGMA journal_mode = WAL;');
-
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS fleet (
-        agent_session_id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        cwd TEXT NOT NULL,
-        pinned INTEGER NOT NULL DEFAULT 0,
-        last_attached INTEGER,
-        agent TEXT NOT NULL DEFAULT 'claude',
-        exited INTEGER NOT NULL DEFAULT 0
-      );
-      CREATE TABLE IF NOT EXISTS events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ts TEXT NOT NULL,
-        atc_id TEXT NOT NULL,
-        event TEXT NOT NULL,
-        message TEXT,
-        session_id TEXT
-      );
-      CREATE TABLE IF NOT EXISTS spawn_history (
-        cwd TEXT PRIMARY KEY,
-        last_spawn INTEGER NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS prefs (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-    `);
-
-    // Stores created before pinning, attach recency, or agent kind existed
-    // lack the columns; the create above only applies to fresh databases.
-    const fleetColumns = new Set(
-      this.db
-        .query<{ name: string }, []>('PRAGMA table_info(fleet)')
-        .all()
-        .map((c) => c.name),
-    );
-
-    // Stores created before the id column was agent-neutral carry it under
-    // its Claude-era name.
-    if (fleetColumns.has('claude_id')) {
-      this.db.run('ALTER TABLE fleet RENAME COLUMN claude_id TO agent_session_id');
-    }
-
-    if (!fleetColumns.has('pinned')) {
-      this.db.run('ALTER TABLE fleet ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0');
-    }
-
-    if (!fleetColumns.has('last_attached')) {
-      this.db.run('ALTER TABLE fleet ADD COLUMN last_attached INTEGER');
-    }
-
-    if (!fleetColumns.has('agent')) {
-      this.db.run("ALTER TABLE fleet ADD COLUMN agent TEXT NOT NULL DEFAULT 'claude'");
-    }
-
-    if (!fleetColumns.has('exited')) {
-      this.db.run('ALTER TABLE fleet ADD COLUMN exited INTEGER NOT NULL DEFAULT 0');
-    }
-
-    if (legacyFleetPath !== undefined) {
-      this.adoptLegacyFleet(legacyFleetPath);
-    }
+  private constructor(sqlite: Database, db: Kysely<StateStoreSchema>) {
+    this.sqlite = sqlite;
+    this.db = db;
   }
 
-  loadFleet(): FleetEntry[] {
-    const rows = this.db
-      .query<
-        {
-          agent_session_id: string;
-          name: string;
-          cwd: string;
-          pinned: number;
-          last_attached: number | null;
-          agent: string | null;
-          exited: number;
-        },
-        []
-      >('SELECT agent_session_id, name, cwd, pinned, last_attached, agent, exited FROM fleet')
-      .all();
+  // Migrations run statements that cannot happen inside a constructor, so
+  // opening a store is this factory instead of `new`.
+  static async open(dbPath: string, legacyFleetPath?: string): Promise<StateStore> {
+    const sqlite = new Database(dbPath, { create: true });
+
+    sqlite.run('PRAGMA journal_mode = WAL;');
+
+    const db = new Kysely<StateStoreSchema>({
+      dialect: {
+        createAdapter: () => new SqliteAdapter(),
+        createDriver: () => new BunSqliteDriver(sqlite),
+        createIntrospector: (kysely) => new SqliteIntrospector(kysely),
+        createQueryCompiler: () => new SqliteQueryCompiler(),
+      },
+    });
+
+    await runMigrations(db);
+
+    const store = new StateStore(sqlite, db);
+
+    if (legacyFleetPath !== undefined) {
+      await store.adoptLegacyFleet(legacyFleetPath);
+    }
+
+    return store;
+  }
+
+  async loadFleet(): Promise<FleetEntry[]> {
+    const rows = await this.db
+      .selectFrom('fleet')
+      .select(['agent_session_id', 'name', 'cwd', 'pinned', 'last_attached', 'agent', 'exited'])
+      .execute();
 
     const entries: FleetEntry[] = [];
 
@@ -122,97 +85,117 @@ export class StateStore {
 
   // The latest hook-event timestamp per agent session id, from the event
   // trail. Sessions that never reported an event are absent.
-  collectFleetRecency(): Map<AgentSessionID, string> {
-    const rows = this.db
-      .query<{ session_id: string; ts: string }, []>(
-        'SELECT session_id, MAX(ts) AS ts FROM events WHERE session_id IS NOT NULL GROUP BY session_id',
-      )
-      .all();
+  async collectFleetRecency(): Promise<Map<AgentSessionID, string>> {
+    const rows = await this.db
+      .selectFrom('events')
+      .select(['session_id', sql<string>`MAX(ts)`.as('ts')])
+      .where('session_id', 'is not', null)
+      .groupBy('session_id')
+      .execute();
 
-    // oxlint-disable-next-line no-unsafe-type-assertion -- the events table's session_id column is a recorded agent session id by contract; this is the one point where it is trusted
-    return new Map(rows.map((row) => [row.session_id as AgentSessionID, row.ts]));
+    return new Map(
+      rows.map((row) => [
+        // oxlint-disable-next-line no-unsafe-type-assertion -- the events table's session_id column is a recorded agent session id by contract; this is the one point where it is trusted
+        row.session_id as AgentSessionID,
+        row.ts,
+      ]),
+    );
   }
 
-  writeFleet(entries: readonly FleetEntry[]): void {
-    const replace = this.db.transaction((all: readonly FleetEntry[]) => {
-      this.db.run('DELETE FROM fleet');
+  async writeFleet(entries: readonly FleetEntry[]): Promise<void> {
+    await this.db.transaction().execute(async (trx) => {
+      await trx.deleteFrom('fleet').execute();
 
-      const insert = this.db.query(
-        'INSERT OR REPLACE INTO fleet (agent_session_id, name, cwd, pinned, last_attached, agent, exited) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)',
-      );
-
-      for (const entry of all) {
-        const pinned = entry.pinned === true ? 1 : 0;
-        const exited = entry.exited === true ? 1 : 0;
-
-        insert.run(
-          entry.agentSessionID,
-          entry.name,
-          entry.cwd,
-          pinned,
-          entry.lastAttachedAt ?? null,
-          entry.agent,
-          exited,
-        );
+      for (const entry of entries) {
+        await trx
+          .insertInto('fleet')
+          .values({
+            agent_session_id: entry.agentSessionID,
+            name: entry.name,
+            cwd: entry.cwd,
+            pinned: entry.pinned === true ? 1 : 0,
+            last_attached: entry.lastAttachedAt ?? null,
+            agent: entry.agent,
+            exited: entry.exited === true ? 1 : 0,
+          })
+          .orReplace()
+          .execute();
       }
     });
-
-    replace(entries);
   }
 
-  recordEvent(e: HookEvent): void {
+  async recordEvent(e: HookEvent): Promise<void> {
     const rawMessage = e.payload['message'];
     const rawSessionID = e.payload['session_id'] ?? e.payload['sessionId'];
     const message = typeof rawMessage === 'string' ? rawMessage : null;
     const sessionID = typeof rawSessionID === 'string' ? rawSessionID : null;
+    const atcID: string = e.atcId;
 
-    this.db
-      .query(
-        'INSERT INTO events (ts, atc_id, event, message, session_id) VALUES (?1, ?2, ?3, ?4, ?5)',
-      )
-      .run(new Date().toISOString(), e.atcId, e.event, message, sessionID);
+    await this.db
+      .insertInto('events')
+      .values({
+        ts: new Date().toISOString(),
+        atc_id: atcID,
+        event: e.event,
+        message,
+        session_id: sessionID,
+      })
+      .execute();
   }
 
-  recordSpawnDir(cwd: string): void {
-    this.db
-      .query(
-        'INSERT INTO spawn_history (cwd, last_spawn) VALUES (?1, ?2) ON CONFLICT(cwd) DO UPDATE SET last_spawn = ?2',
+  async recordSpawnDir(cwd: string): Promise<void> {
+    await this.db
+      .insertInto('spawn_history')
+      .values({ cwd, last_spawn: Date.now() })
+      .onConflict((oc) =>
+        oc.column('cwd').doUpdateSet((eb) => ({ last_spawn: eb.ref('excluded.last_spawn') })),
       )
-      .run(cwd, Date.now());
+      .execute();
   }
 
-  collectSpawnDirs(): string[] {
-    const rows = this.db
-      .query<{ cwd: string }, []>('SELECT cwd FROM spawn_history ORDER BY last_spawn DESC')
-      .all();
+  async collectSpawnDirs(): Promise<string[]> {
+    const rows = await this.db
+      .selectFrom('spawn_history')
+      .select('cwd')
+      .orderBy('last_spawn', 'desc')
+      .execute();
 
     return rows.map((row) => row.cwd);
   }
 
-  loadLastUsedAgent(): AgentID {
-    const row = this.db
-      .query<{ value: string }, []>("SELECT value FROM prefs WHERE key = 'last_used_agent'")
-      .get();
+  async loadLastUsedAgent(): Promise<AgentID> {
+    const row = await this.db
+      .selectFrom('prefs')
+      .select('value')
+      .where('key', '=', 'last_used_agent')
+      .executeTakeFirst();
 
     return toAgentID(row?.value);
   }
 
-  writeLastUsedAgent(agent: AgentID): void {
-    this.db
-      .query(
-        'INSERT INTO prefs (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2',
+  async writeLastUsedAgent(agent: AgentID): Promise<void> {
+    await this.db
+      .insertInto('prefs')
+      .values({ key: 'last_used_agent', value: agent })
+      .onConflict((oc) =>
+        oc.column('key').doUpdateSet((eb) => ({ value: eb.ref('excluded.value') })),
       )
-      .run('last_used_agent', agent);
+      .execute();
   }
 
-  stop(): void {
-    this.db.close();
+  async stop(): Promise<void> {
+    await this.db.destroy();
+
+    this.sqlite.close();
   }
 
-  private adoptLegacyFleet(legacyFleetPath: string): void {
-    const count = this.db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM fleet').get();
+  private async adoptLegacyFleet(legacyFleetPath: string): Promise<void> {
+    const count = await this.db
+      .selectFrom('fleet')
+      .select(this.db.fn.countAll<number>().as('n'))
+      .executeTakeFirst();
 
-    if (count === null || count.n > 0 || !existsSync(legacyFleetPath)) {
+    if (count === undefined || count.n > 0 || !existsSync(legacyFleetPath)) {
       return;
     }
 
@@ -233,7 +216,7 @@ export class StateStore {
         }
       }
 
-      this.writeFleet(entries);
+      await this.writeFleet(entries);
     } catch {}
   }
 }

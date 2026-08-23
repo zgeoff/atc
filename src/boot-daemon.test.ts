@@ -26,11 +26,11 @@ test('it surfaces a codex hello as the last-used agent instead of coercing it to
   // temp dir, rather than importing the client into this process.
   const sockPath = join(dir, 'atc-daemon.sock');
 
-  const store = new StateStore(join(dir, 'state.db'));
+  const store = await StateStore.open(join(dir, 'state.db'));
 
-  store.writeLastUsedAgent('codex');
+  await store.writeLastUsedAgent('codex');
 
-  const daemon = startDaemon({
+  const daemon = await startDaemon({
     socketPath: sockPath,
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
@@ -50,8 +50,8 @@ boot.client.stop();
 `,
   );
 
-  onTestFinished(() => {
-    daemon.stop();
+  onTestFinished(async () => {
+    await daemon.stop();
 
     rmSync(dir, { recursive: true, force: true });
   });

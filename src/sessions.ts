@@ -229,7 +229,7 @@ export class SessionManager {
       this.emitChange();
     });
 
-    this.writeFleet();
+    void this.writeFleet();
     this.onEvent('state', s);
     this.emitChange();
 
@@ -261,7 +261,7 @@ export class SessionManager {
       this.onEvent('state', s);
     }
 
-    this.writeFleet();
+    void this.writeFleet();
     this.writeStatus();
     this.emitChange();
 
@@ -385,7 +385,7 @@ export class SessionManager {
     });
 
     this.sessions.push(session);
-    this.writeFleet();
+    void this.writeFleet();
     this.writeStatus();
     this.onEvent('added', session);
 
@@ -442,9 +442,7 @@ export class SessionManager {
 
     if (ev.agentSessionID !== undefined && s.agentSessionID !== ev.agentSessionID) {
       s.agentSessionID = ev.agentSessionID;
-
-      this.writeFleet();
-
+      void this.writeFleet();
       dirty = true;
     }
 
@@ -538,7 +536,7 @@ export class SessionManager {
       s.namedBy = update.namedBy;
     }
 
-    this.writeFleet();
+    void this.writeFleet();
     this.onEvent('renamed', s);
     this.emitChange();
   }
@@ -563,8 +561,7 @@ export class SessionManager {
 
     s.unread = false;
     s.lastAttachedAt = Date.now();
-
-    this.writeFleet();
+    void this.writeFleet();
 
     // Attaching answers the attention request: a still-pending prompt
     // re-flags it via the next notification.
@@ -589,7 +586,10 @@ export class SessionManager {
     this.emitChange();
   }
 
-  kill(id: SessionID) {
+  // A kill's response is the caller's cue that the session is safely
+  // archived, so the write it depends on must land before that response
+  // goes out.
+  async kill(id: SessionID): Promise<void> {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s) {
@@ -614,7 +614,8 @@ export class SessionManager {
       this.onEvent('removed', s);
     }
 
-    this.writeFleet();
+    await this.writeFleet();
+
     this.emitChange();
   }
 
@@ -645,7 +646,7 @@ export class SessionManager {
   // so the last known fleet survives for `R` restore. Sessions whose
   // terminal is gone persist as exited entries, so the killed archive
   // survives a daemon restart too.
-  writeFleet() {
+  async writeFleet(): Promise<void> {
     const fleet: FleetEntry[] = [];
 
     for (const s of this.sessions) {
@@ -666,7 +667,7 @@ export class SessionManager {
       });
     }
 
-    this.store.writeFleet(fleet);
+    await this.store.writeFleet(fleet);
   }
 
   countStates() {

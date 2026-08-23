@@ -22,19 +22,16 @@ const idleAdapter: AgentAdapter = {
   buildResumeCommand: () => null,
 };
 
-function setupManager(): SessionManager {
+async function setupManager(): Promise<SessionManager> {
   const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-events-'));
 
   onTestFinished(() => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  return new SessionManager(
-    idleAdapter,
-    new StateStore(join(dir, 'state.db')),
-    join(dir, 'status.json'),
-    [],
-  );
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  return new SessionManager(idleAdapter, store, join(dir, 'status.json'), []);
 }
 
 function buildGhostSession(): Session {
@@ -56,8 +53,9 @@ function buildGhostSession(): Session {
   };
 }
 
-test('it builds nothing for a session.state notification whose id has no descriptor', () => {
-  const mgr = setupManager();
+test('it builds nothing for a session.state notification whose id has no descriptor', async () => {
+  const mgr = await setupManager();
+
   let event: unknown = 'not called';
 
   expect(() => {
@@ -67,8 +65,8 @@ test('it builds nothing for a session.state notification whose id has no descrip
   expect(event).toBeNull();
 });
 
-test('it builds nothing for a session.added notification whose id has no descriptor', () => {
-  const mgr = setupManager();
+test('it builds nothing for a session.added notification whose id has no descriptor', async () => {
+  const mgr = await setupManager();
 
   expect(buildSessionEvent(mgr, 'added', buildGhostSession())).toBeNull();
 });

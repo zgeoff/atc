@@ -39,7 +39,7 @@ async function setupDetectorDaemon(adapter: AgentAdapter = promptAdapter): Promi
 }> {
   const dir = mkdtempSync(join(tmpdir(), 'atc-detector-'));
 
-  const daemon = startDaemon({
+  const daemon = await startDaemon({
     socketPath: join(dir, 'daemon.sock'),
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
@@ -56,9 +56,10 @@ async function setupDetectorDaemon(adapter: AgentAdapter = promptAdapter): Promi
     events.push(e);
   };
 
-  onTestFinished(() => {
+  onTestFinished(async () => {
     client.stop();
-    daemon.stop();
+
+    await daemon.stop();
 
     rmSync(dir, { recursive: true, force: true });
   });

@@ -20,23 +20,20 @@ const idleAdapter: AgentAdapter = {
   buildResumeCommand: () => null,
 };
 
-function setupManager(adapters: readonly AgentAdapter[] = []): SessionManager {
+async function setupManager(adapters: readonly AgentAdapter[] = []): Promise<SessionManager> {
   const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
 
   onTestFinished(() => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  return new SessionManager(
-    idleAdapter,
-    new StateStore(join(dir, 'state.db')),
-    join(dir, 'status.json'),
-    adapters,
-  );
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  return new SessionManager(idleAdapter, store, join(dir, 'status.json'), adapters);
 }
 
-test('it restores an entry whose agent id is registered as waiting for its terminal', () => {
-  const mgr = setupManager();
+test('it restores an entry whose agent id is registered as waiting for its terminal', async () => {
+  const mgr = await setupManager();
 
   const session = mgr.restore({
     name: 'claude work',
@@ -49,8 +46,8 @@ test('it restores an entry whose agent id is registered as waiting for its termi
   expect(session.lastMsg).toBe('waiting to restore');
 });
 
-test('it restores an entry whose agent id is unregistered without reviving it as another agent', () => {
-  const mgr = setupManager();
+test('it restores an entry whose agent id is unregistered without reviving it as another agent', async () => {
+  const mgr = await setupManager();
 
   const session = mgr.restore({
     name: 'glm work',
@@ -64,30 +61,32 @@ test('it restores an entry whose agent id is unregistered without reviving it as
   expect(mgr.adoptTerminal(session.id, 80, 24)).toBeNull();
 });
 
-test('it resolves an agent id to the adapter that declares it, not to the default', () => {
+test('it resolves an agent id to the adapter that declares it, not to the default', async () => {
   const gateway: AgentAdapter = { ...idleAdapter, id: 'zai' };
-  const mgr = setupManager([gateway]);
+
+  const mgr = await setupManager([gateway]);
 
   expect(mgr.findAdapter('zai')).toBe(gateway);
   expect(mgr.findAdapter('claude')).toBe(idleAdapter);
   expect(mgr.findAdapter('grok')).toBeNull();
 });
 
-test('it reports no screen detector when no registered adapter provides one', () => {
+test('it reports no screen detector when no registered adapter provides one', async () => {
   const other: AgentAdapter = { ...idleAdapter, id: 'zai' };
-  const mgr = setupManager([other]);
+
+  const mgr = await setupManager([other]);
 
   expect(mgr.hasScreenDetector).toBe(false);
 });
 
-test('it reports a screen detector when a registered adapter provides one', () => {
+test('it reports a screen detector when a registered adapter provides one', async () => {
   const withDetector: AgentAdapter = {
     ...idleAdapter,
     id: 'zai',
     screenDetector: { detectAttention: () => null },
   };
 
-  const mgr = setupManager([withDetector]);
+  const mgr = await setupManager([withDetector]);
 
   expect(mgr.hasScreenDetector).toBe(true);
 });
