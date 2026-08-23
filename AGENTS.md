@@ -206,11 +206,14 @@ tooling, not app code.
 
 Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
 `.oxlintrc.json`): `ack`, `adopt`, `answer`, `attach`, `boot`, `copy`, `detach`, `dispose`, `draw`,
-`jiggle`, `kill`, `log`, `open`, `quit`, `record`, `refresh`, `restart`, `restore`, `schedule`,
-`spawn`, `truncate`, `yank`.
+`jiggle`, `kill`, `log`, `mint`, `open`, `quit`, `record`, `refresh`, `restart`, `restore`,
+`schedule`, `spawn`, `truncate`, `yank`.
 
 `dispose` releases every resource an object holds in one call (`SessionRuntime.dispose`), and is
 safe to call more than once.
+
+`mint` generates a new id that atc itself is the sole authority for (`mintSessionID`), as opposed to
+`to<Brand>`, which trusts an id that arrived from outside atc.
 
 Exempt names (tiny geometry/row helpers and script entrypoints): `cols`, `rows`, `ptyRows`, `out`,
 `main`, `boxTop`, `boxDivider`, `boxBottom`, `boxRow`, `dimRow`.

@@ -2,6 +2,7 @@ import { unlinkSync } from 'node:fs';
 import { socketPath } from '../shared/config';
 import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
+import { toSessionID } from '../shared/to-session-id';
 
 export interface HookEvent {
   atcId: SessionID;
@@ -38,8 +39,7 @@ export function startHookServer(onEvent: (e: HookEvent) => void, path: string = 
               isRecord(parsed['payload'])
             ) {
               onEvent({
-                // oxlint-disable-next-line no-unsafe-type-assertion -- the reporter's atcId is a session id by wire contract; this is the one point where it is trusted
-                atcId: parsed['atcId'] as SessionID,
+                atcId: toSessionID(parsed['atcId']),
                 event: parsed['event'],
                 payload: parsed['payload'],
               });

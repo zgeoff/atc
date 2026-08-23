@@ -7,6 +7,7 @@ import { buildOptionalString } from '../shared/build-optional-string';
 import type { Config } from '../shared/config';
 import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
+import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toShellArg } from '../shared/to-shell-arg';
 import type {
   AdapterEvent,
@@ -84,10 +85,7 @@ export class GrokAdapter implements AgentAdapter {
     const payload: GrokHookPayload = parsed.success ? parsed.data : {};
 
     const agentSessionID =
-      payload.sessionId === undefined
-        ? undefined
-        : // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's sessionId is an agent session id by contract; this is the one point where it is trusted
-          (payload.sessionId as AgentSessionID);
+      payload.sessionId === undefined ? undefined : toAgentSessionID(payload.sessionId);
 
     const base: AdapterEvent = {
       kind: 'heartbeat',

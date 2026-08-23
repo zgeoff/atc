@@ -5,6 +5,7 @@ import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalString } from '../shared/build-optional-string';
 import type { Config } from '../shared/config';
 import { isRecord } from '../shared/report';
+import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toShellArg } from '../shared/to-shell-arg';
 import type {
   AdapterEvent,
@@ -77,8 +78,7 @@ export class ClaudeAdapter implements AgentAdapter {
       kind: 'heartbeat',
       ...(payload.session_id === undefined
         ? {}
-        : // oxlint-disable-next-line no-unsafe-type-assertion -- the hook payload's session_id is an agent session id by contract; this is the one point where it is trusted
-          { agentSessionID: payload.session_id as AgentSessionID }),
+        : { agentSessionID: toAgentSessionID(payload.session_id) }),
     };
 
     const named: AdapterEvent = {
