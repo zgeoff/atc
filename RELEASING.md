@@ -63,5 +63,8 @@ that's saved, CI publishes all future versions with no tokens.
   Versions already on the registry are skipped. Re-running the failed job instead won't help when
   the failure is deterministic — a re-run uses the workflow file as of the original commit.
 
-- Version bumps feel off pre-1.0: intentional — `feat:` bumps patch and breaking changes bump minor
-  until 1.0 (`bump-patch-for-minor-pre-major`, `bump-minor-pre-major`).
+- Cutting a specific version: put `Release-As: X.Y.Z` in the footer of a commit that lands on
+  `main`. With squash merges that means the squash commit body, so pass it explicitly:
+  `gh pr merge <n> --squash --body 'Release-As: X.Y.Z'`. release-please reads the footer from
+  commits since the last release and bumps to that version instead of the one the commit types
+  imply.
