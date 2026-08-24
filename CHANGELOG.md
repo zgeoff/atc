@@ -2,10 +2,11 @@
 
 ## [1.0.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@1.0.0...@zgeoff/atc@1.0.1) (2026-08-24)
 
-
 ### Bug Fixes
 
-* **tui:** erase vacated box rows and resize before attach replay ([#58](https://github.com/zgeoff/atc/issues/58)) ([b4c4b14](https://github.com/zgeoff/atc/commit/b4c4b141ae0770cd637623206675aee5fd1b8466))
+- **tui:** erase vacated box rows and resize before attach replay
+  ([#58](https://github.com/zgeoff/atc/issues/58))
+  ([b4c4b14](https://github.com/zgeoff/atc/commit/b4c4b141ae0770cd637623206675aee5fd1b8466))
 
 ## [1.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@0.1.12...@zgeoff/atc@1.0.0) (2026-08-23)
 
