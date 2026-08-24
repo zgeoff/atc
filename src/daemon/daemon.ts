@@ -481,7 +481,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       attachments.attach(sessionID, client, dims);
       mgr.attach(sessionID);
 
-      scheduleResize(sessionID);
+      // The PTY and screen model take the new effective size before the
+      // replay renders, so the repaint arrives at the attaching terminal's
+      // own dims instead of the previous attachment's — a replay at stale
+      // dims paints vertically misaligned and the agent's resize repaint
+      // only redraws its live region, never the rows above it.
+      applyEffectiveDims(sessionID);
       void sendReplay(sessionID, client);
 
       return 'ok';

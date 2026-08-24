@@ -1048,6 +1048,38 @@ test('it resizes the pty to the smallest dims across attached clients', async ()
   expect(shrunk).toMatchObject({ s: id, cols: 90, rows: 28 });
 });
 
+test('it resizes the pty before the attach replay reaches the client', async () => {
+  const ctx = setupDaemonProc();
+
+  const spawner = await ctx.openClient();
+
+  await spawner.sendHello('atc/test');
+
+  const ok = await spawner.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const spawned = getRecord(ok, 'session');
+  const id = getString(spawned, 'id');
+
+  const joiner = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  joiner.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await joiner.sendHello('atc/test');
+  await joiner.sendRequest('session.attach', { session: id, cols: 100, rows: 30 });
+
+  await waitForEvent(events, (e) => e.ev === 'session.output' && e['s'] === id);
+
+  const resizedAt = events.findIndex((e) => e.ev === 'session.resized' && e['cols'] === 100);
+  const outputAt = events.findIndex((e) => e.ev === 'session.output' && e['s'] === id);
+
+  expect(resizedAt).toBeGreaterThanOrEqual(0);
+  expect(outputAt).toBeGreaterThan(resizedAt);
+});
+
 test('it answers session.input on a dead session with session_dead', async () => {
   const ctx = setupDaemonProc();
 
