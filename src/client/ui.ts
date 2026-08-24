@@ -4,6 +4,8 @@ import type { SessionState } from '../daemon/sessions';
 import { RESET_INPUT_MODES } from '../shared/reset-input-modes';
 import { formatDir } from './dirs';
 import { formatOverlayAgentMark } from './format-overlay-agent-mark';
+import { planVacatedRows } from './plan-vacated-rows';
+import type { BoxExtent } from './plan-vacated-rows';
 
 // The slice of a session the drawing layer needs; satisfied by both the
 // daemon's sessions and the wire descriptors a client mirrors.
@@ -119,11 +121,23 @@ interface Row {
   readonly width: number;
 }
 
+// The extent of the last box drawn, so the next draw can erase the rows a
+// shrinking or shifting box leaves behind. Erasing an already-blank row is a
+// no-op, so a stale extent after a full clear is harmless.
+let lastBoxExtent: BoxExtent | null = null;
+
 function drawBox(rowsList: readonly Row[]) {
   const boxWidth = Math.max(...rowsList.map((r) => r.width));
   const top = Math.max(1, Math.floor((rows() - 1 - rowsList.length) / 2));
   const left = Math.max(1, Math.floor((cols() - boxWidth) / 2));
+  const extent: BoxExtent = { top, height: rowsList.length };
   let buf = ansi.hideCursor;
+
+  for (const row of planVacatedRows(lastBoxExtent, extent)) {
+    buf += `${ansi.moveTo(row, 1)}${ESC}[2K`;
+  }
+
+  lastBoxExtent = extent;
 
   for (const [i, r] of rowsList.entries()) {
     buf += ansi.moveTo(top + i, left) + r.styled;
