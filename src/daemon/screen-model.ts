@@ -98,7 +98,7 @@ export class ScreenModel {
       await pending;
     } while (pending !== this.flushed);
 
-    return RESET_INPUT_MODES + this.serializer.serialize() + this.renderInputModes();
+    return RESET_INPUT_MODES + this.renderVisibleScreen() + this.renderInputModes();
   }
 
   updateDims(cols: number, rows: number): void {
@@ -107,6 +107,21 @@ export class ScreenModel {
 
   stop(): void {
     this.term.dispose();
+  }
+
+  // A session on the alternate screen serializes as the normal buffer, a
+  // buffer switch, then the alternate buffer. The switch clears nothing on a
+  // terminal already in alternate mode — and the client always is, since its
+  // chrome runs there — so the normal-buffer paint would linger under the
+  // alternate one, showing through every cell the serializer skips as blank.
+  // The replay therefore keeps only what the switch precedes: the content of
+  // the buffer the session is actually showing.
+  private renderVisibleScreen(): string {
+    const serialized = this.serializer.serialize();
+    const altSwitch = '\u001B[?1049h\u001B[H';
+    const switchAt = serialized.lastIndexOf(altSwitch);
+
+    return switchAt === -1 ? serialized : serialized.slice(switchAt + altSwitch.length);
   }
 
   private renderInputModes(): string {
