@@ -84,10 +84,19 @@ export class ScreenModel {
     });
   }
 
-  // The terminal parses asynchronously; the replay waits for every recorded
-  // byte to land in the buffer before serializing.
+  // The terminal parses asynchronously, and bytes recorded while a flush is
+  // awaited re-arm it — so the replay drains until no newer write is
+  // pending. Serializing earlier would omit bytes already streamed live to
+  // clients, and the replay's leading clear would erase them from the
+  // client's screen for good.
   async renderReplay(): Promise<string> {
-    await this.flushed;
+    let pending: Promise<void>;
+
+    do {
+      pending = this.flushed;
+
+      await pending;
+    } while (pending !== this.flushed);
 
     return RESET_INPUT_MODES + this.serializer.serialize() + this.renderInputModes();
   }
