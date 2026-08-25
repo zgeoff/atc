@@ -50,7 +50,7 @@ test('it drops cleared content from the replay', async () => {
 
   await ctx.waitForReplay('stale screen');
 
-  ctx.model.record('[2J[Hfresh screen');
+  ctx.model.record('\u001B[2J\u001B[Hfresh screen');
 
   const replay = await ctx.waitForReplay('fresh screen');
 
@@ -73,14 +73,25 @@ test('it includes bytes recorded while a replay is pending', async () => {
   expect(rendered).toInclude('second');
 });
 
+test('it replays only the visible screen for a session on the alternate buffer', async () => {
+  const ctx = setupModel();
+
+  ctx.model.record('normal residue\r\n\u001B[?1049haltscreen content');
+
+  const replay = await ctx.waitForReplay('altscreen content');
+
+  expect(replay).not.toInclude('\u001B[?1049h');
+  expect(replay).not.toInclude('normal residue');
+});
+
 test('it preserves colors and cursor positioning in the replay', async () => {
   const ctx = setupModel();
 
-  ctx.model.record('[5;10H[1;31malert[0m');
+  ctx.model.record('\u001B[5;10H\u001B[1;31malert\u001B[0m');
 
   const replay = await ctx.waitForReplay('alert');
 
-  expect(replay).toInclude('[');
+  expect(replay).toInclude('\u001B[');
 });
 
 test('it keeps replaying after a resize', async () => {
