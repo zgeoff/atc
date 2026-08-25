@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@1.0.2...@zgeoff/atc@1.0.3) (2026-08-25)
+
+### Bug Fixes
+
+- **daemon:** replay only the visible buffer of an alt-screen session
+  ([#62](https://github.com/zgeoff/atc/issues/62))
+  ([8ed47da](https://github.com/zgeoff/atc/commit/8ed47da5eeb5e478fd14d8373fa4bbf9655d4d19))
+
 ## [1.0.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@1.0.1...@zgeoff/atc@1.0.2) (2026-08-25)
 
 ### Bug Fixes
