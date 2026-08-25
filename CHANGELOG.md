@@ -2,10 +2,11 @@
 
 ## [1.0.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@1.0.1...@zgeoff/atc@1.0.2) (2026-08-25)
 
-
 ### Bug Fixes
 
-* **daemon:** drain pending screen writes before serializing a replay ([#60](https://github.com/zgeoff/atc/issues/60)) ([b8b2a1d](https://github.com/zgeoff/atc/commit/b8b2a1d83f4ccbd946d9d676afd70ff96c3849ff))
+- **daemon:** drain pending screen writes before serializing a replay
+  ([#60](https://github.com/zgeoff/atc/issues/60))
+  ([b8b2a1d](https://github.com/zgeoff/atc/commit/b8b2a1d83f4ccbd946d9d676afd70ff96c3849ff))
 
 ## [1.0.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@1.0.0...@zgeoff/atc@1.0.1) (2026-08-24)
 
