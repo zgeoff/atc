@@ -57,6 +57,22 @@ test('it drops cleared content from the replay', async () => {
   expect(replay).not.toInclude('stale screen');
 });
 
+test('it includes bytes recorded while a replay is pending', async () => {
+  const ctx = setupModel();
+
+  ctx.model.record('first');
+
+  await ctx.waitForReplay('first');
+
+  const replay = ctx.model.renderReplay();
+
+  ctx.model.record(' second');
+
+  const rendered = await replay;
+
+  expect(rendered).toInclude('second');
+});
+
 test('it preserves colors and cursor positioning in the replay', async () => {
   const ctx = setupModel();
 
