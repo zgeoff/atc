@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitForFileContent } from '../../test/wait-for-file-content';
+import { waitFor } from '../../test/wait-for';
 import { makeHookRunner } from './make-hook-runner';
 
 test('it runs a hook with the event JSON on stdin and the event name in the environment', async () => {
@@ -19,7 +19,15 @@ test('it runs a hook with the event JSON on stdin and the event name in the envi
     { cwd: '/w', repoRoot: '/w' },
   );
 
-  const text = await waitForFileContent(out, (t) => t.endsWith('SessionAttached\n'));
+  const text = await waitFor(() => {
+    const written = readFileSync(out, 'utf8');
+
+    if (!written.endsWith('SessionAttached\n')) {
+      throw new Error('hook output still incomplete');
+    }
+
+    return written;
+  });
 
   expect(text).toBe(
     `${JSON.stringify({ v: 3, ev: 'SessionAttached', session: { id: 's1', cwd: '/w' } })}\nSessionAttached\n`,
@@ -38,8 +46,8 @@ test('it runs a dir hook when the session repo root or cwd sits at or under the 
 
   run({ v: 3, ev: 'SessionAttached' }, { cwd: '/w/repo/sub', repoRoot: '/w/repo' });
 
-  await waitForFileContent(join(ctx.dir, 'exact'));
-  await waitForFileContent(join(ctx.dir, 'above'));
+  await waitFor(() => readFileSync(join(ctx.dir, 'exact'), 'utf8'));
+  await waitFor(() => readFileSync(join(ctx.dir, 'above'), 'utf8'));
 });
 
 test('it skips a dir hook when the session path only shares a string prefix', async () => {
@@ -54,7 +62,7 @@ test('it skips a dir hook when the session path only shares a string prefix', as
 
   run({ v: 3, ev: 'SessionAttached' }, { cwd: '/w/bc', repoRoot: '/w/bc' });
 
-  await waitForFileContent(join(ctx.dir, 'control'));
+  await waitFor(() => readFileSync(join(ctx.dir, 'control'), 'utf8'));
 
   // A skipped spawn leaves no signal; the settle gives a wrongly spawned
   // touch time to land before the absence assertion.
@@ -75,7 +83,7 @@ test('it skips dir hooks for an event that carries no session', async () => {
 
   run({ v: 3, ev: 'PermissionResolved', request: 'r1', decision: 'allow' }, null);
 
-  await waitForFileContent(join(ctx.dir, 'control'));
+  await waitFor(() => readFileSync(join(ctx.dir, 'control'), 'utf8'));
 
   // A skipped spawn leaves no signal; the settle gives a wrongly spawned
   // touch time to land before the absence assertion.
@@ -113,7 +121,15 @@ test('it kills a hook that runs past its timeout', async () => {
 
   run({ v: 3, ev: 'SessionAttached' }, null);
 
-  await waitForFileContent(out, (t) => t.includes('start'));
+  await waitFor(() => {
+    const written = readFileSync(out, 'utf8');
+
+    if (!written.includes('start')) {
+      throw new Error('start marker not yet written');
+    }
+
+    return written;
+  });
 
   // The kill leaves no observable signal; the wait outlives the script's
   // own sleep, so a survivor would have appended its end marker by now.

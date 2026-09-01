@@ -1,11 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { spawnNamedSession } from '../../test/spawn-named-session';
-import { waitForEvent } from '../../test/wait-for-event';
-import { waitForFileContent } from '../../test/wait-for-file-content';
+import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -734,7 +733,15 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
 
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
-  const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
+  const event = await waitFor(() => {
+    const found = pair.events.find((e) => e.ev === 'SessionAttached');
+
+    if (found === undefined) {
+      throw new Error('no SessionAttached yet');
+    }
+
+    return found;
+  });
 
   expect(event).toMatchObject({
     v: 3,
@@ -763,7 +770,15 @@ test('it broadcasts SessionDetached when an attached client detaches', async () 
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
   await pair.actor.sendRequest('session.detach', { session: sessionID });
 
-  const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionDetached');
+  const event = await waitFor(() => {
+    const found = pair.events.find((e) => e.ev === 'SessionDetached');
+
+    if (found === undefined) {
+      throw new Error('no SessionDetached yet');
+    }
+
+    return found;
+  });
 
   expect(event).toMatchObject({ v: 3, ev: 'SessionDetached', session: { id: sessionID } });
 });
@@ -779,11 +794,23 @@ test('it broadcasts SessionDetached when an attached client disconnects', async 
 
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
-  await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
+  await waitFor(() => {
+    if (!pair.events.some((e) => e.ev === 'SessionAttached')) {
+      throw new Error('no SessionAttached yet');
+    }
+  });
 
   pair.actor.stop();
 
-  const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionDetached');
+  const event = await waitFor(() => {
+    const found = pair.events.find((e) => e.ev === 'SessionDetached');
+
+    if (found === undefined) {
+      throw new Error('no SessionDetached yet');
+    }
+
+    return found;
+  });
 
   expect(event).toMatchObject({ ev: 'SessionDetached', session: { id: sessionID } });
 });
@@ -800,7 +827,11 @@ test('it broadcasts no SessionDetached for a detach without an attach', async ()
   await pair.actor.sendRequest('session.detach', { session: sessionID });
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
-  await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
+  await waitFor(() => {
+    if (!pair.events.some((e) => e.ev === 'SessionAttached')) {
+      throw new Error('no SessionAttached yet');
+    }
+  });
 
   expect(pair.events.filter((e) => e.ev === 'SessionDetached')).toStrictEqual([]);
 });
@@ -822,8 +853,25 @@ test('it runs a configured hook with the same event JSON a watching client recei
 
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
-  const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
-  const text = await waitForFileContent(out, (t) => t.endsWith('SessionAttached\n'));
+  const event = await waitFor(() => {
+    const found = pair.events.find((e) => e.ev === 'SessionAttached');
+
+    if (found === undefined) {
+      throw new Error('no SessionAttached yet');
+    }
+
+    return found;
+  });
+
+  const text = await waitFor(() => {
+    const written = readFileSync(out, 'utf8');
+
+    if (!written.endsWith('SessionAttached\n')) {
+      throw new Error('hook output still incomplete');
+    }
+
+    return written;
+  });
 
   const [payload, eventName] = text.split('\n');
 
