@@ -1,7 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { waitForFileContent } from '../../test/wait-for-file-content';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -814,32 +815,28 @@ test('it broadcasts no SessionDetached for a detach without an attach', async ()
   expect(pair.events.filter((e) => e.ev === 'SessionDetached')).toStrictEqual([]);
 });
 
-async function waitForHookOutput(path: string): Promise<string> {
-  const deadline = Date.now() + 5000;
+interface HookOutDir {
+  readonly dir: string;
+  [Symbol.asyncDispose]: () => Promise<void>;
+}
 
-  while (Date.now() < deadline) {
-    if (existsSync(path)) {
-      const text = readFileSync(path, 'utf8');
+function setupHookOutDir(): HookOutDir {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-hook-out-'));
 
-      if (text.endsWith('SessionAttached\n')) {
-        return text;
-      }
-    }
+  return {
+    dir,
+    [Symbol.asyncDispose]: () => {
+      rmSync(dir, { recursive: true, force: true });
 
-    await Bun.sleep(20);
-  }
-
-  throw new Error('timed out waiting for hook output');
+      return Promise.resolve();
+    },
+  };
 }
 
 test('it runs a configured hook with the same event JSON a watching client receives', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-hook-out-'));
+  await using hookOut = setupHookOutDir();
 
-  onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  const out = join(dir, 'hook.out');
+  const out = join(hookOut.dir, 'hook.out');
 
   const pair = await setupWatchedPair({
     SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }],
@@ -850,7 +847,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
   const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
-  const text = await waitForHookOutput(out);
+  const text = await waitForFileContent(out, (t) => t.endsWith('SessionAttached\n'));
 
   const [payload, eventName] = text.split('\n');
 

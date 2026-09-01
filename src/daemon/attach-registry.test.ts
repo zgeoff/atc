@@ -27,14 +27,19 @@ test('it updates dims only for an attached client', () => {
   expect(registry.findEffectiveDims(toSessionID('s1'))).toStrictEqual({ cols: 90, rows: 20 });
 });
 
-test('it reports whether a detach removed an attachment', () => {
+test('it reports true for a detach that removes an attachment and false for the repeat', () => {
   const registry = new AttachRegistry<string>();
 
   registry.attach(toSessionID('s1'), 'a', { cols: 80, rows: 24 });
 
   expect(registry.detach(toSessionID('s1'), 'a')).toBeTrue();
   expect(registry.detach(toSessionID('s1'), 'a')).toBeFalse();
-  expect(registry.detach(toSessionID('s2'), 'stranger')).toBeFalse();
+});
+
+test('it reports false for a detach of a session it never tracked', () => {
+  const registry = new AttachRegistry<string>();
+
+  expect(registry.detach(toSessionID('s1'), 'stranger')).toBeFalse();
 });
 
 test('it detaches one client from every session it watched', () => {
