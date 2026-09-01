@@ -1,22 +1,11 @@
 # Architecture overview
 
 atc multiplexes Claude Code, Grok Build, and Codex CLI sessions without a tiling layout engine: one
-focused session owns the whole terminal, and everything else is reached through a keyboard-driven
-overlay. The design bet is that the pain of many-session work is attention routing, not window
-management. `n` and `r` open an agent picker first; last-used comes from `daemon.hello` and is
-written on SessionStart of a deliberate spawn. A fleet restore does not stamp it. MCP spawn ignores
-last-used and defaults to Claude. The picker resolves each agent's configured binary as it opens and
-lists only the ones that resolve, so every row is a session that can start — an uninstalled agent
-would otherwise show up three steps later as a PTY that dies on exec. An uninstalled last-used agent
-gives up the opening selection to the first installed one, and a menu with no rows at all carries
-the config keys to set.
-
-A session records which agent it runs under as an id, and the daemon keys its adapter registry by
-that id. A configured gateway is an id of its own: the Claude CLI against a Claude-compatible
-backend, with its own picker row, its own generated settings file, and its own fleet rows. That
-settings file is passed to the terminal spawn and to a headless turn alike, so ejecting a gateway
-session keeps it on its backend. A fleet row whose id has no registered adapter keeps its place and
-refuses to revive, so a backend dropped from the config never comes back as Claude.
+focused session owns the whole terminal, and every other session is reached through a
+keyboard-driven overlay. The design bet is that the pain of many-session work is attention routing,
+not window management. A per-user daemon hosts the sessions; disposable TUI clients drive them over
+the [wire protocol](./protocol.md). Everything specific to one agent CLI lives in an adapter behind
+the `AgentAdapter` interface, so a new agent CLI is an adapter, not a refactor.
 
 ## Process model
 
@@ -30,16 +19,36 @@ atc (client TUI) ── NDJSON protocol ──> atcd (atc daemon)
 ```
 
 - The daemon owns the sessions; the first `atc` invocation boots it if its socket is absent, then
-  connects as a thin client speaking the [wire protocol](./protocol.md). Clients are disposable —
-  quitting or crashing one leaves the fleet running. See the [daemon architecture](./daemon.md).
+  connects as a thin client. Clients are disposable — quitting or crashing one leaves the fleet
+  running. The [daemon architecture](./daemon.md) covers the internals.
 - Each session is a `claude`, `grok`, or `codex` child process on its own PTY (`bun-pty`) inside the
   daemon. Attached clients receive the session's output as sequenced events; a slow client desyncs
   and resynchronizes rather than stalling the PTY or other clients.
 - A per-session vt state machine (`@xterm/headless`) consumes every PTY byte continuously, so
-  attaching is an instant serialized-screen replay — no resize jiggle, no reliance on the hosted
-  agent repainting itself.
+  attaching is an instant serialized-screen replay — no reliance on the hosted agent repainting
+  itself.
 - `src/daemon/sessions.ts` is the state machine: session states are `running`, `needs_you`, `done`,
   `exited`, each with an `unread` attention flag.
+
+## Agents and gateways
+
+A session records which agent it runs under as an id, and the daemon keys its adapter registry by
+that id. The built-in ids are `claude`, `grok`, and `codex`. A configured gateway is an id of its
+own: the Claude CLI against a Claude-compatible backend, with its own picker row, its own generated
+settings file, and its own fleet rows. That settings file is passed to the terminal spawn and to a
+headless turn alike, so ejecting a gateway session keeps it on its backend. A fleet row whose id has
+no registered adapter keeps its place and refuses to revive, so a backend dropped from the config
+never comes back as Claude.
+
+`n` and `r` open an agent picker first. The picker resolves each agent's configured binary as it
+opens and lists only the ones that resolve, so every row is a session that can start — an
+uninstalled agent would otherwise show up three steps later as a PTY that dies on exec. A menu with
+no rows at all carries the config keys to set.
+
+The picker's opening selection is the last-used agent, advertised on `daemon.hello` and written on
+the SessionStart of a deliberate spawn. A fleet restore does not stamp it, and MCP spawn ignores it
+and defaults to Claude. An uninstalled last-used agent gives up the opening selection to the first
+installed one.
 
 ## Agent integration
 
@@ -56,12 +65,20 @@ Claude sessions are instrumented via a generated settings file passed as `claude
 - Session names are pulled from Claude's transcripts (`custom-title` lines from `/rename`, `summary`
   lines as fallback) — atc is not the naming authority.
 
-Grok sessions use a dedicated hook file at `$GROK_HOME/hooks/atc-reporter.json` (`~/.grok` when
-`GROK_HOME` is unset). atc never writes that path; `atc grok-hooks` prints the file to install. The
-same reporter forwards Grok camelCase envelopes. Config keys `grokBin` and `grokArgs` select the
-binary; atc always appends `--no-leader`. Grok names come from `summary.json`. Yank of a Grok
-session pastes `cd '…' && grok --resume <id>`, or `cd '…' && grok` when no id is captured. Headless
-eject (`H`) is Claude-only; a Grok row hides and ignores it.
+Grok sessions take their hooks from a self-installed file at `$GROK_HOME/hooks/atc-reporter.json`;
+the reporter forwards Grok's camelCase envelopes to the same socket. Grok names come from
+`summary.json`. atc always appends `--no-leader` to the Grok spawn so the hosted TUI never swallows
+the leader key.
+
+Codex sessions take their hooks from self-installed entries in `$CODEX_HOME/hooks.json`, trusted
+once in the Codex TUI. Codex names come from `session_index.jsonl`. The
+[configuration guide](../guides/configuration.md#attention-hooks-grok-and-codex) covers the install
+steps for both.
+
+Headless handoff (eject a PTY session into a headless Agent SDK run and adopt it back) is
+Claude-only: the Agent SDK and the CLI share the session store, and the handoff is sequential, so
+the two never run the same session concurrently. Grok and Codex have no headless handoff — the
+overlay hides `H` on their rows, and `session.eject` is `unsupported`.
 
 ## State
 
@@ -83,7 +100,8 @@ children die with it (PTY close → SIGHUP), but each agent streams transcripts 
 so sessions are data, not processes. Restore reconstructs each row with the matching CLI
 (`claude --resume <id>`, `grok --resume <id>`, or `codex resume <id>`); the fleet table makes that a
 single keypress (`R`) after a cold boot. The same mechanism powers adopt (`r`) and yank/eject
-(`y`/`Y`). `H` is unsupported for Grok.
+(`y`/`Y`). A session killed before its first exchange has nothing on disk yet, so revive (`P`)
+reports that in the overlay's message column instead of resuming.
 
 Reviving a whole fleet is incremental but visible from the start. Every fleet entry registers as a
 session without a terminal before any process boots — each broadcasts `SessionAdded`, so clients

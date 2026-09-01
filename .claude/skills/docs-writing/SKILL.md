@@ -83,9 +83,26 @@ knife.
   test: reading only first sentences yields a correct coarse version of the doc.
 - **Lead with the fact.** The answer first, framing never — "Reuses the existing bucket", not "What
   we want to do here is…".
+- **Show the rule in an instance.** When one concrete example illustrates a general rule, lead with
+  the example: "a request to `/admin/api/2026-07/graphql.json` is intercepted even though the schema
+  is pinned to `2026-01`" beats "handlers match any version segment and answer from the pinned
+  schema". State the abstraction only when no single instance can illustrate it.
 - **Active over passive.** "The sweep drops each stranded machine and records the set removed", not
   "stranded machines are dropped and the removed set is recorded". The test: append "by monkeys" — a
   sentence that still parses is passive.
+- **Address the reader in how-to prose.** Instructions say "you" and use imperatives ("seed it
+  yourself", "call `seed()`"). A how-to written without a reader reads as a spec. Declarative voice
+  stays for reference and design prose, where the doc states what the system is rather than what the
+  reader does. Choose voice per section, not per sentence, and hold the choice through it.
+- **No agentless artifact-subjects.** A sentence whose subject is a category of artifact and whose
+  verb hands it a property ("a change you can see gets a screenshot") has no actor, and the missing
+  actor is the defect. To pick the rewrite, open the sentence with an imperative verb: when the
+  meaning survives, the imperative is the sentence ("Record a clip for any feature with an App
+  release note"); when it doesn't, the sentence describes the system, so name the acting component
+  ("`latest` returns `NotFoundException`", never "a model with no completed run gets
+  `NotFoundException`"). A state description with no actor to name ("the field is optional") passes
+  as written. Re-voice a failing section by redrafting it from its facts — patching verbs one by one
+  preserves the spec voice.
 - **Decisions read as decisions.** A made call never reads "may", "should", or "might" — hedged
   modals mark genuinely open options only. A conditional that defines criteria ("a change may be
   treated as standard-risk when…") is a definition, not a hedge.
@@ -105,6 +122,11 @@ knife.
 - **Same term for the same thing.** Varying a term to dodge repetition ("the runner… the executor…
   the worker") makes the reader ask whether they differ. Elegant variation is a defect in technical
   prose.
+- **Each mechanism gets its own verb.** Joining unlike things under one vague verb ("carries",
+  "covers") makes them read as a matched pair sharing one mechanism, and the reader goes looking for
+  it. Where two things attach or act differently, give each its own clause and verb: "the PR gets
+  the `epic` label, and its description ends with an epic-link line", never "the PR carries the
+  label as well as the line".
 - **Qualify nominalized verbs.** A verb used as a noun ("a reveal", "the split", "an append") is a
   coinage: compound it with the noun it acts on ("checkpoint reveal", "partition split", "chain
   append") or restructure the sentence around the verb. Define the compound at first use. A
@@ -114,10 +136,10 @@ knife.
   not "no drain delivers entries out of order" — a negated subject garden-paths. Noun stacks
   garden-path too: three bare nouns in a row unstack. A reduced relative clause appended after a
   dash takes "that" or "which".
-- **Attribution takes a verb.** Name the owning doc or component as the subject: "the overview owns
-  the boundaries", never "the boundaries are the overview's". A possessive on a markdown link ("the
-  [sweep](url)'s seven readers") garden-paths twice over — put the link in a prepositional phrase
-  instead.
+- **Attribution takes a verb.** Name the owning doc or component as the subject: "the overview
+  covers the boundaries", never "the boundaries are the overview's". A possessive on a markdown link
+  ("the [sweep](url)'s seven readers") garden-paths twice over — put the link in a prepositional
+  phrase instead.
 - **Parentheses hold identifiers, paths, and values.** Never a gloss restating the prose, and at
   most one parenthetical per sentence. A consequence is never parenthetical — render it as its own
   sentence or after a colon.
@@ -137,11 +159,22 @@ knife.
     the activity through it."
 - **Weasel words.** Vague qualifiers where a specific claim belongs: "significantly", "many",
   "often", "typically", "generally", "near-instant". State the figure and its source, or make the
-  concrete claim the qualifier is dodging. "~28.7KB gzipped on average over a 7-day window" survives
-  review; "artifacts are small" doesn't.
+  concrete claim the qualifier is dodging. "~28.7 KB gzipped on average over a 7-day window"
+  survives review; "artifacts are small" doesn't. An unsupported superlative ("the worst failure a
+  forecasting API has") is the same defect with the sign flipped.
+- **Delta-framing.** "Also", "as well as", "in addition", "now", "still", "already", and "today"
+  assert an addition or a change against a baseline. With the baseline stated in the same doc the
+  framing is legal; with the baseline in the conversation, a prior draft, or the diff, the sentence
+  documents the edit instead of the system — write the resulting state. "New" qualifying a component
+  ("the new endpoint") is the word-scale form: it stales the moment the change merges, so write the
+  component's name.
 - **Repeated framing.** The same rhetorical move three times in a row: "X, not Y" (pick the
   strongest contrast, drop the rest); "no new A, no new B, no new C" (collapse to one line); "means"
   / "is the" as the spine of every sentence (vary).
+- **Overused contrast.** An antithesis ("built, never parsed", "a value, not an axis") earns its
+  place once, where the rejected alternative is one the reader would otherwise assume. Repeated
+  through a doc, it turns every sentence into a rebuttal of an argument the reader never made. State
+  the rule; a rejected alternative that needs recording goes in the decision record.
 - **Generated-prose tells.** Patterns that mark prose as machine-drafted. Cut or rewrite on sight:
   - Summary-style transitions recapping the previous paragraph ("With this setup complete…", "Now
     that we've covered…"). Pivot straight to the next point.
@@ -151,10 +184,17 @@ knife.
     automatic. This saves time." — one sentence). A short sentence for emphasis is fine.
   - Personified artifacts performing human actions ("the token hands the browser a session"); state
     what the system does ("the browser fetches the session"). Errors and status codes are not actors
-    either: "on the 400, the client refetches", never "the 400 refetches".
+    either: "on the 400, the client refetches", never "the 400 refetches". The commonest form is a
+    speech verb on a data artifact: a row, key, id, field, or endpoint does not `name`, `say`,
+    `tell`, `answer`, `know`, `promise`, or `agree` — it holds, includes, returns, or matches.
+  - Slogan sentences: a maxim in place of a rule ("denial is the default, and the write side makes
+    it safe"). A maxim reads as authority and states nothing the reader can check. Write the rule
+    with its actor and its condition.
   - Template framing not specific to this doc ("The question most teams face is…").
   - Rhetorical questions setting up the answer the next sentence gives ("So why not cache it?
     Because…"). State the point.
+- **Review vocabulary stays in this skill.** "Owns", "selection", and "rendering" are review terms
+  here; a committed doc "explains", "covers", or "documents" its topic.
 - **Banned words.** The AGENTS.md banned-words list applies to all prose; fix a violation on sight.
 
 ## Structure — the shape points take
@@ -187,7 +227,9 @@ knife.
   (`**Scope**` / `**Risk**` across the phases of a plan) still count: each introduces a
   multi-paragraph block, so all of them promote. Two shapes stay: one-line inline markers
   (`**Why:**`, `**Depends on:** phase 1.`) and a catalogue's run of same-shape sibling entries,
-  which would gain a heading per entry and no navigation.
+  which would gain a heading per entry and no navigation. A surviving bold-lead is an imperative or
+  a topic ("**Anchor format:**"), never a claim — a claim in bold reads as a slogan, and a run of
+  them reads as a manifesto.
 - **No label wrappers.** A bold label naming the body's role — `**Design**`, `**Details**`,
   `**Rationale**`, `**Overview**` — adds nothing: the body already is its design, detail, or
   rationale. Drop the wrapper; replace a per-section `**Rationale**` block with inline `**Why:**`
@@ -218,8 +260,8 @@ knife.
   illustrative shape. Code that exists in the repo is linked, never transcribed — a transcribed
   block is a roster: it rots with no signal, and the source file is typechecked where the block is
   not.
-- **Units attach directly to their value** (`200ms`, `30s`, `64KB`). Numerals for counts ("8
-  deployments", not "eight").
+- **Value, space, unit** (`64 KB`, `200 ms`, `30 s`). Numerals for counts ("8 deployments", not
+  "eight").
 - **Placeholders name their content** (`<task_list_id>`, `<service_id>`), never `xxx`, `ABC123`, or
   `<TOKEN>`.
 - **Anchors are GitHub's kebab-case** (`### Atomic cells` → `#atomic-cells`; `&` and `/` collapse to
@@ -242,9 +284,12 @@ Before committing docs, run this sequence over the files you touched:
    bash .claude/skills/docs-writing/scripts/check-prose.sh <path>...
    ```
 
-   The script greps the given paths for process residue, greppable banned words, and untagged code
-   fences, and exits non-zero on any hit. It skips this skill's own directory, which documents the
-   forbidden patterns and contains them as examples.
+   The script greps the given paths for process residue, greppable banned words, formatting
+   violations, and untagged code fences, and exits non-zero on any hit. It then prints candidate
+   matches — filler with term-of-art uses, speech verbs on data artifacts, delta-framing words,
+   headings written as claims — which need judgment, not automatic fixing, and never fail the run.
+   It skips this skill's own directory, which documents the forbidden patterns and contains them as
+   examples.
 
 4. Visual audit: walk each changed section's links and confirm every link's text still matches its
    target heading.

@@ -11,7 +11,7 @@ design on measured evidence:
   plain text), and encode+parse costs ~0.1–0.2% of one core at a 1 MB/s worst case. The tmux
   control-mode ~4x tax comes from octal-escaping every control byte, which JSON does not do.
 - One parser, one id space, one socket dialect: the hook and statusline reporters already speak
-  NDJSON to the daemon socket, SDK agent sessions emit JSON natively, and the future MCP tools are a
+  NDJSON to the daemon socket, SDK agent sessions emit JSON natively, and the MCP tools are a
   field-rename away from the control envelope.
 
 Revisit trigger: if the PTY layer is ever replaced with a byte-level provider, transparency returns
@@ -35,7 +35,7 @@ version) so a socket tap can interpret lines standalone.
 ```
 
 Methods are `noun.verb`; events are PascalCase, the naming style hook consumers already know from
-Claude Code's hook events. The future MCP tools map onto both mechanically (`session.spawn` → tool
+Claude Code's hook events. The MCP tools map onto both mechanically (`session.spawn` → tool
 `atc_session_spawn`, `SessionAdded` → a notification). Error codes are human-readable strings from a
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
 `no_such_session`, `session_dead`, `unsupported`, `already_answered`, `too_slow`, `internal`. An
@@ -94,9 +94,9 @@ semantics.
 | `permission.respond`    | answer a permission request (`{ request, decision }`)                                                                                          |
 
 `session.input` is a request (it gets an ok, preserving the rule that state-changing messages are
-acknowledged) but clients need not await it — measured cost of the JSON round trip is ~0.2µs against
-a ~3µs socket round trip. Ordering between input, resize, and output is guaranteed by construction:
-one socket, one ordered stream.
+acknowledged) but clients need not await it — measured cost of the JSON round trip is ~0.2 µs
+against a ~3 µs socket round trip. Ordering between input, resize, and output is guaranteed by
+construction: one socket, one ordered stream.
 
 Multi-client rules, chosen to cover the realistic conflicts without a write-lock protocol:
 
@@ -104,7 +104,7 @@ Multi-client rules, chosen to cover the realistic conflicts without a write-lock
   the daemon writes each input payload to the PTY whole, never interleaving bytes from two clients
   inside one payload. Client input is decoded statefully per client so a multi-byte character split
   across reads is never mangled.
-- Resize debounce: the daemon debounces effective-dimension changes (~50ms) and suppresses PTY
+- Resize debounce: the daemon debounces effective-dimension changes (~50 ms) and suppresses PTY
   resizes when the effective size is unchanged, so two clients resizing in opposite directions
   cannot produce a SIGWINCH storm.
 
@@ -166,16 +166,14 @@ events behind it — snapshot-then-stream, the same trick as attach's screen rep
 never needs the client protocol to learn what exists. Each subscriber has a bounded outbound queue;
 on overflow the daemon disconnects it, and a reconnect gets a fresh snapshot instead of the backlog
 it missed. `SessionOutput` and `SessionDesync` never appear here — they are attach-scoped, not
-broadcast. `atc events` prints this stream to stdout; hooks and the future MCP notifications carry
-the same event JSON.
+broadcast. `atc events` prints this stream to stdout, and user hooks receive the same event JSON.
 
 ## Attach and streaming
 
 The daemon reads every PTY continuously — background output is consumed, not discarded — and feeds
 it to the per-session screen model. On attach, the daemon sends the current screen state (serialized
 from the screen model) as ordinary `SessionOutput` events, then live output behind it; the client
-cannot tell replay from live and does not need to. Before the screen model exists, attach falls back
-to the resize-jiggle repaint: correct, slower, flickers.
+cannot tell replay from live and does not need to.
 
 Sessions have a `kind`: `pty` (output is terminal text) or `headless` (output is structured agent
 messages, e.g. SDK sessions). Same attach flow, same events, different payload discipline — this is
@@ -191,10 +189,9 @@ serialization — is where output and control genuinely differ:
   optional; an early loss test (blast a slow reader, assert zero loss) guards it.
 - Output is droppable: if a client's queued output for a session overflows, the daemon discards that
   session's backlog, emits `SessionDesync` (with dropped byte count), and resynchronizes the screen
-  when the queue drains — a full repaint from the screen model, or the jiggle before it exists. A
-  lagging client wants current state, not the backlog it missed. Intermediate ANSI chunks are never
-  dropped without a resync, because a byte stream cut mid-escape corrupts the client's terminal
-  state.
+  when the queue drains — a full repaint from the screen model. A lagging client wants current
+  state, not the backlog it missed. Intermediate ANSI chunks are never dropped without a resync,
+  because a byte stream cut mid-escape corrupts the client's terminal state.
 - Control is not droppable: a control-queue overflow is a bug or a hostile peer — disconnect.
 - `headless` sessions never drop-and-resync (structured messages are semantic, not idempotent screen
   state): their queue is bounded and overflow fails the attach with `too_slow`. The transcript on
@@ -202,14 +199,14 @@ serialization — is where output and control genuinely differ:
 
 ## Permissions
 
-`PermissionRequested` broadcasts to all clients with a `respondable` flag. Today it is synthesized
-from the Claude Code `Notification` hook and carries `respondable: false` (a PTY session is answered
-with keystrokes); when SDK sessions land, the same event arrives with `respondable: true` and
-`permission.respond` starts working — clients built today already have the right shape. Arbitration
-is first-response-wins: the first `permission.respond` gets `ok`, the resolution broadcasts as
-`PermissionResolved` so every client dismisses its prompt, and later responders get
-`already_answered`. A request times out to deny; a client disconnecting never resolves a request by
-itself.
+`PermissionRequested` broadcasts to all clients with a `respondable` flag. Every request is
+synthesized from the Claude Code `Notification` hook and carries `respondable: false`: a PTY session
+is answered with keystrokes in its terminal, and `permission.respond` against it returns
+`unsupported`. A session that can take a structured answer raises the same event with
+`respondable: true`, and clients need no new shape for it. Arbitration is first-response-wins: the
+first `permission.respond` gets `ok`, the resolution broadcasts as `PermissionResolved` so every
+client dismisses its prompt, and later responders get `already_answered`. A request times out to
+deny; a client disconnecting never resolves a request by itself.
 
 ## Limits and violations
 
