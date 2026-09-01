@@ -63,7 +63,7 @@ test('it delivers every byte to a slow reader without loss', async () => {
   const lines: string[] = [];
 
   for (let i = 0; i < 10_000; i++) {
-    lines.push(`{"v":1,"ev":"session.output","s":"s1","seq":${i},"d":"${'x'.repeat(120)}"}\n`);
+    lines.push(`{"v":1,"ev":"SessionOutput","s":"s1","seq":${i},"d":"${'x'.repeat(120)}"}\n`);
   }
 
   for (const line of lines) {

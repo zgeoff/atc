@@ -344,16 +344,16 @@ function applyDaemonEvent(raw: EventMsg) {
   }
 
   match(event)
-    .with({ ev: 'session.output' }, (e) => {
+    .with({ ev: 'SessionOutput' }, (e) => {
       if (service.getSnapshot().value === 'attached' && e.s === focusedID) {
         stdout.write(e.d);
       }
     })
-    .with({ ev: 'session.added' }, (e) => {
+    .with({ ev: 'SessionAdded' }, (e) => {
       upsertMirror(e.session);
       refreshScreens();
     })
-    .with({ ev: 'session.state' }, (e) => {
+    .with({ ev: 'SessionState' }, (e) => {
       const existing = fleet.find((x) => x.id === e.session.id);
 
       if (existing !== undefined) {
@@ -369,7 +369,7 @@ function applyDaemonEvent(raw: EventMsg) {
       upsertMirror(e.session);
       refreshScreens();
     })
-    .with({ ev: 'session.renamed' }, (e) => {
+    .with({ ev: 'SessionRenamed' }, (e) => {
       const s = fleet.find((x) => x.id === e.s);
 
       if (s !== undefined) {
@@ -378,7 +378,7 @@ function applyDaemonEvent(raw: EventMsg) {
 
       refreshScreens();
     })
-    .with({ ev: 'session.removed' }, (e) => {
+    .with({ ev: 'SessionRemoved' }, (e) => {
       fleet = fleet.filter((x) => x.id !== e.s);
 
       doneAt.delete(e.s);
@@ -393,10 +393,10 @@ function applyDaemonEvent(raw: EventMsg) {
     // Desync recovery arrives as ordinary repaint output; permission and
     // resize events matter to structured clients, not this passthrough TUI.
     .with(
-      { ev: 'session.resized' },
-      { ev: 'session.desync' },
-      { ev: 'permission.requested' },
-      { ev: 'permission.resolved' },
+      { ev: 'SessionResized' },
+      { ev: 'SessionDesync' },
+      { ev: 'PermissionRequested' },
+      { ev: 'PermissionResolved' },
       () => {},
     )
     .exhaustive();

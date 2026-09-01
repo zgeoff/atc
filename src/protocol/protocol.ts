@@ -5,7 +5,7 @@ import { isRecord } from '../shared/report';
  * per line. Three message kinds, distinguished by which fields are present —
  * request (id + m), response (id + ok or err), event (ev).
  */
-export const PROTOCOL_V = 2;
+export const PROTOCOL_V = 3;
 
 // Control lines are capped before buffering; PTY output is split into chunks
 // so a queued response is delayed by at most one chunk.

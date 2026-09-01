@@ -38,11 +38,11 @@ test('it decodes an err response with a known code', () => {
 });
 
 test('it decodes an event and keeps unknown fields', () => {
-  const decoded = decodeMessage('{"v":1,"ev":"session.output","s":"s7","seq":41,"d":"hi"}');
+  const decoded = decodeMessage('{"v":1,"ev":"SessionOutput","s":"s7","seq":41,"d":"hi"}');
 
   expect(decoded).toStrictEqual({
     kind: 'event',
-    msg: { v: 1, ev: 'session.output', s: 's7', seq: 41, d: 'hi' },
+    msg: { v: 1, ev: 'SessionOutput', s: 's7', seq: 41, d: 'hi' },
   });
 });
 

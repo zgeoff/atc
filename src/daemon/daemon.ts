@@ -97,7 +97,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   registry.onRequested = (req) => {
     emitEvent({
       v: PROTOCOL_V,
-      ev: 'permission.requested',
+      ev: 'PermissionRequested',
       request: req.id,
       s: req.sessionID,
       message: req.message,
@@ -106,7 +106,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   registry.onResolved = (id, decision) => {
-    emitEvent({ v: PROTOCOL_V, ev: 'permission.resolved', request: id, decision });
+    emitEvent({ v: PROTOCOL_V, ev: 'PermissionResolved', request: id, decision });
   };
 
   // One runtime per live session: its screen model, output sequence
@@ -161,7 +161,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       client.sendOutput(
         sessionID,
-        { v: PROTOCOL_V, ev: 'session.output', s: sessionID, seq, d: chunk },
+        { v: PROTOCOL_V, ev: 'SessionOutput', s: sessionID, seq, d: chunk },
         chunk.length,
       );
     }
@@ -192,7 +192,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     emitEvent({
       v: PROTOCOL_V,
-      ev: 'session.resized',
+      ev: 'SessionResized',
       s: sessionID,
       cols: dims.cols,
       rows: dims.rows,
@@ -258,7 +258,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       seq++;
 
-      const event: EventMsg = { v: PROTOCOL_V, ev: 'session.output', s: s.id, seq, d: chunk };
+      const event: EventMsg = { v: PROTOCOL_V, ev: 'SessionOutput', s: s.id, seq, d: chunk };
 
       for (const conn of conns) {
         conn.sendOutput(s.id, event, chunk.length);

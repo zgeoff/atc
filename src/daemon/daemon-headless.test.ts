@@ -182,7 +182,7 @@ test('it reports a finished headless turn as done', async () => {
   const done = await waitForEvent(
     ctx.events,
     (e) =>
-      e.ev === 'session.state' &&
+      e.ev === 'SessionState' &&
       isRecord(e['session']) &&
       e['session']['id'] === id &&
       e['session']['state'] === 'done',
@@ -206,7 +206,7 @@ test('it reports a stuck headless turn as needs_you', async () => {
   const needy = await waitForEvent(
     ctx.events,
     (e) =>
-      e.ev === 'session.state' &&
+      e.ev === 'SessionState' &&
       isRecord(e['session']) &&
       e['session']['id'] === id &&
       e['session']['state'] === 'needs_you',
@@ -229,7 +229,7 @@ test('it starts the next headless turn from session input once idle', async () =
 
   await waitForEvent(
     ctx.events,
-    (e) => e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'done',
+    (e) => e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'done',
   );
 
   const ok = await ctx.client.sendRequest('session.input', { session: id, d: 'next task\n' });
@@ -264,7 +264,7 @@ test('it adopts a headless session back into a terminal', async () => {
 
   await waitForEvent(
     ctx.events,
-    (e) => e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'done',
+    (e) => e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'done',
   );
 
   const ok = await ctx.client.sendRequest('session.adopt', { session: id, cols: 90, rows: 28 });

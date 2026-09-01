@@ -85,7 +85,7 @@ single keypress (`R`) after a cold boot. The same mechanism powers adopt (`r`) a
 (`y`/`Y`). `H` is unsupported for Grok.
 
 Reviving a whole fleet is incremental but visible from the start. Every fleet entry registers as a
-session without a terminal before any process boots — each broadcasts `session.added`, so clients
+session without a terminal before any process boots — each broadcasts `SessionAdded`, so clients
 list the full incoming fleet immediately, marked "waiting to restore". Terminals then attach one at
 a time in recency order (latest hook event in the trail first, from the events table): the first
 attaches at once so the caller can attach, and each later one waits for the previous session to

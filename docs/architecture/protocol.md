@@ -24,19 +24,20 @@ version) so a socket tap can interpret lines standalone.
 
 ```jsonc
 // request  (client -> daemon); id is client-assigned, monotonic per connection
-{ "v": 2, "id": 7, "m": "session.spawn", "p": { "cwd": "/x", "name": "auth-bug" } }
+{ "v": 3, "id": 7, "m": "session.spawn", "p": { "cwd": "/x", "name": "auth-bug" } }
 
 // response (daemon -> client); exactly one per request
-{ "v": 2, "id": 7, "ok": { "session": "s7-m4x2p" } }
-{ "v": 2, "id": 7, "err": { "code": "no_such_session", "msg": "…" } }
+{ "v": 3, "id": 7, "ok": { "session": "s7-m4x2p" } }
+{ "v": 3, "id": 7, "err": { "code": "no_such_session", "msg": "…" } }
 
 // event    (daemon -> client, unsolicited, never acknowledged)
-{ "v": 2, "ev": "session.output", "s": "s7-m4x2p", "seq": 41, "d": "[1mhello[0m" }
+{ "v": 3, "ev": "SessionOutput", "s": "s7-m4x2p", "seq": 41, "d": "[1mhello[0m" }
 ```
 
-Methods are `noun.verb`; the future MCP tools map onto them mechanically (`session.spawn` → tool
-`atc_session_spawn`, events → notifications). Error codes are human-readable strings from a closed,
-extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
+Methods are `noun.verb`; events are PascalCase, the naming style hook consumers already know from
+Claude Code's hook events. The future MCP tools map onto both mechanically (`session.spawn` → tool
+`atc_session_spawn`, `SessionAdded` → a notification). Error codes are human-readable strings from a
+closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
 `no_such_session`, `session_dead`, `unsupported`, `already_answered`, `too_slow`, `internal`. An
 unknown method is an `unknown_method` error, never a disconnect; unknown fields in any message are
 ignored. Both rules exist so additive evolution never breaks a peer.
@@ -50,10 +51,10 @@ failure must be actionable, not cryptic: the error names both versions and both 
 says to restart the daemon.
 
 ```jsonc
-{ "v": 2, "id": 1, "m": "daemon.hello",
+{ "v": 3, "id": 1, "m": "daemon.hello",
   "p": { "client": "atc/0.4.0", "auth": { "scheme": "none" } } }
 
-{ "v": 2, "id": 1, "ok": { "daemon": "atc/0.4.0",
+{ "v": 3, "id": 1, "ok": { "daemon": "atc/0.4.0",
                            "limits": { "maxLine": 1048576, "maxChunk": 65536 },
                            "lastUsedAgent": "claude" } }
 ```
@@ -85,7 +86,7 @@ semantics.
 | `session.attach`        | subscribe to a session's output; returns replay + current dims                                                                                 |
 | `session.detach`        | unsubscribe; session keeps running                                                                                                             |
 | `session.input`         | keyboard input to a session (`{ session, d }`)                                                                                                 |
-| `session.resize`        | client reports its dims; effective size is the min across attached clients (broadcast as `session.resized`)                                    |
+| `session.resize`        | client reports its dims; effective size is the min across attached clients (broadcast as `SessionResized`)                                     |
 | `session.resumeCommand` | build the resume command for that session's agent (`claude --resume`, `grok --resume`, or `codex resume`)                                      |
 | `session.eject`         | hand a live session off to a headless run so it keeps working unattended                                                                       |
 | `session.adopt`         | bring a dead or headless session back onto a live terminal                                                                                     |
@@ -109,21 +110,21 @@ Multi-client rules, chosen to cover the realistic conflicts without a write-lock
 
 ## Events
 
-`session.added`, `session.state`, `session.renamed`, `session.removed`, `session.resized`,
-`session.output`, `session.desync`, `permission.requested`, `permission.resolved`.
+`SessionAdded`, `SessionState`, `SessionRenamed`, `SessionRemoved`, `SessionResized`,
+`SessionOutput`, `SessionDesync`, `PermissionRequested`, `PermissionResolved`.
 
-State/lifecycle events broadcast to every client (every overlay needs them). `session.output` goes
+State/lifecycle events broadcast to every client (every overlay needs them). `SessionOutput` goes
 only to clients attached to that session — an unfocused session costs a client zero bytes. Output
 events carry a per-session `seq` so a client can detect gaps.
 
-`session.added` and `session.state` both carry the full session descriptor under a `session` key
-(the same shape `session.list` returns), rather than a hand-picked subset of fields — a client
-decodes both through one path instead of tracking which fields each event happens to carry.
+`SessionAdded` and `SessionState` both carry the full session descriptor under a `session` key (the
+same shape `session.list` returns), rather than a hand-picked subset of fields — a client decodes
+both through one path instead of tracking which fields each event happens to carry.
 
 ```jsonc
 {
-  "v": 2,
-  "ev": "session.state",
+  "v": 3,
+  "ev": "SessionState",
   "session": {
     "id": "s7-m4x2p",
     "name": "auth-bug",
@@ -148,7 +149,7 @@ decodes both through one path instead of tracking which fields each event happen
 
 The daemon reads every PTY continuously — background output is consumed, not discarded — and feeds
 it to the per-session screen model. On attach, the daemon sends the current screen state (serialized
-from the screen model) as ordinary `session.output` events, then live output behind it; the client
+from the screen model) as ordinary `SessionOutput` events, then live output behind it; the client
 cannot tell replay from live and does not need to. Before the screen model exists, attach falls back
 to the resize-jiggle repaint: correct, slower, flickers.
 
@@ -165,7 +166,7 @@ serialization — is where output and control genuinely differ:
   and drops the rest silently, so short-write handling with a `drain`-driven flush is mandatory, not
   optional; an early loss test (blast a slow reader, assert zero loss) guards it.
 - Output is droppable: if a client's queued output for a session overflows, the daemon discards that
-  session's backlog, emits `session.desync` (with dropped byte count), and resynchronizes the screen
+  session's backlog, emits `SessionDesync` (with dropped byte count), and resynchronizes the screen
   when the queue drains — a full repaint from the screen model, or the jiggle before it exists. A
   lagging client wants current state, not the backlog it missed. Intermediate ANSI chunks are never
   dropped without a resync, because a byte stream cut mid-escape corrupts the client's terminal
@@ -177,12 +178,12 @@ serialization — is where output and control genuinely differ:
 
 ## Permissions
 
-`permission.requested` broadcasts to all clients with a `respondable` flag. Today it is synthesized
+`PermissionRequested` broadcasts to all clients with a `respondable` flag. Today it is synthesized
 from the Claude Code `Notification` hook and carries `respondable: false` (a PTY session is answered
 with keystrokes); when SDK sessions land, the same event arrives with `respondable: true` and
 `permission.respond` starts working — clients built today already have the right shape. Arbitration
 is first-response-wins: the first `permission.respond` gets `ok`, the resolution broadcasts as
-`permission.resolved` so every client dismisses its prompt, and later responders get
+`PermissionResolved` so every client dismisses its prompt, and later responders get
 `already_answered`. A request times out to deny; a client disconnecting never resolves a request by
 itself.
 

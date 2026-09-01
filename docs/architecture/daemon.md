@@ -35,8 +35,8 @@ separate:
 - The reporter socket: the existing one-line NDJSON dialect spoken by `hook-report` and
   `statusline`, short-lived processes spawned inside wrangled sessions on every hook event and
   statusline render. Forcing them through the framed protocol would mean a handshake per invocation.
-  Reporter events feed the session state machine, which then emits `session.state` /
-  `permission.requested` protocol events to clients.
+  Reporter events feed the session state machine, which then emits `SessionState` /
+  `PermissionRequested` protocol events to clients.
 
 ## Screen model
 
