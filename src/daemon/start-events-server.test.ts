@@ -1,8 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
 import { connect } from 'node:net';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setupTempDir } from '../../test/setup-temp-dir';
+import { subscribeToSocketLines } from '../../test/subscribe-to-socket-lines';
+import { waitForCondition } from '../../test/wait-for-condition';
 import { startEventsServer } from './start-events-server';
 import type { EventsServer } from './start-events-server';
 
@@ -12,9 +13,9 @@ interface ServerFixture {
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 }
 
-function setupServer(queueBytes: number): ServerFixture {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-events-server-'));
-  const socketPath = join(dir, 'events.sock');
+function setupTest(queueBytes: number): ServerFixture {
+  const tmp = setupTempDir('atc-events-server-');
+  const socketPath = join(tmp.dir, 'events.sock');
 
   const server = startEventsServer({
     socketPath,
@@ -25,18 +26,16 @@ function setupServer(queueBytes: number): ServerFixture {
   return {
     server,
     socketPath,
-    [Symbol.asyncDispose]: () => {
+    [Symbol.asyncDispose]: async () => {
       server.stop();
 
-      rmSync(dir, { recursive: true, force: true });
-
-      return Promise.resolve();
+      await tmp[Symbol.asyncDispose]();
     },
   };
 }
 
 test('it disconnects a subscriber whose outbound queue overflows and keeps serving new ones', async () => {
-  await using setup = setupServer(1024);
+  await using setup = setupTest(1024);
 
   const slow = connect(setup.socketPath);
 
@@ -72,49 +71,17 @@ test('it disconnects a subscriber whose outbound queue overflows and keeps servi
   slow.on('data', () => {});
   slow.resume();
 
-  await waitFor(() => closed);
+  await waitForCondition(() => closed);
 
   expect(closed).toBeTrue();
 
-  const lines: string[] = [];
-
-  const fresh = await Bun.connect({
-    unix: setup.socketPath,
-    socket: {
-      data(_s, buf) {
-        lines.push(
-          ...buf
-            .toString()
-            .split('\n')
-            .filter((line) => line.trim() !== ''),
-        );
-      },
-      close() {},
-      error() {},
-    },
-  });
-
-  onTestFinished(() => {
-    fresh.end();
-  });
+  await using fresh = await subscribeToSocketLines(setup.socketPath);
 
   setup.server.broadcast({ v: 3, ev: 'SessionRemoved', s: 'sx' });
 
-  await waitFor(() => lines.length > 0);
+  const lines = await fresh.waitForLine(1);
 
   expect(lines.map((line) => JSON.parse(line) as unknown)).toStrictEqual([
     { v: 3, ev: 'SessionRemoved', s: 'sx' },
   ]);
 });
-
-async function waitFor(isDone: () => boolean): Promise<void> {
-  const deadline = Date.now() + 5000;
-
-  while (!isDone()) {
-    if (Date.now() >= deadline) {
-      throw new Error('timed out waiting for the condition');
-    }
-
-    await Bun.sleep(10);
-  }
-}
