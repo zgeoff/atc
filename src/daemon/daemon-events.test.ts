@@ -25,6 +25,7 @@ const idleAdapter: AgentAdapter = {
 interface EventsDaemon {
   readonly sockPath: string;
   readonly eventsPath: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 }
 
 async function setupEventsDaemon(queueBytes?: number): Promise<EventsDaemon> {
@@ -43,13 +44,15 @@ async function setupEventsDaemon(queueBytes?: number): Promise<EventsDaemon> {
     ...(queueBytes === undefined ? {} : { queueBytes }),
   });
 
-  onTestFinished(async () => {
-    await daemon.stop();
+  return {
+    sockPath,
+    eventsPath,
+    [Symbol.asyncDispose]: async () => {
+      await daemon.stop();
 
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  return { sockPath, eventsPath };
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
 }
 
 async function setupActor(sockPath: string): Promise<DaemonClient> {
@@ -146,7 +149,8 @@ function parseEvent(line: string): EventMsg {
 }
 
 test('it replays the fleet as SessionAdded lines on connect, then streams live events', async () => {
-  const daemon = await setupEventsDaemon();
+  await using daemon = await setupEventsDaemon();
+
   const actor = await setupActor(daemon.sockPath);
   const firstID = await spawnNamed((m, p) => actor.sendRequest(m, p), 'one');
 
@@ -182,7 +186,8 @@ test('it replays the fleet as SessionAdded lines on connect, then streams live e
 });
 
 test('it ignores subscriber input and keeps streaming', async () => {
-  const daemon = await setupEventsDaemon();
+  await using daemon = await setupEventsDaemon();
+
   const actor = await setupActor(daemon.sockPath);
   const subscriber = await setupSubscriber(daemon.eventsPath);
 

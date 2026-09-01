@@ -6,7 +6,13 @@ import { join } from 'node:path';
 import { startEventsServer } from './start-events-server';
 import type { EventsServer } from './start-events-server';
 
-function setupServer(queueBytes: number): { server: EventsServer; socketPath: string } {
+interface ServerFixture {
+  readonly server: EventsServer;
+  readonly socketPath: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+}
+
+function setupServer(queueBytes: number): ServerFixture {
   const dir = mkdtempSync(join(tmpdir(), 'atc-events-server-'));
   const socketPath = join(dir, 'events.sock');
 
@@ -16,17 +22,22 @@ function setupServer(queueBytes: number): { server: EventsServer; socketPath: st
     queueBytes,
   });
 
-  onTestFinished(() => {
-    server.stop();
+  return {
+    server,
+    socketPath,
+    [Symbol.asyncDispose]: () => {
+      server.stop();
 
-    rmSync(dir, { recursive: true, force: true });
-  });
+      rmSync(dir, { recursive: true, force: true });
 
-  return { server, socketPath };
+      return Promise.resolve();
+    },
+  };
 }
 
 test('it disconnects a subscriber whose outbound queue overflows and keeps serving new ones', async () => {
-  const setup = setupServer(1024);
+  await using setup = setupServer(1024);
+
   const slow = connect(setup.socketPath);
 
   slow.pause();
@@ -99,7 +110,11 @@ test('it disconnects a subscriber whose outbound queue overflows and keeps servi
 async function waitFor(isDone: () => boolean): Promise<void> {
   const deadline = Date.now() + 5000;
 
-  while (!isDone() && Date.now() < deadline) {
+  while (!isDone()) {
+    if (Date.now() >= deadline) {
+      throw new Error('timed out waiting for the condition');
+    }
+
     await Bun.sleep(10);
   }
 }
