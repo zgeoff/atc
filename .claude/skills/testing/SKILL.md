@@ -50,6 +50,9 @@ production code.
   `await using`. State the preload owns (jest-extended registration) needs no per-test handling; a
   test that mutates globals the preload doesn't own restores them in `onTestFinished(...)`, never
   `try`/`finally`.
+- `setupTest` is the only local function a test file defines. Every other helper is inlined into the
+  test bodies or extracted to a shared util under `test/`, tested beside itself — a second setup
+  shape, a local poll loop, or a parsing shim hides what the test arranges.
 - Unit tests co-locate with the module they test (`pick-matches.ts` beside `pick-matches.test.ts`);
   `test/e2e.test.ts` is the whole-binary suite and stays where it is.
 - `toStrictEqual` when the test determines every field — the full shape is the contract.

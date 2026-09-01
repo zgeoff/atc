@@ -1,12 +1,16 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setupTempDir } from '../../test/setup-temp-dir';
+import { spawnNamedSession } from '../../test/spawn-named-session';
+import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { OutboundQueue } from '../protocol/outbound-queue';
 import type { EventMsg } from '../protocol/protocol';
+import type { HooksConfig } from '../shared/collect-hooks';
 import { isRecord } from '../shared/report';
 import { startDaemon } from './daemon';
 
@@ -23,7 +27,7 @@ const idleAdapter: AgentAdapter = {
   buildResumeCommand: () => null,
 };
 
-async function setupDaemon(): Promise<string> {
+async function setupDaemon(hooks?: HooksConfig): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
   const sockPath = join(dir, 'daemon.sock');
 
@@ -34,6 +38,7 @@ async function setupDaemon(): Promise<string> {
     adapter: idleAdapter,
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),
+    ...(hooks === undefined ? {} : { hooks }),
   });
 
   onTestFinished(async () => {
@@ -317,6 +322,7 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 
@@ -372,6 +378,7 @@ test('it yanks a grok session by id and without an id', async () => {
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 
@@ -454,6 +461,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 
@@ -527,6 +535,7 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 
@@ -684,17 +693,13 @@ test('it connects nothing on a socket path with no daemon', () => {
 interface WatchedPair {
   readonly actor: DaemonClient;
   readonly events: EventMsg[];
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 }
 
-async function setupWatchedPair(): Promise<WatchedPair> {
-  const sockPath = await setupDaemon();
+async function setupTest(hooks?: HooksConfig): Promise<WatchedPair> {
+  const sockPath = await setupDaemon(hooks);
   const watcher = await DaemonClient.open(sockPath);
   const actor = await DaemonClient.open(sockPath);
-
-  onTestFinished(() => {
-    watcher.stop();
-    actor.stop();
-  });
 
   const events: EventMsg[] = [];
 
@@ -705,54 +710,38 @@ async function setupWatchedPair(): Promise<WatchedPair> {
   await watcher.sendHello('atc/test-build');
   await actor.sendHello('atc/test-build');
 
-  return { actor, events };
-}
+  return {
+    actor,
+    events,
+    [Symbol.asyncDispose]: () => {
+      watcher.stop();
+      actor.stop();
 
-type SendSpawnRequest = DaemonClient['sendRequest'];
-
-async function spawnAttachable(send: SendSpawnRequest): Promise<string> {
-  const ok = await send('session.spawn', {
-    cwd: '/tmp',
-    name: 'focus-me',
-    cols: 80,
-    rows: 24,
-  });
-
-  const spawned = ok['session'];
-
-  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
-    throw new Error('no session in spawn answer');
-  }
-
-  return spawned['id'];
-}
-
-async function waitForEvent(
-  events: readonly EventMsg[],
-  matches: (e: EventMsg) => boolean,
-): Promise<EventMsg> {
-  const deadline = Date.now() + 5000;
-
-  while (Date.now() < deadline) {
-    const found = events.find((e) => matches(e));
-
-    if (found !== undefined) {
-      return found;
-    }
-
-    await Bun.sleep(20);
-  }
-
-  throw new Error(`no matching event; got ${JSON.stringify(events.map((e) => e.ev))}`);
+      return Promise.resolve();
+    },
+  };
 }
 
 test('it broadcasts SessionAttached with the session descriptor when a client attaches', async () => {
-  const pair = await setupWatchedPair();
-  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+  await using pair = await setupTest();
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => pair.actor.sendRequest(m, p),
+    'focus-me',
+    '/tmp',
+  );
 
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
-  const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
+  const event = await waitFor(() => {
+    const found = pair.events.find((e) => e.ev === 'SessionAttached');
+
+    if (found === undefined) {
+      throw new Error('no SessionAttached yet');
+    }
+
+    return found;
+  });
 
   expect(event).toMatchObject({
     v: 3,
@@ -770,40 +759,126 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
 });
 
 test('it broadcasts SessionDetached when an attached client detaches', async () => {
-  const pair = await setupWatchedPair();
-  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+  await using pair = await setupTest();
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => pair.actor.sendRequest(m, p),
+    'focus-me',
+    '/tmp',
+  );
 
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
   await pair.actor.sendRequest('session.detach', { session: sessionID });
 
-  const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionDetached');
+  const event = await waitFor(() => {
+    const found = pair.events.find((e) => e.ev === 'SessionDetached');
+
+    if (found === undefined) {
+      throw new Error('no SessionDetached yet');
+    }
+
+    return found;
+  });
 
   expect(event).toMatchObject({ v: 3, ev: 'SessionDetached', session: { id: sessionID } });
 });
 
 test('it broadcasts SessionDetached when an attached client disconnects', async () => {
-  const pair = await setupWatchedPair();
-  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+  await using pair = await setupTest();
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => pair.actor.sendRequest(m, p),
+    'focus-me',
+    '/tmp',
+  );
 
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
-  await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
+  await waitFor(() => {
+    if (!pair.events.some((e) => e.ev === 'SessionAttached')) {
+      throw new Error('no SessionAttached yet');
+    }
+  });
 
   pair.actor.stop();
 
-  const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionDetached');
+  const event = await waitFor(() => {
+    const found = pair.events.find((e) => e.ev === 'SessionDetached');
+
+    if (found === undefined) {
+      throw new Error('no SessionDetached yet');
+    }
+
+    return found;
+  });
 
   expect(event).toMatchObject({ ev: 'SessionDetached', session: { id: sessionID } });
 });
 
 test('it broadcasts no SessionDetached for a detach without an attach', async () => {
-  const pair = await setupWatchedPair();
-  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+  await using pair = await setupTest();
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => pair.actor.sendRequest(m, p),
+    'focus-me',
+    '/tmp',
+  );
 
   await pair.actor.sendRequest('session.detach', { session: sessionID });
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
-  await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
+  await waitFor(() => {
+    if (!pair.events.some((e) => e.ev === 'SessionAttached')) {
+      throw new Error('no SessionAttached yet');
+    }
+  });
 
   expect(pair.events.filter((e) => e.ev === 'SessionDetached')).toStrictEqual([]);
+});
+
+test('it runs a configured hook with the same event JSON a watching client receives', async () => {
+  await using hookOut = setupTempDir('atc-hook-out-');
+
+  const out = join(hookOut.dir, 'hook.out');
+
+  await using pair = await setupTest({
+    SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }],
+  });
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => pair.actor.sendRequest(m, p),
+    'focus-me',
+    '/tmp',
+  );
+
+  await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
+
+  const event = await waitFor(() => {
+    const found = pair.events.find((e) => e.ev === 'SessionAttached');
+
+    if (found === undefined) {
+      throw new Error('no SessionAttached yet');
+    }
+
+    return found;
+  });
+
+  const text = await waitFor(() => {
+    const written = readFileSync(out, 'utf8');
+
+    if (!written.endsWith('SessionAttached\n')) {
+      throw new Error('hook output still incomplete');
+    }
+
+    return written;
+  });
+
+  const [payload, eventName] = text.split('\n');
+
+  if (payload === undefined) {
+    throw new Error('hook wrote no payload line');
+  }
+
+  expect(JSON.parse(payload)).toStrictEqual(event);
+  expect(eventName).toBe('SessionAttached');
 });

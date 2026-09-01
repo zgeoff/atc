@@ -36,6 +36,7 @@ test('it lists only the agents whose configured binary resolves', () => {
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
       gateways: [],
+      hooks: {},
       leader: { code: 0, label: '^Space' },
     }),
   ).toStrictEqual([
@@ -63,6 +64,7 @@ test('it resolves a bare binary name off PATH', () => {
       codexBin: 'codex',
       codexArgs: [],
       gateways: [],
+      hooks: {},
       leader: { code: 0, label: '^Space' },
     }),
   ).toStrictEqual([{ agent: 'grok', label: 'Grok' }]);
@@ -80,6 +82,7 @@ test('it leaves out a binary that exists without the executable bit', () => {
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
       gateways: [],
+      hooks: {},
       leader: { code: 0, label: '^Space' },
     }),
   ).toStrictEqual([]);
@@ -107,6 +110,7 @@ test('it lists a configured backend after the built-in agents', () => {
           env: {},
         },
       ],
+      hooks: {},
       leader: { code: 0, label: '^Space' },
     }),
   ).toStrictEqual([
@@ -137,6 +141,7 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
           env: {},
         },
       ],
+      hooks: {},
       leader: { code: 0, label: '^Space' },
     }),
   ).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);

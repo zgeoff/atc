@@ -327,6 +327,7 @@ test('it refuses to eject a grok session and does not start a headless runner', 
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 

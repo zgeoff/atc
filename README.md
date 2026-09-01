@@ -149,6 +149,7 @@ session.
   "codexBin": "codex",
   "codexArgs": [],
   "gateways": {},
+  "hooks": {},
   "leader": "ctrl-space"
 }
 ```
@@ -162,6 +163,7 @@ session.
 | `codexBin`   | `"codex"`      | The binary spawned for Codex sessions.                                                                      |
 | `codexArgs`  | `[]`           | Prepended to every Codex spawn.                                                                             |
 | `gateways`   | `{}`           | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                |
+| `hooks`      | `{}`           | Commands the daemon runs on wire events, keyed by event name (see Hooks).                                   |
 | `leader`     | `"ctrl-space"` | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                       |
 
 Pick a different leader when `Ctrl-Space` is taken on your machine — Raycast on macOS claims it, and
@@ -198,6 +200,36 @@ and GLM sessions then sit side by side in one fleet:
 
 Two backends may be given the same `mark`. atc does not check, and a clash makes them
 indistinguishable in the overlay column.
+
+### Hooks
+
+The daemon runs your commands when fleet events happen — focus another window when a session needs
+you, tell another tool which session just got attached:
+
+```json
+{
+  "hooks": {
+    "SessionAttached": [{ "command": "jq -r .session.cwd | xargs my-focus-script" }],
+    "SessionState": [{ "command": "notify-atc", "dir": "~/projects/ork", "timeout": 3000 }]
+  }
+}
+```
+
+Keys are wire-event names — `SessionAdded`, `SessionState`, `SessionAttached`, `SessionDetached`,
+`SessionRenamed`, `SessionRemoved`, `SessionResized`, `PermissionRequested`, `PermissionResolved`
+(see `docs/architecture/protocol.md`). Each command runs through `/bin/sh -c` with the event's JSON
+on stdin — the same line protocol clients receive — and the event name in `$ATC_EVENT`.
+
+| Field     | Default  | Meaning                                                                                             |
+| --------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `command` | required | The shell command to run. An entry without one is left out.                                         |
+| `dir`     | none     | Only fire for sessions whose repo root or working directory sits at or under this path (`~` works). |
+| `timeout` | `10000`  | Milliseconds before a still-running hook is killed.                                                 |
+
+Hooks are observational and fire-and-forget: the daemon never waits on one, and a nonzero exit is
+logged and ignored — a broken hook cannot break the daemon or gate an event. Events that carry no
+session, such as `PermissionResolved`, skip `dir`-filtered entries. For a full event stream instead
+of per-event commands, connect to the daemon socket as a protocol client.
 
 The id may not be `claude`, `grok`, or `codex`. atc writes one settings file per id and passes it as
 `--settings`, on the terminal spawn and on a headless turn alike, so a gateway session reaches its

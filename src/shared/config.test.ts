@@ -10,6 +10,7 @@ test('it falls back to every default when the file is not an object', () => {
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 });
@@ -25,6 +26,7 @@ test.each([[null], [undefined], [[]], ['garbage'], [42]])(
       codexBin: 'codex',
       codexArgs: [],
       gateways: [],
+      hooks: {},
       leader: { code: 0, label: '^Space' },
     });
   },
@@ -47,6 +49,7 @@ test('it falls back field by field when a field is wrong-typed instead of failin
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 });
@@ -74,4 +77,14 @@ test('it collects the configured gateway map using the parsed claude bin and arg
       env: {},
     },
   ]);
+});
+
+test('it collects the configured hooks map', () => {
+  const config = parseConfig({
+    hooks: { SessionAttached: [{ command: 'ork focus', dir: '/w', timeout: 2000 }] },
+  });
+
+  expect(config.hooks).toStrictEqual({
+    SessionAttached: [{ command: 'ork focus', dir: '/w', timeout: 2000 }],
+  });
 });

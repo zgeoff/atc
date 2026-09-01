@@ -1,0 +1,139 @@
+import { expect, test } from 'bun:test';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { setupTempDir } from '../../test/setup-temp-dir';
+import { waitFor } from '../../test/wait-for';
+import { makeHookRunner } from './make-hook-runner';
+
+test('it runs a hook with the event JSON on stdin and the event name in the environment', async () => {
+  await using ctx = setupTempDir('atc-hook-runner-');
+
+  const out = join(ctx.dir, 'out');
+
+  const run = makeHookRunner({
+    SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }],
+  });
+
+  run(
+    { v: 3, ev: 'SessionAttached', session: { id: 's1', cwd: '/w' } },
+    { cwd: '/w', repoRoot: '/w' },
+  );
+
+  const text = await waitFor(() => {
+    const written = readFileSync(out, 'utf8');
+
+    if (!written.endsWith('SessionAttached\n')) {
+      throw new Error('hook output still incomplete');
+    }
+
+    return written;
+  });
+
+  expect(text).toBe(
+    `${JSON.stringify({ v: 3, ev: 'SessionAttached', session: { id: 's1', cwd: '/w' } })}\nSessionAttached\n`,
+  );
+});
+
+test('it runs a dir hook when the session repo root or cwd sits at or under the dir', async () => {
+  await using ctx = setupTempDir('atc-hook-runner-');
+
+  const run = makeHookRunner({
+    SessionAttached: [
+      { command: `touch '${join(ctx.dir, 'exact')}'`, dir: '/w/repo' },
+      { command: `touch '${join(ctx.dir, 'above')}'`, dir: '/w' },
+    ],
+  });
+
+  run({ v: 3, ev: 'SessionAttached' }, { cwd: '/w/repo/sub', repoRoot: '/w/repo' });
+
+  await waitFor(() => readFileSync(join(ctx.dir, 'exact'), 'utf8'));
+  await waitFor(() => readFileSync(join(ctx.dir, 'above'), 'utf8'));
+});
+
+test('it skips a dir hook when the session path only shares a string prefix', async () => {
+  await using ctx = setupTempDir('atc-hook-runner-');
+
+  const run = makeHookRunner({
+    SessionAttached: [
+      { command: `touch '${join(ctx.dir, 'trap')}'`, dir: '/w/b' },
+      { command: `touch '${join(ctx.dir, 'control')}'` },
+    ],
+  });
+
+  run({ v: 3, ev: 'SessionAttached' }, { cwd: '/w/bc', repoRoot: '/w/bc' });
+
+  await waitFor(() => readFileSync(join(ctx.dir, 'control'), 'utf8'));
+
+  // A skipped spawn leaves no signal; the settle gives a wrongly spawned
+  // touch time to land before the absence assertion.
+  await Bun.sleep(150);
+
+  expect(existsSync(join(ctx.dir, 'trap'))).toBeFalse();
+});
+
+test('it skips dir hooks for an event that carries no session', async () => {
+  await using ctx = setupTempDir('atc-hook-runner-');
+
+  const run = makeHookRunner({
+    PermissionResolved: [
+      { command: `touch '${join(ctx.dir, 'trap')}'`, dir: '/w' },
+      { command: `touch '${join(ctx.dir, 'control')}'` },
+    ],
+  });
+
+  run({ v: 3, ev: 'PermissionResolved', request: 'r1', decision: 'allow' }, null);
+
+  await waitFor(() => readFileSync(join(ctx.dir, 'control'), 'utf8'));
+
+  // A skipped spawn leaves no signal; the settle gives a wrongly spawned
+  // touch time to land before the absence assertion.
+  await Bun.sleep(150);
+
+  expect(existsSync(join(ctx.dir, 'trap'))).toBeFalse();
+});
+
+test('it runs nothing for an event with no configured hooks', async () => {
+  await using ctx = setupTempDir('atc-hook-runner-');
+
+  const run = makeHookRunner({
+    SessionAttached: [{ command: `touch '${join(ctx.dir, 'trap')}'` }],
+  });
+
+  run({ v: 3, ev: 'SessionState', session: { id: 's1' } }, { cwd: '/w', repoRoot: '/w' });
+
+  // A skipped spawn leaves no signal; the settle gives a wrongly spawned
+  // touch time to land before the absence assertion.
+  await Bun.sleep(150);
+
+  expect(existsSync(join(ctx.dir, 'trap'))).toBeFalse();
+});
+
+test('it kills a hook that runs past its timeout', async () => {
+  await using ctx = setupTempDir('atc-hook-runner-');
+
+  const out = join(ctx.dir, 'out');
+
+  const run = makeHookRunner({
+    SessionAttached: [
+      { command: `printf start >> '${out}'; sleep 0.3; printf ' end' >> '${out}'`, timeout: 50 },
+    ],
+  });
+
+  run({ v: 3, ev: 'SessionAttached' }, null);
+
+  await waitFor(() => {
+    const written = readFileSync(out, 'utf8');
+
+    if (!written.includes('start')) {
+      throw new Error('start marker not yet written');
+    }
+
+    return written;
+  });
+
+  // The kill leaves no observable signal; the wait outlives the script's
+  // own sleep, so a survivor would have appended its end marker by now.
+  await Bun.sleep(600);
+
+  expect(readFileSync(out, 'utf8')).toBe('start');
+});

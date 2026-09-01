@@ -2,6 +2,7 @@ import { unlinkSync, writeFileSync } from 'node:fs';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
+import type { HooksConfig } from '../shared/collect-hooks';
 import type { SessionID } from '../shared/session-id';
 import { StateStore } from '../store/state-store';
 import { AttachRegistry } from './attach-registry';
@@ -9,6 +10,8 @@ import { buildSessionEvent } from './build-session-event';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext, OutputClient } from './daemon-connection';
 import { startHookServer } from './hooks';
+import { makeHookRunner } from './make-hook-runner';
+import type { HookScope } from './make-hook-runner';
 import { PermissionRegistry } from './permission-registry';
 import { restoreFleet } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
@@ -38,6 +41,10 @@ export interface DaemonOptions {
 
   // When set, the daemon's pid is written here and removed on stop.
   readonly pidPath?: string;
+
+  // User-configured hooks, keyed by wire-event name; each broadcast event
+  // fires its matching commands, observational and fire-and-forget.
+  readonly hooks?: HooksConfig;
 
   // Where the statusline contract file is written; defaults to the real one.
   readonly statusPath?: string;
@@ -86,23 +93,36 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const mgr = new SessionManager(opts.adapter, store, opts.statusPath, opts.adapters ?? []);
   const clients = new Set<DaemonConnection>();
 
-  const emitEvent = (event: EventMsg) => {
+  const runHooks = makeHookRunner(opts.hooks ?? {});
+
+  const emitEvent = (event: EventMsg, scope: HookScope | null = null) => {
     for (const client of clients) {
       client.sendEvent(event);
     }
+
+    runHooks(event, scope);
+  };
+
+  const findHookScope = (sessionID: SessionID): HookScope | null => {
+    const s = mgr.sessions.find((x) => x.id === sessionID);
+
+    return s === undefined ? null : { cwd: s.cwd, repoRoot: s.repoRoot };
   };
 
   const registry = new PermissionRegistry();
 
   registry.onRequested = (req) => {
-    emitEvent({
-      v: PROTOCOL_V,
-      ev: 'PermissionRequested',
-      request: req.id,
-      s: req.sessionID,
-      message: req.message,
-      respondable: req.respondable,
-    });
+    emitEvent(
+      {
+        v: PROTOCOL_V,
+        ev: 'PermissionRequested',
+        request: req.id,
+        s: req.sessionID,
+        message: req.message,
+        respondable: req.respondable,
+      },
+      findHookScope(req.sessionID),
+    );
   };
 
   registry.onResolved = (id, decision) => {
@@ -190,13 +210,16 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       runtime.dims = dims;
     }
 
-    emitEvent({
-      v: PROTOCOL_V,
-      ev: 'SessionResized',
-      s: sessionID,
-      cols: dims.cols,
-      rows: dims.rows,
-    });
+    emitEvent(
+      {
+        v: PROTOCOL_V,
+        ev: 'SessionResized',
+        s: sessionID,
+        cols: dims.cols,
+        rows: dims.rows,
+      },
+      findHookScope(sessionID),
+    );
   };
 
   // Debounced so two clients resizing in opposite directions cannot produce
@@ -277,7 +300,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const session = mgr.collectDescriptors().find((x) => x.id === sessionID);
 
     if (session !== undefined) {
-      emitEvent({ v: PROTOCOL_V, ev: 'SessionDetached', session });
+      emitEvent(
+        { v: PROTOCOL_V, ev: 'SessionDetached', session },
+        { cwd: session.cwd, repoRoot: session.repoRoot },
+      );
     }
   };
 
@@ -330,7 +356,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const event = buildSessionEvent(mgr, kind, s);
 
     if (event !== null) {
-      emitEvent(event);
+      // The scope comes from the session object rather than a descriptor
+      // lookup, so dir-filtered hooks still fire for a removed session.
+      emitEvent(event, { cwd: s.cwd, repoRoot: s.repoRoot });
     }
   };
 
@@ -499,7 +527,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       // only redraws its live region, never the rows above it.
       applyEffectiveDims(sessionID);
       void sendReplay(sessionID, client);
-      emitEvent({ v: PROTOCOL_V, ev: 'SessionAttached', session: getDescriptor(mgr, sessionID) });
+      const attached = getDescriptor(mgr, sessionID);
+
+      emitEvent(
+        { v: PROTOCOL_V, ev: 'SessionAttached', session: attached },
+        { cwd: attached.cwd, repoRoot: attached.repoRoot },
+      );
 
       return 'ok';
     },
