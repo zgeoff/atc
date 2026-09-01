@@ -16,6 +16,7 @@ function buildGatewayAdapter(): GatewayAdapter {
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   };
 

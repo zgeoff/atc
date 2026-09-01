@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentAdapter } from '../agents/agent-adapter';
@@ -7,6 +7,7 @@ import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { OutboundQueue } from '../protocol/outbound-queue';
 import type { EventMsg } from '../protocol/protocol';
+import type { HooksConfig } from '../shared/collect-hooks';
 import { isRecord } from '../shared/report';
 import { startDaemon } from './daemon';
 
@@ -23,7 +24,7 @@ const idleAdapter: AgentAdapter = {
   buildResumeCommand: () => null,
 };
 
-async function setupDaemon(): Promise<string> {
+async function setupDaemon(hooks?: HooksConfig): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
   const sockPath = join(dir, 'daemon.sock');
 
@@ -34,6 +35,7 @@ async function setupDaemon(): Promise<string> {
     adapter: idleAdapter,
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),
+    ...(hooks === undefined ? {} : { hooks }),
   });
 
   onTestFinished(async () => {
@@ -317,6 +319,7 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 
@@ -372,6 +375,7 @@ test('it yanks a grok session by id and without an id', async () => {
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 
@@ -454,6 +458,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 
@@ -527,6 +532,7 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 
@@ -686,8 +692,8 @@ interface WatchedPair {
   readonly events: EventMsg[];
 }
 
-async function setupWatchedPair(): Promise<WatchedPair> {
-  const sockPath = await setupDaemon();
+async function setupWatchedPair(hooks?: HooksConfig): Promise<WatchedPair> {
+  const sockPath = await setupDaemon(hooks);
   const watcher = await DaemonClient.open(sockPath);
   const actor = await DaemonClient.open(sockPath);
 
@@ -806,4 +812,52 @@ test('it broadcasts no SessionDetached for a detach without an attach', async ()
   await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
 
   expect(pair.events.filter((e) => e.ev === 'SessionDetached')).toStrictEqual([]);
+});
+
+async function waitForHookOutput(path: string): Promise<string> {
+  const deadline = Date.now() + 5000;
+
+  while (Date.now() < deadline) {
+    if (existsSync(path)) {
+      const text = readFileSync(path, 'utf8');
+
+      if (text.endsWith('SessionAttached\n')) {
+        return text;
+      }
+    }
+
+    await Bun.sleep(20);
+  }
+
+  throw new Error('timed out waiting for hook output');
+}
+
+test('it runs a configured hook with the same event JSON a watching client receives', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-hook-out-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const out = join(dir, 'hook.out');
+
+  const pair = await setupWatchedPair({
+    SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }],
+  });
+
+  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+
+  await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
+
+  const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
+  const text = await waitForHookOutput(out);
+
+  const [payload, eventName] = text.split('\n');
+
+  if (payload === undefined) {
+    throw new Error('hook wrote no payload line');
+  }
+
+  expect(JSON.parse(payload)).toStrictEqual(event);
+  expect(eventName).toBe('SessionAttached');
 });

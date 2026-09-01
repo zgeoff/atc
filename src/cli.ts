@@ -86,6 +86,7 @@ const main = defineCommand({
             dbPath: config.dbFile,
             legacyFleetPath: config.legacyFleetFile,
             pidPath: config.daemonPidFile,
+            hooks: cfg.hooks,
             restoreBootTimeoutMs,
             ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
             onQuit: () => process.exit(0),

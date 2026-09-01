@@ -46,6 +46,7 @@ test('it does not write last-used when a restored session reports SessionStart',
     codexBin: 'codex',
     codexArgs: [],
     gateways: [],
+    hooks: {},
     leader: { code: 0, label: '^Space' },
   });
 

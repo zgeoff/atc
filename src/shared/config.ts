@@ -6,6 +6,8 @@ import { buildOptionalString } from './build-optional-string';
 import { buildOptionalStringArray } from './build-optional-string-array';
 import { collectGateways } from './collect-gateways';
 import type { GatewayConfig } from './collect-gateways';
+import { collectHooks } from './collect-hooks';
+import type { HooksConfig } from './collect-hooks';
 
 export interface Config {
   claudeBin: string;
@@ -15,6 +17,7 @@ export interface Config {
   codexBin: string;
   codexArgs: string[];
   gateways: GatewayConfig[];
+  hooks: HooksConfig;
   leader: LeaderKey;
 }
 
@@ -31,6 +34,7 @@ const DEFAULTS: Config = {
   codexBin: 'codex',
   codexArgs: [],
   gateways: [],
+  hooks: {},
   leader: { code: 0, label: '^Space' },
 };
 
@@ -55,6 +59,7 @@ const CONFIG_SCHEMA = z.object({
   codexBin: buildOptionalString(),
   codexArgs: buildOptionalStringArray(),
   gateways: z.unknown().optional(),
+  hooks: z.unknown().optional(),
   leader: buildOptionalString(),
 });
 
@@ -97,11 +102,12 @@ export function parseConfig(raw: unknown): Config {
   const codexBin = parsed.data.codexBin ?? DEFAULTS.codexBin;
   const codexArgs = parsed.data.codexArgs ?? DEFAULTS.codexArgs;
   const gateways = collectGateways(parsed.data.gateways, claudeBin, claudeArgs);
+  const hooks = collectHooks(parsed.data.hooks);
 
   const leader =
     (parsed.data.leader === undefined ? null : decodeLeader(parsed.data.leader)) ?? DEFAULTS.leader;
 
-  return { claudeBin, claudeArgs, grokBin, grokArgs, codexBin, codexArgs, gateways, leader };
+  return { claudeBin, claudeArgs, grokBin, grokArgs, codexBin, codexArgs, gateways, hooks, leader };
 }
 
 // Control bytes the terminal needs for its own input: enter, tab, and esc
