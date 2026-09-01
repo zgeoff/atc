@@ -1,29 +1,12 @@
 import { expect, test } from 'bun:test';
-import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setupTempDir } from './setup-temp-dir';
 import { waitForFileContent } from './wait-for-file-content';
 
-interface TestContext {
-  readonly dir: string;
-  [Symbol.asyncDispose]: () => Promise<void>;
-}
-
-function setupTest(): TestContext {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-wait-file-'));
-
-  return {
-    dir,
-    [Symbol.asyncDispose]: () => {
-      rmSync(dir, { recursive: true, force: true });
-
-      return Promise.resolve();
-    },
-  };
-}
-
 test('it returns the text of a file that already satisfies the default predicate', async () => {
-  await using ctx = setupTest();
+  await using ctx = setupTempDir('atc-wait-file-');
 
   const path = join(ctx.dir, 'ready');
 
@@ -35,7 +18,7 @@ test('it returns the text of a file that already satisfies the default predicate
 });
 
 test('it keeps polling until the predicate passes on later content', async () => {
-  await using ctx = setupTest();
+  await using ctx = setupTempDir('atc-wait-file-');
 
   const path = join(ctx.dir, 'growing');
 

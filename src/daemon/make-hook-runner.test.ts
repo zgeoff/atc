@@ -1,30 +1,12 @@
 import { expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitForFileContent } from '../../test/wait-for-file-content';
 import { makeHookRunner } from './make-hook-runner';
 
-interface TestContext {
-  readonly dir: string;
-  [Symbol.asyncDispose]: () => Promise<void>;
-}
-
-function setupTest(): TestContext {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-hook-runner-'));
-
-  return {
-    dir,
-    [Symbol.asyncDispose]: () => {
-      rmSync(dir, { recursive: true, force: true });
-
-      return Promise.resolve();
-    },
-  };
-}
-
 test('it runs a hook with the event JSON on stdin and the event name in the environment', async () => {
-  await using ctx = setupTest();
+  await using ctx = setupTempDir('atc-hook-runner-');
 
   const out = join(ctx.dir, 'out');
 
@@ -45,7 +27,7 @@ test('it runs a hook with the event JSON on stdin and the event name in the envi
 });
 
 test('it runs a dir hook when the session repo root or cwd sits at or under the dir', async () => {
-  await using ctx = setupTest();
+  await using ctx = setupTempDir('atc-hook-runner-');
 
   const run = makeHookRunner({
     SessionAttached: [
@@ -61,7 +43,7 @@ test('it runs a dir hook when the session repo root or cwd sits at or under the 
 });
 
 test('it skips a dir hook when the session path only shares a string prefix', async () => {
-  await using ctx = setupTest();
+  await using ctx = setupTempDir('atc-hook-runner-');
 
   const run = makeHookRunner({
     SessionAttached: [
@@ -82,7 +64,7 @@ test('it skips a dir hook when the session path only shares a string prefix', as
 });
 
 test('it skips dir hooks for an event that carries no session', async () => {
-  await using ctx = setupTest();
+  await using ctx = setupTempDir('atc-hook-runner-');
 
   const run = makeHookRunner({
     PermissionResolved: [
@@ -103,7 +85,7 @@ test('it skips dir hooks for an event that carries no session', async () => {
 });
 
 test('it runs nothing for an event with no configured hooks', async () => {
-  await using ctx = setupTest();
+  await using ctx = setupTempDir('atc-hook-runner-');
 
   const run = makeHookRunner({
     SessionAttached: [{ command: `touch '${join(ctx.dir, 'trap')}'` }],
@@ -119,7 +101,7 @@ test('it runs nothing for an event with no configured hooks', async () => {
 });
 
 test('it kills a hook that runs past its timeout', async () => {
-  await using ctx = setupTest();
+  await using ctx = setupTempDir('atc-hook-runner-');
 
   const out = join(ctx.dir, 'out');
 

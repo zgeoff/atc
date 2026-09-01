@@ -2,6 +2,9 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setupTempDir } from '../../test/setup-temp-dir';
+import { spawnNamedSession } from '../../test/spawn-named-session';
+import { waitForEvent } from '../../test/wait-for-event';
 import { waitForFileContent } from '../../test/wait-for-file-content';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
@@ -691,17 +694,13 @@ test('it connects nothing on a socket path with no daemon', () => {
 interface WatchedPair {
   readonly actor: DaemonClient;
   readonly events: EventMsg[];
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 }
 
-async function setupWatchedPair(hooks?: HooksConfig): Promise<WatchedPair> {
+async function setupTest(hooks?: HooksConfig): Promise<WatchedPair> {
   const sockPath = await setupDaemon(hooks);
   const watcher = await DaemonClient.open(sockPath);
   const actor = await DaemonClient.open(sockPath);
-
-  onTestFinished(() => {
-    watcher.stop();
-    actor.stop();
-  });
 
   const events: EventMsg[] = [];
 
@@ -712,50 +711,26 @@ async function setupWatchedPair(hooks?: HooksConfig): Promise<WatchedPair> {
   await watcher.sendHello('atc/test-build');
   await actor.sendHello('atc/test-build');
 
-  return { actor, events };
-}
+  return {
+    actor,
+    events,
+    [Symbol.asyncDispose]: () => {
+      watcher.stop();
+      actor.stop();
 
-type SendSpawnRequest = DaemonClient['sendRequest'];
-
-async function spawnAttachable(send: SendSpawnRequest): Promise<string> {
-  const ok = await send('session.spawn', {
-    cwd: '/tmp',
-    name: 'focus-me',
-    cols: 80,
-    rows: 24,
-  });
-
-  const spawned = ok['session'];
-
-  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
-    throw new Error('no session in spawn answer');
-  }
-
-  return spawned['id'];
-}
-
-async function waitForEvent(
-  events: readonly EventMsg[],
-  matches: (e: EventMsg) => boolean,
-): Promise<EventMsg> {
-  const deadline = Date.now() + 5000;
-
-  while (Date.now() < deadline) {
-    const found = events.find((e) => matches(e));
-
-    if (found !== undefined) {
-      return found;
-    }
-
-    await Bun.sleep(20);
-  }
-
-  throw new Error(`no matching event; got ${JSON.stringify(events.map((e) => e.ev))}`);
+      return Promise.resolve();
+    },
+  };
 }
 
 test('it broadcasts SessionAttached with the session descriptor when a client attaches', async () => {
-  const pair = await setupWatchedPair();
-  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+  await using pair = await setupTest();
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => pair.actor.sendRequest(m, p),
+    'focus-me',
+    '/tmp',
+  );
 
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
@@ -777,8 +752,13 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
 });
 
 test('it broadcasts SessionDetached when an attached client detaches', async () => {
-  const pair = await setupWatchedPair();
-  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+  await using pair = await setupTest();
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => pair.actor.sendRequest(m, p),
+    'focus-me',
+    '/tmp',
+  );
 
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
   await pair.actor.sendRequest('session.detach', { session: sessionID });
@@ -789,8 +769,13 @@ test('it broadcasts SessionDetached when an attached client detaches', async () 
 });
 
 test('it broadcasts SessionDetached when an attached client disconnects', async () => {
-  const pair = await setupWatchedPair();
-  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+  await using pair = await setupTest();
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => pair.actor.sendRequest(m, p),
+    'focus-me',
+    '/tmp',
+  );
 
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
@@ -804,8 +789,13 @@ test('it broadcasts SessionDetached when an attached client disconnects', async 
 });
 
 test('it broadcasts no SessionDetached for a detach without an attach', async () => {
-  const pair = await setupWatchedPair();
-  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+  await using pair = await setupTest();
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => pair.actor.sendRequest(m, p),
+    'focus-me',
+    '/tmp',
+  );
 
   await pair.actor.sendRequest('session.detach', { session: sessionID });
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
@@ -815,34 +805,20 @@ test('it broadcasts no SessionDetached for a detach without an attach', async ()
   expect(pair.events.filter((e) => e.ev === 'SessionDetached')).toStrictEqual([]);
 });
 
-interface HookOutDir {
-  readonly dir: string;
-  [Symbol.asyncDispose]: () => Promise<void>;
-}
-
-function setupHookOutDir(): HookOutDir {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-hook-out-'));
-
-  return {
-    dir,
-    [Symbol.asyncDispose]: () => {
-      rmSync(dir, { recursive: true, force: true });
-
-      return Promise.resolve();
-    },
-  };
-}
-
 test('it runs a configured hook with the same event JSON a watching client receives', async () => {
-  await using hookOut = setupHookOutDir();
+  await using hookOut = setupTempDir('atc-hook-out-');
 
   const out = join(hookOut.dir, 'hook.out');
 
-  const pair = await setupWatchedPair({
+  await using pair = await setupTest({
     SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }],
   });
 
-  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+  const sessionID = await spawnNamedSession(
+    (m, p) => pair.actor.sendRequest(m, p),
+    'focus-me',
+    '/tmp',
+  );
 
   await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
