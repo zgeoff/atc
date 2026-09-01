@@ -154,7 +154,7 @@ atc is a terminal control tower for coding-agent sessions (Claude Code, Grok Bui
 a daemon (`atc daemon`) hosts stock agent CLIs in PTYs, and thin TUI clients drive them over an
 NDJSON protocol behind a keyboard-driven session list with hook-driven attention routing. No panes,
 no tiling, no mouse. See `docs/architecture/overview.md` for how the pieces fit; the README
-documents keys and user-facing behavior.
+documents install and keys, and `docs/guides/configuration.md` documents config.
 
 ## Layout
 
@@ -164,18 +164,17 @@ connection to the daemon; `agents/` holds the `AgentAdapter` interface and the C
 and gateway implementations; `store/` is the SQLite state store and its migrations; `protocol/` is
 the wire format and the transport it rides; `shared/` holds id types, config, and other utilities
 used across the rest of `src/`. `cli.ts` is the CLI entrypoint, and it wires in `hook-report.ts`,
-`statusline.ts`, and `mcp-server.ts` as its own subcommands, so all four stay at `src/` root.
-`test/` holds the PTY-driven e2e suite, `bin/atc` is the executable shim. `scripts/` holds repo
-tooling, not app code.
+`statusline.ts`, `mcp-server.ts`, and `events.ts` as its own subcommands, so all five stay at `src/`
+root. `test/` holds the PTY-driven e2e suite, `bin/atc` is the executable shim. `scripts/` holds
+repo tooling, not app code.
 
 ## Runtime rules
 
 - Bun only. `bun test`, never vitest or jest. `bun <file>`, never node or ts-node.
 - PTYs come from `bun-pty`. Never add `node-pty`: its fd-socket plumbing delivers no data events
   under Bun.
-- The TUI is hand-rolled ANSI on purpose — no TUI framework until the daemon/screen-model
-  architecture lands. Escape sequences are written as `\u001B` escapes, never raw bytes and never
-  `\x1b`.
+- The TUI is hand-rolled ANSI on purpose — no TUI framework. Escape sequences are written as
+  `\u001B` escapes, never raw bytes and never `\x1b`.
 - Everything the hooks and CI run is a root `package.json` script; invoke gates by script name,
   never by re-spelling the underlying command.
 
@@ -236,10 +235,15 @@ names, so the state store's driver implements them under the names the library r
 
 - All committed prose follows the `docs-writing` skill; run its `check-prose.sh` over touched docs
   before committing.
-- Banned words in all prose (fix on sight): `bites`, `CAS`, `ceiling`, `fence`/`fencing`, `floor`,
-  `load-bearing`, `seam`, `surface`. One carve-out: `Surface` is the domain term for a session's
-  output producer (`PtySurface`, `SdkSurface`) — that sense is legal; the vague filler sense ("API
+- Banned words in all prose (fix on sight): `anchor`/`anchors on` (the data-modelling metaphor — a
+  link anchor like `#section-heading` is a different word and stays), `bites`, `CAS`, `ceiling`,
+  `fence`/`fencing`, `floor`, `load-bearing`, `seam`, `surface`. One carve-out: `Surface` is the
+  domain term for a session's output producer — that sense is legal; the vague filler sense ("API
   surface", "surfaces an error") stays banned.
+- A data artifact never speaks: a row, key, id, field, or endpoint does not `name`, `say`, `tell`,
+  `answer`, or `know` — it holds, includes, returns, or matches. Three senses of `name` stay: the
+  imperative to the reader, assigning a name ("the `-o` flag names the output file"), and an error
+  or doc that mentions something in its text.
 
 ## Testing
 

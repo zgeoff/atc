@@ -2,8 +2,8 @@
   <h1>atc</h1>
 
   <p>
-    Control tower for Claude Code and Grok Build sessions: stock <code>claude</code> and
-    <code>grok</code> instances in PTYs behind a keyboard-driven session list with hook-driven
+    Control tower for coding-agent sessions: stock <code>claude</code>, <code>grok</code>, and
+    <code>codex</code> instances in PTYs behind a keyboard-driven session list with hook-driven
     attention routing — no panes, no tiling, no mouse.
   </p>
 
@@ -14,8 +14,8 @@
 
   <p>
     <a href="./docs/README.md">Documentation</a> •
-    <a href="./docs/architecture/overview.md">Architecture</a> •
-    <a href="./AGENTS.md">Agent Guidelines</a>
+    <a href="./docs/guides/configuration.md">Configuration</a> •
+    <a href="./docs/architecture/overview.md">Architecture</a>
   </p>
 </div>
 
@@ -26,244 +26,93 @@ bun add -g @zgeoff/atc
 atc
 ```
 
-Needs [Bun](https://bun.sh) (atc runs from source through it) and the `claude` CLI on your PATH.
-Grok sessions also need the `grok` CLI, and Codex sessions the `codex` CLI — the agent picker lists
-only the agents whose binary it can find. From a checkout, `bun src/cli.ts` runs the same thing. atc
-is built to pair with [zoxide](https://github.com/ajeetdsouza/zoxide): the spawn directory picker
-feeds on its frecency list, so with zoxide installed every directory you visit is two keystrokes
-from a session. Without it the picker falls back to atc's own spawn history.
+atc needs [Bun](https://bun.sh) and the `claude` CLI on your PATH. Grok sessions need the `grok`
+CLI, and Codex sessions the `codex` CLI — the agent picker lists only the agents whose binary it can
+find. With [zoxide](https://github.com/ajeetdsouza/zoxide) installed, the spawn directory picker
+feeds on its frecency list, so every directory you visit is two keystrokes from a session; without
+it, the picker falls back to atc's own spawn history.
 
-The first invocation auto-spawns the daemon (`atc daemon` runs it in the foreground for systemd or
-debugging); the TUI is a thin client, so quitting or crashing it leaves every session running. Runs
-fine nested inside zellij/tmux (give the pane locked mode so Ctrl-Space reaches atc).
+The first invocation auto-spawns the daemon; the TUI is a thin client, so quitting or crashing it
+leaves every session running. atc runs fine nested inside zellij or tmux — give the pane locked mode
+so the leader key reaches atc.
 
 ## Keys
 
-| Key             | Where          | Action                                                                                                                                                                  |
-| --------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| leader          | anywhere       | toggle session overlay — `Ctrl-Space` by default, configurable (see Config)                                                                                             |
-| `n`             | home/overlay   | spawn: pick agent → dir (zoxide + history, fuzzy) → name → optional first prompt. Fresh clients default to Claude; last-used is the last deliberate-spawn SessionStart. |
-| `r`             | home/overlay   | adopt: pick agent → dir → name. Claude opens `claude --resume`, Codex `codex resume`. Grok opens plain `grok`.                                                          |
-| `R`             | home           | restore last fleet after a daemon death — each session with its matching CLI                                                                                            |
-| `j`/`k`/`↑`/`↓` | overlay/picker | move                                                                                                                                                                    |
-| `Enter`         | overlay        | attach (auto-acks)                                                                                                                                                      |
-| `Tab`           | overlay        | attach the most urgent needs-you session, else the latest turn-done one                                                                                                 |
-| `/`             | overlay        | fuzzy filter by name/dir (chars in order), `⏎` attach top match, `esc` clear                                                                                            |
-| `a`             | overlay        | ack notification without attaching                                                                                                                                      |
-| `p`             | overlay        | pin or unpin the selected session — pinned sessions stay at the top of the list                                                                                         |
-| `g`             | overlay        | toggle the grouped view: sessions cluster under repository headers                                                                                                      |
-| `H`             | overlay        | eject to headless. Hidden and ignored on a row whose agent has no headless handoff.                                                                                     |
-| `P`             | overlay        | revive: a fresh terminal resumes a headless or killed session in place                                                                                                  |
-| `y`             | overlay        | yank the resume command (`claude --resume <id>`, `grok --resume <id>`, or `codex resume <id>`)                                                                          |
-| `Y`             | overlay        | eject: yank the resume command, then kill the session here                                                                                                              |
-| `K`             | overlay        | kill selected (confirm with `y`) — the entry stays revivable with `P`, even across daemon restarts; a second `K` forgets it                                             |
-| `?`             | overlay        | full key reference — the hint row only shows actions valid for the selected session                                                                                     |
-| `u`             | overlay        | restart an outdated daemon and restore the fleet — offered only while `⟳ update ready` shows                                                                            |
-| `q`             | home/overlay   | quit the client — sessions keep running in the daemon                                                                                                                   |
+| Key             | Where          | Action                                                                                         |
+| --------------- | -------------- | ---------------------------------------------------------------------------------------------- |
+| leader          | anywhere       | toggle session overlay — `Ctrl-Space` by default, configurable                                 |
+| `n`             | home/overlay   | spawn: pick agent → dir → name → optional first prompt                                         |
+| `r`             | home/overlay   | adopt an existing session: pick agent → dir → name                                             |
+| `R`             | home           | restore the last fleet after a daemon death                                                    |
+| `j`/`k`/`↑`/`↓` | overlay/picker | move                                                                                           |
+| `Enter`         | overlay        | attach (auto-acks)                                                                             |
+| `Tab`           | overlay        | attach the most urgent needs-you session, else the latest turn-done one                        |
+| `/`             | overlay        | fuzzy filter by name/dir, `⏎` attach top match, `esc` clear                                    |
+| `a`             | overlay        | ack a notification without attaching                                                           |
+| `p`             | overlay        | pin or unpin — pinned sessions stay at the top of the list                                     |
+| `g`             | overlay        | toggle the grouped view: sessions cluster under repository headers                             |
+| `H`             | overlay        | eject to headless — hidden on agents with no headless handoff                                  |
+| `P`             | overlay        | revive: a fresh terminal resumes a headless or killed session in place                         |
+| `y`             | overlay        | yank the resume command for the session's agent                                                |
+| `Y`             | overlay        | eject: yank the resume command, then kill the session here                                     |
+| `K`             | overlay        | kill selected (confirm with `y`) — the entry stays revivable with `P`; a second `K` forgets it |
+| `u`             | overlay        | restart an outdated daemon and restore the fleet — offered while `⟳ update ready` shows        |
+| `?`             | overlay        | full key reference — the hint row only shows actions valid for the selected session            |
+| `q`             | home/overlay   | quit the client — sessions keep running in the daemon                                          |
 
 The overlay orders sessions by pinned first, then attention state, then most recently attached, so
-the session you want is nearly always near the top. The grouped view (`g`) keeps that order but
-clusters sessions under dim repository headers, with pinned sessions leading in their own cluster; a
-git worktree clusters with its main repository, and a directory outside any repository stands alone.
-A reserved column after the pin mark shows a dim letter per agent — `g` on Grok rows, `x` on Codex
-rows, and whatever letter a gateway was given; Claude rows keep a space so names stay aligned. The
-`atc_session_update` MCP tool renames and pins sessions, so an agent can organise the fleet for you.
+the session you want is nearly always near the top. Session states: red `●` needs you, cyan `◐`
+running, green `✓` turn done, gray `✗` exited. Everything else passes through to the focused
+session, which owns the full screen; while attached, atc appends a fleet segment
+(`▏● 2 need you: auth-bug`) to your own Claude Code statusline.
 
-Revive (`P`) resumes the session from its saved transcript, so a session killed before its first
-exchange has nothing on disk yet, and the overlay says so in its message column instead of resuming.
-Headless eject (`H`) uses the same transcript, and a gateway session ejects to its own backend. Grok
-and Codex have no headless handoff, so the key is hidden on their rows.
+## Attention hooks
 
-Everything else is passed through to the focused session, which owns the full screen. Fleet state
-renders inside Claude Code's own status line (injected via the same `--settings` file): your
-configured statusline runs first, and atc appends `▏● 2 need you: auth-bug`. atc draws its own
-status bar only on the home and overlay screens.
-
-## How state tracking works
-
-Spawned Claude sessions get a `--settings` file injecting `Notification`, `Stop`,
-`UserPromptSubmit`, and `SessionEnd` hooks that report to a unix socket
-(`$XDG_RUNTIME_DIR/atc.sock`). Your global Claude settings are untouched; sessions you start outside
-atc are unaffected. Grok attention comes from a dedicated hook file at
-`$GROK_HOME/hooks/atc-reporter.json` (`~/.grok` when `GROK_HOME` is unset). atc never writes that
-path. Install it yourself:
+Claude sessions report attention automatically: atc injects its hooks through a generated
+`--settings` file per spawn and never touches your own Claude config. Grok and Codex hooks are a
+one-time self-install — atc prints them and never writes into your agent config either:
 
 ```sh
+# Grok: install the hook file
 mkdir -p ~/.grok/hooks
 atc grok-hooks > ~/.grok/hooks/atc-reporter.json
-```
 
-Codex attention comes from hook entries in `$CODEX_HOME/hooks.json` (`~/.codex` when `CODEX_HOME` is
-unset). atc never writes that path either — `atc codex-hooks` prints the entries to merge in:
-
-```sh
+# Codex: print the entries, merge them into ~/.codex/hooks.json,
+# then trust them once in the codex TUI
 atc codex-hooks
 ```
 
-Codex parses new hooks but never runs them until you trust them once: open `codex`, review the atc
-hooks in its hooks list, and approve them. Sessions you start outside atc report events too; the
-reporter exits immediately when no atc session id is present.
+The [configuration guide](./docs/guides/configuration.md#attention-hooks-grok-and-codex) covers the
+detail; [agent integration](./docs/architecture/overview.md#agent-integration) covers how the
+reporting works.
 
-`atc grok-hooks` prints this file, with the `hook-report` command resolved for this install:
+## Configuration
 
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "atc hook-report", "timeout": 5 }] }
-    ],
-    "SessionEnd": [
-      { "hooks": [{ "type": "command", "command": "atc hook-report", "timeout": 5 }] }
-    ],
-    "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "atc hook-report", "timeout": 5 }] }
-    ],
-    "Stop": [{ "hooks": [{ "type": "command", "command": "atc hook-report", "timeout": 5 }] }],
-    "StopFailure": [
-      { "hooks": [{ "type": "command", "command": "atc hook-report", "timeout": 5 }] }
-    ],
-    "StopCancelled": [
-      { "hooks": [{ "type": "command", "command": "atc hook-report", "timeout": 5 }] }
-    ],
-    "Notification": [
-      { "hooks": [{ "type": "command", "command": "atc hook-report", "timeout": 5 }] }
-    ]
-  }
-}
-```
+`~/.config/atc/config.json` is created with defaults on first run. The
+[configuration guide](./docs/guides/configuration.md) covers every field:
 
-A missing file is a Grok PTY without hook-driven attention. States: red `●` needs you, cyan `◐`
-running, green `✓` turn done, gray `✗` exited. The status bar turns red and names the most urgent
-session.
-
-## Config
-
-`~/.config/atc/config.json` (created with defaults on first run):
-
-```json
-{
-  "claudeBin": "claude",
-  "claudeArgs": [],
-  "grokBin": "grok",
-  "grokArgs": [],
-  "codexBin": "codex",
-  "codexArgs": [],
-  "gateways": {},
-  "hooks": {},
-  "leader": "ctrl-space"
-}
-```
-
-| Field        | Default        | Meaning                                                                                                     |
-| ------------ | -------------- | ----------------------------------------------------------------------------------------------------------- |
-| `claudeBin`  | `"claude"`     | The binary spawned for Claude sessions.                                                                     |
-| `claudeArgs` | `[]`           | Prepended to every Claude spawn, e.g. `["--model", "opus"]`.                                                |
-| `grokBin`    | `"grok"`       | The binary spawned for Grok sessions.                                                                       |
-| `grokArgs`   | `[]`           | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`. |
-| `codexBin`   | `"codex"`      | The binary spawned for Codex sessions.                                                                      |
-| `codexArgs`  | `[]`           | Prepended to every Codex spawn.                                                                             |
-| `gateways`   | `{}`           | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                |
-| `hooks`      | `{}`           | Commands the daemon runs on wire events, keyed by event name (see Hooks).                                   |
-| `leader`     | `"ctrl-space"` | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                       |
-
-Pick a different leader when `Ctrl-Space` is taken on your machine — Raycast on macOS claims it, and
-`ctrl-]` is a solid replacement that no common terminal, multiplexer, or OS shortcut wants. An
-unknown or reserved value falls back to the default.
-
-### Gateways
-
-A gateway runs the Claude CLI against a Claude-compatible backend, under its own agent id. Claude
-and GLM sessions then sit side by side in one fleet:
-
-```json
-{
-  "gateways": {
-    "zai": {
-      "label": "GLM (z.ai)",
-      "mark": "z",
-      "baseURL": "https://api.z.ai/api/anthropic",
-      "apiKeyHelper": "~/.local/bin/atc-zai-key",
-      "env": { "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.2" }
-    }
-  }
-}
-```
-
-| Field          | Default     | Meaning                                                                                         |
-| -------------- | ----------- | ----------------------------------------------------------------------------------------------- |
-| `baseURL`      | required    | The backend's Anthropic-format endpoint. An entry without one is left out of the picker.        |
-| `label`        | the id      | The row shown in the agent picker.                                                              |
-| `mark`         | the id      | The overlay column letter; the first character is used.                                         |
-| `bin`, `args`  | `claudeBin` | The binary and leading arguments, when the backend needs a different build of the CLI.          |
-| `apiKeyHelper` | none        | Command the CLI runs to read the credential, so no token is written into atc's state directory. |
-| `env`          | `{}`        | Extra environment for the session, such as the model each Claude tier maps to.                  |
-
-Two backends may be given the same `mark`. atc does not check, and a clash makes them
-indistinguishable in the overlay column.
-
-### Hooks
-
-The daemon runs your commands when fleet events happen — focus another window when a session needs
-you, tell another tool which session just got attached:
-
-```json
-{
-  "hooks": {
-    "SessionAttached": [{ "command": "jq -r .session.cwd | xargs my-focus-script" }],
-    "SessionState": [{ "command": "notify-atc", "dir": "~/projects/ork", "timeout": 3000 }]
-  }
-}
-```
-
-Keys are wire-event names — `SessionAdded`, `SessionState`, `SessionAttached`, `SessionDetached`,
-`SessionRenamed`, `SessionRemoved`, `SessionResized`, `PermissionRequested`, `PermissionResolved`
-(see `docs/architecture/protocol.md`). Each command runs through `/bin/sh -c` with the event's JSON
-on stdin — the same line protocol clients receive — and the event name in `$ATC_EVENT`.
-
-| Field     | Default  | Meaning                                                                                             |
-| --------- | -------- | --------------------------------------------------------------------------------------------------- |
-| `command` | required | The shell command to run. An entry without one is left out.                                         |
-| `dir`     | none     | Only fire for sessions whose repo root or working directory sits at or under this path (`~` works). |
-| `timeout` | `10000`  | Milliseconds before a still-running hook is killed.                                                 |
-
-Hooks are observational and fire-and-forget: the daemon never waits on one, and a nonzero exit is
-logged and ignored — a broken hook cannot break the daemon or gate an event. Events that carry no
-session, such as `PermissionResolved`, skip `dir`-filtered entries. For a full event stream instead
-of per-event commands, run `atc events`: it prints the current fleet as `SessionAdded` lines, then
-every event behind it, one NDJSON line each, until the daemon goes away. Pipe it into `jq` or your
-own daemon; when no atc daemon is running it exits nonzero with a hint instead of booting one.
-
-The id may not be `claude`, `grok`, or `codex`. atc writes one settings file per id and passes it as
-`--settings`, on the terminal spawn and on a headless turn alike, so a gateway session reaches its
-own backend rather than whatever the terminal exported.
+- [Agent binaries](./docs/guides/configuration.md) — the binary and prepended arguments per agent,
+  e.g. `"claudeArgs": ["--model", "opus"]`.
+- [Leader key](./docs/guides/configuration.md#leader) — rebind the overlay toggle when `Ctrl-Space`
+  is taken on your machine.
+- [Gateways](./docs/guides/configuration.md#gateways) — run the Claude CLI against Claude-compatible
+  backends (GLM and friends), each as its own agent in one fleet.
+- [Daemon hooks](./docs/guides/configuration.md#daemon-hooks) — run your own commands on fleet
+  events, or pipe the full NDJSON event stream from `atc events`.
+- [Attention hooks](./docs/guides/configuration.md#attention-hooks-grok-and-codex) — the Grok and
+  Codex self-install in detail.
 
 `atc mcp` exposes the fleet as MCP tools (list, spawn, drive, organise) to any MCP client, wrangled
-sessions included. `atc_session_spawn` takes an optional `agent` id and defaults to Claude; it never
-reads the TUI last-used value.
+sessions included:
 
 ```sh
 claude mcp add --scope user atc -- atc mcp
 ```
 
-Daemon state — the restorable fleet, spawn-dir history, last-used agent, and the hook-event trail —
-lives in `~/.local/state/atc/atc.db` (SQLite), next to `status.json` (read by the injected
-statusline); the daemon's pid file sits in `$XDG_RUNTIME_DIR/atc-daemon.pid`, beside its sockets.
-
 ## Crash safety
 
 A client crash or closed window costs nothing: the daemon keeps hosting the fleet, and the next
-`atc` reconnects. After an update, a client meeting an older daemon keeps talking to it — killing it
-would kill every hosted session — and shows `⟳ update ready` in the status bar; `u` in the overlay
-restarts the daemon and restores the fleet at a moment you choose. Only a protocol mismatch, where
-the two could miscommunicate, forces the restart immediately. The daemon continuously writes the
-live fleet (name, cwd, agent, session id) to its SQLite store. If the daemon itself dies — crash,
-SIGKILL, reboot — the child processes die with it, but every session's transcript is already on
-disk. Start atc and press `R`: the whole fleet respawns with the matching CLI. Killed sessions (`K`,
-`Y` eject) stay in the fleet as exited entries — restore lists them as killed without booting a
-terminal, and `P` still revives them. A second `K` forgets an entry for good.
-
-Restoring shows the whole fleet immediately — every incoming session appears in the list marked
-"waiting to restore" — and revives one at a time, most recently active first: the next resume starts
-only once the previous one has reported it is up (its `SessionStart` hook), so bringing back a dozen
-sessions no longer launches a dozen agent processes at the same instant and pins the machine. Each
-row flips live as its session comes back.
+`atc` reconnects. If the daemon itself dies, every session's transcript is already on disk — press
+`R` and the whole fleet respawns with the matching CLI. After an update, the status bar shows
+`⟳ update ready`, and `u` restarts the daemon and restores the fleet at a moment you choose. The
+[recovery model](./docs/architecture/overview.md#recovery-model) covers the detail.
