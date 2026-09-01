@@ -1,3 +1,5 @@
+import { waitFor } from './wait-for';
+
 interface SocketLines {
   readonly lines: string[];
   readonly write: (data: string) => void;
@@ -37,18 +39,17 @@ export async function subscribeToSocketLines(path: string): Promise<SocketLines>
     write(data: string) {
       socket.write(data);
     },
-    async waitForLine(count = 1, timeoutMs = 5000) {
-      const deadline = Date.now() + timeoutMs;
+    waitForLine(count = 1, timeoutMs = 5000) {
+      return waitFor(
+        () => {
+          if (lines.length < count) {
+            throw new Error(`timed out waiting for ${count} lines; got ${JSON.stringify(lines)}`);
+          }
 
-      while (lines.length < count && Date.now() < deadline) {
-        await Bun.sleep(10);
-      }
-
-      if (lines.length < count) {
-        throw new Error(`timed out waiting for ${count} lines; got ${JSON.stringify(lines)}`);
-      }
-
-      return lines;
+          return lines;
+        },
+        { timeoutMs },
+      );
     },
     [Symbol.asyncDispose]: () => {
       socket.end();

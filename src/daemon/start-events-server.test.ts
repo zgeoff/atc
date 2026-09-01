@@ -3,7 +3,7 @@ import { connect } from 'node:net';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { subscribeToSocketLines } from '../../test/subscribe-to-socket-lines';
-import { waitForCondition } from '../../test/wait-for-condition';
+import { waitFor } from '../../test/wait-for';
 import { startEventsServer } from './start-events-server';
 import type { EventsServer } from './start-events-server';
 
@@ -71,7 +71,11 @@ test('it disconnects a subscriber whose outbound queue overflows and keeps servi
   slow.on('data', () => {});
   slow.resume();
 
-  await waitForCondition(() => closed);
+  await waitFor(() => {
+    if (!closed) {
+      throw new Error('subscriber connection still open');
+    }
+  });
 
   expect(closed).toBeTrue();
 

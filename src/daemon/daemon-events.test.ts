@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { parseEventLine } from '../../test/parse-event-line';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { spawnNamedSession } from '../../test/spawn-named-session';
 import { subscribeToSocketLines } from '../../test/subscribe-to-socket-lines';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
+import { decodeMessage } from '../protocol/protocol';
 import { startDaemon } from './daemon';
 
 // Events-socket tests: snapshot-then-stream and read-only behavior. The
@@ -70,7 +70,15 @@ test('it replays the fleet as SessionAdded lines on connect, then streams live e
 
   const initial = await subscriber.waitForLine(2);
 
-  const snapshot = initial.slice(0, 2).map((line) => parseEventLine(line));
+  const snapshot = initial.slice(0, 2).map((line) => {
+    const decoded = decodeMessage(line);
+
+    if (decoded.kind !== 'event') {
+      throw new Error(`not an event line: ${line}`);
+    }
+
+    return decoded.msg;
+  });
 
   expect(snapshot).toMatchObject([
     {
@@ -90,7 +98,15 @@ test('it replays the fleet as SessionAdded lines on connect, then streams live e
   const afterRename = await subscriber.waitForLine(3);
 
   const renamed = afterRename
-    .map((line) => parseEventLine(line))
+    .map((line) => {
+      const decoded = decodeMessage(line);
+
+      if (decoded.kind !== 'event') {
+        throw new Error(`not an event line: ${line}`);
+      }
+
+      return decoded.msg;
+    })
     .find((e) => e.ev === 'SessionRenamed');
 
   expect(renamed).toMatchObject({ v: 3, ev: 'SessionRenamed', s: firstID, name: 'renamed-one' });
@@ -106,7 +122,15 @@ test('it ignores subscriber input and keeps streaming', async () => {
 
   const streamed = await subscriber.waitForLine(1);
 
-  const added = streamed.map((line) => parseEventLine(line));
+  const added = streamed.map((line) => {
+    const decoded = decodeMessage(line);
+
+    if (decoded.kind !== 'event') {
+      throw new Error(`not an event line: ${line}`);
+    }
+
+    return decoded.msg;
+  });
 
   expect(added[0]).toMatchObject({
     v: 3,
