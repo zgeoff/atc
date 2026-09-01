@@ -270,6 +270,17 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
+  // A detach can outlive its session — a kill removes the session before the
+  // client's connection closes — and a gone session already broadcast
+  // SessionRemoved, so a descriptor miss emits nothing.
+  const emitSessionDetached = (sessionID: SessionID) => {
+    const session = mgr.collectDescriptors().find((x) => x.id === sessionID);
+
+    if (session !== undefined) {
+      emitEvent({ v: PROTOCOL_V, ev: 'SessionDetached', session });
+    }
+  };
+
   // Permission requests are synthesized from attention transitions: entering
   // needs_you opens one, and leaving it (answered directly in the terminal,
   // or the session dying) dismisses whatever is pending. Each session's
@@ -488,17 +499,22 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       // only redraws its live region, never the rows above it.
       applyEffectiveDims(sessionID);
       void sendReplay(sessionID, client);
+      emitEvent({ v: PROTOCOL_V, ev: 'SessionAttached', session: getDescriptor(mgr, sessionID) });
 
       return 'ok';
     },
     detachSession: (client, sessionID) => {
-      attachments.detach(sessionID, client);
+      if (!attachments.detach(sessionID, client)) {
+        return;
+      }
 
       scheduleResize(sessionID);
+      emitSessionDetached(sessionID);
     },
     detachClient: (client) => {
       for (const sessionID of attachments.detachAll(client)) {
         scheduleResize(sessionID);
+        emitSessionDetached(sessionID);
       }
     },
     writeSessionInput: (sessionID, data) => {
