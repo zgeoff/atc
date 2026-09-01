@@ -110,16 +110,24 @@ Multi-client rules, chosen to cover the realistic conflicts without a write-lock
 
 ## Events
 
-`SessionAdded`, `SessionState`, `SessionRenamed`, `SessionRemoved`, `SessionResized`,
-`SessionOutput`, `SessionDesync`, `PermissionRequested`, `PermissionResolved`.
+`SessionAdded`, `SessionState`, `SessionAttached`, `SessionDetached`, `SessionRenamed`,
+`SessionRemoved`, `SessionResized`, `SessionOutput`, `SessionDesync`, `PermissionRequested`,
+`PermissionResolved`.
 
 State/lifecycle events broadcast to every client (every overlay needs them). `SessionOutput` goes
 only to clients attached to that session — an unfocused session costs a client zero bytes. Output
 events carry a per-session `seq` so a client can detect gaps.
 
-`SessionAdded` and `SessionState` both carry the full session descriptor under a `session` key (the
-same shape `session.list` returns), rather than a hand-picked subset of fields — a client decodes
-both through one path instead of tracking which fields each event happens to carry.
+`SessionAttached` broadcasts each time a client subscribes to a session's output, and
+`SessionDetached` each time one subscription ends — by request or by the subscriber's connection
+closing. `SessionAttached` is the dedicated focus signal for outside observers; attaching also
+clears the session's unread flag, so a `SessionState` broadcast arrives alongside it. A detach of a
+session that no longer exists emits nothing — `SessionRemoved` already covered it.
+
+`SessionAdded`, `SessionState`, `SessionAttached`, and `SessionDetached` carry the full session
+descriptor under a `session` key (the same shape `session.list` returns), rather than a hand-picked
+subset of fields — a client decodes them through one path instead of tracking which fields each
+event happens to carry.
 
 ```jsonc
 {

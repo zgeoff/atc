@@ -21,14 +21,15 @@ export class AttachRegistry<TClient> {
     this.bySession.set(sessionID, clients);
   }
 
-  detach(sessionID: SessionID, client: TClient): void {
+  detach(sessionID: SessionID, client: TClient): boolean {
     const clients = this.bySession.get(sessionID);
-
-    clients?.delete(client);
+    const removed = clients?.delete(client) ?? false;
 
     if (clients !== undefined && clients.size === 0) {
       this.bySession.delete(sessionID);
     }
+
+    return removed;
   }
 
   detachAll(client: TClient): SessionID[] {

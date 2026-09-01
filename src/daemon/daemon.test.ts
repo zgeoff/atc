@@ -6,6 +6,7 @@ import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { OutboundQueue } from '../protocol/outbound-queue';
+import type { EventMsg } from '../protocol/protocol';
 import { isRecord } from '../shared/report';
 import { startDaemon } from './daemon';
 
@@ -678,4 +679,131 @@ test('it connects nothing on a socket path with no daemon', () => {
   });
 
   expect(attempt).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+interface WatchedPair {
+  readonly actor: DaemonClient;
+  readonly events: EventMsg[];
+}
+
+async function setupWatchedPair(): Promise<WatchedPair> {
+  const sockPath = await setupDaemon();
+  const watcher = await DaemonClient.open(sockPath);
+  const actor = await DaemonClient.open(sockPath);
+
+  onTestFinished(() => {
+    watcher.stop();
+    actor.stop();
+  });
+
+  const events: EventMsg[] = [];
+
+  watcher.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await watcher.sendHello('atc/test-build');
+  await actor.sendHello('atc/test-build');
+
+  return { actor, events };
+}
+
+type SendSpawnRequest = DaemonClient['sendRequest'];
+
+async function spawnAttachable(send: SendSpawnRequest): Promise<string> {
+  const ok = await send('session.spawn', {
+    cwd: '/tmp',
+    name: 'focus-me',
+    cols: 80,
+    rows: 24,
+  });
+
+  const spawned = ok['session'];
+
+  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
+    throw new Error('no session in spawn answer');
+  }
+
+  return spawned['id'];
+}
+
+async function waitForEvent(
+  events: readonly EventMsg[],
+  matches: (e: EventMsg) => boolean,
+): Promise<EventMsg> {
+  const deadline = Date.now() + 5000;
+
+  while (Date.now() < deadline) {
+    const found = events.find((e) => matches(e));
+
+    if (found !== undefined) {
+      return found;
+    }
+
+    await Bun.sleep(20);
+  }
+
+  throw new Error(`no matching event; got ${JSON.stringify(events.map((e) => e.ev))}`);
+}
+
+test('it broadcasts SessionAttached with the session descriptor when a client attaches', async () => {
+  const pair = await setupWatchedPair();
+  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+
+  await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
+
+  const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
+
+  expect(event).toMatchObject({
+    v: 3,
+    ev: 'SessionAttached',
+    session: {
+      id: sessionID,
+      name: 'focus-me',
+      cwd: '/tmp',
+      agent: 'claude',
+      kind: 'pty',
+      alive: true,
+      unread: false,
+    },
+  });
+});
+
+test('it broadcasts SessionDetached when an attached client detaches', async () => {
+  const pair = await setupWatchedPair();
+  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+
+  await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
+  await pair.actor.sendRequest('session.detach', { session: sessionID });
+
+  const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionDetached');
+
+  expect(event).toMatchObject({ v: 3, ev: 'SessionDetached', session: { id: sessionID } });
+});
+
+test('it broadcasts SessionDetached when an attached client disconnects', async () => {
+  const pair = await setupWatchedPair();
+  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+
+  await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
+
+  await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
+
+  pair.actor.stop();
+
+  const event = await waitForEvent(pair.events, (e) => e.ev === 'SessionDetached');
+
+  expect(event).toMatchObject({ ev: 'SessionDetached', session: { id: sessionID } });
+});
+
+test('it broadcasts no SessionDetached for a detach without an attach', async () => {
+  const pair = await setupWatchedPair();
+  const sessionID = await spawnAttachable((m, p) => pair.actor.sendRequest(m, p));
+
+  await pair.actor.sendRequest('session.detach', { session: sessionID });
+  await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
+
+  await waitForEvent(pair.events, (e) => e.ev === 'SessionAttached');
+
+  expect(pair.events.filter((e) => e.ev === 'SessionDetached')).toStrictEqual([]);
 });
