@@ -166,7 +166,8 @@ events behind it — snapshot-then-stream, the same trick as attach's screen rep
 never needs the client protocol to learn what exists. Each subscriber has a bounded outbound queue;
 on overflow the daemon disconnects it, and a reconnect gets a fresh snapshot instead of the backlog
 it missed. `SessionOutput` and `SessionDesync` never appear here — they are attach-scoped, not
-broadcast. `atc events` prints this stream to stdout, and user hooks receive the same event JSON.
+broadcast. The [events guide](../guides/events.md) covers the consumers: daemon hooks, `atc events`,
+and direct subscribers.
 
 ## Attach and streaming
 

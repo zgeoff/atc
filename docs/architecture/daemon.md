@@ -26,13 +26,11 @@ separate:
 
 ## User hooks
 
-Every broadcast event also fires the user's configured hooks (the `hooks` map in `config.json`): the
-daemon runs each matching command with the event's JSON on stdin, exactly the line clients receive.
-Hooks are observational and fire-and-forget — the daemon never waits on one, a run past its timeout
-is killed, and a nonzero exit is logged and ignored, so a broken hook can neither gate an event nor
-slow an attach. A `dir` filter scopes an entry to sessions under a directory; the match uses the
-session object at the emit site, so a dir-scoped hook still fires for the removal of a matching
-session. `SessionOutput` never reaches hooks — it is attach-scoped screen bytes, not fleet state.
+Every broadcast event also fires the user's configured hooks: the daemon runs each matching command
+with the event's JSON on stdin, exactly the line clients receive — the
+[events guide](../guides/events.md#daemon-hooks) covers configuration and semantics. Hooks are
+observational and fire-and-forget, so a broken hook can neither gate an event nor slow an attach.
+`SessionOutput` never reaches hooks — it is attach-scoped screen bytes, not fleet state.
 
 ## Screen model
 
