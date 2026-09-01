@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@1.0.3...@zgeoff/atc@2.0.0) (2026-09-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* every wire event name changes and PROTOCOL_V is now 3; restart a running daemon after upgrading.
+
+### Features
+
+* broadcast session attached and detached events ([#66](https://github.com/zgeoff/atc/issues/66)) ([8328e49](https://github.com/zgeoff/atc/commit/8328e497b9e3ee4a0cd9da409bb30402b239ea03))
+* run user hooks on daemon events ([#68](https://github.com/zgeoff/atc/issues/68)) ([b826276](https://github.com/zgeoff/atc/commit/b82627627db275954c04cba9a140325d3e003907))
+* stream wire events over a read-only events socket ([#69](https://github.com/zgeoff/atc/issues/69)) ([dfd95dd](https://github.com/zgeoff/atc/commit/dfd95ddc5bd80f84b951f7885e74e043ac51894f))
+
+
+### Documentation
+
+* rewrite project docs against latest writing guidelines ([#71](https://github.com/zgeoff/atc/issues/71)) ([42274b7](https://github.com/zgeoff/atc/commit/42274b73bb9ec28366f4e684a193eeff537bcba5))
+
+
+### Code Refactoring
+
+* rename wire events to pascal case ([#65](https://github.com/zgeoff/atc/issues/65)) ([0f89f2c](https://github.com/zgeoff/atc/commit/0f89f2ccf81fe267a1b8b55099dc5d6b873ba17c))
+
 ## [1.0.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@1.0.2...@zgeoff/atc@1.0.3) (2026-08-25)
 
 ### Bug Fixes
