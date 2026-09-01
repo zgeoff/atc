@@ -25,7 +25,7 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 | `codexBin`   | `"codex"`      | The binary spawned for Codex sessions.                                                                      |
 | `codexArgs`  | `[]`           | Prepended to every Codex spawn.                                                                             |
 | `gateways`   | `{}`           | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                |
-| `hooks`      | `{}`           | Commands the daemon runs on wire events, keyed by event name.                                               |
+| `hooks`      | `{}`           | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.         |
 | `leader`     | `"ctrl-space"` | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                       |
 
 ## Leader
@@ -66,39 +66,6 @@ The id may not be `claude`, `grok`, or `codex`. atc writes one settings file per
 `--settings`, on the terminal spawn and on a headless turn alike, so a gateway session reaches its
 own backend rather than whatever the terminal exported. Two backends may be given the same `mark`;
 atc does not check, and a clash makes them indistinguishable in the overlay column.
-
-## Daemon hooks
-
-The daemon runs your commands when fleet events happen — focus another window when a session needs
-you, tell another tool which session just got attached:
-
-```json
-{
-  "hooks": {
-    "SessionAttached": [{ "command": "jq -r .session.cwd | xargs my-focus-script" }],
-    "SessionState": [{ "command": "notify-atc", "dir": "~/projects/ork", "timeout": 3000 }]
-  }
-}
-```
-
-Keys are the broadcast wire-event names from the [protocol](../architecture/protocol.md#events).
-Each command runs through `/bin/sh -c` with the event's JSON on stdin — the same line protocol
-clients receive — and the event name in `$ATC_EVENT`.
-
-| Field     | Default  | Meaning                                                                                             |
-| --------- | -------- | --------------------------------------------------------------------------------------------------- |
-| `command` | required | The shell command to run. An entry without one is left out.                                         |
-| `dir`     | none     | Only fire for sessions whose repo root or working directory sits at or under this path (`~` works). |
-| `timeout` | `10000`  | Milliseconds before a still-running hook is killed.                                                 |
-
-Hooks are observational and fire-and-forget: the daemon never waits on one, and a nonzero exit is
-logged and ignored — a broken hook cannot break the daemon or gate an event. Events that carry no
-session, such as `PermissionResolved`, skip `dir`-filtered entries.
-
-For a full event stream instead of per-event commands, run `atc events`: it prints the current fleet
-as `SessionAdded` lines, then every event behind it, one NDJSON line each, until the daemon goes
-away. Pipe it into `jq` or your own daemon; when no atc daemon is running it exits nonzero with a
-hint instead of booting one.
 
 ## Attention hooks (Grok and Codex)
 

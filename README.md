@@ -97,10 +97,21 @@ reporting works.
   is taken on your machine.
 - [Gateways](./docs/guides/configuration.md#gateways) — run the Claude CLI against Claude-compatible
   backends (GLM and friends), each as its own agent in one fleet.
-- [Daemon hooks](./docs/guides/configuration.md#daemon-hooks) — run your own commands on fleet
-  events, or pipe the full NDJSON event stream from `atc events`.
 - [Attention hooks](./docs/guides/configuration.md#attention-hooks-grok-and-codex) — the Grok and
   Codex self-install in detail.
+
+## Integrations
+
+Everything the fleet does broadcasts as a wire event — sessions added, state changes, attaches,
+renames, permission requests. The [events guide](./docs/guides/events.md) covers the three ways to
+consume the stream:
+
+- [Daemon hooks](./docs/guides/events.md#daemon-hooks) — run your own commands on fleet events,
+  straight from `config.json`.
+- [`atc events`](./docs/guides/events.md#atc-events) — the stream on stdout, one NDJSON line per
+  event; pipe it into `jq` or your own tooling.
+- [The events socket](./docs/guides/events.md#the-events-socket) — a read-only unix socket any
+  program can subscribe to, stable across atc upgrades.
 
 `atc mcp` exposes the fleet as MCP tools (list, spawn, drive, organise) to any MCP client, wrangled
 sessions included:
