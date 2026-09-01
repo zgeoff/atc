@@ -19,6 +19,7 @@ import { ScreenModel } from './screen-model';
 import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
 import type { SessionDescriptor, SessionState } from './sessions';
+import { startEventsServer } from './start-events-server';
 import { startHeadlessTurn } from './start-headless-turn';
 
 export interface DaemonOptions {
@@ -41,6 +42,10 @@ export interface DaemonOptions {
 
   // When set, the daemon's pid is written here and removed on stop.
   readonly pidPath?: string;
+
+  // When set, a read-only events socket listens here and streams every
+  // broadcast event as NDJSON to any subscriber, no handshake required.
+  readonly eventsSocketPath?: string;
 
   // User-configured hooks, keyed by wire-event name; each broadcast event
   // fires its matching commands, observational and fire-and-forget.
@@ -95,11 +100,26 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const runHooks = makeHookRunner(opts.hooks ?? {});
 
+  const eventsServer =
+    opts.eventsSocketPath === undefined
+      ? null
+      : startEventsServer({
+          socketPath: opts.eventsSocketPath,
+          collectSnapshot: () =>
+            mgr.collectDescriptors().map((session) => ({
+              v: PROTOCOL_V,
+              ev: 'SessionAdded',
+              session,
+            })),
+          ...(opts.queueBytes === undefined ? {} : { queueBytes: opts.queueBytes }),
+        });
+
   const emitEvent = (event: EventMsg, scope: HookScope | null = null) => {
     for (const client of clients) {
       client.sendEvent(event);
     }
 
+    eventsServer?.broadcast(event);
     runHooks(event, scope);
   };
 
@@ -619,6 +639,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   stopDaemon = async () => {
     server.stop(true);
+    eventsServer?.stop();
     reporter.stop(true);
     mgr.killAll();
 
