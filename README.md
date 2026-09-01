@@ -229,7 +229,9 @@ on stdin — the same line protocol clients receive — and the event name in `$
 Hooks are observational and fire-and-forget: the daemon never waits on one, and a nonzero exit is
 logged and ignored — a broken hook cannot break the daemon or gate an event. Events that carry no
 session, such as `PermissionResolved`, skip `dir`-filtered entries. For a full event stream instead
-of per-event commands, connect to the daemon socket as a protocol client.
+of per-event commands, run `atc events`: it prints the current fleet as `SessionAdded` lines, then
+every event behind it, one NDJSON line each, until the daemon goes away. Pipe it into `jq` or your
+own daemon; when no atc daemon is running it exits nonzero with a hint instead of booting one.
 
 The id may not be `claude`, `grok`, or `codex`. atc writes one settings file per id and passes it as
 `--settings`, on the terminal spawn and on a headless turn alike, so a gateway session reaches its

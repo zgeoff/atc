@@ -25,6 +25,7 @@ atc (client TUI) ── NDJSON protocol ──> atcd (atc daemon)
                                          ├── PTY per session ──> claude --settings <generated>
                                          │                    or grok --no-leader, or codex
                                          ├── reporter socket (hook + statusline reports)
+                                         ├── events socket (read-only NDJSON event stream)
                                          └── SQLite state in ~/.local/state/atc/
 ```
 

@@ -153,6 +153,22 @@ event happens to carry.
 }
 ```
 
+## Events socket
+
+A second listener, `atc-events.sock`, streams the broadcast events to anything that connects — no
+handshake, no version negotiation, no requests. Every line already carries `v`, and the envelope
+rule that unknown fields are ignored is the whole compatibility contract, so a subscriber written
+against one atc version keeps working across upgrades that the strict client handshake would refuse.
+The socket is read-only by construction: the daemon ignores anything written to it.
+
+On connect, the daemon replays the current fleet as one `SessionAdded` line per session, then live
+events behind it — snapshot-then-stream, the same trick as attach's screen replay, so a subscriber
+never needs the client protocol to learn what exists. Each subscriber has a bounded outbound queue;
+on overflow the daemon disconnects it, and a reconnect gets a fresh snapshot instead of the backlog
+it missed. `SessionOutput` and `SessionDesync` never appear here — they are attach-scoped, not
+broadcast. `atc events` prints this stream to stdout; hooks and the future MCP notifications carry
+the same event JSON.
+
 ## Attach and streaming
 
 The daemon reads every PTY continuously — background output is consumed, not discarded — and feeds

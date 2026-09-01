@@ -80,6 +80,7 @@ const main = defineCommand({
           const handle = await daemon.startDaemon({
             socketPath: config.daemonSocketPath,
             reporterSocketPath: config.socketPath,
+            eventsSocketPath: config.eventsSocketPath,
             build: getBuild(),
             adapter: claudeAdapter,
             adapters: [claudeAdapter, grokAdapter, codexAdapter, ...gatewayAdapters],
@@ -99,6 +100,18 @@ const main = defineCommand({
               process.exit(0);
             })();
           });
+        },
+      }),
+    events: () =>
+      defineCommand({
+        meta: {
+          name: 'events',
+          description: 'Stream daemon wire events to stdout as NDJSON',
+        },
+        async run() {
+          const events = await import('./events');
+
+          await events.runEvents();
         },
       }),
     'codex-hooks': () =>
