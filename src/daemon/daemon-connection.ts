@@ -168,7 +168,7 @@ export class DaemonConnection {
 
     for (const [sessionID, dropped] of this.desynced) {
       this.desynced.delete(sessionID);
-      this.sendEvent({ v: PROTOCOL_V, ev: 'session.desync', s: sessionID, dropped });
+      this.sendEvent({ v: PROTOCOL_V, ev: 'SessionDesync', s: sessionID, dropped });
       void this.ctx.resyncClient(sessionID, this);
     }
   }

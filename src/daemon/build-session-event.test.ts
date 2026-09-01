@@ -53,7 +53,7 @@ function buildGhostSession(): Session {
   };
 }
 
-test('it builds nothing for a session.state notification whose id has no descriptor', async () => {
+test('it builds nothing for a SessionState notification whose id has no descriptor', async () => {
   const mgr = await setupManager();
 
   let event: unknown = 'not called';
@@ -65,7 +65,7 @@ test('it builds nothing for a session.state notification whose id has no descrip
   expect(event).toBeNull();
 });
 
-test('it builds nothing for a session.added notification whose id has no descriptor', async () => {
+test('it builds nothing for a SessionAdded notification whose id has no descriptor', async () => {
   const mgr = await setupManager();
 
   expect(buildSessionEvent(mgr, 'added', buildGhostSession())).toBeNull();

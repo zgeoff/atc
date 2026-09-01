@@ -205,7 +205,7 @@ async function waitForEvent(
   throw new Error(`no matching event; got ${JSON.stringify(events.map((e) => e.ev))}`);
 }
 
-test('it spawns a session and broadcasts session.added to every client', async () => {
+test('it spawns a session and broadcasts SessionAdded to every client', async () => {
   const ctx = setupDaemonProc();
 
   const watcher = await ctx.openClient();
@@ -230,12 +230,12 @@ test('it spawns a session and broadcasts session.added to every client', async (
     ),
   });
 
-  const added = await waitForEvent(events, (e) => e.ev === 'session.added');
+  const added = await waitForEvent(events, (e) => e.ev === 'SessionAdded');
 
   expect(added['session']).toMatchObject({ cwd: ctx.home, state: 'running' });
 });
 
-test('it turns hook notifications into session.state broadcasts', async () => {
+test('it turns hook notifications into SessionState broadcasts', async () => {
   const ctx = setupDaemonProc();
 
   const client = await ctx.openClient();
@@ -252,7 +252,7 @@ test('it turns hook notifications into session.state broadcasts', async () => {
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   const list = await client.sendRequest('session.list');
@@ -289,7 +289,7 @@ test('it keeps a live terminal alive when its session reports an end', async () 
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   const reporter = Bun.spawn([process.execPath, join(repo, 'src', 'cli.ts'), 'hook-report'], {
@@ -308,7 +308,7 @@ test('it keeps a live terminal alive when its session reports an end', async () 
   const ended = await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' &&
+      e.ev === 'SessionState' &&
       isRecord(e['session']) &&
       e['session']['lastMsg'] === 'session ended',
   );
@@ -344,7 +344,7 @@ test('it renames and pins a session through session.update', async () => {
 
   const renamed = await waitForEvent(
     events,
-    (e) => e.ev === 'session.renamed' && e['name'] === 'auth-bug',
+    (e) => e.ev === 'SessionRenamed' && e['name'] === 'auth-bug',
   );
 
   expect(renamed).toMatchObject({ namedBy: 'user' });
@@ -445,12 +445,12 @@ test('it kills a live session to exited and a dead one to removed', async () => 
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
   );
 
   await client.sendRequest('session.kill', { session: id });
 
-  await waitForEvent(events, (e) => e.ev === 'session.removed' && e['s'] === id);
+  await waitForEvent(events, (e) => e.ev === 'SessionRemoved' && e['s'] === id);
 
   const list = await client.sendRequest('session.list');
 
@@ -478,7 +478,7 @@ test('it builds a resume command once the claude id is captured', async () => {
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   const answer = await client.sendRequest('session.resumeCommand', { session: id });
@@ -506,7 +506,7 @@ test('it restores the fleet cold after a daemon crash', async () => {
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   ctx.proc.kill(9);
@@ -552,7 +552,7 @@ test('it restores a killed session as exited across a daemon restart', async () 
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   await client.sendRequest('session.kill', { session: id });
@@ -560,7 +560,7 @@ test('it restores a killed session as exited across a daemon restart', async () 
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
   );
 
   ctx.proc.kill(9);
@@ -675,7 +675,7 @@ sleep 30
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' &&
+      e.ev === 'SessionState' &&
       isRecord(e['session']) &&
       e['session']['agentSessionID'] === 'fake-c' &&
       e['session']['kind'] === 'pty',
@@ -757,7 +757,7 @@ sleep 30
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' &&
+      e.ev === 'SessionState' &&
       isRecord(e['session']) &&
       e['session']['agentSessionID'] === 'fake-b' &&
       e['session']['kind'] === 'pty',
@@ -848,17 +848,17 @@ sleep 30
 
   await waitForEvent(
     events,
-    (e) => e.ev === 'session.added' && isRecord(e['session']) && e['session']['name'] === 'one',
+    (e) => e.ev === 'SessionAdded' && isRecord(e['session']) && e['session']['name'] === 'one',
   );
 
   const added = events
-    .filter((e) => e.ev === 'session.added')
+    .filter((e) => e.ev === 'SessionAdded')
     .map((e) => (isRecord(e['session']) ? e['session']['name'] : null));
 
   expect(added).toStrictEqual(['three', 'two', 'one']);
 });
 
-test('it broadcasts permission.requested when a session needs input', async () => {
+test('it broadcasts PermissionRequested when a session needs input', async () => {
   const ctx = setupDaemonProc();
 
   const client = await ctx.openClient();
@@ -872,7 +872,7 @@ test('it broadcasts permission.requested when a session needs input', async () =
   await client.sendHello('atc/test');
   await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
-  const requested = await waitForEvent(events, (e) => e.ev === 'permission.requested');
+  const requested = await waitForEvent(events, (e) => e.ev === 'PermissionRequested');
 
   expect(requested).toMatchObject({
     message: 'needs permission',
@@ -895,7 +895,7 @@ test('it answers permission.respond on a keystroke-only request with unsupported
   await client.sendHello('atc/test');
   await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
-  const requested = await waitForEvent(events, (e) => e.ev === 'permission.requested');
+  const requested = await waitForEvent(events, (e) => e.ev === 'PermissionRequested');
 
   const request = getString(requested, 'request');
 
@@ -922,7 +922,7 @@ test('it resolves a pending permission request as dismissed when the session die
   const spawned = getRecord(ok, 'session');
   const id = getString(spawned, 'id');
 
-  const requested = await waitForEvent(events, (e) => e.ev === 'permission.requested');
+  const requested = await waitForEvent(events, (e) => e.ev === 'PermissionRequested');
 
   const request = getString(requested, 'request');
 
@@ -930,7 +930,7 @@ test('it resolves a pending permission request as dismissed when the session die
 
   const resolved = await waitForEvent(
     events,
-    (e) => e.ev === 'permission.resolved' && e['request'] === request,
+    (e) => e.ev === 'PermissionResolved' && e['request'] === request,
   );
 
   expect(resolved['decision']).toBe('dismissed');
@@ -966,10 +966,10 @@ test('it streams pty output to an attached client with increasing seq', async ()
 
   await waitForEvent(
     events,
-    (e) => e.ev === 'session.output' && String(e['d']).includes('GOT:hello'),
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('GOT:hello'),
   );
 
-  const seqs = events.filter((e) => e.ev === 'session.output').map((e) => Number(e['seq']));
+  const seqs = events.filter((e) => e.ev === 'SessionOutput').map((e) => Number(e['seq']));
 
   expect(seqs).toStrictEqual(seqs.toSorted((a, b) => a - b));
   expect(new Set(seqs).size).toBe(seqs.length);
@@ -1007,11 +1007,11 @@ test('it stops streaming to a detached client while others keep receiving', asyn
 
   await waitForEvent(
     watcherEvents,
-    (e) => e.ev === 'session.output' && String(e['d']).includes('GOT:ping'),
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('GOT:ping'),
   );
 
   const leaked = leaverEvents.filter(
-    (e) => e.ev === 'session.output' && String(e['d']).includes('GOT:ping'),
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('GOT:ping'),
   );
 
   expect(leaked).toStrictEqual([]);
@@ -1039,11 +1039,11 @@ test('it resizes the pty to the smallest dims across attached clients', async ()
 
   await wide.sendRequest('session.attach', { session: id, cols: 120, rows: 40 });
 
-  await waitForEvent(events, (e) => e.ev === 'session.resized' && e['cols'] === 120);
+  await waitForEvent(events, (e) => e.ev === 'SessionResized' && e['cols'] === 120);
 
   await narrow.sendRequest('session.attach', { session: id, cols: 90, rows: 28 });
 
-  const shrunk = await waitForEvent(events, (e) => e.ev === 'session.resized' && e['cols'] === 90);
+  const shrunk = await waitForEvent(events, (e) => e.ev === 'SessionResized' && e['cols'] === 90);
 
   expect(shrunk).toMatchObject({ s: id, cols: 90, rows: 28 });
 });
@@ -1071,10 +1071,10 @@ test('it resizes the pty before the attach replay reaches the client', async () 
   await joiner.sendHello('atc/test');
   await joiner.sendRequest('session.attach', { session: id, cols: 100, rows: 30 });
 
-  await waitForEvent(events, (e) => e.ev === 'session.output' && e['s'] === id);
+  await waitForEvent(events, (e) => e.ev === 'SessionOutput' && e['s'] === id);
 
-  const resizedAt = events.findIndex((e) => e.ev === 'session.resized' && e['cols'] === 100);
-  const outputAt = events.findIndex((e) => e.ev === 'session.output' && e['s'] === id);
+  const resizedAt = events.findIndex((e) => e.ev === 'SessionResized' && e['cols'] === 100);
+  const outputAt = events.findIndex((e) => e.ev === 'SessionOutput' && e['s'] === id);
 
   expect(resizedAt).toBeGreaterThanOrEqual(0);
   expect(outputAt).toBeGreaterThan(resizedAt);
@@ -1103,7 +1103,7 @@ test('it answers session.input on a dead session with session_dead', async () =>
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
   );
 
   expect(client.sendRequest('session.input', { session: id, d: 'x' })).rejects.toMatchObject({
@@ -1134,7 +1134,7 @@ test('it answers session.attach on a dead session with session_dead', async () =
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
   );
 
   expect(
@@ -1167,7 +1167,7 @@ test('it spawns a grok session and captures a grok descriptor from SessionStart'
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   const list = await client.sendRequest('session.list');
@@ -1230,7 +1230,7 @@ test('it yanks grok --resume after capture and grok before SessionStart', async 
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   const resumed = await client.sendRequest('session.resumeCommand', { session: capturedID });
@@ -1261,7 +1261,7 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   ctx.proc.kill(9);
@@ -1308,7 +1308,7 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
 
   const output = await waitForEvent(
     replay,
-    (e) => e.ev === 'session.output' && String(e['d']).includes('FAKE_GROK_UP'),
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('FAKE_GROK_UP'),
   );
 
   expect(String(output['d'])).toInclude('--resume fake-grok-1');
@@ -1347,7 +1347,7 @@ test('it marks a grok session done on end-turn Stop', async () => {
 
   await waitForEvent(
     events,
-    (e) => e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'done',
+    (e) => e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'done',
   );
 });
 
@@ -1391,7 +1391,7 @@ test('it ignores a grok hook event that names a subagent', async () => {
 
   await waitForEvent(
     events,
-    (e) => e.ev === 'session.output' && String(e['d']).includes('FAKE_GROK_HOOKS_DONE'),
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('FAKE_GROK_HOOKS_DONE'),
   );
 
   const list = await client.sendRequest('session.list');
@@ -1430,7 +1430,7 @@ test('it keeps grok needs_you when idle_prompt follows permission_prompt', async
   await waitForEvent(
     events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   const reporter = Bun.spawn([process.execPath, join(repo, 'src', 'cli.ts'), 'hook-report'], {
@@ -1487,7 +1487,7 @@ test('it spawns a codex session and captures its descriptor from SessionStart', 
 
   await waitForEvent(
     events,
-    (e) => e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'done',
+    (e) => e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'done',
   );
 
   const list = await client.sendRequest('session.list');
@@ -1528,7 +1528,7 @@ test('it builds codex resume commands and keeps codex in the fleet on kill', asy
 
   await waitForEvent(
     events,
-    (e) => e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'done',
+    (e) => e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'done',
   );
 
   const answer = await client.sendRequest('session.resumeCommand', { session: id });

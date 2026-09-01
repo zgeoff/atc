@@ -75,7 +75,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
 
   const conn = new DaemonConnection(peer, ctx);
 
-  conn.applyChunk('{"v":2,"id":1,"m":"daemon.hello","p":{"client":"atc/test"}}\n');
+  conn.applyChunk('{"v":3,"id":1,"m":"daemon.hello","p":{"client":"atc/test"}}\n');
 
   return {
     conn,
@@ -88,7 +88,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
 }
 
 function buildOutputEvent(marker: string): EventMsg {
-  return { v: PROTOCOL_V, ev: 'session.output', s: 's1', d: marker.repeat(40) };
+  return { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: marker.repeat(40) };
 }
 
 test('it drops an overflowing session backlog and reports the dropped bytes on drain', () => {
@@ -107,15 +107,15 @@ test('it drops an overflowing session backlog and reports the dropped bytes on d
   expect(lines.find((line) => line.includes('b'.repeat(40)))).toBeUndefined();
   expect(lines.find((line) => line.includes('c'.repeat(40)))).toBeUndefined();
 
-  const desyncLine = lines.find((line) => line.includes('session.desync'));
+  const desyncLine = lines.find((line) => line.includes('SessionDesync'));
 
   if (desyncLine === undefined) {
-    throw new Error('no session.desync line was written');
+    throw new Error('no SessionDesync line was written');
   }
 
   expect(JSON.parse(desyncLine)).toStrictEqual({
     v: PROTOCOL_V,
-    ev: 'session.desync',
+    ev: 'SessionDesync',
     s: 's1',
     dropped: 150,
   });
@@ -148,7 +148,7 @@ test('it reports no desync while the queue still holds a backlog', () => {
   harness.conn.drain();
 
   expect(
-    harness.collectWrittenLines().find((line) => line.includes('session.desync')),
+    harness.collectWrittenLines().find((line) => line.includes('SessionDesync')),
   ).toBeUndefined();
 
   expect(harness.resyncs).toStrictEqual([]);

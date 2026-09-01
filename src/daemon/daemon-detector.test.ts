@@ -101,7 +101,7 @@ test('it flags a hook-less agent waiting at a prompt via the screen detector', a
   const needy = await waitForEvent(
     ctx.events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   const needySession = getRecord(needy, 'session');
@@ -124,7 +124,7 @@ test('it flips the session back to working once the prompt is answered', async (
   await waitForEvent(
     ctx.events,
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   await ctx.client.sendRequest('session.input', { session: id, d: 'go\n' });
@@ -132,7 +132,7 @@ test('it flips the session back to working once the prompt is answered', async (
   const working = await waitForEvent(
     ctx.events,
     (e) =>
-      e.ev === 'session.state' &&
+      e.ev === 'SessionState' &&
       isRecord(e['session']) &&
       e['session']['state'] === 'running' &&
       e['session']['lastMsg'] === 'working',
@@ -148,7 +148,7 @@ test('it opens a permission request from a screen-detected prompt', async () => 
 
   await ctx.client.sendRequest('session.spawn', { cwd: '/tmp', cols: 60, rows: 12 });
 
-  const requested = await waitForEvent(ctx.events, (e) => e.ev === 'permission.requested');
+  const requested = await waitForEvent(ctx.events, (e) => e.ev === 'PermissionRequested');
 
   expect(requested).toMatchObject({ message: 'waiting at a prompt', respondable: false });
 });
@@ -172,7 +172,7 @@ test('it never flags a prompt as needing input when the adapter has no screen de
 
   await waitForEvent(
     ctx.events,
-    (e) => e.ev === 'session.output' && typeof e['d'] === 'string' && e['d'].includes('READY>'),
+    (e) => e.ev === 'SessionOutput' && typeof e['d'] === 'string' && e['d'].includes('READY>'),
   );
 
   // Then out past the 300ms detect debounce a detector would have needed.
@@ -180,7 +180,7 @@ test('it never flags a prompt as needing input when the adapter has no screen de
 
   const needy = ctx.events.find(
     (e) =>
-      e.ev === 'session.state' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
   expect(needy).toBeUndefined();
