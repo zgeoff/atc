@@ -88,9 +88,19 @@ reporting works.
 
 ## Configuration
 
-`~/.config/atc/config.json` is created with defaults on first run: the binary and arguments per
-agent, the leader key, Claude-compatible gateway backends, and daemon hooks that run your commands
-on fleet events. The [configuration guide](./docs/guides/configuration.md) covers every field.
+`~/.config/atc/config.json` is created with defaults on first run. The
+[configuration guide](./docs/guides/configuration.md) covers every field:
+
+- [Agent binaries](./docs/guides/configuration.md) — the binary and prepended arguments per agent,
+  e.g. `"claudeArgs": ["--model", "opus"]`.
+- [Leader key](./docs/guides/configuration.md#leader) — rebind the overlay toggle when `Ctrl-Space`
+  is taken on your machine.
+- [Gateways](./docs/guides/configuration.md#gateways) — run the Claude CLI against Claude-compatible
+  backends (GLM and friends), each as its own agent in one fleet.
+- [Daemon hooks](./docs/guides/configuration.md#daemon-hooks) — run your own commands on fleet
+  events, or pipe the full NDJSON event stream from `atc events`.
+- [Attention hooks](./docs/guides/configuration.md#attention-hooks-grok-and-codex) — the Grok and
+  Codex self-install in detail.
 
 `atc mcp` exposes the fleet as MCP tools (list, spawn, drive, organise) to any MCP client, wrangled
 sessions included:
