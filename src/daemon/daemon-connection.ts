@@ -27,6 +27,7 @@ interface SpawnParams {
   readonly resume: SpawnOptions['resume'];
   readonly namedBy: 'user' | 'auto';
   readonly agent: AgentID;
+  readonly parent: SessionID | null;
 }
 
 export interface DaemonContext {
@@ -38,7 +39,7 @@ export interface DaemonContext {
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
   readonly spawnSession: (p: SpawnParams) => SessionDescriptor;
   readonly killSession: (id: SessionID) => Promise<boolean>;
-  readonly updateSession: (id: SessionID, name?: string, pinned?: boolean) => boolean;
+  readonly updateSession: (id: SessionID, name?: string, pinned?: boolean) => boolean | 'child_pin';
   readonly quitDaemon: () => void;
   readonly ackSession: (id: SessionID) => boolean;
   readonly buildResumeCommand: (id: SessionID) => string | null;
@@ -267,8 +268,15 @@ export class DaemonConnection {
         }
 
         const sessionID = parsed.data.session;
+        const updated = this.ctx.updateSession(sessionID, parsed.data.name, parsed.data.pinned);
 
-        if (this.ctx.updateSession(sessionID, parsed.data.name, parsed.data.pinned)) {
+        if (updated === 'child_pin') {
+          this.sendErr(
+            req.id,
+            'bad_args',
+            `session '${sessionID}' is a sub-session and takes its pin from its parent`,
+          );
+        } else if (updated) {
           this.sendOk(req.id, {});
         } else {
           this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
@@ -465,6 +473,22 @@ export class DaemonConnection {
       return;
     }
 
+    let parent: SessionID | null = null;
+
+    if (parsed.data.parent !== undefined) {
+      const owner = this.ctx.collectSessions().find((s) => s.id === parsed.data.parent);
+
+      if (owner === undefined) {
+        this.sendErr(req.id, 'no_such_session', `no session '${parsed.data.parent}'`);
+
+        return;
+      }
+
+      // A sub-session spawning a sub-session of its own lands beside it,
+      // so a set stays one level deep.
+      parent = owner.parent ?? owner.id;
+    }
+
     const session = this.ctx.spawnSession({
       cwd,
       name: name === '' ? basename(cwd) : name,
@@ -474,6 +498,7 @@ export class DaemonConnection {
       resume: parsed.data.resume,
       namedBy: name === '' ? 'auto' : 'user',
       agent,
+      parent,
     });
 
     this.sendOk(req.id, { session });

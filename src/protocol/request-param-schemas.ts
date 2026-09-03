@@ -42,6 +42,13 @@ export const REQUEST_PARAM_SCHEMAS = {
       .string({ error: 'session.spawn agent must be a non-empty agent id' })
       .min(1, 'session.spawn agent must be a non-empty agent id')
       .optional(),
+
+    // The session the new one is a sub-session of; absent or empty spawns a
+    // top-level session.
+    parent: z.preprocess(
+      (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+      z.string().transform(toSessionID).optional(),
+    ),
   }),
   'session.kill': SESSION_DEFAULTED,
   'session.ack': SESSION_DEFAULTED,

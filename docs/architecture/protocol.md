@@ -71,28 +71,28 @@ semantics.
 
 ## Methods
 
-| Method                  | Purpose                                                                                                                                        |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `daemon.hello`          | handshake; must be first. The ok includes `lastUsedAgent`, the agent id written on a deliberate-spawn SessionStart.                            |
-| `daemon.ping`           | liveness / latency probe                                                                                                                       |
-| `daemon.quit`           | stop the daemon; every hosted session goes down with it                                                                                        |
-| `session.list`          | fleet listing (descriptors mirror the `Session` shape, minus the PTY handle, plus `kind` and `agent`)                                          |
-| `dirs.list`             | recent spawn directories, most recent first, for the picker                                                                                    |
-| `fleet.list`            | the persisted fleet rows, independent of which sessions are currently live                                                                     |
-| `session.spawn`         | spawn (cwd, name, prompt, resume, dims, optional `agent` id). Omitted is Claude, an empty id is `bad_args`, an unregistered one `unsupported`. |
-| `session.update`        | rename and/or pin a session (`{ session, name?, pinned? }`)                                                                                    |
-| `session.kill`          | kill process; explicit, never implied by disconnect                                                                                            |
-| `session.ack`           | clear unread without attaching                                                                                                                 |
-| `session.attach`        | subscribe to a session's output; returns replay + current dims                                                                                 |
-| `session.detach`        | unsubscribe; session keeps running                                                                                                             |
-| `session.input`         | keyboard input to a session (`{ session, d }`)                                                                                                 |
-| `session.resize`        | client reports its dims; effective size is the min across attached clients (broadcast as `SessionResized`)                                     |
-| `session.resumeCommand` | build the resume command for that session's agent (`claude --resume`, `grok --resume`, or `codex resume`)                                      |
-| `session.screen`        | the session's visible screen as plain text (`{ text, cols, rows }`), no attach needed; a killed session keeps its last screen                  |
-| `session.eject`         | hand a live session off to a headless run so it keeps working unattended                                                                       |
-| `session.adopt`         | bring a dead or headless session back onto a live terminal                                                                                     |
-| `fleet.restore`         | cold-boot recovery: respawn the persisted fleet                                                                                                |
-| `permission.respond`    | answer a permission request (`{ request, decision }`)                                                                                          |
+| Method                  | Purpose                                                                                                                                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `daemon.hello`          | handshake; must be first. The ok includes `lastUsedAgent`, the agent id written on a deliberate-spawn SessionStart.                                                                                                |
+| `daemon.ping`           | liveness / latency probe                                                                                                                                                                                           |
+| `daemon.quit`           | stop the daemon; every hosted session goes down with it                                                                                                                                                            |
+| `session.list`          | fleet listing (descriptors mirror the `Session` shape, minus the PTY handle, plus `kind` and `agent`)                                                                                                              |
+| `dirs.list`             | recent spawn directories, most recent first, for the picker                                                                                                                                                        |
+| `fleet.list`            | the persisted fleet rows, independent of which sessions are currently live                                                                                                                                         |
+| `session.spawn`         | spawn (cwd, name, prompt, resume, dims, optional `agent` id, optional `parent` id). Omitted agent is Claude, an empty id is `bad_args`, an unregistered one `unsupported`. An unknown parent is `no_such_session`. |
+| `session.update`        | rename and/or pin a session (`{ session, name?, pinned? }`). Pinning a sub-session is `bad_args`: it pins with its parent.                                                                                         |
+| `session.kill`          | kill process; explicit, never implied by disconnect                                                                                                                                                                |
+| `session.ack`           | clear unread without attaching                                                                                                                                                                                     |
+| `session.attach`        | subscribe to a session's output; returns replay + current dims                                                                                                                                                     |
+| `session.detach`        | unsubscribe; session keeps running                                                                                                                                                                                 |
+| `session.input`         | keyboard input to a session (`{ session, d }`)                                                                                                                                                                     |
+| `session.resize`        | client reports its dims; effective size is the min across attached clients (broadcast as `SessionResized`)                                                                                                         |
+| `session.resumeCommand` | build the resume command for that session's agent (`claude --resume`, `grok --resume`, or `codex resume`)                                                                                                          |
+| `session.screen`        | the session's visible screen as plain text (`{ text, cols, rows }`), no attach needed; a killed session keeps its last screen                                                                                      |
+| `session.eject`         | hand a live session off to a headless run so it keeps working unattended                                                                                                                                           |
+| `session.adopt`         | bring a dead or headless session back onto a live terminal                                                                                                                                                         |
+| `fleet.restore`         | cold-boot recovery: respawn the persisted fleet                                                                                                                                                                    |
+| `permission.respond`    | answer a permission request (`{ request, decision }`)                                                                                                                                                              |
 
 `session.input` is a request (it gets an ok, preserving the rule that state-changing messages are
 acknowledged) but clients need not await it — measured cost of the JSON round trip is ~0.2 µs
@@ -129,6 +129,10 @@ session that no longer exists emits nothing — `SessionRemoved` already covered
 descriptor under a `session` key (the same shape `session.list` returns), rather than a hand-picked
 subset of fields — a client decodes them through one path instead of tracking which fields each
 event happens to carry.
+
+A sub-session's descriptor carries the id of its parent under `parent`; a top-level session's
+descriptor omits the key. A spawn whose `parent` is itself a sub-session lands beside it, under the
+same parent, so a set stays one level deep.
 
 ```jsonc
 {

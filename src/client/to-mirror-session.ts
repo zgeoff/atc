@@ -19,6 +19,7 @@ export interface MirrorSession {
   resumable: boolean;
   canEject: boolean;
   agent: AgentID;
+  parent: string | null;
 }
 
 // Only the fields a mirror can't function without; an unparseable descriptor
@@ -61,5 +62,6 @@ export function toMirrorSession(value: unknown): MirrorSession | null {
     resumable: typeof record['agentSessionID'] === 'string',
     canEject: record['canEject'] === true,
     agent: toAgentID(record['agent']),
+    parent: typeof record['parent'] === 'string' ? record['parent'] : null,
   };
 }

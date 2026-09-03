@@ -38,30 +38,32 @@ so the leader key reaches atc.
 
 ## Keys
 
-| Key             | Where          | Action                                                                                         |
-| --------------- | -------------- | ---------------------------------------------------------------------------------------------- |
-| leader          | anywhere       | toggle session overlay — `Ctrl-Space` by default, configurable                                 |
-| `n`             | home/overlay   | spawn: pick agent → dir → name → optional first prompt                                         |
-| `r`             | home/overlay   | adopt an existing session: pick agent → dir → name                                             |
-| `R`             | home           | restore the last fleet after a daemon death                                                    |
-| `j`/`k`/`↑`/`↓` | overlay/picker | move                                                                                           |
-| `Enter`         | overlay        | attach (auto-acks)                                                                             |
-| `Tab`           | overlay        | attach the most urgent needs-you session, else the latest turn-done one                        |
-| `/`             | overlay        | fuzzy filter by name/dir, `⏎` attach top match, `esc` clear                                    |
-| `a`             | overlay        | ack a notification without attaching                                                           |
-| `p`             | overlay        | pin or unpin — pinned sessions stay at the top of the list                                     |
-| `g`             | overlay        | toggle the grouped view: sessions cluster under repository headers                             |
-| `H`             | overlay        | eject to headless — hidden on agents with no headless handoff                                  |
-| `P`             | overlay        | revive: a fresh terminal resumes a headless or killed session in place                         |
-| `y`             | overlay        | yank the resume command for the session's agent                                                |
-| `Y`             | overlay        | eject: yank the resume command, then kill the session here                                     |
-| `K`             | overlay        | kill selected (confirm with `y`) — the entry stays revivable with `P`; a second `K` forgets it |
-| `u`             | overlay        | restart an outdated daemon and restore the fleet — offered while `⟳ update ready` shows        |
-| `?`             | overlay        | full key reference — the hint row only shows actions valid for the selected session            |
-| `q`             | home/overlay   | quit the client — sessions keep running in the daemon                                          |
+| Key             | Where          | Action                                                                                                              |
+| --------------- | -------------- | ------------------------------------------------------------------------------------------------------------------- |
+| leader          | anywhere       | toggle session overlay — `Ctrl-Space` by default, configurable                                                      |
+| `n`             | home/overlay   | spawn: pick agent → dir → name → optional first prompt                                                              |
+| `r`             | home/overlay   | adopt an existing session: pick agent → dir → name                                                                  |
+| `R`             | home           | restore the last fleet after a daemon death                                                                         |
+| `j`/`k`/`↑`/`↓` | overlay/picker | move                                                                                                                |
+| `Enter`         | overlay        | attach (auto-acks)                                                                                                  |
+| `Tab`           | overlay        | attach the most urgent needs-you session, else the latest turn-done one                                             |
+| `/`             | overlay        | fuzzy filter by name/dir, `⏎` attach top match, `esc` clear                                                         |
+| `a`             | overlay        | ack a notification without attaching                                                                                |
+| `p`             | overlay        | pin or unpin — pinned sessions stay at the top of the list; a sub-session pins with its parent                      |
+| `g`             | overlay        | toggle the grouped view: sessions cluster under repository headers                                                  |
+| `H`             | overlay        | eject to headless — hidden on agents with no headless handoff                                                       |
+| `P`             | overlay        | revive: a fresh terminal resumes a headless or killed session in place                                              |
+| `y`             | overlay        | yank the resume command for the session's agent                                                                     |
+| `Y`             | overlay        | eject: yank the resume command, then kill the session here                                                          |
+| `K`             | overlay        | kill selected and its sub-sessions (confirm with `y`) — the entry stays revivable with `P`; a second `K` forgets it |
+| `u`             | overlay        | restart an outdated daemon and restore the fleet — offered while `⟳ update ready` shows                             |
+| `?`             | overlay        | full key reference — the hint row only shows actions valid for the selected session                                 |
+| `q`             | home/overlay   | quit the client — sessions keep running in the daemon                                                               |
 
 The overlay orders sessions by pinned first, then attention state, then most recently attached, so
-the session you want is nearly always near the top. Session states: red `●` needs you, cyan `◐`
+the session you want is nearly always near the top. A sub-session, spawned from inside another
+session through `atc mcp`, lists indented under its parent (`↳ worker`) and sorts among its siblings
+alone, so its attention never moves the parent's row. Session states: red `●` needs you, cyan `◐`
 running, green `✓` turn done, gray `✗` exited. Everything else passes through to the focused
 session, which owns the full screen; while attached, atc appends a fleet segment
 (`▏● 2 need you: auth-bug`) to your own Claude Code statusline.
@@ -119,6 +121,9 @@ client, wrangled sessions included:
 ```sh
 claude mcp add --scope user atc -- atc mcp
 ```
+
+A spawn from inside a wrangled session makes a sub-session: it lists under the calling session, pins
+with it, and is killed with it. Pass `detached: true` to spawn a top-level session instead.
 
 ## Crash safety
 

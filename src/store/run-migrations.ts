@@ -11,6 +11,7 @@ interface FleetTable {
   last_attached: number | null;
   agent: string;
   exited: number;
+  parent: string | null;
 }
 
 interface EventsTable {
@@ -117,6 +118,11 @@ const MIGRATIONS: Record<string, Migration> = {
         .alterTable('fleet')
         .addColumn('exited', 'integer', (c) => c.notNull().defaultTo(0))
         .execute();
+    },
+  },
+  '007_add_fleet_parent': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('parent', 'text').execute();
     },
   },
 };
@@ -236,6 +242,10 @@ function pickBaselineSteps(columns: ReadonlySet<string>): readonly string[] {
 
   if (columns.has('exited')) {
     steps.push('006_add_fleet_exited');
+  }
+
+  if (columns.has('parent')) {
+    steps.push('007_add_fleet_parent');
   }
 
   return steps;

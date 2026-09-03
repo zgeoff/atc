@@ -174,6 +174,8 @@ function dimRow(width: number, text: string): Row {
 
 // Selection-dependent hints need the liveness facts of each row.
 export interface OverlaySessionView extends SessionView {
+  readonly id: string;
+  readonly parent: string | null;
   readonly alive: boolean;
   readonly kind: 'pty' | 'headless';
   readonly resumable: boolean;
@@ -208,20 +210,22 @@ export function drawOverlay(view: OverlayView) {
 
   // The grouped view clusters sessions under dim repository headers, with
   // pinned sessions leading in their own cluster; the flat view shows a
-  // directory column instead. The rows keep the sorted order either way.
+  // directory column instead. The rows keep the sorted order either way. A
+  // sub-session row follows its parent indented, and never opens a header.
   let lastKey: string | null = null;
 
   for (const [i, s] of view.sessions.entries()) {
+    const sub = s.parent !== null && view.sessions.some((x) => x.id === s.parent);
     const key = s.pinned ? PINNED_GROUP_KEY : s.repoRoot;
 
-    if (view.grouped && key !== lastKey) {
+    if (view.grouped && !sub && key !== lastKey) {
       lastKey = key;
 
       rowsList.push(dimRow(width, `▸ ${s.pinned ? 'pinned' : formatDir(s.repoRoot)}`));
     }
 
     const sel = i === view.selected;
-    const name = truncate(s.name, 16).padEnd(16);
+    const name = (sub ? `↳ ${truncate(s.name, 14)}` : truncate(s.name, 16)).padEnd(16);
     const state = STATE_LABEL[s.state].padEnd(9);
     const dir = view.grouped ? '' : ` ${truncate(formatDir(s.cwd), 18).padEnd(18)}`;
     const msgWidth = Math.max(4, width - 4 - 4 - 17 - 10 - (view.grouped ? 0 : 19));
@@ -249,7 +253,8 @@ export function drawOverlay(view: OverlayView) {
     );
   }
 
-  let hint = buildOverlayHint(view.sessions[view.selected]);
+  const selected = view.sessions[view.selected];
+  let hint = buildOverlayHint(selected, view.sessions);
 
   if (view.stale) {
     hint += ' · u update daemon';
@@ -260,7 +265,7 @@ export function drawOverlay(view: OverlayView) {
   }
 
   if (view.confirmKill) {
-    hint = 'kill selected session? y / n';
+    hint = formatKillConfirm(selected, view.sessions);
   }
 
   rowsList.push(dimRow(width, hint), boxBottom(width));
@@ -268,11 +273,33 @@ export function drawOverlay(view: OverlayView) {
   drawBox(rowsList);
 }
 
+// A kill acts on the selected session's whole set, so the confirm counts
+// the live sub-sessions that go with it; a forget counts the dead ones.
+function formatKillConfirm(
+  s: OverlaySessionView | undefined,
+  list: readonly OverlaySessionView[],
+): string {
+  const children = s === undefined ? [] : list.filter((x) => x.parent === s.id);
+  const affected = children.filter((x) => x.alive === (s?.alive ?? false));
+
+  if (affected.length === 0) {
+    return 'kill selected session? y / n';
+  }
+
+  const noun = affected.length === 1 ? 'sub-session' : 'sub-sessions';
+
+  return `kill selected session and its ${affected.length} ${noun}? y / n`;
+}
+
 const GLOBAL_HINT = 'g groups · n new · ? keys';
 
 // Only the actions valid for the selected row appear; the full reference
-// lives behind ?. Grok has no headless handoff, so H is omitted there.
-export function buildOverlayHint(s: OverlaySessionView | undefined): string {
+// lives behind ?. Grok has no headless handoff, so H is omitted there. A
+// sub-session's pin action targets its parent.
+export function buildOverlayHint(
+  s: OverlaySessionView | undefined,
+  list: readonly OverlaySessionView[] = [],
+): string {
   if (s === undefined) {
     return GLOBAL_HINT;
   }
@@ -301,7 +328,9 @@ export function buildOverlayHint(s: OverlaySessionView | undefined): string {
     actions.push('K forget');
   }
 
-  const pinAction = s.pinned ? 'p unpin' : 'p pin';
+  const owner = (s.parent === null ? undefined : list.find((x) => x.id === s.parent)) ?? s;
+  const pinVerb = owner.pinned ? 'p unpin' : 'p pin';
+  const pinAction = owner === s ? pinVerb : `${pinVerb} parent`;
 
   actions.push(pinAction);
 
@@ -321,6 +350,7 @@ export function drawHelp() {
     'Y  yank the resume command, then kill here',
     'K  kill (K again on a dead session forgets it)',
     'p  pin or unpin — pinned sessions stay on top',
+    '    a sub-session pins with its parent',
     'g  toggle grouping by repository',
     '    Grok rows show a dim g after the pin mark',
     'n  new session',

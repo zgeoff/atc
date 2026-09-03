@@ -4,6 +4,7 @@ import { sortGroupedSessionViews, sortSessionViews } from '../src/daemon/session
 
 interface View {
   readonly id: string;
+  readonly parent: string | null;
   readonly state: SessionState;
   readonly pinned: boolean;
   readonly lastAttachedAt: number;
@@ -15,10 +16,11 @@ function buildView(
   id: string,
   state: SessionState,
   lastAttachedAt: number,
-  overrides: Partial<Pick<View, 'pinned' | 'repoRoot'>> = {},
+  overrides: Partial<Pick<View, 'pinned' | 'repoRoot' | 'parent'>> = {},
 ): View {
   return {
     id,
+    parent: overrides.parent ?? null,
     state,
     pinned: overrides.pinned ?? false,
     lastAttachedAt,
@@ -88,4 +90,76 @@ test('it pulls pinned sessions out of their repositories into a leading cluster'
   const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
 
   expect(ids).toEqual(['starred', 'worker']);
+});
+
+test('it lists a sub-session directly under its parent', () => {
+  const fleet = [
+    buildView('other', 'running', 9),
+    buildView('worker', 'running', 8, { parent: 'wrangler' }),
+    buildView('wrangler', 'running', 1),
+  ];
+
+  const ids = sortSessionViews(fleet).map((s) => s.id);
+
+  expect(ids).toEqual(['other', 'wrangler', 'worker']);
+});
+
+test('it never moves a parent for the attention of its sub-sessions', () => {
+  const fleet = [
+    buildView('other', 'done', 9),
+    buildView('worker', 'needs_you', 8, { parent: 'wrangler' }),
+    buildView('wrangler', 'running', 1),
+  ];
+
+  const ids = sortSessionViews(fleet).map((s) => s.id);
+
+  expect(ids).toEqual(['other', 'wrangler', 'worker']);
+});
+
+test('it orders sub-sessions by urgency among their siblings', () => {
+  const fleet = [
+    buildView('wrangler', 'running', 1),
+    buildView('idle', 'running', 3, { parent: 'wrangler' }),
+    buildView('urgent', 'needs_you', 2, { parent: 'wrangler' }),
+    buildView('finished', 'done', 4, { parent: 'wrangler' }),
+  ];
+
+  const ids = sortSessionViews(fleet).map((s) => s.id);
+
+  expect(ids).toEqual(['wrangler', 'urgent', 'finished', 'idle']);
+});
+
+test('it ranks a sub-session whose parent is not listed as a top-level row', () => {
+  const fleet = [
+    buildView('busy', 'running', 9),
+    buildView('orphan', 'needs_you', 1, { parent: 'gone' }),
+  ];
+
+  const ids = sortSessionViews(fleet).map((s) => s.id);
+
+  expect(ids).toEqual(['orphan', 'busy']);
+});
+
+test('it keeps a pinned parent and its sub-sessions together at the top', () => {
+  const fleet = [
+    buildView('urgent', 'needs_you', 9),
+    buildView('worker', 'running', 8, { parent: 'wrangler' }),
+    buildView('wrangler', 'running', 1, { pinned: true }),
+  ];
+
+  const ids = sortSessionViews(fleet).map((s) => s.id);
+
+  expect(ids).toEqual(['wrangler', 'worker', 'urgent']);
+});
+
+test('it groups a sub-session under its parent repository, not its own', () => {
+  const fleet = [
+    buildView('wrangler', 'running', 1, { repoRoot: '/repo/alpha' }),
+    buildView('worker', 'running', 2, { parent: 'wrangler', repoRoot: '/repo/beta' }),
+    buildView('other', 'running', 3, { repoRoot: '/repo/beta' }),
+  ];
+
+  const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
+
+  expect(ids).toEqual(['other', 'wrangler', 'worker']);
 });

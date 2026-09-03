@@ -51,7 +51,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
   // reported an event keep their stored order at the end. Exited entries
   // dedupe against every listed session, so repeated restores never double
   // up the killed archive.
-  const entries = stored
+  const kept = stored
     .filter((entry) =>
       entry.exited === true
         ? !hasAnySession(entry.agentSessionID)
@@ -60,6 +60,14 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
     .toSorted((a, b) =>
       (recency.get(b.agentSessionID) ?? '').localeCompare(recency.get(a.agentSessionID) ?? ''),
     );
+
+  // Sub-sessions register after every top-level entry, so each one links
+  // to a parent that is already listed; the wrangling session also boots
+  // before the sessions it wrangles.
+  const entries = [
+    ...kept.filter((entry) => entry.parent === undefined),
+    ...kept.filter((entry) => entry.parent !== undefined),
+  ];
 
   // The whole fleet registers as terminal-less sessions up front, so the
   // list shows every incoming session immediately instead of revealing them

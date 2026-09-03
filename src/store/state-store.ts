@@ -63,7 +63,16 @@ export class StateStore {
   async loadFleet(): Promise<FleetEntry[]> {
     const rows = await this.db
       .selectFrom('fleet')
-      .select(['agent_session_id', 'name', 'cwd', 'pinned', 'last_attached', 'agent', 'exited'])
+      .select([
+        'agent_session_id',
+        'name',
+        'cwd',
+        'pinned',
+        'last_attached',
+        'agent',
+        'exited',
+        'parent',
+      ])
       .execute();
 
     const entries: FleetEntry[] = [];
@@ -77,6 +86,7 @@ export class StateStore {
         ...(row.pinned === 0 ? {} : { pinned: true }),
         ...(row.last_attached === null ? {} : { lastAttachedAt: row.last_attached }),
         ...(row.exited === 0 ? {} : { exited: true }),
+        ...(row.parent === null ? {} : { parent: toAgentSessionID(row.parent) }),
       });
     }
 
@@ -121,6 +131,7 @@ export class StateStore {
             last_attached: entry.lastAttachedAt ?? null,
             agent: entry.agent,
             exited: entry.exited === true ? 1 : 0,
+            parent: entry.parent ?? null,
           })
           .orReplace()
           .execute();

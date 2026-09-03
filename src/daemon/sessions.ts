@@ -38,6 +38,10 @@ export interface SessionDescriptor {
   // Whether this session's agent can run a headless turn, so the client can
   // offer the eject action without knowing which agent it is.
   readonly canEject: boolean;
+
+  // The session this one is a sub-session of, when it has one: it lists
+  // under that session and takes its pin from it.
+  readonly parent?: SessionID;
 }
 
 export interface Session {
@@ -67,6 +71,10 @@ export interface Session {
   // user-typed spawn name beats auto-summaries.
   namedBy: 'user' | 'auto' | 'agent';
   createdAt: number;
+
+  // The session that spawned this one as a sub-session; null for a
+  // top-level session. One level deep: a sub-session never owns another.
+  parent: SessionID | null;
 }
 
 export class SessionManager {
@@ -171,6 +179,7 @@ export class SessionManager {
       repoRoot: resolveRepoRoot(entry.cwd),
       namedBy: 'auto',
       createdAt: Date.now(),
+      parent: this.findByAgentSessionID(entry.parent)?.id ?? null,
     };
 
     this.sessions.push(session);
@@ -178,6 +187,14 @@ export class SessionManager {
     this.onEvent('added', session);
 
     return session;
+  }
+
+  private findByAgentSessionID(agentSessionID: AgentSessionID | undefined): Session | undefined {
+    if (agentSessionID === undefined) {
+      return undefined;
+    }
+
+    return this.sessions.find((s) => s.agentSessionID === agentSessionID);
   }
 
   // Adopts a headless session back into a terminal: a fresh PTY resumes the
@@ -237,13 +254,18 @@ export class SessionManager {
   /**
    * Renames and/or pins a session on a caller's behalf. A rename lands at
    * user strength, so auto-summaries stop overwriting it while an
-   * in-session rename still wins. Pinned sessions lead every list.
+   * in-session rename still wins. Pinned sessions lead every list. A
+   * sub-session takes its pin from its parent, so pinning one is refused.
    */
-  updateSession(id: SessionID, name?: string, pinned?: boolean): boolean {
+  updateSession(id: SessionID, name?: string, pinned?: boolean): boolean | 'child_pin' {
     const s = this.sessions.find((x) => x.id === id);
 
     if (s === undefined) {
       return false;
+    }
+
+    if (pinned !== undefined && s.parent !== null) {
+      return 'child_pin';
     }
 
     if (name !== undefined && name !== '' && s.namedBy !== 'agent') {
@@ -310,7 +332,8 @@ export class SessionManager {
   }
 
   // resume: true opens the agent's own session picker; an agent session id
-  // resumes that specific session (fleet restore).
+  // resumes that specific session (fleet restore). parent makes the new
+  // session a sub-session of that one.
   spawn(
     cwd: string,
     name: string,
@@ -320,6 +343,7 @@ export class SessionManager {
     resume: boolean | AgentSessionID = false,
     namedBy: 'user' | 'auto' = 'auto',
     agent: AgentID = 'claude',
+    parent: SessionID | null = null,
   ): Session {
     const adapter = this.findAdapter(agent);
 
@@ -360,6 +384,7 @@ export class SessionManager {
       repoRoot: resolveRepoRoot(cwd),
       namedBy,
       createdAt: Date.now(),
+      parent,
     };
 
     pty.onData((d) => {
@@ -408,7 +433,13 @@ export class SessionManager {
       kind: s.kind,
       alive: s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'),
       canEject: (this.findAdapter(s.agent)?.headlessRunner ?? null) !== null,
+      ...(s.parent === null ? {} : { parent: s.parent }),
     }));
+  }
+
+  // The live and dead sub-sessions of a session, in list order.
+  collectChildren(id: SessionID): Session[] {
+    return this.sessions.filter((s) => s.parent === id);
   }
 
   // Returns the normalized event kind so the caller can key lifecycle
@@ -585,7 +616,9 @@ export class SessionManager {
 
   // A kill's response is the caller's cue that the session is safely
   // archived, so the write it depends on must land before that response
-  // goes out.
+  // goes out. A kill acts on the whole set: killing a session kills its
+  // live sub-sessions with it, and forgetting a dead one forgets its dead
+  // sub-sessions and promotes any live ones to top level.
   async kill(id: SessionID): Promise<void> {
     const s = this.sessions.find((x) => x.id === id);
 
@@ -594,26 +627,55 @@ export class SessionManager {
     }
 
     if (s.pty) {
-      s.pty.kill();
-
-      s.pty = null;
-      s.state = 'exited';
-      s.lastMsg = 'killed';
-
-      this.onEvent('state', s);
-    } else {
-      this.sessions = this.sessions.filter((x) => x.id !== id);
-
-      if (this.focusedId === id) {
-        this.focusedId = null;
+      for (const child of this.collectChildren(id)) {
+        this.killTerminal(child);
       }
 
-      this.onEvent('removed', s);
+      this.killTerminal(s);
+    } else {
+      for (const child of this.collectChildren(id)) {
+        if (child.pty === null && !(child.kind === 'headless' && child.state !== 'exited')) {
+          this.remove(child);
+        } else {
+          child.parent = null;
+
+          this.onEvent('state', child);
+        }
+      }
+
+      this.remove(s);
     }
 
     await this.writeFleet();
 
     this.emitChange();
+  }
+
+  // Ends a live session, terminal or headless, leaving a dead entry; a
+  // session already dead is left as it is.
+  private killTerminal(s: Session) {
+    if (s.pty !== null) {
+      s.pty.kill();
+
+      s.pty = null;
+    } else if (s.kind !== 'headless' || s.state === 'exited') {
+      return;
+    }
+
+    s.state = 'exited';
+    s.lastMsg = 'killed';
+
+    this.onEvent('state', s);
+  }
+
+  private remove(s: Session) {
+    this.sessions = this.sessions.filter((x) => x.id !== s.id);
+
+    if (this.focusedId === s.id) {
+      this.focusedId = null;
+    }
+
+    this.onEvent('removed', s);
   }
 
   killAll() {
@@ -653,6 +715,13 @@ export class SessionManager {
 
       const live = s.pty !== null || (s.kind === 'headless' && s.state !== 'exited');
 
+      // The link persists by the parent's agent session id, since atc ids
+      // are minted afresh on restore.
+      const parent =
+        s.parent === null
+          ? undefined
+          : this.sessions.find((x) => x.id === s.parent)?.agentSessionID;
+
       fleet.push({
         name: s.name,
         cwd: s.cwd,
@@ -661,6 +730,7 @@ export class SessionManager {
         ...(s.pinned ? { pinned: true } : {}),
         lastAttachedAt: s.lastAttachedAt,
         ...(live ? {} : { exited: true }),
+        ...(parent === undefined ? {} : { parent }),
       });
     }
 
@@ -689,6 +759,8 @@ export function countSessionStates(
 }
 
 interface SortableSessionView {
+  readonly id: string;
+  readonly parent: string | null;
   readonly state: SessionState;
   readonly pinned: boolean;
   readonly lastAttachedAt: number;
@@ -697,7 +769,10 @@ interface SortableSessionView {
 
 // Overlay order: pinned sessions first in most-recently-attached order, then
 // everyone else by urgency — who needs you, finished turns, busy, dead —
-// with most-recently-attached breaking ties inside each state.
+// with most-recently-attached breaking ties inside each state. A
+// sub-session sits directly under its parent, ranked among its siblings
+// alone, so its attention never moves the parent's row; a sub-session whose
+// parent is not listed ranks as a top-level row.
 export function sortSessionViews<T extends SortableSessionView>(list: readonly T[]): T[] {
   const rank: Record<SessionState, number> = {
     needs_you: 0,
@@ -706,7 +781,7 @@ export function sortSessionViews<T extends SortableSessionView>(list: readonly T
     exited: 3,
   };
 
-  return [...list].toSorted((a, b) => {
+  const ranked = [...list].toSorted((a, b) => {
     if (a.pinned !== b.pinned) {
       return a.pinned ? -1 : 1;
     }
@@ -715,6 +790,20 @@ export function sortSessionViews<T extends SortableSessionView>(list: readonly T
 
     return a.pinned ? recency : rank[a.state] - rank[b.state] || recency;
   });
+
+  const listed = new Set(ranked.map((s) => s.id));
+
+  const sorted: T[] = [];
+
+  for (const s of ranked) {
+    if (s.parent !== null && listed.has(s.parent)) {
+      continue;
+    }
+
+    sorted.push(s, ...ranked.filter((child) => child.parent === s.id));
+  }
+
+  return sorted;
 }
 
 // Never a filesystem path, so a repository can't collide with it.
@@ -723,14 +812,17 @@ export const PINNED_GROUP_KEY = ' pinned';
 // Overlay display order for the grouped view: the flat sort with each
 // repository's sessions pulled together at the position of its best-ranked
 // member, so the renderer's adjacency-based headers appear once per group.
-// Pinned sessions form their own leading group.
+// Pinned sessions form their own leading group. A sub-session keys by its
+// parent, so a set never splits across groups.
 export function sortGroupedSessionViews<
   T extends SortableSessionView & { readonly repoRoot: string },
 >(list: readonly T[]): T[] {
+  const byID = new Map(list.map((s) => [s.id, s]));
   const buckets = new Map<string, T[]>();
 
   for (const s of sortSessionViews(list)) {
-    const key = s.pinned ? PINNED_GROUP_KEY : s.repoRoot;
+    const owner = (s.parent === null ? undefined : byID.get(s.parent)) ?? s;
+    const key = owner.pinned ? PINNED_GROUP_KEY : owner.repoRoot;
     const bucket = buckets.get(key);
 
     if (bucket === undefined) {

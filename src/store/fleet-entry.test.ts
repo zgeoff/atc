@@ -24,6 +24,29 @@ test('it parses a well-formed row into a fleet entry', () => {
   });
 });
 
+test('it parses a parent agent session id into a branded id', () => {
+  expect(
+    parseFleetEntry({ name: 'worker', cwd: '/repo', agentSessionID: 'c-2', parent: 'c-1' }),
+  ).toStrictEqual({
+    name: 'worker',
+    cwd: '/repo',
+    agentSessionID: toAgentSessionID('c-2'),
+    agent: 'claude',
+    parent: toAgentSessionID('c-1'),
+  });
+});
+
+test('it omits parent when the row carries an empty one', () => {
+  expect(
+    parseFleetEntry({ name: 'worker', cwd: '/repo', agentSessionID: 'c-2', parent: '' }),
+  ).toStrictEqual({
+    name: 'worker',
+    cwd: '/repo',
+    agentSessionID: toAgentSessionID('c-2'),
+    agent: 'claude',
+  });
+});
+
 test('it omits pinned, lastAttachedAt, and exited when the row does not carry them', () => {
   expect(
     parseFleetEntry({ name: 'fix the bug', cwd: '/repo', agentSessionID: 'c-1' }),
