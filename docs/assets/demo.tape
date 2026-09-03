@@ -27,11 +27,11 @@ Type "atc"
 Sleep 900ms
 Enter
 Sleep 700ms
-Type "haiku"
+Type "help"
 Sleep 500ms
 Enter
 Sleep 700ms
-Type "write me a haiku"
+Type "i need a rubber duck"
 Sleep 500ms
 Enter
 Sleep 5s
@@ -39,7 +39,7 @@ Sleep 5s
 # the session list over the running session; filter to a staged session and attach it
 Ctrl+Space
 Sleep 2s
-Type "/rubber-duck"
+Type "/dinner"
 Sleep 700ms
 Enter
 Sleep 3s
@@ -47,7 +47,7 @@ Sleep 3s
 # and back to the one we spawned
 Ctrl+Space
 Sleep 1.2s
-Type "/haiku"
+Type "/help"
 Sleep 700ms
 Enter
 Sleep 2s
