@@ -6,6 +6,7 @@ test('it prefers the most urgent needs-you session over any done session', () =>
     [
       {
         id: 'a',
+        parent: null,
         state: 'done',
         pinned: false,
         lastAttachedAt: 1,
@@ -15,6 +16,7 @@ test('it prefers the most urgent needs-you session over any done session', () =>
       },
       {
         id: 'b',
+        parent: null,
         state: 'needs_you',
         pinned: false,
         lastAttachedAt: 2,
@@ -34,6 +36,7 @@ test('it falls back to the terminal session whose turn finished most recently', 
     [
       {
         id: 'a',
+        parent: null,
         state: 'done',
         pinned: false,
         lastAttachedAt: 1,
@@ -43,6 +46,7 @@ test('it falls back to the terminal session whose turn finished most recently', 
       },
       {
         id: 'b',
+        parent: null,
         state: 'done',
         pinned: false,
         lastAttachedAt: 2,
@@ -52,6 +56,7 @@ test('it falls back to the terminal session whose turn finished most recently', 
       },
       {
         id: 'c',
+        parent: null,
         state: 'running',
         pinned: false,
         lastAttachedAt: 3,
@@ -75,6 +80,7 @@ test('it ranks done sessions without a recorded finish time last', () => {
     [
       {
         id: 'a',
+        parent: null,
         state: 'done',
         pinned: false,
         lastAttachedAt: 1,
@@ -84,6 +90,7 @@ test('it ranks done sessions without a recorded finish time last', () => {
       },
       {
         id: 'b',
+        parent: null,
         state: 'done',
         pinned: false,
         lastAttachedAt: 2,
@@ -103,6 +110,7 @@ test('it skips headless and dead sessions in the done fallback', () => {
     [
       {
         id: 'a',
+        parent: null,
         state: 'done',
         pinned: false,
         lastAttachedAt: 1,
@@ -112,6 +120,7 @@ test('it skips headless and dead sessions in the done fallback', () => {
       },
       {
         id: 'b',
+        parent: null,
         state: 'done',
         pinned: false,
         lastAttachedAt: 2,
@@ -121,6 +130,7 @@ test('it skips headless and dead sessions in the done fallback', () => {
       },
       {
         id: 'c',
+        parent: null,
         state: 'done',
         pinned: false,
         lastAttachedAt: 3,
@@ -145,6 +155,7 @@ test('it picks nothing when no session needs you and none are done', () => {
     [
       {
         id: 'a',
+        parent: null,
         state: 'running',
         pinned: false,
         lastAttachedAt: 1,

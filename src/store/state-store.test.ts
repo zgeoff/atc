@@ -456,6 +456,81 @@ test('it round-trips an exited fleet row', async () => {
   ]);
 });
 
+test('it round-trips a sub-session fleet row', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    { name: 'wrangler', cwd: '/x', agentSessionID: toAgentSessionID('c1'), agent: 'claude' },
+    {
+      name: 'worker',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c2'),
+      agent: 'claude',
+      parent: toAgentSessionID('c1'),
+    },
+  ]);
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    { name: 'wrangler', cwd: '/x', agentSessionID: toAgentSessionID('c1'), agent: 'claude' },
+    {
+      name: 'worker',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c2'),
+      agent: 'claude',
+      parent: toAgentSessionID('c1'),
+    },
+  ]);
+});
+
+test('it adds parent to a fleet row that predates it', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const db = new Database(dbPath);
+
+  db.run(`
+    CREATE TABLE fleet (
+      agent_session_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      last_attached INTEGER,
+      agent TEXT NOT NULL DEFAULT 'claude',
+      exited INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+
+  db.run(
+    "INSERT INTO fleet (agent_session_id, name, cwd, pinned, last_attached, agent, exited) VALUES ('c1', 'old', '/x', 0, 555, 'claude', 1)",
+  );
+
+  db.close();
+
+  const store = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    {
+      name: 'old',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      lastAttachedAt: 555,
+      exited: true,
+    },
+  ]);
+});
+
 test('it defaults last-used agent to claude and round-trips a write', async () => {
   const store = await StateStore.open(join(setupDir(), 'state.db'));
 
@@ -735,6 +810,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '004_add_fleet_last_attached',
     '005_add_fleet_agent',
     '006_add_fleet_exited',
+    '007_add_fleet_parent',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -768,7 +844,8 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
       pinned INTEGER NOT NULL DEFAULT 0,
       last_attached INTEGER,
       agent TEXT NOT NULL DEFAULT 'claude',
-      exited INTEGER NOT NULL DEFAULT 0
+      exited INTEGER NOT NULL DEFAULT 0,
+      parent TEXT
     );
   `);
 

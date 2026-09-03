@@ -191,7 +191,16 @@ function pickOverlaySessions(): MirrorSession[] {
 
   const f = overlayFilter;
 
-  return sorted.filter((s) => findFuzzyScore(`${s.name} ${formatDir(s.cwd)}`, f) !== null);
+  const matched = new Set(
+    sorted
+      .filter((s) => findFuzzyScore(`${s.name} ${formatDir(s.cwd)}`, f) !== null)
+      .map((s) => s.id),
+  );
+
+  // A matching sub-session keeps its parent row, so it stays nested.
+  return sorted.filter(
+    (s) => matched.has(s.id) || sorted.some((c) => c.parent === s.id && matched.has(c.id)),
+  );
 }
 
 function renderOverlay() {
@@ -588,10 +597,13 @@ function applyOverlayKey(buf: Buffer) {
   }
 
   if (ch === 'p' && sel !== undefined) {
-    // Flipped locally too so the repaint is immediate; the daemon's state
-    // event confirms it.
-    sel.pinned = !sel.pinned;
-    void sendQuiet('session.update', { session: sel.id, pinned: sel.pinned });
+    // A sub-session pins with its parent. Flipped locally too so the
+    // repaint is immediate; the daemon's state event confirms it.
+    const target =
+      (sel.parent === null ? undefined : fleet.find((x) => x.id === sel.parent)) ?? sel;
+
+    target.pinned = !target.pinned;
+    void sendQuiet('session.update', { session: target.id, pinned: target.pinned });
     renderOverlay();
 
     return;

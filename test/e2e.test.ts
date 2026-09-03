@@ -1,10 +1,12 @@
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
+import { DaemonClient } from '../src/client/daemon-client';
+import { isRecord } from '../src/shared/report';
 
 const repo = join(import.meta.dir, '..');
 const CTRL_SPACE = String.fromCodePoint(0);
@@ -580,6 +582,49 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   await ctx.waitFor('▸');
   await ctx.waitFor('otherproj');
+}, 15_000);
+
+test('it lists a sub-session indented under its parent', async () => {
+  await using ctx = setupTest();
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await spawnSession(ctx, pty, 'wrangler');
+
+  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  await daemon.sendHello('atc/test');
+
+  const listed = await daemon.sendRequest('session.list');
+
+  const sessions = listed['sessions'];
+
+  if (!Array.isArray(sessions) || !isRecord(sessions[0]) || typeof sessions[0]['id'] !== 'string') {
+    throw new TypeError('session.list answered without the spawned session');
+  }
+
+  await daemon.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    name: 'worker',
+    parent: sessions[0]['id'],
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.reset();
+  pty.write(CTRL_SPACE);
+
+  await ctx.waitFor('↳ worker');
+
+  const screen = ctx.read();
+
+  expect(screen.indexOf('wrangler')).toBeLessThan(screen.indexOf('↳ worker'));
 }, 15_000);
 
 test('it preselects the focused session when the overlay opens', async () => {

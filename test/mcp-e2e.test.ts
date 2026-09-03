@@ -26,8 +26,20 @@ interface MCPContext {
   readonly waitForResponse: (id: number) => Promise<Record<string, unknown>>;
 }
 
-function setupMCP(extraConfig: Readonly<Record<string, unknown>> = {}): MCPContext {
-  const home = mkdtempSync(join(tmpdir(), 'atc-mcp-'));
+interface MCPOptions {
+  readonly config?: Readonly<Record<string, unknown>>;
+
+  // A home from an earlier setup, so a second server joins the same daemon.
+  readonly home?: string;
+
+  // The session id the server sees itself running inside; absent means a
+  // server started outside any session.
+  readonly callerSessionID?: string;
+}
+
+function setupMCP(options: MCPOptions = {}): MCPContext {
+  const home = options.home ?? mkdtempSync(join(tmpdir(), 'atc-mcp-'));
+  const extraConfig = options.config ?? {};
 
   mkdirSync(join(home, '.config', 'atc'), { recursive: true });
   mkdirSync(join(home, '.local', 'state', 'atc'), { recursive: true });
@@ -70,7 +82,12 @@ sleep 30
   const proc: Subprocess<'pipe', 'pipe', 'ignore'> = Bun.spawn(
     [process.execPath, join(repo, 'src', 'cli.ts'), 'mcp'],
     {
-      env: collectEnv({ HOME: home, XDG_RUNTIME_DIR: home, PATH: '/usr/sbin:/usr/bin:/bin' }),
+      env: collectEnv({
+        HOME: home,
+        XDG_RUNTIME_DIR: home,
+        PATH: '/usr/sbin:/usr/bin:/bin',
+        ATC_SESSION_ID: options.callerSessionID ?? '',
+      }),
       stdin: 'pipe',
       stdout: 'pipe',
       stderr: 'ignore',
@@ -421,8 +438,10 @@ test('it answers an unknown rpc method with a json-rpc error', async () => {
 
 test('it spawns a session under a configured backend id', async () => {
   const ctx = setupMCP({
-    gateways: {
-      zai: { label: 'GLM (z.ai)', mark: 'z', baseURL: 'https://api.z.ai/api/anthropic' },
+    config: {
+      gateways: {
+        zai: { label: 'GLM (z.ai)', mark: 'z', baseURL: 'https://api.z.ai/api/anthropic' },
+      },
     },
   });
 
@@ -451,13 +470,15 @@ test('it spawns a session under a configured backend id', async () => {
 
 test('it writes a backend settings file that carries the base URL and no credential', async () => {
   const ctx = setupMCP({
-    gateways: {
-      zai: {
-        label: 'GLM (z.ai)',
-        mark: 'z',
-        baseURL: 'https://api.z.ai/api/anthropic',
-        apiKeyHelper: '/usr/bin/true',
-        env: { ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-5.2' },
+    config: {
+      gateways: {
+        zai: {
+          label: 'GLM (z.ai)',
+          mark: 'z',
+          baseURL: 'https://api.z.ai/api/anthropic',
+          apiKeyHelper: '/usr/bin/true',
+          env: { ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-5.2' },
+        },
       },
     },
   });
@@ -490,4 +511,116 @@ test('it writes a backend settings file that carries the base URL and no credent
   expect(written['apiKeyHelper']).toBe('/usr/bin/true');
   expect(readFileSync(settingsPath, 'utf8')).not.toInclude('ANTHROPIC_AUTH_TOKEN');
   expect(written['hooks']).toBeDefined();
+});
+
+test('it nests a spawn from inside a session under that session', async () => {
+  const outer = setupMCP();
+
+  outer.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await outer.waitForResponse(1);
+
+  outer.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: outer.home, name: 'wrangler' } },
+  });
+
+  const wranglerResponse = await outer.waitForResponse(2);
+
+  const wrangler: unknown = JSON.parse(getText(getResult(wranglerResponse)));
+
+  if (!isRecord(wrangler) || typeof wrangler['id'] !== 'string') {
+    throw new TypeError('spawn answered without a session id');
+  }
+
+  const inner = setupMCP({ home: outer.home, callerSessionID: wrangler['id'] });
+
+  inner.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await inner.waitForResponse(1);
+
+  inner.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: outer.home, name: 'worker' } },
+  });
+
+  const workerResponse = await inner.waitForResponse(2);
+
+  const worker = getResult(workerResponse);
+
+  expect(worker['isError']).toBeUndefined();
+  expect(getText(worker)).toInclude(`"parent": "${wrangler['id']}"`);
+});
+
+test('it spawns a top-level session from inside a session when detached is set', async () => {
+  const outer = setupMCP();
+
+  outer.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await outer.waitForResponse(1);
+
+  outer.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: outer.home, name: 'wrangler' } },
+  });
+
+  const wranglerResponse = await outer.waitForResponse(2);
+
+  const wrangler: unknown = JSON.parse(getText(getResult(wranglerResponse)));
+
+  if (!isRecord(wrangler) || typeof wrangler['id'] !== 'string') {
+    throw new TypeError('spawn answered without a session id');
+  }
+
+  const inner = setupMCP({ home: outer.home, callerSessionID: wrangler['id'] });
+
+  inner.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await inner.waitForResponse(1);
+
+  inner.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: {
+      name: 'atc_session_spawn',
+      arguments: { cwd: outer.home, name: 'solo', detached: true },
+    },
+  });
+
+  const soloResponse = await inner.waitForResponse(2);
+
+  const solo = getResult(soloResponse);
+
+  expect(solo['isError']).toBeUndefined();
+  expect(getText(solo)).not.toInclude('"parent"');
+});
+
+test('it spawns a top-level session when the caller id matches no session', async () => {
+  const ctx = setupMCP({ callerSessionID: 'ghost' });
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home, name: 'stray' } },
+  });
+
+  const strayResponse = await ctx.waitForResponse(2);
+
+  const stray = getResult(strayResponse);
+
+  expect(stray['isError']).toBeUndefined();
+  expect(getText(stray)).toInclude('"name": "stray"');
+  expect(getText(stray)).not.toInclude('"parent"');
 });

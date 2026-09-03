@@ -43,6 +43,12 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
     agent: SPAWN_SCHEMA.shape.agent.describe(
       'Which registered agent id to spawn; defaults to claude',
     ),
+    detached: z
+      .boolean()
+      .optional()
+      .describe(
+        'Spawn a top-level session. By default a spawn from inside an atc session becomes a sub-session of it: listed under it, pinned with it, killed with it.',
+      ),
   }),
   { io: 'input' },
 );
@@ -57,7 +63,7 @@ const TOOLS: readonly MCPTool[] = [
   {
     name: 'atc_session_spawn',
     description:
-      'Spawn a new session in a directory. Optional agent is an agent id the daemon has registered, such as claude, grok, or codex; omitted agent is always Claude, never the TUI last-used value. An unregistered id is rejected. Returns the new session descriptor. Give it a prompt to start it working immediately.',
+      'Spawn a new session in a directory. Optional agent is an agent id the daemon has registered, such as claude, grok, or codex; omitted agent is always Claude, never the TUI last-used value. An unregistered id is rejected. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.',
     inputSchema: SPAWN_INPUT,
   },
   {
@@ -83,7 +89,7 @@ const TOOLS: readonly MCPTool[] = [
   {
     name: 'atc_session_update',
     description:
-      'Rename and/or pin a session. Renames stick against auto-summaries; pinned sessions lead every list. Use this to organise the fleet: name sessions after their task.',
+      'Rename and/or pin a session. Renames stick against auto-summaries; pinned sessions lead every list. A sub-session pins with its parent, so pin the parent instead. Use this to organise the fleet: name sessions after their task.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -249,14 +255,23 @@ async function runTool(
     case 'atc_session_spawn': {
       const rawAgent = args['agent'];
 
-      const ok = await client.sendRequest('session.spawn', {
+      // The server inherits the calling session's id from its environment,
+      // so a spawn from inside a session nests under it by default.
+      const caller = process.env['ATC_SESSION_ID'];
+      const nested = args['detached'] !== true && caller !== undefined && caller !== '';
+
+      const params = {
         cwd: args['cwd'],
         ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
         ...(typeof args['prompt'] === 'string' ? { prompt: args['prompt'] } : {}),
         ...(rawAgent === undefined ? {} : { agent: rawAgent }),
         cols: 100,
         rows: 30,
-      });
+      };
+
+      const ok = nested
+        ? await sendNestedSpawn(client, params, caller)
+        : await client.sendRequest('session.spawn', params);
 
       return JSON.stringify(ok['session'], null, 2);
     }
@@ -314,4 +329,23 @@ function sendResult(id: string | number, result: Readonly<Record<string, unknown
 
 function sendError(id: string | number, code: number, message: string): void {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } })}\n`);
+}
+
+// The inherited id can point at a session another daemon hosts, or one
+// this daemon no longer lists; the spawn then lands top-level instead of
+// failing the tool call.
+async function sendNestedSpawn(
+  client: FleetCaller,
+  params: Readonly<Record<string, unknown>>,
+  parent: string,
+): Promise<Readonly<Record<string, unknown>>> {
+  try {
+    return await client.sendRequest('session.spawn', { ...params, parent });
+  } catch (error) {
+    if (error instanceof DaemonError && error.code === 'no_such_session') {
+      return client.sendRequest('session.spawn', params);
+    }
+
+    throw error;
+  }
 }

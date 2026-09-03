@@ -120,6 +120,22 @@ test('it defaults session.spawn cols, rows, name, prompt, and resume', () => {
   });
 });
 
+test('it drops an empty session.spawn parent instead of branding it', () => {
+  const parsed = parseRequestParams('session.spawn', { cwd: '/tmp', parent: '' });
+
+  if (!parsed.ok) {
+    throw new Error(parsed.message);
+  }
+
+  expect(parsed.data.parent).toBeUndefined();
+});
+
+test('it carries a session.spawn parent through as a session id', () => {
+  const parsed = parseRequestParams('session.spawn', { cwd: '/tmp', parent: 's-1' });
+
+  expect(parsed).toMatchObject({ ok: true, data: { parent: 's-1' } });
+});
+
 test('it defaults session.attach cols and rows to 80 and 24', () => {
   const parsed = parseRequestParams('session.attach', { session: 's1' });
 

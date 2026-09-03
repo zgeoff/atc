@@ -73,6 +73,26 @@ test('it returns null for a descriptor missing a required field, rather than thr
 // canEject is what keeps the H key on a row whose adapter can run a headless
 // turn. A gateway session is a Claude binary under another id, so the flag —
 // not the agent id — has to decide.
+test('it keeps parent when the descriptor carries one', () => {
+  const mirror = toMirrorSession(buildDescriptor({ parent: 's-0' }));
+
+  if (mirror === null) {
+    throw new Error('expected a mirror session');
+  }
+
+  expect(mirror.parent).toBe('s-0');
+});
+
+test('it reports parent as null when the descriptor omits it', () => {
+  const mirror = toMirrorSession(buildDescriptor());
+
+  if (mirror === null) {
+    throw new Error('expected a mirror session');
+  }
+
+  expect(mirror.parent).toBeNull();
+});
+
 test('it keeps canEject when the descriptor sets it', () => {
   const mirror = toMirrorSession(buildDescriptor({ agent: 'zai', canEject: true }));
 

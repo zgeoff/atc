@@ -415,7 +415,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => mgr.findAdapter(kind),
     spawnSession: (p) => {
-      const s = mgr.spawn(p.cwd, p.name, p.prompt, p.cols, p.rows, p.resume, p.namedBy, p.agent);
+      const s = mgr.spawn(
+        p.cwd,
+        p.name,
+        p.prompt,
+        p.cols,
+        p.rows,
+        p.resume,
+        p.namedBy,
+        p.agent,
+        p.parent,
+      );
+
       const runtime = runtimes.get(s.id);
 
       if (runtime !== undefined) {
@@ -444,6 +455,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     killSession: async (id) => {
       if (!mgr.sessions.some((s) => s.id === id)) {
         return false;
+      }
+
+      for (const child of mgr.collectChildren(id)) {
+        runtimes.get(child.id)?.stopHeadlessRun();
       }
 
       runtimes.get(id)?.stopHeadlessRun();

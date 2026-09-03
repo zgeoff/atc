@@ -50,6 +50,7 @@ function buildGhostSession(): Session {
     repoRoot: '/tmp',
     namedBy: 'auto',
     createdAt: Date.now(),
+    parent: null,
   };
 }
 

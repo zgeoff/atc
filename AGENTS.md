@@ -198,6 +198,9 @@ repo tooling, not app code.
   reporter must never break the session it reports on.
 - The agent is the naming authority for sessions: `/rename` custom-titles beat user-typed names beat
   auto-summaries.
+- A spawn through `atc mcp` from inside a session makes a sub-session of the caller: listed under
+  it, pinned and killed with it, one level deep. The MCP server reads the caller from
+  `ATC_SESSION_ID`; `detached: true` opts out.
 - State lives in `~/.local/state/atc/`: `atc.db` (SQLite — fleet, hook-event trail, spawn history)
   plus `status.json`, which stays a plain file because statusline reporters read it without speaking
   the protocol. The fleet is rewritten on deliberate kills only, so crashes leave a restorable

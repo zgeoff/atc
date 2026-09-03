@@ -30,6 +30,15 @@ atc (client TUI) ── NDJSON protocol ──> atcd (atc daemon)
 - `src/daemon/sessions.ts` is the state machine: session states are `running`, `needs_you`, `done`,
   `exited`, each with an `unread` attention flag.
 
+## Sub-sessions
+
+A sub-session is a session spawned from inside another session through the MCP server, which reads
+the calling session's id from its environment. The sub-session lists indented under its parent and
+sorts among its siblings alone, so its attention never moves the parent's row. It pins with its
+parent, and a kill of the parent kills its live sub-sessions with it. The fleet table persists the
+link by the parent's agent session id, so a restore rebuilds the set under fresh atc ids. A spawn
+with `detached: true` makes a top-level session from inside a session.
+
 ## Agents and gateways
 
 A session records which agent it runs under as an id, and the daemon keys its adapter registry by

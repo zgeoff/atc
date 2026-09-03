@@ -300,6 +300,72 @@ test('it reports agent claude when session.spawn omits agent', async () => {
   expect(ok['session']).toMatchObject({ agent: 'claude' });
 });
 
+test('it answers session.spawn with an unknown parent as no_such_session', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  expect(
+    client.sendRequest('session.spawn', { cwd: '/tmp', parent: 'ghost', cols: 80, rows: 24 }),
+  ).rejects.toMatchObject({ code: 'no_such_session' });
+});
+
+test('it nests a spawn under its parent and lands a grandchild beside its parent', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  const top = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+
+  const topID = getSessionID(top);
+
+  const child = await client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    parent: topID,
+    cols: 80,
+    rows: 24,
+  });
+
+  const grandchild = await client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    parent: getSessionID(child),
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(child['session']).toMatchObject({ parent: topID });
+  expect(grandchild['session']).toMatchObject({ parent: topID });
+});
+
+test('it refuses to pin a sub-session as bad_args', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  const top = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+
+  const child = await client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    parent: getSessionID(top),
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(
+    client.sendRequest('session.update', { session: getSessionID(child), pinned: true }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
+});
+
+function getSessionID(ok: Readonly<Record<string, unknown>>): string {
+  const session = ok['session'];
+
+  if (!isRecord(session) || typeof session['id'] !== 'string') {
+    throw new TypeError('spawn answered without a session id');
+  }
+
+  return session['id'];
+}
+
 test('it refuses session.spawn with agent grok as unsupported', async () => {
   const client = await setupClient();
 

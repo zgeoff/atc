@@ -3,6 +3,7 @@ import { toAgentID } from '../agents/agent-adapter';
 import type { AgentID } from '../agents/agent-adapter';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalBoolean } from '../shared/build-optional-boolean';
+import { buildOptionalString } from '../shared/build-optional-string';
 import { isRecord } from '../shared/report';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 
@@ -14,6 +15,9 @@ export interface FleetEntry {
   readonly pinned?: boolean;
   readonly lastAttachedAt?: number;
   readonly exited?: boolean;
+
+  // The agent session id of the session this one is a sub-session of.
+  readonly parent?: AgentSessionID;
 }
 
 export interface FleetStore {
@@ -43,6 +47,7 @@ const FLEET_ENTRY_SCHEMA = z.preprocess(
     pinned: buildOptionalBoolean(),
     lastAttachedAt: buildOptionalNumber(),
     exited: buildOptionalBoolean(),
+    parent: buildOptionalString(),
   }),
 );
 
@@ -64,6 +69,9 @@ export function parseFleetEntry(raw: unknown): FleetEntry | undefined {
       ? {}
       : { lastAttachedAt: parsed.data.lastAttachedAt }),
     ...(parsed.data.exited === true ? { exited: true } : {}),
+    ...(parsed.data.parent === undefined || parsed.data.parent === ''
+      ? {}
+      : { parent: toAgentSessionID(parsed.data.parent) }),
   };
 }
 
