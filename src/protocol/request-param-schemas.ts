@@ -64,6 +64,7 @@ export const REQUEST_PARAM_SCHEMAS = {
     message: 'session.resize requires positive cols and rows',
   }),
   'session.resumeCommand': SESSION_DEFAULTED,
+  'session.screen': SESSION_DEFAULTED,
   'session.eject': SESSION_DEFAULTED.extend({
     prompt: buildDefaultedNonEmptyString(EJECT_DEFAULT_PROMPT),
   }),

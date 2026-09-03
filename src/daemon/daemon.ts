@@ -525,6 +525,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return true;
     },
     buildResumeCommand: (id) => mgr.buildResumeCommand(id),
+
+    // A killed session keeps its last screen until a second kill removes
+    // it, so a reader can still see what the agent printed before it died.
+    readSessionScreen: (id) => {
+      if (!mgr.sessions.some((x) => x.id === id)) {
+        return Promise.resolve('missing');
+      }
+
+      const screen = runtimes.get(id)?.screen ?? null;
+
+      return screen === null ? Promise.resolve('no_screen') : screen.renderText();
+    },
     answerPermission: (request, decision) => registry.answer(request, decision),
     attachSession: (client, sessionID, dims) => {
       const s = mgr.sessions.find((x) => x.id === sessionID);

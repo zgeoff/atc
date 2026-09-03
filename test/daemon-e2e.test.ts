@@ -10,6 +10,7 @@ import { getRecord } from '../src/shared/get-record';
 import { isRecord } from '../src/shared/report';
 import { toAgentSessionID } from '../src/shared/to-agent-session-id';
 import { StateStore } from '../src/store/state-store';
+import { waitFor } from './wait-for';
 
 const repo = dirname(import.meta.dir);
 
@@ -1078,6 +1079,74 @@ test('it resizes the pty before the attach replay reaches the client', async () 
 
   expect(resizedAt).toBeGreaterThanOrEqual(0);
   expect(outputAt).toBeGreaterThan(resizedAt);
+});
+
+test('it reads the current screen of a session as plain text without attaching', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const spawned = getRecord(ok, 'session');
+  const id = getString(spawned, 'id');
+
+  await client.sendRequest('session.input', { session: id, d: 'hello\n' });
+
+  const screen = await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('GOT:hello');
+
+    return read;
+  });
+
+  expect(screen).toStrictEqual({
+    text: expect.toStartWith('FAKE_CLAUDE_UP args:'),
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(screen['text']).not.toInclude('\u001B');
+});
+
+test('it keeps the last screen of a killed session readable', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const spawned = getRecord(ok, 'session');
+  const id = getString(spawned, 'id');
+
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_CLAUDE_UP');
+  });
+
+  await client.sendRequest('session.kill', { session: id });
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
+  );
+
+  const screen = await client.sendRequest('session.screen', { session: id });
+
+  expect(screen['text']).toInclude('FAKE_CLAUDE_UP');
 });
 
 test('it answers session.input on a dead session with session_dead', async () => {

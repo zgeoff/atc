@@ -262,6 +262,16 @@ test('it answers session.ack for an unknown session with no_such_session', async
   });
 });
 
+test('it answers session.screen for an unknown session with no_such_session', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  expect(client.sendRequest('session.screen', { session: 'nope' })).rejects.toMatchObject({
+    code: 'no_such_session',
+  });
+});
+
 test('it answers session.resumeCommand for an unknown session with no_such_session', async () => {
   const client = await setupClient();
 
