@@ -27,11 +27,11 @@ Type "atc"
 Sleep 900ms
 Enter
 Sleep 700ms
-Type "help"
+Type "miracles"
 Sleep 500ms
 Enter
 Sleep 700ms
-Type "i need a rubber duck"
+Type "magnets how do they work??"
 Sleep 500ms
 Enter
 Sleep 5s
@@ -47,7 +47,7 @@ Sleep 3s
 # and back to the one we spawned
 Ctrl+Space
 Sleep 1.2s
-Type "/help"
+Type "/miracles"
 Sleep 700ms
 Enter
 Sleep 2s

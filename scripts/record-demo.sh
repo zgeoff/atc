@@ -79,7 +79,7 @@ done
 # filters the list by the first name, so the two stay in step.
 stage() { bun "$ROOT/scripts/stage-demo-sessions.ts" spawn "$@"; }
 stage "$HOME/projects/atc" dinner "give me a recipe for your best chowder"
-stage "$HOME/projects/atc" miracles "magnets how do they work??"
+stage "$HOME/projects/atc" help "i need a rubber duck"
 sleep 6
 
 cd "$ROOT"
