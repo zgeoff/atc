@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.0.0...@zgeoff/atc@2.1.0) (2026-09-03)
+
+### Features
+
+- read a session screen as plain text over the protocol and mcp
+  ([#73](https://github.com/zgeoff/atc/issues/73))
+  ([5b6e01d](https://github.com/zgeoff/atc/commit/5b6e01d70db18f24083f8a30018d0e27b8338ef0))
+
 ## [2.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@1.0.3...@zgeoff/atc@2.0.0) (2026-09-01)
 
 ### ⚠ BREAKING CHANGES
