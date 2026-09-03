@@ -31,7 +31,7 @@ Type "haiku"
 Sleep 500ms
 Enter
 Sleep 700ms
-Type "write a haiku about every file in src/shared"
+Type "write me a haiku"
 Sleep 500ms
 Enter
 Sleep 5s

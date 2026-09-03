@@ -78,8 +78,8 @@ done
 # Two sessions already at work when the recording opens the list. The tape
 # filters the list by the first name, so the two stay in step.
 stage() { bun "$ROOT/scripts/stage-demo-sessions.ts" spawn "$@"; }
-stage "$HOME/projects/atc" rubber-duck "explain the daemon to me as if you were a rubber duck"
-stage "$HOME/projects/atc" roast "roast src/cli.ts. gently."
+stage "$HOME/projects/atc" rubber-duck "i need a rubber duck"
+stage "$HOME/projects/atc" chowder "give me a recipe for your best chowder"
 sleep 6
 
 cd "$ROOT"
