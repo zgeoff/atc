@@ -1,7 +1,7 @@
 {
   "name": "@zgeoff/atc",
   "version": "2.1.0",
-  "description": "Terminal control tower for Claude Code sessions",
+  "description": "Terminal control tower for coding-agent sessions",
   "homepage": "https://github.com/zgeoff/atc#readme",
   "bugs": "https://github.com/zgeoff/atc/issues",
   "license": "MIT",

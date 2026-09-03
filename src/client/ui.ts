@@ -420,7 +420,7 @@ export function drawHome(fleetCount = 0, leaderLabel = '^Space') {
   out(ansi.clear + ansi.hideCursor);
 
   const msgs = [
-    'atc — control tower for Claude and Grok sessions',
+    'atc — control tower for coding-agent sessions',
     '',
     'n       spawn a session',
     'r       adopt an existing session',

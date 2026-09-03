@@ -8,7 +8,7 @@ const main = defineCommand({
   meta: {
     name: 'atc',
     version: pkg.version,
-    description: 'Terminal control tower for Claude Code sessions',
+    description: 'Terminal control tower for coding-agent sessions',
   },
   default: 'tui',
   subCommands: {
