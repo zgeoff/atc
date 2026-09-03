@@ -88,6 +88,7 @@ semantics.
 | `session.input`         | keyboard input to a session (`{ session, d }`)                                                                                                 |
 | `session.resize`        | client reports its dims; effective size is the min across attached clients (broadcast as `SessionResized`)                                     |
 | `session.resumeCommand` | build the resume command for that session's agent (`claude --resume`, `grok --resume`, or `codex resume`)                                      |
+| `session.screen`        | the session's visible screen as plain text (`{ text, cols, rows }`), no attach needed; a killed session keeps its last screen                  |
 | `session.eject`         | hand a live session off to a headless run so it keeps working unattended                                                                       |
 | `session.adopt`         | bring a dead or headless session back onto a live terminal                                                                                     |
 | `fleet.restore`         | cold-boot recovery: respawn the persisted fleet                                                                                                |

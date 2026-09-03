@@ -75,6 +75,12 @@ const TOOLS: readonly MCPTool[] = [
     },
   },
   {
+    name: 'atc_session_screen',
+    description:
+      'Read the current terminal screen of a session as plain text, without attaching to it. Use it to see what a session printed or what it is waiting on before answering it with atc_session_input. A killed session keeps its last screen.',
+    inputSchema: SESSION_INPUT,
+  },
+  {
     name: 'atc_session_update',
     description:
       'Rename and/or pin a session. Renames stick against auto-summaries; pinned sessions lead every list. Use this to organise the fleet: name sessions after their task.',
@@ -261,6 +267,11 @@ async function runTool(
       });
 
       return 'sent';
+    }
+    case 'atc_session_screen': {
+      const ok = await client.sendRequest('session.screen', { session: args['session'] });
+
+      return typeof ok['text'] === 'string' ? ok['text'] : JSON.stringify(ok);
     }
     case 'atc_session_update': {
       await client.sendRequest('session.update', {

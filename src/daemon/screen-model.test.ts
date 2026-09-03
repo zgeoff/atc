@@ -1,4 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { waitFor } from '../../test/wait-for';
 import { RESET_INPUT_MODES } from '../shared/reset-input-modes';
 import { ScreenModel } from './screen-model';
 
@@ -163,4 +164,40 @@ test('it leads the replay with an input-mode reset', async () => {
   const replay = await ctx.model.renderReplay();
 
   expect(replay).toStartWith(RESET_INPUT_MODES);
+});
+
+test('it renders the visible screen as plain text with trailing blank rows dropped', async () => {
+  const ctx = setupModel();
+
+  ctx.model.record('hello fleet\r\n\u001B[32msecond\u001B[0m   ');
+
+  const screen = await waitFor(async () => {
+    const rendered = await ctx.model.renderText();
+
+    expect(rendered.text).toInclude('second');
+
+    return rendered;
+  });
+
+  expect(screen).toStrictEqual({ text: 'hello fleet\nsecond', cols: 40, rows: 10 });
+});
+
+test('it renders only the alternate buffer as text for a session on the alternate screen', async () => {
+  const ctx = setupModel();
+
+  ctx.model.record('normal screen\r\n');
+
+  await ctx.waitForReplay('normal screen');
+
+  ctx.model.record('\u001B[?1049h\u001B[Halternate screen');
+
+  const screen = await waitFor(async () => {
+    const rendered = await ctx.model.renderText();
+
+    expect(rendered.text).toInclude('alternate screen');
+
+    return rendered;
+  });
+
+  expect(screen.text).toBe('alternate screen');
 });

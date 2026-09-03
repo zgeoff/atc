@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
 import { isRecord } from '../src/shared/report';
+import { waitFor } from './wait-for';
 
 const repo = dirname(import.meta.dir);
 
@@ -204,6 +205,7 @@ test('it initializes and lists the fleet tools', async () => {
     'atc_session_list',
     'atc_session_spawn',
     'atc_session_input',
+    'atc_session_screen',
     'atc_session_update',
     'atc_session_kill',
     'atc_session_ack',
@@ -246,6 +248,54 @@ test('it spawns and lists a session through tool calls', async () => {
   const listed = getResult(listResponse);
 
   expect(getText(listed)).toInclude('mcp-spawned');
+});
+
+test('it reads a session screen through a tool call', async () => {
+  const ctx = setupMCP();
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home } },
+  });
+
+  const spawnResponse = await ctx.waitForResponse(2);
+
+  const spawned: unknown = JSON.parse(getText(getResult(spawnResponse)));
+
+  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
+    throw new TypeError('spawn answer has no session id');
+  }
+
+  const session = spawned['id'];
+  let rpcID = 3;
+
+  const screen = await waitFor(async () => {
+    const id = rpcID++;
+
+    ctx.sendRPC({
+      jsonrpc: '2.0',
+      id,
+      method: 'tools/call',
+      params: { name: 'atc_session_screen', arguments: { session } },
+    });
+
+    const response = await ctx.waitForResponse(id);
+
+    const result = getResult(response);
+
+    expect(result['isError']).toBeUndefined();
+    expect(getText(result)).toInclude('FAKE_CLAUDE_UP');
+
+    return getText(result);
+  });
+
+  expect(screen).toStartWith('FAKE_CLAUDE_UP args:');
 });
 
 test('it advertises agent on atc_session_spawn as an open string', async () => {

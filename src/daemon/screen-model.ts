@@ -2,6 +2,12 @@ import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal } from '@xterm/headless';
 import { RESET_INPUT_MODES } from '../shared/reset-input-modes';
 
+export interface ScreenText {
+  readonly text: string;
+  readonly cols: number;
+  readonly rows: number;
+}
+
 // The serializer already re-emits the modes the vt engine models (mouse
 // tracking, bracketed paste, focus events); these are the ones it drops.
 const REPLAYED_DEC_MODES = new Set([1006, 1007, 2031]);
@@ -99,6 +105,34 @@ export class ScreenModel {
     } while (pending !== this.flushed);
 
     return RESET_INPUT_MODES + this.renderVisibleScreen() + this.renderInputModes();
+  }
+
+  // The visible rows of whichever buffer the session is showing, as plain
+  // text with no escape sequences: one line per row, trailing blanks
+  // trimmed from each row, trailing blank rows dropped. Drains pending
+  // writes the same way the replay does, so text recorded just before the
+  // read is never missing from it.
+  async renderText(): Promise<ScreenText> {
+    let pending: Promise<void>;
+
+    do {
+      pending = this.flushed;
+
+      await pending;
+    } while (pending !== this.flushed);
+
+    const buffer = this.term.buffer.active;
+    const lines: string[] = [];
+
+    for (let y = 0; y < this.term.rows; y++) {
+      lines.push((buffer.getLine(buffer.baseY + y)?.translateToString(true) ?? '').trimEnd());
+    }
+
+    while (lines.length > 0 && lines.at(-1) === '') {
+      lines.pop();
+    }
+
+    return { text: lines.join('\n'), cols: this.term.cols, rows: this.term.rows };
   }
 
   updateDims(cols: number, rows: number): void {

@@ -113,8 +113,8 @@ consume the stream:
 - [The events socket](./docs/guides/events.md#the-events-socket) — a read-only unix socket any
   program can subscribe to, stable across atc upgrades.
 
-`atc mcp` exposes the fleet as MCP tools (list, spawn, drive, organise) to any MCP client, wrangled
-sessions included:
+`atc mcp` exposes the fleet as MCP tools (list, spawn, drive, read the screen, organise) to any MCP
+client, wrangled sessions included:
 
 ```sh
 claude mcp add --scope user atc -- atc mcp

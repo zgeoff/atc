@@ -15,6 +15,7 @@ import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { Dims } from './attach-registry';
 import type { AnswerResult } from './permission-registry';
+import type { ScreenText } from './screen-model';
 import type { SessionDescriptor } from './sessions';
 
 interface SpawnParams {
@@ -41,6 +42,7 @@ export interface DaemonContext {
   readonly quitDaemon: () => void;
   readonly ackSession: (id: SessionID) => boolean;
   readonly buildResumeCommand: (id: SessionID) => string | null;
+  readonly readSessionScreen: (id: SessionID) => Promise<ScreenText | 'missing' | 'no_screen'>;
   readonly answerPermission: (request: string, decision: string) => AnswerResult;
   readonly restoreFleet: (cols: number, rows: number) => Promise<number>;
   readonly attachSession: (
@@ -300,6 +302,29 @@ export class DaemonConnection {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
         } else {
           this.sendOk(req.id, { command });
+        }
+
+        return;
+      }
+      case 'session.screen': {
+        const parsed = parseRequestParams('session.screen', req.p);
+
+        if (!parsed.ok) {
+          this.sendErr(req.id, 'bad_args', parsed.message);
+
+          return;
+        }
+
+        const id = parsed.data.session;
+
+        const screen = await this.ctx.readSessionScreen(id);
+
+        if (screen === 'missing') {
+          this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
+        } else if (screen === 'no_screen') {
+          this.sendErr(req.id, 'session_dead', `session '${id}' has no captured screen`);
+        } else {
+          this.sendOk(req.id, { ...screen });
         }
 
         return;

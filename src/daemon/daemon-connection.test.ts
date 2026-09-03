@@ -55,6 +55,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     quitDaemon: assertUnreachable,
     ackSession: assertUnreachable,
     buildResumeCommand: assertUnreachable,
+    readSessionScreen: assertUnreachable,
     answerPermission: assertUnreachable,
     restoreFleet: assertUnreachable,
     attachSession: assertUnreachable,
