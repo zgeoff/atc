@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.1.0...@zgeoff/atc@2.2.0) (2026-09-03)
+
+### Features
+
+- nest sub-sessions under the session that spawned them
+  ([#77](https://github.com/zgeoff/atc/issues/77))
+  ([080b737](https://github.com/zgeoff/atc/commit/080b7379467b4edfc9a62c0a5565b357f21072ca))
+
 ## [2.1.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.0.0...@zgeoff/atc@2.1.0) (2026-09-03)
 
 ### Features
