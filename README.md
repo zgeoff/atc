@@ -16,14 +16,14 @@
   </p>
 </div>
 
+**atc** lets you run several coding agents at once in a single terminal pane and keep track of which
+are waiting on you.
+
+`claude`, `grok`, and `codex` sessions all run in a background daemon, with a session list in front
+of them. There are no panes. One session fills the terminal, `Ctrl-Space` opens the list, a session
+that needs an answer turns red, and `Tab` takes you to it. Quit atc and the sessions keep running.
+
 <img src="./docs/assets/demo.gif" alt="atc: spawn a session, open the session list, jump back in" width="1100">
-
-Run several coding agents at once and know which one is waiting on you.
-
-atc keeps `claude`, `grok`, and `codex` sessions running in a background daemon and puts a session
-list in front of them. There are no panes. One session fills the terminal, `Ctrl-Space` opens the
-list, a session that needs an answer turns red, and `Tab` takes you to it. Quit atc and the sessions
-keep running.
 
 ## Install
 
