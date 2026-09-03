@@ -1,6 +1,6 @@
-# Records docs/assets/demo.gif. Run from the repo root with `vhs docs/assets/demo.tape`.
-# Needs vhs, ttyd, and ffmpeg on PATH, a working `claude` login, and the default leader key.
-# The directory filter below must match one directory in your picker.
+# Records docs/assets/demo.gif. Run `scripts/record-demo.sh` from the repo root: it
+# starts an isolated daemon with staged sessions and a curated directory list, then
+# plays this tape against it.
 
 Output docs/assets/demo.gif
 
@@ -27,24 +27,32 @@ Type "atc"
 Sleep 900ms
 Enter
 Sleep 700ms
-Type "auth-bug"
+Type "haiku"
 Sleep 500ms
 Enter
 Sleep 700ms
-Type "read src/cli.ts and summarise what each subcommand does"
+Type "write a haiku about every file in src/shared"
 Sleep 500ms
 Enter
 Sleep 5s
 
-# the session list over the running session
+# the session list over the running session; filter to a staged session and attach it
 Ctrl+Space
+Sleep 2s
+Type "/rubber-duck"
+Sleep 700ms
+Enter
 Sleep 3s
 
-# back in
+# and back to the one we spawned
+Ctrl+Space
+Sleep 1.2s
+Type "/haiku"
+Sleep 700ms
 Enter
 Sleep 2s
 
-# leave the client; the session keeps running in the daemon
+# leave the client; every session keeps running in the daemon
 Ctrl+Space
 Sleep 800ms
 Type "q"
