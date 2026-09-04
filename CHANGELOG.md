@@ -2,10 +2,11 @@
 
 ## [2.2.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.2.0...@zgeoff/atc@2.2.1) (2026-09-04)
 
-
 ### Bug Fixes
 
-* **tui:** show the tail of the picker input when it outgrows the row ([#80](https://github.com/zgeoff/atc/issues/80)) ([18db2c6](https://github.com/zgeoff/atc/commit/18db2c61f6a4a7587c33696f54dffa66d41a6143))
+- **tui:** show the tail of the picker input when it outgrows the row
+  ([#80](https://github.com/zgeoff/atc/issues/80))
+  ([18db2c6](https://github.com/zgeoff/atc/commit/18db2c61f6a4a7587c33696f54dffa66d41a6143))
 
 ## [2.2.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.1.0...@zgeoff/atc@2.2.0) (2026-09-03)
 
