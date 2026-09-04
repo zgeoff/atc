@@ -392,7 +392,13 @@ export function drawPicker(view: PickerView) {
     rowsList.push(boxRow(width, styled, plainLen));
   }
 
-  const inputShown = truncate(view.input, width - 8);
+  // The cursor always sits at the end of the input, so show the tail and
+  // drop the head once the text outgrows the row.
+  const inputMax = width - 8;
+
+  const inputShown =
+    view.input.length <= inputMax ? view.input : `…${view.input.slice(-(inputMax - 1))}`;
+
   let inputStyled: string;
   let inputLen: number;
 
