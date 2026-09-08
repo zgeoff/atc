@@ -14,6 +14,16 @@ import { waitFor } from './wait-for';
 
 const repo = dirname(import.meta.dir);
 
+// The command every daemon and reporter in this suite runs as: the source
+// entry under the test's own bun, or the compiled binary a smoke run points
+// ATC_BIN at, so one suite proves both.
+const atcCommand =
+  process.env['ATC_BIN'] === undefined
+    ? [process.execPath, join(repo, 'src', 'cli.ts')]
+    : [process.env['ATC_BIN']];
+
+const hookReportCommand = `${atcCommand.map((part) => `"${part}"`).join(' ')} hook-report`;
+
 function getString(value: Readonly<Record<string, unknown>>, key: string): string {
   const inner = value[key];
 
@@ -69,7 +79,7 @@ function setupDaemonProc(
     const fakeClaude = join(freshHome, 'fake-claude');
     const fakeGrok = join(freshHome, 'fake-grok');
     const fakeCodex = join(freshHome, 'fake-codex');
-    const hookReport = `"${process.execPath}" "${join(repo, 'src', 'cli.ts')}" hook-report`;
+    const hookReport = hookReportCommand;
 
     writeFileSync(
       fakeClaude,
@@ -139,7 +149,7 @@ sleep 30
     );
   }
 
-  const proc = Bun.spawn([process.execPath, join(repo, 'src', 'cli.ts'), 'daemon'], {
+  const proc = Bun.spawn([...atcCommand, 'daemon'], {
     env: collectEnv({
       HOME: freshHome,
       XDG_RUNTIME_DIR: freshHome,
@@ -293,7 +303,7 @@ test('it keeps a live terminal alive when its session reports an end', async () 
       e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
-  const reporter = Bun.spawn([process.execPath, join(repo, 'src', 'cli.ts'), 'hook-report'], {
+  const reporter = Bun.spawn([...atcCommand, 'hook-report'], {
     stdin: new TextEncoder().encode(
       JSON.stringify({ hook_event_name: 'SessionEnd', session_id: 'fake-1' }),
     ),
@@ -615,7 +625,7 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
     fakeClaude,
     `#!/usr/bin/env bash
 sleep 0.4
-printf '{"hook_event_name":"SessionStart","session_id":"'"$ATC_SESSION_ID"'","transcript_path":"/nonexistent"}' | "${process.execPath}" "${join(repo, 'src', 'cli.ts')}" hook-report
+printf '{"hook_event_name":"SessionStart","session_id":"'"$ATC_SESSION_ID"'","transcript_path":"/nonexistent"}' | ${hookReportCommand}
 sleep 30
 `,
     { mode: 0o755 },
@@ -710,7 +720,7 @@ if [[ "$@" == *"dies-immediately"* ]]; then
   exit 0
 fi
 sleep 0.2
-printf '{"hook_event_name":"SessionStart","session_id":"'"$ATC_SESSION_ID"'","transcript_path":"/nonexistent"}' | "${process.execPath}" "${join(repo, 'src', 'cli.ts')}" hook-report
+printf '{"hook_event_name":"SessionStart","session_id":"'"$ATC_SESSION_ID"'","transcript_path":"/nonexistent"}' | ${hookReportCommand}
 sleep 30
 `,
     { mode: 0o755 },
@@ -788,7 +798,7 @@ test('it revives the fleet most recently active first', async () => {
     fakeClaude,
     `#!/usr/bin/env bash
 sleep 0.1
-printf '{"hook_event_name":"SessionStart","session_id":"'"$ATC_SESSION_ID"'","transcript_path":"/nonexistent"}' | "${process.execPath}" "${join(repo, 'src', 'cli.ts')}" hook-report
+printf '{"hook_event_name":"SessionStart","session_id":"'"$ATC_SESSION_ID"'","transcript_path":"/nonexistent"}' | ${hookReportCommand}
 sleep 30
 `,
     { mode: 0o755 },
@@ -1092,6 +1102,14 @@ test('it reads the current screen of a session as plain text without attaching',
 
   const spawned = getRecord(ok, 'session');
   const id = getString(spawned, 'id');
+
+  // Input typed before the fake agent prints its banner echoes above it,
+  // so the banner is awaited first.
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_CLAUDE_UP');
+  });
 
   await client.sendRequest('session.input', { session: id, d: 'hello\n' });
 
@@ -1502,7 +1520,7 @@ test('it keeps grok needs_you when idle_prompt follows permission_prompt', async
       e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
-  const reporter = Bun.spawn([process.execPath, join(repo, 'src', 'cli.ts'), 'hook-report'], {
+  const reporter = Bun.spawn([...atcCommand, 'hook-report'], {
     stdin: new TextEncoder().encode(
       JSON.stringify({
         hookEventName: 'notification',

@@ -21,6 +21,7 @@
   "scripts": {
     "start": "bun src/cli.ts",
     "build:agents": "bash scripts/build-agents-md.sh agents/shared.md agents/project.md AGENTS.md",
+    "build:binaries": "bash scripts/build-binaries.sh",
     "audit": "bun audit",
     "deadcode": "knip",
     "lint": "oxlint --type-aware --type-check --report-unused-disable-directives-severity error",

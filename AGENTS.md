@@ -177,6 +177,10 @@ repo tooling, not app code.
   `\u001B` escapes, never raw bytes and never `\x1b`.
 - Everything the hooks and CI run is a root `package.json` script; invoke gates by script name,
   never by re-spelling the underlying command.
+- Releases ship compiled binaries (`bun build --compile`) next to the source package. Code that
+  needs a file outside the bundle at runtime (a package's native binary, the source tree) checks
+  `isCompiledBinary()` and takes the path that works without `node_modules`; the daemon suite runs
+  through each binary in CI with `ATC_BIN`, so that branch is tested.
 
 ## Agent integration contract
 

@@ -1,10 +1,11 @@
 import { spawn as spawnChild } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import { toAgentID } from '../agents/agent-adapter';
 import type { AgentID } from '../agents/agent-adapter';
 import { daemonPidFile, daemonSocketPath } from '../shared/config';
 import { getBuild } from '../shared/get-build';
+import { isCompiledBinary } from '../shared/is-compiled-binary';
 import { isRecord } from '../shared/report';
 import { DaemonClient } from './daemon-client';
 
@@ -119,9 +120,7 @@ async function stopStaleDaemon(): Promise<void> {
 }
 
 function spawnDaemonDetached() {
-  const exec = process.execPath;
-  const isBun = basename(exec) === 'bun' || basename(exec) === 'bun.exe';
-  const args = isBun ? [join(import.meta.dir, '..', 'cli.ts'), 'daemon'] : ['daemon'];
+  const args = isCompiledBinary() ? ['daemon'] : [join(import.meta.dir, '..', 'cli.ts'), 'daemon'];
 
-  spawnChild(exec, args, { detached: true, stdio: 'ignore' }).unref();
+  spawnChild(process.execPath, args, { detached: true, stdio: 'ignore' }).unref();
 }

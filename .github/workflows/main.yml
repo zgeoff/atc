@@ -62,8 +62,11 @@ jobs:
       - name: Test
         run: bun test
 
+  binaries:
+    uses: ./.github/workflows/binaries.yml
+
   release:
-    needs: checks
+    needs: [checks, binaries]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -207,3 +210,49 @@ jobs:
             # time; npm publishes the tarball it produced.
             (cd "$path" && bun pm pack && npm publish ./*.tgz --provenance --access public)
           done
+
+      - name: Download binaries
+        if: steps.release.outputs.releases_created == 'true' || inputs.republish_paths != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: binaries
+          path: dist
+      # --clobber makes a re-run replace assets a failed run left behind.
+      - name: Attach binaries to the release
+        if: steps.release.outputs.releases_created == 'true' || inputs.republish_paths != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(jq -r .version package.json)
+          gh release upload "@zgeoff/atc@$version" dist/atc-* dist/SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
+
+      # The tap is a second repository, so the release App has to be
+      # installed on it as well and HOMEBREW_TAP set to its name (see
+      # RELEASING.md). With either missing, the formula is left alone.
+      - name: Mint tap token
+        id: tap-token
+        if:
+          (steps.release.outputs.releases_created == 'true' || inputs.republish_paths != '') &&
+          vars.RELEASE_APP_ID != '' && vars.HOMEBREW_TAP != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ vars.HOMEBREW_TAP }}
+      - name: Update the Homebrew formula
+        if: steps.tap-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.tap-token.outputs.token }}
+          TAP: ${{ github.repository_owner }}/${{ vars.HOMEBREW_TAP }}
+        run: |
+          version=$(jq -r .version package.json)
+          git clone "https://x-access-token:$GH_TOKEN@github.com/$TAP.git" tap
+          mkdir -p tap/Formula
+          scripts/build-formula.sh "$version" dist/SHA256SUMS > tap/Formula/atc.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/atc.rb
+          git commit -m "atc $version" || echo "formula already at $version"
+          git push

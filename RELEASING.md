@@ -14,6 +14,20 @@ publish step in `.github/workflows/main.yml`. No npm tokens live in CI. The setu
 3. The merge triggers `main.yml` again: release-please tags `@zgeoff/atc@X.Y.Z`, creates the GitHub
    release, and the publish step runs `bun pm pack` then `npm publish <tarball> --provenance` under
    OIDC.
+4. The same run attaches the compiled binaries to the release and pushes the Homebrew formula.
+
+## Binaries
+
+`binaries.yml` compiles one static binary per platform (`bun run build:binaries`, cross-compiled
+from one Linux runner) and runs the daemon suite through each binary on its own platform, with
+`ATC_BIN` pointing the suite at the binary under test. The PR workflow runs it as a check. The main
+workflow runs it before the release job, which uploads `dist/atc-*` and `dist/SHA256SUMS` to the
+GitHub release with `--clobber`, so a re-run replaces what a failed run left behind.
+
+A compiled binary carries no `node_modules`, so two things differ from a source run. The build
+identity in the protocol handshake falls back to the binary's mtime, which is what makes a client
+notice an upgraded binary. A headless turn hands the Agent SDK the configured `claude` instead of
+the SDK's own bundled copy, which the binary cannot reach.
 
 ## One-time setup
 
@@ -32,6 +46,19 @@ release PRs are still created but must be merged by hand.
    - Actions secret `RELEASE_APP_PRIVATE_KEY` = the `.pem` contents
 4. Repo Settings → Actions → General → check "Allow GitHub Actions to create and approve pull
    requests".
+
+### Homebrew tap
+
+The formula lives in a second repository, `<owner>/homebrew-tap`, under `Formula/atc.rb`.
+`scripts/build-formula.sh <version> dist/SHA256SUMS` prints it, and the release job commits it with
+a token from the release App:
+
+1. Create the `homebrew-tap` repository and install the release App on it as well.
+2. Add the Actions variable `HOMEBREW_TAP` = `homebrew-tap` (the repository name, not the full
+   slug).
+
+With either missing, the release job leaves the formula alone and every other step still runs.
+`brew install zgeoff/tap/atc` then resolves to that repository.
 
 ### First publish
 
