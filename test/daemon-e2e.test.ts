@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
@@ -149,6 +149,10 @@ sleep 30
     );
   }
 
+  // The daemon's stderr is kept so a boot that never listens explains
+  // itself in the failure instead of leaving only a timeout.
+  const stderrPath = join(freshHome, 'daemon.stderr');
+
   const proc = Bun.spawn([...atcCommand, 'daemon'], {
     env: collectEnv({
       HOME: freshHome,
@@ -157,7 +161,7 @@ sleep 30
       ...extraEnv,
     }),
     stdout: 'ignore',
-    stderr: 'ignore',
+    stderr: Bun.file(stderrPath),
   });
 
   const daemonSock = join(freshHome, 'atc-daemon.sock');
@@ -181,7 +185,13 @@ sleep 30
       }
     }
 
-    throw new Error('daemon socket never came up');
+    let stderr = '';
+
+    try {
+      stderr = readFileSync(stderrPath, 'utf8').slice(-2000);
+    } catch {}
+
+    throw new Error(`daemon socket never came up (exit ${proc.exitCode}):\n${stderr}`);
   };
 
   onTestFinished(() => {
