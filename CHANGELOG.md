@@ -2,11 +2,13 @@
 
 ## [2.3.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.2.1...@zgeoff/atc@2.3.0) (2026-09-08)
 
-
 ### Features
 
-* **client:** pick a directory without zoxide ([#85](https://github.com/zgeoff/atc/issues/85)) ([dc9379a](https://github.com/zgeoff/atc/commit/dc9379ae45fa84478bccd973fa826c3e3474acbf))
-* **release:** ship compiled binaries so atc runs without a bun install ([#87](https://github.com/zgeoff/atc/issues/87)) ([1f03166](https://github.com/zgeoff/atc/commit/1f03166aaa38a6aad0b3d14d4c2758667d77eb97))
+- **client:** pick a directory without zoxide ([#85](https://github.com/zgeoff/atc/issues/85))
+  ([dc9379a](https://github.com/zgeoff/atc/commit/dc9379ae45fa84478bccd973fa826c3e3474acbf))
+- **release:** ship compiled binaries so atc runs without a bun install
+  ([#87](https://github.com/zgeoff/atc/issues/87))
+  ([1f03166](https://github.com/zgeoff/atc/commit/1f03166aaa38a6aad0b3d14d4c2758667d77eb97))
 
 ## [2.2.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.2.0...@zgeoff/atc@2.2.1) (2026-09-04)
 
