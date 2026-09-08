@@ -29,3 +29,11 @@ test('it creates a distinct directory per call', async () => {
   await first[Symbol.asyncDispose]();
   await second[Symbol.asyncDispose]();
 });
+
+test('it removes the directory on synchronous dispose', () => {
+  const tmp = setupTempDir('atc-setup-temp-');
+
+  tmp[Symbol.dispose]();
+
+  expect(existsSync(tmp.dir)).toBeFalse();
+});

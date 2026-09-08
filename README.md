@@ -67,9 +67,11 @@ Sessions that need you sort to the top, so the one you want is nearly always fir
 | `q`          | quit the client; sessions keep running       |
 | `?`          | every other key                              |
 
-The directory picker reads your [zoxide](https://github.com/ajeetdsouza/zoxide) list when zoxide is
-installed, and atc's own spawn history otherwise. Inside a Claude session your statusline gains a
-fleet segment, so `● 2 need you: auth-bug` is visible without opening the list.
+The directory picker lists the directory you ran `atc` from, atc's own spawn history, every project
+under the roots in `config.json`, and your [zoxide](https://github.com/ajeetdsouza/zoxide) list when
+zoxide is installed. A typed path such as `~/pro` completes like a shell. Inside a Claude session
+your statusline gains a fleet segment, so `● 2 need you: auth-bug` is visible without opening the
+list.
 
 If the daemon dies, press `R` on the home screen and every session respawns from its transcript.
 After you upgrade atc, the status bar shows `⟳ update ready`, and `u` restarts the daemon and

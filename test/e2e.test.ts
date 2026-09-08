@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'bun-pty';
@@ -34,7 +34,10 @@ interface TestContext {
 }
 
 function setupTest(): TestContext {
-  const home = mkdtempSync(join(tmpdir(), 'atc-test-'));
+  // The client boots with this home as its cwd and lists it first in the
+  // picker, so the path is resolved the way the client reports it.
+  const tempHome = mkdtempSync(join(tmpdir(), 'atc-test-'));
+  const home = realpathSync(tempHome);
 
   mkdirSync(join(home, '.config', 'atc'), { recursive: true });
 
@@ -126,7 +129,10 @@ idle
         name: 'xterm-256color',
         cols: 110,
         rows: 30,
-        cwd: repo,
+
+        // The picker lists the client's own directory first, so a spawn
+        // that takes the first entry lands in this test's home.
+        cwd: home,
         env: collectEnv({ HOME: home, XDG_RUNTIME_DIR: home, PATH: '/usr/sbin:/usr/bin:/bin' }),
       });
 

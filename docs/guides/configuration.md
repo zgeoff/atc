@@ -10,29 +10,53 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
   "grokArgs": [],
   "codexBin": "codex",
   "codexArgs": [],
+  "dirs": { "roots": [] },
   "gateways": {},
   "hooks": {},
   "leader": "ctrl-space"
 }
 ```
 
-| Field        | Default        | Meaning                                                                                                     |
-| ------------ | -------------- | ----------------------------------------------------------------------------------------------------------- |
-| `claudeBin`  | `"claude"`     | The binary spawned for Claude sessions.                                                                     |
-| `claudeArgs` | `[]`           | Prepended to every Claude spawn, e.g. `["--model", "opus"]`.                                                |
-| `grokBin`    | `"grok"`       | The binary spawned for Grok sessions.                                                                       |
-| `grokArgs`   | `[]`           | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`. |
-| `codexBin`   | `"codex"`      | The binary spawned for Codex sessions.                                                                      |
-| `codexArgs`  | `[]`           | Prepended to every Codex spawn.                                                                             |
-| `gateways`   | `{}`           | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                |
-| `hooks`      | `{}`           | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.         |
-| `leader`     | `"ctrl-space"` | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                       |
+| Field        | Default         | Meaning                                                                                                     |
+| ------------ | --------------- | ----------------------------------------------------------------------------------------------------------- |
+| `claudeBin`  | `"claude"`      | The binary spawned for Claude sessions.                                                                     |
+| `claudeArgs` | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`.                                                |
+| `grokBin`    | `"grok"`        | The binary spawned for Grok sessions.                                                                       |
+| `grokArgs`   | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`. |
+| `codexBin`   | `"codex"`       | The binary spawned for Codex sessions.                                                                      |
+| `codexArgs`  | `[]`            | Prepended to every Codex spawn.                                                                             |
+| `dirs`       | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it. |
+| `gateways`   | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                |
+| `hooks`      | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.         |
+| `leader`     | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                       |
 
 ## Leader
 
 Pick a different leader when `Ctrl-Space` is taken on your machine — Raycast on macOS claims it, and
 `ctrl-]` is a replacement that no common terminal, multiplexer, or OS shortcut wants. An unknown or
 reserved value falls back to the default.
+
+## Directories
+
+The directory picker behind `n` merges its sources in a fixed order: the directory you ran `atc`
+from, then atc's own spawn history (most recent first), then every project under `dirs.roots`, then
+zoxide's list when zoxide is installed. A path that no longer exists is dropped, and a duplicate
+keeps its first position.
+
+```json
+{
+  "dirs": { "roots": ["~/projects", "~/work"] }
+}
+```
+
+Each root contributes its immediate child directories and each child's `.worktrees/*` entries, so
+`~/projects/atc` and `~/projects/atc/.worktrees/fix-picker` both list for a root of `~/projects`.
+Hidden directories are skipped. A root that does not exist contributes nothing.
+
+Typed input that starts with `/`, `~`, `.`, or `..` completes against the filesystem instead of
+filtering the list: `~/pro` lists the directories under your home that start with `pro`, and a
+trailing slash lists every child. A relative path resolves against the directory you ran `atc` from.
+Hidden directories complete only when the typed segment starts with a dot.
 
 ## Gateways
 

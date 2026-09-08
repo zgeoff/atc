@@ -1,9 +1,13 @@
+import { homedir } from 'node:os';
 import type { AgentID } from '../agents/agent-adapter';
 import { loadConfig } from '../shared/config';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
+import { collectPathCompletions } from './collect-path-completions';
+import { collectZoxideDirs } from './collect-zoxide-dirs';
 import { collectDirs, formatDir, formatDirName, pickMatches } from './dirs';
 import { planTextEdit } from './keys';
+import { resolvePathInput } from './resolve-path-input';
 import { ansi, cols, drawPicker } from './ui';
 
 type PickerStep = 'agent' | 'dir' | 'name' | 'prompt';
@@ -45,6 +49,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private dirs: string[] = [];
 
+  // The configured roots, read with the agents each time the menu opens.
+  private roots: readonly string[] = [];
+
   private dir = '';
 
   private name = '';
@@ -59,7 +66,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   open(resume = false) {
     this.resume = resume;
-    this.picks = collectAgentPicks(loadConfig());
+
+    const config = loadConfig();
+
+    this.picks = collectAgentPicks(config);
+    this.roots = config.dirs.roots;
     this.input = '';
 
     // A last-used agent that is no longer installed is not in the menu, so
@@ -139,7 +150,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         hint,
       });
     } else if (this.step === 'dir') {
-      const items = pickMatches(this.dirs, this.input).map((d) => formatDir(d));
+      const items = this.collectDirItems().map((d) => formatDir(d));
 
       this.selected = Math.min(this.selected, Math.max(0, Math.min(items.length, 10) - 1));
 
@@ -148,7 +159,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         items,
         selected: this.selected,
         input: this.input,
-        hint: 'type to filter · ↑↓ move · ⏎ select · esc cancel',
+        hint: 'type to filter, or a path (/ ~ .) · ↑↓ move · ⏎ select · esc cancel',
       });
     } else if (this.step === 'name') {
       drawPicker({
@@ -216,13 +227,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     if (this.step === 'dir') {
-      const items = pickMatches(this.dirs, this.input);
-      const raw = this.input.trim();
-      let chosen = items[this.selected] ?? null;
-
-      if (chosen === null && (raw.startsWith('/') || raw.startsWith('~'))) {
-        chosen = raw.replace(/^~/u, process.env['HOME'] ?? '~');
-      }
+      const chosen =
+        this.collectDirItems()[this.selected] ??
+        resolvePathInput(this.input.trim(), process.cwd(), homedir());
 
       if (chosen === null) {
         return;
@@ -254,6 +261,16 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.render();
   }
 
+  /**
+   * A typed path completes against the filesystem, like a shell; anything
+   * else fuzzy-filters the merged list.
+   */
+  private collectDirItems(): string[] {
+    return resolvePathInput(this.input, process.cwd(), homedir()) === null
+      ? pickMatches(this.dirs, this.input)
+      : collectPathCompletions(this.input, process.cwd(), homedir());
+  }
+
   private async openDirStep() {
     let recent: string[] = [];
 
@@ -267,7 +284,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       }
     } catch {}
 
-    this.dirs = await collectDirs(recent);
+    this.dirs = collectDirs({
+      cwd: process.cwd(),
+      recent,
+      roots: this.roots,
+      zoxide: await collectZoxideDirs(),
+    });
 
     this.input = '';
     this.selected = 0;
