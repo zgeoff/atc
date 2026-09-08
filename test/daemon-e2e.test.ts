@@ -163,8 +163,11 @@ sleep 30
   const daemonSock = join(freshHome, 'atc-daemon.sock');
   const clients: DaemonClient[] = [];
 
+  // Generous because a compiled binary's first launch on a shared macOS
+  // runner spends seconds in the code-signing scan before the daemon
+  // listens.
   const openClient = async () => {
-    const deadline = Date.now() + 5000;
+    const deadline = Date.now() + 15_000;
 
     while (Date.now() < deadline) {
       try {
