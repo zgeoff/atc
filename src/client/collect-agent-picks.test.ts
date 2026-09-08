@@ -35,6 +35,7 @@ test('it lists only the agents whose configured binary resolves', () => {
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
+      dirs: { roots: [] },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -63,6 +64,7 @@ test('it resolves a bare binary name off PATH', () => {
       grokArgs: [],
       codexBin: 'codex',
       codexArgs: [],
+      dirs: { roots: [] },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -81,6 +83,7 @@ test('it leaves out a binary that exists without the executable bit', () => {
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
+      dirs: { roots: [] },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -99,6 +102,7 @@ test('it lists a configured backend after the built-in agents', () => {
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
+      dirs: { roots: [] },
       gateways: [
         {
           id: 'zai',
@@ -130,6 +134,7 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
+      dirs: { roots: [] },
       gateways: [
         {
           id: 'zai',

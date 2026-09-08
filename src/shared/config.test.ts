@@ -1,4 +1,6 @@
 import { expect, test } from 'bun:test';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { parseConfig } from './config';
 
 test('it falls back to every default when the file is not an object', () => {
@@ -9,6 +11,7 @@ test('it falls back to every default when the file is not an object', () => {
     grokArgs: [],
     codexBin: 'codex',
     codexArgs: [],
+    dirs: { roots: [] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -25,6 +28,7 @@ test.each([[null], [undefined], [[]], ['garbage'], [42]])(
       grokArgs: [],
       codexBin: 'codex',
       codexArgs: [],
+      dirs: { roots: [] },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -48,6 +52,7 @@ test('it falls back field by field when a field is wrong-typed instead of failin
     grokArgs: ['--yolo'],
     codexBin: 'codex',
     codexArgs: [],
+    dirs: { roots: [] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -87,4 +92,10 @@ test('it collects the configured hooks map', () => {
   expect(config.hooks).toStrictEqual({
     SessionAttached: [{ command: 'ork focus', dir: '/w', timeout: 2000 }],
   });
+});
+
+test('it collects the configured directory roots with the home directory expanded', () => {
+  const config = parseConfig({ dirs: { roots: ['~/projects/', '/srv/work', 7, ''] } });
+
+  expect(config.dirs).toStrictEqual({ roots: [join(homedir(), 'projects'), '/srv/work'] });
 });

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { buildOptionalString } from './build-optional-string';
 import { buildOptionalStringArray } from './build-optional-string-array';
+import { collectDirRoots } from './collect-dir-roots';
 import { collectGateways } from './collect-gateways';
 import type { GatewayConfig } from './collect-gateways';
 import { collectHooks } from './collect-hooks';
@@ -16,9 +17,18 @@ export interface Config {
   grokArgs: string[];
   codexBin: string;
   codexArgs: string[];
+  dirs: DirsConfig;
   gateways: GatewayConfig[];
   hooks: HooksConfig;
   leader: LeaderKey;
+}
+
+/**
+ * Where the spawn picker looks for directories beyond its own history: each
+ * root contributes its child directories and their worktrees.
+ */
+interface DirsConfig {
+  readonly roots: readonly string[];
 }
 
 interface LeaderKey {
@@ -33,6 +43,7 @@ const DEFAULTS: Config = {
   grokArgs: [],
   codexBin: 'codex',
   codexArgs: [],
+  dirs: { roots: [] },
   gateways: [],
   hooks: {},
   leader: { code: 0, label: '^Space' },
@@ -59,6 +70,7 @@ const CONFIG_SCHEMA = z.object({
   grokArgs: buildOptionalStringArray(),
   codexBin: buildOptionalString(),
   codexArgs: buildOptionalStringArray(),
+  dirs: z.unknown().optional(),
   gateways: z.unknown().optional(),
   hooks: z.unknown().optional(),
   leader: buildOptionalString(),
@@ -102,13 +114,25 @@ export function parseConfig(raw: unknown): Config {
   const grokArgs = parsed.data.grokArgs ?? DEFAULTS.grokArgs;
   const codexBin = parsed.data.codexBin ?? DEFAULTS.codexBin;
   const codexArgs = parsed.data.codexArgs ?? DEFAULTS.codexArgs;
+  const dirs = { roots: collectDirRoots(parsed.data.dirs) };
   const gateways = collectGateways(parsed.data.gateways, claudeBin, claudeArgs);
   const hooks = collectHooks(parsed.data.hooks);
 
   const leader =
     (parsed.data.leader === undefined ? null : decodeLeader(parsed.data.leader)) ?? DEFAULTS.leader;
 
-  return { claudeBin, claudeArgs, grokBin, grokArgs, codexBin, codexArgs, gateways, hooks, leader };
+  return {
+    claudeBin,
+    claudeArgs,
+    grokBin,
+    grokArgs,
+    codexBin,
+    codexArgs,
+    dirs,
+    gateways,
+    hooks,
+    leader,
+  };
 }
 
 // Control bytes the terminal needs for its own input: enter, tab, and esc

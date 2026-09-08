@@ -1,25 +1,33 @@
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename } from 'node:path';
+import { collectRootDirs } from './collect-root-dirs';
 
-// Spawn-history first (most recently used, reported by the daemon), then
-// zoxide's frecency list.
-export async function collectDirs(recent: readonly string[]): Promise<string[]> {
-  let zoxide: string[] = [];
+/**
+ * Every source the picker lists, merged in the order the reader expects
+ * to find a directory: where the client runs, then the daemon's spawn
+ * history (most recent first), then the configured roots, then zoxide's
+ * frecency list. A path that no longer exists is dropped, a duplicate keeps
+ * its first position, and an empty merge falls back to the home directory.
+ */
+export interface DirSources {
+  readonly cwd: string;
+  readonly recent: readonly string[];
+  readonly roots: readonly string[];
+  readonly zoxide: readonly string[];
+}
 
-  try {
-    const proc = Bun.spawn(['zoxide', 'query', '-l'], { stdout: 'pipe', stderr: 'ignore' });
-
-    const text = await new Response(proc.stdout).text();
-
-    zoxide = text.split('\n').filter((line) => line !== '');
-  } catch {}
-
+export function collectDirs(sources: DirSources): string[] {
   const seen = new Set<string>();
 
   const found: string[] = [];
 
-  for (const d of [...recent, ...zoxide]) {
+  for (const d of [
+    sources.cwd,
+    ...sources.recent,
+    ...collectRootDirs(sources.roots),
+    ...sources.zoxide,
+  ]) {
     if (!seen.has(d) && existsSync(d)) {
       seen.add(d);
       found.push(d);
