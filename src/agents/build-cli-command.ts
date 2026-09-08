@@ -1,4 +1,5 @@
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
+import { isCompiledBinary } from '../shared/is-compiled-binary';
 
 /**
  * Command line that wrangled sessions invoke for atc subcommands: under bun
@@ -8,9 +9,9 @@ import { basename, join } from 'node:path';
 export function buildCLICommand(subcommand: string): string {
   const exec = process.execPath;
 
-  if (basename(exec) === 'bun' || basename(exec) === 'bun.exe') {
-    return `"${exec}" "${join(import.meta.dir, '..', 'cli.ts')}" ${subcommand}`;
+  if (isCompiledBinary()) {
+    return `"${exec}" ${subcommand}`;
   }
 
-  return `"${exec}" ${subcommand}`;
+  return `"${exec}" "${join(import.meta.dir, '..', 'cli.ts')}" ${subcommand}`;
 }

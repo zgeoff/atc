@@ -27,12 +27,30 @@ that needs an answer turns red, and `Tab` takes you to it. Quit atc and the sess
 
 ## Install
 
+Homebrew:
+
+```sh
+brew install zgeoff/tap/atc
+```
+
+Or download a binary:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/zgeoff/atc/main/install.sh | sh
+```
+
+Prebuilt binaries cover macOS and Linux, arm64 and x64. The install script puts `atc` in
+`~/.local/bin`; set `ATC_INSTALL_DIR` to change that. Checksums are on the
+[releases page](https://github.com/zgeoff/atc/releases).
+
+From source, with [Bun](https://bun.sh):
+
 ```sh
 bun add -g @zgeoff/atc
 ```
 
-atc needs [Bun](https://bun.sh) and at least one of the `claude`, `grok`, or `codex` CLIs on your
-PATH. The agent picker lists the ones it finds.
+atc needs at least one of the `claude`, `grok`, or `codex` CLIs on your PATH. The agent picker lists
+the ones it finds.
 
 ## Use
 

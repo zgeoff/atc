@@ -1,0 +1,88 @@
+name: Binaries
+
+# Compiles the per-platform atc binaries and proves each one on its own
+# platform. The PR workflow calls this as a check; the main workflow calls it
+# to produce the assets it attaches to a release.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LEFTHOOK: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Every target cross-compiles from this one runner; the smoke job below
+      # is where each binary meets its own platform.
+      - name: Build binaries
+        run: bun run build:binaries
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binaries
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  # The daemon suite spawns real PTYs through the binary under test, so a
+  # native library that fails to load inside the compiled binary fails here
+  # rather than on a user's machine.
+  smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: linux-x64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+          - runner: macos-15
+            target: darwin-arm64
+          - runner: macos-15-intel
+            target: darwin-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      LEFTHOOK: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Download binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: binaries
+          path: dist
+
+      - name: Smoke test the compiled binary
+        env:
+          ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
+        run: |
+          chmod +x "$ATC_BIN"
+          "$ATC_BIN" --version
+          bun run test:binary

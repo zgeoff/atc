@@ -21,11 +21,13 @@
   "scripts": {
     "start": "bun src/cli.ts",
     "build:agents": "bash scripts/build-agents-md.sh agents/shared.md agents/project.md AGENTS.md",
+    "build:binaries": "bash scripts/build-binaries.sh",
     "audit": "bun audit",
     "deadcode": "knip",
     "lint": "oxlint --type-aware --type-check --report-unused-disable-directives-severity error",
     "lint:fix": "oxlint --type-aware --type-check --report-unused-disable-directives-severity error --fix",
     "test": "bun test",
+    "test:binary": "bun test --timeout 20000 test/daemon-e2e.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "format": "oxfmt . && format-codemod --quiet .",
     "format:check": "oxfmt --check . && format-codemod --check --quiet .",

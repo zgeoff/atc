@@ -64,7 +64,7 @@ const main = defineCommand({
             Number.isFinite(capOverride) && capOverride >= 0 ? capOverride : 15_000;
 
           const claudeAdapter = new claude.ClaudeAdapter(cfg, (runOpts, hooks) =>
-            headless.startHeadlessRun(runOpts, hooks),
+            headless.startHeadlessRun({ ...runOpts, claudeBin: cfg.claudeBin }, hooks),
           );
 
           const grokAdapter = new grok.GrokAdapter(cfg);
@@ -73,7 +73,7 @@ const main = defineCommand({
           const gatewayAdapters = cfg.gateways.map(
             (entry) =>
               new gateway.GatewayAdapter(entry, cfg, (runOpts, hooks) =>
-                headless.startHeadlessRun(runOpts, hooks),
+                headless.startHeadlessRun({ ...runOpts, claudeBin: entry.bin }, hooks),
               ),
           );
 

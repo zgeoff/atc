@@ -29,6 +29,9 @@ jobs:
           # [[allowlists]] syntax .gitleaks.toml relies on and silently ignores it
           GITLEAKS_VERSION: 8.30.1
 
+  binaries:
+    uses: ./.github/workflows/binaries.yml
+
   checks:
     runs-on: ubuntu-latest
     # a hung step (a script that never exits, a wedged process) must fail the

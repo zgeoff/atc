@@ -1,7 +1,9 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { collectCleanEnv } from '../shared/collect-clean-env';
+import { isCompiledBinary } from '../shared/is-compiled-binary';
 import { isRecord } from '../shared/report';
+import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
 const PERMISSION_MODES = [
   'default',
@@ -13,6 +15,7 @@ const PERMISSION_MODES = [
 ] as const;
 
 interface HeadlessRunOptions {
+  readonly claudeBin: string;
   readonly cwd: string;
   readonly prompt: string;
   readonly resume?: AgentSessionID;
@@ -62,6 +65,7 @@ export function startHeadlessRun(
           // The same generated file the terminal spawn passes, so the turn
           // runs against the session's own backend and instrumentation.
           ...(opts.settings === undefined ? {} : { extraArgs: { settings: opts.settings } }),
+          ...resolveHeadlessExecutable(opts.claudeBin, isCompiledBinary()),
         },
       });
 
