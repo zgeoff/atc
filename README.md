@@ -27,21 +27,23 @@ that needs an answer turns red, and `Tab` takes you to it. Quit atc and the sess
 
 ## Install
 
-Each release ships a static binary for macOS and Linux on arm64 and x64, so nothing else has to be
-installed first:
+Homebrew:
 
 ```sh
 brew install zgeoff/tap/atc
 ```
 
+Or download a binary:
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/zgeoff/atc/main/install.sh | sh
 ```
 
-The script installs to `~/.local/bin`, or to `ATC_INSTALL_DIR` when set. The binaries and their
-checksums are on the [releases page](https://github.com/zgeoff/atc/releases).
+Prebuilt binaries cover macOS and Linux, arm64 and x64. The install script puts `atc` in
+`~/.local/bin`; set `ATC_INSTALL_DIR` to change that. Checksums are on the
+[releases page](https://github.com/zgeoff/atc/releases).
 
-With [Bun](https://bun.sh) installed, the source package works too:
+From source, with [Bun](https://bun.sh):
 
 ```sh
 bun add -g @zgeoff/atc
