@@ -21,7 +21,7 @@ export interface GatewayConfig {
 }
 
 // Ids the built-in adapters answer to; a gateway may not take one.
-const BUILT_IN_IDS = new Set(['claude', 'grok', 'codex']);
+const BUILT_IN_IDS = new Set(['claude', 'grok', 'codex', 'muse']);
 
 // One gateway map entry's keys. An absent or wrong-typed field parses to
 // undefined rather than failing the entry, so a gateway with one bad field

@@ -150,10 +150,10 @@ implementing that algorithm — forcing list verbs onto textbook terms hides the
 
 # atc
 
-atc is a terminal control tower for coding-agent sessions (Claude Code, Grok Build, and Codex CLI):
-a daemon (`atc daemon`) hosts stock agent CLIs in PTYs, and thin TUI clients drive them over an
-NDJSON protocol behind a keyboard-driven session list with hook-driven attention routing. No panes,
-no tiling, no mouse. See `docs/architecture/overview.md` for how the pieces fit; the README
+atc is a terminal control tower for coding-agent sessions (Claude Code, Grok Build, Codex CLI, and
+Muse Code): a daemon (`atc daemon`) hosts stock agent CLIs in PTYs, and thin TUI clients drive them
+over an NDJSON protocol behind a keyboard-driven session list with hook-driven attention routing. No
+panes, no tiling, no mouse. See `docs/architecture/overview.md` for how the pieces fit; the README
 documents install and keys, and `docs/guides/configuration.md` documents config.
 
 ## Layout
@@ -161,12 +161,12 @@ documents install and keys, and `docs/guides/configuration.md` documents config.
 Single package, no workspaces. `src/` groups its modules by concern, each still one primary export
 per file: `daemon/` owns the fleet and per-session runtime state; `client/` is the TUI and its
 connection to the daemon; `agents/` holds the `AgentAdapter` interface and the Claude, Grok, Codex,
-and gateway implementations; `store/` is the SQLite state store and its migrations; `protocol/` is
-the wire format and the transport it rides; `shared/` holds id types, config, and other utilities
-used across the rest of `src/`. `cli.ts` is the CLI entrypoint, and it wires in `hook-report.ts`,
-`statusline.ts`, `mcp-server.ts`, and `events.ts` as its own subcommands, so all five stay at `src/`
-root. `test/` holds the PTY-driven e2e suite, `bin/atc` is the executable shim. `scripts/` holds
-repo tooling, not app code.
+Muse, and gateway implementations; `store/` is the SQLite state store and its migrations;
+`protocol/` is the wire format and the transport it rides; `shared/` holds id types, config, and
+other utilities used across the rest of `src/`. `cli.ts` is the CLI entrypoint, and it wires in
+`hook-report.ts`, `statusline.ts`, `mcp-server.ts`, and `events.ts` as its own subcommands, so all
+five stay at `src/` root. `test/` holds the PTY-driven e2e suite, `bin/atc` is the executable shim.
+`scripts/` holds repo tooling, not app code.
 
 ## Runtime rules
 
@@ -198,6 +198,11 @@ repo tooling, not app code.
 - Codex attention is user-installed hook entries in `$CODEX_HOME/hooks.json`, printed by
   `atc codex-hooks` and trusted once in the Codex TUI — Codex parses untrusted hooks but never runs
   them.
+- Muse attention is user-installed hook entries in the `hooks` block of
+  `$XDG_CONFIG_HOME/muse/settings.json`, printed by `atc muse-hooks`. Muse has no per-invocation
+  settings flag, so the install is one-time and atc never writes that file. Muse spells its hook
+  payload keys the way Claude does, but reports `transcript_path` as null on every event, so session
+  names come from the `sessions` table of `$XDG_DATA_HOME/muse/session-index.db`, opened read-only.
 - Hook and statusline reporters run inside the wrangled session and must always exit 0 — a broken
   reporter must never break the session it reports on.
 - The agent is the naming authority for sessions: `/rename` custom-titles beat user-typed names beat

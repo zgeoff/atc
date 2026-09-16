@@ -17,6 +17,8 @@ export interface Config {
   grokArgs: string[];
   codexBin: string;
   codexArgs: string[];
+  museBin: string;
+  museArgs: string[];
   dirs: DirsConfig;
   gateways: GatewayConfig[];
   hooks: HooksConfig;
@@ -43,6 +45,8 @@ const DEFAULTS: Config = {
   grokArgs: [],
   codexBin: 'codex',
   codexArgs: [],
+  museBin: 'muse',
+  museArgs: [],
   dirs: { roots: [] },
   gateways: [],
   hooks: {},
@@ -70,6 +74,8 @@ const CONFIG_SCHEMA = z.object({
   grokArgs: buildOptionalStringArray(),
   codexBin: buildOptionalString(),
   codexArgs: buildOptionalStringArray(),
+  museBin: buildOptionalString(),
+  museArgs: buildOptionalStringArray(),
   dirs: z.unknown().optional(),
   gateways: z.unknown().optional(),
   hooks: z.unknown().optional(),
@@ -114,6 +120,8 @@ export function parseConfig(raw: unknown): Config {
   const grokArgs = parsed.data.grokArgs ?? DEFAULTS.grokArgs;
   const codexBin = parsed.data.codexBin ?? DEFAULTS.codexBin;
   const codexArgs = parsed.data.codexArgs ?? DEFAULTS.codexArgs;
+  const museBin = parsed.data.museBin ?? DEFAULTS.museBin;
+  const museArgs = parsed.data.museArgs ?? DEFAULTS.museArgs;
   const dirs = { roots: collectDirRoots(parsed.data.dirs) };
   const gateways = collectGateways(parsed.data.gateways, claudeBin, claudeArgs);
   const hooks = collectHooks(parsed.data.hooks);
@@ -128,6 +136,8 @@ export function parseConfig(raw: unknown): Config {
     grokArgs,
     codexBin,
     codexArgs,
+    museBin,
+    museArgs,
     dirs,
     gateways,
     hooks,

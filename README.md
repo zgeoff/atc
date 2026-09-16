@@ -97,11 +97,11 @@ restores the fleet when you are ready.
 
 atc runs inside zellij or tmux. Give the pane locked mode so the leader key reaches atc.
 
-## Grok and Codex
+## Grok, Codex, and Muse
 
 Claude sessions report attention on their own: atc passes a generated settings file at spawn time
-and never edits your Claude config. Grok and Codex take a one-time hook install. atc prints the
-hooks and leaves the install to you:
+and never edits your Claude config. Grok, Codex, and Muse take a one-time hook install. atc prints
+the hooks and leaves the install to you:
 
 ```sh
 # Grok
@@ -110,10 +110,13 @@ atc grok-hooks > ~/.grok/hooks/atc-reporter.json
 
 # Codex: merge the output into ~/.codex/hooks.json, then trust it once in the codex TUI
 atc codex-hooks
+
+# Muse: merge the output into the hooks block of ~/.config/muse/settings.json
+atc muse-hooks
 ```
 
-The [configuration guide](./docs/guides/configuration.md#attention-hooks-grok-and-codex) covers both
-installs in detail.
+The [configuration guide](./docs/guides/configuration.md#attention-hooks-grok-codex-and-muse) covers
+all three installs in detail.
 
 ## Beyond the keyboard
 

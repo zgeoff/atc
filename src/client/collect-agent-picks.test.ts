@@ -35,6 +35,8 @@ test('it lists only the agents whose configured binary resolves', () => {
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
+      museBin: join(dir, 'my-muse'),
+      museArgs: [],
       dirs: { roots: [] },
       gateways: [],
       hooks: {},
@@ -64,6 +66,8 @@ test('it resolves a bare binary name off PATH', () => {
       grokArgs: [],
       codexBin: 'codex',
       codexArgs: [],
+      museBin: join(dir, 'my-muse'),
+      museArgs: [],
       dirs: { roots: [] },
       gateways: [],
       hooks: {},
@@ -83,6 +87,8 @@ test('it leaves out a binary that exists without the executable bit', () => {
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
+      museBin: join(dir, 'my-muse'),
+      museArgs: [],
       dirs: { roots: [] },
       gateways: [],
       hooks: {},
@@ -102,6 +108,8 @@ test('it lists a configured backend after the built-in agents', () => {
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
+      museBin: join(dir, 'my-muse'),
+      museArgs: [],
       dirs: { roots: [] },
       gateways: [
         {
@@ -134,6 +142,8 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
+      museBin: join(dir, 'my-muse'),
+      museArgs: [],
       dirs: { roots: [] },
       gateways: [
         {

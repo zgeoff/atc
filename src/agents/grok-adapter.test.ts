@@ -35,6 +35,8 @@ function buildGrokConfig(): Config {
     grokArgs: [],
     codexBin: 'codex',
     codexArgs: [],
+    museBin: 'muse',
+    museArgs: [],
     dirs: { roots: [] },
     gateways: [],
     hooks: {},
@@ -88,6 +90,8 @@ test('it drops a user --leader from grokArgs and still appends --no-leader', () 
     grokArgs: ['--leader', '--yolo'],
     codexBin: 'codex',
     codexArgs: [],
+    museBin: 'muse',
+    museArgs: [],
     dirs: { roots: [] },
     gateways: [],
   }).planSpawn({ prompt: '', resume: false });

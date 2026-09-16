@@ -14,6 +14,8 @@ function buildClaudeConfig(): Config {
     grokArgs: [],
     codexBin: 'codex',
     codexArgs: [],
+    museBin: 'muse',
+    museArgs: [],
     dirs: { roots: [] },
     gateways: [],
     hooks: {},
