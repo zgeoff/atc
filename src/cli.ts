@@ -47,6 +47,7 @@ const main = defineCommand({
           const claude = await import('./agents/claude-adapter');
           const grok = await import('./agents/grok-adapter');
           const codex = await import('./agents/codex-adapter');
+          const muse = await import('./agents/muse-adapter');
           const gateway = await import('./agents/gateway-adapter');
           const headless = await import('./daemon/start-headless-run');
 
@@ -69,6 +70,7 @@ const main = defineCommand({
 
           const grokAdapter = new grok.GrokAdapter(cfg);
           const codexAdapter = new codex.CodexAdapter(cfg);
+          const museAdapter = new muse.MuseAdapter(cfg);
 
           const gatewayAdapters = cfg.gateways.map(
             (entry) =>
@@ -83,7 +85,7 @@ const main = defineCommand({
             eventsSocketPath: config.eventsSocketPath,
             build: getBuild(),
             adapter: claudeAdapter,
-            adapters: [claudeAdapter, grokAdapter, codexAdapter, ...gatewayAdapters],
+            adapters: [claudeAdapter, grokAdapter, codexAdapter, museAdapter, ...gatewayAdapters],
             dbPath: config.dbFile,
             legacyFleetPath: config.legacyFleetFile,
             pidPath: config.daemonPidFile,
@@ -137,6 +139,19 @@ const main = defineCommand({
           const hook = await import('./agents/print-grok-hook-file');
 
           hook.printGrokHookFile();
+        },
+      }),
+    'muse-hooks': () =>
+      defineCommand({
+        meta: {
+          name: 'muse-hooks',
+          description:
+            'Print the Muse hook entries to merge into the hooks block of $XDG_CONFIG_HOME/muse/settings.json',
+        },
+        async run() {
+          const hook = await import('./agents/print-muse-hook-file');
+
+          hook.printMuseHookFile();
         },
       }),
     'hook-report': () =>

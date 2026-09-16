@@ -1,7 +1,7 @@
 # Architecture overview
 
-atc multiplexes Claude Code, Grok Build, and Codex CLI sessions without a tiling layout engine: one
-focused session owns the whole terminal, and every other session is reached through a
+atc multiplexes Claude Code, Grok Build, Codex CLI, and Muse Code sessions without a tiling layout
+engine: one focused session owns the whole terminal, and every other session is reached through a
 keyboard-driven overlay. The design bet is that the pain of many-session work is attention routing,
 not window management. A per-user daemon hosts the sessions; disposable TUI clients drive them over
 the [wire protocol](./protocol.md). Everything specific to one agent CLI lives in an adapter behind
@@ -80,14 +80,16 @@ the reporter forwards Grok's camelCase envelopes to the same socket. Grok names 
 the leader key.
 
 Codex sessions take their hooks from self-installed entries in `$CODEX_HOME/hooks.json`, trusted
-once in the Codex TUI. Codex names come from `session_index.jsonl`. The
-[configuration guide](../guides/configuration.md#attention-hooks-grok-and-codex) covers the install
-steps for both.
+once in the Codex TUI. Codex names come from `session_index.jsonl`. Muse sessions take theirs from
+the `hooks` block of `$XDG_CONFIG_HOME/muse/settings.json`, and Muse names come from the
+`session-index.db` SQLite index. The
+[configuration guide](../guides/configuration.md#attention-hooks-grok-codex-and-muse) covers every
+install step.
 
 Headless handoff (eject a PTY session into a headless Agent SDK run and adopt it back) is
 Claude-only: the Agent SDK and the CLI share the session store, and the handoff is sequential, so
-the two never run the same session concurrently. Grok and Codex have no headless handoff — the
-overlay hides `H` on their rows, and `session.eject` is `unsupported`.
+the two never run the same session concurrently. Grok, Codex, and Muse have no headless handoff —
+the overlay hides `H` on their rows, and `session.eject` is `unsupported`.
 
 ## State
 

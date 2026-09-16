@@ -22,6 +22,7 @@ export function collectAgentPicks(config: Config): AgentPick[] {
     { agent: 'claude', label: 'Claude', bin: config.claudeBin },
     { agent: 'grok', label: 'Grok', bin: config.grokBin },
     { agent: 'codex', label: 'Codex', bin: config.codexBin },
+    { agent: 'muse', label: 'Muse', bin: config.museBin },
     ...config.gateways.map((g) => ({ agent: g.id, label: g.label, bin: g.bin })),
   ];
 

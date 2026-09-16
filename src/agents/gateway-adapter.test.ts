@@ -15,6 +15,8 @@ function buildGatewayAdapter(): GatewayAdapter {
     grokArgs: [],
     codexBin: 'codex',
     codexArgs: [],
+    museBin: 'muse',
+    museArgs: [],
     dirs: { roots: [] },
     gateways: [],
     hooks: {},
