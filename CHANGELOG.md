@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.3.1...@zgeoff/atc@2.4.0) (2026-09-18)
+
+### Features
+
+- **config:** start a gateway's sessions with settings of their own
+  ([#89](https://github.com/zgeoff/atc/issues/89))
+  ([a897a9b](https://github.com/zgeoff/atc/commit/a897a9b0890aed04c6a4212b45c4f0fd714c97e9))
+
 ## [2.3.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.3.0...@zgeoff/atc@2.3.1) (2026-09-18)
 
 ### Bug Fixes
