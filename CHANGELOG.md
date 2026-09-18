@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.4.0...@zgeoff/atc@2.4.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* **client:** treat an empty .git directory as no repository ([#93](https://github.com/zgeoff/atc/issues/93)) ([a587db6](https://github.com/zgeoff/atc/commit/a587db6b45292b4692a72154be0827f73fe2f70b))
+
 ## [2.4.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.3.1...@zgeoff/atc@2.4.0) (2026-09-18)
 
 ### Features
