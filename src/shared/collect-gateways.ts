@@ -18,6 +18,7 @@ export interface GatewayConfig {
   readonly baseURL: string;
   readonly apiKeyHelper?: string;
   readonly env: Readonly<Record<string, string>>;
+  readonly settings?: Readonly<Record<string, unknown>>;
 }
 
 // Ids the built-in adapters answer to; a gateway may not take one.
@@ -34,6 +35,7 @@ const GATEWAY_ENTRY_SCHEMA = z.object({
   args: buildOptionalStringArray(),
   apiKeyHelper: buildOptionalNonEmptyString(),
   env: buildStringEnvRecord(),
+  settings: buildOptionalSettings(),
 });
 
 /**
@@ -76,10 +78,20 @@ export function collectGateways(
       baseURL: parsed.data.baseURL,
       ...(parsed.data.apiKeyHelper === undefined ? {} : { apiKeyHelper: parsed.data.apiKeyHelper }),
       env: parsed.data.env,
+      ...(parsed.data.settings === undefined ? {} : { settings: parsed.data.settings }),
     });
   }
 
   return gateways;
+}
+
+// Claude Code settings the sessions of this gateway are started with, on top of
+// the ones atc writes itself. Anything but an object is no extra settings.
+function buildOptionalSettings() {
+  return z.preprocess(
+    (v) => (isRecord(v) ? v : undefined),
+    z.record(z.string(), z.unknown()).optional(),
+  );
 }
 
 function buildOptionalNonEmptyString() {

@@ -99,6 +99,7 @@ export class GatewayAdapter implements AgentAdapter {
       ...(this.gateway.apiKeyHelper === undefined
         ? {}
         : { apiKeyHelper: this.gateway.apiKeyHelper }),
+      ...(this.gateway.settings === undefined ? {} : { settings: this.gateway.settings }),
     });
 
     return this.settingsFile;
