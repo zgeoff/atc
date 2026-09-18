@@ -2,10 +2,11 @@
 
 ## [2.3.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.3.0...@zgeoff/atc@2.3.1) (2026-09-18)
 
-
 ### Bug Fixes
 
-* **deps:** pin past the hono and js-yaml advisories ([#90](https://github.com/zgeoff/atc/issues/90)) ([15323e1](https://github.com/zgeoff/atc/commit/15323e1eba0728d8835e8e98724909500a1ca4c7))
+- **deps:** pin past the hono and js-yaml advisories
+  ([#90](https://github.com/zgeoff/atc/issues/90))
+  ([15323e1](https://github.com/zgeoff/atc/commit/15323e1eba0728d8835e8e98724909500a1ca4c7))
 
 ## [2.3.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.2.1...@zgeoff/atc@2.3.0) (2026-09-08)
 
