@@ -77,19 +77,55 @@ and GLM sessions then sit side by side in one fleet:
 }
 ```
 
-| Field          | Default     | Meaning                                                                                         |
-| -------------- | ----------- | ----------------------------------------------------------------------------------------------- |
-| `baseURL`      | required    | The backend's Anthropic-format endpoint. An entry without one is left out of the picker.        |
-| `label`        | the id      | The row shown in the agent picker.                                                              |
-| `mark`         | the id      | The overlay column letter; the first character is used.                                         |
-| `bin`, `args`  | `claudeBin` | The binary and leading arguments, when the backend needs a different build of the CLI.          |
-| `apiKeyHelper` | none        | Command the CLI runs to read the credential, so no token is written into atc's state directory. |
-| `env`          | `{}`        | Extra environment for the session, such as the model each Claude tier maps to.                  |
+| Field          | Default     | Meaning                                                                                                        |
+| -------------- | ----------- | -------------------------------------------------------------------------------------------------------------- |
+| `baseURL`      | required    | The backend's Anthropic-format endpoint. An entry without one is left out of the picker.                       |
+| `label`        | the id      | The row shown in the agent picker.                                                                             |
+| `mark`         | the id      | The overlay column letter; the first character is used.                                                        |
+| `bin`, `args`  | `claudeBin` | The binary and leading arguments, when the backend needs a different build of the CLI.                         |
+| `apiKeyHelper` | none        | Command the CLI runs to read the credential, so no token is written into atc's state directory.                |
+| `env`          | `{}`        | Extra environment for the session, such as the model each Claude tier maps to.                                 |
+| `settings`     | none        | More Claude Code settings for this gateway's sessions. The [section below](#extra-session-settings) covers it. |
 
 The id may not be `claude`, `grok`, or `codex`. atc writes one settings file per id and passes it as
 `--settings`, on the terminal spawn and on a headless turn alike, so a gateway session reaches its
 own backend rather than whatever the terminal exported. Two backends may be given the same `mark`;
 atc does not check, and a clash makes them indistinguishable in the overlay column.
+
+### Extra session settings
+
+`settings` is a Claude Code settings object folded into the generated file, so one gateway's
+sessions carry hooks, permissions, or a model that no other agent gets. atc's own keys stay atc's,
+and a hook list joins the fleet reporter on that event rather than replacing it.
+
+A permission classifier is the case this exists for. Claude Code's auto mode judges nothing in a
+session pointed at another backend, so a gateway session asks about every write and every command
+until something else answers. A hook that answers them belongs to the gateway rather than to your
+global settings:
+
+```json
+{
+  "gateways": {
+    "zai": {
+      "baseURL": "https://api.z.ai/api/anthropic",
+      "settings": {
+        "hooks": {
+          "PermissionRequest": [
+            {
+              "matcher": ".*",
+              "hooks": [{ "type": "command", "command": "~/.local/bin/classify", "timeout": 90 }]
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+Claude Code sends `PermissionRequest` only when it is about to ask you, so a hook there answers the
+prompts and sees nothing the CLI already allows. Your own Claude sessions never see it: the block
+belongs to this gateway id alone.
 
 ## Attention hooks (Grok and Codex)
 

@@ -183,3 +183,33 @@ test('it falls back to every default when an entry has a valid base URL but ever
     },
   ]);
 });
+
+// The hook that judges a gateway session's tool calls is registered here, so
+// the block reaches the generated settings file whole.
+test('it carries a settings block through to the gateway', () => {
+  const settings = {
+    hooks: {
+      PermissionRequest: [
+        { matcher: '.*', hooks: [{ type: 'command', command: 'classify-tool-call' }] },
+      ],
+    },
+  };
+
+  const [gateway] = collectGateways(
+    { zai: { baseURL: 'https://api.z.ai/api/anthropic', settings } },
+    'claude',
+    [],
+  );
+
+  expect(gateway?.settings).toStrictEqual(settings);
+});
+
+test('it leaves out a settings value that is not an object', () => {
+  const [gateway] = collectGateways(
+    { zai: { baseURL: 'https://api.z.ai/api/anthropic', settings: 'on' } },
+    'claude',
+    [],
+  );
+
+  expect(gateway?.settings).toBeUndefined();
+});
