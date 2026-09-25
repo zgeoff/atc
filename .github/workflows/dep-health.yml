@@ -2,7 +2,7 @@ name: Dependency Health
 
 on:
   schedule:
-    # Monday 06:00 UTC, alongside the sync-agents cron
+    # Monday 06:00 UTC, alongside the repo-sync cron
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
