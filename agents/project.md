@@ -104,10 +104,11 @@ names, so the state store's driver implements them under the names the library r
 
 ## Testing
 
-Testing conventions live in the `testing` skill (`.claude/skills/testing/SKILL.md`) — regimes,
-harness patterns, assertion discipline. Two rules worth restating here: never spawn the real
-`claude` binary in tests (verification against real Claude Code happens manually before merging
-changes to the integration contract), and every gate is invoked as a root package script.
+Testing conventions live in the shared `testing` skill and in atc's `project-testing` skill (the PTY
+harness, the fake `claude`, and the daemon-phase rules); load both. Two rules worth restating here:
+never spawn the real `claude` binary in tests (verification against real Claude Code happens
+manually before merging changes to the integration contract), and every gate is invoked as a root
+package script.
 
 ## Dependencies
 
