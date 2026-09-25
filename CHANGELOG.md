@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.4.1...@zgeoff/atc@2.5.0) (2026-09-25)
+
+### Features
+
+- move atc's own testing rules into a project skill ([#97](https://github.com/zgeoff/atc/issues/97))
+  ([6e3f609](https://github.com/zgeoff/atc/commit/6e3f609a827da9d54b1a5f94a9334cd774a56cd3))
+
 ## [2.4.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.4.0...@zgeoff/atc@2.4.1) (2026-09-18)
 
 ### Bug Fixes
