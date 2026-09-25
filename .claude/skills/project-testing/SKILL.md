@@ -11,9 +11,10 @@ description:
 
 atc is a single-regime repo: every test is mock-free and asserts on real behaviour end to end. The
 TUI is tested by spawning the real binary inside a `bun-pty` pseudo-terminal, driving it with
-keystrokes, and asserting on captured screen bytes. The one stand-in is the fake `claude` script, a
-boundary mock kept high-fidelity: it emits hook events through the real reporter
-(`src/hook-report.ts`) over the real socket, so everything after the boundary is production code.
+keystrokes, and asserting on captured screen bytes. The stand-ins are the fake `claude` and
+`fake-grok` scripts. Both are boundary mocks kept high-fidelity: they emit hook events through the
+real reporter (`src/hook-report.ts`) over the real socket, so everything after the boundary is
+production code.
 
 - A PTY journey test may chain dependent act-assert phases (spawn → state → kill): booting the TUI
   is the expensive arrange, and the phases exercise one flow. Each journey still has one subject,
@@ -27,8 +28,8 @@ boundary mock kept high-fidelity: it emits hook events through the real reporter
 Patterns specific to driving the real TUI, each learned from a real failure:
 
 - `setupTest()` builds a fresh temp `$HOME` (config, fake claude, state dirs) per test — the suite
-  exercises on-disk state (`fleet.json`, transcripts, `status.json`), so isolation is
-  directory-level. Dispose kills the PTY and removes the tree.
+  exercises on-disk state (`atc.db`, transcripts, `status.json`), so isolation is directory-level.
+  Dispose kills the PTY and removes the tree.
 - The fake `claude` is a bash script that prints a recognizable marker, then emits `SessionStart`
   (with `session_id` and a `transcript_path` under the temp home) and a `Notification` through the
   real reporter, then sleeps. Extend scenarios by dropping files into the temp home (a
