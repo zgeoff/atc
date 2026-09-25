@@ -145,3 +145,25 @@ implementing that algorithm — forcing list verbs onto textbook terms hides the
 
 - Pin exact versions — no `^`/`~` ranges. (`bun add` saves exact automatically via `exact = true` in
   bunfig.toml — the rule applies to hand-written edits.)
+
+## Review bots
+
+CodeRabbit reviews every PR. Its shared config lives in the zgeoff/coderabbit repo, and a repo-root
+`.coderabbit.yaml` with `inheritance: true` layers repo-specific settings on top. CodeRabbit reads
+this file as its guidelines. A repo that runs another review bot names it and its config in
+`agents/project.md`, and these rules cover that bot too.
+
+- A PR is ready only after every bot review is read and every finding is answered: a fixed finding's
+  reply cites the commit that fixed it; a declined finding's reply states the reason — when a
+  finding contradicts this file, this file wins and the reply names the rule. Reviews land within a
+  few minutes of opening; read them with `gh pr view <n> --comments` and
+  `gh api repos/<owner>/<repo>/pulls/<n>/comments`. A finding outside the diff arrives in the review
+  body, not as a thread, so its answer is a PR comment.
+- Resolve a thread once its reply is posted, fixed and declined alike (GraphQL
+  `resolveReviewThread`). A finding the agent cannot confidently judge is escalation, not
+  disposition: reply saying so and leave the thread open for a human.
+- Never teach a bot through chat (`@coderabbitai` learnings and the like) — a correction to bot
+  behaviour is an edit to its config, reviewed in a PR.
+- Bots review a PR once, at open; an agent invokes a re-review only when asked. The exception is a
+  PR that got no review at all, such as one opened before the bot was installed: request it once
+  with that bot's documented trigger, such as `@coderabbitai review` for CodeRabbit.
