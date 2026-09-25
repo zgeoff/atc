@@ -10,6 +10,10 @@ description:
 Write every sentence as if it had always existed, for a reader who saw none of the work that
 produced it.
 
+This skill is the shared base that repo-sync delivers from zgeoff/tools; edit it there, never here.
+When the repo has a `project-docs-writing` skill, load it too: it holds the rules for this repo's
+own docs tree, and where the two disagree, the project skill wins.
+
 Two passes govern every doc. **Selection** decides which points the doc makes; it is ruthless.
 **Rendering** decides how a surviving point is written — its sentences, its words, its shape, its
 stance; it is generous. Shorten a doc by removing points, never by compressing the sentences that

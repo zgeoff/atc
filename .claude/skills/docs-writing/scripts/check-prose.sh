@@ -2,6 +2,8 @@
 # Greps committed docs for prose violations; exits non-zero when any are found.
 # Violation greps fail the run; candidate greps print for judgment and never fail it.
 # Usage (from the repo root): check-prose.sh <path>...
+# The awk programs are single-quoted on purpose: awk, not the shell, expands their fields.
+# shellcheck disable=SC2016
 set -uo pipefail
 
 if [ "$#" -eq 0 ]; then
@@ -9,8 +11,39 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
-# The skill's own files document the forbidden patterns and contain them as examples.
-set -- "$@" ':(exclude).claude/skills/docs-writing'
+# The skill's own files, and the repo's project skill beside them, document the forbidden
+# patterns and contain them as examples.
+set -- "$@" ':(exclude).claude/skills/docs-writing' ':(exclude).claude/skills/project-docs-writing' \
+  ':(exclude)sync/skills/docs-writing'
+
+# Every grep reads untracked files too, so a new doc is checked before it is staged.
+grep_docs() {
+  git grep --untracked "$@"
+}
+
+list_markdown() {
+  git ls-files --cached --others --exclude-standard -- "$@" | grep '\.md$'
+}
+
+# Tracks fenced code blocks (backtick or tilde, any indent, closed by the same marker at least as
+# long) so the checks below can tell fence lines and fenced content from prose.
+fence_awk='
+function fence_marker(line, m) {
+  if (match(line, /^[ \t]*(```+|~~~+)/)) {
+    m = substr(line, RSTART, RLENGTH)
+    sub(/^[ \t]*/, "", m)
+    return m
+  }
+  return ""
+}
+function fence_rest(line, m) {
+  return substr(line, index(line, m) + length(m))
+}
+function closes(m, rest) {
+  return substr(m, 1, 1) == substr(open, 1, 1) && length(m) >= length(open) && rest ~ /^[ \t]*$/
+}
+FNR == 1 { open = "" }
+'
 
 fail=0
 
@@ -30,47 +63,71 @@ candidate() {
 }
 
 report 'Process residue (date stamps, investigation framing, memory citations, §):' \
-  "$(git grep -nP 'Verified 20[0-9]{2}-|Investigation count|\(see memory |\([0-9]{2,4}-[0-9]{2}-[0-9]{2}\)|^Mitigation:|§' -- "$@")"
+  "$(grep_docs -nP 'Verified 20[0-9]{2}-|Investigation count|\(see memory |\([0-9]{2,4}-[0-9]{2}-[0-9]{2}\)|^Mitigation:|§' -- "$@")"
 
-# AGENTS.md owns the banned-words list; keep this pattern in sync. Judgment-only bans
-# (bites, floor, anchor) are not grepped. CAS stays case-sensitive so "CAs" passes.
-report 'Banned words (judge each match — the AGENTS.md registry and markdown-fence senses are legal):' \
-  "$(git grep -nPi '\bsurfaces?\b|load-bearing|\bseams?\b|\bceilings?\b|\bfenc(e|es|ed|ing)\b|(?-i:\bCAS\b)|significantly|near-instant' -- "$@")"
+# The words every zgeoff repo bans; a repo's AGENTS.md lists them with their legal senses.
+# Judgment-only bans (bites, floor, anchor) are not grepped. CAS stays case-sensitive so "CAs"
+# passes.
+# AGENTS.md and the agents/ partials hold the banned-words registry itself, and "code fence" is the
+# legal markdown sense of the word.
+report 'Banned words:' \
+  "$(grep_docs -nPi '\bsurfaces?\b|load-bearing|\bseams?\b|\bceilings?\b|(?<!code )\bfenc(e|es|ed|ing)\b|(?-i:\bCAS\b)|significantly|near-instant' -- "$@" ':(exclude)AGENTS.md' ':(exclude)agents')"
 
 report 'Filler with no term-of-art use:' \
-  "$(git grep -nPi 'organically|earns its complexity|cheap insurance|lays (the )?foundation|the right level' -- "$@")"
+  "$(grep_docs -nPi 'organically|earns its complexity|cheap insurance|lays (the )?foundation|the right level' -- "$@")"
 
 report 'Possessive on a markdown link:' \
-  "$(git grep -nE "\]\([^)]*\)'s" -- "$@")"
+  "$(grep_docs -nE "\]\([^)]*\)'s" -- "$@")"
 
 report 'Role-label headings:' \
-  "$(git grep -nE '^#{2,4} (Overview|Notes|Details|Rationale)$' -- "$@")"
+  "$(grep_docs -nE '^#{2,4} (Overview|Notes|Details|Rationale)$' -- "$@")"
 
 report '"Should succeed" in a procedure — state the expected outcome instead:' \
-  "$(git grep -nPi 'should (succeed|work|pass)\b' -- "$@")"
+  "$(grep_docs -nPi 'should (succeed|work|pass)\b' -- "$@")"
 
 report 'Number joined to its unit ("64KB"; write "64 KB"; code blocks are exempt):' \
-  "$(git grep -nP '\b[0-9]+(KB|MB|GB|TB|KiB|MiB|GiB|ms)\b' -- "$@")"
+  "$(grep_docs -nP '\b[0-9]+(KB|MB|GB|TB|KiB|MiB|GiB|ms)\b' -- "$@" ':(exclude)*.md'
+    list_markdown "$@" | xargs -r awk "$fence_awk"'
+    {
+      m = fence_marker($0)
+      if (m != "") {
+        rest = fence_rest($0, m)
+        if (open == "") open = m
+        else if (closes(m, rest)) open = ""
+        next
+      }
+      if (open == "" && $0 ~ /(^|[^[:alnum:]_])[0-9]+(KB|MB|GB|TB|KiB|MiB|GiB|ms)([^[:alnum:]_]|$)/) print FILENAME":"FNR":"$0
+    }')"
 
 report 'Horizontal rules outside YAML frontmatter:' \
-  "$(git ls-files -- "$@" | grep '\.md$' | xargs -r awk \
+  "$(list_markdown "$@" | xargs -r awk \
     'FNR==1{fm=($0=="---")} fm&&FNR>1&&$0=="---"{fm=0;next} !fm&&$0=="---"{print FILENAME": "FNR}')"
 
 report 'Untagged code fences:' \
-  "$(git ls-files -- "$@" | grep '\.md$' | xargs -r awk \
-    'FNR==1{n=0} /^```/{n++; if (n%2==1 && $0=="```") print FILENAME": "FNR}')"
+  "$(list_markdown "$@" | xargs -r awk "$fence_awk"'
+    {
+      m = fence_marker($0)
+      if (m == "") next
+      rest = fence_rest($0, m)
+      if (open == "") {
+        open = m
+        if (rest ~ /^[ \t]*$/) print FILENAME": "FNR
+      } else if (closes(m, rest)) {
+        open = ""
+      }
+    }')"
 
 candidate 'Candidates — filler words with term-of-art uses; cull the filler, keep the terms:' \
-  "$(git grep -nPi '\b(naturally|cleanly|trivially|easy|simple|quick)\b' -- "$@")"
+  "$(grep_docs -nPi '\b(naturally|cleanly|trivially|easy|simple|quick)\b' -- "$@")"
 
 candidate 'Candidates — speech verbs on data artifacts; the artifact holds, includes, returns, or matches:' \
-  "$(git grep -nPi '(?<!file |table |column |export |bucket |method |variable |test )\b(names|says|tells|answers|knows|promises)\b(?! (rot|and locations|only))' -- "$@")"
+  "$(grep_docs -nPi '(?<!file |table |column |export |bucket |method |variable |test )\b(names|says|tells|answers|knows|promises)\b(?! (rot|and locations|only))' -- "$@")"
 
 candidate 'Candidates — delta-framing words; legal only when the baseline sits in the same doc:' \
-  "$(git grep -nPi '(^|\. )(Also|Additionally|In addition),? |\b(already|today|before this work|as it does today)\b' -- "$@")"
+  "$(grep_docs -nPi '(^|\. )(Also|Additionally|In addition),? |\b(already|today|before this work|as it does today)\b' -- "$@")"
 
 candidate 'Candidates — headings written as claims; move the thesis into the first sentence:' \
-  "$(git grep -nP '^#{2,4} (?!(What|Why|When|How|Before|Where|Which)\b).*\b(is|are|does|has|cannot|never|not)\b' -- "$@")"
+  "$(grep_docs -nP '^#{2,4} (?!(What|Why|When|How|Before|Where|Which)\b).*\b(is|are|does|has|cannot|never|not)\b' -- "$@")"
 
 if [ "$fail" -eq 0 ]; then
   echo 'check-prose: clean (candidates above, if any, need judgment only)'
