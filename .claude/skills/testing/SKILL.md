@@ -1,113 +1,139 @@
 ---
 name: testing
 description:
-  atc testing conventions — the mock-free PTY-e2e regime, the fake-claude harness, screen-byte
-  assertion patterns and their races, assertion discipline (toStrictEqual, inline snapshots,
-  jest-extended), and the daemon-phase rules for protocol and transport tests. Load when designing,
-  writing, or reviewing tests.
+  Shared testing conventions for zgeoff Bun repos — flat behavioural tests, arrange-act-assert,
+  setupTest with await using, no lifecycle hooks or local helpers, strict assertions, inline data
+  and snapshots, jest-extended matchers, and the no-branching and no-mock rules. Load when
+  designing, writing, or reviewing tests.
 ---
 
 # Testing
 
-`bun test` runs every file in one process. atc is a single-regime repo: the pure-package regime —
-mock-free, asserting on real behavior end to end. The TUI is tested by spawning the real binary
-inside a `bun-pty` pseudo-terminal, driving it with keystrokes, and asserting on captured screen
-bytes. File-touching units use temp trees (`mkdtemp`), never mocked filesystems. The one stand-in is
-the fake `claude` script, and it is a boundary mock kept high-fidelity: it emits hook events through
-the real reporter (`src/hook-report.ts`) over the real socket, so everything after the boundary is
-production code.
+`bun test` runs every file in one process with no per-file isolation. Process-wide lifecycle and
+cleanup register once in the `bunfig.toml` preload, and test files carry no lifecycle hooks. A test
+exercises real behaviour: pure modules assert on return values, file-touching units use `mkdtemp`
+trees, and a CLI is asserted end to end by spawning the real binary. A module that is hard to test
+without mocking moves its I/O to the caller.
+
+This skill is the shared base that repo-sync delivers from zgeoff/tools; edit it there, never here.
+When the repo has a `project-testing` skill, load it too: it holds the harnesses, regimes, and
+exceptions specific to this repo, and where the two disagree, the project skill wins.
 
 ## Principles
 
+The rules below decide most situations; where they don't, these do:
+
 - Clarity over abstraction: repetition in a test isn't a smell, hidden setup is.
 - Isolation is non-negotiable: every test passes alone and in any order.
-- Test behavior, not implementation: a refactor that preserves the observable contract breaks no
+- Test behaviour, not implementation: a refactor that preserves the observable contract breaks no
   test.
-- Every mock is a divergence from reality: mock only what is genuinely out of reach (the real
-  `claude` binary), and keep it high-fidelity.
-- Test utilities are production code, extracted and tested with the same rigor.
+- Every mock is a divergence from reality: mock only what is genuinely out of reach, and keep it
+  high-fidelity — correct codes, realistic shapes, shared types.
+- Test utilities are production code: anything a test file would grow beyond a local `setupTest()`
+  moves to a shared test util with its own test.
 - Assertions are the contract: one loose assertion makes the rest of the test theatre.
 
-## Everywhere
+## Structure
 
-- Never use `describe` — flat `test(…)` blocks with behavioral titles that start with "it"
-  (`test('it restores the fleet from disk after a crash', …)`). Titles describe observable behavior,
-  never internal identifiers: verb + outcome + condition.
+- Never use `describe` — write flat `test(…)` blocks with behavioural titles that start with "it"
+  (`test('it pads before a return statement', …)`).
+- A title describes observable behaviour, never an internal identifier, and reads verb + outcome +
+  condition (`it rejects a header longer than 72 characters`, not `it sets isValid to false`).
 - A test body arranges, acts, asserts — phases separated by blank lines, never `// arrange`
-  comments. A body with two unrelated act-assert pairs is two tests. One deliberate exception: a PTY
-  journey test may chain dependent act-assert phases (spawn → state → kill), because booting the TUI
-  is the expensive arrange and the phases exercise one flow — but each journey still has one
-  subject, named in its title.
-- `test.each` only for a closed decision table — data-only rows, title template starting with "it".
-  Anything else is one `test()` per case.
-- No branching in a test body: narrowing a maybe-value is an explicit `throw` (or `invariant`) on
-  the line before the assertion — never `?.`/`??` fallbacks inside `expect` arguments, which turn a
-  missing value into a passing comparison. A conditional path in a test means two tests.
-- An assertion inside a callback the unit may never invoke passes vacuously — capture into a const
-  outside the callback and assert after it returns.
-- Lifecycle: no `beforeAll`/`beforeEach`/`afterEach`/`afterAll` in test files. Per-test resources
-  come from a local `setupTest()` returning named props plus `Symbol.asyncDispose`, held with
-  `await using`. State the preload owns (jest-extended registration) needs no per-test handling; a
-  test that mutates globals the preload doesn't own restores them in `onTestFinished(...)`, never
-  `try`/`finally`.
-- `setupTest` is the only local function a test file defines. Every other helper is inlined into the
-  test bodies or extracted to a shared util under `test/`, tested beside itself — a second setup
-  shape, a local poll loop, or a parsing shim hides what the test arranges.
-- Unit tests co-locate with the module they test (`pick-matches.ts` beside `pick-matches.test.ts`);
-  `test/e2e.test.ts` is the whole-binary suite and stays where it is.
+  comments. A body with two unrelated act-assert pairs is two tests.
+- `test.each` only for a closed decision table: data-only rows and a title template that starts with
+  "it" and interpolates the distinguishing input. Anything else is one `test()` per case.
+- Test files sit beside the module they test (`parse-source.ts` beside `parse-source.test.ts`) — no
+  `test/`, `tests/`, or `__tests__` directories.
+
+## Setup and lifecycle
+
+- No `beforeAll`/`beforeEach`/`afterEach`/`afterAll` in test files. A per-test resource comes from a
+  local `setupTest()` that returns named props plus `Symbol.asyncDispose` (or `Symbol.dispose`),
+  held with `await using`, so teardown runs whether the test passes or throws.
+
+  ```ts
+  async function setupTest() {
+    const dir = await mkdtemp(join(tmpdir(), 'parse-source-'));
+
+    return {
+      dir,
+      async [Symbol.asyncDispose]() {
+        await rm(dir, { recursive: true, force: true });
+      },
+    };
+  }
+
+  test('it reads an empty file as no entries', async () => {
+    await using project = await setupTest();
+
+    await writeFile(join(project.dir, 'entries.txt'), '');
+
+    expect(await readEntries(project.dir)).toStrictEqual([]);
+  });
+  ```
+
+- `setupTest` is the only function a test file declares, and the file holds no module-level fixture
+  or baseline shared between tests. Any other helper — a data builder, an assertion wrapper, a
+  parsing shim, a poll loop — is inlined at the call site, replaced by a registered matcher, or
+  extracted to a shared test util with its own test.
+- `setupTest` wires runtime — temp trees, servers, clients, recorders — and returns no domain data.
+  The scenario is written in the test body.
+- Hold the `setupTest` result in one named const and access its members; never destructure it into
+  loose consts.
+- State the preload owns (matcher registration, store resets, mock restores) needs no per-test
+  handling. A test that mutates global state the preload doesn't own restores it in
+  `onTestFinished(...)`, never `try`/`finally`.
+- A test that passes alone but fails in the full run has a cleanup gap: find the leaked state and
+  add its reset to the preload. Reordering tests or picking unique keys hides the gap.
+
+## Data
+
+- Plain arguments, options bags, and config are written inline at the call site, even when tests
+  repeat the literal. Repeated data reads; an opaque baseline doesn't.
+- A domain type that crosses module boundaries gets a faker-defaulted `create-mock-*` factory in the
+  repo's shared test utils, with its own test; the test overrides only the fields the unit reads. A
+  type local to the module under test stays an inline literal.
+- A unit that parses or validates raw input is tested with inline literal payloads, valid and
+  invalid, never factory output — a factory built to satisfy a schema cannot falsify it.
+
+## Assertions
+
 - `toStrictEqual` when the test determines every field — the full shape is the contract.
   `toMatchObject`, or asymmetric matchers inside `toStrictEqual`, when the value carries fields the
   test doesn't determine. Choosing partial because the full literal is long is a defect. Never
   `toEqual`.
 - Snapshots are inline only: `toMatchInlineSnapshot` pins deterministic machine output no human
   derives by reading the code. File-based snapshots never appear.
-- Plain arguments, options bags, and config are written inline at the call site, even when tests
-  repeat the literal. No baseline-builder helpers, no module-level fixtures shared between tests.
-  Faker-defaulted `create-mock-*` factories arrive only when a domain type crosses module boundaries
-  — none does yet.
-- Reach for jest-extended matchers (registered by the `@zgeoff/bun-test-extended` preload) instead
-  of hand-rolling assertions: `toInclude`, `toStartWith`, `toBeOneOf`, `toSatisfy`, `toBeWithin`,
-  `toIncludeAllMembers`, `toThrowWithMessage`, `toResolve`/`toReject` (both awaited). They also work
-  asymmetrically inside `toStrictEqual`.
+- A thrown error is asserted at the strictness its contract demands: bare `toThrow()` when only
+  throwing matters, `toThrowWithMessage(Error, /…/)` when the message is contract, and a typed
+  rejection narrows on its `code`, never on the message.
+- No branching in a test body. Narrowing a maybe-value is an explicit `throw` or `invariant(...)` on
+  the line before the assertion — never `?.`/`??` fallbacks inside `expect` arguments, which turn a
+  missing value into a passing comparison. A conditional path means two tests.
+- An assertion inside a callback the unit may never invoke passes vacuously — capture into a const
+  outside the callback and assert after it returns.
 - A wall-clock-dependent value is built relative to `Date.now()` and asserted with range matchers
-  (`toBeAfter`, `toBeWithin`), never with exact timestamps.
+  (`toBeAfter`, `toBeWithin`), never an exact timestamp. Waiting on an async condition is a polling
+  `waitFor`, never a bare sleep.
 
-## The PTY harness
+## Matchers
 
-Patterns specific to driving the real TUI, each learned from a real failure:
+jest-extended matchers come from the `@zgeoff/bun-test-extended` preload, and an unknown matcher
+name fails typecheck. Reach for them instead of hand-rolling assertions:
 
-- `setupTest()` builds a fresh temp `$HOME` (config, fake claude, state dirs) per test — the suite
-  exercises on-disk state (`fleet.json`, transcripts, `status.json`), so isolation is
-  directory-level. Dispose kills the PTY and removes the tree.
-- The fake `claude` is a bash script that prints a recognizable marker, then emits `SessionStart`
-  (with `session_id` and a `transcript_path` under the temp home) and a `Notification` through the
-  real reporter, then sleeps. Extend scenarios by dropping files into the temp home (a
-  `fake-transcript.jsonl` with a `custom-title` line), not by adding flags to the script.
-- Assert on screen bytes through a polling `waitFor(needle)` helper, never a bare sleep. A sleep is
-  legal only where no observable signal exists, and carries a comment saying what it waits out.
-- Clear the capture buffer before the action whose output you assert on. The buffer accumulates from
-  boot; asserting against the whole run matches stale frames — the absence assertion that "passes"
-  against text drawn two screens ago is the classic false positive.
-- Consecutive `pty.write()` calls can coalesce into one input chunk. A control byte followed
-  immediately by a printable (Ctrl-Space then `n`) can arrive as one buffer and be misread. Sequence
-  dependent keys through `waitFor` on each key's observable effect.
-- Pick `waitFor` needles from stable output (session names, box titles, state labels), not from hint
-  lines — hint text changes with every keybinding addition and breaks tests that anchored to it.
-- Control bytes in test strings are `\u0000`-style escapes or named constants
-  (`CTRL_SPACE = String.fromCodePoint(0)`), never raw bytes.
+- arrays: `toIncludeAllMembers`, `toIncludeSameMembers`, `toPartiallyContain`,
+  `toIncludeAllPartialMembers`, `toSatisfyAll`
+- objects: `toContainEntry`, `toContainEntries`, `toContainAllKeys`, `toBeFrozen`
+- strings: `toStartWith`, `toEndWith`, `toInclude`, `toEqualCaseInsensitive`,
+  `toEqualIgnoringWhitespace`
+- values: `toBeNil`, `toBeOneOf`, `toSatisfy`, `toBeWithin`, `toBeEmpty`
+- dates: `toBeAfter`, `toBeBefore`, `toBeBetween`, `toBeValidDate`
+- mocks: `toHaveBeenCalledOnce`, `toHaveBeenCalledExactlyOnceWith`, `toHaveBeenCalledBefore`,
+  `toHaveBeenCalledAfter`
+- errors and async: `toThrowWithMessage`, `toResolve`, `toReject` (both return a promise — always
+  `await`)
 
-## Daemon-phase rules
-
-Ported forward now so protocol work starts under them:
-
-- Infrastructure failures run on real transports: a connect-failure branch dials a socket path
-  nothing listens on — never a stubbed connect. Handles are destroyed in `onTestFinished`.
-- Delivery is proven by loss tests: blast a slow reader through the real socket and assert zero
-  loss. `Bun.socket.write()` returns bytes-accepted and silently drops the rest; only a test at the
-  transport catches a missing drain path.
-- Failure paths are contract: assert rejections directly —
-  `expect(promise).rejects.toMatchObject({ code })` — never try/catch, and test each declared error
-  code.
-- Arbitration and authorization rules are tested in pairs: the positive ("the first responder's
-  decision applies") and the named negative ("a second responder gets `already_answered`") are two
-  tests, never one test with a branch.
+Matchers also work asymmetrically inside `toStrictEqual`/`toMatchObject`
+(`status: expect.toBeOneOf([…])`). `expect(...).rejects`/`.resolves` chains stay unawaited: Bun's
+types declare them synchronous.
