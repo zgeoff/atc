@@ -117,6 +117,23 @@ export type HeadlessRunner = (
   hooks: HeadlessRunEvents,
 ) => { readonly stop: () => void };
 
+export type AgentKind = 'claude' | 'gateway' | 'codex' | 'grok';
+
+/**
+ * How `agents.list` describes an agent. It holds no secret: never an
+ * environment value, a credential, a helper command, or a base URL.
+ */
+export interface AgentProfile {
+  readonly label: string;
+  readonly kind: AgentKind;
+
+  // The binary a spawn runs: a name looked up on PATH, or a path.
+  readonly bin: string;
+
+  // Model names the config sets explicitly, keyed by role; null when it sets none.
+  readonly models: Readonly<Record<string, string>> | null;
+}
+
 /**
  * Everything specific to one agent CLI: how to spawn it, how to read its
  * hook payloads, where its session names come from, and how to resume a
@@ -137,6 +154,9 @@ export interface AgentAdapter {
   // Whether a session under this agent can take inbox messages through a tap;
   // false refuses every message as unsupported.
   readonly takesMessages: boolean;
+
+  // Absent on a stand-in adapter, which `agents.list` reports as not installed.
+  readonly profile?: AgentProfile;
   readonly planSpawn: (opts: SpawnOptions) => SpawnPlan;
   readonly normalizeHook: (e: HookEvent) => AdapterEvent;
   readonly loadName: (

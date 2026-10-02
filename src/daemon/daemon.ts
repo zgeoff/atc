@@ -1,4 +1,5 @@
 import { unlinkSync, writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { AdapterEvent, AgentAdapter } from '../agents/agent-adapter';
 import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
@@ -15,6 +16,7 @@ import type { EventScope } from '../store/state-store';
 import type { TrailEntry } from '../store/trail-entry';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
+import { buildAgentList } from './build-agent-list';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 import { buildReportTrailEntry } from './build-report-trail-entry';
@@ -652,6 +654,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     build: opts.build,
     collectSessions: () => mgr.collectDescriptors(),
     collectSpawnDirs: () => store.collectSpawnDirs(),
+    collectAgents: () => ({
+      daemon: {
+        hostname: hostname(),
+        platform: process.platform,
+        arch: process.arch,
+        build: opts.build,
+      },
+      agents: buildAgentList(mgr.collectAdapters(), (bin) => Bun.which(bin) !== null),
+    }),
     collectFleet: () => store.loadFleet(),
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => mgr.findAdapter(kind),

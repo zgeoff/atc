@@ -181,6 +181,11 @@ missing scope; a tool atc does not know needs `kill`. To widen a grant, the clie
 and you approve the larger set. A message sent through `atc_session_message` from a remote client
 carries the client's name as its sender, and the tool's `from` argument is ignored.
 
+`atc_agents_list` needs only `read`. It returns the agents the host can run, with whether each
+binary is installed and what each agent supports, and the host's name, platform, architecture, and
+atc build, so a client can choose an agent before spawning. It never returns a gateway's
+environment, credential helper, or base URL; the [protocol](./protocol.md#agents) covers the fields.
+
 The answer `atc_message_get` returns is the final output of the session turn that carried the
 message, which can carry other messages too; the [protocol](./protocol.md#messages) covers the turn
 id and `answeredWith`. Pass `waitMs` to `atc_message_get` and `atc_events_read` instead of polling

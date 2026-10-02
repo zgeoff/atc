@@ -12,6 +12,7 @@ import { toShellArg } from '../shared/to-shell-arg';
 import type {
   AdapterEvent,
   AgentAdapter,
+  AgentProfile,
   NameUpdate,
   ResumeCheck,
   SpawnOptions,
@@ -60,6 +61,8 @@ export class GrokAdapter implements AgentAdapter {
   // Grok's hooks are authoritative; no screen heuristics needed.
   readonly screenDetector = null;
 
+  readonly profile: AgentProfile;
+
   readonly takesMessages = false;
 
   private readonly config: Config;
@@ -68,6 +71,7 @@ export class GrokAdapter implements AgentAdapter {
 
   constructor(config: Config) {
     this.config = config;
+    this.profile = { label: 'Grok', kind: 'grok', bin: config.grokBin, models: null };
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {

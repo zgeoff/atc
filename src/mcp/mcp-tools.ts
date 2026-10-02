@@ -123,6 +123,49 @@ const MESSAGE_SENT_OUTPUT: Readonly<Record<string, unknown>> = {
   required: ['message', 'status'],
 };
 
+const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
+  type: 'object',
+  properties: {
+    daemon: {
+      type: 'object',
+      properties: {
+        hostname: { type: 'string' },
+        platform: { type: 'string' },
+        arch: { type: 'string' },
+        build: { type: 'string' },
+      },
+      required: ['hostname', 'platform', 'arch', 'build'],
+    },
+    agents: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          label: { type: 'string' },
+          kind: { type: 'string', enum: ['claude', 'gateway', 'codex', 'grok'] },
+          installed: { type: 'boolean' },
+          capabilities: {
+            type: 'object',
+            properties: {
+              spawn: { type: 'boolean' },
+              readTranscript: { type: 'boolean' },
+              message: { type: 'boolean' },
+              attach: { type: 'boolean' },
+              screen: { type: 'boolean' },
+              input: { type: 'boolean' },
+            },
+            required: ['spawn', 'readTranscript', 'message', 'attach', 'screen', 'input'],
+          },
+          models: { type: ['object', 'null'], additionalProperties: { type: 'string' } },
+        },
+        required: ['id', 'label', 'kind', 'installed', 'capabilities', 'models'],
+      },
+    },
+  },
+  required: ['daemon', 'agents'],
+};
+
 const EVENTS_OUTPUT: Readonly<Record<string, unknown>> = {
   type: 'object',
   properties: {
@@ -284,6 +327,15 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     scope: 'read',
     description: 'List directories sessions were previously spawned from, most recent first.',
     inputSchema: NO_INPUT,
+  },
+  {
+    name: 'atc_agents_list',
+    annotations: READ_ONLY,
+    scope: 'read',
+    description:
+      "List the agents this atc host can run sessions under, plus the host itself (daemon: hostname, platform, arch, build). Each agent has its id (pass it as atc_session_spawn's agent), label, kind (claude, gateway, codex, or grok), installed (whether its binary resolves on this host; a registered agent that is not installed cannot spawn), capabilities (spawn, readTranscript, message, attach, screen, input), and models: the model names the config sets for it, or null. It never includes credentials, environment values, or endpoints, and holds nothing about which plans or subscriptions an agent's account has.",
+    inputSchema: NO_INPUT,
+    outputSchema: AGENTS_OUTPUT,
   },
   {
     name: 'atc_session_get',

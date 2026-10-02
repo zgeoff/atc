@@ -11,6 +11,7 @@ import { toShellArg } from '../shared/to-shell-arg';
 import type {
   AdapterEvent,
   AgentAdapter,
+  AgentProfile,
   NameUpdate,
   ResumeCheck,
   SpawnOptions,
@@ -47,12 +48,15 @@ export class CodexAdapter implements AgentAdapter {
   // Codex's hooks are authoritative; no screen heuristics needed.
   readonly screenDetector = null;
 
+  readonly profile: AgentProfile;
+
   readonly takesMessages = false;
 
   private readonly config: Config;
 
   constructor(config: Config) {
     this.config = config;
+    this.profile = { label: 'Codex', kind: 'codex', bin: config.codexBin, models: null };
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {

@@ -4,6 +4,7 @@ import type { FleetCaller } from './types';
 // The daemon requests the read-only tools send. Each only reads, so running
 // one twice is harmless.
 const RETRYABLE_METHODS: ReadonlySet<string> = new Set([
+  'agents.list',
   'dirs.list',
   'events.read',
   'message.get',

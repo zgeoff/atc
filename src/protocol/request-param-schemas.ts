@@ -24,6 +24,7 @@ export const REQUEST_PARAM_SCHEMAS = {
   'daemon.quit': z.object({}),
   'session.list': z.object({}),
   'dirs.list': z.object({}),
+  'agents.list': z.object({}),
   'fleet.list': z.object({}),
   'fleet.restore': z.object({
     cols: buildDefaultedNumber(80),

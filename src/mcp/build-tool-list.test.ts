@@ -16,10 +16,10 @@ test('it lists each tool with only its name, description, schemas, and annotatio
   );
 });
 
-test('it lists an output schema for the message and event tools', () => {
+test('it lists an output schema for the agent, message, and event tools', () => {
   expect(
     buildToolList()
       .filter((tool) => tool.outputSchema !== undefined)
       .map((tool) => tool.name),
-  ).toStrictEqual(['atc_events_read', 'atc_session_message', 'atc_message_get']);
+  ).toStrictEqual(['atc_agents_list', 'atc_events_read', 'atc_session_message', 'atc_message_get']);
 });

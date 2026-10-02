@@ -126,7 +126,7 @@ test('it lists every tool to a caller with one scope', async () => {
 
   expect(outcome).toMatchObject({
     kind: 'reply',
-    body: { result: { tools: expect.toBeArrayOfSize(14) } },
+    body: { result: { tools: expect.toBeArrayOfSize(15) } },
   });
 });
 
@@ -149,4 +149,35 @@ test('it refuses a call to an unknown tool as needing kill when the caller is sc
   );
 
   expect(outcome).toStrictEqual({ kind: 'forbidden', scope: 'kill' });
+});
+
+test('it lists the agents to a caller holding only the read scope', async () => {
+  await using server = await setupMCPHTTP();
+
+  const outcome = await answerRPCRequest(
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_agents_list', arguments: {} },
+    },
+    {
+      caller: server.caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      scopes: ['read'],
+    },
+  );
+
+  expect(outcome).toMatchObject({
+    kind: 'reply',
+    body: {
+      result: {
+        structuredContent: {
+          daemon: { build: 'atc/test-build', platform: process.platform, arch: process.arch },
+          agents: [{ id: 'claude', kind: 'claude', installed: false, models: null }],
+        },
+      },
+    },
+  });
 });

@@ -230,6 +230,7 @@ test('it initializes and lists the fleet tools', async () => {
     'atc_session_ack',
     'atc_resume_command',
     'atc_dirs_list',
+    'atc_agents_list',
     'atc_session_get',
     'atc_session_read',
     'atc_events_read',

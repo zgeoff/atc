@@ -46,6 +46,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     build: 'atc/test',
     collectSessions: () => [],
     collectSpawnDirs: assertUnreachable,
+    collectAgents: assertUnreachable,
     collectFleet: assertUnreachable,
     loadLastUsedAgent: () => Promise.resolve('claude'),
     findAdapter: assertUnreachable,

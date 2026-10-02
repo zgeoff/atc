@@ -18,6 +18,7 @@ import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { MessageRecord } from '../store/message-record';
 import type { Dims } from './attach-registry';
+import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
 import type { AnswerResult } from './permission-registry';
@@ -55,6 +56,7 @@ export interface DaemonContext {
   readonly build: string;
   readonly collectSessions: () => SessionDescriptor[];
   readonly collectSpawnDirs: () => Promise<string[]>;
+  readonly collectAgents: () => AgentList;
   readonly collectFleet: () => Promise<FleetEntry[]>;
   readonly loadLastUsedAgent: () => Promise<AgentID>;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
@@ -121,6 +123,17 @@ export interface DaemonContext {
 // ability to receive output events.
 export interface OutputClient {
   readonly sendOutput: (sessionID: SessionID, event: EventMsg, byteLength: number) => void;
+}
+
+// The `agents.list` answer: the host the daemon runs on, and each agent.
+interface AgentList {
+  readonly daemon: {
+    readonly hostname: string;
+    readonly platform: string;
+    readonly arch: string;
+    readonly build: string;
+  };
+  readonly agents: readonly AgentEntry[];
 }
 
 // One `events.read` answer: the events, and whether more follow them.
@@ -314,6 +327,11 @@ export class DaemonConnection {
       }
       case 'session.list': {
         this.sendOk(req.id, { sessions: this.ctx.collectSessions() });
+
+        return;
+      }
+      case 'agents.list': {
+        this.sendOk(req.id, { ...this.ctx.collectAgents() });
 
         return;
       }

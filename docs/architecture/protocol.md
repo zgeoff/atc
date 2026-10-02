@@ -78,6 +78,7 @@ semantics.
 | `daemon.quit`           | stop the daemon; every hosted session goes down with it                                                                                                                                                            |
 | `session.list`          | fleet listing (descriptors mirror the `Session` shape, minus the PTY handle, plus `kind` and `agent`)                                                                                                              |
 | `dirs.list`             | recent spawn directories, most recent first, for the picker                                                                                                                                                        |
+| `agents.list`           | the registered agents and the host the daemon runs on. [Agents](#agents) covers the answer                                                                                                                         |
 | `fleet.list`            | the persisted fleet rows, independent of which sessions are currently live                                                                                                                                         |
 | `session.spawn`         | spawn (cwd, name, prompt, resume, dims, optional `agent` id, optional `parent` id). Omitted agent is Claude, an empty id is `bad_args`, an unregistered one `unsupported`. An unknown parent is `no_such_session`. |
 | `session.update`        | rename and/or pin a session (`{ session, name?, pinned? }`). Pinning a sub-session is `bad_args`: it pins with its parent.                                                                                         |
@@ -204,6 +205,25 @@ sessions with `unsupported`.
 activity time (the time of its latest trail event of any kind), the prompt or question it waits on
 while it needs you, and the final message of its latest turn, cut at 16 KiB. The fleet row holds the
 spawn prompt and latest result, so both survive a restore.
+
+## Agents
+
+`agents.list` returns a `daemon` object with the host's name, platform, and architecture and the
+daemon build, plus one entry per registered agent id. An entry holds the id, label, kind (`claude`,
+`gateway`, `codex`, or `grok`), `installed`, `capabilities`, and `models`:
+
+- `installed` is true when the agent's binary resolves on the daemon's `PATH` or at its configured
+  path. A registered agent whose binary is missing stays in the list with `installed` false.
+- `capabilities` holds one boolean each for `spawn`, `readTranscript`, `message`, `attach`,
+  `screen`, and `input`. `spawn` is true only for an installed agent, `message` follows the agent's
+  message tap, and every agent takes `attach`, `screen`, and `input`, since each session runs in a
+  PTY.
+- `models` holds the model names the config sets explicitly, keyed by role, and is null otherwise.
+  For a gateway, `ANTHROPIC_MODEL` is the `default` role and each `ANTHROPIC_DEFAULT_<TIER>_MODEL`
+  is the tier in lower case.
+
+The answer never holds an environment value, a credential, an `apiKeyHelper` command, or a base URL,
+and no field describes which plans an agent's account holds.
 
 ## Messages
 

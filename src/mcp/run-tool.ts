@@ -97,6 +97,11 @@ export function runTool(
 
       return { text: JSON.stringify(ok['dirs'], null, 2), structured: { dirs: ok['dirs'] } };
     })
+    .with('atc_agents_list', async () => {
+      const ok = await caller.sendRequest('agents.list');
+
+      return buildObjectResult(ok);
+    })
     .with('atc_session_get', async () => {
       const ok = await caller.sendRequest('session.get', { session: args['session'] });
 
