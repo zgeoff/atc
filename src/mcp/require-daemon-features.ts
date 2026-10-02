@@ -7,6 +7,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'daemon.id': "the daemon's persisted identity",
   'events.more': "atc_events_read's more flag",
   'events.session': "atc_events_read's session filter",
+  'message.idempotency': "atc_session_message's idempotencyKey",
   'message.turn': "atc_message_get's turn and answeredWith",
   'message.wait': "atc_message_get's waitMs",
   'session.locator': "a session's locator",
