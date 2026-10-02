@@ -70,6 +70,11 @@ interface IdempotencyTable {
   result: string | null;
   created_at: number;
   updated_at: number;
+
+  // The target, and its identity, the completed effect's session was bound
+  // to; null for a key completed without one.
+  effect_target: string | null;
+  effect_target_identity: string | null;
 }
 
 interface MessagesTable {
@@ -344,6 +349,16 @@ const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       await db.schema.alterTable('fleet').addColumn('target', 'text').execute();
       await db.schema.alterTable('fleet').addColumn('target_identity', 'text').execute();
+    },
+  },
+  '019_add_idempotency_effect_target': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('idempotency').addColumn('effect_target', 'text').execute();
+
+      await db.schema
+        .alterTable('idempotency')
+        .addColumn('effect_target_identity', 'text')
+        .execute();
     },
   },
 };

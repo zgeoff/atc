@@ -1,3 +1,4 @@
+import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
@@ -25,7 +26,8 @@ interface RawConfig {
  * through a provider that counts its spawns. `client` is the daemon owner's
  * connection; `openClientAs` opens a connection whose handshake gives a
  * principal. `restart` stops the daemon and starts it again on the same
- * state with another config.
+ * state with another config, running `whileStopped` in between, and
+ * `dbPath` is that state.
  */
 async function setupTest(raw: RawConfig) {
   const tmp = setupTempDir('atc-daemon-principals-');
@@ -103,11 +105,14 @@ async function setupTest(raw: RawConfig) {
       return client;
     },
     harnesses,
+    dbPath: join(tmp.dir, 'state.db'),
     openClientAs: (principal: unknown) => openClient({ client: 'atc/test-build', principal }),
-    async restart(config: RawConfig): Promise<void> {
+    async restart(config: RawConfig, whileStopped: () => void = () => {}): Promise<void> {
       stopClients();
 
       await daemon.stop();
+
+      whileStopped();
 
       daemon = await startTestDaemon(config);
       client = await openClient({ client: 'atc/test-build' });
@@ -723,4 +728,122 @@ test('it runs one spawn for one key on a principal connection, whatever principa
 
   expect(getRecord(second, 'session')['id']).toBe(getRecord(first, 'session')['id']);
   expect(daemon.harnesses).toStrictEqual(['local']);
+});
+
+// Spawns on `box` under a key as a principal granted `box`, then forgets the
+// session, so only the held key still holds what the spawn answered.
+async function setupForgottenKeyedSpawn(
+  send: (
+    m: string,
+    p: Readonly<Record<string, unknown>>,
+    as?: string,
+  ) => Promise<Readonly<Record<string, unknown>>>,
+) {
+  const spawned = await send(
+    'session.spawn',
+    { cwd: '/tmp', name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+    'p',
+  );
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await send('session.kill', { session: id });
+  await send('session.kill', { session: id });
+
+  return id;
+}
+
+const BOX_CONFIG: RawConfig = {
+  targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+  principals: { p: { targets: ['box'] } },
+};
+
+test("it refuses the replay of a forgotten session's spawn key once its target holds another identity", async () => {
+  await using daemon = await setupTest(BOX_CONFIG);
+
+  const id = await setupForgottenKeyedSpawn((m, p, as) => daemon.client.sendRequest(m, p, as));
+
+  await daemon.restart({
+    targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 3 } },
+    principals: BOX_CONFIG.principals,
+  });
+
+  const replayed = await readAnswer(
+    () =>
+      daemon.client.sendRequest(
+        'session.spawn',
+        { cwd: '/tmp', name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+        'p',
+      ),
+    'unused',
+  );
+
+  expect(replayed).toStrictEqual({
+    error: {
+      code: 'target_forbidden',
+      message:
+        "this client may not use execution target 'box'. Grant it to the client under principals in config.json and restart the daemon",
+      data: { target: 'box' },
+    },
+  });
+
+  expect(JSON.stringify(replayed)).not.toContain(id);
+  expect(daemon.harnesses).toStrictEqual(['box']);
+});
+
+test("it answers the replay of a forgotten session's spawn key with its session while its target holds the same identity", async () => {
+  await using daemon = await setupTest(BOX_CONFIG);
+
+  const id = await setupForgottenKeyedSpawn((m, p, as) => daemon.client.sendRequest(m, p, as));
+
+  await daemon.restart(BOX_CONFIG);
+
+  const replayed = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp', name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+    'p',
+  );
+
+  expect(replayed).toMatchObject({ session: { id, name: 'secret-work' } });
+  expect(daemon.harnesses).toStrictEqual(['box']);
+});
+
+test('it refuses a principal the replay of a held spawn key that records no target, and answers the owner', async () => {
+  await using daemon = await setupTest(BOX_CONFIG);
+
+  const id = await setupForgottenKeyedSpawn((m, p, as) => daemon.client.sendRequest(m, p, as));
+
+  const owned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'box',
+    idempotencyKey: 'k-owner',
+  });
+
+  await daemon.restart(BOX_CONFIG, () => {
+    const db = new Database(daemon.dbPath);
+
+    db.run('UPDATE idempotency SET effect_target = NULL, effect_target_identity = NULL');
+    db.close();
+  });
+
+  const replayed = await readAnswer(
+    () =>
+      daemon.client.sendRequest(
+        'session.spawn',
+        { cwd: '/tmp', name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+        'p',
+      ),
+    'unused',
+  );
+
+  const ownerReplayed = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'box',
+    idempotencyKey: 'k-owner',
+  });
+
+  expect(replayed).toMatchObject({ error: { code: 'target_forbidden', data: { target: 'box' } } });
+  expect(JSON.stringify(replayed)).not.toContain(id);
+  expect(getRecord(ownerReplayed, 'session')['id']).toBe(getRecord(owned, 'session')['id']);
+  expect(daemon.harnesses).toStrictEqual(['box', 'box']);
 });

@@ -101,10 +101,12 @@ export interface DaemonContext {
 
   // Runs the plan, which throws the refusal for a spawn it refuses, then
   // spawns. Answers with the `session.spawn` ok payload, which a keyed
-  // retry replays as the first spawn answered it.
+  // retry replays as the first spawn answered it while the access, when
+  // there is one, still reaches the target the spawn's session was bound to.
   readonly spawnSession: (
     plan: () => SpawnParams,
     keyed: KeyedRequest | null,
+    access: TargetAccess | null,
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly killSession: (id: SessionID) => Promise<boolean>;
   readonly updateSession: (id: SessionID, name?: string, pinned?: boolean) => boolean | 'child_pin';
@@ -819,7 +821,7 @@ export class DaemonConnection {
         ? null
         : { key: data.idempotencyKey, payloadHash: buildPayloadHash(data) };
 
-    const spawned = await ctx.spawnSession(plan, keyed);
+    const spawned = await ctx.spawnSession(plan, keyed, null);
 
     this.sendOk(req.id, spawned);
   }

@@ -1,5 +1,5 @@
 import { DaemonError } from '../protocol/daemon-error';
-import type { IdempotencyRecord } from '../store/idempotency-record';
+import type { EffectTarget, IdempotencyRecord } from '../store/idempotency-record';
 import type { StateStore } from '../store/state-store';
 import { EffectRemainsError } from './effect-remains-error';
 
@@ -28,6 +28,10 @@ interface IdempotentCall<T> {
 
   // The answer to a retry of a completed key.
   readonly replay: (record: IdempotencyRecord) => T | Promise<T>;
+
+  // The target the effect's session is bound to, recorded with the
+  // completed key; absent or null for an effect bound to none.
+  readonly findEffectTarget?: (result: T) => EffectTarget | null;
 }
 
 /**
@@ -128,7 +132,13 @@ export class IdempotencyLedger {
     // so the next daemon start marks its outcome unknown rather than letting
     // a retry run it again.
     await call.settle();
-    await this.store.updateIdempotencyCompleted(id, JSON.stringify(result), Date.now());
+
+    await this.store.updateIdempotencyCompleted(
+      id,
+      JSON.stringify(result),
+      Date.now(),
+      call.findEffectTarget?.(result) ?? null,
+    );
 
     return result;
   }

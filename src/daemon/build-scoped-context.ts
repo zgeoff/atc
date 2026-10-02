@@ -1,7 +1,7 @@
 import { DaemonError } from '../protocol/daemon-error';
-import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
+import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import { buildTargetIdentity } from './build-target-identity';
 import type { DaemonContext } from './daemon-connection';
 import type { KeyedRequest } from './idempotency-ledger';
@@ -63,26 +63,13 @@ export function buildScopedContext(
     };
   };
 
-  // Throws the refusal a fresh spawn to the session's target gets when the
-  // session a held key answers with is out of reach, so a replay never
-  // returns what the access no longer reaches. A session the daemon holds
-  // nowhere is checked by the target its answer holds, when it holds one.
-  const requireSessionInReach = async (
-    id: SessionID,
-    answeredTarget: string | null,
-  ): Promise<void> => {
+  // Throws the refusal a fresh spawn to the session's target gets when a
+  // held key's refusal carries a session out of reach.
+  const requireSessionInReach = async (id: SessionID): Promise<void> => {
     const grant = await findGrant(id);
 
-    if (grant !== null) {
-      if (!access.canUse(grant)) {
-        throw buildForbiddenTarget(grant.target);
-      }
-
-      return;
-    }
-
-    if (answeredTarget !== null && !canUseTarget(answeredTarget)) {
-      throw buildForbiddenTarget(answeredTarget);
+    if (grant !== null && !access.canUse(grant)) {
+      throw buildTargetForbiddenError(grant.target);
     }
   };
 
@@ -147,21 +134,17 @@ export function buildScopedContext(
     spawnSession: async (plan, keyed) => {
       let answer: Readonly<Record<string, unknown>>;
 
+      // A held key's replay is checked against the target its session was
+      // bound to, inside the spawn, before its answer leaves the daemon.
       try {
-        answer = await ctx.spawnSession(plan, buildPrincipalKey(keyed));
+        answer = await ctx.spawnSession(plan, buildPrincipalKey(keyed), access);
       } catch (error) {
         // A held key's refusal may carry the session its spawn made.
         if (error instanceof DaemonError && typeof error.data?.['effectRef'] === 'string') {
-          await requireSessionInReach(toSessionID(error.data['effectRef']), null);
+          await requireSessionInReach(toSessionID(error.data['effectRef']));
         }
 
         throw error;
-      }
-
-      const session = answer['session'];
-
-      if (isRecord(session) && typeof session['id'] === 'string') {
-        await requireSessionInReach(toSessionID(session['id']), findLocatorTarget(session));
       }
 
       return answer;
@@ -244,21 +227,6 @@ export function buildScopedContext(
 // Throws the refusal of a spawn to a target the access leaves out.
 function requireTarget(canUseTarget: (target: string) => boolean, target: string): void {
   if (!canUseTarget(target)) {
-    throw buildForbiddenTarget(target);
+    throw buildTargetForbiddenError(target);
   }
-}
-
-function buildForbiddenTarget(target: string): DaemonError {
-  return new DaemonError(
-    'target_forbidden',
-    `this client may not use execution target '${target}'. Grant it to the client under principals in config.json and restart the daemon`,
-    { target },
-  );
-}
-
-// The target a session descriptor's locator holds, or null.
-function findLocatorTarget(session: Readonly<Record<string, unknown>>): string | null {
-  const locator = session['locator'];
-
-  return isRecord(locator) && typeof locator['targetID'] === 'string' ? locator['targetID'] : null;
 }

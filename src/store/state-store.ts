@@ -18,7 +18,7 @@ import { toSessionID } from '../shared/to-session-id';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry, FleetEntryUpdate, LegacyFleetEntry } from './fleet-entry';
-import type { IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
+import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
 import type { MessageOwner } from './message-owner';
 import type { MessageRecord } from './message-record';
 import { runMigrations } from './run-migrations';
@@ -587,6 +587,8 @@ export class StateStore {
         result: null,
         created_at: claim.at,
         updated_at: claim.at,
+        effect_target: null,
+        effect_target_identity: null,
       })
       .onConflict((oc) => oc.columns(['principal', 'operation', 'key']).doNothing())
       .returning('key')
@@ -611,10 +613,17 @@ export class StateStore {
     record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
     result: string,
     at: number,
+    effectTarget: EffectTarget | null = null,
   ): Promise<void> {
     await this.db
       .updateTable('idempotency')
-      .set({ state: 'completed', result, updated_at: at })
+      .set({
+        state: 'completed',
+        result,
+        updated_at: at,
+        effect_target: effectTarget?.target ?? null,
+        effect_target_identity: effectTarget?.targetIdentity ?? null,
+      })
       .where('principal', '=', record.principal)
       .where('operation', '=', record.operation)
       .where('key', '=', record.key)
@@ -660,9 +669,22 @@ export class StateStore {
         .where('state', '=', 'in_progress')
         .execute();
 
+      // A spawn that completes here records the target its fleet row holds,
+      // as a spawn that completes as it runs does.
       await trx
         .updateTable('idempotency')
-        .set({ state: 'completed', updated_at: at })
+        .set((eb) => ({
+          state: 'completed',
+          updated_at: at,
+          effect_target: eb
+            .selectFrom('fleet')
+            .select('fleet.target')
+            .whereRef('fleet.session_id', '=', 'idempotency.effect_ref'),
+          effect_target_identity: eb
+            .selectFrom('fleet')
+            .select('fleet.target_identity')
+            .whereRef('fleet.session_id', '=', 'idempotency.effect_ref'),
+        }))
         .where('state', '=', 'outcome_unknown')
         .where('operation', '=', 'session.spawn')
         .where('effect_ref', 'in', (eb) => eb.selectFrom('fleet').select('session_id'))
@@ -985,6 +1007,10 @@ function toIdempotencyRecord(row: Readonly<StateStoreSchema['idempotency']>): Id
     state: row.state,
     effectRef: row.effect_ref,
     result: row.result,
+    effectTarget:
+      row.effect_target === null || row.effect_target_identity === null
+        ? null
+        : { target: row.effect_target, targetIdentity: row.effect_target_identity },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

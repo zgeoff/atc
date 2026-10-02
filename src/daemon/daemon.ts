@@ -32,6 +32,7 @@ import { buildSessionEvent } from './build-session-event';
 import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionReportEvent } from './build-session-report-event';
 import { buildTargetAccess } from './build-target-access';
+import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import { buildTargetList } from './build-target-list';
 import { claimDaemonLock } from './claim-daemon-lock';
 import { DaemonConnection } from './daemon-connection';
@@ -840,6 +841,22 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const ledger = new IdempotencyLedger(store, LOCAL_PRINCIPAL);
 
+  // Throws the refusal a fresh spawn to the target gets when the access
+  // does not reach the target, and the identity, a held spawn key recorded
+  // for its session. A key that records none is refused: nothing it holds
+  // shows where its session ran.
+  const requireReplayInReach = (record: IdempotencyRecord, access: TargetAccess): void => {
+    const bound = record.effectTarget;
+
+    if (bound === null) {
+      throw buildTargetForbiddenError(findReplayTarget(record));
+    }
+
+    if (!access.canUse(bound)) {
+      throw buildTargetForbiddenError(bound.target);
+    }
+  };
+
   // Why the session refuses a message right now, or null when it takes one.
   const findMessageRefusal = (sessionID: SessionID): MessageRefusal | null => {
     const s = mgr.sessions.find((x) => x.id === sessionID);
@@ -979,7 +996,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return target;
     },
-    spawnSession: (plan, keyed) => {
+    spawnSession: (plan, keyed, access) => {
       if (keyed === null) {
         return startSpawn(plan(), mintSessionID()).then((session) => ({ session }));
       }
@@ -992,7 +1009,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         effectRef,
         start: async () => ({ session: await startSpawn(plan(), effectRef) }),
         settle: () => mgr.writeFleet(),
-        replay: (record) => loadSpawnReplay(record),
+        replay: (record) => {
+          if (access !== null) {
+            requireReplayInReach(record, access);
+          }
+
+          return loadSpawnReplay(record);
+        },
+        findEffectTarget: () => {
+          const s = mgr.sessions.find((x) => x.id === effectRef);
+
+          return s === undefined ? null : { target: s.target, targetIdentity: s.targetIdentity };
+        },
       });
     },
     updateSession: (id, name, pinned) => mgr.updateSession(id, name, pinned),
@@ -1567,4 +1595,16 @@ class MessageRefusedError extends Error {
     this.refusal = refusal;
     this.name = 'MessageRefusedError';
   }
+}
+
+// The target a held spawn key's stored answer holds its session on, for a
+// refusal of its replay; the answer holds no other target to name.
+function findReplayTarget(record: IdempotencyRecord): string {
+  const stored: unknown = record.result === null ? null : JSON.parse(record.result);
+  const session = isRecord(stored) ? stored['session'] : null;
+  const locator = isRecord(session) ? session['locator'] : null;
+
+  return isRecord(locator) && typeof locator['targetID'] === 'string'
+    ? locator['targetID']
+    : 'unknown';
 }

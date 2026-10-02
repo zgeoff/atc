@@ -388,13 +388,16 @@ reach does not exist:
   permission request's resolution only when it was pushed the request.
 
 A spawn to a target the principal may not use, named or the default, fails with `target_forbidden`,
-with the target as `data.target`. So does the replay of a held spawn key whose session the principal
-no longer reaches, without the session. A kill, a forget, or a pin of a session whose sub-sessions
-the change would reach too fails with `target_forbidden` and the session as `data.session` when any
-of those sub-sessions is out of reach, and changes nothing; the error holds no sub-session's id or
-count. `daemon.quit` and `fleet.restore` act on the whole daemon, and a principal gets
-`unauthorized` for them. The [events socket](#events-socket) has no handshake and streams every
-event: it is a local socket for the daemon's owner alone.
+with the target as `data.target`. So does the replay of a held spawn key when the principal no
+longer reaches the target, at the identity, that the key recorded for its session, even after the
+session is forgotten; the refusal holds no part of the session. A key that records no target, which
+only a key from before atc recorded them holds, refuses every principal's replay; the daemon's owner
+still gets the session. A kill, a forget, or a pin of a session whose sub-sessions the change would
+reach too fails with `target_forbidden` and the session as `data.session` when any of those
+sub-sessions is out of reach, and changes nothing; the error holds no sub-session's id or count.
+`daemon.quit` and `fleet.restore` act on the whole daemon, and a principal gets `unauthorized` for
+them. The [events socket](#events-socket) has no handshake and streams every event: it is a local
+socket for the daemon's owner alone.
 
 ## Idempotent requests
 
