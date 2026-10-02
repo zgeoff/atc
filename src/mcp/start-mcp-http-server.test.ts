@@ -366,6 +366,130 @@ test('it denies the request when the operator allows nothing', async () => {
     state: 'state-1',
     iss: server.origin,
   });
+
+  expect(consented.headers.get('set-cookie')).toMatch(/session_token=; Max-Age=0;/);
+});
+
+test('it shows the consent page on every authorization of a client', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const first = await runMCPAuthorization(server, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const second = await runMCPAuthorization(server, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  expect(second.code).not.toBe(first.code);
+});
+
+test('it binds a token to /mcp when the client names no resource', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const verifier = 'verifier-0123456789-abcdefghijklmnopqrstuvwxyz';
+
+  const authorize = new URL(`${server.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: createHash('sha256').update(verifier).digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const signedIn = await fetch(`${server.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
+  });
+
+  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+
+  const cookie = signedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  const consented = await fetch(`${server.url}/consent`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      oauth_query: consent.search.slice(1),
+      decision: 'approve',
+      scope: 'read',
+    }),
+  });
+
+  const callback = new URL(consented.headers.get('location') ?? '/', server.url);
+
+  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: callback.searchParams.get('code') ?? '',
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  const pinged = await fetch(`${server.url}/mcp`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  expect(pinged.status).toBe(200);
+});
+
+test('it prints a client name with its control characters dropped', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Evil\u001B[2J\nName\u202E', ['https://evil.example/cb']);
+
+  const authorize = new URL(`${server.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://evil.example/cb',
+    scope: 'read',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  await fetch(authorize, { redirect: 'manual' });
+
+  expect(server.approvals[0]).toStartWith(
+    'Approve Evil[2J Name (returns to evil.example) with code ',
+  );
 });
 
 test('it asks a browser that kept its owner session for a fresh approval code', async () => {
