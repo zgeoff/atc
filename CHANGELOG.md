@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.9.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.8.2...@zgeoff/atc@2.9.0) (2026-10-02)
+
+### Features
+
+- **daemon:** record message and report events in the event trail
+  ([#127](https://github.com/zgeoff/atc/issues/127))
+  ([bf62eb0](https://github.com/zgeoff/atc/commit/bf62eb031354e2d556456917ddd683b94988f6fd))
+
 ## [2.8.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.8.1...@zgeoff/atc@2.8.2) (2026-10-02)
 
 ### Bug Fixes
