@@ -13,7 +13,7 @@ import type { TrailEntry } from '../store/trail-entry';
 export function buildMessageTrailEntry(
   sessionID: SessionID,
   agentSessionID: AgentSessionID | undefined,
-  record: MessageRecord, // oxlint-disable-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
+  record: MessageRecord,
 ): TrailEntry {
   const previewText = record.status === 'answered' ? (record.answer ?? record.text) : record.text;
 
@@ -27,7 +27,6 @@ export function buildMessageTrailEntry(
   };
 }
 
-// oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
 function pickStatusTime(record: MessageRecord): number {
   if (record.status === 'answered') {
     return record.answeredAt ?? record.sentAt;

@@ -11,7 +11,6 @@ import type { MessageRecord } from '../store/message-record';
  * broadcast stays small; `message.get` returns the full message. Delivery
  * and answer fields appear only once they are set.
  */
-// oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
 export function buildSessionMessageEvent(sessionID: SessionID, record: MessageRecord): EventMsg {
   return {
     v: PROTOCOL_V,

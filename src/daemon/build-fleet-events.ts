@@ -19,7 +19,7 @@ export interface FleetEvent {
 }
 
 export function buildFleetEvents(
-  rows: readonly StoredEvent[], // oxlint-disable-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
+  rows: readonly StoredEvent[],
   sessions: readonly SessionDescriptor[],
 ): FleetEvent[] {
   return rows.map((row) => {

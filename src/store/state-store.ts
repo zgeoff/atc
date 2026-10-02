@@ -221,9 +221,7 @@ export class StateStore {
       .execute();
   }
 
-  async recordTrailEntry(
-    entry: TrailEntry, // oxlint-disable-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
-  ): Promise<void> {
+  async recordTrailEntry(entry: TrailEntry): Promise<void> {
     await this.db
       .insertInto('events')
       .values({
@@ -325,7 +323,6 @@ export class StateStore {
       .execute();
   }
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
   async writeMessage(record: MessageRecord): Promise<void> {
     await this.db
       .insertInto('messages')

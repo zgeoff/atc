@@ -154,7 +154,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const eventSignal = new EventSignal();
 
   // A trail write that fails never fails the message request or report behind it.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
   const recordTrailEntry = async (entry: TrailEntry) => {
     try {
       await store.recordTrailEntry(entry);
@@ -167,7 +166,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // Notes a message status change in the trail before broadcasting it, so a
   // client reading the trail on the broadcast finds the change already there.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
   const recordMessageStatus = async (sessionID: SessionID, record: MessageRecord) => {
     const s = mgr.sessions.find((x) => x.id === sessionID);
 
@@ -213,7 +211,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // Hands one pending message to the session's tap, once, and reports whether
   // it did. The event goes to the tap connection alone: it never reaches
   // other clients, the events socket, or hooks.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
   const sendInboxMessage = (sessionID: SessionID, record: MessageRecord): boolean => {
     const tap = taps.claimDelivery(sessionID, record.id);
 
