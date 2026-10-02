@@ -27,6 +27,11 @@ export interface FleetEntry {
 
   // The transcript file the agent's hooks last reported for the session.
   readonly transcriptPath?: string;
+
+  // The model and effort the session was spawned with; absent for a session
+  // that runs on the agent's configured default.
+  readonly model?: string;
+  readonly effort?: string;
 }
 
 export interface FleetStore {

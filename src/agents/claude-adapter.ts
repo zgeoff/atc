@@ -14,9 +14,13 @@ import type {
   HeadlessRunner,
   NameUpdate,
   ResumeCheck,
+  SpawnOptionSpecs,
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
+import { buildClaudeOverrideArgs } from './build-claude-override-args';
+import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
+import { findFlagValue } from './find-flag-value';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { truncateDetail } from './truncate-detail';
 import { writeATCBridge } from './write-atc-bridge';
@@ -66,7 +70,14 @@ export class ClaudeAdapter implements AgentAdapter {
   constructor(config: Config, headlessRunner: HeadlessRunner | null = null, bridgeTarget?: string) {
     this.bridgeTarget = bridgeTarget;
     this.config = config;
-    this.profile = { label: 'Claude', kind: 'claude', bin: config.claudeBin, models: null };
+
+    this.profile = {
+      label: 'Claude',
+      kind: 'claude',
+      bin: config.claudeBin,
+      models: null,
+      spawnOptions: buildClaudeSpawnOptions(config.claudeArgs),
+    };
 
     this.headlessRunner =
       headlessRunner === null
@@ -80,7 +91,7 @@ export class ClaudeAdapter implements AgentAdapter {
     return {
       bin: this.config.claudeBin,
       args: [
-        ...this.config.claudeArgs,
+        ...buildClaudeOverrideArgs(this.config.claudeArgs, opts),
         '--settings',
         this.settingsFile,
         '--plugin-dir',
@@ -229,4 +240,40 @@ export class ClaudeAdapter implements AgentAdapter {
 
     return `cd ${toShellArg(cwd)} && ${resume}`;
   }
+}
+
+// The aliases Claude Code documents for `--model`, each resolving to a model
+// the account picks. A full model name is accepted as well.
+const CLAUDE_MODEL_ALIASES = [
+  'best',
+  'fable',
+  'opus',
+  'sonnet',
+  'haiku',
+  'opus[1m]',
+  'sonnet[1m]',
+  'opusplan',
+];
+
+// What a Claude spawn can override. Each default is the value the configured
+// arguments pass, or null when the CLI picks its own.
+function buildClaudeSpawnOptions(claudeArgs: readonly string[]): SpawnOptionSpecs {
+  return {
+    model: {
+      supported: true,
+      values: null,
+      examples: CLAUDE_MODEL_ALIASES.map((value) => ({ value, resolvesTo: null })),
+      default: findFlagValue(claudeArgs, ['--model']),
+      backendEffect: 'applied',
+      note: 'An alias or a full model name, passed as --model.',
+    },
+    effort: {
+      supported: true,
+      values: CLAUDE_EFFORT_LEVELS,
+      examples: [],
+      default: findFlagValue(claudeArgs, ['--effort']),
+      backendEffect: 'applied',
+      note: 'Passed as --effort. Which levels a session honours depends on its model.',
+    },
+  };
 }

@@ -1,4 +1,4 @@
-import type { AgentAdapter } from '../agents/agent-adapter';
+import type { AgentAdapter, SpawnOptionSpec } from '../agents/agent-adapter';
 
 interface AgentCapabilities {
   // Only an installed agent can start a session.
@@ -21,6 +21,19 @@ export interface AgentEntry {
   readonly installed: boolean;
   readonly capabilities: AgentCapabilities;
   readonly models: Readonly<Record<string, string>> | null;
+  readonly spawnOptions: SpawnOptionEntries;
+}
+
+// A spawn option as `agents.list` shows it: the agent's own spec, plus
+// whether a spawn on this host can pass it now. Only an installed agent's
+// supported option is available.
+export interface SpawnOptionEntry extends SpawnOptionSpec {
+  readonly available: boolean;
+}
+
+interface SpawnOptionEntries {
+  readonly model: SpawnOptionEntry;
+  readonly effort: SpawnOptionEntry;
 }
 
 /**
@@ -53,6 +66,29 @@ export function buildAgentList(
         input: true,
       },
       models: profile?.models ?? null,
+      spawnOptions: {
+        model: buildSpawnOptionEntry(profile?.spawnOptions.model, installed),
+        effort: buildSpawnOptionEntry(profile?.spawnOptions.effort, installed),
+      },
     };
   });
+}
+
+// A stand-in adapter declares no spawn options, so it takes none.
+const NO_SPAWN_OPTION: SpawnOptionSpec = {
+  supported: false,
+  values: null,
+  examples: [],
+  default: null,
+  backendEffect: null,
+  note: null,
+};
+
+function buildSpawnOptionEntry(
+  spec: SpawnOptionSpec | undefined,
+  installed: boolean,
+): SpawnOptionEntry {
+  const resolved = spec ?? NO_SPAWN_OPTION;
+
+  return { ...resolved, available: installed && resolved.supported };
 }

@@ -117,6 +117,8 @@ export class StateStore {
         'prompt',
         'result',
         'transcript_path',
+        'model',
+        'effort',
       ])
       .execute();
 
@@ -135,6 +137,8 @@ export class StateStore {
         ...(row.prompt === null ? {} : { prompt: row.prompt }),
         ...(row.result === null ? {} : { result: row.result }),
         ...(row.transcript_path === null ? {} : { transcriptPath: row.transcript_path }),
+        ...(row.model === null ? {} : { model: row.model }),
+        ...(row.effort === null ? {} : { effort: row.effort }),
       });
     }
 
@@ -183,6 +187,8 @@ export class StateStore {
             prompt: entry.prompt ?? null,
             result: entry.result ?? null,
             transcript_path: entry.transcriptPath ?? null,
+            model: entry.model ?? null,
+            effort: entry.effort ?? null,
           })
           .orReplace()
           .execute();

@@ -25,6 +25,20 @@ export interface SpawnOptions {
   // true opens the agent's own session picker; an agent session id resumes
   // that specific session.
   readonly resume: boolean | AgentSessionID;
+
+  // The model and effort the session runs with; an absent one leaves the
+  // agent's configured default in place.
+  readonly model?: string;
+  readonly effort?: string;
+}
+
+/**
+ * The per-session model and effort a spawn asks for, already checked
+ * against what the agent advertises.
+ */
+export interface SpawnOverrides {
+  readonly model?: string;
+  readonly effort?: string;
 }
 
 export interface SpawnPlan {
@@ -102,6 +116,10 @@ interface HeadlessRunRequest {
 
   // Folder of the atc-bridge mod the run's CLI loads, supplied by the adapter.
   readonly pluginDir?: string;
+
+  // The session's own model and effort, so a headless turn keeps them.
+  readonly model?: string;
+  readonly effort?: string;
 }
 
 interface HeadlessRunEvents {
@@ -133,6 +151,39 @@ export interface AgentProfile {
 
   // Model names the config sets explicitly, keyed by role; null when it sets none.
   readonly models: Readonly<Record<string, string>> | null;
+
+  // The per-session overrides a spawn can pass this agent's CLI.
+  readonly spawnOptions: SpawnOptionSpecs;
+}
+
+/**
+ * A value worth offering for a spawn option, with the provider model it
+ * maps to when the config holds that mapping.
+ */
+interface SpawnOptionExample {
+  readonly value: string;
+  readonly resolvesTo: string | null;
+}
+
+/**
+ * Whether the agent's CLI takes one spawn option, and which values it does.
+ * `values` holds the closed set a value must come from; null takes any
+ * well-formed value. `backendEffect` is `applied` when the CLI applies the
+ * value itself and `unverified` when the backend behind the CLI may ignore
+ * it; null for an option the agent does not take.
+ */
+export interface SpawnOptionSpec {
+  readonly supported: boolean;
+  readonly values: readonly string[] | null;
+  readonly examples: readonly SpawnOptionExample[];
+  readonly default: string | null;
+  readonly backendEffect: 'applied' | 'unverified' | null;
+  readonly note: string | null;
+}
+
+export interface SpawnOptionSpecs {
+  readonly model: SpawnOptionSpec;
+  readonly effort: SpawnOptionSpec;
 }
 
 /**
