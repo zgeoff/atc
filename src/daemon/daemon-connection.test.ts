@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { SessionID } from '../shared/session-id';
+import { toDaemonID } from '../shared/to-daemon-id';
 import { toSessionID } from '../shared/to-session-id';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext } from './daemon-connection';
@@ -44,6 +45,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
 
   const ctx: DaemonContext = {
     build: 'atc/test',
+    daemonID: toDaemonID('d-1'),
     collectSessions: () => [],
     collectSpawnDirs: assertUnreachable,
     collectAgents: assertUnreachable,
@@ -84,7 +86,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
 
   const conn = new DaemonConnection(peer, ctx);
 
-  conn.applyChunk('{"v":3,"id":1,"m":"daemon.hello","p":{"client":"atc/test"}}\n');
+  conn.applyChunk('{"v":4,"id":1,"m":"daemon.hello","p":{"client":"atc/test"}}\n');
 
   return {
     conn,

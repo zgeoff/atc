@@ -4,6 +4,7 @@ import type { AgentID } from '../agents/agent-adapter';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalBoolean } from '../shared/build-optional-boolean';
 import { buildOptionalString } from '../shared/build-optional-string';
+import type { DaemonID } from '../shared/daemon-id';
 import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
@@ -42,6 +43,7 @@ export interface FleetEntry {
 }
 
 export interface FleetStore {
+  readonly daemonID: DaemonID;
   readonly loadFleet: () => Promise<FleetEntry[]>;
   readonly writeFleet: (entries: readonly FleetEntry[]) => Promise<void>;
   readonly updateFleetEntry: (sessionID: SessionID, fields: FleetEntryUpdate) => Promise<void>;

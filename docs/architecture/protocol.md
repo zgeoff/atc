@@ -24,23 +24,25 @@ version) so a socket tap can interpret lines standalone.
 
 ```jsonc
 // request  (client -> daemon); id is client-assigned, monotonic per connection
-{ "v": 3, "id": 7, "m": "session.spawn", "p": { "cwd": "/x", "name": "auth-bug" } }
+{ "v": 4, "id": 7, "m": "session.spawn", "p": { "cwd": "/x", "name": "auth-bug" } }
 
 // response (daemon -> client); exactly one per request
-{ "v": 3, "id": 7, "ok": { "session": "s7-m4x2p" } }
-{ "v": 3, "id": 7, "err": { "code": "no_such_session", "msg": "…" } }
+{ "v": 4, "id": 7, "ok": { "session": "s7-m4x2p" } }
+{ "v": 4, "id": 7, "err": { "code": "no_such_session", "msg": "…" } }
 
 // event    (daemon -> client, unsolicited, never acknowledged)
-{ "v": 3, "ev": "SessionOutput", "s": "s7-m4x2p", "seq": 41, "d": "[1mhello[0m" }
+{ "v": 4, "ev": "SessionOutput", "s": "s7-m4x2p", "seq": 41, "d": "[1mhello[0m" }
 ```
 
 Methods are `noun.verb`; events are PascalCase, the naming style hook consumers already know from
 Claude Code's hook events. The MCP tools map onto both mechanically (`session.spawn` → tool
 `atc_session_spawn`, `SessionAdded` → a notification). Error codes are human-readable strings from a
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
-`no_such_session`, `session_dead`, `unsupported`, `already_answered`, `too_slow`, `internal`. An
-unknown method is an `unknown_method` error, never a disconnect; unknown fields in any message are
-ignored. Both rules exist so additive evolution never breaks a peer.
+`no_such_session`, `session_dead`, `unsupported`, `already_answered`, `too_slow`, `stale_epoch`,
+`internal`. An unknown method is an `unknown_method` error, never a disconnect; unknown fields in
+any message are ignored. A peer decodes an error code it does not know as `internal` and keeps its
+`msg`. These rules exist so additive evolution never breaks a peer. An error may also carry `data`,
+an object whose fields its code defines.
 
 ## Handshake
 
@@ -51,22 +53,30 @@ failure must be actionable, not cryptic: the error names both versions and both 
 says to restart the daemon.
 
 ```jsonc
-{ "v": 3, "id": 1, "m": "daemon.hello",
+{ "v": 4, "id": 1, "m": "daemon.hello",
   "p": { "client": "atc/0.4.0", "auth": { "scheme": "none" } } }
 
-{ "v": 3, "id": 1, "ok": { "daemon": "atc/0.4.0",
+{ "v": 4, "id": 1, "ok": { "daemon": "atc/0.4.0",
+                           "daemonID": "0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30",
                            "limits": { "maxLine": 1048576, "maxChunk": 65536 },
                            "features": ["agents.list", "events.more", "events.session",
-                                        "message.turn", "message.wait", "spawn.options"],
+                                        "message.turn", "message.wait", "spawn.options",
+                                        "daemon.id", "session.locator"],
                            "lastUsedAgent": "claude" } }
 ```
 
 `features` lists the request features the daemon serves beyond the protocol version: `agents.list`
 exists, `events.read` returns `more` and takes `session`, and `message.get` returns `turn` and
-`answeredWith` and takes `waitMs`, and `session.spawn` takes `model` and `effort` while
-`agents.list` returns `spawnOptions`. A daemon from before the list existed sends none, and it
-ignores the parameters it does not know. A client that outlives a daemon upgrade, such as `atc mcp`,
-reads the list rather than the build string to learn what the running daemon honours.
+`answeredWith` and takes `waitMs`, `session.spawn` takes `model` and `effort` while `agents.list`
+returns `spawnOptions`, `daemon.hello` returns `daemonID`, and every session descriptor holds a
+`locator`. A daemon from before the list existed sends none, and it ignores the parameters it does
+not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the list rather than the
+build string to learn what the running daemon honours.
+
+`daemonID` is the id the daemon minted into its state store the first time it opened it, so it stays
+the same across daemon restarts. Every session descriptor holds a `locator` of
+`{ daemonID, targetID: "local" }`: the daemon that hosts the session, and the execution target on
+that daemon's host.
 
 `lastUsedAgent` is the agent id of the last deliberate spawn that reported SessionStart. The
 built-in ids are `claude`, `grok`, and `codex`. A spawn that never reports SessionStart does not

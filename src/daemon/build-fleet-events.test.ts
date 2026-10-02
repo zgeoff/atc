@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { decodeCursor } from '../protocol/decode-cursor';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toDaemonID } from '../shared/to-daemon-id';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildFleetEvents } from './build-fleet-events';
@@ -35,6 +36,7 @@ test('it names an event by the live session holding its agent session id', () =>
         kind: 'pty',
         alive: true,
         canEject: false,
+        locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
       },
     ],
   );
@@ -80,6 +82,7 @@ test('it names an event by atc id when it carries no agent session id', () => {
         kind: 'pty',
         alive: true,
         canEject: false,
+        locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
       },
     ],
   );

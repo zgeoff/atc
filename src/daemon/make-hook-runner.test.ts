@@ -15,7 +15,7 @@ test('it runs a hook with the event JSON on stdin and the event name in the envi
   });
 
   run(
-    { v: 3, ev: 'SessionAttached', session: { id: 's1', cwd: '/w' } },
+    { v: 4, ev: 'SessionAttached', session: { id: 's1', cwd: '/w' } },
     { cwd: '/w', repoRoot: '/w' },
   );
 
@@ -30,7 +30,7 @@ test('it runs a hook with the event JSON on stdin and the event name in the envi
   });
 
   expect(text).toBe(
-    `${JSON.stringify({ v: 3, ev: 'SessionAttached', session: { id: 's1', cwd: '/w' } })}\nSessionAttached\n`,
+    `${JSON.stringify({ v: 4, ev: 'SessionAttached', session: { id: 's1', cwd: '/w' } })}\nSessionAttached\n`,
   );
 });
 
@@ -44,7 +44,7 @@ test('it runs a dir hook when the session repo root or cwd sits at or under the 
     ],
   });
 
-  run({ v: 3, ev: 'SessionAttached' }, { cwd: '/w/repo/sub', repoRoot: '/w/repo' });
+  run({ v: 4, ev: 'SessionAttached' }, { cwd: '/w/repo/sub', repoRoot: '/w/repo' });
 
   await waitFor(() => readFileSync(join(ctx.dir, 'exact'), 'utf8'));
   await waitFor(() => readFileSync(join(ctx.dir, 'above'), 'utf8'));
@@ -60,7 +60,7 @@ test('it skips a dir hook when the session path only shares a string prefix', as
     ],
   });
 
-  run({ v: 3, ev: 'SessionAttached' }, { cwd: '/w/bc', repoRoot: '/w/bc' });
+  run({ v: 4, ev: 'SessionAttached' }, { cwd: '/w/bc', repoRoot: '/w/bc' });
 
   await waitFor(() => readFileSync(join(ctx.dir, 'control'), 'utf8'));
 
@@ -81,7 +81,7 @@ test('it skips dir hooks for an event that carries no session', async () => {
     ],
   });
 
-  run({ v: 3, ev: 'PermissionResolved', request: 'r1', decision: 'allow' }, null);
+  run({ v: 4, ev: 'PermissionResolved', request: 'r1', decision: 'allow' }, null);
 
   await waitFor(() => readFileSync(join(ctx.dir, 'control'), 'utf8'));
 
@@ -99,7 +99,7 @@ test('it runs nothing for an event with no configured hooks', async () => {
     SessionAttached: [{ command: `touch '${join(ctx.dir, 'trap')}'` }],
   });
 
-  run({ v: 3, ev: 'SessionState', session: { id: 's1' } }, { cwd: '/w', repoRoot: '/w' });
+  run({ v: 4, ev: 'SessionState', session: { id: 's1' } }, { cwd: '/w', repoRoot: '/w' });
 
   // A skipped spawn leaves no signal; the settle gives a wrongly spawned
   // touch time to land before the absence assertion.
@@ -119,7 +119,7 @@ test('it kills a hook that runs past its timeout', async () => {
     ],
   });
 
-  run({ v: 3, ev: 'SessionAttached' }, null);
+  run({ v: 4, ev: 'SessionAttached' }, null);
 
   await waitFor(() => {
     const written = readFileSync(out, 'utf8');

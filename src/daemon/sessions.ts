@@ -3,13 +3,15 @@ import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
 import type { AdapterEvent, AgentAdapter, AgentID, SpawnOverrides } from '../agents/agent-adapter';
 import { truncateDetail } from '../agents/truncate-detail';
+import { DaemonError } from '../protocol/daemon-error';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { collectCleanEnv } from '../shared/collect-clean-env';
 import { socketPath, statusFile } from '../shared/config';
+import type { DaemonID } from '../shared/daemon-id';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { SessionID } from '../shared/session-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
-import type { FleetEntry, FleetStore } from '../store/fleet-entry';
+import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
 import type { HookEvent } from './hooks';
 import { mintSessionID } from './mint-session-id';
 
@@ -44,6 +46,15 @@ export interface SessionDescriptor {
   // The session this one is a sub-session of, when it has one: it lists
   // under that session and takes its pin from it.
   readonly parent?: SessionID;
+
+  // Where the session runs: the daemon hosting it, and the execution target
+  // on that daemon's host.
+  readonly locator: SessionLocator;
+}
+
+interface SessionLocator {
+  readonly daemonID: DaemonID;
+  readonly targetID: 'local';
 }
 
 export interface Session {
@@ -104,6 +115,12 @@ export class SessionManager {
   onChange: () => void = () => {};
 
   onEvent: (kind: SessionEventKind, s: Session) => void = () => {};
+
+  // Where a background failure is reported, one line at a time: stderr,
+  // like the daemon's other background failures.
+  log: (line: string) => void = (line) => {
+    console.error(line);
+  };
 
   // Whether any registered adapter has a screen detector, decided once at
   // construction since the registry never changes afterward. Lets a hot path
@@ -274,7 +291,7 @@ export class SessionManager {
       this.emitChange();
     });
 
-    void this.writeFleet();
+    void this.tryWriteFleet(s.id);
     this.onEvent('state', s);
     this.emitChange();
 
@@ -311,7 +328,7 @@ export class SessionManager {
       this.onEvent('state', s);
     }
 
-    void this.writeFleet();
+    void this.tryWriteFleet(s.id);
     this.writeStatus();
     this.emitChange();
 
@@ -334,7 +351,7 @@ export class SessionManager {
     if (result !== undefined) {
       s.result = truncateToBytes(result, 16_384);
       s.lastDetail = truncateDetail(result);
-      void this.store.updateFleetEntry(s.id, { result: s.result });
+      void this.tryUpdateFleetEntry(s.id, { result: s.result });
     }
 
     this.onEvent('state', s);
@@ -450,7 +467,7 @@ export class SessionManager {
     });
 
     this.sessions.push(session);
-    void this.writeFleet();
+    void this.tryWriteFleet(session.id);
     this.writeStatus();
     this.onEvent('added', session);
 
@@ -477,6 +494,7 @@ export class SessionManager {
       alive: s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'),
       canEject: (this.findAdapter(s.agent)?.headlessRunner ?? null) !== null,
       ...(s.parent === null ? {} : { parent: s.parent }),
+      locator: { daemonID: this.store.daemonID, targetID: 'local' },
     }));
   }
 
@@ -598,9 +616,9 @@ export class SessionManager {
     // new agent session id takes it. Anything else touches this session's
     // own row.
     if (persist) {
-      void this.writeFleet();
+      void this.tryWriteFleet(s.id);
     } else {
-      void this.store.updateFleetEntry(s.id, rowUpdate);
+      void this.tryUpdateFleetEntry(s.id, rowUpdate);
     }
 
     if (dirty) {
@@ -630,7 +648,7 @@ export class SessionManager {
       s.namedBy = update.namedBy;
     }
 
-    void this.writeFleet();
+    void this.tryWriteFleet(s.id);
     this.onEvent('renamed', s);
     this.emitChange();
   }
@@ -655,7 +673,7 @@ export class SessionManager {
 
     s.unread = false;
     s.lastAttachedAt = Date.now();
-    void this.writeFleet();
+    void this.tryWriteFleet(s.id);
 
     // Attaching answers the attention request: a still-pending prompt
     // re-flags it via the next notification.
@@ -797,6 +815,45 @@ export class SessionManager {
     }
 
     await this.store.writeFleet(fleet);
+  }
+
+  // A write nobody awaits that fails leaves the stored rows as they were,
+  // and must not take the daemon down unhandled. A stale ownership epoch is
+  // expected and surfaces on the next write a request awaits; any other
+  // failure is logged with the session whose change it was writing.
+  private async tryWriteFleet(sessionID: SessionID): Promise<boolean> {
+    try {
+      await this.writeFleet();
+    } catch (error) {
+      this.logStoreFailure(sessionID, error);
+
+      return false;
+    }
+
+    return true;
+  }
+
+  private async tryUpdateFleetEntry(id: SessionID, fields: FleetEntryUpdate): Promise<boolean> {
+    try {
+      await this.store.updateFleetEntry(id, fields);
+    } catch (error) {
+      this.logStoreFailure(id, error);
+
+      return false;
+    }
+
+    return true;
+  }
+
+  private logStoreFailure(sessionID: SessionID, error: unknown): void {
+    if (error instanceof DaemonError && error.code === 'stale_epoch') {
+      return;
+    }
+
+    const code = error instanceof DaemonError ? error.code : 'internal';
+    const message = error instanceof Error ? error.message : String(error);
+
+    this.log(`atc fleet write for session ${sessionID} failed (${code}): ${message}`);
   }
 
   countStates() {

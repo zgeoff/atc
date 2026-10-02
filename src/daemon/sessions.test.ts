@@ -1,7 +1,9 @@
+import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -535,4 +537,130 @@ test('it persists a session the agent has not yet given a session id', async () 
       lastAttachedAt: expect.toBeNumber(),
     },
   ]);
+});
+
+test('it logs a background fleet write that fails and keeps the change in memory', async () => {
+  const lines: string[] = [];
+  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'));
+
+  mgr.log = (line) => {
+    lines.push(line);
+  };
+
+  const session = mgr.restore({
+    sessionID: toSessionID('s-1'),
+    name: 'work',
+    cwd: '/tmp/proj',
+    agent: 'claude',
+  });
+
+  // Another connection drops the table, so the store's write fails in SQLite.
+  const db = new Database(join(dir, 'state.db'));
+
+  db.run('DROP TABLE fleet');
+  db.close();
+  mgr.updateSession(session.id, 'renamed');
+
+  await waitFor(() => {
+    expect(lines).toStrictEqual([
+      'atc fleet write for session s-1 failed (internal): no such table: fleet',
+    ]);
+  });
+
+  expect(session.name).toBe('renamed');
+});
+
+test('it logs a background row update that fails', async () => {
+  const lines: string[] = [];
+  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'));
+
+  mgr.log = (line) => {
+    lines.push(line);
+  };
+
+  const session = mgr.restore({
+    sessionID: toSessionID('s-1'),
+    name: 'work',
+    cwd: '/tmp/proj',
+    agent: 'claude',
+  });
+
+  const db = new Database(join(dir, 'state.db'));
+
+  db.run('DROP TABLE fleet');
+  db.close();
+  mgr.updateSurfaceState(session.id, 'done', 'finished', 'the result');
+
+  await waitFor(() => {
+    expect(lines).toStrictEqual([
+      'atc fleet write for session s-1 failed (internal): no such table: fleet',
+    ]);
+  });
+});
+
+test('it logs nothing for a background fleet write refused as stale_epoch', async () => {
+  const lines: string[] = [];
+  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'));
+
+  mgr.log = (line) => {
+    lines.push(line);
+  };
+
+  const session = mgr.restore({
+    sessionID: toSessionID('s-1'),
+    name: 'work',
+    cwd: '/tmp/proj',
+    agent: 'claude',
+  });
+
+  // An owner row from a later ownership epoch, which this daemon's writes
+  // may no longer replace.
+  const db = new Database(join(dir, 'state.db'));
+
+  db.run(
+    'INSERT INTO session_owner (session_id, daemon_id, owner_epoch, updated_at) VALUES (?, ?, 2, 0)',
+    ['s-1', store.daemonID],
+  );
+
+  db.close();
+  mgr.updateSession(session.id, 'renamed');
+
+  // The store serves one write at a time, so this refusal settles after the
+  // background write's.
+  expect(mgr.writeFleet()).rejects.toMatchObject({ code: 'stale_epoch' });
+
+  await mgr.writeFleet().catch(() => null);
+  await Bun.sleep(0);
+
+  expect(lines).toStrictEqual([]);
 });

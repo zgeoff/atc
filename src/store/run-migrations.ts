@@ -43,6 +43,16 @@ interface PrefsTable {
   value: string;
 }
 
+// Which daemon owns each persisted session, and under which ownership
+// epoch. A write from a daemon whose epoch is behind the stored one is
+// stale and rejected.
+interface SessionOwnerTable {
+  session_id: string;
+  daemon_id: string;
+  owner_epoch: Generated<number>;
+  updated_at: number;
+}
+
 interface MessagesTable {
   id: string;
   atc_id: string;
@@ -70,6 +80,7 @@ export interface StateStoreSchema {
   spawn_history: SpawnHistoryTable;
   prefs: PrefsTable;
   messages: MessagesTable;
+  session_owner: SessionOwnerTable;
 }
 
 // Every shape the fleet table has shipped with: the oldest carries only
@@ -269,6 +280,21 @@ const MIGRATIONS: Record<string, Migration> = {
       }
     },
   },
+  '016_create_session_owner': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await sql`BEGIN IMMEDIATE`.execute(db);
+
+      try {
+        await createSessionOwners(db);
+
+        await sql`COMMIT`.execute(db);
+      } catch (error) {
+        await sql`ROLLBACK`.execute(db);
+
+        throw error;
+      }
+    },
+  },
 };
 
 const PROVIDER: MigrationProvider = {
@@ -349,6 +375,31 @@ async function recordLegacyBaseline(db: Kysely<StateStoreSchema>): Promise<void>
       db,
     );
   }
+}
+
+// Mints the store's daemon id when it has none, then records that daemon as
+// the owner of every fleet row, at the first ownership epoch.
+async function createSessionOwners(db: Kysely<StateStoreSchema>): Promise<void> {
+  await db.schema
+    .createTable('session_owner')
+    .ifNotExists()
+    .addColumn('session_id', 'text', (c) => c.primaryKey())
+    .addColumn('daemon_id', 'text', (c) => c.notNull())
+    .addColumn('owner_epoch', 'integer', (c) => c.notNull().defaultTo(1))
+    .addColumn('updated_at', 'integer', (c) => c.notNull())
+    .execute();
+
+  await db
+    .insertInto('prefs')
+    .values({ key: 'daemon_id', value: randomUUID() })
+    .onConflict((oc) => oc.column('key').doNothing())
+    .execute();
+
+  await sql`
+    INSERT OR IGNORE INTO session_owner (session_id, daemon_id, updated_at)
+    SELECT fleet.session_id, prefs.value, ${Date.now()}
+    FROM fleet JOIN prefs ON prefs.key = 'daemon_id'
+  `.execute(db);
 }
 
 interface LegacyFleetIDRow {

@@ -376,7 +376,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
 
   expect(daemon.tapEvents).toStrictEqual([
     {
-      v: 3,
+      v: 4,
       ev: 'InboxMessage',
       s: id,
       message: first['message'],
@@ -385,7 +385,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
       sentAt: expect.any(Number),
     },
     {
-      v: 3,
+      v: 4,
       ev: 'InboxMessage',
       s: id,
       message: second['message'],
@@ -394,7 +394,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
       sentAt: expect.any(Number),
     },
     {
-      v: 3,
+      v: 4,
       ev: 'InboxMessage',
       s: id,
       message: third['message'],
@@ -424,7 +424,7 @@ test('it streams a message accepted while the tap is connected', async () => {
 
   expect(daemon.tapEvents).toStrictEqual([
     {
-      v: 3,
+      v: 4,
       ev: 'InboxMessage',
       s: id,
       message: ok['message'],
@@ -543,7 +543,7 @@ test('it moves an acked message to delivered and broadcasts SessionMessage', asy
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
-      v: 3,
+      v: 4,
       ev: 'SessionMessage',
       s: id,
       message: sent['message'],
@@ -626,7 +626,7 @@ test('it moves a message to answered from a Report line on the reporter socket',
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
-      v: 3,
+      v: 4,
       ev: 'SessionMessage',
       s: id,
       message: sent['message'],
@@ -751,7 +751,7 @@ test('it broadcasts a note from the reporter socket as SessionReport', async () 
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
-      v: 3,
+      v: 4,
       ev: 'SessionReport',
       s: id,
       kind: 'blocked',
@@ -1244,7 +1244,7 @@ test('it ends the earlier tap subscription when a second tap attaches', async ()
 
   await waitFor(() => {
     expect(daemon.tapClosed).toStrictEqual([
-      { v: 3, ev: 'InboxClosed', s: id, reason: 'replaced' },
+      { v: 4, ev: 'InboxClosed', s: id, reason: 'replaced' },
     ]);
   });
 });
@@ -1274,7 +1274,7 @@ test('it ends the tap subscription when its session is removed', async () => {
   await daemon.actor.sendRequest('session.kill', { session: id });
 
   await waitFor(() => {
-    expect(daemon.tapClosed).toStrictEqual([{ v: 3, ev: 'InboxClosed', s: id, reason: 'removed' }]);
+    expect(daemon.tapClosed).toStrictEqual([{ v: 4, ev: 'InboxClosed', s: id, reason: 'removed' }]);
   });
 });
 

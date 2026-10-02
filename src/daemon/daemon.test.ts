@@ -1,7 +1,8 @@
+import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { spawnNamedSession } from '../../test/spawn-named-session';
 import { waitFor } from '../../test/wait-for';
@@ -132,6 +133,9 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
 
   expect(ok).toStrictEqual({
     daemon: 'atc/test-build',
+    daemonID: expect.toSatisfy(
+      (id: unknown) => typeof id === 'string' && /^[\da-f-]{36}$/.test(id),
+    ),
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
     features: [
       'agents.list',
@@ -140,6 +144,8 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'message.turn',
       'message.wait',
       'spawn.options',
+      'daemon.id',
+      'session.locator',
     ],
     lastUsedAgent: 'claude',
   });
@@ -181,7 +187,7 @@ test('it counts a client connection while it is open', async () => {
 test('it rejects a protocol version mismatch naming both builds', async () => {
   const raw = await setupRawClient();
 
-  raw.sendLine('{"v":4,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}');
+  raw.sendLine('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}');
 
   const [line] = await raw.waitForLine();
 
@@ -190,15 +196,15 @@ test('it rejects a protocol version mismatch naming both builds', async () => {
   }
 
   expect(JSON.parse(line)).toStrictEqual({
-    v: 3,
+    v: 4,
     id: 1,
     err: {
       code: 'protocol_mismatch',
       msg: expect.toSatisfy(
         (msg: string) =>
           msg.includes('atc/newer-build') &&
+          msg.includes('v5') &&
           msg.includes('v4') &&
-          msg.includes('v3') &&
           msg.includes('restart the daemon'),
       ) as string,
     },
@@ -247,7 +253,7 @@ test('it closes the connection on a malformed line', async () => {
   }
 
   expect(JSON.parse(line)).toStrictEqual({
-    v: 3,
+    v: 4,
     id: 0,
     err: { code: 'bad_args', msg: 'malformed line: not valid JSON' },
   });
@@ -267,7 +273,7 @@ test('it closes the connection on an oversized line', async () => {
   }
 
   expect(JSON.parse(line)).toStrictEqual({
-    v: 3,
+    v: 4,
     id: 0,
     err: { code: 'bad_args', msg: 'line exceeds 1048576 bytes' },
   });
@@ -867,7 +873,7 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
   });
 
   expect(event).toMatchObject({
-    v: 3,
+    v: 4,
     ev: 'SessionAttached',
     session: {
       id: sessionID,
@@ -903,7 +909,7 @@ test('it broadcasts SessionDetached when an attached client detaches', async () 
     return found;
   });
 
-  expect(event).toMatchObject({ v: 3, ev: 'SessionDetached', session: { id: sessionID } });
+  expect(event).toMatchObject({ v: 4, ev: 'SessionDetached', session: { id: sessionID } });
 });
 
 test('it broadcasts SessionDetached when an attached client disconnects', async () => {
@@ -1122,4 +1128,91 @@ test('it holds events.read open for waitMs when no event arrives', async () => {
 
   expect(answer).toStrictEqual({ events: [], cursor: expect.any(String), more: false });
   expect(Date.now()).toBeWithin(before + 250, before + 3000);
+});
+
+test('it answers daemon.hello with the same daemon id after a restart', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const opts = {
+    socketPath: join(dir, 'daemon.sock'),
+    reporterSocketPath: join(dir, 'reporter.sock'),
+    build: 'atc/test-build',
+    adapter: idleAdapter,
+    dbPath: join(dir, 'state.db'),
+    statusPath: join(dir, 'status.json'),
+  };
+
+  const first = await startDaemon(opts);
+  const firstClient = await DaemonClient.open(opts.socketPath);
+  const firstHello = await firstClient.sendHello('atc/test-build');
+
+  firstClient.stop();
+
+  await first.stop();
+
+  const second = await startDaemon(opts);
+
+  onTestFinished(async () => {
+    await second.stop();
+  });
+
+  const secondClient = await DaemonClient.open(opts.socketPath);
+
+  onTestFinished(() => {
+    secondClient.stop();
+  });
+
+  const secondHello = await secondClient.sendHello('atc/test-build');
+
+  expect(secondHello['daemonID']).toBe(firstHello['daemonID']);
+});
+
+test('it locates a spawned session on this daemon at the local target', async () => {
+  const client = await setupClient();
+  const hello = await client.sendHello('atc/test-build');
+  const ok = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+
+  expect(ok['session']).toMatchObject({
+    locator: { daemonID: hello['daemonID'], targetID: 'local' },
+  });
+});
+
+test('it answers a kill whose fleet write meets a moved ownership epoch with stale_epoch', async () => {
+  const sockPath = await setupDaemon();
+
+  const dbPath = join(dirname(sockPath), 'state.db');
+
+  const client = await DaemonClient.open(sockPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test-build');
+
+  const spawned = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+
+  const sessionID = getSessionID(spawned);
+
+  const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
+
+  await waitFor(() => {
+    expect(
+      db.query('SELECT session_id FROM session_owner WHERE session_id = ?1').all(sessionID),
+    ).toHaveLength(1);
+  });
+
+  db.run('UPDATE session_owner SET owner_epoch = 2 WHERE session_id = ?1', [sessionID]);
+
+  expect(client.sendRequest('session.kill', { session: sessionID })).rejects.toMatchObject({
+    code: 'stale_epoch',
+  });
 });
