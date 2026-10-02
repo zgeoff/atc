@@ -3,6 +3,7 @@
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
 import { collectRedirectURIs } from './collect-redirect-uris';
+import { normalizeCLIArgs } from './normalize-cli-args';
 import { parsePort } from './parse-port';
 import { getBuild } from './shared/get-build';
 
@@ -134,7 +135,7 @@ const main = defineCommand({
         meta: {
           name: 'grants',
           description:
-            'List the grants atc mcp --http clients hold, or revoke one with --revoke <id>',
+            'List the grants atc mcp --http clients hold, or revoke one with --revoke=<id>',
         },
         args: {
           revoke: { type: 'string', description: 'The ID of a grant to revoke' },
@@ -342,4 +343,4 @@ const main = defineCommand({
   },
 });
 
-await runMain(main);
+await runMain(main, { rawArgs: normalizeCLIArgs(process.argv.slice(2)) });
