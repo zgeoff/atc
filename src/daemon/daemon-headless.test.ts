@@ -439,6 +439,8 @@ test('it refuses to eject a grok session and does not start a headless runner', 
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
     defaultTarget: 'local',
     targetErrors: [],
+    principals: null,
+    principalErrors: [],
   });
 
   const startFakeRun: HeadlessRunner = (opts, hooks) => {

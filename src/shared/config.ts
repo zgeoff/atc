@@ -8,6 +8,7 @@ import { collectGateways } from './collect-gateways';
 import type { GatewayConfig } from './collect-gateways';
 import { collectHooks } from './collect-hooks';
 import type { HooksConfig } from './collect-hooks';
+import { collectPrincipals } from './collect-principals';
 import { collectTargets } from './collect-targets';
 import type { TargetConfig, TargetConfigError } from './collect-targets';
 import { formatJSONKind } from './format-json-kind';
@@ -34,6 +35,11 @@ export interface Config {
   // The target config problems that leave a target, or every target,
   // unusable.
   targetErrors: readonly TargetConfigError[];
+
+  // The targets each principal may use: null when the config has no
+  // principals, which leaves every principal the implicit local target.
+  principals: ReadonlyMap<string, readonly string[]> | null;
+  principalErrors: readonly string[];
 }
 
 /**
@@ -63,6 +69,8 @@ const DEFAULTS: Config = {
   targets: [{ id: 'local', provider: 'local-pty', options: {} }],
   defaultTarget: 'local',
   targetErrors: [],
+  principals: null,
+  principalErrors: [],
 };
 
 const configDir = join(resolveHomeDir(), '.config', 'atc');
@@ -98,6 +106,7 @@ const CONFIG_SCHEMA = z.object({
   leader: buildOptionalString(),
   targets: z.unknown().optional(),
   defaultTarget: z.unknown().optional(),
+  principals: z.unknown().optional(),
 });
 
 /**
@@ -177,15 +186,18 @@ function tryWriteDefaultConfig(file: string): void {
 }
 
 /**
- * The config.json text a first run writes. It leaves out the targets, so the
- * file holds the one implicit `local` target until the user sets their own,
- * and the target errors a parse reports, which belong to no file.
+ * The config.json text a first run writes. It leaves out the targets and
+ * principals, so the file holds the one implicit `local` target and no
+ * principals until the user sets their own, and the errors a parse
+ * reports, which belong to no file.
  */
 export function renderDefaultConfig(): string {
   const {
     targets: _targets,
     defaultTarget: _default,
     targetErrors: _errors,
+    principals: _principals,
+    principalErrors: _principalErrors,
     ...written
   } = DEFAULTS;
 
@@ -228,6 +240,7 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
   const gateways = collectGateways(parsed.data.gateways, claudeBin, claudeArgs);
   const hooks = collectHooks(parsed.data.hooks);
   const targets = collectTargets(parsed.data.targets, parsed.data.defaultTarget);
+  const principals = collectPrincipals(parsed.data.principals);
 
   const leader =
     (parsed.data.leader === undefined ? null : decodeLeader(parsed.data.leader)) ?? DEFAULTS.leader;
@@ -246,6 +259,8 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     targets: targets.targets,
     defaultTarget: targets.defaultTarget,
     targetErrors: targets.errors,
+    principals: principals.principals,
+    principalErrors: principals.errors,
   };
 }
 
