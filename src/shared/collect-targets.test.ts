@@ -93,23 +93,28 @@ test('it leaves no default when a malformed local entry is the one the default w
 });
 
 test.each([
-  ['a target the map does not hold', 'gone'],
-  ['a malformed entry', 'broken'],
-  ['not a string', 4],
-])('it leaves no default and an error for a defaultTarget that is %s', (_label, rawDefault) => {
-  expect(
-    collectTargets({ local: { provider: 'local-pty' }, broken: { provider: 3 } }, rawDefault),
-  ).toMatchObject({
-    defaultTarget: null,
-    errors: [
-      { scope: 'target', target: 'broken' },
-      {
-        scope: 'defaultTarget',
-        problem: `defaultTarget ${JSON.stringify(rawDefault)} matches no well-formed target in targets`,
-      },
-    ],
-  });
-});
+  [
+    'a target the map does not hold',
+    'gone',
+    'defaultTarget: matches no well-formed target in targets',
+  ],
+  ['a malformed entry', 'broken', 'defaultTarget: matches no well-formed target in targets'],
+  ['a number', 4, 'defaultTarget: expected a string, got a number'],
+  ['an object', { token: 'x' }, 'defaultTarget: expected a string, got an object'],
+])(
+  'it leaves no default and an error for a defaultTarget that is %s',
+  (_label, rawDefault, problem) => {
+    expect(
+      collectTargets({ local: { provider: 'local-pty' }, broken: { provider: 3 } }, rawDefault),
+    ).toMatchObject({
+      defaultTarget: null,
+      errors: [
+        { scope: 'target', target: 'broken' },
+        { scope: 'defaultTarget', problem },
+      ],
+    });
+  },
+);
 
 test('it reads a defaultTarget without a targets map against the implicit local target', () => {
   expect(collectTargets(undefined, 'local')).toStrictEqual({
@@ -126,7 +131,7 @@ test('it leaves no default for a defaultTarget other than local without a target
     errors: [
       {
         scope: 'defaultTarget',
-        problem: 'defaultTarget "box" matches no well-formed target in targets',
+        problem: 'defaultTarget: matches no well-formed target in targets',
       },
     ],
   });

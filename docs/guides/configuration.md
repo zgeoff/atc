@@ -113,7 +113,10 @@ reading sessions keep working. Only a missing file means the defaults, and atc w
 its first run.
 
 The daemon prints each problem to stderr when it starts, and `agents.list` returns them as
-`targetErrors`. A file problem there has `scope` `config`, with `problem`, `path`, and `detail`.
+`targetErrors`. A file problem there has `scope` `config`, with `problem`, `path`, and `detail`. A
+problem or detail holds no value from the file beyond a target's name, so a mistyped field reports
+its kind, never its content. To find the line that breaks invalid JSON, run the file through a
+validator such as `jq . ~/.config/atc/config.json`.
 
 ## Gateways
 

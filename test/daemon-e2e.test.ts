@@ -2557,6 +2557,40 @@ test('it starts with a broken config, prints the problem, and refuses every spaw
   );
 });
 
+test.each([
+  [
+    'JSON with a syntax error at the value',
+    '{ "targets": { "local": { "provider": "local-pty" } }, "token": sk_fixture_NOT_A_SECRET_1234 }',
+  ],
+  [
+    'a defaultTarget object holding the value',
+    '{ "targets": { "local": { "provider": "local-pty" } }, "defaultTarget": { "token": "sk_fixture_NOT_A_SECRET_1234" } }',
+  ],
+  [
+    'a malformed target entry holding the value',
+    '{ "targets": { "local": { "provider": "local-pty" }, "box": { "provider": 7, "token": "sk_fixture_NOT_A_SECRET_1234" } } }',
+  ],
+])('it prints the config problem without the config value for %s', async (_label, text) => {
+  const first = setupDaemonProc();
+
+  first.proc.kill();
+
+  await first.proc.exited;
+
+  writeFileSync(join(first.home, '.config', 'atc', 'config.json'), text);
+
+  const ctx = setupDaemonProc(first.home);
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const stderr = readFileSync(join(ctx.home, 'daemon.stderr'), 'utf8');
+
+  expect(stderr).toInclude('atc daemon: config: ');
+  expect(stderr).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
+});
+
 test('it keeps the configured model and effort when a spawn sets neither', async () => {
   const first = setupDaemonProc();
 

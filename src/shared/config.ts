@@ -10,6 +10,7 @@ import { collectHooks } from './collect-hooks';
 import type { HooksConfig } from './collect-hooks';
 import { collectTargets } from './collect-targets';
 import type { TargetConfig, TargetConfigError } from './collect-targets';
+import { formatJSONKind } from './format-json-kind';
 import { isRecord } from './report';
 import { resolveHomeDir } from './resolve-home-dir';
 
@@ -122,7 +123,9 @@ export function loadConfig(file: string = configFile): Config {
     const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : undefined;
 
     if (code !== 'ENOENT') {
-      return buildUnusableConfig('config_unreadable', file, String(code ?? error));
+      const detail = typeof code === 'string' ? code : 'the file could not be read';
+
+      return buildUnusableConfig('config_unreadable', file, detail);
     }
 
     tryWriteDefaultConfig(file);
@@ -134,10 +137,10 @@ export function loadConfig(file: string = configFile): Config {
 
   try {
     raw = JSON.parse(text);
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-
-    return buildUnusableConfig('config_malformed', file, detail);
+  } catch {
+    // The parser's own message can quote the file's text, so the detail is
+    // a fixed phrase instead.
+    return buildUnusableConfig('config_malformed', file, 'the file is not valid JSON');
   }
 
   return parseConfig(raw, file);
@@ -201,14 +204,18 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     return buildUnusableConfig(
       'config_malformed',
       file,
-      `the root is ${formatRootKind(raw)}, not an object`,
+      `the root is ${formatJSONKind(raw)}, not an object`,
     );
   }
 
   const parsed = CONFIG_SCHEMA.safeParse(raw);
 
   if (!parsed.success) {
-    return buildUnusableConfig('config_malformed', file, parsed.error.message);
+    return buildUnusableConfig(
+      'config_malformed',
+      file,
+      'the file does not match the config schema',
+    );
   }
 
   const claudeBin = parsed.data.claudeBin ?? DEFAULTS.claudeBin;
@@ -240,19 +247,6 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     defaultTarget: targets.defaultTarget,
     targetErrors: targets.errors,
   };
-}
-
-// The kind of JSON value a config root holds, as an error detail.
-function formatRootKind(raw: unknown): string {
-  if (raw === null) {
-    return 'null';
-  }
-
-  if (Array.isArray(raw)) {
-    return 'an array';
-  }
-
-  return `a ${typeof raw}`;
 }
 
 // Control bytes the terminal needs for its own input: enter, tab, and esc

@@ -1,3 +1,4 @@
+import { formatJSONKind } from './format-json-kind';
 import { isRecord } from './report';
 
 /**
@@ -84,16 +85,17 @@ export function collectTargets(rawTargets: unknown, rawDefault: unknown): Target
     return { targets: collected.targets, defaultTarget: rawDefault, errors: collected.errors };
   }
 
+  // The problem gives the value's kind, never the value: a wrongly typed
+  // defaultTarget can hold anything the file holds.
+  const problem =
+    typeof rawDefault === 'string'
+      ? 'defaultTarget: matches no well-formed target in targets'
+      : `defaultTarget: expected a string, got ${formatJSONKind(rawDefault)}`;
+
   return {
     targets: collected.targets,
     defaultTarget: null,
-    errors: [
-      ...collected.errors,
-      {
-        scope: 'defaultTarget',
-        problem: `defaultTarget ${JSON.stringify(rawDefault)} matches no well-formed target in targets`,
-      },
-    ],
+    errors: [...collected.errors, { scope: 'defaultTarget', problem }],
   };
 }
 

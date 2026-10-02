@@ -263,7 +263,7 @@ test('it refuses a spawn without a target, and starts no terminal, for an unknow
 
   expect(spawn).rejects.toMatchObject({
     code: 'target_config_invalid',
-    data: { problem: 'defaultTarget "gone" matches no well-formed target in targets' },
+    data: { problem: 'defaultTarget: matches no well-formed target in targets' },
   });
 
   expect(daemon.harnesses).toStrictEqual([]);

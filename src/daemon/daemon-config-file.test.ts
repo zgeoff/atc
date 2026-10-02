@@ -146,11 +146,19 @@ test('it refuses every spawn, local included, when an existing config holds inva
   ]).toStrictEqual([
     {
       code: 'target_config_invalid',
-      data: { problem: 'config_malformed', path: daemon.configPath, detail: expect.toBeString() },
+      data: {
+        problem: 'config_malformed',
+        path: daemon.configPath,
+        detail: 'the file is not valid JSON',
+      },
     },
     {
       code: 'target_config_invalid',
-      data: { problem: 'config_malformed', path: daemon.configPath, detail: expect.toBeString() },
+      data: {
+        problem: 'config_malformed',
+        path: daemon.configPath,
+        detail: 'the file is not valid JSON',
+      },
     },
   ]);
 
@@ -334,7 +342,7 @@ test('it lists the config problem, no targets, and no default target when the co
         scope: 'config',
         problem: 'config_malformed',
         path: daemon.configPath,
-        detail: expect.toBeString(),
+        detail: 'the file is not valid JSON',
       },
     ],
   });
@@ -389,3 +397,73 @@ test('it refuses a spawn of an agent missing from this host as not installed whe
 
   expect(daemon.harnesses).toStrictEqual([]);
 });
+
+test.each([
+  [
+    'JSON with a syntax error at the value',
+    '{ "targets": { "local": { "provider": "local-pty" } }, "token": sk_fixture_NOT_A_SECRET_1234 }',
+    'local',
+    { cwd: '/tmp' },
+  ],
+  [
+    'a defaultTarget object holding the value',
+    '{ "targets": { "local": { "provider": "local-pty" } }, "defaultTarget": { "token": "sk_fixture_NOT_A_SECRET_1234" } }',
+    'local',
+    { cwd: '/tmp' },
+  ],
+  [
+    'a malformed target entry holding the value',
+    '{ "targets": { "local": { "provider": "local-pty" }, "box": { "provider": 7, "token": "sk_fixture_NOT_A_SECRET_1234" } } }',
+    'box',
+    { cwd: '/tmp', target: 'box' },
+  ],
+])(
+  'it keeps a config value out of every refusal, listing, and session row for %s',
+  async (_label, text, fleetTarget, spawnParams) => {
+    await using daemon = setupTest();
+
+    const store = await StateStore.open(daemon.dbPath);
+
+    await store.writeFleet([
+      {
+        sessionID: toSessionID('s-old'),
+        name: 'old work',
+        cwd: '/tmp',
+        agentSessionID: toAgentSessionID('a-old'),
+        agent: 'claude',
+        target: fleetTarget,
+        targetIdentity: buildTargetIdentity('local-pty', {}),
+      },
+    ]);
+
+    await store.stop();
+
+    writeFileSync(daemon.configPath, text);
+
+    const client = await daemon.openDaemon();
+
+    const refusal = await client
+      .sendRequest('session.spawn', spawnParams)
+      .catch((error: unknown) => error);
+
+    if (!(refusal instanceof DaemonError)) {
+      throw new Error('expected the spawn to reject with a daemon error');
+    }
+
+    const listed = await client.sendRequest('agents.list');
+
+    await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+    const sessions = await client.sendRequest('session.list');
+
+    expect(refusal.code).toBe('target_config_invalid');
+
+    expect(
+      JSON.stringify([
+        { code: refusal.code, message: refusal.message, data: refusal.data },
+        listed['targetErrors'],
+        sessions,
+      ]),
+    ).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
+  },
+);
