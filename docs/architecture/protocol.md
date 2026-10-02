@@ -93,6 +93,9 @@ semantics.
 | `session.adopt`         | bring a dead or headless session back onto a live terminal                                                                                                                                                         |
 | `fleet.restore`         | cold-boot recovery: respawn the persisted fleet                                                                                                                                                                    |
 | `permission.respond`    | answer a permission request (`{ request, decision }`)                                                                                                                                                              |
+| `session.get`           | one session's descriptor plus its spawn prompt, last activity, pending prompt, and latest result (`{ session }`)                                                                                                   |
+| `session.read`          | a Claude session's transcript, a page at a time from a cursor (`{ session, cursor?, limit? }`)                                                                                                                     |
+| `events.read`           | fleet events from the hook-event trail since a cursor (`{ cursor?, limit?, waitMs? }`)                                                                                                                             |
 
 `session.input` is a request (it gets an ok, preserving the rule that state-changing messages are
 acknowledged) but clients need not await it — measured cost of the JSON round trip is ~0.2 µs
@@ -157,6 +160,28 @@ same parent, so a set stays one level deep.
   },
 }
 ```
+
+## Cursor reads
+
+`session.get`, `session.read`, and `events.read` let a client catch up from a cursor it holds,
+without attaching or reading the screen. A cursor is an opaque string: a client passes back the one
+it received and never builds one. `limit` defaults to 50 and clamps to 1–200.
+
+`events.read` serves the hook-event trail in `atc.db`, oldest first. Each event holds its cursor,
+time, session id and name, kind (`started`, `prompt-submitted`, `needs-input`, `turn-done`, or
+`ended`), and a short detail. Without a cursor, it returns the most recent `limit` events. `waitMs`
+holds the request open until an event arrives or the wait ends, for at most 30 seconds.
+
+`session.read` returns a Claude session's transcript as user and assistant rows with tool uses
+summarised, oldest first. A page holds at most `limit` rows and about 256 KiB. Without a cursor, it
+starts at the beginning of the transcript. A cursor from a different transcript file, such as one
+from before `/clear`, restarts at the top of the current file. `session.read` refuses Grok and Codex
+sessions with `unsupported`.
+
+`session.get` returns the session descriptor plus the prompt the session was spawned with, its last
+activity time, the prompt or question it waits on while it needs you, and the final message of its
+latest turn, cut at 16 KiB. The fleet row holds the spawn prompt and latest result, so both survive
+a restore.
 
 ## Events socket
 
