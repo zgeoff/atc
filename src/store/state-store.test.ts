@@ -2223,7 +2223,8 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
     'INSERT INTO fleet (agent_session_id, name, cwd, pinned, last_attached, agent, exited, parent, prompt, result, transcript_path, model, effort) VALUES ' +
       "('c-parent', 'wrangler', '/x', 1, 555, 'claude', 0, NULL, 'go', 'done', '/t.jsonl', 'opus', 'high'), " +
       "('c-child', 'worker', '/x', 0, NULL, 'claude', 1, 'c-parent', NULL, NULL, NULL, NULL, NULL), " +
-      "('c-orphan', 'stray', '/x', 0, NULL, 'grok', 0, 'c-gone', NULL, NULL, NULL, NULL, NULL)",
+      "('c-orphan', 'stray', '/x', 0, NULL, 'grok', 0, 'c-gone', NULL, NULL, NULL, NULL, NULL), " +
+      "(NULL, 'unreported', '/x', 0, NULL, 'claude', 1, NULL, NULL, NULL, NULL, NULL, NULL)",
   );
 
   db.close();
@@ -2273,9 +2274,16 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
       agentSessionID: toAgentSessionID('c-orphan'),
       agent: 'grok',
     },
+    {
+      sessionID: expect.toSatisfy(isUUID),
+      name: 'unreported',
+      cwd: '/x',
+      agent: 'claude',
+      exited: true,
+    },
   ]);
 
-  expect(new Set(fleet.map((entry) => entry.sessionID)).size).toBe(3);
+  expect(new Set(fleet.map((entry) => entry.sessionID)).size).toBe(4);
 
   expect(collectMigrationLedger(dbPath).map((row) => row.name)).toContain(
     '015_rebuild_fleet_keyed_by_session_id',

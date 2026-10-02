@@ -352,7 +352,8 @@ async function recordLegacyBaseline(db: Kysely<StateStoreSchema>): Promise<void>
 }
 
 interface LegacyFleetIDRow {
-  agent_session_id: string;
+  old_rowid: number;
+  agent_session_id: string | null;
 }
 
 // The columns the rebuild writes by name. Any other column a legacy table
@@ -382,14 +383,17 @@ async function updateFleetKeyToSessionID(db: Kysely<StateStoreSchema>): Promise<
 
   const extras = columns.rows.filter((column) => !REBUILT_FLEET_COLUMNS.has(column.name));
 
-  await sql`CREATE TEMP TABLE fleet_ids (agent_session_id TEXT PRIMARY KEY, session_id TEXT NOT NULL)`.execute(
+  // Keyed by rowid: SQLite lets a text primary key hold NULL, so a legacy
+  // row can lack the agent session id the mapping would otherwise key on.
+  await sql`CREATE TEMP TABLE fleet_ids (old_rowid INTEGER PRIMARY KEY, agent_session_id TEXT, session_id TEXT NOT NULL)`.execute(
     db,
   );
 
-  const rows = await sql<LegacyFleetIDRow>`SELECT agent_session_id FROM fleet`.execute(db);
+  const rows =
+    await sql<LegacyFleetIDRow>`SELECT rowid AS old_rowid, agent_session_id FROM fleet`.execute(db);
 
   for (const row of rows.rows) {
-    await sql`INSERT INTO fleet_ids (agent_session_id, session_id) VALUES (${row.agent_session_id}, ${randomUUID()})`.execute(
+    await sql`INSERT INTO fleet_ids (old_rowid, agent_session_id, session_id) VALUES (${row.old_rowid}, ${row.agent_session_id}, ${randomUUID()})`.execute(
       db,
     );
   }
@@ -432,7 +436,7 @@ async function updateFleetKeyToSessionID(db: Kysely<StateStoreSchema>): Promise<
       f.exited, parents.session_id, f.prompt, f.result, f.transcript_path, f.model, f.effort
       ${sql.join(extraSources, sql``)}
     FROM fleet f
-    JOIN fleet_ids ids ON ids.agent_session_id = f.agent_session_id
+    JOIN fleet_ids ids ON ids.old_rowid = f.rowid
     LEFT JOIN fleet_ids parents ON parents.agent_session_id = f.parent
   `.execute(db);
 
