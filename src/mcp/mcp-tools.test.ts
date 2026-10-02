@@ -28,6 +28,26 @@ test('it declares an agents result whose kind can be any string an adapter decla
           input: true,
         },
         models: null,
+        spawnOptions: {
+          model: {
+            supported: true,
+            available: true,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: 'applied',
+            note: null,
+          },
+          effort: {
+            supported: false,
+            available: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+        },
       },
     ],
   });
