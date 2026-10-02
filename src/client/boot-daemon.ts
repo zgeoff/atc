@@ -11,6 +11,7 @@ import { isCompiledBinary } from '../shared/is-compiled-binary';
 import { makeSingleFlight } from '../shared/make-single-flight';
 import { isRecord } from '../shared/report';
 import { DaemonClient } from './daemon-client';
+import { pickStaleDaemonPID } from './pick-stale-daemon-pid';
 
 export interface DaemonBoot {
   readonly client: DaemonClient;
@@ -57,7 +58,7 @@ export async function bootDaemonClient(): Promise<DaemonBoot> {
         throw error;
       }
 
-      await stopStaleDaemon();
+      await stopStaleDaemon(opened.socketPath);
     }
   }
 
@@ -170,8 +171,13 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-async function stopStaleDaemon(): Promise<void> {
-  const pid = findDaemonPID();
+async function stopStaleDaemon(socketPath: string): Promise<void> {
+  const pid = pickStaleDaemonPID({
+    socketPath,
+    record: findDaemonRecord(daemonRecordFile),
+    pidFileSocketPath: daemonSocketPath,
+    pidFilePID: findPidFilePID(),
+  });
 
   if (pid === null) {
     return;
@@ -196,15 +202,8 @@ async function stopStaleDaemon(): Promise<void> {
   }
 }
 
-// The record in the state directory, or the pid file beside the sockets
-// for a daemon that keeps no record.
-function findDaemonPID(): number | null {
-  const record = findDaemonRecord(daemonRecordFile);
-
-  if (record !== null) {
-    return record.pid;
-  }
-
+// The pid file beside the sockets this environment computes.
+function findPidFilePID(): number | null {
   try {
     const pid = Number(readFileSync(daemonPidFile, 'utf8'));
 
