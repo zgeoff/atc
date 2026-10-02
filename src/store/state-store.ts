@@ -546,9 +546,17 @@ export class StateStore {
 
 // Two sessions share an agent session id when one resumes the other's agent
 // session. The fleet keeps one row per agent session id, the entry written
-// last, and moves every sub-session of a dropped entry under that survivor,
-// so no link points at a row the write drops. A survivor that was a
-// sub-session of the entry it replaced takes that entry's place instead.
+// last, and relinks the survivors as a one-level hierarchy of rows it holds:
+//
+// 1. A link to a dropped row follows to the row that replaced it. A row that
+//    replaced its own parent follows that parent's link instead, and a link
+//    to a row the fleet does not hold makes the row top-level.
+// 2. Where the links form a cycle, the row written first in the cycle
+//    becomes top-level.
+// 3. A row whose parent is itself a sub-session moves up to the top-level
+//    row above it.
+//
+// Every walk takes at most one step per entry, so it ends on any input.
 function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEntry[] {
   const survivors = new Map<AgentSessionID, SessionID>();
 
@@ -569,56 +577,90 @@ function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEnt
     }
   }
 
-  const parents = new Map(entries.map((entry) => [entry.sessionID, entry.parent]));
+  const kept = entries.filter((entry) => !replaced.has(entry.sessionID));
 
-  // Where an entry's parent link points once replaced rows are gone: a
-  // replaced parent resolves to the row that replaced it. A row that replaced
-  // its own parent takes that parent's parent instead, so no row is its own
-  // parent.
-  const resolveParent = (entry: FleetEntry): SessionID | undefined => {
-    if (entry.parent === undefined) {
-      return undefined;
+  const order = new Map(kept.map((entry, index) => [entry.sessionID, index]));
+  const links = new Map(entries.map((entry) => [entry.sessionID, entry.parent]));
+
+  const bound = entries.length;
+
+  // The surviving row an entry's parent link resolves to, or undefined when
+  // it resolves to no row the fleet keeps.
+  const findSurvivingParent = (entry: FleetEntry): SessionID | undefined => {
+    let link = entry.parent;
+
+    for (let step = 0; step < bound && link !== undefined; step++) {
+      const target = replaced.get(link) ?? link;
+
+      if (target !== entry.sessionID) {
+        return order.has(target) ? target : undefined;
+      }
+
+      link = links.get(link);
     }
 
-    const survivor = replaced.get(entry.parent);
-
-    if (survivor === undefined) {
-      return entry.parent;
-    }
-
-    if (survivor !== entry.sessionID) {
-      return survivor;
-    }
-
-    const grandparent = parents.get(entry.parent);
-
-    const resolved =
-      grandparent === undefined ? undefined : (replaced.get(grandparent) ?? grandparent);
-
-    return resolved === entry.sessionID ? undefined : resolved;
+    return undefined;
   };
 
-  const resolved = new Map(entries.map((entry) => [entry.sessionID, resolveParent(entry)]));
+  const linked = new Map(kept.map((entry) => [entry.sessionID, findSurvivingParent(entry)]));
 
-  const kept: FleetEntry[] = [];
+  // The row written first in the cycle a walk up from this row enters, or
+  // undefined when the walk reaches a top-level row.
+  const findCycleStart = (sessionID: SessionID): SessionID | undefined => {
+    const seen: SessionID[] = [];
+    let current: SessionID | undefined = sessionID;
 
-  for (const entry of entries) {
-    if (replaced.has(entry.sessionID)) {
-      continue;
+    for (let step = 0; step <= bound && current !== undefined; step++) {
+      const at = seen.indexOf(current);
+
+      if (at !== -1) {
+        return seen.slice(at).toSorted((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))[0];
+      }
+
+      seen.push(current);
+
+      current = linked.get(current);
     }
 
-    const { parent: _parent, ...rest } = entry;
-    const target = resolved.get(entry.sessionID);
+    return undefined;
+  };
 
-    // Sub-sessions nest one level deep: a link to a row that is itself a
-    // sub-session moves up to that row's parent.
-    const parent = target === undefined ? undefined : (resolved.get(target) ?? target);
-    const relinked = parent === undefined ? rest : { ...rest, parent };
+  for (const entry of kept) {
+    const cycleStart = findCycleStart(entry.sessionID);
 
-    kept.push(relinked);
+    if (cycleStart !== undefined) {
+      linked.set(cycleStart, undefined);
+    }
   }
 
-  return kept;
+  // The top-level row a walk up from this row reaches.
+  const findTopLevel = (sessionID: SessionID): SessionID => {
+    let current = sessionID;
+
+    for (let step = 0; step < bound; step++) {
+      const parent = linked.get(current);
+
+      if (parent === undefined) {
+        return current;
+      }
+
+      current = parent;
+    }
+
+    return current;
+  };
+
+  const relinked: FleetEntry[] = [];
+
+  for (const entry of kept) {
+    const { parent: _parent, ...rest } = entry;
+    const top = findTopLevel(entry.sessionID);
+    const row = top === entry.sessionID ? rest : { ...rest, parent: top };
+
+    relinked.push(row);
+  }
+
+  return relinked;
 }
 
 // Mints each legacy entry an atc session id, then moves each sub-session

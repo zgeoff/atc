@@ -2439,3 +2439,325 @@ test('it moves the sub-sessions of a replaced row up to the parent of the sub-se
     [toSessionID('s-resumed'), toSessionID('s-other')],
   ]);
 });
+
+test('it breaks the cycle two crossed resumes make by keeping the earlier row top-level', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  // R resumes P's agent session under Q, and S resumes Q's under P: replacing
+  // P with R and Q with S links R under S and S under R.
+  await store.writeFleet([
+    {
+      sessionID: toSessionID('s-p'),
+      name: 'p',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-a'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-q'),
+      name: 'q',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-b'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-r'),
+      name: 'r',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-a'),
+      agent: 'claude',
+      parent: toSessionID('s-q'),
+    },
+    {
+      sessionID: toSessionID('s-s'),
+      name: 's',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-b'),
+      agent: 'claude',
+      parent: toSessionID('s-p'),
+    },
+  ]);
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet.map((entry) => [entry.sessionID, entry.parent])).toStrictEqual([
+    [toSessionID('s-r'), undefined],
+    [toSessionID('s-s'), toSessionID('s-r')],
+  ]);
+});
+
+test('it writes every relinked fleet as a one-level hierarchy of rows it holds', async () => {
+  const fixtures: FleetEntry[][] = [
+    // A resume under the session whose agent session it resumes.
+    [
+      {
+        sessionID: toSessionID('p'),
+        name: 'p',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('a'),
+        agent: 'claude',
+      },
+      {
+        sessionID: toSessionID('w'),
+        name: 'w',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('w'),
+        agent: 'claude',
+        parent: toSessionID('p'),
+      },
+      {
+        sessionID: toSessionID('r'),
+        name: 'r',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('a'),
+        agent: 'claude',
+        parent: toSessionID('p'),
+      },
+    ],
+
+    // Two crossed resumes.
+    [
+      {
+        sessionID: toSessionID('p'),
+        name: 'p',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('a'),
+        agent: 'claude',
+      },
+      {
+        sessionID: toSessionID('q'),
+        name: 'q',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('b'),
+        agent: 'claude',
+      },
+      {
+        sessionID: toSessionID('r'),
+        name: 'r',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('a'),
+        agent: 'claude',
+        parent: toSessionID('q'),
+      },
+      {
+        sessionID: toSessionID('s'),
+        name: 's',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('b'),
+        agent: 'claude',
+        parent: toSessionID('p'),
+      },
+    ],
+
+    // Three resumes crossed in a ring, each with a worker under the row it replaces.
+    [
+      {
+        sessionID: toSessionID('p'),
+        name: 'p',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('a'),
+        agent: 'claude',
+      },
+      {
+        sessionID: toSessionID('q'),
+        name: 'q',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('b'),
+        agent: 'claude',
+      },
+      {
+        sessionID: toSessionID('t'),
+        name: 't',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('c'),
+        agent: 'claude',
+      },
+      {
+        sessionID: toSessionID('wp'),
+        name: 'wp',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('wp'),
+        agent: 'claude',
+        parent: toSessionID('p'),
+      },
+      {
+        sessionID: toSessionID('wq'),
+        name: 'wq',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('wq'),
+        agent: 'claude',
+        parent: toSessionID('q'),
+      },
+      {
+        sessionID: toSessionID('r'),
+        name: 'r',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('a'),
+        agent: 'claude',
+        parent: toSessionID('q'),
+      },
+      {
+        sessionID: toSessionID('s'),
+        name: 's',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('b'),
+        agent: 'claude',
+        parent: toSessionID('t'),
+      },
+      {
+        sessionID: toSessionID('u'),
+        name: 'u',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('c'),
+        agent: 'claude',
+        parent: toSessionID('p'),
+      },
+    ],
+
+    // A chain where every row shares one agent session id.
+    [
+      {
+        sessionID: toSessionID('top'),
+        name: 'top',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('a'),
+        agent: 'claude',
+      },
+      {
+        sessionID: toSessionID('sub'),
+        name: 'sub',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('a'),
+        agent: 'claude',
+        parent: toSessionID('top'),
+      },
+      {
+        sessionID: toSessionID('res'),
+        name: 'res',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('a'),
+        agent: 'claude',
+        parent: toSessionID('sub'),
+      },
+    ],
+
+    // A worker under a sub-session that took over its parent's place.
+    [
+      {
+        sessionID: toSessionID('o'),
+        name: 'o',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('o'),
+        agent: 'claude',
+      },
+      {
+        sessionID: toSessionID('f'),
+        name: 'f',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('a'),
+        agent: 'claude',
+      },
+      {
+        sessionID: toSessionID('w'),
+        name: 'w',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('w'),
+        agent: 'claude',
+        parent: toSessionID('f'),
+      },
+      {
+        sessionID: toSessionID('r'),
+        name: 'r',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('a'),
+        agent: 'claude',
+        parent: toSessionID('o'),
+      },
+    ],
+
+    // A link to a row the write does not hold.
+    [
+      {
+        sessionID: toSessionID('orphan'),
+        name: 'orphan',
+        cwd: '/x',
+        agentSessionID: toAgentSessionID('o'),
+        agent: 'claude',
+        parent: toSessionID('gone'),
+      },
+    ],
+  ];
+
+  const violations: string[] = [];
+
+  for (const [index, fixture] of fixtures.entries()) {
+    const store = await StateStore.open(join(setupDir(), `state-${index}.db`));
+
+    await store.writeFleet(fixture);
+
+    const fleet = await store.loadFleet();
+
+    await store.stop();
+
+    const parents = new Map(fleet.map((entry) => [entry.sessionID, entry.parent]));
+
+    violations.push(
+      ...fleet
+        .filter((entry) => entry.parent === entry.sessionID)
+        .map((entry) => `fixture ${index}: ${entry.sessionID} is its own parent`),
+      ...fleet
+        .filter((entry) => entry.parent !== undefined && !parents.has(entry.parent))
+        .map((entry) => `fixture ${index}: ${entry.sessionID} has a parent the fleet lacks`),
+      ...fleet
+        .filter((entry) => entry.parent !== undefined && parents.get(entry.parent) !== undefined)
+        .map((entry) => `fixture ${index}: ${entry.sessionID} sits two levels deep or in a cycle`),
+    );
+  }
+
+  expect(violations).toStrictEqual([]);
+});
+
+test("it moves a row that replaced its own parent under that parent's parent", async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    {
+      sessionID: toSessionID('s-top'),
+      name: 'top',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-top'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-sub'),
+      name: 'sub',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-a'),
+      agent: 'claude',
+      parent: toSessionID('s-top'),
+    },
+    {
+      sessionID: toSessionID('s-resumed'),
+      name: 'resumed',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-a'),
+      agent: 'claude',
+      parent: toSessionID('s-sub'),
+    },
+  ]);
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet.map((entry) => [entry.sessionID, entry.parent])).toStrictEqual([
+    [toSessionID('s-top'), undefined],
+    [toSessionID('s-resumed'), toSessionID('s-top')],
+  ]);
+});

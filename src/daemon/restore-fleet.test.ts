@@ -231,3 +231,79 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
     [resumed.id, null],
   ]);
 });
+
+test('it restores two crossed resumes with the earlier one top-level and the later one under it', async () => {
+  await using ctx = await setupTest();
+
+  const first = ctx.mgr.restore({
+    sessionID: toSessionID('s-p'),
+    name: 'p',
+    cwd: '/tmp',
+    agentSessionID: toAgentSessionID('c-a'),
+    agent: 'claude',
+    exited: true,
+  });
+
+  const second = ctx.mgr.restore({
+    sessionID: toSessionID('s-q'),
+    name: 'q',
+    cwd: '/tmp',
+    agentSessionID: toAgentSessionID('c-b'),
+    agent: 'claude',
+    exited: true,
+  });
+
+  const resumedFirst = ctx.mgr.spawn(
+    '/tmp',
+    'r',
+    '',
+    80,
+    24,
+    toAgentSessionID('c-a'),
+    'user',
+    'claude',
+    second.id,
+  );
+
+  const resumedSecond = ctx.mgr.spawn(
+    '/tmp',
+    's',
+    '',
+    80,
+    24,
+    toAgentSessionID('c-b'),
+    'user',
+    'claude',
+    first.id,
+  );
+
+  await ctx.mgr.writeFleet();
+
+  const restarted = new SessionManager(idleAdapter, ctx.store, ctx.statusPath, []);
+
+  onTestFinished(() => {
+    restarted.killAll();
+  });
+
+  await restoreFleet({
+    mgr: restarted,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  await waitFor(() => {
+    expect(restarted.sessions.every((s) => s.pty !== null)).toBe(true);
+  });
+
+  await restarted.writeFleet();
+
+  const restored = restarted.sessions.map((s) => [s.id, s.parent]);
+
+  expect(restored).toIncludeSameMembers([
+    [resumedFirst.id, null],
+    [resumedSecond.id, resumedFirst.id],
+  ]);
+});
