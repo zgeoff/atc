@@ -79,6 +79,10 @@
           // wraps a live db connection; not meaningfully freezable
           { "from": "file", "name": "StateStore" },
           { "from": "file", "name": "GrantStore" },
+          // the HTTP process's in-memory authorization state and client cache,
+          // mutated in place by design
+          { "from": "file", "name": "AuthorizationState" },
+          { "from": "file", "name": "OAuthClientResolver" },
           // wraps a live db connection; not meaningfully freezable
           { "from": "package", "name": "Database", "package": "bun:sqlite" },
           // a query builder bound to a live connection; not meaningfully
