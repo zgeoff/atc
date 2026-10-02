@@ -1,8 +1,10 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { readJSONRecord } from '../../test/read-json-record';
 import { runMCPAuthorization } from '../../test/run-mcp-authorization';
 import { setupMCPHTTP } from '../../test/setup-mcp-http';
 import { isRecord } from '../shared/report';
+import { ReconnectingCaller } from './reconnecting-caller';
+import { startMCPHTTPServer } from './start-mcp-http-server';
 
 test('it issues an access and refresh token for an approved authorization code', async () => {
   await using server = await setupMCPHTTP();
@@ -859,4 +861,36 @@ test('it registers a client name with its terminal escapes dropped', async () =>
   expect(server.approvals[0]).toMatch(
     /^Approve dots\]52;c;AAAA Approve evil \(unverified, registered itself; returns to dots\.example\)/,
   );
+});
+
+test('it refuses an invalid public URL without leaving its port bound', async () => {
+  const probe = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response(null) });
+  const port = probe.port;
+
+  await probe.stop(true);
+
+  if (port === undefined) {
+    throw new Error('the probe server bound no port');
+  }
+
+  const startServer = () =>
+    startMCPHTTPServer({
+      caller: new ReconnectingCaller('/nonexistent/daemon.sock', 'atc/test-build'),
+      build: 'atc/test-build',
+      port,
+      publicURL: 'http://mcp.example.com',
+      allowedHosts: [],
+      metadataHosts: [],
+      printApproval: () => {},
+    });
+
+  expect(startServer).toThrowWithMessage(Error, /must use https/);
+
+  const rebound = Bun.serve({ hostname: '127.0.0.1', port, fetch: () => new Response(null) });
+
+  onTestFinished(async () => {
+    await rebound.stop(true);
+  });
+
+  expect(rebound.port).toBe(port);
 });

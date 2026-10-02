@@ -64,27 +64,49 @@ export class ReconnectingCaller implements FleetCaller {
   }
 
   private openClient(): Promise<DaemonClient> {
-    this.client ??= this.openFreshClient();
+    if (this.client === null) {
+      const opening: Promise<DaemonClient> = this.openFreshClient(() => this.client === opening);
+
+      this.client = opening;
+    }
 
     return this.client;
   }
 
-  private async openFreshClient(): Promise<DaemonClient> {
-    try {
-      const client = await DaemonClient.open(this.socketPath);
-
-      client.onClose = () => {
-        this.closed.add(client);
-
+  // isCurrent returns true while this connection is still the one later requests
+  // reuse: a connection that ends after a newer one replaced it must leave
+  // the newer one in place.
+  private async openFreshClient(isCurrent: () => boolean): Promise<DaemonClient> {
+    const resetClient = () => {
+      if (isCurrent()) {
         this.client = null;
-      };
+      }
+    };
 
-      await client.sendHello(this.build);
+    let client: DaemonClient;
 
-      return client;
+    try {
+      client = await DaemonClient.open(this.socketPath);
     } catch (error) {
-      this.client = null;
+      resetClient();
       throw error;
     }
+
+    client.onClose = () => {
+      this.closed.add(client);
+
+      resetClient();
+    };
+
+    try {
+      await client.sendHello(this.build);
+    } catch (error) {
+      client.stop();
+
+      resetClient();
+      throw error;
+    }
+
+    return client;
   }
 }

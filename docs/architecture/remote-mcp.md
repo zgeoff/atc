@@ -22,8 +22,10 @@ State splits between the two processes:
   memory. Restarting it drops approvals in progress and codes not yet exchanged; grants survive.
 
 When the daemon restarts, the HTTP process reconnects on its next request. A request in flight at
-that moment fails and is not retried, because a refresh or a spawn must not run twice. A daemon too
-old to hold grants makes `atc mcp --http` exit with a hint to restart it.
+that moment fails and is not retried, because a refresh or a spawn must not run twice. Two requests
+are the exception: checking an access token and looking up a registered client change nothing beyond
+a grant's last-use time, so running one twice is harmless and each is retried once on a fresh
+connection. A daemon too old to hold grants makes `atc mcp --http` exit with a hint to restart it.
 
 ## Endpoints
 

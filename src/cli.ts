@@ -2,6 +2,7 @@
 // `statusline` are the commands injected into wrangled sessions.
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
+import { parsePort } from './parse-port';
 import { getBuild } from './shared/get-build';
 
 const main = defineCommand({
@@ -52,14 +53,18 @@ const main = defineCommand({
             return;
           }
 
+          const port = ctx.args.port === undefined ? null : parsePort(ctx.args.port);
+
+          if (port !== null && !port.ok) {
+            console.error(`atc mcp --http: ${port.message}`);
+            process.exit(1);
+          }
+
           const http = await import('./mcp-http-server');
 
-          const port = ctx.args.port === undefined ? null : Number(ctx.args.port);
-          const publicURL = ctx.args['public-url'] ?? null;
-
           await http.runMCPHTTPServer(getBuild(), {
-            port: port !== null && Number.isInteger(port) ? port : null,
-            publicURL,
+            port: port === null ? null : port.port,
+            publicURL: ctx.args['public-url'] ?? null,
           });
         },
       }),

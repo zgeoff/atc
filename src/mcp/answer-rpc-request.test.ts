@@ -85,3 +85,24 @@ test('it lists every tool to a caller with one scope', async () => {
     body: { result: { tools: expect.toBeArrayOfSize(14) } },
   });
 });
+
+test('it refuses a call to an unknown tool as needing kill when the caller is scoped', async () => {
+  await using server = await setupMCPHTTP();
+
+  const outcome = await answerRPCRequest(
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_unknown_tool', arguments: {} },
+    },
+    {
+      caller: server.caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      scopes: ['read', 'message', 'spawn'],
+    },
+  );
+
+  expect(outcome).toStrictEqual({ kind: 'forbidden', scope: 'kill' });
+});

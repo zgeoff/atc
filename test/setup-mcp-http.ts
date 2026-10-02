@@ -22,7 +22,8 @@ const SLEEP_ADAPTER: AgentAdapter = {
  * A real daemon in a temp directory and `atc mcp --http` in front of it on a
  * free port, with every approval line the server prints collected.
  * `restartDaemon` stops the daemon and starts a fresh one on the same socket
- * and database, the way an operator restarts it. Hold the result with
+ * and database, the way an operator restarts it; `countDaemonClients` reads
+ * how many connections the current daemon holds open. Hold the result with
  * `await using`.
  */
 export async function setupMCPHTTP() {
@@ -61,6 +62,9 @@ export async function setupMCPHTTP() {
     origin: server.origin,
     approvals,
     caller,
+    countDaemonClients() {
+      return daemon.countClients();
+    },
     async restartDaemon() {
       await daemon.stop();
 

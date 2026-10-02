@@ -74,8 +74,11 @@ export async function answerRPCRequest(message: unknown, deps: RPCDeps): Promise
   return outcome;
 }
 
-// The scope a tool call needs and the caller lacks. An unknown tool needs no
-// scope here; running it reports the unknown name as a tool error.
+const STRICTEST_SCOPE: GrantScope = 'kill';
+
+// The scope a tool call needs and the caller lacks. A tool with no listed
+// scope fails closed: it needs the strictest scope, and only a caller holding
+// that one gets the unknown name back as a tool error.
 function findMissingScope(
   params: Readonly<Record<string, unknown>>,
   scopes: readonly GrantScope[] | undefined,
@@ -85,12 +88,9 @@ function findMissingScope(
   }
 
   const tool = MCP_TOOLS.find((candidate) => candidate.name === params['name']);
+  const needed = tool === undefined ? STRICTEST_SCOPE : tool.scope;
 
-  if (tool === undefined || scopes.includes(tool.scope)) {
-    return null;
-  }
-
-  return tool.scope;
+  return scopes.includes(needed) ? null : needed;
 }
 
 async function answerToolCall(

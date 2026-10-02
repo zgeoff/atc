@@ -53,6 +53,10 @@ export interface MCPHTTPServer {
  * refused, so a DNS rebinding page cannot reach it through a browser.
  */
 export function startMCPHTTPServer(options: MCPHTTPServerOptions): MCPHTTPServer {
+  // Normalized before binding, so an invalid public URL throws with no port
+  // left bound.
+  const publicOrigin = options.publicURL === null ? null : normalizePublicURL(options.publicURL);
+
   const holder: {
     ctx: HTTPServerContext | null;
     hosts: ReadonlySet<string>;
@@ -95,7 +99,7 @@ export function startMCPHTTPServer(options: MCPHTTPServerOptions): MCPHTTPServer
 
   const port = server.port ?? options.port;
   const local = `http://127.0.0.1:${port}`;
-  const origin = options.publicURL === null ? local : normalizePublicURL(options.publicURL);
+  const origin = publicOrigin ?? local;
 
   holder.hosts = new Set([
     new URL(origin).host,

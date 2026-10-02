@@ -81,3 +81,14 @@ test('it keeps serving the grants the daemon held across a restart', async () =>
   expect(pinged.status).toBe(200);
   expect(body).toStrictEqual({ jsonrpc: '2.0', id: 1, result: {} });
 });
+
+test('it counts the daemon connections the caller holds open', async () => {
+  await using server = await setupMCPHTTP();
+
+  const before = server.countDaemonClients();
+
+  await server.caller.sendRequest('grant.list');
+
+  expect(before).toBe(0);
+  expect(server.countDaemonClients()).toBe(1);
+});
