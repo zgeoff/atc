@@ -30,7 +30,9 @@ export class PermissionRegistry {
 
   private readonly pending = new Map<string, PendingRequest>();
 
-  private readonly resolved = new Set<string>();
+  // Each answered request's session, kept to tell already_answered from
+  // unknown.
+  private readonly resolved = new Map<string, SessionID>();
 
   private counter = 0;
 
@@ -72,6 +74,14 @@ export class PermissionRegistry {
     return 'ok';
   }
 
+  /**
+   * The session a request belongs to, answered or not, or null for a
+   * request this registry never opened.
+   */
+  findSessionID(id: string): SessionID | null {
+    return this.pending.get(id)?.req.sessionID ?? this.resolved.get(id) ?? null;
+  }
+
   answerAll(sessionID: SessionID, decision: string): void {
     for (const [id, entry] of this.pending) {
       if (entry.req.sessionID === sessionID) {
@@ -90,12 +100,12 @@ export class PermissionRegistry {
     clearTimeout(entry.timer);
 
     this.pending.delete(id);
-    this.resolved.add(id);
+    this.resolved.set(id, entry.req.sessionID);
 
-    // The resolved set only exists to tell already_answered from unknown;
+    // The resolved map only exists to tell already_answered from unknown;
     // cap it so a long-lived daemon cannot grow it without bound.
     if (this.resolved.size > 1000) {
-      for (const oldest of this.resolved) {
+      for (const oldest of this.resolved.keys()) {
         this.resolved.delete(oldest);
         break;
       }

@@ -65,9 +65,12 @@ export class DaemonClient {
     return this.sendRequest('daemon.hello', { client: build, auth: { scheme: 'none' } });
   }
 
+  // A request with a principal acts as that principal, within what the
+  // connection may reach.
   sendRequest(
     m: string,
     p?: Readonly<Record<string, unknown>>,
+    as?: string,
   ): Promise<Readonly<Record<string, unknown>>> {
     if (this.closedReason !== null) {
       return Promise.reject(new DaemonError('internal', this.closedReason));
@@ -77,7 +80,16 @@ export class DaemonClient {
     const resolvers = Promise.withResolvers<Readonly<Record<string, unknown>>>();
 
     this.pending.set(id, { resolve: resolvers.resolve, reject: resolvers.reject });
-    this.queue?.send(encodeMessage({ v: PROTOCOL_V, id, m, ...(p === undefined ? {} : { p }) }));
+
+    this.queue?.send(
+      encodeMessage({
+        v: PROTOCOL_V,
+        id,
+        m,
+        ...(p === undefined ? {} : { p }),
+        ...(as === undefined ? {} : { as }),
+      }),
+    );
 
     return resolvers.promise;
   }

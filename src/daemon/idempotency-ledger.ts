@@ -3,10 +3,12 @@ import type { IdempotencyRecord } from '../store/idempotency-record';
 import type { StateStore } from '../store/state-store';
 import { EffectRemainsError } from './effect-remains-error';
 
-// A request's idempotency key and the hash of the payload it came with.
+// A request's idempotency key, the hash of the payload it came with, and
+// the principal the request acts as when it is not the ledger's own.
 export interface KeyedRequest {
   readonly key: string;
   readonly payloadHash: string;
+  readonly principal?: string;
 }
 
 interface IdempotentCall<T> {
@@ -29,7 +31,8 @@ interface IdempotentCall<T> {
 }
 
 /**
- * Runs keyed effects at most once per key for one principal. The first
+ * Runs keyed effects at most once per key for each principal: the
+ * request's own, else the ledger's. The first
  * request claims the key with its payload's hash and the pre-minted effect
  * id, runs the effect, and completes the key with its answer once the
  * effect is durable. A retry with the same payload replays the completed
@@ -52,7 +55,12 @@ export class IdempotencyLedger {
   }
 
   async run<T extends Readonly<Record<string, unknown>>>(call: IdempotentCall<T>): Promise<T> {
-    const lockKey = JSON.stringify([call.operation, call.keyed.key]);
+    const lockKey = JSON.stringify([
+      call.keyed.principal ?? this.principal,
+      call.operation,
+      call.keyed.key,
+    ]);
+
     const previous = this.locks.get(lockKey) ?? Promise.resolve();
     const released = Promise.withResolvers<void>();
 
@@ -79,7 +87,11 @@ export class IdempotencyLedger {
   private async runClaimed<T extends Readonly<Record<string, unknown>>>(
     call: IdempotentCall<T>,
   ): Promise<T> {
-    const id = { principal: this.principal, operation: call.operation, key: call.keyed.key };
+    const id = {
+      principal: call.keyed.principal ?? this.principal,
+      operation: call.operation,
+      key: call.keyed.key,
+    };
 
     const held = await this.store.claimIdempotencyKey({
       ...id,

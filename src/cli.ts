@@ -176,6 +176,10 @@ const main = defineCommand({
             console.error(`atc daemon: config: ${line}`);
           }
 
+          for (const problem of cfg.principalErrors) {
+            console.error(`atc daemon: config: ${problem}`);
+          }
+
           // Cap on how long a fleet restore waits for one revived session to
           // report it has booted before moving to the next. Tests pin it to
           // keep timing deterministic; unset means the production default.
@@ -219,6 +223,7 @@ const main = defineCommand({
               targets: targets.buildExecutionTargets(cfg.targets),
               defaultTarget: cfg.defaultTarget,
               targetErrors: cfg.targetErrors,
+              principals: cfg.principals,
               restoreBootTimeoutMs,
               ...(Number.isFinite(graceOverride) && graceOverride >= 0
                 ? { tapGraceMs: graceOverride }

@@ -31,6 +31,7 @@ import { buildReportTrailEntry } from './build-report-trail-entry';
 import { buildSessionEvent } from './build-session-event';
 import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionReportEvent } from './build-session-report-event';
+import { buildTargetAccess } from './build-target-access';
 import { buildTargetList } from './build-target-list';
 import { claimDaemonLock } from './claim-daemon-lock';
 import { DaemonConnection } from './daemon-connection';
@@ -62,6 +63,7 @@ import type { Session, SessionDescriptor, SessionState } from './sessions';
 import { startEventsServer } from './start-events-server';
 import { startHeadlessTurn } from './start-headless-turn';
 import { TapRegistry } from './tap-registry';
+import type { TargetAccess } from './target-access';
 import { writeDaemonRecord } from './write-daemon-record';
 
 export interface DaemonOptions {
@@ -87,6 +89,10 @@ export interface DaemonOptions {
   // The target config problems the daemon started with. A target they cover
   // refuses every session, and `agents.list` returns them.
   readonly targetErrors?: readonly TargetConfigError[];
+
+  // The targets each principal may use; unset or null when the config has
+  // no principals, which leaves every principal the implicit local target.
+  readonly principals?: ReadonlyMap<string, readonly string[]> | null;
 
   // SQLite path for daemon state; a fleet.json at legacyFleetPath seeds the
   // fleet table once so upgrading keeps the restorable fleet.
@@ -201,6 +207,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     opts.targets ?? buildExecutionTargets([{ id: 'local', provider: 'local-pty', options: {} }]);
 
   const targetErrors = opts.targetErrors ?? [];
+  const principals = opts.principals ?? null;
+
+  const targetsByID = new Map(targets.map((target) => [target.id, target]));
 
   const defaultTarget =
     opts.defaultTarget === undefined
@@ -276,11 +285,37 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   // A live session's scope also matches the rows it wrote under an earlier
-  // atc id, through the agent session id a restore carries on.
-  const buildEventScope = (sessionID: SessionID): EventScope => ({
-    atcID: sessionID,
-    agentSessionID: mgr.sessions.find((x) => x.id === sessionID)?.agentSessionID,
-  });
+  // atc id, through the agent session id a restore carries on. Under an
+  // access, the scope holds only the sessions on targets the access holds,
+  // so a session outside it matches nothing, as a session never seen does.
+  const buildEventScope = (
+    sessionID: SessionID | null,
+    access: TargetAccess | null,
+  ): EventScope | null => {
+    if (access === null) {
+      if (sessionID === null) {
+        return null;
+      }
+
+      const agentSessionID = mgr.sessions.find((x) => x.id === sessionID)?.agentSessionID;
+
+      return {
+        atcIDs: [sessionID],
+        agentSessionIDs: agentSessionID === undefined ? [] : [agentSessionID],
+      };
+    }
+
+    const visible = mgr.sessions.filter(
+      (x) => access.canUse(x) && (sessionID === null || x.id === sessionID),
+    );
+
+    return {
+      atcIDs: visible.map((x) => x.id),
+      agentSessionIDs: visible.flatMap((x) =>
+        x.agentSessionID === undefined ? [] : [x.agentSessionID],
+      ),
+    };
+  };
 
   // A message belongs to the live session holding its atc id or its agent
   // session id, else to the atc id it was sent to.
@@ -921,6 +956,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     collectFleet: () => store.loadFleet(),
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => mgr.findAdapter(kind),
+    buildTargetAccess: (principal) => buildTargetAccess(principals, targetsByID, principal),
+    findSessionGrant: (id) => {
+      const s = mgr.sessions.find((x) => x.id === id);
+
+      return s === undefined ? null : { target: s.target, targetIdentity: s.targetIdentity };
+    },
+    findTargetIdentity: (target) => targets.find((x) => x.id === target)?.identity ?? null,
+    findPermissionSession: (request) => registry.findSessionID(request),
     resolveSpawnTarget: (requested) => {
       const target = requested ?? defaultTarget;
       const refusal = mgr.findExecutionRefusal({ target, targetIdentity: null }, 'spawn');
@@ -1226,9 +1269,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return { path, page };
     },
-    readEvents: async (afterID, limit, waitMs, sessionID) => {
+    readEvents: async (afterID, limit, waitMs, sessionID, access) => {
       const deadline = Date.now() + waitMs;
-      const scope = sessionID === null ? null : buildEventScope(sessionID);
+      const scope = buildEventScope(sessionID, access);
 
       // A wake for an event the read leaves out (a heartbeat, or another
       // session's event under a session filter) loops back to wait out the

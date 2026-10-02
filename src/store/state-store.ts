@@ -29,13 +29,14 @@ import type { TrailEntry } from './trail-entry';
 const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;
 
 /**
- * One session's slice of the event trail: rows under its atc id, plus rows
- * under its agent session id, since rows written before atc session ids
- * stayed stable across restores carry an earlier atc id.
+ * Some sessions' slice of the event trail: rows under their atc ids, plus
+ * rows under their agent session ids, since rows written before atc session
+ * ids stayed stable across restores carry an earlier atc id. A scope of no
+ * sessions matches no row.
  */
 export interface EventScope {
-  readonly atcID: SessionID;
-  readonly agentSessionID: AgentSessionID | undefined;
+  readonly atcIDs: readonly SessionID[];
+  readonly agentSessionIDs: readonly AgentSessionID[];
 }
 
 export interface StoredEvent {
@@ -899,9 +900,13 @@ function buildScopeMatch(
     return eb.lit(true);
   }
 
+  if (scope.atcIDs.length === 0 && scope.agentSessionIDs.length === 0) {
+    return eb.lit(false);
+  }
+
   return eb.or([
-    eb('atc_id', '=', scope.atcID),
-    ...(scope.agentSessionID === undefined ? [] : [eb('session_id', '=', scope.agentSessionID)]),
+    ...(scope.atcIDs.length === 0 ? [] : [eb('atc_id', 'in', scope.atcIDs)]),
+    ...(scope.agentSessionIDs.length === 0 ? [] : [eb('session_id', 'in', scope.agentSessionIDs)]),
   ]);
 }
 

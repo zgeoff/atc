@@ -18,13 +18,16 @@ import type { ErrorCode, EventMsg, RequestMsg } from '../protocol/protocol';
 import type { TargetConfigError } from '../shared/collect-targets';
 import type { DaemonID } from '../shared/daemon-id';
 import type { MessageID } from '../shared/message-id';
+import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
+import { toSessionID } from '../shared/to-session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { MessageRecord } from '../store/message-record';
 import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
 import { buildPayloadHash } from './build-payload-hash';
+import { buildScopedContext } from './build-scoped-context';
 import type { TargetEntry } from './build-target-list';
 import type { KeyedRequest } from './idempotency-ledger';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
@@ -32,6 +35,7 @@ import { parseSpawnOverrides } from './parse-spawn-overrides';
 import type { AnswerResult } from './permission-registry';
 import type { ScreenText } from './screen-model';
 import type { SessionDescriptor } from './sessions';
+import type { TargetAccess, TargetGrant } from './target-access';
 
 export interface SpawnParams {
   readonly cwd: string;
@@ -71,6 +75,21 @@ export interface DaemonContext {
   readonly collectFleet: () => Promise<FleetEntry[]>;
   readonly loadLastUsedAgent: () => Promise<AgentID>;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
+
+  // The targets a principal may use.
+  readonly buildTargetAccess: (principal: string) => TargetAccess;
+
+  // The target and identity a session is bound to, or null when no
+  // session holds the id.
+  readonly findSessionGrant: (id: SessionID) => TargetGrant | null;
+
+  // The identity a target holds now, or null when the config holds no such
+  // target.
+  readonly findTargetIdentity: (target: string) => string | null;
+
+  // The session a permission request belongs to, answered or not, or null
+  // for an unknown request.
+  readonly findPermissionSession: (request: string) => SessionID | null;
 
   // The target a spawn runs on: the one it names, else the default. Throws
   // the refusal for a target the spawn cannot run on, and for a spawn
@@ -122,11 +141,15 @@ export interface DaemonContext {
     from: TranscriptPosition | null,
     limit: number,
   ) => Promise<SessionTranscriptRead | 'missing' | 'unsupported'>;
+
+  // Reads the trail, leaving out each event of a session outside the access
+  // when there is one.
   readonly readEvents: (
     afterID: number | null,
     limit: number,
     waitMs: number,
     sessionID: SessionID | null,
+    access: TargetAccess | null,
   ) => Promise<EventsPage>;
 
   // Answers with the `session.message` ok payload, which a keyed retry
@@ -192,6 +215,15 @@ export interface TapClient {
   readonly sendEvent: (event: EventMsg) => void;
 }
 
+// The principal a request acts as and the targets it may use.
+interface RequestScope {
+  readonly principal: string;
+  readonly access: TargetAccess;
+}
+
+// The requests that act on the whole daemon, which only its owner may make.
+const OWNER_METHODS: ReadonlySet<string> = new Set(['daemon.quit', 'fleet.restore']);
+
 interface PeerSocket extends SocketWriter {
   readonly end: () => void;
 }
@@ -216,6 +248,17 @@ export class DaemonConnection {
 
   private readonly desynced = new Map<SessionID, number>();
 
+  // The principal the whole connection acts as, from its handshake, and the
+  // targets that principal may use; null for the daemon's owner, whose
+  // reach has no limit.
+  private principal: string | null = null;
+
+  private access: TargetAccess | null = null;
+
+  // The sessions and permission requests this limited connection was shown,
+  // so the events that end them reach it after the session is gone.
+  private readonly shown = new Set<string>();
+
   constructor(peer: PeerSocket, ctx: DaemonContext) {
     this.peer = peer;
     this.ctx = ctx;
@@ -231,7 +274,11 @@ export class DaemonConnection {
   }
 
   sendEvent(event: EventMsg): void {
-    if (this.helloed && !this.queue.send(encodeMessage(event))) {
+    if (!this.helloed || !this.canSeeEvent(event)) {
+      return;
+    }
+
+    if (!this.queue.send(encodeMessage(event))) {
       this.peer.end();
     }
   }
@@ -334,7 +381,63 @@ export class DaemonConnection {
       return false;
     }
 
-    this.answerAsync(req.id, () => this.applyRequest(req));
+    const scope = this.findRequestScope(req);
+
+    if (scope !== null && OWNER_METHODS.has(req.m)) {
+      this.sendErr(req.id, 'unauthorized', `${req.m} is open to the daemon's owner only`);
+
+      return true;
+    }
+
+    const ctx =
+      scope === null ? this.ctx : buildScopedContext(this.ctx, scope.access, scope.principal);
+
+    this.answerAsync(req.id, () => this.applyRequest(req, ctx));
+
+    return true;
+  }
+
+  // The principal a request acts as and the targets it may use: the
+  // request's own principal, limited to what the connection's may use, else
+  // the connection's. Null is the daemon's owner.
+  private findRequestScope(req: RequestMsg): RequestScope | null {
+    if (req.as === undefined) {
+      return this.principal === null || this.access === null
+        ? null
+        : { principal: this.principal, access: this.access };
+    }
+
+    const access = this.ctx.buildTargetAccess(req.as);
+
+    return { principal: req.as, access: this.access === null ? access : this.access.merge(access) };
+  }
+
+  // Whether this connection may see an event: always for the daemon's
+  // owner, and otherwise only for an event of a session the connection may
+  // see or was already shown.
+  private canSeeEvent(event: EventMsg): boolean {
+    if (this.access === null) {
+      return true;
+    }
+
+    const sessionID = findEventSession(event);
+    const request = typeof event['request'] === 'string' ? event['request'] : null;
+
+    if (sessionID === null) {
+      return request !== null && this.shown.has(`request:${request}`);
+    }
+
+    const grant = this.ctx.findSessionGrant(sessionID);
+
+    if (grant === null || !this.access.canUse(grant)) {
+      return this.shown.has(`session:${sessionID}`);
+    }
+
+    this.shown.add(`session:${sessionID}`);
+
+    if (request !== null) {
+      this.shown.add(`request:${request}`);
+    }
 
     return true;
   }
@@ -360,7 +463,7 @@ export class DaemonConnection {
     })();
   }
 
-  private async applyRequest(req: RequestMsg): Promise<void> {
+  private async applyRequest(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     await this.helloAnswered;
 
     switch (req.m) {
@@ -370,33 +473,33 @@ export class DaemonConnection {
         return;
       }
       case 'session.list': {
-        this.sendOk(req.id, { sessions: this.ctx.collectSessions() });
+        this.sendOk(req.id, { sessions: ctx.collectSessions() });
 
         return;
       }
       case 'agents.list': {
-        this.sendOk(req.id, { ...this.ctx.collectAgents() });
+        this.sendOk(req.id, { ...ctx.collectAgents() });
 
         return;
       }
       case 'dirs.list': {
-        this.sendOk(req.id, { dirs: await this.ctx.collectSpawnDirs() });
+        this.sendOk(req.id, { dirs: await ctx.collectSpawnDirs() });
 
         return;
       }
       case 'fleet.list': {
-        this.sendOk(req.id, { fleet: await this.ctx.collectFleet() });
+        this.sendOk(req.id, { fleet: await ctx.collectFleet() });
 
         return;
       }
       case 'session.spawn': {
-        await this.applySpawn(req);
+        await this.applySpawn(req, ctx);
 
         return;
       }
       case 'daemon.quit': {
         this.sendOk(req.id, {});
-        this.ctx.quitDaemon();
+        ctx.quitDaemon();
 
         return;
       }
@@ -410,7 +513,7 @@ export class DaemonConnection {
         }
 
         const sessionID = parsed.data.session;
-        const updated = this.ctx.updateSession(sessionID, parsed.data.name, parsed.data.pinned);
+        const updated = ctx.updateSession(sessionID, parsed.data.name, parsed.data.pinned);
 
         if (updated === 'child_pin') {
           this.sendErr(
@@ -427,12 +530,12 @@ export class DaemonConnection {
         return;
       }
       case 'session.kill': {
-        await this.applySessionVerb(req, 'session.kill', this.ctx.killSession);
+        await this.applySessionVerb(req, 'session.kill', ctx.killSession);
 
         return;
       }
       case 'session.ack': {
-        await this.applySessionVerb(req, 'session.ack', this.ctx.ackSession);
+        await this.applySessionVerb(req, 'session.ack', ctx.ackSession);
 
         return;
       }
@@ -446,7 +549,7 @@ export class DaemonConnection {
         }
 
         const id = parsed.data.session;
-        const command = this.ctx.buildResumeCommand(id);
+        const command = ctx.buildResumeCommand(id);
 
         if (command === null) {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
@@ -467,7 +570,7 @@ export class DaemonConnection {
 
         const id = parsed.data.session;
 
-        const screen = await this.ctx.readSessionScreen(id);
+        const screen = await ctx.readSessionScreen(id);
 
         if (screen === 'missing') {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
@@ -489,7 +592,7 @@ export class DaemonConnection {
         }
 
         const sessionID = parsed.data.session;
-        const result = this.ctx.ejectSession(sessionID, parsed.data.prompt);
+        const result = ctx.ejectSession(sessionID, parsed.data.prompt);
 
         if (result === 'ok') {
           this.sendOk(req.id, {});
@@ -521,7 +624,7 @@ export class DaemonConnection {
         }
 
         const sessionID = parsed.data.session;
-        const adoptResult = this.ctx.adoptSession(sessionID, parsed.data.cols, parsed.data.rows);
+        const adoptResult = ctx.adoptSession(sessionID, parsed.data.cols, parsed.data.rows);
 
         if (adoptResult === 'ok') {
           this.sendOk(req.id, {});
@@ -542,7 +645,7 @@ export class DaemonConnection {
         return;
       }
       case 'session.attach': {
-        this.applyAttach(req);
+        this.applyAttach(req, ctx);
 
         return;
       }
@@ -555,43 +658,43 @@ export class DaemonConnection {
           return;
         }
 
-        this.ctx.detachSession(this, parsed.data.session);
+        ctx.detachSession(this, parsed.data.session);
         this.sendOk(req.id, {});
 
         return;
       }
       case 'session.input': {
-        this.applyInput(req);
+        this.applyInput(req, ctx);
 
         return;
       }
       case 'session.resize': {
-        this.applyResize(req);
+        this.applyResize(req, ctx);
 
         return;
       }
       case 'permission.respond': {
-        this.applyPermissionRespond(req);
+        this.applyPermissionRespond(req, ctx);
 
         return;
       }
       case 'session.message': {
-        await this.applySessionMessage(req);
+        await this.applySessionMessage(req, ctx);
 
         return;
       }
       case 'session.tap': {
-        this.applyTap(req);
+        this.applyTap(req, ctx);
 
         return;
       }
       case 'message.get': {
-        await this.applyMessageGet(req);
+        await this.applyMessageGet(req, ctx);
 
         return;
       }
       case 'message.ack': {
-        await this.applyMessageAck(req);
+        await this.applyMessageAck(req, ctx);
 
         return;
       }
@@ -605,23 +708,23 @@ export class DaemonConnection {
         }
 
         this.sendOk(req.id, {
-          restored: await this.ctx.restoreFleet(parsed.data.cols, parsed.data.rows),
+          restored: await ctx.restoreFleet(parsed.data.cols, parsed.data.rows),
         });
 
         return;
       }
       case 'session.get': {
-        await this.applySessionGet(req);
+        await this.applySessionGet(req, ctx);
 
         return;
       }
       case 'session.read': {
-        await this.applySessionRead(req);
+        await this.applySessionRead(req, ctx);
 
         return;
       }
       case 'events.read': {
-        await this.applyEventsRead(req);
+        await this.applyEventsRead(req, ctx);
 
         return;
       }
@@ -631,7 +734,7 @@ export class DaemonConnection {
     }
   }
 
-  private async applySpawn(req: RequestMsg): Promise<void> {
+  private async applySpawn(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('session.spawn', req.p);
 
     if (!parsed.ok) {
@@ -648,10 +751,10 @@ export class DaemonConnection {
     const plan = (): SpawnParams => {
       // The target goes first: a config or target problem is the cause a
       // spawn reports, ahead of any agent check that problem can skew.
-      const target = this.ctx.resolveSpawnTarget(data.target);
+      const target = ctx.resolveSpawnTarget(data.target);
       const agent: AgentID = data.agent ?? 'claude';
-      const adapter = this.ctx.findAdapter(agent);
-      const entry = this.ctx.collectAgents().agents.find((candidate) => candidate.id === agent);
+      const adapter = ctx.findAdapter(agent);
+      const entry = ctx.collectAgents().agents.find((candidate) => candidate.id === agent);
 
       if (adapter === null || entry === undefined) {
         throw new DaemonError('unsupported', `no adapter for agent '${agent}'`);
@@ -675,7 +778,7 @@ export class DaemonConnection {
       let parent: SessionID | null = null;
 
       if (data.parent !== undefined) {
-        const owner = this.ctx.collectSessions().find((s) => s.id === data.parent);
+        const owner = ctx.collectSessions().find((s) => s.id === data.parent);
 
         if (owner === undefined) {
           throw new DaemonError('no_such_session', `no session '${data.parent}'`);
@@ -706,12 +809,12 @@ export class DaemonConnection {
         ? null
         : { key: data.idempotencyKey, payloadHash: buildPayloadHash(data) };
 
-    const spawned = await this.ctx.spawnSession(plan, keyed);
+    const spawned = await ctx.spawnSession(plan, keyed);
 
     this.sendOk(req.id, spawned);
   }
 
-  private applyAttach(req: RequestMsg): void {
+  private applyAttach(req: RequestMsg, ctx: DaemonContext): void {
     const parsed = parseRequestParams('session.attach', req.p);
 
     if (!parsed.ok) {
@@ -722,7 +825,7 @@ export class DaemonConnection {
 
     const sessionID = parsed.data.session;
 
-    const result = this.ctx.attachSession(this, sessionID, {
+    const result = ctx.attachSession(this, sessionID, {
       cols: parsed.data.cols,
       rows: parsed.data.rows,
     });
@@ -739,12 +842,12 @@ export class DaemonConnection {
       return;
     }
 
-    const dims = this.ctx.getEffectiveDims(sessionID);
+    const dims = ctx.getEffectiveDims(sessionID);
 
     this.sendOk(req.id, { cols: dims.cols, rows: dims.rows });
   }
 
-  private applyInput(req: RequestMsg): void {
+  private applyInput(req: RequestMsg, ctx: DaemonContext): void {
     const parsed = parseRequestParams('session.input', req.p);
 
     if (!parsed.ok) {
@@ -754,7 +857,7 @@ export class DaemonConnection {
     }
 
     const sessionID = parsed.data.session;
-    const result = this.ctx.writeSessionInput(sessionID, parsed.data.d);
+    const result = ctx.writeSessionInput(sessionID, parsed.data.d);
 
     if (result === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
@@ -781,7 +884,7 @@ export class DaemonConnection {
     this.sendOk(req.id, {});
   }
 
-  private applyResize(req: RequestMsg): void {
+  private applyResize(req: RequestMsg, ctx: DaemonContext): void {
     const parsed = parseRequestParams('session.resize', req.p);
 
     if (!parsed.ok) {
@@ -792,9 +895,7 @@ export class DaemonConnection {
 
     const sessionID = parsed.data.session;
 
-    if (
-      !this.ctx.resizeSession(this, sessionID, { cols: parsed.data.cols, rows: parsed.data.rows })
-    ) {
+    if (!ctx.resizeSession(this, sessionID, { cols: parsed.data.cols, rows: parsed.data.rows })) {
       this.sendErr(req.id, 'bad_args', `not attached to session '${sessionID}'`);
 
       return;
@@ -803,7 +904,7 @@ export class DaemonConnection {
     this.sendOk(req.id, {});
   }
 
-  private applyPermissionRespond(req: RequestMsg): void {
+  private applyPermissionRespond(req: RequestMsg, ctx: DaemonContext): void {
     const parsed = parseRequestParams('permission.respond', req.p);
 
     if (!parsed.ok) {
@@ -814,7 +915,7 @@ export class DaemonConnection {
 
     const request = parsed.data.request;
     const decision = parsed.data.decision;
-    const result = this.ctx.answerPermission(request, decision);
+    const result = ctx.answerPermission(request, decision);
 
     switch (result) {
       case 'ok': {
@@ -838,7 +939,7 @@ export class DaemonConnection {
     }
   }
 
-  private async applySessionGet(req: RequestMsg): Promise<void> {
+  private async applySessionGet(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('session.get', req.p);
 
     if (!parsed.ok) {
@@ -849,7 +950,7 @@ export class DaemonConnection {
 
     const id = parsed.data.session;
 
-    const record = await this.ctx.readSessionRecord(id);
+    const record = await ctx.readSessionRecord(id);
 
     if (record === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
@@ -860,7 +961,7 @@ export class DaemonConnection {
     this.sendOk(req.id, { ...record });
   }
 
-  private async applySessionRead(req: RequestMsg): Promise<void> {
+  private async applySessionRead(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('session.read', req.p);
 
     if (!parsed.ok) {
@@ -884,7 +985,7 @@ export class DaemonConnection {
       from = { path: decoded.path, offset: decoded.offset };
     }
 
-    const read = await this.ctx.loadSessionTranscript(id, from, parsed.data.limit);
+    const read = await ctx.loadSessionTranscript(id, from, parsed.data.limit);
 
     if (read === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
@@ -903,7 +1004,7 @@ export class DaemonConnection {
     }
   }
 
-  private async applyEventsRead(req: RequestMsg): Promise<void> {
+  private async applyEventsRead(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('events.read', req.p);
 
     if (!parsed.ok) {
@@ -926,11 +1027,12 @@ export class DaemonConnection {
       afterID = decoded.id;
     }
 
-    const page = await this.ctx.readEvents(
+    const page = await ctx.readEvents(
       afterID,
       parsed.data.limit,
       parsed.data.waitMs,
       parsed.data.session ?? null,
+      null,
     );
 
     const last = page.events.at(-1);
@@ -943,7 +1045,7 @@ export class DaemonConnection {
     });
   }
 
-  private async applySessionMessage(req: RequestMsg): Promise<void> {
+  private async applySessionMessage(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('session.message', req.p);
 
     if (!parsed.ok) {
@@ -959,7 +1061,7 @@ export class DaemonConnection {
         ? null
         : { key: parsed.data.idempotencyKey, payloadHash: buildPayloadHash(parsed.data) };
 
-    const result = await this.ctx.writeSessionMessage(
+    const result = await ctx.writeSessionMessage(
       sessionID,
       parsed.data.from,
       parsed.data.text,
@@ -997,7 +1099,7 @@ export class DaemonConnection {
     this.sendOk(req.id, result);
   }
 
-  private applyTap(req: RequestMsg): void {
+  private applyTap(req: RequestMsg, ctx: DaemonContext): void {
     const parsed = parseRequestParams('session.tap', req.p);
 
     if (!parsed.ok) {
@@ -1007,7 +1109,7 @@ export class DaemonConnection {
     }
 
     const sessionID = parsed.data.session;
-    const result = this.ctx.attachTap(this, sessionID);
+    const result = ctx.attachTap(this, sessionID);
 
     if (result === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
@@ -1024,7 +1126,7 @@ export class DaemonConnection {
     this.sendOk(req.id, {});
   }
 
-  private async applyMessageGet(req: RequestMsg): Promise<void> {
+  private async applyMessageGet(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('message.get', req.p);
 
     if (!parsed.ok) {
@@ -1035,7 +1137,7 @@ export class DaemonConnection {
 
     const messageID = parsed.data.message;
 
-    const view = await this.ctx.readMessage(messageID, parsed.data.waitMs);
+    const view = await ctx.readMessage(messageID, parsed.data.waitMs);
 
     if (view === null) {
       this.sendErr(req.id, 'bad_args', `no message '${messageID}'`);
@@ -1060,7 +1162,7 @@ export class DaemonConnection {
     });
   }
 
-  private async applyMessageAck(req: RequestMsg): Promise<void> {
+  private async applyMessageAck(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('message.ack', req.p);
 
     if (!parsed.ok) {
@@ -1072,7 +1174,7 @@ export class DaemonConnection {
     const sessionID = parsed.data.session;
     const messageID = parsed.data.message;
 
-    const result = await this.ctx.ackMessage(this, sessionID, messageID);
+    const result = await ctx.ackMessage(this, sessionID, messageID);
 
     if (result === 'not_tapping') {
       this.sendErr(req.id, 'bad_args', `this connection is not tapping session '${sessionID}'`);
@@ -1116,6 +1218,21 @@ export class DaemonConnection {
   private applyHello(req: RequestMsg): boolean {
     const parsedHello = parseRequestParams('daemon.hello', req.p);
     const client = parsedHello.ok ? parsedHello.data.client : 'unknown client';
+
+    // A principal the handshake cannot read would otherwise leave the
+    // connection with the owner's reach.
+    if (!parsedHello.ok && req.p?.['principal'] !== undefined) {
+      this.sendErr(req.id, 'bad_args', parsedHello.message);
+
+      return false;
+    }
+
+    const principal = parsedHello.ok ? (parsedHello.data.principal ?? null) : null;
+
+    if (principal !== null) {
+      this.principal = principal;
+      this.access = this.ctx.buildTargetAccess(principal);
+    }
 
     if (req.v !== PROTOCOL_V) {
       this.sendErr(
@@ -1163,4 +1280,20 @@ export class DaemonConnection {
       }),
     );
   }
+}
+
+// The session an event belongs to, from its session id or the session it
+// adds, or null for an event of no session.
+function findEventSession(event: EventMsg): SessionID | null {
+  if (typeof event['s'] === 'string') {
+    return toSessionID(event['s']);
+  }
+
+  const session = event['session'];
+
+  if (isRecord(session) && typeof session['id'] === 'string') {
+    return toSessionID(session['id']);
+  }
+
+  return null;
 }

@@ -25,6 +25,7 @@ const ERROR_CODES = [
   'target_unavailable',
   'target_changed',
   'target_config_invalid',
+  'target_forbidden',
   'already_answered',
   'too_slow',
   'stale_epoch',
@@ -48,6 +49,10 @@ export interface RequestMsg {
   readonly id: number;
   readonly m: string;
   readonly p?: Readonly<Record<string, unknown>>;
+
+  // The principal the request acts as, which narrows what the connection
+  // may reach for this request alone.
+  readonly as?: string;
 }
 
 export interface ResponseMsg {
@@ -99,6 +104,13 @@ export function decodeMessage(line: string): DecodedMsg {
 
   if (typeof parsed['m'] === 'string') {
     const p = parsed['p'];
+    const as = parsed['as'];
+
+    // A principal that is not a string would otherwise drop out and leave the
+    // request with the connection's whole reach.
+    if (as !== undefined && (typeof as !== 'string' || as === '')) {
+      return { kind: 'malformed', reason: 'as must be a non-empty string' };
+    }
 
     return {
       kind: 'request',
@@ -107,6 +119,7 @@ export function decodeMessage(line: string): DecodedMsg {
         id: parsed['id'],
         m: parsed['m'],
         ...(isRecord(p) ? { p } : {}),
+        ...(as === undefined ? {} : { as }),
       },
     };
   }

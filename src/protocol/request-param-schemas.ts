@@ -29,6 +29,10 @@ const TERMINAL_SIZE_ERROR = 'cols and rows must be whole numbers from 1 to 4096'
 export const REQUEST_PARAM_SCHEMAS = {
   'daemon.hello': z.object({
     client: buildDefaultedString('unknown client'),
+    principal: z
+      .string({ error: 'daemon.hello principal must be a non-empty string' })
+      .min(1, 'daemon.hello principal must be a non-empty string')
+      .optional(),
   }),
   'daemon.ping': z.object({}),
   'daemon.quit': z.object({}),
