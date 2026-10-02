@@ -17,8 +17,8 @@ const REPORT_SCHEMA = z.discriminatedUnion('kind', [
 ]);
 
 /**
- * Parses a Report envelope's payload; one kind today, discriminated so more
- * kinds join the union.
+ * Parses a Report envelope's payload into the report its kind discriminates,
+ * or null when it matches no known kind.
  */
 export function parseReport(payload: Readonly<Record<string, unknown>>): Report | null {
   const parsed = REPORT_SCHEMA.safeParse(payload);

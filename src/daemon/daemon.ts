@@ -171,12 +171,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const attachments = new AttachRegistry<OutputClient>();
   const taps = new TapRegistry<TapClient>();
 
-  // Hands one pending message to the session's tap, once. The event goes to
-  // the tap connection alone: it never reaches other clients, the events
-  // socket, or hooks.
+  // Hands one pending message to the session's tap, once, and reports whether
+  // it did. The event goes to the tap connection alone: it never reaches
+  // other clients, the events socket, or hooks.
   // oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
-  const sendInboxMessage = (sessionID: SessionID, record: MessageRecord) => {
-    taps.claimDelivery(sessionID, record.id)?.sendEvent({
+  const sendInboxMessage = (sessionID: SessionID, record: MessageRecord): boolean => {
+    const tap = taps.claimDelivery(sessionID, record.id);
+
+    if (tap === null) {
+      return false;
+    }
+
+    tap.sendEvent({
       v: PROTOCOL_V,
       ev: 'InboxMessage',
       s: sessionID,
@@ -185,10 +191,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       text: record.text,
       sentAt: record.sentAt,
     });
+
+    return true;
   };
 
   // Reads the backlog from the store before sending anything, so a tap's
-  // ok response is always queued ahead of its first message.
+  // ok response is always queued ahead of its first message. It sends one
+  // unclaimed message per call and the tap's ack calls it again, so the
+  // backlog never outgrows the connection's outbound queue.
   const drainInbox = async (sessionID: SessionID) => {
     const s = mgr.sessions.find((x) => x.id === sessionID);
 
@@ -200,7 +210,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       const pending = await store.collectPendingMessages(buildMessageOwner(s));
 
       for (const record of pending) {
-        sendInboxMessage(sessionID, record);
+        if (sendInboxMessage(sessionID, record)) {
+          return;
+        }
       }
     } catch {}
   };
@@ -864,6 +876,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       const owner = buildMessageOwner(s);
 
       const delivered = await store.updateMessageDelivered(messageID, owner, Date.now());
+
+      void drainInbox(sessionID);
 
       if (delivered !== null) {
         emitEvent(buildSessionMessageEvent(sessionID, delivered), findHookScope(sessionID));

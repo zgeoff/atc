@@ -1540,7 +1540,7 @@ test('it keeps messages across a store reopen', async () => {
   expect(pending).toStrictEqual([record]);
 });
 
-test('it finds a message only for its own session', async () => {
+test('it finds a message for its own session', async () => {
   const store = await StateStore.open(join(setupDir(), 'state.db'));
 
   onTestFinished(async () => {
@@ -1561,6 +1561,25 @@ test('it finds a message only for its own session', async () => {
   const own = await store.findMessage(record.id, { atcID: toSessionID('s1') });
 
   expect(own).toStrictEqual(record);
+});
+
+test('it finds no message for another session', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  await store.writeMessage(record);
 
   const other = await store.findMessage(record.id, { atcID: toSessionID('s2') });
 

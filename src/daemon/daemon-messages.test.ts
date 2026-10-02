@@ -1,3 +1,4 @@
+// oxlint-disable typescript/await-thenable, typescript/no-confusing-void-expression -- bun types the rejects matchers as void, but they return a promise the test must await
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,6 +19,7 @@ import { startDaemon } from './daemon';
 // stream, the status events, and the Report envelope on the reporter socket.
 interface SetupOptions {
   readonly fleet?: readonly FleetEntry[];
+  readonly queueBytes?: number;
 }
 
 async function setupTest(options: SetupOptions = {}) {
@@ -74,6 +76,7 @@ async function setupTest(options: SetupOptions = {}) {
     build: 'atc/test-build',
     adapter: claude,
     adapters: [claude, grok],
+    ...(options.queueBytes === undefined ? {} : { queueBytes: options.queueBytes }),
     dbPath,
     statusPath: join(tmp.dir, 'status.json'),
     hooks: { SessionMessage: [{ command: `cat >> '${hookLog}'` }] },
@@ -162,11 +165,9 @@ test('it refuses a message to a started session with no tap as unsupported', asy
     expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: 'agent-1' });
   });
 
-  const refused = daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
-
-  const [outcome] = await Promise.allSettled([refused]);
-
-  expect(outcome).toMatchObject({ status: 'rejected', reason: { code: 'unsupported' } });
+  await expect(
+    daemon.actor.sendRequest('session.message', { session: id, text: 'hello' }),
+  ).rejects.toMatchObject({ code: 'unsupported' });
 });
 
 test('it accepts a message to a started session once a tap is connected', async () => {
@@ -210,24 +211,20 @@ test('it refuses a message to a session whose agent cannot take messages', async
     throw new TypeError('no session in spawn answer');
   }
 
-  const refused = daemon.actor.sendRequest('session.message', {
-    session: descriptor['id'],
-    text: 'hello',
-  });
-
-  const [outcome] = await Promise.allSettled([refused]);
-
-  expect(outcome).toMatchObject({ status: 'rejected', reason: { code: 'unsupported' } });
+  await expect(
+    daemon.actor.sendRequest('session.message', {
+      session: descriptor['id'],
+      text: 'hello',
+    }),
+  ).rejects.toMatchObject({ code: 'unsupported' });
 });
 
 test('it answers a message for an unknown session with no_such_session', async () => {
   await using daemon = await setupTest();
 
-  const refused = daemon.actor.sendRequest('session.message', { session: 'nope', text: 'hello' });
-
-  const [outcome] = await Promise.allSettled([refused]);
-
-  expect(outcome).toMatchObject({ status: 'rejected', reason: { code: 'no_such_session' } });
+  await expect(
+    daemon.actor.sendRequest('session.message', { session: 'nope', text: 'hello' }),
+  ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
 test('it answers a message for a killed session with session_dead', async () => {
@@ -237,11 +234,9 @@ test('it answers a message for a killed session with session_dead', async () => 
 
   await daemon.actor.sendRequest('session.kill', { session: id });
 
-  const refused = daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
-
-  const [outcome] = await Promise.allSettled([refused]);
-
-  expect(outcome).toMatchObject({ status: 'rejected', reason: { code: 'session_dead' } });
+  await expect(
+    daemon.actor.sendRequest('session.message', { session: id, text: 'hello' }),
+  ).rejects.toMatchObject({ code: 'session_dead' });
 });
 
 test('it rejects a message without text as bad_args', async () => {
@@ -249,11 +244,9 @@ test('it rejects a message without text as bad_args', async () => {
 
   const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
 
-  const refused = daemon.actor.sendRequest('session.message', { session: id });
-
-  const [outcome] = await Promise.allSettled([refused]);
-
-  expect(outcome).toMatchObject({ status: 'rejected', reason: { code: 'bad_args' } });
+  await expect(daemon.actor.sendRequest('session.message', { session: id })).rejects.toMatchObject({
+    code: 'bad_args',
+  });
 });
 
 test('it queues a message for a session waiting to restore', async () => {
@@ -318,9 +311,13 @@ test('it drains pending messages to a tap in the order they were sent', async ()
 
   await daemon.tap.sendRequest('session.tap', { session: id });
 
-  await waitFor(() => {
-    expect(daemon.tapEvents).toHaveLength(3);
-  });
+  for (const [i, sent] of [first, second, third].entries()) {
+    await waitFor(() => {
+      expect(daemon.tapEvents).toHaveLength(i + 1);
+    });
+
+    await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+  }
 
   expect(daemon.tapEvents).toStrictEqual([
     {
@@ -401,11 +398,72 @@ test('it drains two hundred pending messages to a tap with zero loss', async () 
 
   await daemon.tap.sendRequest('session.tap', { session: id });
 
-  await waitFor(() => {
-    expect(daemon.tapEvents).toHaveLength(200);
-  });
+  for (const [i, messageID] of sent.entries()) {
+    await waitFor(() => {
+      expect(daemon.tapEvents).toHaveLength(i + 1);
+    });
+
+    await daemon.tap.sendRequest('message.ack', { session: id, message: messageID });
+  }
 
   expect(daemon.tapEvents.map((e) => e['message'])).toStrictEqual(sent);
+});
+
+test('it drains a backlog larger than the outbound queue without dropping the tap', async () => {
+  await using daemon = await setupTest({ queueBytes: 4096 });
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  const sent: unknown[] = [];
+
+  for (let i = 0; i < 12; i++) {
+    const ok = await daemon.actor.sendRequest('session.message', {
+      session: id,
+      text: `${i}`.padEnd(1500, 'x'),
+    });
+
+    sent.push(ok['message']);
+  }
+
+  await daemon.tap.sendRequest('session.tap', { session: id });
+
+  for (const [i, messageID] of sent.entries()) {
+    await waitFor(() => {
+      expect(daemon.tapEvents).toHaveLength(i + 1);
+    });
+
+    await daemon.tap.sendRequest('message.ack', { session: id, message: messageID });
+  }
+
+  expect(daemon.tapEvents.map((e) => e['message'])).toStrictEqual(sent);
+});
+
+test('it refuses a tap on a session whose agent cannot take messages', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await daemon.actor.sendRequest('session.spawn', {
+    name: 'grok-one',
+    cwd: '/tmp',
+    agent: 'grok',
+  });
+
+  const descriptor = spawned['session'];
+
+  if (!isRecord(descriptor)) {
+    throw new TypeError('no session in spawn answer');
+  }
+
+  await expect(
+    daemon.tap.sendRequest('session.tap', { session: descriptor['id'] }),
+  ).rejects.toMatchObject({ code: 'unsupported' });
+});
+
+test('it refuses a tap on an unknown session', async () => {
+  await using daemon = await setupTest();
+
+  await expect(daemon.tap.sendRequest('session.tap', { session: 'nope' })).rejects.toMatchObject({
+    code: 'no_such_session',
+  });
 });
 
 test('it moves an acked message to delivered and broadcasts SessionMessage', async () => {
@@ -451,14 +509,12 @@ test('it refuses an ack from a connection that is not the session tap', async ()
 
   await daemon.tap.sendRequest('session.tap', { session: id });
 
-  const refused = daemon.actor.sendRequest('message.ack', {
-    session: id,
-    message: sent['message'],
-  });
-
-  const [outcome] = await Promise.allSettled([refused]);
-
-  expect(outcome).toMatchObject({ status: 'rejected', reason: { code: 'bad_args' } });
+  await expect(
+    daemon.actor.sendRequest('message.ack', {
+      session: id,
+      message: sent['message'],
+    }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
 test('it answers a repeat ack with the current status and broadcasts delivered once', async () => {
@@ -491,11 +547,9 @@ test('it rejects an ack of an unknown message as bad_args', async () => {
 
   await daemon.tap.sendRequest('session.tap', { session: id });
 
-  const refused = daemon.tap.sendRequest('message.ack', { session: id, message: 'm-unknown' });
-
-  const [outcome] = await Promise.allSettled([refused]);
-
-  expect(outcome).toMatchObject({ status: 'rejected', reason: { code: 'bad_args' } });
+  await expect(
+    daemon.tap.sendRequest('message.ack', { session: id, message: 'm-unknown' }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
 test('it moves a message to answered from a Report line on the reporter socket', async () => {
@@ -585,11 +639,9 @@ test('it stops counting a tap once its connection closes', async () => {
   daemon.tap.stop();
 
   await waitFor(async () => {
-    const refused = daemon.actor.sendRequest('session.message', { session: id, text: 'after' });
-
-    const [outcome] = await Promise.allSettled([refused]);
-
-    expect(outcome).toMatchObject({ status: 'rejected', reason: { code: 'unsupported' } });
+    await expect(
+      daemon.actor.sendRequest('session.message', { session: id, text: 'after' }),
+    ).rejects.toMatchObject({ code: 'unsupported' });
   });
 });
 

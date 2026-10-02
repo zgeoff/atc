@@ -18,10 +18,6 @@ interface InboxMessage {
   readonly sentAt: number;
 }
 
-interface RequestSender {
-  readonly sendRequest: DaemonClient['sendRequest'];
-}
-
 /**
  * Streams one session's inbox to stdout, one NDJSON line per message, and
  * acks each message once its line is written. It talks to the daemon that
@@ -86,6 +82,10 @@ export async function runTap(session: string): Promise<void> {
   await written;
 
   process.exit(0);
+}
+
+interface RequestSender {
+  readonly sendRequest: DaemonClient['sendRequest'];
 }
 
 async function ackInboxMessage(
