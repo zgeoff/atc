@@ -34,11 +34,17 @@ export function runTool(
       const rawAgent = args['agent'];
       const nested = args['detached'] !== true && ctx.callerSessionID !== null;
 
+      if (args['model'] !== undefined || args['effort'] !== undefined) {
+        await requireFeature(caller, 'spawn.options', "atc_session_spawn's model and effort");
+      }
+
       const params = {
         cwd: args['cwd'],
         ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
         ...(typeof args['prompt'] === 'string' ? { prompt: args['prompt'] } : {}),
         ...(rawAgent === undefined ? {} : { agent: rawAgent }),
+        ...(args['model'] === undefined ? {} : { model: args['model'] }),
+        ...(args['effort'] === undefined ? {} : { effort: args['effort'] }),
         cols: 100,
         rows: 30,
       };

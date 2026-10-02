@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import type { GrantScope } from '../shared/grant-scope';
+import { buildSpawnDescriptions } from './build-spawn-descriptions';
 
 const NO_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(z.strictObject({}));
 
@@ -17,14 +18,19 @@ const SESSION_ID_BASE = z.object({
 
 const SESSION_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(SESSION_ID_BASE.strict());
 const SPAWN_SCHEMA = REQUEST_PARAM_SCHEMAS['session.spawn'];
+const SPAWN_AGENT_DESCRIPTION = buildSpawnDescriptions(null).agent;
 
 const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   z.strictObject({
     cwd: SPAWN_SCHEMA.shape.cwd.describe('Absolute path of the working directory'),
     name: SPAWN_SCHEMA.shape.name.describe('Session name; defaults to the directory basename'),
     prompt: SPAWN_SCHEMA.shape.prompt.describe('First message for the session'),
-    agent: SPAWN_SCHEMA.shape.agent.describe(
-      'Which registered agent id to spawn; defaults to claude',
+    agent: SPAWN_SCHEMA.shape.agent.describe(SPAWN_AGENT_DESCRIPTION),
+    model: SPAWN_SCHEMA.shape.model.describe(
+      "Model for the new session: an alias or a full model name, at most 200 characters, never starting with '-'. It reaches the agent CLI as its own argument. Refused when the agent takes no model; spawnOptions.model in atc_agents_list holds each agent's support, default, and examples. Omit it to keep the agent's configured default.",
+    ),
+    effort: SPAWN_SCHEMA.shape.effort.describe(
+      "Effort level for the new session, one of the agent's spawnOptions.effort.values in atc_agents_list. Refused when the agent takes no effort. Omit it to keep the agent's configured default.",
     ),
     detached: z
       .boolean()
@@ -124,6 +130,27 @@ const MESSAGE_SENT_OUTPUT: Readonly<Record<string, unknown>> = {
   required: ['message', 'status'],
 };
 
+const SPAWN_OPTION_OUTPUT: Readonly<Record<string, unknown>> = {
+  type: 'object',
+  properties: {
+    supported: { type: 'boolean' },
+    available: { type: 'boolean' },
+    values: { type: ['array', 'null'], items: { type: 'string' } },
+    examples: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { value: { type: 'string' }, resolvesTo: { type: ['string', 'null'] } },
+        required: ['value', 'resolvesTo'],
+      },
+    },
+    default: { type: ['string', 'null'] },
+    backendEffect: { type: ['string', 'null'], enum: ['applied', 'unverified', null] },
+    note: { type: ['string', 'null'] },
+  },
+  required: ['supported', 'available', 'values', 'examples', 'default', 'backendEffect', 'note'],
+};
+
 const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
   type: 'object',
   properties: {
@@ -159,8 +186,13 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
             required: ['spawn', 'readTranscript', 'message', 'attach', 'screen', 'input'],
           },
           models: { type: ['object', 'null'], additionalProperties: { type: 'string' } },
+          spawnOptions: {
+            type: 'object',
+            properties: { model: SPAWN_OPTION_OUTPUT, effort: SPAWN_OPTION_OUTPUT },
+            required: ['model', 'effort'],
+          },
         },
-        required: ['id', 'label', 'kind', 'installed', 'capabilities', 'models'],
+        required: ['id', 'label', 'kind', 'installed', 'capabilities', 'models', 'spawnOptions'],
       },
     },
   },
@@ -264,9 +296,9 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     name: 'atc_session_spawn',
     annotations: AGENT_FACING,
     scope: 'spawn',
-    description:
-      'Spawn a new session in a directory. Optional agent is an agent id the daemon has registered, such as claude, grok, or codex; omitted agent is always Claude, never the TUI last-used value. An unregistered id is rejected. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.',
+    description: buildSpawnDescriptions(null).tool,
     inputSchema: SPAWN_INPUT,
+    requires: { inputs: { model: 'spawn.options', effort: 'spawn.options' } },
   },
   {
     name: 'atc_session_input',
@@ -343,7 +375,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      "List the agents this atc host can run sessions under, plus the host itself (daemon: hostname, platform, arch, build). Each agent has its id (pass it as atc_session_spawn's agent), label, kind (the agent CLI family it runs), installed (whether its binary resolves on this host; a registered agent that is not installed cannot spawn), capabilities (spawn, readTranscript, message, attach, screen, input), and models: the model names the config sets for it, or null. It never includes credentials, environment values, or endpoints, and holds nothing about which plans or subscriptions an agent's account has.",
+      "List the agents this atc host can run sessions under, plus the host itself (daemon: hostname, platform, arch, build). Each agent has its id (pass it as atc_session_spawn's agent), label, kind (the agent CLI family it runs), installed (whether its binary resolves on this host; a registered agent that is not installed cannot spawn), capabilities (spawn, readTranscript, message, attach, screen, input), models (the model names the config sets for it, or null), and spawnOptions. spawnOptions holds model and effort, each with supported (whether atc passes it to the agent CLI), available (whether a spawn on this host can pass it now), values (the accepted set, or null for any alias or model name), examples (each with the provider model it resolves to, when the config maps one), default (the configured value, or null for the CLI's own), backendEffect (applied, or unverified when the backend may ignore it), and a note. atc_session_spawn accepts exactly the available options. It never includes credentials, environment values, or endpoints, and holds nothing about which plans or subscriptions an agent's account has.",
     inputSchema: NO_INPUT,
     outputSchema: AGENTS_OUTPUT,
     requires: { tool: 'agents.list' },
@@ -379,7 +411,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: AGENT_FACING,
     scope: 'message',
     description:
-      "Send a session a message and get its id back. Follow up with atc_message_get, passing waitMs so each call waits for the next status change instead of polling in a tight loop, until its status is answered; don't read the session's screen or transcript to check on it. The answer is the final output of the session turn that carried the message, and one turn can carry several messages. The message waits in the session inbox until the session takes it, and its status moves accepted, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (Grok, Codex), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
+      "Send a session a message and get its id back. Follow up with atc_message_get, passing waitMs so each call waits for the next status change instead of polling in a tight loop, until its status is answered; don't read the session's screen or transcript to check on it. The answer is the final output of the session turn that carried the message, and one turn can carry several messages. The message waits in the session inbox until the session takes it, and its status moves accepted, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (capabilities.message is false in atc_agents_list), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
     inputSchema: {
       type: 'object',
       properties: {

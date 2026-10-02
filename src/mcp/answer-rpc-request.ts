@@ -1,7 +1,9 @@
 import { match } from 'ts-pattern';
+import { z } from 'zod';
 import { DaemonError } from '../protocol/daemon-error';
 import type { GrantScope } from '../shared/grant-scope';
 import { isRecord } from '../shared/report';
+import type { RegisteredAgent } from './build-spawn-descriptions';
 import { buildToolList } from './build-tool-list';
 import { MCP_TOOLS } from './mcp-tools';
 import { pickProtocolVersion } from './pick-protocol-version';
@@ -59,10 +61,11 @@ export async function answerRPCRequest(message: unknown, deps: RPCDeps): Promise
     .with('ping', () => ({ kind: 'reply' as const, body: buildRPCResult(id, {}) }))
     .with('tools/list', async () => {
       const features = await deps.caller.readFeatures();
+      const agents = features.has('agents.list') ? await tryReadAgents(deps.caller) : null;
 
       return {
         kind: 'reply' as const,
-        body: buildRPCResult(id, { tools: buildToolList(features) }),
+        body: buildRPCResult(id, { tools: buildToolList(features, agents) }),
       };
     })
     .with('tools/call', async () => {
@@ -95,6 +98,24 @@ function findMissingScope(
   const needed = tool === undefined ? STRICTEST_SCOPE : tool.scope;
 
   return scopes.includes(needed) ? null : needed;
+}
+
+// The part of an agents.list answer the spawn descriptions read.
+const ROSTER_AGENT_SCHEMA = z.object({ id: z.string(), installed: z.boolean() });
+const AGENT_ROSTER_SCHEMA = z.object({ agents: z.array(ROSTER_AGENT_SCHEMA) });
+
+// The registered agents, or null when the daemon cannot answer, so the tool
+// list still builds with descriptions that name no agent.
+async function tryReadAgents(caller: FleetCaller): Promise<RegisteredAgent[] | null> {
+  try {
+    const answer = await caller.sendRequest('agents.list');
+
+    const parsed = AGENT_ROSTER_SCHEMA.safeParse(answer);
+
+    return parsed.success ? parsed.data.agents : null;
+  } catch {
+    return null;
+  }
 }
 
 async function answerToolCall(
