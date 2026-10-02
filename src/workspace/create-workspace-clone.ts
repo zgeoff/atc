@@ -40,6 +40,9 @@ type IncompleteCheckout = Exclude<
  * objects rather than hard-linking them, takes no hook templates, and runs no
  * hooks on checkout.
  *
+ * A ref, or a full commit id, that the upstream does not have is refused as
+ * `ref_not_found`, and the directory is removed.
+ *
  * The checked-out commit must be the whole workspace: one that uses
  * submodules or tracks paths through Git LFS is refused and the directory is
  * removed. The clone fetches without checking out, and the checkout then
@@ -163,9 +166,18 @@ async function createCloneAtRef(
   );
 
   if (checkout.exitCode !== 0) {
+    // A pinned commit that no upstream ref reaches never arrives in the
+    // clone, so its checkout fails on a commit the upstream does not have.
+    const present = await runGit(['cat-file', '-e', `${target.sha}^{commit}`], {
+      cwd: request.dir,
+      isolated: true,
+    });
+
     await rm(request.dir, { recursive: true, force: true });
 
-    return { ok: false, code: 'clone_failed', message: checkout.stderr.trim() };
+    return target.branch === null && present.exitCode !== 0
+      ? { ok: false, code: 'ref_not_found', message: `origin has no commit ${target.sha}` }
+      : { ok: false, code: 'clone_failed', message: checkout.stderr.trim() };
   }
 
   const complete = await checkWorkspaceCompleteness(request.dir, target.sha);
