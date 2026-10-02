@@ -328,6 +328,13 @@ table. Such a key has no stored answer, so a retry is `no_such_session` with `er
 until a fleet restore lists the session; after that, the daemon returns its descriptor. The daemon
 keeps a completed key for 24 hours and an `outcome_unknown` key indefinitely.
 
+A failed spawn whose cleanup the daemon could not confirm, and whose session row is gone from the
+fleet table at the next start, keeps its key as `outcome_unknown` for good: the hourly sweep expires
+only completed keys. A retry under that key never spawns. Clearing such a key takes an operator: the
+error's `err.data.effectRef` holds the session id the spawn minted, so the operator can look for
+that session, kill it if it still runs, and spawn again under a new key. No atc command clears a
+held key.
+
 ## Messages
 
 A client sends a session a message with `session.message`, and the daemon keeps it in the session's
