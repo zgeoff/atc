@@ -95,11 +95,11 @@ semantics.
 | `permission.respond`    | answer a permission request (`{ request, decision }`)                                                                                                                                                              |
 | `session.get`           | one session's descriptor plus its spawn prompt, last activity, pending prompt, and latest result (`{ session }`)                                                                                                   |
 | `session.read`          | a Claude session's transcript, a page at a time from a cursor (`{ session, cursor?, limit? }`)                                                                                                                     |
-| `events.read`           | fleet events from the hook-event trail since a cursor (`{ cursor?, limit?, waitMs? }`)                                                                                                                             |
+| `events.read`           | fleet events from the hook-event trail since a cursor (`{ cursor?, limit?, waitMs?, session? }`)                                                                                                                   |
 | `session.message`       | queue a message for a session (`{ session, from, text }`); the ok holds the message id. [Messages](#messages) covers refusals                                                                                      |
 | `session.tap`           | subscribe to a session's inbox; messages arrive as `InboxMessage` events                                                                                                                                           |
 | `message.ack`           | mark a tapped message delivered (`{ session, message }`)                                                                                                                                                           |
-| `message.get`           | one message with its status, answer, and timestamps (`{ message }`)                                                                                                                                                |
+| `message.get`           | one message with its status, answer, turn, and timestamps (`{ message, waitMs? }`)                                                                                                                                 |
 
 `session.input` is a request (it gets an ok, preserving the rule that state-changing messages are
 acknowledged) but clients need not await it — measured cost of the JSON round trip is ~0.2 µs
@@ -182,9 +182,17 @@ session id and name, kind, and a short detail. The trail holds three groups of k
   characters of its text.
 
 Without a cursor, `events.read` returns the most recent `limit` events. `waitMs` holds the request
-open until an event arrives or the wait ends, for at most 30 seconds. The daemon writes a message or
-report event to the trail before it broadcasts the matching `SessionMessage` or `SessionReport`, so
-a client that reads the trail on the broadcast finds the event there.
+open until an event arrives or the wait ends, for at most 30 seconds. The answer holds `more`, which
+is true when events past the page's last one exist; a read without a cursor returns the newest
+events, so its `more` is always false. The daemon writes a message or report event to the trail
+before it broadcasts the matching `SessionMessage` or `SessionReport`, so a client that reads the
+trail on the broadcast finds the event there.
+
+`session` limits `events.read` to one session's events. The filter matches the trail rows under that
+atc id, plus, for a live session, the rows under its agent session id, so events from before a
+restore stay in the session's slice. The daemon refuses no id: an id no live session holds matches
+only the rows under it. Cursors are global trail positions, so a filtered read and an unfiltered
+read take each other's cursors.
 
 `session.read` returns a Claude session's transcript as user and assistant rows with tool uses
 summarised, oldest first. A page holds at most `limit` rows and about 256 KiB. Without a cursor, it
@@ -216,8 +224,16 @@ A message moves through three statuses:
 
 - `accepted`: the message is in the inbox.
 - `delivered`: a tap printed the message and acked it.
-- `answered`: the session reported the end of the turn the message started. The report arrives on
-  the reporter socket from `atc report answered`, and that turn's final text becomes the answer.
+- `answered`: the session reported the end of the turn that carried the message. The report arrives
+  on the reporter socket from `atc report answered`, and that turn's final text becomes the answer.
+
+An answer is the final output of the turn that carried the message, never a reply written to that
+message alone. A message that arrives during a running turn joins that turn, so one turn can carry
+several messages, and each of them gets the same answer. The `atc-bridge` mod reports the turn id
+with each answer, and the daemon stores it on the message. `message.get` returns it as `turn`, null
+when the reporter sent none, and returns the other messages the same turn answered as
+`answeredWith`, empty when there are none. A report from an older mod holds no turn id, so its
+message stores null.
 
 A session can report progress with no message attached: `atc report note` sends a labelled free-form
 report, and the daemon broadcasts it as `SessionReport` with the session id, label (`kind`), text,
@@ -225,6 +241,11 @@ and time.
 
 Each status change broadcasts `SessionMessage` with the message id, status, sender, timestamps, and
 short previews of the text and answer. `message.get` returns the full text and answer.
+
+`message.get` takes `waitMs` and holds the request until the message's status moves from what it was
+when the request arrived, or the wait ends, for at most 30 seconds. An answered message has no later
+status, so the daemon returns it at once. Message ids and statuses live in `atc.db`, so a client
+whose wait ended, or whose connection dropped, calls again with the same id.
 
 `session.message` refuses a message with `unsupported` in two cases:
 

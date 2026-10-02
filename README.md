@@ -137,9 +137,9 @@ installs in detail.
   list or revoke grants with `atc grants`. [Remote MCP](./docs/architecture/remote-mcp.md) covers
   it.
 - A Claude session takes messages from other tools. `atc_session_message` queues one, and the
-  session reads it in a new turn, or inside the turn it is running. `atc_message_get` returns the
-  reply once that turn ends. The [protocol](./docs/architecture/protocol.md#messages) covers the
-  details.
+  session reads it in a new turn, or inside the turn it is running. `atc_message_get` returns that
+  turn's final output once the turn ends, and waits for the next status change when given `waitMs`.
+  The [protocol](./docs/architecture/protocol.md#messages) covers the details.
 - `atc events` prints every fleet event as one NDJSON line. The same stream is on a unix socket, and
   `config.json` hooks run your own commands on events. The [events guide](./docs/guides/events.md)
   covers all three.
