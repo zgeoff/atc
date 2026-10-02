@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.10.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.9.0...@zgeoff/atc@2.10.0) (2026-10-02)
+
+
+### Features
+
+* **mcp:** declare safety annotations and scopes on every tool ([#128](https://github.com/zgeoff/atc/issues/128)) ([4c7aad1](https://github.com/zgeoff/atc/commit/4c7aad17b883a9b40f46c6057eb23f0a95afa96b))
+* **mcp:** serve mcp over http with better-auth as the oauth server ([#135](https://github.com/zgeoff/atc/issues/135)) ([f9223a1](https://github.com/zgeoff/atc/commit/f9223a16a92cffb43dae7d3a0533f7430a0767ae))
+
+
+### Bug Fixes
+
+* **daemon:** record headless turns in the trail and keep their result ([#129](https://github.com/zgeoff/atc/issues/129)) ([af8f122](https://github.com/zgeoff/atc/commit/af8f122b34a5748284f958973100edbedc9182f1))
+
 ## [2.9.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.8.2...@zgeoff/atc@2.9.0) (2026-10-02)
 
 ### Features
