@@ -304,10 +304,11 @@ with the same key and the same params, and the daemon answers with the session t
 created instead of spawning another. The key holds 1 to 200 characters, and the daemon keys it per
 principal and method; every request on the local socket acts as the principal `local`.
 
-The daemon checks every param before it records the key, so a refused spawn leaves the key free. It
-then records the key with a SHA-256 of the request's params, as JSON with sorted keys and without
-the key itself, and with the session id it mints before the session spawns. The daemon's answer to a
-retry depends on what the key holds:
+The daemon records the key before it checks any param. A refused spawn drops the key again, so a
+retry runs fresh, and a retry of a key the daemon holds gets its answer from the key without any
+param checked again. The daemon records the key with a SHA-256 of the request's params, as JSON with
+sorted keys and without the key itself, and with the session id it mints before the session spawns.
+The daemon's answer to a retry depends on what the key holds:
 
 - The same key with different params is `idempotency_conflict`.
 - For a completed spawn, the daemon returns the session's current descriptor while it is listed,

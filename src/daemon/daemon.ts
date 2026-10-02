@@ -749,9 +749,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     collectFleet: () => store.loadFleet(),
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => mgr.findAdapter(kind),
-    spawnSession: (p, keyed) => {
+    spawnSession: (plan, keyed) => {
       if (keyed === null) {
-        return Promise.resolve({ session: startSpawn(p, mintSessionID()) });
+        return Promise.resolve({ session: startSpawn(plan(), mintSessionID()) });
       }
 
       const effectRef = mintSessionID();
@@ -760,7 +760,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         operation: 'session.spawn',
         keyed,
         effectRef,
-        start: () => ({ session: startSpawn(p, effectRef) }),
+        start: () => ({ session: startSpawn(plan(), effectRef) }),
         settle: () => mgr.writeFleet(),
         replay: (record) => loadSpawnReplay(record),
       });

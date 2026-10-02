@@ -253,3 +253,22 @@ test('it records no claim for a keyed spawn refused before it starts', async () 
 
   expect(rows).toStrictEqual([]);
 });
+
+test('it replays a completed keyed spawn even once its parent is gone', async () => {
+  await using ctx = await setupTest();
+
+  const client = await ctx.boot();
+  const parent = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const params = { cwd: '/tmp', parent: parentID, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+
+  const first = await client.sendRequest('session.spawn', params);
+
+  await client.sendRequest('session.kill', { session: parentID });
+  await client.sendRequest('session.kill', { session: parentID });
+
+  const retried = await client.sendRequest('session.spawn', params);
+
+  expect(retried).toMatchObject({ session: { id: getRecord(first, 'session')['id'] } });
+});
