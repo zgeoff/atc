@@ -9,6 +9,7 @@ import { buildPageResponse } from './build-page-response';
 import { isLoopbackHost } from './is-loopback-host';
 import { normalizePublicURL } from './normalize-public-url';
 import { openMCPAuth } from './open-mcp-auth';
+import { pickErrorMessage } from './pick-error-message';
 import type { FleetCaller, HTTPServerContext } from './types';
 
 interface MCPHTTPServerOptions {
@@ -203,11 +204,7 @@ async function answerHTTPRequest(
   }
 
   if (route === 'GET /error') {
-    const reason = url.searchParams.get('error_description') ?? url.searchParams.get('error');
-
-    return buildPageResponse(400, {
-      message: `atc refused this authorization request: ${reason ?? 'unknown error'}.`,
-    });
+    return buildPageResponse(400, { message: pickErrorMessage(url.searchParams.get('error')) });
   }
 
   const isPage = url.pathname === '/login' || url.pathname === '/consent';

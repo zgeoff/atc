@@ -2021,3 +2021,43 @@ test('it prints the requester with control characters dropped and the user agent
     `. Requested from 203.0.113.7 (reported by CF-Connecting-IP), user agent "Evil UA ${'A'.repeat(52)}". `,
   );
 });
+
+test('it shows a fixed sentence on the error page whatever text the link carries', async () => {
+  await using server = await setupMCPHTTP();
+
+  const page = await fetch(
+    `${server.url}/error?error=Your+atc+session+expired&error_description=Call+%2B1+555+0100+to+restore+access`,
+  );
+
+  const html = await page.text();
+
+  expect(page.status).toBe(400);
+  expect(html).toInclude('atc refused this authorization request: the request is not valid.');
+  expect(html).not.toInclude('expired');
+  expect(html).not.toInclude('555');
+});
+
+test('it shows the sentence for an unknown client on the error page', async () => {
+  await using server = await setupMCPHTTP();
+
+  const authorize = new URL(`${server.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: 'not-a-client',
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+  const page = await fetch(new URL(authorized.headers.get('location') ?? '/', server.url));
+  const html = await page.text();
+
+  expect(html).toInclude(
+    'atc refused this authorization request: the client is not one added to atc.',
+  );
+});
