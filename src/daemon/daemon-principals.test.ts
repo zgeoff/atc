@@ -256,6 +256,16 @@ test.each([
 
     const missing = randomUUID();
 
+    // The hidden session has a trail of its own, so a read that reached it
+    // would differ.
+    await daemon.sendHookEvent(hidden);
+
+    await waitFor(async () => {
+      const owner = await daemon.client.sendRequest('events.read', { session: hidden, waitMs: 0 });
+
+      expect(JSON.stringify(owner)).toContain(hidden);
+    });
+
     const answered = await readAnswer(
       () => daemon.client.sendRequest(method, { ...params, session: hidden }, 'client-a'),
       hidden,
