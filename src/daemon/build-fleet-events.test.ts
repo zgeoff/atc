@@ -38,7 +38,16 @@ test('it names an event by the live session holding its agent session id', () =>
     ],
   );
 
-  expect(events).toMatchObject([{ session: 's-new', name: 'worker' }]);
+  expect(events).toStrictEqual([
+    {
+      cursor: expect.toBeString(),
+      at: 1000,
+      session: 's-new',
+      name: 'worker',
+      kind: 'turn-done',
+      detail: null,
+    },
+  ]);
 });
 
 test('it names an event by atc id when it carries no agent session id', () => {
@@ -74,7 +83,16 @@ test('it names an event by atc id when it carries no agent session id', () => {
     ],
   );
 
-  expect(events).toMatchObject([{ session: 's1', name: 'worker' }]);
+  expect(events).toStrictEqual([
+    {
+      cursor: expect.toBeString(),
+      at: 1000,
+      session: 's1',
+      name: 'worker',
+      kind: 'started',
+      detail: null,
+    },
+  ]);
 });
 
 test('it keeps the stored atc id and no name when no live session matches', () => {

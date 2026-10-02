@@ -1,6 +1,6 @@
 /**
- * Wakes long-polling readers when the event trail grows. A reader captures
- * `generation` before it queries and passes it to `waitForNext`, so an event
+ * Wakes long-polling readers when the event trail grows. A reader notes the
+ * signal's count before it queries and waits from that count, so an event
  * recorded between the query and the wait is never missed.
  */
 export class EventSignal {

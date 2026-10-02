@@ -5,17 +5,6 @@ import type { TranscriptRow, TranscriptToolUse } from './agent-adapter';
 // One row must stay far under the protocol's line cap.
 const MAX_ROW_TEXT_BYTES = 16_384;
 
-const TOOL_INPUT_KEYS = [
-  'command',
-  'file_path',
-  'path',
-  'pattern',
-  'url',
-  'query',
-  'description',
-  'prompt',
-];
-
 export function parseClaudeTranscriptLine(line: string): TranscriptRow | null {
   let parsed: unknown;
 
@@ -86,6 +75,17 @@ export function parseClaudeTranscriptLine(line: string): TranscriptRow | null {
     at: Number.isNaN(parsedAt) ? null : parsedAt,
   };
 }
+
+const TOOL_INPUT_KEYS = [
+  'command',
+  'file_path',
+  'path',
+  'pattern',
+  'url',
+  'query',
+  'description',
+  'prompt',
+];
 
 function formatToolInput(input: unknown): string {
   if (!isRecord(input)) {

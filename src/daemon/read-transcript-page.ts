@@ -55,8 +55,9 @@ export async function readTranscriptPage(req: TranscriptPageRequest): Promise<Tr
     let newline = chunk.indexOf(0x0a, lineStart);
 
     if (newline === -1) {
-      // A trailing partial line is left for the next read.
-      if (offset + chunk.length >= size) {
+      // A trailing partial line is left for the next read. A short read means the
+      // file shrank underneath us, so it ends the scan rather than skipping a line.
+      if (chunk.length < Math.min(windowBytes, size - offset) || offset + chunk.length >= size) {
         break;
       }
 

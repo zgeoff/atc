@@ -44,7 +44,12 @@ test('it summarises a tool use with no known input key as its JSON', () => {
     message: { content: [{ type: 'tool_use', id: 't1', name: 'Odd', input: { a: 1 } }] },
   });
 
-  expect(parseClaudeTranscriptLine(line)?.tools).toStrictEqual([{ name: 'Odd', input: '{"a":1}' }]);
+  expect(parseClaudeTranscriptLine(line)).toStrictEqual({
+    role: 'assistant',
+    text: '',
+    tools: [{ name: 'Odd', input: '{"a":1}' }],
+    at: null,
+  });
 });
 
 test.each([
@@ -72,7 +77,12 @@ test.each([
 test('it leaves at null when a line has no timestamp', () => {
   const line = '{"type":"user","message":{"role":"user","content":"hi"}}';
 
-  expect(parseClaudeTranscriptLine(line)?.at).toBeNull();
+  expect(parseClaudeTranscriptLine(line)).toStrictEqual({
+    role: 'user',
+    text: 'hi',
+    tools: [],
+    at: null,
+  });
 });
 
 test('it truncates row text past 16 KiB', () => {
