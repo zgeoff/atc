@@ -118,8 +118,18 @@ installs in detail.
 ## Beyond the keyboard
 
 - `atc mcp` exposes the fleet as MCP tools, so an agent can spawn, drive, and read other agents. A
-  session spawned this way lists under the session that spawned it and is killed with it. Register
-  it with `claude mcp add --scope user atc -- atc mcp`.
+  session spawned this way lists under the session that spawned it and is killed with it. Each agent
+  keeps its own MCP config, so register the server once per agent you run:
+
+  ```bash
+  claude mcp add --scope user atc -- atc mcp
+  codex mcp add atc -- atc mcp
+  grok mcp add atc -- atc mcp
+  ```
+
+  A Claude or Codex session that is already running loads the server only after it restarts. A
+  running Grok session loads it when you press `r` in its `/mcps` list.
+
 - A Claude session takes messages from other tools. `atc_session_message` queues one, and the
   session reads it in a new turn, or inside the turn it is running. `atc_message_get` returns the
   reply once that turn ends. The [protocol](./docs/architecture/protocol.md#messages) covers the
