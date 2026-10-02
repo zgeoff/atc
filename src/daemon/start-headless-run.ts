@@ -1,4 +1,3 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { socketPath } from '../shared/config';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
@@ -55,7 +54,12 @@ export function startHeadlessRun(
       const mode = PERMISSION_MODES.find((m) => m === opts.permissionMode);
       let stderrTail = '';
 
-      const stream = query({
+      // The SDK is the heaviest module in the daemon's graph, and only a
+      // headless turn needs it, so loading it here keeps it off the daemon's
+      // cold start.
+      const sdk = await import('@anthropic-ai/claude-agent-sdk');
+
+      const stream = sdk.query({
         prompt: opts.prompt,
         options: {
           cwd: opts.cwd,
