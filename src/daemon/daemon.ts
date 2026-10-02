@@ -38,6 +38,7 @@ import type {
 } from './daemon-connection';
 import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
+import type { ExecutionProvider } from './execution-provider';
 import { startHookServer } from './hooks';
 import type { HookEvent } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
@@ -48,6 +49,7 @@ import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
 import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
+import { requireCapability } from './require-capability';
 import { restoreFleet } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
 import { ScreenModel } from './screen-model';
@@ -71,6 +73,10 @@ export interface DaemonOptions {
   // it declares. Lookup never falls back across ids: a grok session with no
   // grok adapter is unsupported, not a Claude spawn.
   readonly adapters?: readonly AgentAdapter[];
+
+  // Where session harnesses run; the local pseudo-terminal provider when
+  // unset.
+  readonly provider?: ExecutionProvider;
 
   // SQLite path for daemon state; a fleet.json at legacyFleetPath seeds the
   // fleet table once so upgrading keeps the restorable fleet.
@@ -181,7 +187,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   idempotencySweep.unref();
 
-  const mgr = new SessionManager(opts.adapter, store, opts.statusPath, opts.adapters ?? []);
+  const mgr = new SessionManager(
+    opts.adapter,
+    store,
+    opts.statusPath,
+    opts.adapters ?? [],
+    opts.provider,
+  );
+
   const clients = new Set<DaemonConnection>();
 
   const runHooks = makeHookRunner(opts.hooks ?? {});
@@ -454,7 +467,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     const s = mgr.sessions.find((x) => x.id === sessionID);
 
-    s?.pty?.resize(dims.cols, dims.rows);
+    // A host that cannot resize keeps its terminal at the size it started
+    // with; the screen model still follows the clients.
+    if (s !== undefined && mgr.provider.capabilities.resize) {
+      s.pty?.resize(dims.cols, dims.rows);
+    }
+
     runtime?.screen?.updateDims(dims.cols, dims.rows);
 
     if (runtime !== undefined) {
@@ -904,8 +922,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       }, 80);
     },
     killSession: async (id) => {
-      if (!mgr.sessions.some((s) => s.id === id)) {
+      const s = mgr.sessions.find((x) => x.id === id);
+
+      if (s === undefined) {
         return false;
+      }
+
+      if ([s, ...mgr.collectChildren(id)].some((x) => x.pty !== null)) {
+        requireCapability(mgr.provider, 'kill');
       }
 
       for (const child of mgr.collectChildren(id)) {
@@ -934,6 +958,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       if (!hasResumableTranscript(mgr, id)) {
         return 'no_transcript';
       }
+
+      requireCapability(mgr.provider, 'kill');
 
       const yanked = mgr.yankHeadless(id);
 
@@ -1016,6 +1042,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'dead';
       }
 
+      requireCapability(mgr.provider, 'attach');
+
       attachments.attach(sessionID, client, dims);
       mgr.attach(sessionID);
 
@@ -1076,11 +1104,19 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'dead';
       }
 
+      requireCapability(mgr.provider, 'input');
+
       s.pty.write(data);
 
       return 'ok';
     },
     resizeSession: (client, sessionID, dims) => {
+      const s = mgr.sessions.find((x) => x.id === sessionID);
+
+      if (s !== undefined && s.pty !== null) {
+        requireCapability(mgr.provider, 'resize');
+      }
+
       if (!attachments.updateDims(sessionID, client, dims)) {
         return false;
       }

@@ -1,3 +1,4 @@
+import { DaemonError } from '../protocol/daemon-error';
 import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { StateStore } from '../store/state-store';
@@ -83,8 +84,10 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
     .filter((r) => r.revive || r.session.state !== 'exited')
     .map((r) => r.session);
 
+  // A session whose host refuses to start a terminal stays listed without
+  // one, and the restore moves on to the next.
   const adoptQueued = (s: Session): boolean => {
-    if (mgr.adoptTerminal(s.id, cols, rows) === null) {
+    if (tryAdoptTerminal(mgr, s.id, cols, rows) === null) {
       return false;
     }
 
@@ -162,4 +165,21 @@ function isSameSession(s: Session, entry: FleetEntry): boolean {
     s.id === entry.sessionID ||
     (entry.agentSessionID !== undefined && s.agentSessionID === entry.agentSessionID)
   );
+}
+
+function tryAdoptTerminal(
+  mgr: SessionManager,
+  id: SessionID,
+  cols: number,
+  rows: number,
+): Session | null {
+  try {
+    return mgr.adoptTerminal(id, cols, rows);
+  } catch (error) {
+    if (error instanceof DaemonError && error.code === 'unsupported_operation') {
+      return null;
+    }
+
+    throw error;
+  }
 }

@@ -72,6 +72,33 @@ Scrollback is capped aggressively (current screen plus a few hundred lines).
 - Attention detection is a per-adapter detector stack: hooks where they exist, screen heuristics as
   the universal fallback.
 
+## Execution providers
+
+An execution provider is the host a session's harness runs on. The daemon starts every session
+terminal through the provider's interface, in `src/daemon/execution-provider.ts`, and never reaches
+past it. The built-in `local-pty` provider runs each harness as a child process of the daemon on a
+`bun-pty` pseudo-terminal.
+
+A provider declares its capabilities, and the daemon checks the declaration before it calls the
+provider:
+
+| Capability | What the host can do                                     |
+| ---------- | -------------------------------------------------------- |
+| `spawn`    | start a harness in a pseudo-terminal                     |
+| `attach`   | stream a running harness's output to attached clients    |
+| `input`    | write keystrokes to a running harness                    |
+| `resize`   | change a running harness's terminal size                 |
+| `kill`     | end a running harness                                    |
+| `transfer` | unpack a tar archive into a directory on the host        |
+| `run`      | run a command on the host to completion                  |
+| `suspend`  | pause the host and resume it later with its state intact |
+| `destroy`  | delete the host and everything on it                     |
+
+A request that needs a capability the provider lacks fails with `unsupported_operation`. A host
+without `resize` keeps its terminal at the size it started with, while the session's screen model
+follows the attached clients. `local-pty` declares every capability except `suspend` and `destroy`:
+its host is the daemon's own machine.
+
 ## State
 
 SQLite (`bun:sqlite`) in the daemon holds the fleet, event trail, spawn history, and last-used agent

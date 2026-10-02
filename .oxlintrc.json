@@ -36,6 +36,7 @@
           "revoke",
           "schedule",
           "spawn",
+          "transfer",
           "truncate",
           "yank"
         ],
