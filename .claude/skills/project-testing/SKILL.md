@@ -25,17 +25,21 @@ production code.
 
 ## The test home
 
-Every test run gets its own home, so no test reads or writes your real config, state, sockets, or
-agent homes. The package test scripts start through `scripts/with-test-home.sh`, which points
-`HOME`, `XDG_RUNTIME_DIR`, `GROK_HOME`, and `CODEX_HOME` at a fresh temporary directory before Bun
-starts and drops an enclosing session's `ATC_SESSION_ID` and `ATC_SOCKET`. A bare `bun test` gets
-the same directory from the `test/isolate-home.ts` preload, which records its root in
-`ATC_TEST_HOME`.
+Every test run gets its own home, so no test reads or writes your real config, state, sockets, agent
+homes, or git config. The package test scripts start through `scripts/with-test-home.sh`, which
+points `HOME`, `XDG_RUNTIME_DIR`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`,
+`XDG_CACHE_HOME`, `GROK_HOME`, and `CODEX_HOME` at a fresh temporary directory before Bun starts,
+records it in `ATC_TEST_HOME`, and drops an enclosing session's `ATC_SESSION_ID` and `ATC_SOCKET`.
+Run tests through `bun run test`, adding file paths or flags after it. The `test/isolate-home.ts`
+preload stops a bare `bun test` before any test runs: Bun hands a spawned child the environment it
+started with, so a home a preload sets never reaches a test's subprocesses.
 
 - Derive a home path from `resolveHomeDir()`, never `os.homedir()`: Bun reads `HOME` for
-  `os.homedir()` once at startup, so the preload cannot move it.
+  `os.homedir()` once at startup, so a home set after startup never moves it.
 - `bun run test:isolation` runs a gate inside a synthetic home of canary files and fails when the
-  gate reads, changes, or adds to them. Run it after adding anything that writes generated state.
+  gate reads, changes, or adds to them. Run it after adding anything that writes generated state. It
+  runs on Linux with GNU coreutils only, and stops with a message anywhere else; no canary check
+  covers macOS or BSD.
 
 ## The PTY harness
 
