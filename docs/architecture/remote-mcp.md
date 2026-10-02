@@ -194,8 +194,9 @@ environment, credential helper, or base URL; the [protocol](./protocol.md#agents
 `spawnOptions` in `atc_agents_list` does not list as available; the
 [protocol](./protocol.md#spawn-options) covers the rules. Against a daemon that does not announce
 `spawn.options`, the server leaves both inputs out of `tools/list` and refuses a call that passes
-either with `daemon_outdated`, sending the daemon nothing. Otherwise the input schema is the same on
-every host. Its description, and its `agent` field's description, list the agents the daemon
+either with `daemon_outdated`, sending the daemon nothing. That daemon returns no `spawnOptions`, so
+the server lists `atc_agents_list` without its output schema. Otherwise the input schema is the same
+on every host. Its description, and its `agent` field's description, list the agents the daemon
 registered when the server built the `tools/list` answer, marking any whose binary is missing as not
 installed. A token without `read` gets descriptions that list no agent, since listing agents is a
 read. A client can cache that answer, so `atc_agents_list` is the current source.

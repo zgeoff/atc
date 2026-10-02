@@ -350,3 +350,69 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
 
   expect(JSON.stringify(outcome)).not.toInclude('the host registered');
 });
+
+test('it advertises an agents output schema that agrees with what a daemon without spawn options returns', async () => {
+  using tmp = setupTempDir('atc-legacy-rpc-');
+
+  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), 'pre-spawn-options');
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+
+  onTestFinished(async () => {
+    await caller.stop();
+
+    legacy.stop();
+  });
+
+  const toolContext = {
+    callerSessionID: null,
+    sender: { kind: 'fixed', name: 'dots' },
+  } as const;
+
+  const listed = await answerRPCRequest(
+    { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+    { caller, build: 'atc/test-build', toolContext },
+  );
+
+  const called = await answerRPCRequest(
+    {
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'atc_agents_list', arguments: {} },
+    },
+    { caller, build: 'atc/test-build', toolContext },
+  );
+
+  if (listed.kind !== 'reply' || called.kind !== 'reply') {
+    throw new Error('expected replies');
+  }
+
+  const result = listed.body['result'];
+  const tools = isRecord(result) ? result['tools'] : undefined;
+
+  if (!Array.isArray(tools)) {
+    throw new TypeError('tools/list returned no tools');
+  }
+
+  const agentsTool: unknown = tools.find(
+    (tool) => isRecord(tool) && tool['name'] === 'atc_agents_list',
+  );
+
+  if (!isRecord(agentsTool)) {
+    throw new Error('atc_agents_list is not listed');
+  }
+
+  expect(agentsTool).not.toContainKey('outputSchema');
+
+  const content = called.body['result'];
+  const structured = isRecord(content) ? content['structuredContent'] : undefined;
+  const agents = isRecord(structured) ? structured['agents'] : undefined;
+
+  if (!Array.isArray(agents)) {
+    throw new TypeError('atc_agents_list returned no agents');
+  }
+
+  expect(agents).toHaveLength(1);
+  expect(agents).toSatisfyAll((agent: unknown) => isRecord(agent) && !('spawnOptions' in agent));
+});

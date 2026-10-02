@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { DaemonClient } from '../src/client/daemon-client';
 import { setupTempDir } from './setup-temp-dir';
@@ -56,4 +56,32 @@ test('it refuses a method the older release lacks', async () => {
   expect(legacy.client.sendRequest('agents.list')).rejects.toMatchObject({
     code: 'unknown_method',
   });
+});
+
+test('it lists agents without spawn options in the release before spawn options', async () => {
+  using tmp = setupTempDir('atc-legacy-');
+
+  const daemon = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), 'pre-spawn-options');
+
+  const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
+
+  onTestFinished(() => {
+    client.stop();
+    daemon.stop();
+  });
+
+  const hello = await client.sendHello('atc/test-build');
+  const listed = await client.sendRequest('agents.list');
+
+  expect(hello['features']).toStrictEqual([
+    'agents.list',
+    'events.more',
+    'events.session',
+    'message.turn',
+    'message.wait',
+  ]);
+
+  expect(listed['agents']).toSatisfyAll(
+    (agent: Readonly<Record<string, unknown>>) => !('spawnOptions' in agent),
+  );
 });

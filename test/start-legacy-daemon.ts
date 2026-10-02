@@ -11,15 +11,21 @@ interface ReceivedRequest {
   readonly p: Readonly<Record<string, unknown>> | undefined;
 }
 
+type LegacyRelease = 'pre-features' | 'pre-spawn-options';
+
 /**
- * A daemon from the atc release before `daemon.hello` announced features,
- * listening on a unix socket and speaking the current protocol version. It
- * answers the way that release did: `message.get` ignores `waitMs` and
+ * An older atc daemon listening on a unix socket and speaking the current
+ * protocol version. `pre-features`, the default, is the release before
+ * `daemon.hello` announced features: `message.get` ignores `waitMs` and
  * returns no turn, `events.read` ignores `session` and returns no `more`,
- * and `agents.list` is an unknown method. Every request it receives is
- * recorded in `requests`. Stop it with `stop`.
+ * and `agents.list` is an unknown method. `pre-spawn-options` is the release
+ * that announced every feature up to `message.wait`: its `agents.list`
+ * answers with no `spawnOptions`, and the rest answers as `pre-features`
+ * does. Every request it receives is recorded in `requests`. Stop it with
+ * `stop`.
  */
-export function startLegacyDaemon(socketPath: string) {
+export function startLegacyDaemon(socketPath: string, release: LegacyRelease = 'pre-features') {
+  const answers = release === 'pre-features' ? LEGACY_ANSWERS : PRE_SPAWN_OPTIONS_ANSWERS;
   const requests: ReceivedRequest[] = [];
 
   const server = Bun.listen<{ buffer: string }>({
@@ -44,7 +50,7 @@ export function startLegacyDaemon(socketPath: string) {
 
           requests.push({ m: req.m, p: req.p });
 
-          const answer = LEGACY_ANSWERS[req.m];
+          const answer = answers[req.m];
 
           const reply =
             answer === undefined
@@ -85,5 +91,33 @@ const LEGACY_ANSWERS: Readonly<Record<string, Readonly<Record<string, unknown>>>
     text: 'hello',
     status: 'accepted',
     sentAt: 1_700_000_000_000,
+  },
+};
+
+const PRE_SPAWN_OPTIONS_ANSWERS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+  ...LEGACY_ANSWERS,
+  'daemon.hello': {
+    ...LEGACY_ANSWERS['daemon.hello'],
+    features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
+  },
+  'agents.list': {
+    daemon: { hostname: 'legacy-host', platform: 'linux', arch: 'x64', build: 'atc/legacy-build' },
+    agents: [
+      {
+        id: 'claude',
+        label: 'Claude',
+        kind: 'claude',
+        installed: true,
+        capabilities: {
+          spawn: true,
+          readTranscript: true,
+          message: true,
+          attach: true,
+          screen: true,
+          input: true,
+        },
+        models: null,
+      },
+    ],
   },
 };
