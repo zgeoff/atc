@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.10.0...@zgeoff/atc@2.10.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **#137:** load the agent sdk lazily and give the tui boot its own wait ([#141](https://github.com/zgeoff/atc/issues/141)) ([989ba4f](https://github.com/zgeoff/atc/commit/989ba4f8626b4733c8cbae51f1662f4b66d957ad))
+
 ## [2.10.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.9.0...@zgeoff/atc@2.10.0) (2026-10-02)
 
 ### Features
