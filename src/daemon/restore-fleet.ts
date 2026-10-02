@@ -91,7 +91,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
     const runtime = findRuntime(s.id);
 
     if (runtime !== undefined) {
-      runtime.dims = { cols, rows };
+      runtime.resetBoot({ cols, rows });
 
       runtime.screen ??= new ScreenModel(cols, rows);
     }

@@ -777,9 +777,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       }
 
       if (runtime !== undefined) {
-        runtime.dims = { cols, rows };
-        runtime.startedAt = null;
-        runtime.tapAttached = false;
+        runtime.resetBoot({ cols, rows });
 
         runtime.screen ??= new ScreenModel(cols, rows);
       }

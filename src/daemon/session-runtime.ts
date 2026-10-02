@@ -46,6 +46,16 @@ export class SessionRuntime {
   // later dropped may be restarting, so it keeps the inbox open.
   tapAttached = false;
 
+  // Returns the boot-scoped state to how a fresh terminal starts, at the
+  // dims it boots with: no SessionStart yet and no tap since. Every path
+  // that boots a new terminal for an existing session runs it, so a revived
+  // session never inherits its previous process's message gate.
+  resetBoot(dims: Dims): void {
+    this.dims = dims;
+    this.startedAt = null;
+    this.tapAttached = false;
+  }
+
   dispose(): void {
     clearTimeout(this.resizeTimer);
     clearTimeout(this.detectTimer);
