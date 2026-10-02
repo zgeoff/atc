@@ -656,17 +656,22 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'missing';
       }
 
-      // Taken before the await: a kill may remove the session meanwhile.
+      // Every session-derived field is taken before the await: a kill or a
+      // hook may change the session meanwhile.
       const session = getDescriptor(mgr, id);
+      const prompt = s.prompt ?? null;
+      const pending = s.state === 'needs_you' ? { message: s.lastMsg } : null;
+      const result = s.result ?? null;
+      const createdAt = s.createdAt;
 
       const lastEventAt = await store.loadLastActivityAt(s.id, s.agentSessionID);
 
       return {
         session,
-        prompt: s.prompt ?? null,
-        lastActivityAt: lastEventAt ?? s.createdAt,
-        pending: s.state === 'needs_you' ? { message: s.lastMsg } : null,
-        result: s.result ?? null,
+        prompt,
+        lastActivityAt: lastEventAt ?? createdAt,
+        pending,
+        result,
       };
     },
     loadSessionTranscript: async (id, from, limit) => {
