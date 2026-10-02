@@ -5,9 +5,9 @@ const NO_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(z.strictObjec
 
 /**
  * The session id shape MCP tool schemas require: present and described.
- * The wire request schemas below share a defaulted-session shape instead,
- * since they tolerate an absent session by defaulting it to an empty
- * string.
+ * The daemon's wire request schemas share a defaulted-session shape
+ * instead, since they tolerate an absent session by defaulting it to an
+ * empty string.
  */
 const SESSION_ID_BASE = z.object({
   session: z.string().describe('The atc session id, from atc_session_list'),
