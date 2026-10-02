@@ -52,6 +52,7 @@ function buildGhostSession(): Session {
     namedBy: 'auto',
     createdAt: Date.now(),
     parent: null,
+    target: 'local',
   };
 }
 

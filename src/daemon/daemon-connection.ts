@@ -24,6 +24,7 @@ import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
 import { buildPayloadHash } from './build-payload-hash';
+import type { TargetEntry } from './build-target-list';
 import type { KeyedRequest } from './idempotency-ledger';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
@@ -42,6 +43,7 @@ export interface SpawnParams {
   readonly agent: AgentID;
   readonly parent: SessionID | null;
   readonly overrides: SpawnOverrides;
+  readonly target: string;
 }
 
 interface SessionRecord {
@@ -68,6 +70,13 @@ export interface DaemonContext {
   readonly collectFleet: () => Promise<FleetEntry[]>;
   readonly loadLastUsedAgent: () => Promise<AgentID>;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
+
+  // The target a spawn without a target runs on.
+  readonly defaultTarget: string;
+
+  // Throws the refusal for a spawn to this target: `unknown_target`,
+  // `target_unavailable`, or `unsupported_operation`.
+  readonly requireSpawnTarget: (targetID: string) => void;
 
   // Runs the plan, which throws the refusal for a spawn it refuses, then
   // spawns. Answers with the `session.spawn` ok payload, which a keyed
@@ -144,7 +153,9 @@ export interface OutputClient {
   readonly sendOutput: (sessionID: SessionID, event: EventMsg, byteLength: number) => void;
 }
 
-// The `agents.list` answer: the host the daemon runs on, and each agent.
+// The `agents.list` answer: the host the daemon runs on, each agent, each
+// execution target, what a spawn without either runs with, a digest of
+// the target config, and the config problems the daemon started with.
 interface AgentList {
   readonly daemon: {
     readonly hostname: string;
@@ -153,6 +164,10 @@ interface AgentList {
     readonly build: string;
   };
   readonly agents: readonly AgentEntry[];
+  readonly targets: readonly TargetEntry[];
+  readonly spawnDefaults: { readonly agent: AgentID; readonly target: string };
+  readonly configRevision: string;
+  readonly configWarnings: readonly string[];
 }
 
 // One `events.read` answer: the events, and whether more follow them.
@@ -654,6 +669,10 @@ export class DaemonConnection {
         throw new DaemonError(overrides.code, overrides.message);
       }
 
+      const target = data.target ?? this.ctx.defaultTarget;
+
+      this.ctx.requireSpawnTarget(target);
+
       let parent: SessionID | null = null;
 
       if (data.parent !== undefined) {
@@ -679,6 +698,7 @@ export class DaemonConnection {
         agent,
         parent,
         overrides: overrides.overrides,
+        target,
       };
     };
 

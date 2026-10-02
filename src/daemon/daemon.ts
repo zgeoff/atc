@@ -8,6 +8,7 @@ import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import type { MessageID } from '../shared/message-id';
+import { pickDefaultTarget } from '../shared/pick-default-target';
 import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toMessageID } from '../shared/to-message-id';
@@ -21,12 +22,16 @@ import type { TrailEntry } from '../store/trail-entry';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
+import { buildConfigRevision } from './build-config-revision';
+import { buildExecutionTargets } from './build-execution-targets';
+import type { ExecutionTarget } from './build-execution-targets';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 import { buildReportTrailEntry } from './build-report-trail-entry';
 import { buildSessionEvent } from './build-session-event';
 import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionReportEvent } from './build-session-report-event';
+import { buildTargetList } from './build-target-list';
 import { claimDaemonLock } from './claim-daemon-lock';
 import { DaemonConnection } from './daemon-connection';
 import type {
@@ -38,7 +43,6 @@ import type {
 } from './daemon-connection';
 import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
-import type { ExecutionProvider } from './execution-provider';
 import { startHookServer } from './hooks';
 import type { HookEvent } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
@@ -74,9 +78,16 @@ export interface DaemonOptions {
   // grok adapter is unsupported, not a Claude spawn.
   readonly adapters?: readonly AgentAdapter[];
 
-  // Where session harnesses run; the local pseudo-terminal provider when
-  // unset.
-  readonly provider?: ExecutionProvider;
+  // Where sessions run, in config order; one `local` target on the local
+  // pseudo-terminal provider when unset. A spawn without a target runs
+  // on the default one, which falls back to `local` when the targets hold
+  // it and to the first target otherwise.
+  readonly targets?: readonly ExecutionTarget[];
+  readonly defaultTarget?: string;
+
+  // The config problems the daemon started with, one line each, returned by
+  // `agents.list` so a client can show them.
+  readonly configWarnings?: readonly string[];
 
   // SQLite path for daemon state; a fleet.json at legacyFleetPath seeds the
   // fleet table once so upgrading keeps the restorable fleet.
@@ -187,12 +198,22 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   idempotencySweep.unref();
 
+  const targets =
+    opts.targets ?? buildExecutionTargets([{ id: 'local', provider: 'local-pty', options: {} }]);
+
+  const defaultTarget = pickDefaultTarget(
+    targets.map((target) => target.id),
+    opts.defaultTarget,
+  ).id;
+
+  const configRevision = buildConfigRevision(targets, defaultTarget);
+
   const mgr = new SessionManager(
     opts.adapter,
     store,
     opts.statusPath,
     opts.adapters ?? [],
-    opts.provider,
+    targets,
   );
 
   const clients = new Set<DaemonConnection>();
@@ -469,7 +490,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     // A host that cannot resize keeps its terminal at the size it started
     // with; the screen model still follows the clients.
-    if (s !== undefined && mgr.provider.capabilities.resize) {
+    if (s !== undefined && (mgr.findProvider(s)?.capabilities.resize ?? false)) {
       s.pty?.resize(dims.cols, dims.rows);
     }
 
@@ -739,6 +760,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       p.parent,
       p.overrides,
       id,
+      p.target,
     );
 
     const runtime = runtimes.get(s.id);
@@ -889,10 +911,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         build: opts.build,
       },
       agents: buildAgentList(mgr.collectAdapters(), (bin) => Bun.which(bin) !== null),
+      targets: buildTargetList(targets, defaultTarget),
+      spawnDefaults: { agent: 'claude', target: defaultTarget },
+      configRevision,
+      configWarnings: opts.configWarnings ?? [],
     }),
     collectFleet: () => store.loadFleet(),
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => mgr.findAdapter(kind),
+    defaultTarget,
+    requireSpawnTarget: (targetID) => {
+      requireCapability(mgr.requireProvider(targetID), 'spawn');
+    },
     spawnSession: (plan, keyed) => {
       if (keyed === null) {
         return startSpawn(plan(), mintSessionID()).then((session) => ({ session }));
@@ -928,8 +958,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return false;
       }
 
-      if ([s, ...mgr.collectChildren(id)].some((x) => x.pty !== null)) {
-        requireCapability(mgr.provider, 'kill');
+      for (const live of [s, ...mgr.collectChildren(id)]) {
+        if (live.pty !== null) {
+          requireCapability(mgr.requireProvider(live.target), 'kill');
+        }
       }
 
       for (const child of mgr.collectChildren(id)) {
@@ -959,7 +991,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'no_transcript';
       }
 
-      requireCapability(mgr.provider, 'kill');
+      requireCapability(mgr.requireProvider(s.target), 'kill');
 
       const yanked = mgr.yankHeadless(id);
 
@@ -1042,7 +1074,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'dead';
       }
 
-      requireCapability(mgr.provider, 'attach');
+      requireCapability(mgr.requireProvider(s.target), 'attach');
 
       attachments.attach(sessionID, client, dims);
       mgr.attach(sessionID);
@@ -1104,7 +1136,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'dead';
       }
 
-      requireCapability(mgr.provider, 'input');
+      requireCapability(mgr.requireProvider(s.target), 'input');
 
       s.pty.write(data);
 

@@ -21,6 +21,8 @@ const ERROR_CODES = [
   'session_dead',
   'unsupported',
   'unsupported_operation',
+  'unknown_target',
+  'target_unavailable',
   'already_answered',
   'too_slow',
   'stale_epoch',

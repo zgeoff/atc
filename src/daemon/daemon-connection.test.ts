@@ -52,6 +52,8 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     collectFleet: assertUnreachable,
     loadLastUsedAgent: () => Promise.resolve('claude'),
     findAdapter: assertUnreachable,
+    defaultTarget: 'local',
+    requireSpawnTarget: assertUnreachable,
     spawnSession: assertUnreachable,
     killSession: assertUnreachable,
     updateSession: assertUnreachable,

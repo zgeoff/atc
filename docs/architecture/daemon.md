@@ -94,10 +94,12 @@ provider:
 | `suspend`  | pause the host and resume it later with its state intact |
 | `destroy`  | delete the host and everything on it                     |
 
-A request that needs a capability the provider lacks fails with `unsupported_operation`. A host
-without `resize` keeps its terminal at the size it started with, while the session's screen model
-follows the attached clients. `local-pty` declares every capability except `suspend` and `destroy`:
-its host is the daemon's own machine.
+Each configured execution target has its own provider, and every session holds the target it runs
+on, so each request checks the capability of that session's provider. A request that needs a
+capability the provider lacks fails with `unsupported_operation`. A host without `resize` keeps its
+terminal at the size it started with, while the session's screen model follows the attached clients.
+`local-pty` declares every capability except `suspend` and `destroy`: its host is the daemon's own
+machine.
 
 ## State
 

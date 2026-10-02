@@ -10,6 +10,7 @@ import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { SessionID } from '../shared/session-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
+import type { ExecutionTarget } from './build-execution-targets';
 import type { ExecutionProvider, HarnessHandle } from './execution-provider';
 import type { HookEvent } from './hooks';
 import { LocalPTYProvider } from './local-pty-provider';
@@ -55,7 +56,7 @@ export interface SessionDescriptor {
 
 interface SessionLocator {
   readonly daemonID: DaemonID;
-  readonly targetID: 'local';
+  readonly targetID: string;
 }
 
 export interface Session {
@@ -107,6 +108,9 @@ export interface Session {
   // agent's configured default, and every revive passes them again.
   model?: string;
   effort?: string;
+
+  // the execution target the session runs on; every revive runs there too.
+  target: string;
 }
 
 export class SessionManager {
@@ -137,15 +141,16 @@ export class SessionManager {
 
   private readonly statusPath: string;
 
-  // Where every session's harness runs.
-  readonly provider: ExecutionProvider;
+  private readonly targets: ReadonlyMap<string, ExecutionTarget>;
 
   constructor(
     fallback: AgentAdapter,
     store: FleetStore,
     statusPath: string | undefined = statusFile,
     adapters: readonly AgentAdapter[] = [],
-    provider: ExecutionProvider = new LocalPTYProvider(),
+    targets: readonly ExecutionTarget[] = [
+      { id: 'local', kind: 'local-pty', options: {}, provider: new LocalPTYProvider() },
+    ],
   ) {
     // Each adapter names the id it answers to, so a registry key can never
     // disagree with the adapter behind it. A later one wins the id.
@@ -153,7 +158,50 @@ export class SessionManager {
     this.hasScreenDetector = Object.values(this.adapters).some((a) => a.screenDetector !== null);
     this.store = store;
     this.statusPath = statusPath ?? statusFile;
-    this.provider = provider;
+
+    this.targets = new Map(targets.map((t) => [t.id, t]));
+  }
+
+  /**
+   * The provider serving a target. Throws `unknown_target` for an id no
+   * target holds and `target_unavailable` for a target this daemon has no
+   * provider for, so a session never starts anywhere but where it was sent.
+   */
+  requireProvider(targetID: string): ExecutionProvider {
+    const target = this.targets.get(targetID);
+
+    if (target === undefined) {
+      throw new DaemonError('unknown_target', `no execution target '${targetID}'`, {
+        target: targetID,
+      });
+    }
+
+    if (target.provider === null) {
+      throw new DaemonError(
+        'target_unavailable',
+        `execution target '${targetID}' needs a '${target.kind}' provider, which this daemon does not have`,
+        { target: targetID, provider: target.kind },
+      );
+    }
+
+    return target.provider;
+  }
+
+  // Why a session cannot run on a target, or null when it can.
+  private findTargetRefusal(targetID: string): string | null {
+    const target = this.targets.get(targetID);
+
+    if (target === undefined) {
+      return `no target '${targetID}'`;
+    }
+
+    return target.provider === null ? `target '${targetID}' unavailable` : null;
+  }
+
+  // The provider a session's harness runs on, or null when its target is
+  // gone from the config or has no provider here.
+  findProvider(s: Session): ExecutionProvider | null {
+    return this.targets.get(s.target)?.provider ?? null;
   }
 
   /**
@@ -200,7 +248,13 @@ export class SessionManager {
   // never auto-adopted. An entry without an agent session id has nothing to
   // resume, so it comes back exited too.
   restore(entry: FleetEntry): Session {
-    const exited = entry.exited === true || entry.agentSessionID === undefined;
+    const target = entry.target ?? 'local';
+    const targetRefusal = this.findTargetRefusal(target);
+
+    // A session whose target this daemon cannot use comes back exited, so
+    // nothing runs it anywhere else: neither a terminal nor a headless turn.
+    const exited =
+      entry.exited === true || entry.agentSessionID === undefined || targetRefusal !== null;
 
     // An entry whose agent is no longer registered still gets its row, so a
     // backend dropped from the config shows as itself instead of vanishing or
@@ -209,6 +263,8 @@ export class SessionManager {
 
     if (entry.exited !== true && entry.agentSessionID === undefined) {
       lastMsg = 'nothing to resume';
+    } else if (entry.exited !== true && targetRefusal !== null) {
+      lastMsg = targetRefusal;
     } else if (exited) {
       lastMsg = 'killed';
     } else if (this.findAdapter(entry.agent) === null) {
@@ -239,6 +295,7 @@ export class SessionManager {
       ...(entry.transcriptPath === undefined ? {} : { transcriptPath: entry.transcriptPath }),
       ...(entry.model === undefined ? {} : { model: entry.model }),
       ...(entry.effort === undefined ? {} : { effort: entry.effort }),
+      target,
     };
 
     this.sessions.push(session);
@@ -263,7 +320,9 @@ export class SessionManager {
       return null;
     }
 
-    requireCapability(this.provider, 'spawn');
+    const provider = this.requireProvider(s.target);
+
+    requireCapability(provider, 'spawn');
 
     const plan = adapter.planSpawn({
       prompt: '',
@@ -272,7 +331,7 @@ export class SessionManager {
       ...(s.effort === undefined ? {} : { effort: s.effort }),
     });
 
-    const pty = this.provider.spawnHarness({
+    const pty = provider.spawnHarness({
       bin: plan.bin,
       args: plan.args,
       cwd: s.cwd,
@@ -402,7 +461,9 @@ export class SessionManager {
   // resumes that specific session (fleet restore). parent makes the new
   // session a sub-session of that one. overrides hold the model and effort
   // the new process runs with, and the session keeps them for every revive.
-  // id is minted here unless the caller minted it ahead of the spawn.
+  // id is minted here unless the caller minted it ahead of the spawn. target
+  // is the execution target the harness runs on; one this daemon cannot use
+  // refuses the spawn before anything starts.
   spawn(
     cwd: string,
     name: string,
@@ -415,6 +476,7 @@ export class SessionManager {
     parent: SessionID | null = null,
     overrides: SpawnOverrides = {},
     id: SessionID = mintSessionID(),
+    target = 'local',
   ): Session {
     const adapter = this.findAdapter(agent);
 
@@ -422,14 +484,16 @@ export class SessionManager {
       throw new Error(`no adapter for agent '${agent}'`);
     }
 
-    requireCapability(this.provider, 'spawn');
+    const provider = this.requireProvider(target);
+
+    requireCapability(provider, 'spawn');
 
     // The repository root resolves before the process starts: resolving it
     // can throw, and a spawn that throws must leave nothing running.
     const repoRoot = resolveRepoRoot(cwd);
     const plan = adapter.planSpawn({ prompt, resume, ...overrides });
 
-    const pty = this.provider.spawnHarness({
+    const pty = provider.spawnHarness({
       bin: plan.bin,
       args: plan.args,
       cwd,
@@ -464,6 +528,7 @@ export class SessionManager {
       ...(prompt === '' ? {} : { prompt }),
       ...(overrides.model === undefined ? {} : { model: overrides.model }),
       ...(overrides.effort === undefined ? {} : { effort: overrides.effort }),
+      target,
     };
 
     pty.onData((d) => {
@@ -534,7 +599,7 @@ export class SessionManager {
       alive: s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'),
       canEject: (this.findAdapter(s.agent)?.headlessRunner ?? null) !== null,
       ...(s.parent === null ? {} : { parent: s.parent }),
-      locator: { daemonID: this.store.daemonID, targetID: 'local' },
+      locator: { daemonID: this.store.daemonID, targetID: s.target },
     }));
   }
 
@@ -851,6 +916,7 @@ export class SessionManager {
         ...(s.transcriptPath === undefined ? {} : { transcriptPath: s.transcriptPath }),
         ...(s.model === undefined ? {} : { model: s.model }),
         ...(s.effort === undefined ? {} : { effort: s.effort }),
+        target: s.target,
       });
     }
 

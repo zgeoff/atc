@@ -222,6 +222,28 @@ test('it lists each registered agent with what it can do and the host it runs on
         },
       },
     ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: {
+          spawn: true,
+          attach: true,
+          input: true,
+          resize: true,
+          kill: true,
+          transfer: true,
+          run: true,
+          suspend: false,
+          destroy: false,
+        },
+      },
+    ],
+    spawnDefaults: { agent: 'claude', target: 'local' },
+    configRevision: expect.stringMatching(/^[\da-f]{16}$/),
+    configWarnings: [],
   });
 });
 

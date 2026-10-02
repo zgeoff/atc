@@ -84,7 +84,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
     .filter((r) => r.revive || r.session.state !== 'exited')
     .map((r) => r.session);
 
-  // A session whose host refuses to start a terminal stays listed without
+  // A session whose target refuses to start a terminal stays listed without
   // one, and the restore moves on to the next.
   const adoptQueued = (s: Session): boolean => {
     if (tryAdoptTerminal(mgr, s.id, cols, rows) === null) {
@@ -167,6 +167,14 @@ function isSameSession(s: Session, entry: FleetEntry): boolean {
   );
 }
 
+// The refusals that leave one session without a terminal: its target is
+// gone from the config, has no provider here, or cannot start a terminal.
+const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
+  'unsupported_operation',
+  'unknown_target',
+  'target_unavailable',
+]);
+
 function tryAdoptTerminal(
   mgr: SessionManager,
   id: SessionID,
@@ -176,7 +184,7 @@ function tryAdoptTerminal(
   try {
     return mgr.adoptTerminal(id, cols, rows);
   } catch (error) {
-    if (error instanceof DaemonError && error.code === 'unsupported_operation') {
+    if (error instanceof DaemonError && REFUSED_ADOPT_CODES.has(error.code)) {
       return null;
     }
 
