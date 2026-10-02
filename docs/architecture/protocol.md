@@ -306,9 +306,11 @@ principal and method; every request on the local socket acts as the principal `l
 
 The daemon records the key before it checks any param. A refused spawn drops the key again, so a
 retry runs fresh. A spawn that fails after its process starts kills that process and drops its
-session first, so it drops the key with nothing left running. A retry of a key the daemon holds gets
-its answer from the key without any param checked again. The daemon records the key with a SHA-256
-of the request's params as it parsed them, as JSON with sorted keys and without the key itself, so a
+session first, and drops the key only once the kill succeeds and the fleet without that session is
+written. When either step fails, the session may still stand, so the daemon keeps the key as
+`outcome_unknown` and answers the spawn with that error. A retry of a key the daemon holds gets its
+answer from the key without any param checked again. The daemon records the key with a SHA-256 of
+the request's params as it parsed them, as JSON with sorted keys and without the key itself, so a
 default spelled out or a field the daemon ignores leaves the hash unchanged. It records the session
 id it mints before the session spawns as well. The daemon's answer to a retry depends on what the
 key holds:
@@ -316,15 +318,15 @@ key holds:
 - The same key with different params is `idempotency_conflict`.
 - For a completed spawn, the daemon returns the session's current descriptor while it is listed,
   else the descriptor the first spawn returned.
-- A spawn that a stopped daemon may or may not have run is `outcome_unknown`, with the session id in
-  `err.data.effectRef`. The daemon never spawns again under that key; check the session and retry
-  under a new key.
+- A spawn that a stopped daemon may or may not have run, or one whose failed start the daemon could
+  not take back, is `outcome_unknown`, with the session id in `err.data.effectRef`. The daemon never
+  spawns again under that key; check the session and retry under a new key.
 
 At start, before it serves a request, the daemon marks every key a stopped daemon left in progress
-as `outcome_unknown`, then completes each one whose session reached the fleet table. Such a key has
-no stored answer, so a retry is `no_such_session` with `err.data.effectRef` until a fleet restore
-lists the session; after that, the daemon returns its descriptor. The daemon keeps a completed key
-for 24 hours and an `outcome_unknown` key indefinitely.
+as `outcome_unknown`, then completes each `outcome_unknown` spawn key whose session is in the fleet
+table. Such a key has no stored answer, so a retry is `no_such_session` with `err.data.effectRef`
+until a fleet restore lists the session; after that, the daemon returns its descriptor. The daemon
+keeps a completed key for 24 hours and an `outcome_unknown` key indefinitely.
 
 ## Messages
 

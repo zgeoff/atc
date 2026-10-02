@@ -480,21 +480,23 @@ export class SessionManager {
 
   // Takes back a spawn that failed after its process started: the process
   // dies and the session leaves the list and the fleet, so the spawn leaves
-  // nothing behind. A session that never registered is left alone.
-  removeFailedSpawn(id: SessionID): void {
+  // nothing behind. It resolves only once the fleet without the session is
+  // durable, and throws when the kill or that write fails. A session that
+  // never registered is left alone.
+  async removeFailedSpawn(id: SessionID): Promise<void> {
     const s = this.sessions.find((x) => x.id === id);
 
     if (s === undefined) {
       return;
     }
 
-    const pty = s.pty;
-
+    s.pty?.kill();
     s.pty = null;
-    pty?.kill();
+
     this.remove(s);
-    void this.tryWriteFleet(id);
     this.emitChange();
+
+    await this.writeFleet();
   }
 
   collectDescriptors(): SessionDescriptor[] {

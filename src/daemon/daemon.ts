@@ -29,6 +29,7 @@ import { buildSessionReportEvent } from './build-session-report-event';
 import { claimDaemonLock } from './claim-daemon-lock';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext, OutputClient, SpawnParams, TapClient } from './daemon-connection';
+import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
 import type { HookEvent } from './hooks';
@@ -679,12 +680,23 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // A spawn that throws once its process has started takes the session back
   // before it throws, so a failed start leaves nothing running and a keyed
-  // retry spawns once.
-  const startSpawn = (p: SpawnParams, id: SessionID): SessionDescriptor => {
+  // retry spawns once. When taking it back fails too, the session may still
+  // stand, and the throw says so.
+  const startSpawn = async (p: SpawnParams, id: SessionID): Promise<SessionDescriptor> => {
     try {
       return startSpawnedSession(p, id);
     } catch (error) {
-      mgr.removeFailedSpawn(id);
+      try {
+        await mgr.removeFailedSpawn(id);
+      } catch (cleanupError) {
+        throw new EffectRemainsError(
+          `spawn of session ${id} failed and taking it back failed too`,
+          {
+            cause: cleanupError,
+          },
+        );
+      }
+
       throw error;
     }
   };
@@ -763,7 +775,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     findAdapter: (kind) => mgr.findAdapter(kind),
     spawnSession: (plan, keyed) => {
       if (keyed === null) {
-        return Promise.resolve({ session: startSpawn(plan(), mintSessionID()) });
+        return startSpawn(plan(), mintSessionID()).then((session) => ({ session }));
       }
 
       const effectRef = mintSessionID();
@@ -772,7 +784,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         operation: 'session.spawn',
         keyed,
         effectRef,
-        start: () => ({ session: startSpawn(plan(), effectRef) }),
+        start: async () => ({ session: await startSpawn(plan(), effectRef) }),
         settle: () => mgr.writeFleet(),
         replay: (record) => loadSpawnReplay(record),
       });

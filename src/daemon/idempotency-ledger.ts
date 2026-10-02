@@ -1,6 +1,7 @@
 import { DaemonError } from '../protocol/daemon-error';
 import type { IdempotencyRecord } from '../store/idempotency-record';
 import type { StateStore } from '../store/state-store';
+import { EffectRemainsError } from './effect-remains-error';
 
 // A request's idempotency key and the hash of the payload it came with.
 export interface KeyedRequest {
@@ -15,8 +16,9 @@ interface IdempotentCall<T> {
   // The id the effect runs under, minted before the claim records it.
   readonly effectRef: string;
 
-  // Starts the effect. It throws only when nothing took effect, so its claim
-  // can be dropped for a retry to run fresh.
+  // Starts the effect. A plain throw means nothing took effect, so the claim
+  // is dropped for a retry to run fresh; an EffectRemainsError means the
+  // effect may still stand, so the claim is kept as outcome_unknown.
   readonly start: () => T | Promise<T>;
 
   // Resolves once the effect is durable; the claim completes only after.
@@ -95,6 +97,16 @@ export class IdempotencyLedger {
     try {
       result = await call.start();
     } catch (error) {
+      if (error instanceof EffectRemainsError) {
+        await this.store.updateIdempotencyOutcomeUnknown(id, Date.now());
+
+        throw new DaemonError(
+          'outcome_unknown',
+          `the ${call.operation} under idempotency key '${call.keyed.key}' failed and its effect may still stand; check ${call.effectRef} before retrying under a new key`,
+          { effectRef: call.effectRef },
+        );
+      }
+
       await this.store.removeIdempotencyKey(id);
 
       throw error;

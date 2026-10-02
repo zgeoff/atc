@@ -614,6 +614,21 @@ export class StateStore {
       .execute();
   }
 
+  // Keeps a claim whose effect may still stand as outcome_unknown, so a
+  // retry answers from it and never runs the effect again.
+  async updateIdempotencyOutcomeUnknown(
+    record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
+    at: number,
+  ): Promise<void> {
+    await this.db
+      .updateTable('idempotency')
+      .set({ state: 'outcome_unknown', updated_at: at })
+      .where('principal', '=', record.principal)
+      .where('operation', '=', record.operation)
+      .where('key', '=', record.key)
+      .execute();
+  }
+
   // Drops a claim whose effect never started, so a retry runs it fresh.
   async removeIdempotencyKey(
     record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
