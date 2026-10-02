@@ -104,6 +104,34 @@ without `resize` keeps its terminal at the size it started with, while the sessi
 follows the attached clients. `local-pty` declares every capability except `suspend` and `destroy`:
 its host is the daemon's own machine.
 
+## Workspace materialization
+
+The daemon builds a spawn's [workspace](./protocol.md#workspaces) on the session's target through
+two provider operations, `transfer` and `run`, and nothing specific to one provider. Each provider
+call passes the execution check against the target identity the session binds to when its
+materialization starts. The `workspace_materialization` table holds one row per materialization,
+keyed by the session id, and the daemon records each phase in it before the phase starts:
+
+| Phase          | What the daemon does                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| `resolving`    | resolves the source to a URL and commit, checks the URL, and creates `cwd` with `mkdir`    |
+| `cloning`      | clones the commit into a staging directory on its own host, sanitizes it, and tars it      |
+| `transferring` | unpacks the archive into `cwd` through `transfer`                                          |
+| `verifying`    | runs `git rev-parse` in `cwd` through `run` and compares the result with the pinned commit |
+| `ready`        | starts the session in `cwd`                                                                |
+| `failed`       | holds the refusal code, after removing a `cwd` the materialization created                 |
+
+The session registers only once its workspace is ready, so no client lists a session over a partial
+checkout. The row holds the URL without its credential, the commit, and the ref, and never a
+credential or the name of the variable that holds one. A fleet load returns a ready row's provenance
+with its session.
+
+A daemon that stops partway through leaves a row short of ready. The next daemon fails every such
+row as `workspace_interrupted` before it serves a request. The interrupted spawn never registered a
+session, and a retry under its idempotency key gets `outcome_unknown`, like a retry of any
+interrupted spawn. A `cwd` the interrupted materialization created stays on the target, and a spawn
+into it is refused as `workspace_exists`.
+
 ## State
 
 SQLite (`bun:sqlite`) in the daemon holds the fleet, event trail, spawn history, and last-used agent
