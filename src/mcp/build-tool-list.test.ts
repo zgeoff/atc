@@ -110,3 +110,28 @@ test('it lists the spawn and message tools with an idempotency key for a daemon 
 
   expect(keyed).toStrictEqual(['atc_session_spawn', 'atc_session_message']);
 });
+
+test('it lists the spawn tool with a target for a daemon that takes targets', () => {
+  const spawn = buildToolList(new Set(DAEMON_FEATURES), null).find(
+    (tool) => tool.name === 'atc_session_spawn',
+  );
+
+  if (spawn === undefined) {
+    throw new Error('spawn tool missing');
+  }
+
+  expect(spawn.inputSchema['properties']).toContainKey('target');
+});
+
+test('it lists the spawn tool without a target for a daemon that predates targets', () => {
+  const spawn = buildToolList(
+    new Set(DAEMON_FEATURES.filter((feature) => feature !== 'spawn.target')),
+    null,
+  ).find((tool) => tool.name === 'atc_session_spawn');
+
+  if (spawn === undefined) {
+    throw new Error('spawn tool missing');
+  }
+
+  expect(spawn.inputSchema['properties']).not.toContainKey('target');
+});

@@ -39,6 +39,9 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
     effort: SPAWN_SCHEMA.shape.effort.describe(
       "Effort level for the new session, one of the agent's spawnOptions.effort.values in atc_agents_list. Refused when the agent takes no effort. Omit it to keep the agent's configured default.",
     ),
+    target: SPAWN_SCHEMA.shape.target.describe(
+      'Execution target for the new session, one of the target ids in atc_agents_list. Omit it to run on the default target (spawnDefaults.target). An unknown or unavailable target is refused; atc never runs the session on another target instead.',
+    ),
     detached: z
       .boolean()
       .optional()
@@ -203,6 +206,30 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
         required: ['id', 'label', 'kind', 'installed', 'capabilities', 'models', 'spawnOptions'],
       },
     },
+    targets: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          provider: { type: 'string' },
+          available: { type: 'boolean' },
+          default: { type: 'boolean' },
+          capabilities: {
+            type: 'object',
+            additionalProperties: { type: 'boolean' },
+          },
+        },
+        required: ['id', 'provider', 'available', 'default', 'capabilities'],
+      },
+    },
+    spawnDefaults: {
+      type: 'object',
+      properties: { agent: { type: 'string' }, target: { type: 'string' } },
+      required: ['agent', 'target'],
+    },
+    configRevision: { type: 'string' },
+    configWarnings: { type: 'array', items: { type: 'string' } },
   },
   required: ['daemon', 'agents'],
 };
@@ -311,6 +338,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
         model: 'spawn.options',
         effort: 'spawn.options',
         idempotencyKey: 'spawn.idempotency',
+        target: 'spawn.target',
       },
     },
   },
@@ -389,7 +417,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      "List the agents this atc host can run sessions under, plus the host itself (daemon: hostname, platform, arch, build). Each agent has its id (pass it as atc_session_spawn's agent), label, kind (the agent CLI family it runs), installed (whether its binary resolves on this host; a registered agent that is not installed cannot spawn), capabilities (spawn, readTranscript, message, attach, screen, input), models (the model names the config sets for it, or null), and spawnOptions when the daemon supports spawn options. spawnOptions holds model and effort, each with supported (whether atc passes it to the agent CLI), available (whether a spawn on this host can pass it now), values (the accepted set, or null for any alias or model name), examples (each with the provider model it resolves to, when the config maps one), default (the configured value, or null for the CLI's own), backendEffect (applied, or unverified when the backend may ignore it), and a note. atc_session_spawn accepts exactly the available options. It never includes credentials, environment values, or endpoints, and holds nothing about which plans or subscriptions an agent's account has.",
+      "List the agents this atc host can run sessions under, plus the host itself (daemon: hostname, platform, arch, build). Each agent has its id (pass it as atc_session_spawn's agent), label, kind (the agent CLI family it runs), installed (whether its binary resolves on this host; a registered agent that is not installed cannot spawn), capabilities (spawn, readTranscript, message, attach, screen, input), models (the model names the config sets for it, or null), and spawnOptions when the daemon supports spawn options. spawnOptions holds model and effort, each with supported (whether atc passes it to the agent CLI), available (whether a spawn on this host can pass it now), values (the accepted set, or null for any alias or model name), examples (each with the provider model it resolves to, when the config maps one), default (the configured value, or null for the CLI's own), backendEffect (applied, or unverified when the backend may ignore it), and a note. atc_session_spawn accepts exactly the available options. When the daemon supports targets, it also returns targets (each with its id, provider kind, available, default, and capabilities), spawnDefaults (the agent and target a spawn without either runs with), configRevision (a digest that changes whenever the target config does), and configWarnings (config problems the daemon fell back from). It never includes credentials, environment values, or endpoints, and holds nothing about which plans or subscriptions an agent's account has.",
     inputSchema: NO_INPUT,
     outputSchema: AGENTS_OUTPUT,
     requires: { tool: 'agents.list', output: 'spawn.options' },

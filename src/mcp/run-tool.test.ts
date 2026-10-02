@@ -1,6 +1,10 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
+import { join } from 'node:path';
+import { setupTempDir } from '../../test/setup-temp-dir';
+import { startLegacyDaemon } from '../../test/start-legacy-daemon';
 import { DaemonError } from '../protocol/daemon-error';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
+import { ReconnectingCaller } from './reconnecting-caller';
 import { runTool } from './run-tool';
 
 test('it sends a message from a fixed sender whatever sender the call gives', async () => {
@@ -281,4 +285,58 @@ test('it refuses a message key longer than 180 characters as bad_args and sends 
   await call.catch(() => null);
 
   expect(sent).toStrictEqual([]);
+});
+
+test('it spawns on the target the call gives and needs a daemon that takes targets', async () => {
+  const sent: unknown[] = [];
+
+  await runTool(
+    {
+      sendRequest: (m, p, required) => {
+        sent.push({ m, p, required });
+
+        return Promise.resolve({ session: { id: 's-1' } });
+      },
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
+    },
+    'atc_session_spawn',
+    { cwd: '/tmp', target: 'box' },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(sent).toStrictEqual([
+    {
+      m: 'session.spawn',
+      p: { cwd: '/tmp', target: 'box', cols: 100, rows: 30 },
+      required: ['spawn.target'],
+    },
+  ]);
+});
+
+test('it refuses a spawn on a target unsent when the daemon predates targets', async () => {
+  using tmp = setupTempDir('atc-run-tool-');
+
+  const socketPath = join(tmp.dir, 'daemon.sock');
+  const legacy = startLegacyDaemon(socketPath, 'pre-spawn-options');
+
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
+
+  onTestFinished(async () => {
+    await caller.stop();
+
+    legacy.stop();
+  });
+
+  const spawn = runTool(
+    caller,
+    'atc_session_spawn',
+    { cwd: '/tmp', target: 'box' },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's target/);
+
+  await spawn.catch(() => null);
+
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });

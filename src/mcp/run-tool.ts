@@ -45,17 +45,22 @@ export function runTool(
         ...(args['model'] === undefined ? {} : { model: args['model'] }),
         ...(args['effort'] === undefined ? {} : { effort: args['effort'] }),
         ...(key === undefined ? {} : { idempotencyKey: key }),
+        ...(args['target'] === undefined ? {} : { target: args['target'] }),
         cols: 100,
         rows: 30,
       };
 
-      // A model, effort, or key needs a daemon that takes them; the check
+      // A model, effort, key, or target needs a daemon that takes them; the check
       // runs on every connection the spawn rides.
       const optionFeatures: readonly DaemonFeature[] =
         args['model'] === undefined && args['effort'] === undefined ? [] : ['spawn.options'];
 
       const keyFeatures: readonly DaemonFeature[] = key === undefined ? [] : ['spawn.idempotency'];
-      const required = [...optionFeatures, ...keyFeatures];
+
+      const targetFeatures: readonly DaemonFeature[] =
+        args['target'] === undefined ? [] : ['spawn.target'];
+
+      const required = [...optionFeatures, ...keyFeatures, ...targetFeatures];
 
       const ok =
         nested && ctx.callerSessionID !== null
