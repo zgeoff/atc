@@ -1,6 +1,7 @@
 import { DaemonClient } from '../client/daemon-client';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
+import { requireDaemonFeatures } from './require-daemon-features';
 import type { FleetCaller } from './types';
 
 // The daemon requests the read-only tools send. Each only reads, so running
@@ -44,11 +45,17 @@ export class ReconnectingCaller implements FleetCaller {
     this.build = build;
   }
 
+  // The required features are checked against each connection right before
+  // the request goes out on it, the retry's fresh connection included, since
+  // a restart can put an older daemon behind the same socket.
   async sendRequest(
     m: string,
     p?: Readonly<Record<string, unknown>>,
+    required: readonly DaemonFeature[] = [],
   ): Promise<Readonly<Record<string, unknown>>> {
     const opened = await this.openClient();
+
+    requireDaemonFeatures(opened.features, required);
 
     try {
       return await opened.client.sendRequest(m, p);
@@ -58,6 +65,8 @@ export class ReconnectingCaller implements FleetCaller {
       }
 
       const fresh = await this.openClient();
+
+      requireDaemonFeatures(fresh.features, required);
 
       return fresh.client.sendRequest(m, p);
     }

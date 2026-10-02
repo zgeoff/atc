@@ -99,9 +99,7 @@ export function runTool(
       return { text: JSON.stringify(ok['dirs'], null, 2), structured: { dirs: ok['dirs'] } };
     })
     .with('atc_agents_list', async () => {
-      await requireFeature(caller, 'agents.list', 'atc_agents_list');
-
-      const ok = await caller.sendRequest('agents.list');
+      const ok = await caller.sendRequest('agents.list', {}, ['agents.list']);
 
       return buildObjectResult(ok);
     })
@@ -120,16 +118,19 @@ export function runTool(
       return buildObjectResult(ok);
     })
     .with('atc_events_read', async () => {
-      if (typeof args['session'] === 'string' && args['session'] !== '') {
-        await requireFeature(caller, 'events.session', "atc_events_read's session filter");
-      }
+      const filtered = typeof args['session'] === 'string' && args['session'] !== '';
+      const required: DaemonFeature[] = filtered ? ['events.session'] : [];
 
-      const ok = await caller.sendRequest('events.read', {
-        ...(typeof args['cursor'] === 'string' ? { cursor: args['cursor'] } : {}),
-        ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
-        ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
-        ...(typeof args['session'] === 'string' ? { session: args['session'] } : {}),
-      });
+      const ok = await caller.sendRequest(
+        'events.read',
+        {
+          ...(typeof args['cursor'] === 'string' ? { cursor: args['cursor'] } : {}),
+          ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
+          ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
+          ...(typeof args['session'] === 'string' ? { session: args['session'] } : {}),
+        },
+        required,
+      );
 
       return buildObjectResult(ok);
     })
@@ -150,36 +151,21 @@ export function runTool(
       return buildObjectResult(ok);
     })
     .with('atc_message_get', async () => {
-      if (typeof args['waitMs'] === 'number' && args['waitMs'] > 0) {
-        await requireFeature(caller, 'message.wait', "atc_message_get's waitMs");
-      }
+      const waits = typeof args['waitMs'] === 'number' && args['waitMs'] > 0;
+      const required: DaemonFeature[] = waits ? ['message.wait'] : [];
 
-      const ok = await caller.sendRequest('message.get', {
-        message: args['message'],
-        ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
-      });
+      const ok = await caller.sendRequest(
+        'message.get',
+        {
+          message: args['message'],
+          ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
+        },
+        required,
+      );
 
       return buildObjectResult(ok);
     })
     .otherwise(() => Promise.reject(new Error(`unknown tool '${name}'`)));
-}
-
-// A call that needs what the running daemon predates is refused with how to
-// get it, rather than sent to a daemon that would ignore the option and
-// answer as if it had been honoured. atc never restarts the daemon itself:
-// a restart is the operator's call, because it respawns every session.
-async function requireFeature(
-  caller: FleetCaller,
-  feature: DaemonFeature,
-  what: string,
-): Promise<void> {
-  const features = await caller.readFeatures();
-
-  if (!features.has(feature)) {
-    throw new Error(
-      `daemon_outdated: the running atc daemon is older than this atc and does not support ${what}. Restart the daemon to use it: press u in the atc TUI, which restores every session. Until then, call without it.`,
-    );
-  }
 }
 
 function buildObjectResult(value: unknown): ToolResult {

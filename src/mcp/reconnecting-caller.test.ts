@@ -2,7 +2,9 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { setupMCPHTTP } from '../../test/setup-mcp-http';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { startLegacyDaemon } from '../../test/start-legacy-daemon';
 import { waitFor } from '../../test/wait-for';
+import { startDaemon } from '../daemon/daemon';
 import { PROTOCOL_V, decodeMessage, encodeMessage } from '../protocol/protocol';
 import { ReconnectingCaller } from './reconnecting-caller';
 
@@ -98,4 +100,54 @@ test('it keeps a connection opened while the one before it was closing', async (
   await waitFor(() => {
     expect(mcp.countDaemonClients()).toBe(1);
   });
+});
+
+test('it refuses a filtered read unsent when an older daemon replaced the one it handshook with', async () => {
+  using tmp = setupTempDir('atc-reconnecting-caller-');
+
+  const socketPath = join(tmp.dir, 'daemon.sock');
+
+  const daemon = await startDaemon({
+    socketPath,
+    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+    build: 'atc/test-build',
+    adapter: {
+      id: 'claude',
+      headlessRunner: null,
+      screenDetector: null,
+      takesMessages: false,
+      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
+      normalizeHook: () => ({ kind: 'heartbeat' }),
+      loadName: () => Promise.resolve(null),
+      canResume: () => true,
+      buildResumeCommand: () => null,
+    },
+    dbPath: join(tmp.dir, 'state.db'),
+    statusPath: join(tmp.dir, 'status.json'),
+  });
+
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
+
+  onTestFinished(async () => {
+    await caller.stop();
+  });
+
+  const features = await caller.readFeatures();
+
+  await daemon.stop();
+
+  const legacy = startLegacyDaemon(socketPath);
+
+  onTestFinished(() => {
+    legacy.stop();
+  });
+
+  const read = caller.sendRequest('events.read', { session: 's-1' }, ['events.session']);
+
+  expect([...features]).toContain('events.session');
+  expect(read).rejects.toThrow(/^daemon_outdated: /);
+
+  await read.catch(() => null);
+
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });

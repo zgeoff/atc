@@ -1,5 +1,6 @@
 import { bootDaemonClient } from './client/boot-daemon';
 import { answerRPCRequest } from './mcp/answer-rpc-request';
+import { requireDaemonFeatures } from './mcp/require-daemon-features';
 import type { FleetCaller, ToolContext } from './mcp/types';
 
 /**
@@ -15,7 +16,11 @@ export async function runMCPServer(build: string): Promise<void> {
   // The connection lives as long as the server, so the features its
   // handshake announced hold for every call.
   const caller: FleetCaller = {
-    sendRequest: (m, p) => client.sendRequest(m, p),
+    sendRequest: (m, p, required = []) => {
+      requireDaemonFeatures(boot.features, required);
+
+      return client.sendRequest(m, p);
+    },
     readFeatures: () => Promise.resolve(boot.features),
   };
 
