@@ -1,6 +1,14 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, setDefaultTimeout, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'bun-pty';
@@ -152,7 +160,14 @@ idle
         // The picker lists the client's own directory first, so a spawn
         // that takes the first entry lands in this test's home.
         cwd: home,
-        env: collectEnv({ HOME: home, XDG_RUNTIME_DIR: home, PATH: '/usr/sbin:/usr/bin:/bin' }),
+
+        // A test that drops an executable into the home's bin directory
+        // puts it on the PATH of the client and the daemon it starts.
+        env: collectEnv({
+          HOME: home,
+          XDG_RUNTIME_DIR: home,
+          PATH: `${join(home, 'bin')}:/usr/sbin:/usr/bin:/bin`,
+        }),
       });
 
       firstOutputAt = null;
@@ -1382,4 +1397,51 @@ test('it leaves an agent with no installed binary out of the picker', async () =
   pty.write('\r');
 
   await ctx.waitFor('spawn: directory');
+});
+
+test('it shows a refused spawn in the picker and keeps the entered prompt', async () => {
+  await using ctx = setupTest();
+
+  // A config that is not JSON drops the configured claude binary, so the
+  // default name resolves on PATH to the fake one and the daemon's target
+  // check is what refuses the spawn.
+  writeFileSync(join(ctx.home, '.config', 'atc', 'config.json'), '{ "targets": ');
+  mkdirSync(join(ctx.home, 'bin'));
+  symlinkSync(join(ctx.home, 'fake-claude'), join(ctx.home, 'bin', 'claude'));
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('broken\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  pty.write('hello');
+
+  await ctx.waitFor('> hello');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('target_config_invalid: config file');
+
+  const screen = ctx.read();
+
+  expect(screen).toInclude('spawn: initial prompt');
+  expect(screen).toInclude('> hello');
+  expect(screen).not.toInclude('FAKE_CLAUDE_UP');
 });
