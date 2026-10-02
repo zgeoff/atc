@@ -26,6 +26,9 @@ version) so a socket tap can interpret lines standalone.
 // request  (client -> daemon); id is client-assigned, monotonic per connection
 { "v": 4, "id": 7, "m": "session.spawn", "p": { "cwd": "/x", "name": "auth-bug" } }
 
+// a request that acts as a principal
+{ "v": 4, "id": 8, "m": "session.list", "as": "hV3kQ9xLm2Rt7YpZ4cWn8bJd6fGs1aEu" }
+
 // response (daemon -> client); exactly one per request
 { "v": 4, "id": 7, "ok": { "session": "s7-m4x2p" } }
 { "v": 4, "id": 7, "err": { "code": "no_such_session", "msg": "…" } }
@@ -39,12 +42,12 @@ Claude Code's hook events. The MCP tools map onto both mechanically (`session.sp
 `atc_session_spawn`, `SessionAdded` → a notification). Error codes are human-readable strings from a
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
 `no_such_session`, `session_dead`, `unsupported`, `unsupported_operation`, `unknown_target`,
-`target_unavailable`, `target_changed`, `target_config_invalid`, `already_answered`, `too_slow`,
-`stale_epoch`, `idempotency_conflict`, `outcome_unknown`, `internal`. An unknown method is an
-`unknown_method` error, never a disconnect; unknown fields in any message are ignored. A peer
-decodes an error code it does not know as `internal` and keeps its `msg`. These rules exist so
-additive evolution never breaks a peer. An error may also carry `data`, an object whose fields its
-code defines.
+`target_unavailable`, `target_changed`, `target_config_invalid`, `target_forbidden`,
+`already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`, `outcome_unknown`,
+`internal`. An unknown method is an `unknown_method` error, never a disconnect; unknown fields in
+any message are ignored. A peer decodes an error code it does not know as `internal` and keeps its
+`msg`. These rules exist so additive evolution never breaks a peer. An error may also carry `data`,
+an object whose fields its code defines.
 
 `unsupported_operation` refuses a request that the session's execution host cannot serve, such as
 input to a host that takes none. Its `data` holds the provider kind as `provider` and the missing
@@ -69,7 +72,8 @@ says to restart the daemon.
                            "features": ["agents.list", "events.more", "events.session",
                                         "message.turn", "message.wait", "spawn.options",
                                         "daemon.id", "session.locator", "spawn.idempotency",
-                                        "message.idempotency", "spawn.target"],
+                                        "message.idempotency", "spawn.target",
+                                        "request.principal"],
                            "lastUsedAgent": "claude" } }
 ```
 
@@ -77,10 +81,11 @@ says to restart the daemon.
 exists, `events.read` returns `more` and takes `session`, and `message.get` returns `turn` and
 `answeredWith` and takes `waitMs`, `session.spawn` takes `model` and `effort` while `agents.list`
 returns `spawnOptions`, `daemon.hello` returns `daemonID`, every session descriptor holds a
-`locator`, `session.spawn` and `session.message` each take `idempotencyKey`, and `session.spawn`
-takes `target` while `agents.list` returns `targets`. A daemon from before the list existed sends
-none, and it ignores the parameters it does not know. A client that outlives a daemon upgrade, such
-as `atc mcp`, reads the list rather than the build string to learn what the running daemon honours.
+`locator`, `session.spawn` and `session.message` each take `idempotencyKey`, `session.spawn` takes
+`target` while `agents.list` returns `targets`, and a request takes `as` while `daemon.hello` takes
+`principal`. A daemon from before the list existed sends none, and it ignores the parameters it does
+not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the list rather than the
+build string to learn what the running daemon honours.
 
 `daemonID` is the id the daemon minted into its state store the first time it opened it, so it stays
 the same across daemon restarts. Every session descriptor holds a `locator` of
@@ -358,13 +363,43 @@ A refused spawn under an idempotency key leaves the key free for a retry. A rest
 whose target the daemon cannot use as exited, and input or `session.adopt` on it answers with the
 target refusal. A dead session takes no input on a target that works: `session_dead`.
 
+## Principals
+
+A request acts as a principal when its envelope holds `as`, a non-empty string, and a connection
+acts as one when its `daemon.hello` params hold `principal`. A request with neither acts as the
+daemon's owner. A request's principal can only narrow its connection's: on a connection that acts as
+a principal, a request that acts as another reaches only the targets both may use. A daemon without
+the `request.principal` feature ignores both fields, so a client that acts for a principal sends
+nothing to such a daemon. An `as` that is not a non-empty string is a malformed line, and the daemon
+refuses a handshake whose `principal` is not one with `bad_args`.
+
+The [configuration guide](../guides/configuration.md#principals) sets which targets each principal
+may use. Each target grant matches a target name and its identity now, and a session is within the
+principal's reach when its target and bound identity match a grant. To a principal, a session out of
+reach does not exist:
+
+- `session.list`, `fleet.list`, and `events.read` leave it out, and the daemon reads `events.read`
+  filtered to it as a filter on a session the trail never held.
+- The daemon refuses every request that takes its session id, or the id of one of its messages, as
+  it refuses one for an unknown id, with the same code, message, and `data`.
+- `agents.list` lists only the targets the principal may use, and `spawnDefaults.target` is null
+  when the principal may not use the default.
+- A connection that acts as a principal is pushed only the events of sessions within reach, and a
+  permission request's resolution only when it was pushed the request.
+
+A spawn to a target the principal may not use, named or the default, fails with `target_forbidden`,
+with the target as `data.target`. `daemon.quit` and `fleet.restore` act on the whole daemon, and a
+principal gets `unauthorized` for them. The [events socket](#events-socket) has no handshake and
+streams every event: it is a local socket for the daemon's owner alone.
+
 ## Idempotent requests
 
 A `session.spawn` or `session.message` that carries an `idempotencyKey` takes effect at most once
 for that key. Retry a spawn with the same key and the same params, and the daemon answers with the
 session the first spawn created instead of spawning another; a retried message gets the first
 message's id instead of a second message. The key holds 1 to 200 characters, and the daemon keys it
-per principal and method; every request on the local socket acts as the principal `local`.
+per principal and method. A request that acts as a [principal](#principals) holds its keys apart
+from every other principal's, and the daemon's owner acts as the principal `local`.
 
 The daemon records the key before it checks any param. A refused request drops the key again, so a
 retry runs fresh. A spawn that fails after its process starts kills that process and drops its

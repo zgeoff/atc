@@ -238,6 +238,9 @@ limit.
   from the link, so a crafted link cannot put its own words on atc's origin.
 - Protocol version. A request whose `MCP-Protocol-Version` header holds a version atc does not speak
   gets an empty 400, so a newer client falls back to `initialize`.
+- Principal. Every daemon request a client's tool call makes acts as the client's ID, so the daemon
+  limits it to the targets the [principals](../guides/configuration.md#principals) key grants that
+  ID. A daemon that predates principals gets no request from the server.
 - Transport. The server answers each `POST /mcp` with JSON and does not open a server-to-client
   stream, so `GET /mcp` and `GET /` get 405. JSON-RPC batches get a 400.
 
