@@ -646,6 +646,9 @@ export class DaemonConnection {
     // claimed: a retry of a held key answers from the key without checking
     // anything again, and a refused spawn drops its claim.
     const plan = (): SpawnParams => {
+      // The target goes first: a config or target problem is the cause a
+      // spawn reports, ahead of any agent check that problem can skew.
+      const target = this.ctx.resolveSpawnTarget(data.target);
       const agent: AgentID = data.agent ?? 'claude';
       const adapter = this.ctx.findAdapter(agent);
       const entry = this.ctx.collectAgents().agents.find((candidate) => candidate.id === agent);
@@ -669,7 +672,6 @@ export class DaemonConnection {
         throw new DaemonError(overrides.code, overrides.message);
       }
 
-      const target = this.ctx.resolveSpawnTarget(data.target);
       let parent: SessionID | null = null;
 
       if (data.parent !== undefined) {

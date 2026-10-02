@@ -2,9 +2,11 @@ import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import type { AgentAdapter } from '../agents/agent-adapter';
+import { CodexAdapter } from '../agents/codex-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { DaemonError } from '../protocol/daemon-error';
-import { loadConfig } from '../shared/config';
+import { loadConfig, parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -17,8 +19,9 @@ import { LocalPTYProvider } from './local-pty-provider';
  * A real daemon whose targets come from a config.json on disk through the
  * real load, at a path the test arranges before it opens the daemon. Every
  * `local-pty` target runs harnesses on a real pseudo-terminal through a
- * provider that records each spawn, and the agent's headless runner records
- * each turn it starts.
+ * provider that records each spawn, and the claude stand-in's headless
+ * runner records each turn it starts. The real codex adapter points at a
+ * binary that does not exist, so codex is registered but not installed.
  */
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-config-file-');
@@ -36,29 +39,34 @@ function setupTest() {
   const openDaemon = async () => {
     const config = loadConfig(configPath);
 
+    const claude: AgentAdapter = {
+      id: 'claude',
+      screenDetector: null,
+      takesMessages: false,
+      headlessRunner: (opts, hooks) => {
+        runs.push(opts.prompt);
+
+        setTimeout(() => {
+          hooks.onDone('turn finished');
+        }, 0);
+
+        return { stop: () => {} };
+      },
+      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
+      normalizeHook: () => ({ kind: 'heartbeat' }),
+      loadName: () => Promise.resolve(null),
+      canResume: () => true,
+      buildResumeCommand: () => null,
+    };
+
+    const codex = new CodexAdapter(parseConfig({ codexBin: join(tmp.dir, 'missing', 'codex') }));
+
     const daemon = await startDaemon({
       socketPath: join(tmp.dir, 'daemon.sock'),
       reporterSocketPath: join(tmp.dir, 'reporter.sock'),
       build: 'atc/test-build',
-      adapter: {
-        id: 'claude',
-        screenDetector: null,
-        takesMessages: false,
-        headlessRunner: (opts, hooks) => {
-          runs.push(opts.prompt);
-
-          setTimeout(() => {
-            hooks.onDone('turn finished');
-          }, 0);
-
-          return { stop: () => {} };
-        },
-        planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-        normalizeHook: () => ({ kind: 'heartbeat' }),
-        loadName: () => Promise.resolve(null),
-        canResume: () => true,
-        buildResumeCommand: () => null,
-      },
+      adapter: claude,
+      adapters: [claude, codex],
       dbPath,
       statusPath: join(tmp.dir, 'status.json'),
       ejectSettleMs: 0,
@@ -346,4 +354,38 @@ test('it spawns a session without a target on the local target, and writes the d
   expect(JSON.parse(readFileSync(daemon.configPath, 'utf8'))).toMatchObject({
     claudeBin: 'claude',
   });
+});
+
+test('it refuses a spawn of an agent missing from this host with the config problem when the config holds invalid JSON', async () => {
+  await using daemon = setupTest();
+
+  writeFileSync(daemon.configPath, '{ "targets": ');
+
+  const client = await daemon.openDaemon();
+
+  const spawn = client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'codex' });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'target_config_invalid',
+    data: { problem: 'config_malformed', path: daemon.configPath },
+  });
+
+  expect(daemon.harnesses).toStrictEqual([]);
+});
+
+test('it refuses a spawn of an agent missing from this host as not installed when the config is usable', async () => {
+  await using daemon = setupTest();
+
+  writeFileSync(daemon.configPath, '{}');
+
+  const client = await daemon.openDaemon();
+
+  const spawn = client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'codex' });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'unsupported',
+    message: "agent 'codex' is registered but not installed on this host",
+  });
+
+  expect(daemon.harnesses).toStrictEqual([]);
 });
