@@ -26,6 +26,7 @@ export class LocalPTYProvider implements ExecutionProvider {
     kill: true,
     transfer: true,
     run: true,
+    headless: true,
     suspend: false,
     destroy: false,
   };

@@ -1,4 +1,5 @@
 import type { TargetConfig } from '../shared/collect-targets';
+import { buildTargetIdentity } from './build-target-identity';
 import type { ExecutionProvider } from './execution-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
@@ -12,6 +13,9 @@ export interface ExecutionTarget {
   readonly id: string;
   readonly kind: string;
   readonly options: Readonly<Record<string, unknown>>;
+
+  // The identity a session spawned here binds to.
+  readonly identity: string;
   readonly provider: ExecutionProvider | null;
 }
 
@@ -24,6 +28,7 @@ export function buildExecutionTargets(configs: readonly TargetConfig[]): Executi
     id: config.id,
     kind: config.provider,
     options: config.options,
+    identity: buildTargetIdentity(config.provider, config.options),
     provider: config.provider === 'local-pty' ? new LocalPTYProvider() : null,
   }));
 }

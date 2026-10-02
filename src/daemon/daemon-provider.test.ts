@@ -43,7 +43,7 @@ while read -r line; do echo "GOT:$line"; done
     },
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),
-    targets: [{ id: 'local', kind: provider.kind, options: {}, provider }],
+    targets: [{ id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider }],
   });
 
   const client = await DaemonClient.open(sockPath);

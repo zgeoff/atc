@@ -53,6 +53,7 @@ function buildGhostSession(): Session {
     createdAt: Date.now(),
     parent: null,
     target: 'local',
+    targetIdentity: 'local-pty:test',
   };
 }
 

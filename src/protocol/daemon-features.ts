@@ -36,7 +36,7 @@ export const DAEMON_FEATURES = [
   'message.idempotency',
 
   // `session.spawn` takes `target`, and `agents.list` returns `targets`,
-  // `spawnDefaults`, `configRevision`, and `configWarnings`.
+  // `spawnDefaults`, `configRevision`, and `targetErrors`.
   'spawn.target',
 ] as const;
 

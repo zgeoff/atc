@@ -7,6 +7,9 @@ export interface TargetEntry {
   // The provider kind the config selects for the target.
   readonly provider: string;
 
+  // The identity a session spawned on the target binds to.
+  readonly identity: string;
+
   // Whether this daemon has a provider of that kind, so a spawn can run there.
   readonly available: boolean;
   readonly default: boolean;
@@ -22,6 +25,7 @@ const NO_CAPABILITIES: ExecutionCapabilities = {
   kill: false,
   transfer: false,
   run: false,
+  headless: false,
   suspend: false,
   destroy: false,
 };
@@ -33,11 +37,12 @@ const NO_CAPABILITIES: ExecutionCapabilities = {
  */
 export function buildTargetList(
   targets: readonly ExecutionTarget[],
-  defaultTarget: string,
+  defaultTarget: string | null,
 ): TargetEntry[] {
   return targets.map((target) => ({
     id: target.id,
     provider: target.kind,
+    identity: target.identity,
     available: target.provider !== null,
     default: target.id === defaultTarget,
     capabilities: target.provider?.capabilities ?? NO_CAPABILITIES,

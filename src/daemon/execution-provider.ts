@@ -50,6 +50,9 @@ export interface ExecutionCapabilities {
   // Run a command on the host to completion.
   readonly run: boolean;
 
+  // Run an agent turn without a terminal, through the agent's own runner.
+  readonly headless: boolean;
+
   // Pause the host and resume it later with its state intact.
   readonly suspend: boolean;
 

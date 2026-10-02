@@ -1,4 +1,3 @@
-import { pickDefaultTarget } from './pick-default-target';
 import { isRecord } from './report';
 
 /**
@@ -11,78 +10,110 @@ export interface TargetConfig {
   readonly options: Readonly<Record<string, unknown>>;
 }
 
-interface TargetsConfig {
-  readonly targets: readonly TargetConfig[];
+/**
+ * A config problem that leaves a target, or every target, unusable: the
+ * `targets` map as a whole, one entry of it, or `defaultTarget`.
+ */
+export interface TargetConfigError {
+  readonly scope: 'targets' | 'target' | 'defaultTarget';
 
-  // The target a spawn without a target runs on; always one of the targets.
-  readonly defaultTarget: string;
-
-  // One line per config problem the parse fell back from.
-  readonly warnings: readonly string[];
+  // The entry the problem is in; present only for an entry's problem.
+  readonly target?: string;
+  readonly problem: string;
 }
 
-// The target every config holds when it sets no targets of its own: the
+interface TargetsConfig {
+  // Every well-formed entry, in config order.
+  readonly targets: readonly TargetConfig[];
+
+  // The target a spawn without a target runs on, or null when the config
+  // gives none it can use.
+  readonly defaultTarget: string | null;
+  readonly errors: readonly TargetConfigError[];
+}
+
+// The target a config holds when it sets no targets of its own: the
 // daemon's own machine.
 const LOCAL_TARGET: TargetConfig = { id: 'local', provider: 'local-pty', options: {} };
 
 /**
- * Reads the `targets` map and `defaultTarget` into the targets sessions can
- * run on. No `targets` key holds the one implicit `local` target. A
- * malformed map, an empty map, or a map with any malformed entry holds only
- * `local`, with a warning: dropping just the bad entry could drop a
- * mistyped `local` and turn local sessions off unasked. A well-formed map
- * holds exactly its own entries, so one without `local` turns local
- * sessions off. A `defaultTarget` that matches no target falls back, with a
- * warning, to `local` when the map holds it and to the first entry
- * otherwise.
+ * Reads the `targets` map and `defaultTarget`. No `targets` key holds the
+ * one implicit `local` target as the default. Otherwise the config fails
+ * closed: a malformed map holds no targets, a malformed entry is left out,
+ * and a `defaultTarget` that is not a string or matches no well-formed
+ * entry leaves no default. Each problem is an error, so a spawn that
+ * resolves through it fails with that error instead of running on `local`.
+ * Without `defaultTarget`, the default is the `local` entry when the map
+ * holds a well-formed one, and none otherwise.
  */
 export function collectTargets(rawTargets: unknown, rawDefault: unknown): TargetsConfig {
-  const collected = collectTargetEntries(rawTargets);
-  const targets = collected.targets;
-  const warnings = collected.warning === null ? [] : [collected.warning];
-  const requested = typeof rawDefault === 'string' ? rawDefault : undefined;
-
-  const picked = pickDefaultTarget(
-    targets.map((target) => target.id),
-    requested,
-  );
-
-  if (rawDefault !== undefined && !picked.matched) {
-    warnings.push(
-      `defaultTarget ${JSON.stringify(rawDefault)} matches no configured target; using '${picked.id}'`,
-    );
+  if (rawTargets === undefined && rawDefault === undefined) {
+    return { targets: [LOCAL_TARGET], defaultTarget: 'local', errors: [] };
   }
 
-  return { targets, defaultTarget: picked.id, warnings };
+  const collected = collectTargetEntries(rawTargets);
+
+  const ids = new Set(collected.targets.map((target) => target.id));
+
+  if (rawDefault === undefined) {
+    return {
+      targets: collected.targets,
+      defaultTarget: ids.has('local') ? 'local' : null,
+      errors: collected.errors,
+    };
+  }
+
+  if (typeof rawDefault === 'string' && ids.has(rawDefault)) {
+    return { targets: collected.targets, defaultTarget: rawDefault, errors: collected.errors };
+  }
+
+  return {
+    targets: collected.targets,
+    defaultTarget: null,
+    errors: [
+      ...collected.errors,
+      {
+        scope: 'defaultTarget',
+        problem: `defaultTarget ${JSON.stringify(rawDefault)} matches no well-formed target in targets`,
+      },
+    ],
+  };
 }
 
 interface TargetEntries {
   readonly targets: readonly TargetConfig[];
-  readonly warning: string | null;
+  readonly errors: readonly TargetConfigError[];
 }
 
 function collectTargetEntries(raw: unknown): TargetEntries {
+  // A defaultTarget without a targets map names one of the implicit targets.
   if (raw === undefined) {
-    return { targets: [LOCAL_TARGET], warning: null };
+    return { targets: [LOCAL_TARGET], errors: [] };
   }
 
   if (!isRecord(raw) || Array.isArray(raw) || Object.keys(raw).length === 0) {
     return {
-      targets: [LOCAL_TARGET],
-      warning: "targets must be a non-empty object of named targets; using only 'local'",
+      targets: [],
+      errors: [
+        { scope: 'targets', problem: 'targets must be a non-empty object of named targets' },
+      ],
     };
   }
 
   const targets: TargetConfig[] = [];
+  const errors: TargetConfigError[] = [];
 
   for (const [id, entry] of Object.entries(raw)) {
     const provider = isRecord(entry) ? entry['provider'] : undefined;
 
     if (id === '' || !isRecord(entry) || typeof provider !== 'string' || provider === '') {
-      return {
-        targets: [LOCAL_TARGET],
-        warning: `target ${JSON.stringify(id)} must be an object with a non-empty string provider; using only 'local'`,
-      };
+      errors.push({
+        scope: 'target',
+        target: id,
+        problem: `target ${JSON.stringify(id)} must be an object with a non-empty string provider`,
+      });
+
+      continue;
     }
 
     const { provider: _, ...options } = entry;
@@ -90,5 +121,5 @@ function collectTargetEntries(raw: unknown): TargetEntries {
     targets.push({ id, provider, options });
   }
 
-  return { targets, warning: null };
+  return { targets, errors };
 }

@@ -44,6 +44,10 @@ export interface FleetEntry {
   // The execution target the session runs on; a row without one restores
   // on the `local` target.
   readonly target?: string;
+
+  // The identity the target had when the session started on it; a row
+  // without one is bound to the implicit `local` target's identity.
+  readonly targetIdentity?: string;
 }
 
 export interface FleetStore {

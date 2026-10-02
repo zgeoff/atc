@@ -6,9 +6,9 @@ import { DaemonError } from '../protocol/daemon-error';
 import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
+import type { TargetConfigError } from '../shared/collect-targets';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import type { MessageID } from '../shared/message-id';
-import { pickDefaultTarget } from '../shared/pick-default-target';
 import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toMessageID } from '../shared/to-message-id';
@@ -53,7 +53,6 @@ import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
 import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
-import { requireCapability } from './require-capability';
 import { restoreFleet } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
 import { ScreenModel } from './screen-model';
@@ -79,15 +78,15 @@ export interface DaemonOptions {
   readonly adapters?: readonly AgentAdapter[];
 
   // Where sessions run, in config order; one `local` target on the local
-  // pseudo-terminal provider when unset. A spawn without a target runs
-  // on the default one, which falls back to `local` when the targets hold
-  // it and to the first target otherwise.
+  // pseudo-terminal provider when unset. A spawn without a target runs on
+  // the default one: `local` when unset and the targets hold it, and none
+  // otherwise, which refuses such a spawn.
   readonly targets?: readonly ExecutionTarget[];
-  readonly defaultTarget?: string;
+  readonly defaultTarget?: string | null;
 
-  // The config problems the daemon started with, one line each, returned by
-  // `agents.list` so a client can show them.
-  readonly configWarnings?: readonly string[];
+  // The target config problems the daemon started with. A target they cover
+  // refuses every session, and `agents.list` returns them.
+  readonly targetErrors?: readonly TargetConfigError[];
 
   // SQLite path for daemon state; a fleet.json at legacyFleetPath seeds the
   // fleet table once so upgrading keeps the restorable fleet.
@@ -201,12 +200,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const targets =
     opts.targets ?? buildExecutionTargets([{ id: 'local', provider: 'local-pty', options: {} }]);
 
-  const defaultTarget = pickDefaultTarget(
-    targets.map((target) => target.id),
-    opts.defaultTarget,
-  ).id;
+  const targetErrors = opts.targetErrors ?? [];
 
-  const configRevision = buildConfigRevision(targets, defaultTarget);
+  const defaultTarget =
+    opts.defaultTarget === undefined
+      ? (targets.find((target) => target.id === 'local')?.id ?? null)
+      : opts.defaultTarget;
+
+  const configRevision = buildConfigRevision(targets, defaultTarget, targetErrors);
 
   const mgr = new SessionManager(
     opts.adapter,
@@ -214,6 +215,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     opts.statusPath,
     opts.adapters ?? [],
     targets,
+    targetErrors,
   );
 
   const clients = new Set<DaemonConnection>();
@@ -914,14 +916,29 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       targets: buildTargetList(targets, defaultTarget),
       spawnDefaults: { agent: 'claude', target: defaultTarget },
       configRevision,
-      configWarnings: opts.configWarnings ?? [],
+      targetErrors,
     }),
     collectFleet: () => store.loadFleet(),
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => mgr.findAdapter(kind),
-    defaultTarget,
-    requireSpawnTarget: (targetID) => {
-      requireCapability(mgr.requireProvider(targetID), 'spawn');
+    resolveSpawnTarget: (requested) => {
+      const target = requested ?? defaultTarget;
+
+      if (target === null) {
+        const problem =
+          targetErrors.find((error) => error.scope !== 'target')?.problem ??
+          'the targets map holds no local target and no defaultTarget is set';
+
+        throw new DaemonError(
+          'target_config_invalid',
+          `no default execution target: ${problem}. Name a target on the spawn, or fix targets in config.json and restart the daemon`,
+          { problem },
+        );
+      }
+
+      mgr.requireExecution({ target, targetIdentity: null }, 'spawn');
+
+      return target;
     },
     spawnSession: (plan, keyed) => {
       if (keyed === null) {
@@ -960,7 +977,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       for (const live of [s, ...mgr.collectChildren(id)]) {
         if (live.pty !== null) {
-          requireCapability(mgr.requireProvider(live.target), 'kill');
+          mgr.requireExecution(live, 'kill');
         }
       }
 
@@ -991,7 +1008,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'no_transcript';
       }
 
-      requireCapability(mgr.requireProvider(s.target), 'kill');
+      mgr.requireExecution(s, 'kill');
+      mgr.requireExecution(s, 'headless');
 
       const yanked = mgr.yankHeadless(id);
 
@@ -1074,8 +1092,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'dead';
       }
 
-      requireCapability(mgr.requireProvider(s.target), 'attach');
-
+      mgr.requireExecution(s, 'attach');
       attachments.attach(sessionID, client, dims);
       mgr.attach(sessionID);
 
@@ -1116,7 +1133,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'missing';
       }
 
+      // A headless turn runs only through the session's own target, never
+      // anywhere else, and a dead session takes no input.
       if (s.kind === 'headless') {
+        mgr.requireExecution(s, 'headless');
+
+        if (s.state === 'exited') {
+          return 'dead';
+        }
+
         if ((runtimes.get(sessionID)?.headlessRun ?? null) !== null) {
           return 'busy';
         }
@@ -1136,8 +1161,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'dead';
       }
 
-      requireCapability(mgr.requireProvider(s.target), 'input');
-
+      mgr.requireExecution(s, 'input');
       s.pty.write(data);
 
       return 'ok';

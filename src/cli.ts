@@ -167,8 +167,8 @@ const main = defineCommand({
           const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
           const cfg = config.loadConfig();
 
-          for (const warning of cfg.configWarnings) {
-            console.error(`atc daemon: config: ${warning}`);
+          for (const error of cfg.targetErrors) {
+            console.error(`atc daemon: config: ${error.problem}`);
           }
 
           // Cap on how long a fleet restore waits for one revived session to
@@ -213,7 +213,7 @@ const main = defineCommand({
               hooks: cfg.hooks,
               targets: targets.buildExecutionTargets(cfg.targets),
               defaultTarget: cfg.defaultTarget,
-              configWarnings: cfg.configWarnings,
+              targetErrors: cfg.targetErrors,
               restoreBootTimeoutMs,
               ...(Number.isFinite(graceOverride) && graceOverride >= 0
                 ? { tapGraceMs: graceOverride }

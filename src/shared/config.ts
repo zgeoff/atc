@@ -9,7 +9,7 @@ import type { GatewayConfig } from './collect-gateways';
 import { collectHooks } from './collect-hooks';
 import type { HooksConfig } from './collect-hooks';
 import { collectTargets } from './collect-targets';
-import type { TargetConfig } from './collect-targets';
+import type { TargetConfig, TargetConfigError } from './collect-targets';
 import { resolveHomeDir } from './resolve-home-dir';
 
 export interface Config {
@@ -24,12 +24,14 @@ export interface Config {
   hooks: HooksConfig;
   leader: LeaderKey;
 
-  // Where sessions run, and the one a spawn without a target runs on.
+  // Where sessions run, and the one a spawn without a target runs on: null
+  // when the config gives none it can use.
   targets: readonly TargetConfig[];
-  defaultTarget: string;
+  defaultTarget: string | null;
 
-  // One line per config problem a field fell back from.
-  configWarnings: readonly string[];
+  // The target config problems that leave a target, or every target,
+  // unusable.
+  targetErrors: readonly TargetConfigError[];
 }
 
 /**
@@ -58,7 +60,7 @@ const DEFAULTS: Config = {
   leader: { code: 0, label: '^Space' },
   targets: [{ id: 'local', provider: 'local-pty', options: {} }],
   defaultTarget: 'local',
-  configWarnings: [],
+  targetErrors: [],
 };
 
 const configDir = join(resolveHomeDir(), '.config', 'atc');
@@ -118,13 +120,13 @@ export function loadConfig(): Config {
 /**
  * The config.json text a first run writes. It leaves out the targets, so the
  * file holds the one implicit `local` target until the user sets their own,
- * and the problems a parse reports, which belong to no file.
+ * and the target errors a parse reports, which belong to no file.
  */
 export function renderDefaultConfig(): string {
   const {
     targets: _targets,
     defaultTarget: _default,
-    configWarnings: _warnings,
+    targetErrors: _errors,
     ...written
   } = DEFAULTS;
 
@@ -171,7 +173,7 @@ export function parseConfig(raw: unknown): Config {
     leader,
     targets: targets.targets,
     defaultTarget: targets.defaultTarget,
-    configWarnings: targets.warnings,
+    targetErrors: targets.errors,
   };
 }
 

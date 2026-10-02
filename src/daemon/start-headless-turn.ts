@@ -10,8 +10,9 @@ import { truncateSummary } from './truncate-summary';
  * runner, wires the run's output and completion into the session manager,
  * passes the turn's start and end to the event trail the way a terminal
  * turn's hooks do, and records the live handle on the session's runtime. Returns false
- * without starting anything when the session is unknown, its agent has no
- * headless runner, or a turn is already running.
+ * without starting anything when the session is unknown or exited, its
+ * agent has no headless runner, its target does not serve headless turns,
+ * or a turn is already running.
  */
 export function startHeadlessTurn(
   mgr: SessionManager,
@@ -25,6 +26,12 @@ export function startHeadlessTurn(
   const runtime = findRuntime(sessionID);
 
   if (s === undefined || runner === null || runtime === undefined || runtime.headlessRun !== null) {
+    return false;
+  }
+
+  // The runner runs on the daemon's own host, so a session whose target
+  // does not serve headless turns never reaches it.
+  if (s.state === 'exited' || mgr.findExecutionRefusal(s, 'headless') !== null) {
     return false;
   }
 

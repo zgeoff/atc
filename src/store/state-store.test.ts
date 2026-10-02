@@ -654,7 +654,7 @@ test('it round-trips a fleet row with its model and effort', async () => {
   ]);
 });
 
-test('it round-trips a fleet row with its execution target', async () => {
+test('it round-trips a fleet row with its execution target and identity', async () => {
   const store = await StateStore.open(join(setupDir(), 'state.db'));
 
   onTestFinished(async () => {
@@ -669,6 +669,7 @@ test('it round-trips a fleet row with its execution target', async () => {
       agentSessionID: toAgentSessionID('c1'),
       agent: 'claude',
       target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
     },
     {
       sessionID: toSessionID('s-c2'),
@@ -689,6 +690,7 @@ test('it round-trips a fleet row with its execution target', async () => {
       agentSessionID: toAgentSessionID('c1'),
       agent: 'claude',
       target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
     },
     {
       sessionID: toSessionID('s-c2'),

@@ -8,6 +8,7 @@ import { GatewayAdapter } from '../agents/gateway-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
+import { buildTargetIdentity } from './build-target-identity';
 import { startDaemon } from './daemon';
 
 // agents.list through the real daemon, with the real adapters built from a
@@ -226,6 +227,7 @@ test('it lists each registered agent with what it can do and the host it runs on
       {
         id: 'local',
         provider: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
         available: true,
         default: true,
         capabilities: {
@@ -236,6 +238,7 @@ test('it lists each registered agent with what it can do and the host it runs on
           kill: true,
           transfer: true,
           run: true,
+          headless: true,
           suspend: false,
           destroy: false,
         },
@@ -243,7 +246,7 @@ test('it lists each registered agent with what it can do and the host it runs on
     ],
     spawnDefaults: { agent: 'claude', target: 'local' },
     configRevision: expect.stringMatching(/^[\da-f]{16}$/),
-    configWarnings: [],
+    targetErrors: [],
   });
 });
 

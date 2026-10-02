@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { collectTargets } from './collect-targets';
 
-test('it holds one implicit local target when the config sets no targets', () => {
+test('it holds one implicit local target as the default when the config sets no targets', () => {
   expect(collectTargets(undefined, undefined)).toStrictEqual({
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
     defaultTarget: 'local',
-    warnings: [],
+    errors: [],
   });
 });
 
@@ -24,15 +24,21 @@ test('it reads each named target with its provider and the rest of its keys as o
       { id: 'box', provider: 'imp', options: { image: 'dev', region: 'syd' } },
     ],
     defaultTarget: 'box',
-    warnings: [],
+    errors: [],
   });
 });
 
-test('it turns local sessions off for a well-formed targets map without local', () => {
+test('it defaults to the local entry of a targets map without a defaultTarget', () => {
+  expect(
+    collectTargets({ box: { provider: 'imp' }, local: { provider: 'local-pty' } }, undefined),
+  ).toMatchObject({ defaultTarget: 'local', errors: [] });
+});
+
+test('it leaves no default for a targets map without local or a defaultTarget', () => {
   expect(collectTargets({ box: { provider: 'imp' } }, undefined)).toStrictEqual({
     targets: [{ id: 'box', provider: 'imp', options: {} }],
-    defaultTarget: 'box',
-    warnings: [],
+    defaultTarget: null,
+    errors: [],
   });
 });
 
@@ -40,80 +46,88 @@ test.each([
   ['a string', 'local'],
   ['an array', [{ provider: 'local-pty' }]],
   ['null', null],
-])('it falls back to local alone with a warning when targets is %s', (_label, raw) => {
+  ['empty', {}],
+])('it holds no targets and an error when targets is %s', (_label, raw) => {
   expect(collectTargets(raw, undefined)).toStrictEqual({
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    warnings: ["targets must be a non-empty object of named targets; using only 'local'"],
-  });
-});
-
-test('it falls back to local alone with a warning when targets is empty', () => {
-  expect(collectTargets({}, undefined)).toStrictEqual({
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    warnings: ["targets must be a non-empty object of named targets; using only 'local'"],
+    targets: [],
+    defaultTarget: null,
+    errors: [{ scope: 'targets', problem: 'targets must be a non-empty object of named targets' }],
   });
 });
 
 test.each([
-  ['an entry that is not an object', { box: 'imp' }],
-  ['an entry without a provider', { box: { image: 'dev' } }],
-  ['an entry whose provider is not a string', { box: { provider: 7 } }],
-  ['an entry whose provider is empty', { box: { provider: '' } }],
-])('it falls back to local alone with a warning for %s', (_label, raw) => {
-  expect(collectTargets(raw, undefined)).toStrictEqual({
+  ['an entry that is not an object', 'imp'],
+  ['an entry without a provider', { image: 'dev' }],
+  ['an entry whose provider is not a string', { provider: 7 }],
+  ['an entry whose provider is empty', { provider: '' }],
+])('it leaves out %s with an error and keeps the other entries', (_label, entry) => {
+  expect(collectTargets({ local: { provider: 'local-pty' }, box: entry }, undefined)).toStrictEqual(
+    {
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+      defaultTarget: 'local',
+      errors: [
+        {
+          scope: 'target',
+          target: 'box',
+          problem: 'target "box" must be an object with a non-empty string provider',
+        },
+      ],
+    },
+  );
+});
+
+test('it leaves no default when a malformed local entry is the one the default would be', () => {
+  expect(collectTargets({ local: 'local-pty', box: { provider: 'imp' } }, undefined)).toStrictEqual(
+    {
+      targets: [{ id: 'box', provider: 'imp', options: {} }],
+      defaultTarget: null,
+      errors: [
+        {
+          scope: 'target',
+          target: 'local',
+          problem: 'target "local" must be an object with a non-empty string provider',
+        },
+      ],
+    },
+  );
+});
+
+test.each([
+  ['a target the map does not hold', 'gone'],
+  ['a malformed entry', 'broken'],
+  ['not a string', 4],
+])('it leaves no default and an error for a defaultTarget that is %s', (_label, rawDefault) => {
+  expect(
+    collectTargets({ local: { provider: 'local-pty' }, broken: { provider: 3 } }, rawDefault),
+  ).toMatchObject({
+    defaultTarget: null,
+    errors: [
+      { scope: 'target', target: 'broken' },
+      {
+        scope: 'defaultTarget',
+        problem: `defaultTarget ${JSON.stringify(rawDefault)} matches no well-formed target in targets`,
+      },
+    ],
+  });
+});
+
+test('it reads a defaultTarget without a targets map against the implicit local target', () => {
+  expect(collectTargets(undefined, 'local')).toStrictEqual({
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
     defaultTarget: 'local',
-    warnings: [
-      'target "box" must be an object with a non-empty string provider; using only \'local\'',
-    ],
+    errors: [],
   });
 });
 
-test('it drops every target of a map with one malformed entry, even a well-formed one', () => {
-  expect(
-    collectTargets({ box: { provider: 'imp' }, broken: { provider: 3 } }, 'box'),
-  ).toStrictEqual({
+test('it leaves no default for a defaultTarget other than local without a targets map', () => {
+  expect(collectTargets(undefined, 'box')).toStrictEqual({
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    warnings: [
-      'target "broken" must be an object with a non-empty string provider; using only \'local\'',
-      'defaultTarget "box" matches no configured target; using \'local\'',
+    defaultTarget: null,
+    errors: [
+      {
+        scope: 'defaultTarget',
+        problem: 'defaultTarget "box" matches no well-formed target in targets',
+      },
     ],
-  });
-});
-
-test('it falls back to local with a warning for a default that matches no target', () => {
-  expect(
-    collectTargets({ local: { provider: 'local-pty' }, box: { provider: 'imp' } }, 'gone'),
-  ).toStrictEqual({
-    targets: [
-      { id: 'local', provider: 'local-pty', options: {} },
-      { id: 'box', provider: 'imp', options: {} },
-    ],
-    defaultTarget: 'local',
-    warnings: ['defaultTarget "gone" matches no configured target; using \'local\''],
-  });
-});
-
-test('it falls back to the first target with a warning for an unmatched default when local is off', () => {
-  expect(
-    collectTargets({ box: { provider: 'imp' }, other: { provider: 'imp' } }, 'gone'),
-  ).toStrictEqual({
-    targets: [
-      { id: 'box', provider: 'imp', options: {} },
-      { id: 'other', provider: 'imp', options: {} },
-    ],
-    defaultTarget: 'box',
-    warnings: ['defaultTarget "gone" matches no configured target; using \'box\''],
-  });
-});
-
-test('it falls back with a warning for a default that is not a string', () => {
-  expect(collectTargets(undefined, 4)).toStrictEqual({
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    warnings: ["defaultTarget 4 matches no configured target; using 'local'"],
   });
 });

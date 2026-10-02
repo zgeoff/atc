@@ -15,6 +15,7 @@ import {
   encodeMessage,
 } from '../protocol/protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from '../protocol/protocol';
+import type { TargetConfigError } from '../shared/collect-targets';
 import type { DaemonID } from '../shared/daemon-id';
 import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
@@ -71,12 +72,10 @@ export interface DaemonContext {
   readonly loadLastUsedAgent: () => Promise<AgentID>;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
 
-  // The target a spawn without a target runs on.
-  readonly defaultTarget: string;
-
-  // Throws the refusal for a spawn to this target: `unknown_target`,
-  // `target_unavailable`, or `unsupported_operation`.
-  readonly requireSpawnTarget: (targetID: string) => void;
+  // The target a spawn runs on: the one it names, else the default. Throws
+  // the refusal for a target the spawn cannot run on, and for a spawn
+  // without a target when the config gives no default.
+  readonly resolveSpawnTarget: (requested: string | undefined) => string;
 
   // Runs the plan, which throws the refusal for a spawn it refuses, then
   // spawns. Answers with the `session.spawn` ok payload, which a keyed
@@ -155,7 +154,8 @@ export interface OutputClient {
 
 // The `agents.list` answer: the host the daemon runs on, each agent, each
 // execution target, what a spawn without either runs with, a digest of
-// the target config, and the config problems the daemon started with.
+// the target config, and the target config problems the daemon started
+// with.
 interface AgentList {
   readonly daemon: {
     readonly hostname: string;
@@ -165,9 +165,9 @@ interface AgentList {
   };
   readonly agents: readonly AgentEntry[];
   readonly targets: readonly TargetEntry[];
-  readonly spawnDefaults: { readonly agent: AgentID; readonly target: string };
+  readonly spawnDefaults: { readonly agent: AgentID; readonly target: string | null };
   readonly configRevision: string;
-  readonly configWarnings: readonly string[];
+  readonly targetErrors: readonly TargetConfigError[];
 }
 
 // One `events.read` answer: the events, and whether more follow them.
@@ -669,10 +669,7 @@ export class DaemonConnection {
         throw new DaemonError(overrides.code, overrides.message);
       }
 
-      const target = data.target ?? this.ctx.defaultTarget;
-
-      this.ctx.requireSpawnTarget(target);
-
+      const target = this.ctx.resolveSpawnTarget(data.target);
       let parent: SessionID | null = null;
 
       if (data.parent !== undefined) {

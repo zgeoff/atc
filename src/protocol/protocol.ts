@@ -23,6 +23,8 @@ const ERROR_CODES = [
   'unsupported_operation',
   'unknown_target',
   'target_unavailable',
+  'target_changed',
+  'target_config_invalid',
   'already_answered',
   'too_slow',
   'stale_epoch',

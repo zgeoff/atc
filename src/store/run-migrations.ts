@@ -22,6 +22,7 @@ interface FleetTable {
   model: string | null;
   effort: string | null;
   target: string | null;
+  target_identity: string | null;
 }
 
 interface EventsTable {
@@ -342,6 +343,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '018_add_fleet_target': {
     async up(db: Kysely<StateStoreSchema>) {
       await db.schema.alterTable('fleet').addColumn('target', 'text').execute();
+      await db.schema.alterTable('fleet').addColumn('target_identity', 'text').execute();
     },
   },
 };

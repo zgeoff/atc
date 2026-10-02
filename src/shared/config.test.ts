@@ -17,7 +17,7 @@ test('it falls back to every default when the file is not an object', () => {
     leader: { code: 0, label: '^Space' },
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
     defaultTarget: 'local',
-    configWarnings: [],
+    targetErrors: [],
   });
 });
 
@@ -37,7 +37,7 @@ test.each([[null], [undefined], [[]], ['garbage'], [42]])(
       leader: { code: 0, label: '^Space' },
       targets: [{ id: 'local', provider: 'local-pty', options: {} }],
       defaultTarget: 'local',
-      configWarnings: [],
+      targetErrors: [],
     });
   },
 );
@@ -64,7 +64,7 @@ test('it falls back field by field when a field is wrong-typed instead of failin
     leader: { code: 0, label: '^Space' },
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
     defaultTarget: 'local',
-    configWarnings: [],
+    targetErrors: [],
   });
 });
 
@@ -118,37 +118,39 @@ test('it reads the targets and default target a config sets', () => {
   expect({
     targets: config.targets,
     defaultTarget: config.defaultTarget,
-    configWarnings: config.configWarnings,
+    targetErrors: config.targetErrors,
   }).toStrictEqual({
     targets: [
       { id: 'local', provider: 'local-pty', options: {} },
       { id: 'box', provider: 'imp', options: { image: 'dev' } },
     ],
     defaultTarget: 'box',
-    configWarnings: [],
+    targetErrors: [],
   });
 });
 
-test('it falls back to local with a warning instead of throwing for malformed targets', () => {
+test('it holds no targets and an error instead of throwing for a malformed targets map', () => {
   const config = parseConfig({ claudeBin: 'my-claude', targets: ['local'] });
 
   expect({
     claudeBin: config.claudeBin,
     targets: config.targets,
     defaultTarget: config.defaultTarget,
-    configWarnings: config.configWarnings,
+    targetErrors: config.targetErrors,
   }).toStrictEqual({
     claudeBin: 'my-claude',
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    configWarnings: ["targets must be a non-empty object of named targets; using only 'local'"],
+    targets: [],
+    defaultTarget: null,
+    targetErrors: [
+      { scope: 'targets', problem: 'targets must be a non-empty object of named targets' },
+    ],
   });
 });
 
-test('it reads the config a first run writes back as the defaults, without warnings', () => {
+test('it reads the config a first run writes back as the defaults, without target errors', () => {
   const written: unknown = JSON.parse(renderDefaultConfig());
   const config = parseConfig(written);
 
   expect(config).toStrictEqual(parseConfig({}));
-  expect(config.configWarnings).toStrictEqual([]);
+  expect(config.targetErrors).toStrictEqual([]);
 });
