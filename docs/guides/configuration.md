@@ -173,7 +173,7 @@ over it: `--host` over `host`, `--port` over `port`, `--public-url` over `public
 | Field          | Default     | Meaning                                                                                                                                      |
 | -------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `publicURL`    | none        | the origin clients reach the server at; https unless the host is loopback, with no path. Without it, the origin is `http://127.0.0.1:<port>` |
-| `host`         | `127.0.0.1` | the address the server binds                                                                                                                 |
+| `host`         | `127.0.0.1` | the address the server binds; an address beyond loopback needs an https `publicURL`, since atc does not terminate TLS                        |
 | `port`         | `8414`      | the port the server binds, from 1 to 65535                                                                                                   |
 | `allowedHosts` | `[]`        | further `Host` header values to accept, for a proxy that rewrites `Host`                                                                     |
 

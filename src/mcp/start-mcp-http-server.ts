@@ -6,6 +6,7 @@ import { answerLoginRequest } from './answer-login-request';
 import { answerMCPRequest } from './answer-mcp-request';
 import { ApprovalState } from './approval-state';
 import { buildPageResponse } from './build-page-response';
+import { isLoopbackHost } from './is-loopback-host';
 import { normalizePublicURL } from './normalize-public-url';
 import { openMCPAuth } from './open-mcp-auth';
 import type { FleetCaller, HTTPServerContext } from './types';
@@ -56,6 +57,19 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
   // Normalized before binding, so an invalid public URL throws with no port
   // left bound.
   const publicOrigin = options.publicURL === null ? null : normalizePublicURL(options.publicURL);
+
+  // atc speaks plain HTTP, so a listener other machines can reach has to sit
+  // behind something that terminates TLS, and the public URL clients use is
+  // that https origin.
+  if (
+    !isLoopbackHost(options.host) &&
+    (publicOrigin === null || !publicOrigin.startsWith('https:'))
+  ) {
+    throw new Error(
+      `listening on '${options.host}' reaches beyond this machine, so it needs an https public URL served by a TLS-terminating proxy or tunnel`,
+    );
+  }
+
   const holder: { ready: ServerState | null } = { ready: null };
 
   const server = Bun.serve({

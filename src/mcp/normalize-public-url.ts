@@ -1,3 +1,5 @@
+import { isLoopbackHost } from './is-loopback-host';
+
 /**
  * Reduces a configured public URL to the bare origin the server is reached
  * at: https, or http only on a loopback host, with no path, query, or
@@ -28,8 +30,4 @@ export function normalizePublicURL(raw: string): string {
   }
 
   return url.origin;
-}
-
-function isLoopbackHost(hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
 }

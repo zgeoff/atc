@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { readJSONRecord } from '../../test/read-json-record';
 import { runMCPAuthorization } from '../../test/run-mcp-authorization';
 import { setupMCPHTTP } from '../../test/setup-mcp-http';
+import { setupTempDir } from '../../test/setup-temp-dir';
 import { collectGrants } from './collect-grants';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { removeClient } from './remove-client';
@@ -1327,4 +1328,55 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
   });
 
   expect(pinged.status).toBe(401);
+});
+
+test.each([
+  ['0.0.0.0', null],
+  ['0.0.0.0', 'http://localhost:8414'],
+  ['192.168.1.10', null],
+])('it refuses to listen on %p with the public URL %p', (host, publicURL) => {
+  using tmp = setupTempDir('atc-mcp-http-');
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+
+  onTestFinished(async () => {
+    await caller.stop();
+  });
+
+  const started = startMCPHTTPServer({
+    caller,
+    build: 'atc/test-build',
+    host,
+    port: 0,
+    publicURL,
+    allowedHosts: [],
+    dbPath: join(tmp.dir, 'mcp-auth.db'),
+    printApproval: () => {},
+  });
+
+  expect(started).rejects.toThrow(/needs an https public URL/);
+});
+
+test('it listens beyond loopback behind an https public URL', async () => {
+  using tmp = setupTempDir('atc-mcp-http-');
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+
+  const server = await startMCPHTTPServer({
+    caller,
+    build: 'atc/test-build',
+    host: '0.0.0.0',
+    port: 0,
+    publicURL: 'https://mcp.example.com',
+    allowedHosts: [],
+    dbPath: join(tmp.dir, 'mcp-auth.db'),
+    printApproval: () => {},
+  });
+
+  onTestFinished(async () => {
+    await server.stop();
+    await caller.stop();
+  });
+
+  expect(server.origin).toBe('https://mcp.example.com');
 });

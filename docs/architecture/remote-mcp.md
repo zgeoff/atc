@@ -12,8 +12,14 @@ stdio `atc mcp` server work the same either way.
 
 `atc mcp --http` is a foreground process beside the daemon and a client of the daemon's socket, like
 `atc mcp`. It binds `127.0.0.1:8414` unless `--host`, `--port`, or config sets another address.
-Exposing it to the internet (a tunnel, Tailscale, a reverse proxy) is your job, and Ctrl-C ends
-remote access.
+Exposing it to the internet is your job, and Ctrl-C ends remote access.
+
+atc speaks plain HTTP and does not terminate TLS. Plain HTTP must never cross an untrusted network,
+so put the server behind a TLS-terminating reverse proxy or tunnel, or reach it only over an
+encrypted, authenticated network such as a WireGuard tailnet. A listener bound beyond loopback must
+sit behind TLS: when `--host` is not a loopback address, the server refuses to start without an
+https public URL. To serve a tailnet, keep the loopback bind and let the tailnet's own TLS front
+end, such as `tailscale serve`, carry the https origin.
 
 The authorization server keeps its state in `~/.local/state/atc/mcp-auth.db`, a SQLite file separate
 from `atc.db`. The daemon never opens it. `atc clients` and `atc grants` open it directly, so they
