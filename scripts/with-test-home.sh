@@ -8,7 +8,10 @@
 # variable, ATC_BIN included. The directory is removed on exit.
 set -euo pipefail
 
-root=$(mktemp -d "${TMPDIR:-/tmp}/atc-test-home-XXXXXX")
+# macOS sets TMPDIR with a trailing slash; trimming it keeps every exported
+# path in the normalized form the preload compares against.
+tmp="${TMPDIR:-/tmp}"
+root=$(mktemp -d "${tmp%/}/atc-test-home-XXXXXX")
 trap 'rm -rf "$root"' EXIT
 
 mkdir -p "$root/home" "$root/runtime"

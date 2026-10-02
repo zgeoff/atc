@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { realpathSync } from 'node:fs';
+import { mkdirSync, realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { GatewayAdapter } from '../src/agents/gateway-adapter';
 import { resolveAgentHome } from '../src/agents/resolve-agent-home';
@@ -117,4 +117,36 @@ test('it refuses to run under a test-home marker whose paths do not match it', (
 
   expect(nested.exitCode).not.toBe(0);
   expect(nested.stderr.toString()).toInclude('does not match the test home it marks');
+});
+
+test('it accepts the test home the package script sets up under a temp directory ending in a slash', () => {
+  const root = process.env['ATC_TEST_HOME'];
+
+  if (root === undefined) {
+    throw new Error('the test home fixture is not in place');
+  }
+
+  const tmp = join(root, 'slash-tmp');
+
+  mkdirSync(tmp);
+
+  const nested = Bun.spawnSync(
+    [
+      'bash',
+      'scripts/with-test-home.sh',
+      'bun',
+      'test',
+      'test/isolate-home.test.ts',
+      '-t',
+      'no enclosing atc session',
+    ],
+    {
+      cwd: join(import.meta.dir, '..'),
+      env: { ...process.env, TMPDIR: `${tmp}/` },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+
+  expect(nested.exitCode).toBe(0);
 });

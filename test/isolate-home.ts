@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, normalize } from 'node:path';
 
 // Gives a test run its own home before any test imports atc. The package
 // test scripts set it up before Bun starts and mark it with ATC_TEST_HOME;
@@ -44,7 +44,7 @@ function assertTestHome(root: string): void {
   };
 
   const mismatched = Object.entries(expected)
-    .filter(([name, path]) => process.env[name] !== path)
+    .filter(([name, path]) => normalize(process.env[name] ?? '') !== path)
     .map(([name]) => name);
 
   const leftover = ['ATC_SESSION_ID', 'ATC_SOCKET'].filter((name) => name in process.env);

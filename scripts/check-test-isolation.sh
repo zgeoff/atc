@@ -11,7 +11,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-outer=$(mktemp -d "${TMPDIR:-/tmp}/atc-canary-XXXXXX")
+tmp="${TMPDIR:-/tmp}"
+outer=$(mktemp -d "${tmp%/}/atc-canary-XXXXXX")
 trap 'rm -rf "$outer"' EXIT
 
 home="$outer/home"
