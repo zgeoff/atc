@@ -2,15 +2,17 @@
 
 ## [2.8.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.7.0...@zgeoff/atc@2.8.0) (2026-10-02)
 
-
 ### Features
 
-* **agents:** load an atc mod into every claude session ([#111](https://github.com/zgeoff/atc/issues/111)) ([bfd9923](https://github.com/zgeoff/atc/commit/bfd99237ad8fbad605774f1b9ea5678d8488d468))
-
+- **agents:** load an atc mod into every claude session
+  ([#111](https://github.com/zgeoff/atc/issues/111))
+  ([bfd9923](https://github.com/zgeoff/atc/commit/bfd99237ad8fbad605774f1b9ea5678d8488d468))
 
 ### Bug Fixes
 
-* **daemon:** end every client connection when the daemon stops ([#118](https://github.com/zgeoff/atc/issues/118)) ([2c5e603](https://github.com/zgeoff/atc/commit/2c5e603f8cf194845e97851f341366a2c7e79059))
+- **daemon:** end every client connection when the daemon stops
+  ([#118](https://github.com/zgeoff/atc/issues/118))
+  ([2c5e603](https://github.com/zgeoff/atc/commit/2c5e603f8cf194845e97851f341366a2c7e79059))
 
 ## [2.7.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.6.0...@zgeoff/atc@2.7.0) (2026-10-02)
 
