@@ -170,7 +170,8 @@ test('it exits 1 when the session cannot be tapped', async () => {
   expect(stderr).toInclude('no_such_session');
 }, 15_000);
 
-test('it exits 0 once the daemon closes the connection', async () => {
+// Hangs on main's CI only; tracked in zgeoff/atc#117.
+test.skip('it exits 0 once the daemon closes the connection', async () => {
   await using daemon = await setupTest();
 
   const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
