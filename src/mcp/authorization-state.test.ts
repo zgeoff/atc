@@ -55,7 +55,7 @@ test('it drops a pending request after the fifth wrong code', () => {
   expect(state.verifyApprovalCode(approval.id, approval.approvalCode)).toBe('locked');
 });
 
-test("it replaces a client's waiting approval with its new one", () => {
+test("it drops a client's oldest waiting approval when it starts a fourth", () => {
   const state = new AuthorizationState({ pendingMs: 600_000, codeMs: 60_000 }, () => 1000);
 
   const request = {
@@ -72,35 +72,7 @@ test("it replaces a client's waiting approval with its new one", () => {
     resource: 'https://atc.example/mcp',
   };
 
-  const first = state.createPending(request);
-  const second = state.createPending(request);
-
-  if (first === null || second === null) {
-    throw new Error('an approval was refused');
-  }
-
-  expect(state.findPending(first.id)).toBeNull();
-  expect(state.findPending(second.id)).toBe(second);
-});
-
-test('it drops the oldest waiting approval to make room for a sixth client', () => {
-  const state = new AuthorizationState({ pendingMs: 600_000, codeMs: 60_000 }, () => 1000);
-
-  const created = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6'].map((clientID) =>
-    state.createPending({
-      client: {
-        clientID,
-        name: clientID,
-        redirectURIs: ['https://dots.example/cb'],
-        verified: false,
-      },
-      redirectURI: 'https://dots.example/cb',
-      state: null,
-      codeChallenge: 'challenge',
-      scopes: ['read'],
-      resource: 'https://atc.example/mcp',
-    }),
-  );
+  const created = Array.from({ length: 4 }, () => state.createPending(request));
 
   const found = created.map((approval) => {
     if (approval === null) {
@@ -113,36 +85,66 @@ test('it drops the oldest waiting approval to make room for a sixth client', () 
   expect(found).toStrictEqual(created.with(0, null));
 });
 
-test("it refuses a client's twenty-first approval within an hour while another client still starts one", () => {
-  const state = new AuthorizationState({ pendingMs: 600_000, codeMs: 60_000 }, () => 1000);
+test('it drops the oldest waiting approval to make room for a seventeenth', () => {
+  let now = 1000;
 
-  const request = {
-    client: {
-      clientID: 'c1',
-      name: 'dots',
-      redirectURIs: ['https://dots.example/cb'],
-      verified: false,
-    },
-    redirectURI: 'https://dots.example/cb',
-    state: null,
-    codeChallenge: 'challenge',
-    scopes: ['read' as const],
-    resource: 'https://atc.example/mcp',
-  };
+  const state = new AuthorizationState({ pendingMs: 600_000, codeMs: 60_000 }, () => now);
 
-  const created = Array.from({ length: 20 }, () => state.createPending(request));
+  const created = Array.from({ length: 17 }, (_, index) => {
+    now = 1000 + index * 7000;
 
-  const other = state.createPending({
-    ...request,
-    client: { ...request.client, clientID: 'c2' },
+    return state.createPending({
+      client: {
+        clientID: `c${index}`,
+        name: `c${index}`,
+        redirectURIs: ['https://dots.example/cb'],
+        verified: false,
+      },
+      redirectURI: 'https://dots.example/cb',
+      state: null,
+      codeChallenge: 'challenge',
+      scopes: ['read'],
+      resource: 'https://atc.example/mcp',
+    });
   });
 
-  expect(created).toSatisfyAll((approval) => approval !== null);
-  expect(state.createPending(request)).toBeNull();
-  expect(other).not.toBeNull();
+  now = 1000 + 16 * 7000;
+
+  const found = created.map((approval) => {
+    if (approval === null) {
+      throw new Error('an approval was refused');
+    }
+
+    return state.findPending(approval.id);
+  });
+
+  expect(found).toStrictEqual(created.with(0, null));
 });
 
-test('it lets a client start approvals again an hour after its budget ran out', () => {
+test('it refuses an eleventh approval started within a minute', () => {
+  const state = new AuthorizationState({ pendingMs: 600_000, codeMs: 60_000 }, () => 1000);
+
+  const created = Array.from({ length: 11 }, (_, index) =>
+    state.createPending({
+      client: {
+        clientID: `c${index}`,
+        name: `c${index}`,
+        redirectURIs: ['https://dots.example/cb'],
+        verified: false,
+      },
+      redirectURI: 'https://dots.example/cb',
+      state: null,
+      codeChallenge: 'challenge',
+      scopes: ['read'],
+      resource: 'https://atc.example/mcp',
+    }),
+  );
+
+  expect(created.slice(0, 10)).toSatisfyAll((approval) => approval !== null);
+  expect(created[10]).toBeNull();
+});
+
+test('it starts approvals again a minute after the limit was reached', () => {
   let now = 1000;
 
   const state = new AuthorizationState({ pendingMs: 600_000, codeMs: 60_000 }, () => now);
@@ -161,9 +163,9 @@ test('it lets a client start approvals again an hour after its budget ran out', 
     resource: 'https://atc.example/mcp',
   };
 
-  Array.from({ length: 20 }, () => state.createPending(request));
+  Array.from({ length: 10 }, () => state.createPending(request));
 
-  now = 1000 + 3_600_000;
+  now = 1000 + 60_000;
 
   expect(state.createPending(request)).not.toBeNull();
 });

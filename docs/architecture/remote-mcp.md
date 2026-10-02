@@ -67,10 +67,11 @@ A client connects in 5 stages:
 4. Approval. You type the code and choose the scopes. The page starts with only `read` checked;
    `message` lets the client instruct your agents, which can run commands, so it starts unchecked
    with `spawn` and `kill`. A wrong code shows the page again, and the fifth wrong code ends the
-   request. Each client holds at most one waiting approval, and a new one replaces it. At most 5
-   approvals wait at once, and a sixth drops the oldest. Each client starts at most 20 per hour, and
-   each approval waits 10 minutes. Approving redirects back with an authorization code; denying, or
-   approving with no scope checked, redirects back with `access_denied`.
+   request. Each client holds at most 3 waiting approvals, and a fourth drops its oldest. At most 16
+   approvals wait at once, and a seventeenth drops the oldest. At most 10 approvals start per minute
+   across every client, which bounds how fast approval lines print. Each approval waits 10 minutes.
+   Approving redirects back with an authorization code; denying, or approving with no scope checked,
+   redirects back with `access_denied`.
 5. Token exchange. `POST /token` exchanges the code within 60 seconds. The request must present the
    same `client_id` and `redirect_uri` as the authorization request and a `code_verifier` matching
    its S256 challenge. A code is exchangeable once; a second exchange fails and revokes the grant

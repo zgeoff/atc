@@ -90,7 +90,7 @@ export async function answerAuthorizeRequest(
   if (approval === null) {
     return buildErrorRedirect(
       'temporarily_unavailable',
-      'this client started too many approvals in the last hour; try again later',
+      'too many approvals started in the last minute; try again shortly',
     );
   }
 

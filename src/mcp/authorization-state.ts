@@ -57,23 +57,22 @@ type CodeClaim =
   | { readonly kind: 'reused'; readonly grantID: string | null }
   | { readonly kind: 'unknown' };
 
-// At most this many approvals wait at once across every client, each client
-// holds at most one, and each client starts at most this many per hour.
-const MAX_PENDING = 5;
-const MAX_PER_CLIENT_PER_HOUR = 20;
+// At most this many approvals wait at once across every client, and each
+// client holds at most this many. Across every client, at most this many
+// approvals start per minute, which bounds how fast approval lines print.
+const MAX_PENDING = 16;
+const MAX_PENDING_PER_CLIENT = 3;
+const MAX_STARTS_PER_MINUTE = 10;
 const MAX_ATTEMPTS = 5;
-
-// How many clients' hourly starts are remembered at once; past this, the
-// client that started one least recently is forgotten.
-const MAX_TRACKED_CLIENTS = 1000;
-const HOUR_MS = 3_600_000;
+const MINUTE_MS = 60_000;
 
 /**
  * The authorization server's short-lived state, held in memory by the HTTP
  * process: approvals waiting for the operator, and authorization codes waiting
- * for exchange. A client's new approval replaces its waiting one, and a full
- * set of waiting approvals makes room by dropping the oldest, so no client can
- * hold the operator's approvals hostage. Codes are kept by hash and stay after
+ * for exchange. A client's new approval past its limit drops that client's
+ * oldest, and a full set of waiting approvals makes room by dropping the
+ * oldest overall, so no client can hold the operator's approvals hostage and
+ * a refused start lasts at most a minute. Codes are kept by hash and stay after
  * exchange until they expire, so a second exchange is recognized as reuse.
  */
 export class AuthorizationState {
@@ -85,32 +84,32 @@ export class AuthorizationState {
 
   private readonly codes = new Map<string, CodeEntry>();
 
-  // Each client's approval start times within the last hour, least recently
-  // started client first.
-  private readonly startedAt = new Map<string, readonly number[]>();
+  // Approval start times within the last minute, oldest first.
+  private startedAt: readonly number[] = [];
 
   constructor(limits: AuthorizationLimits, now: () => number) {
     this.limits = limits;
     this.now = now;
   }
 
-  // Returns null when the client has used its hourly budget.
+  // Returns null when the last minute already holds its share of starts.
   createPending(request: AuthorizationRequest): PendingApproval | null {
     const now = this.now();
     const clientID = request.client.clientID;
 
     this.removeExpired(now);
 
-    const recent = (this.startedAt.get(clientID) ?? []).filter((at) => now - at < HOUR_MS);
+    this.startedAt = this.startedAt.filter((at) => now - at < MINUTE_MS);
 
-    if (recent.length >= MAX_PER_CLIENT_PER_HOUR) {
+    if (this.startedAt.length >= MAX_STARTS_PER_MINUTE) {
       return null;
     }
 
-    for (const [id, approval] of this.pending) {
-      if (approval.client.clientID === clientID) {
-        this.pending.delete(id);
-      }
+    const own = [...this.pending].filter(([, approval]) => approval.client.clientID === clientID);
+    const [ownOldest] = own;
+
+    if (own.length >= MAX_PENDING_PER_CLIENT && ownOldest !== undefined) {
+      this.pending.delete(ownOldest[0]);
     }
 
     const oldest = this.pending.keys().next();
@@ -128,7 +127,8 @@ export class AuthorizationState {
     };
 
     this.pending.set(approval.id, approval);
-    this.recordStart(clientID, [...recent, now]);
+
+    this.startedAt = [...this.startedAt, now];
 
     return approval;
   }
@@ -216,12 +216,6 @@ export class AuthorizationState {
   }
 
   private removeExpired(now: number): void {
-    for (const [clientID, starts] of this.startedAt) {
-      if (starts.every((at) => now - at >= HOUR_MS)) {
-        this.startedAt.delete(clientID);
-      }
-    }
-
     for (const [id, approval] of this.pending) {
       if (approval.expiresAt <= now) {
         this.pending.delete(id);
@@ -232,17 +226,6 @@ export class AuthorizationState {
       if (entry.code.expiresAt <= now) {
         this.codes.delete(hash);
       }
-    }
-  }
-
-  private recordStart(clientID: string, starts: readonly number[]): void {
-    this.startedAt.delete(clientID);
-    this.startedAt.set(clientID, starts);
-
-    const leastRecent = this.startedAt.keys().next();
-
-    if (this.startedAt.size > MAX_TRACKED_CLIENTS && leastRecent.done !== true) {
-      this.startedAt.delete(leastRecent.value);
     }
   }
 }
