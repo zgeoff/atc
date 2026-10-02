@@ -12,10 +12,15 @@ interface WorkspaceTar {
  * relative to the directory. The archive is read as it is produced and never
  * written to disk. A failure partway through still ends the stream, so a
  * consumer drains it and then awaits the outcome before trusting what it
- * received.
+ * received. Options the host passes to GNU tar through `TAR_OPTIONS` are
+ * ignored, since one could follow symlinks out of the directory or leave
+ * files out.
  */
 export function readWorkspaceTar(dir: string): WorkspaceTar {
+  const { TAR_OPTIONS: _ignored, ...env } = process.env;
+
   const proc = Bun.spawn(['tar', '-c', '-f', '-', '-C', dir, '.'], {
+    env,
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',

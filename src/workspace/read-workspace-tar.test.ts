@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
@@ -71,4 +71,67 @@ test('it reports a directory tar cannot read', async () => {
   const outcome = await tar.done;
 
   expect(outcome).toMatchObject({ ok: false, code: 'tar_failed' });
+});
+
+// TAR_OPTIONS reaches tar through the environment a process starts with, so
+// these tests archive from a child process that starts with it set.
+test('it archives a tracked symlink as a link when the host asks tar to dereference', async () => {
+  await using project = await setupTest();
+
+  await writeFile(join(project.dir, 'outside.txt'), 'atc-outside-marker-7f3a\n');
+  await symlink(join(project.dir, 'outside.txt'), join(project.work, 'link'));
+
+  await $`git add link`.env(project.env).cwd(project.work).quiet();
+  await $`git commit --quiet -m link`.env(project.env).cwd(project.work).quiet();
+
+  await writeFile(
+    join(project.dir, 'archive.ts'),
+    `import { readWorkspaceTar } from ${JSON.stringify(join(import.meta.dir, 'read-workspace-tar.ts'))};\nconst tar = readWorkspaceTar(${JSON.stringify(project.work)});\nawait Bun.write(${JSON.stringify(join(project.dir, 'workspace.tar'))}, new Response(tar.stream));\nconsole.log(JSON.stringify(await tar.done));\n`,
+  );
+
+  const outcome = await $`${process.execPath} ${join(project.dir, 'archive.ts')}`
+    .env({ ...project.env, TAR_OPTIONS: '--dereference' })
+    .text();
+
+  const unpacked = join(project.dir, 'unpacked');
+
+  await mkdir(unpacked);
+
+  await $`tar -x -f ${join(project.dir, 'workspace.tar')} -C ${unpacked}`.env(project.env).quiet();
+
+  const link = await lstat(join(unpacked, 'link'));
+  const archive = await readFile(join(project.dir, 'workspace.tar'));
+
+  expect(outcome).toBe('{"ok":true}\n');
+  expect(link.isSymbolicLink()).toBeTrue();
+  expect(archive.includes('atc-outside-marker-7f3a')).toBeFalse();
+});
+
+test('it archives every tracked file when the host asks tar to exclude some', async () => {
+  await using project = await setupTest();
+
+  await writeFile(join(project.work, 'notes.txt'), 'kept\n');
+
+  await $`git add notes.txt`.env(project.env).cwd(project.work).quiet();
+  await $`git commit --quiet -m notes`.env(project.env).cwd(project.work).quiet();
+
+  await writeFile(
+    join(project.dir, 'archive.ts'),
+    `import { readWorkspaceTar } from ${JSON.stringify(join(import.meta.dir, 'read-workspace-tar.ts'))};\nconst tar = readWorkspaceTar(${JSON.stringify(project.work)});\nawait Bun.write(${JSON.stringify(join(project.dir, 'workspace.tar'))}, new Response(tar.stream));\nconsole.log(JSON.stringify(await tar.done));\n`,
+  );
+
+  const outcome = await $`${process.execPath} ${join(project.dir, 'archive.ts')}`
+    .env({ ...project.env, TAR_OPTIONS: '--exclude=*.txt' })
+    .text();
+
+  const unpacked = join(project.dir, 'unpacked');
+
+  await mkdir(unpacked);
+
+  await $`tar -x -f ${join(project.dir, 'workspace.tar')} -C ${unpacked}`.env(project.env).quiet();
+
+  const notes = await readFile(join(unpacked, 'notes.txt'), 'utf8');
+
+  expect(outcome).toBe('{"ok":true}\n');
+  expect(notes).toBe('kept\n');
 });

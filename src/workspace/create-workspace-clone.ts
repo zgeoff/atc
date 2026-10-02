@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { checkWorkspaceCompleteness } from './check-workspace-completeness';
 import { runGit } from './run-git';
 import type { WorkspaceSource } from './workspace-source';
 
@@ -27,12 +28,23 @@ interface CloneRefusal {
   readonly message: string;
 }
 
+type IncompleteCheckout = Exclude<
+  Awaited<ReturnType<typeof checkWorkspaceCompleteness>>,
+  { readonly ok: true }
+>;
+
 /**
  * Clones a repository into an empty directory and checks out the commit its
  * ref points at that moment. A branch ref is checked out as that branch; a tag
  * or a full commit id leaves HEAD detached at the commit. The clone copies
  * objects rather than hard-linking them, takes no hook templates, and runs no
  * hooks on checkout.
+ *
+ * The checked-out commit must be the whole workspace: one that uses
+ * submodules or tracks paths through Git LFS is refused and the directory is
+ * removed. The clone fetches without checking out, and the checkout then
+ * runs isolated from the host's system and global git config, so no filter
+ * the host configured, LFS or otherwise, runs or reaches the network.
  *
  * Without a credential, git authenticates through the host's own git
  * config. An env credential is read from the named variable and handed to git
@@ -43,7 +55,7 @@ interface CloneRefusal {
  */
 export async function createWorkspaceClone(
   request: CloneRequest,
-): Promise<CloneRefusal | CreatedClone> {
+): Promise<CloneRefusal | CreatedClone | IncompleteCheckout> {
   const askpass = await createAskpass(request.credential);
 
   if (!askpass.ok) {
@@ -112,7 +124,7 @@ async function createCloneAtRef(
   request: CloneRequest,
   env: Readonly<Record<string, string>>,
   args: readonly string[],
-): Promise<CloneRefusal | CreatedClone> {
+): Promise<CloneRefusal | CreatedClone | IncompleteCheckout> {
   const target = await resolveRef(request.source, env, args);
 
   if (!target.ok) {
@@ -147,11 +159,21 @@ async function createCloneAtRef(
       '--quiet',
       ...(target.branch === null ? ['--detach', target.sha] : ['-B', target.branch, target.sha]),
     ],
-    { cwd: request.dir },
+    { cwd: request.dir, isolated: true },
   );
 
   if (checkout.exitCode !== 0) {
+    await rm(request.dir, { recursive: true, force: true });
+
     return { ok: false, code: 'clone_failed', message: checkout.stderr.trim() };
+  }
+
+  const complete = await checkWorkspaceCompleteness(request.dir, target.sha);
+
+  if (!complete.ok) {
+    await rm(request.dir, { recursive: true, force: true });
+
+    return complete;
   }
 
   return { ok: true, sha: target.sha, branch: target.branch };

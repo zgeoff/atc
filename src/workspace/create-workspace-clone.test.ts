@@ -309,3 +309,109 @@ test.skipIf(process.platform !== 'linux')(
     expect(config).not.toInclude('tok-4f9c2e');
   },
 );
+
+test('it refuses a git source whose commit holds a gitlink and leaves no directory', async () => {
+  await using project = await setupTest();
+
+  const head = await $`git rev-parse HEAD`.env(project.env).cwd(project.work).text();
+
+  await $`git update-index --add --cacheinfo ${`160000,${head.trim()},vendored`}`
+    .env(project.env)
+    .cwd(project.work)
+    .quiet();
+
+  await $`git commit --quiet -m gitlink`.env(project.env).cwd(project.work).quiet();
+  await $`git push --quiet origin main`.env(project.env).cwd(project.work).quiet();
+
+  const clone = await createWorkspaceClone({
+    source: { kind: 'git', url: project.upstream, ref: 'main' },
+    dir: join(project.dir, 'clone'),
+  });
+
+  expect(clone).toMatchObject({ ok: false, code: 'has_submodules' });
+  expect(existsSync(join(project.dir, 'clone'))).toBeFalse();
+});
+
+test('it refuses a git source that tracks LFS paths without running the host LFS filter', async () => {
+  await using project = await setupTest();
+
+  await writeFile(
+    join(project.work, '.gitattributes'),
+    '*.bin filter=lfs diff=lfs merge=lfs -text\n',
+  );
+
+  await writeFile(
+    join(project.work, 'asset.bin'),
+    'version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 12345\n',
+  );
+
+  await $`git add .gitattributes asset.bin`.env(project.env).cwd(project.work).quiet();
+  await $`git commit --quiet -m lfs`.env(project.env).cwd(project.work).quiet();
+  await $`git push --quiet origin main`.env(project.env).cwd(project.work).quiet();
+
+  const marker = join(project.dir, 'filter-ran');
+
+  await writeFile(join(project.dir, 'trap'), `#!/bin/sh\necho ran >> ${marker}\ncat\n`, {
+    mode: 0o755,
+  });
+
+  await writeFile(
+    join(project.dir, 'gitconfig'),
+    `[filter "lfs"]\n\tsmudge = ${join(project.dir, 'trap')}\n\tprocess = ${join(project.dir, 'trap')}\n\trequired = true\n`,
+  );
+
+  process.env['GIT_CONFIG_GLOBAL'] = join(project.dir, 'gitconfig');
+
+  onTestFinished(() => {
+    delete process.env['GIT_CONFIG_GLOBAL'];
+  });
+
+  const clone = await createWorkspaceClone({
+    source: { kind: 'git', url: project.upstream, ref: 'main' },
+    dir: join(project.dir, 'clone'),
+  });
+
+  expect(clone).toMatchObject({
+    ok: false,
+    code: 'lfs_unsupported',
+    count: 1,
+    paths: ['asset.bin'],
+  });
+
+  expect(existsSync(marker)).toBeFalse();
+  expect(existsSync(join(project.dir, 'clone'))).toBeFalse();
+});
+
+test('it checks out without running a filter from the host global git config', async () => {
+  await using project = await setupTest();
+
+  const marker = join(project.dir, 'filter-ran');
+
+  await writeFile(join(project.dir, 'trap'), `#!/bin/sh\necho ran >> ${marker}\ncat\n`, {
+    mode: 0o755,
+  });
+
+  await writeFile(join(project.dir, 'attributes'), '* filter=trap\n');
+
+  await writeFile(
+    join(project.dir, 'gitconfig'),
+    `[core]\n\tattributesFile = ${join(project.dir, 'attributes')}\n[filter "trap"]\n\tsmudge = ${join(project.dir, 'trap')}\n`,
+  );
+
+  process.env['GIT_CONFIG_GLOBAL'] = join(project.dir, 'gitconfig');
+
+  onTestFinished(() => {
+    delete process.env['GIT_CONFIG_GLOBAL'];
+  });
+
+  const clone = await createWorkspaceClone({
+    source: { kind: 'git', url: project.upstream, ref: 'main' },
+    dir: join(project.dir, 'clone'),
+  });
+
+  const readme = await readFile(join(project.dir, 'clone', 'README.md'), 'utf8');
+
+  expect(clone).toMatchObject({ ok: true, branch: 'main' });
+  expect(existsSync(marker)).toBeFalse();
+  expect(readme).toBe('hello\n');
+});
