@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { parseConfig } from './config';
+import { parseConfig, renderDefaultConfig } from './config';
 
 test('it falls back to every default when the file is not an object', () => {
   expect(parseConfig(null)).toStrictEqual({
@@ -15,6 +15,9 @@ test('it falls back to every default when the file is not an object', () => {
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    configWarnings: [],
   });
 });
 
@@ -32,6 +35,9 @@ test.each([[null], [undefined], [[]], ['garbage'], [42]])(
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+      defaultTarget: 'local',
+      configWarnings: [],
     });
   },
 );
@@ -56,6 +62,9 @@ test('it falls back field by field when a field is wrong-typed instead of failin
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    configWarnings: [],
   });
 });
 
@@ -98,4 +107,48 @@ test('it collects the configured directory roots with the home directory expande
   const config = parseConfig({ dirs: { roots: ['~/projects/', '/srv/work', 7, ''] } });
 
   expect(config.dirs).toStrictEqual({ roots: [join(homedir(), 'projects'), '/srv/work'] });
+});
+
+test('it reads the targets and default target a config sets', () => {
+  const config = parseConfig({
+    targets: { local: { provider: 'local-pty' }, box: { provider: 'imp', image: 'dev' } },
+    defaultTarget: 'box',
+  });
+
+  expect({
+    targets: config.targets,
+    defaultTarget: config.defaultTarget,
+    configWarnings: config.configWarnings,
+  }).toStrictEqual({
+    targets: [
+      { id: 'local', provider: 'local-pty', options: {} },
+      { id: 'box', provider: 'imp', options: { image: 'dev' } },
+    ],
+    defaultTarget: 'box',
+    configWarnings: [],
+  });
+});
+
+test('it falls back to local with a warning instead of throwing for malformed targets', () => {
+  const config = parseConfig({ claudeBin: 'my-claude', targets: ['local'] });
+
+  expect({
+    claudeBin: config.claudeBin,
+    targets: config.targets,
+    defaultTarget: config.defaultTarget,
+    configWarnings: config.configWarnings,
+  }).toStrictEqual({
+    claudeBin: 'my-claude',
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    configWarnings: ["targets must be a non-empty object of named targets; using only 'local'"],
+  });
+});
+
+test('it reads the config a first run writes back as the defaults, without warnings', () => {
+  const written: unknown = JSON.parse(renderDefaultConfig());
+  const config = parseConfig(written);
+
+  expect(config).toStrictEqual(parseConfig({}));
+  expect(config.configWarnings).toStrictEqual([]);
 });

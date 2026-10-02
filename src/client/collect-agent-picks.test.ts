@@ -39,6 +39,9 @@ test('it lists only the agents whose configured binary resolves', () => {
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+      defaultTarget: 'local',
+      configWarnings: [],
     }),
   ).toStrictEqual([
     { agent: 'claude', label: 'Claude' },
@@ -68,6 +71,9 @@ test('it resolves a bare binary name off PATH', () => {
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+      defaultTarget: 'local',
+      configWarnings: [],
     }),
   ).toStrictEqual([{ agent: 'grok', label: 'Grok' }]);
 });
@@ -87,6 +93,9 @@ test('it leaves out a binary that exists without the executable bit', () => {
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+      defaultTarget: 'local',
+      configWarnings: [],
     }),
   ).toStrictEqual([]);
 });
@@ -116,6 +125,9 @@ test('it lists a configured backend after the built-in agents', () => {
       ],
       hooks: {},
       leader: { code: 0, label: '^Space' },
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+      defaultTarget: 'local',
+      configWarnings: [],
     }),
   ).toStrictEqual([
     { agent: 'claude', label: 'Claude' },
@@ -148,6 +160,9 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
       ],
       hooks: {},
       leader: { code: 0, label: '^Space' },
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+      defaultTarget: 'local',
+      configWarnings: [],
     }),
   ).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
 });

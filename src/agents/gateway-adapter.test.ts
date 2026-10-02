@@ -20,6 +20,9 @@ function buildGatewayAdapter(): GatewayAdapter {
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    configWarnings: [],
   };
 
   return new GatewayAdapter(
@@ -111,6 +114,9 @@ test('it hands a headless run the settings file and the folder of the atc-bridge
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+      defaultTarget: 'local',
+      configWarnings: [],
     },
     (opts) => {
       received = { ...opts };
@@ -160,6 +166,9 @@ test('it profiles a gateway with only the model names its env sets', () => {
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+      defaultTarget: 'local',
+      configWarnings: [],
     },
   );
 

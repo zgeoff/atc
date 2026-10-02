@@ -452,6 +452,9 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    configWarnings: [],
   });
 
   const daemon = await startDaemon({
@@ -509,6 +512,9 @@ test('it yanks a grok session by id and without an id', async () => {
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    configWarnings: [],
   });
 
   const daemon = await startDaemon({
@@ -593,6 +599,9 @@ test('it revives a grok session from a captured id when summary.json is missing'
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    configWarnings: [],
   });
 
   const daemon = await startDaemon({
@@ -668,6 +677,9 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    configWarnings: [],
   });
 
   const daemon = await startDaemon({

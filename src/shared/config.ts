@@ -8,6 +8,8 @@ import { collectGateways } from './collect-gateways';
 import type { GatewayConfig } from './collect-gateways';
 import { collectHooks } from './collect-hooks';
 import type { HooksConfig } from './collect-hooks';
+import { collectTargets } from './collect-targets';
+import type { TargetConfig } from './collect-targets';
 import { resolveHomeDir } from './resolve-home-dir';
 
 export interface Config {
@@ -21,6 +23,13 @@ export interface Config {
   gateways: GatewayConfig[];
   hooks: HooksConfig;
   leader: LeaderKey;
+
+  // Where sessions run, and the one a spawn without a target runs on.
+  targets: readonly TargetConfig[];
+  defaultTarget: string;
+
+  // One line per config problem a field fell back from.
+  configWarnings: readonly string[];
 }
 
 /**
@@ -47,6 +56,9 @@ const DEFAULTS: Config = {
   gateways: [],
   hooks: {},
   leader: { code: 0, label: '^Space' },
+  targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+  defaultTarget: 'local',
+  configWarnings: [],
 };
 
 const configDir = join(resolveHomeDir(), '.config', 'atc');
@@ -80,6 +92,8 @@ const CONFIG_SCHEMA = z.object({
   gateways: z.unknown().optional(),
   hooks: z.unknown().optional(),
   leader: buildOptionalString(),
+  targets: z.unknown().optional(),
+  defaultTarget: z.unknown().optional(),
 });
 
 export function loadConfig(): Config {
@@ -89,7 +103,7 @@ export function loadConfig(): Config {
   const file = configFile;
 
   if (!existsSync(file)) {
-    writeFileSync(file, `${JSON.stringify(DEFAULTS, null, 2)}\n`);
+    writeFileSync(file, renderDefaultConfig());
 
     return { ...DEFAULTS };
   }
@@ -99,6 +113,22 @@ export function loadConfig(): Config {
   } catch {
     return { ...DEFAULTS };
   }
+}
+
+/**
+ * The config.json text a first run writes. It leaves out the targets, so the
+ * file holds the one implicit `local` target until the user sets their own,
+ * and the problems a parse reports, which belong to no file.
+ */
+export function renderDefaultConfig(): string {
+  const {
+    targets: _targets,
+    defaultTarget: _default,
+    configWarnings: _warnings,
+    ...written
+  } = DEFAULTS;
+
+  return `${JSON.stringify(written, null, 2)}\n`;
 }
 
 /**
@@ -123,6 +153,7 @@ export function parseConfig(raw: unknown): Config {
   const dirs = { roots: collectDirRoots(parsed.data.dirs) };
   const gateways = collectGateways(parsed.data.gateways, claudeBin, claudeArgs);
   const hooks = collectHooks(parsed.data.hooks);
+  const targets = collectTargets(parsed.data.targets, parsed.data.defaultTarget);
 
   const leader =
     (parsed.data.leader === undefined ? null : decodeLeader(parsed.data.leader)) ?? DEFAULTS.leader;
@@ -138,6 +169,9 @@ export function parseConfig(raw: unknown): Config {
     gateways,
     hooks,
     leader,
+    targets: targets.targets,
+    defaultTarget: targets.defaultTarget,
+    configWarnings: targets.warnings,
   };
 }
 

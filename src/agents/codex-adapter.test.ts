@@ -19,6 +19,9 @@ function buildCodexConfig(): Config {
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    configWarnings: [],
   };
 }
 

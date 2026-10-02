@@ -17,18 +17,20 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 }
 ```
 
-| Field        | Default         | Meaning                                                                                                                |
-| ------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `claudeBin`  | `"claude"`      | The binary spawned for Claude sessions.                                                                                |
-| `claudeArgs` | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`. A spawn's own model or effort replaces the matching flag. |
-| `grokBin`    | `"grok"`        | The binary spawned for Grok sessions.                                                                                  |
-| `grokArgs`   | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`.            |
-| `codexBin`   | `"codex"`       | The binary spawned for Codex sessions.                                                                                 |
-| `codexArgs`  | `[]`            | Prepended to every Codex spawn. A spawn's own model replaces a `-m` or `--model` here.                                 |
-| `dirs`       | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.            |
-| `gateways`   | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                           |
-| `hooks`      | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                    |
-| `leader`     | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                  |
+| Field           | Default         | Meaning                                                                                                                |
+| --------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `claudeBin`     | `"claude"`      | The binary spawned for Claude sessions.                                                                                |
+| `claudeArgs`    | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`. A spawn's own model or effort replaces the matching flag. |
+| `grokBin`       | `"grok"`        | The binary spawned for Grok sessions.                                                                                  |
+| `grokArgs`      | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`.            |
+| `codexBin`      | `"codex"`       | The binary spawned for Codex sessions.                                                                                 |
+| `codexArgs`     | `[]`            | Prepended to every Codex spawn. A spawn's own model replaces a `-m` or `--model` here.                                 |
+| `dirs`          | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.            |
+| `gateways`      | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                           |
+| `hooks`         | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                    |
+| `leader`        | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                  |
+| `targets`       | unset           | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                     |
+| `defaultTarget` | unset           | The target a spawn without a target runs on.                                                                           |
 
 ## Leader
 
@@ -57,6 +59,41 @@ Typed input that starts with `/`, `~`, `.`, or `..` completes against the filesy
 filtering the list: `~/pro` lists the directories under your home that start with `pro`, and a
 trailing slash lists every child. A relative path resolves against the directory you ran `atc` from.
 Hidden directories complete only when the typed segment starts with a dot.
+
+## Targets
+
+A target is a named place sessions run, served by an execution provider. With no `targets` key, atc
+has one target, `local`, which runs each session on the daemon's own machine. Set `targets` to name
+your own:
+
+```json
+{
+  "targets": {
+    "local": { "provider": "local-pty" },
+    "box": { "provider": "imp", "image": "dev" }
+  },
+  "defaultTarget": "local"
+}
+```
+
+- `provider` selects the provider kind. `local-pty` is the one built-in kind. Every other key in the
+  entry is an option for that provider.
+- A target whose provider kind this atc does not have still lists, as unavailable, and a spawn to it
+  fails with `target_unavailable`.
+- A `targets` map without `local` turns local sessions off. A spawn without a target then runs on
+  `defaultTarget`, and a spawn to `local` fails with `unknown_target`.
+- `defaultTarget` falls back to `local` when it matches no target, or to the first target when the
+  map holds no `local`. Without `defaultTarget`, the same rule picks the default.
+
+atc never runs a session on a target other than the one it was sent to. A spawn to an unknown or
+unavailable target fails, and a restore lists a session whose target is gone as exited, with
+`no target '<target_id>'` as its last message. Revive it after you add the target back.
+
+A malformed `targets` falls back to `local` alone, never to a partial map: a `targets` that is not
+an object, an empty map, or a map with any entry that is not an object holding a non-empty string
+`provider`. Dropping only the bad entry could drop a mistyped `local` and turn local sessions off.
+The daemon prints each fallback to stderr when it starts, and `agents.list` returns them as
+`configWarnings`.
 
 ## Gateways
 
