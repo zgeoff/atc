@@ -116,9 +116,16 @@ export function buildScopedContext(
           ...list.spawnDefaults,
           target: defaultTarget !== null && canUseTarget(defaultTarget) ? defaultTarget : null,
         },
-        targetErrors: list.targetErrors.filter(
-          (error) => error.target === undefined || canUseTarget(error.target),
-        ),
+
+        // The config file's own problem holds a path on the daemon's host,
+        // which is the owner's alone.
+        targetErrors: list.targetErrors.filter((error) => {
+          if (error.scope === 'config') {
+            return false;
+          }
+
+          return error.target === undefined || canUseTarget(error.target);
+        }),
       };
     },
     collectFleet: async () => {
