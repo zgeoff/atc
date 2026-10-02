@@ -1,4 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { chmodSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { openMCPAuth } from './open-mcp-auth';
@@ -89,4 +90,36 @@ test('it refuses a resource an earlier public URL served', async () => {
   const location = new URL(answered.headers.get('location') ?? '/', 'https://new.example');
 
   expect(location.searchParams.get('error')).toBe('invalid_target');
+});
+
+test('it creates the database and its write-ahead log readable by their owner only', async () => {
+  using tmp = setupTempDir('atc-mcp-auth-');
+
+  const dbPath = join(tmp.dir, 'mcp-auth.db');
+
+  const store = await openMCPAuth({ dbPath, origin: null });
+
+  onTestFinished(async () => {
+    await store.close();
+  });
+
+  expect(statSync(dbPath).mode & 0o777).toBe(0o600);
+  expect(statSync(`${dbPath}-wal`).mode & 0o777).toBe(0o600);
+});
+
+test('it makes an existing database readable by its owner only', async () => {
+  using tmp = setupTempDir('atc-mcp-auth-');
+
+  const dbPath = join(tmp.dir, 'mcp-auth.db');
+
+  writeFileSync(dbPath, '', { mode: 0o644 });
+  chmodSync(dbPath, 0o644);
+
+  const store = await openMCPAuth({ dbPath, origin: null });
+
+  onTestFinished(async () => {
+    await store.close();
+  });
+
+  expect(statSync(dbPath).mode & 0o777).toBe(0o600);
 });

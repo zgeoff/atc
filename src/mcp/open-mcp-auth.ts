@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { randomBytes } from 'node:crypto';
+import { chmodSync, closeSync, openSync } from 'node:fs';
 import { mcp } from '@better-auth/mcp';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import type { OAuthOptions, Scope } from '@better-auth/oauth-provider';
@@ -36,16 +37,22 @@ const OWNER_SESSION_SECONDS = 3 * APPROVAL_SECONDS;
 
 /**
  * Opens the authorization server's SQLite database and the better-auth
- * instance over it, creating or updating its tables. better-auth runs the
- * OAuth 2.1 flows: fixed public clients, PKCE, opaque access tokens, rotating
- * refresh tokens, and revocation. Telemetry stays off whatever the
- * environment says.
+ * instance over it, creating or updating its tables, with the file readable
+ * and writable by its owner only. better-auth runs the OAuth 2.1 flows: fixed
+ * public clients, PKCE, opaque access tokens, rotating refresh tokens, and
+ * revocation. Telemetry stays off whatever the environment says.
  */
 export async function openMCPAuth(options: MCPAuthOptions) {
   // better-auth reads these when it builds its context; an empty endpoint
   // turns its telemetry into a no-op.
   process.env['BETTER_AUTH_TELEMETRY'] = '0';
   process.env['BETTER_AUTH_TELEMETRY_ENDPOINT'] = '';
+
+  // The file holds token hashes and owner sessions, so only its owner may
+  // read it. SQLite gives the WAL and shared-memory files the main file's
+  // mode, so the mode is set before SQLite opens it.
+  closeSync(openSync(options.dbPath, 'a', 0o600));
+  chmodSync(options.dbPath, 0o600);
 
   const sqlite = new Database(options.dbPath, { create: true });
 
