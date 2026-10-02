@@ -80,7 +80,10 @@ async function setupTest(options: SetupOptions = {}) {
     ...(options.tapGraceMs === undefined ? {} : { tapGraceMs: options.tapGraceMs }),
     dbPath,
     statusPath: join(tmp.dir, 'status.json'),
-    hooks: { SessionMessage: [{ command: `cat >> '${hookLog}'` }] },
+    hooks: {
+      SessionMessage: [{ command: `cat >> '${hookLog}'` }],
+      SessionReport: [{ command: `cat >> '${hookLog}'` }],
+    },
   });
 
   const events: EventMsg[] = [];
@@ -718,6 +721,89 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
 
   await waitFor(() => {
     expect(readFileSync(daemon.hookLog, 'utf8')).toInclude('"status":"accepted"');
+  });
+});
+
+test('it broadcasts a note from the reporter socket as SessionReport', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'need review' } })}\n`,
+    2000,
+  );
+
+  await waitFor(() => {
+    expect(daemon.events).toContainEqual({
+      v: 3,
+      ev: 'SessionReport',
+      s: id,
+      kind: 'blocked',
+      text: 'need review',
+      reportedAt: expect.any(Number),
+    });
+  });
+});
+
+test('it ignores a note from an unknown session', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: 'nope', event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'bogus' } })}\n`,
+    2000,
+  );
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'valid' } })}\n`,
+    2000,
+  );
+
+  await waitFor(() => {
+    expect(daemon.events).toPartiallyContain({ ev: 'SessionReport' });
+  });
+
+  const reported = daemon.events.filter((e) => e.ev === 'SessionReport');
+
+  expect(reported).toHaveLength(1);
+  expect(reported[0]).toMatchObject({ s: id, text: 'valid' });
+});
+
+test('it broadcasts SessionReport on the events socket', async () => {
+  await using daemon = await setupTest();
+  await using subscriber = await subscribeToSocketLines(daemon.eventsPath);
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'progress', text: 'halfway' } })}\n`,
+    2000,
+  );
+
+  await waitFor(() => {
+    expect(subscriber.lines.join('\n')).toInclude('"ev":"SessionReport"');
+  });
+});
+
+test('it runs SessionReport hooks with the event on stdin', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'decision', text: 'pick one' } })}\n`,
+    2000,
+  );
+
+  await waitFor(() => {
+    expect(readFileSync(daemon.hookLog, 'utf8')).toInclude('"ev":"SessionReport"');
   });
 });
 
