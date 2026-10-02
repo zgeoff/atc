@@ -57,6 +57,11 @@ const REPOSITORY_ENV_VARS: ReadonlySet<string> = new Set([
 
 function collectHostEnv(): Record<string, string | undefined> {
   return Object.fromEntries(
-    Object.entries(process.env).filter(([name]) => !REPOSITORY_ENV_VARS.has(name)),
+    Object.entries(process.env).filter(
+      ([name]) =>
+        !REPOSITORY_ENV_VARS.has(name) &&
+        !name.startsWith('GIT_CONFIG_KEY_') &&
+        !name.startsWith('GIT_CONFIG_VALUE_'),
+    ),
   );
 }

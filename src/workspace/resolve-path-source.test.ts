@@ -229,7 +229,7 @@ test('it refuses a checkout that uses submodules', async () => {
 test('it resolves the checkout it is given when a git hook exports another GIT_DIR', async () => {
   await using project = await setupTest();
 
-  await $`git init --quiet --template= ${join(project.dir, 'other')}`.env(project.env);
+  await $`git init --quiet --template= ${join(project.dir, 'other')}`.env(project.env).quiet();
 
   process.env['GIT_DIR'] = join(project.dir, 'other', '.git');
 
@@ -240,4 +240,28 @@ test('it resolves the checkout it is given when a git hook exports another GIT_D
   const resolved = await resolvePathSource(project.work);
 
   expect(resolved).toMatchObject({ ok: true, url: project.upstream, branch: 'main' });
+});
+
+test('it refuses a checkout whose HEAD tree cannot be listed', async () => {
+  await using project = await setupTest();
+
+  const tree = await $`git rev-parse HEAD^{tree}`.env(project.env).cwd(project.work).text();
+
+  const object = tree.trim();
+
+  await rm(join(project.work, '.git', 'objects', object.slice(0, 2), object.slice(2)));
+
+  const resolved = await resolvePathSource(project.work);
+
+  expect(resolved).toMatchObject({ ok: false, code: 'unreadable_tree' });
+});
+
+test('it refuses a checkout whose status cannot be read', async () => {
+  await using project = await setupTest();
+
+  await writeFile(join(project.work, '.git', 'index'), 'not an index');
+
+  const resolved = await resolvePathSource(project.work);
+
+  expect(resolved).toMatchObject({ ok: false, code: 'unreadable_tree' });
 });

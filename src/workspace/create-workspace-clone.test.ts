@@ -53,7 +53,7 @@ async function setupTest() {
 
       authorizations.push(authorization);
 
-      const entries = await readdir('/proc');
+      const entries = process.platform === 'linux' ? await readdir('/proc') : [];
 
       const parents = new Map<string, string>();
 
@@ -270,38 +270,42 @@ test('it refuses an env credential whose variable is unset', async () => {
   expect(clone).toMatchObject({ ok: false, code: 'credential_missing' });
 });
 
-test('it authenticates with an env credential that never reaches argv or outlives the clone', async () => {
-  await using project = await setupTest();
+// The argv and helper checks read /proc, which only Linux has.
+test.skipIf(process.platform !== 'linux')(
+  'it authenticates with an env credential that never reaches argv or outlives the clone',
+  async () => {
+    await using project = await setupTest();
 
-  process.env['ATC_TEST_GIT_TOKEN'] = 'tok-4f9c2e';
+    process.env['ATC_TEST_GIT_TOKEN'] = 'tok-4f9c2e';
 
-  onTestFinished(() => {
-    delete process.env['ATC_TEST_GIT_TOKEN'];
-  });
+    onTestFinished(() => {
+      delete process.env['ATC_TEST_GIT_TOKEN'];
+    });
 
-  const clone = await createWorkspaceClone({
-    source: { kind: 'git', url: project.httpURL, ref: 'main' },
-    dir: join(project.dir, 'clone'),
-    credential: { kind: 'env', name: 'ATC_TEST_GIT_TOKEN' },
-  });
+    const clone = await createWorkspaceClone({
+      source: { kind: 'git', url: project.httpURL, ref: 'main' },
+      dir: join(project.dir, 'clone'),
+      credential: { kind: 'env', name: 'ATC_TEST_GIT_TOKEN' },
+    });
 
-  const config = await readFile(join(project.dir, 'clone', '.git', 'config'), 'utf8');
+    const config = await readFile(join(project.dir, 'clone', '.git', 'config'), 'utf8');
 
-  expect(clone).toMatchObject({ ok: true, branch: 'main' });
-  expect(project.authorizations).not.toBeEmpty();
+    expect(clone).toMatchObject({ ok: true, branch: 'main' });
+    expect(project.authorizations).not.toBeEmpty();
 
-  expect(project.authorizations).toSatisfyAll(
-    (header: string) =>
-      header === `Basic ${Buffer.from('x-access-token:tok-4f9c2e').toString('base64')}`,
-  );
+    expect(project.authorizations).toSatisfyAll(
+      (header: string) =>
+        header === `Basic ${Buffer.from('x-access-token:tok-4f9c2e').toString('base64')}`,
+    );
 
-  expect(project.childArgv).not.toBeEmpty();
+    expect(project.childArgv).not.toBeEmpty();
 
-  expect(project.childArgv).toSatisfyAll(
-    (argv: string) => !argv.includes('tok-4f9c2e') && !argv.includes('ATC_TEST_GIT_TOKEN'),
-  );
+    expect(project.childArgv).toSatisfyAll(
+      (argv: string) => !argv.includes('tok-4f9c2e') && !argv.includes('ATC_TEST_GIT_TOKEN'),
+    );
 
-  expect(project.askpassHelpers).not.toBeEmpty();
-  expect(project.askpassHelpers.filter((helper) => existsSync(helper))).toStrictEqual([]);
-  expect(config).not.toInclude('tok-4f9c2e');
-});
+    expect(project.askpassHelpers).not.toBeEmpty();
+    expect(project.askpassHelpers.filter((helper) => existsSync(helper))).toStrictEqual([]);
+    expect(config).not.toInclude('tok-4f9c2e');
+  },
+);

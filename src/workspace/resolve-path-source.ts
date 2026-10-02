@@ -18,6 +18,7 @@ interface ResolvedPathSource {
 type PathSourceRefusalCode =
   | 'not_a_git_repo'
   | 'no_commits'
+  | 'unreadable_tree'
   | 'has_submodules'
   | 'workspace_dirty'
   | 'no_origin'
@@ -63,13 +64,29 @@ export async function resolvePathSource(
 
   const sha = head.stdout.trim();
 
-  const submodules = await hasSubmodules(root, sha);
+  const tree = await runGit(['ls-tree', '-r', '--full-tree', sha], { cwd: root });
 
-  if (submodules) {
+  if (tree.exitCode !== 0) {
+    return {
+      ok: false,
+      code: 'unreadable_tree',
+      message: `cannot list the tree of ${sha} in ${root}: ${tree.stderr.trim()}`,
+    };
+  }
+
+  if (hasSubmodules(tree.stdout)) {
     return { ok: false, code: 'has_submodules', message: `${root} uses submodules` };
   }
 
   const status = await runGit(['status', '--porcelain', '--untracked-files=normal'], { cwd: root });
+
+  if (status.exitCode !== 0) {
+    return {
+      ok: false,
+      code: 'unreadable_tree',
+      message: `cannot read the status of ${root}: ${status.stderr.trim()}`,
+    };
+  }
 
   const dirty = status.stdout.trim() !== '';
   const warnings: string[] = [];
@@ -120,14 +137,12 @@ export async function resolvePathSource(
 }
 
 /**
- * Whether the commit's tree holds a gitlink or a `.gitmodules` file at its
- * root. A workspace clone never initializes submodules, so either would ship
- * an incomplete tree.
+ * Whether a recursive tree listing holds a gitlink or a `.gitmodules` file at
+ * its root. A workspace clone never initializes submodules, so either would
+ * ship an incomplete tree.
  */
-async function hasSubmodules(root: string, sha: string): Promise<boolean> {
-  const tree = await runGit(['ls-tree', '-r', '--full-tree', sha], { cwd: root });
-
-  return tree.stdout
+function hasSubmodules(listing: string): boolean {
+  return listing
     .split('\n')
     .some((line) => line.startsWith('160000 ') || line.endsWith('\t.gitmodules'));
 }
