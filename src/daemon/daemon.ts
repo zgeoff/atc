@@ -677,7 +677,19 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   }, opts.reporterSocketPath);
 
+  // A spawn that throws once its process has started takes the session back
+  // before it throws, so a failed start leaves nothing running and a keyed
+  // retry spawns once.
   const startSpawn = (p: SpawnParams, id: SessionID): SessionDescriptor => {
+    try {
+      return startSpawnedSession(p, id);
+    } catch (error) {
+      mgr.removeFailedSpawn(id);
+      throw error;
+    }
+  };
+
+  const startSpawnedSession = (p: SpawnParams, id: SessionID): SessionDescriptor => {
     const s = mgr.spawn(
       p.cwd,
       p.name,

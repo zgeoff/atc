@@ -312,3 +312,45 @@ test('it refuses a spawn with fractional rows as bad_args before any session sta
 
   expect(list['sessions']).toStrictEqual([]);
 });
+
+test('it leaves no session behind from a keyed spawn that fails after its process starts, so a retry spawns once', async () => {
+  await using ctx = await setupTest();
+
+  // The first spawn's process starts, then the next read of the adapter
+  // throws: a failure after the side effect, whatever the request held.
+  let armed = false;
+  let planned = 0;
+
+  const failing: AgentAdapter = {
+    ...idleAdapter,
+    planSpawn: () => {
+      planned++;
+      armed = planned === 1;
+
+      return { bin: 'sleep', args: ['30'] };
+    },
+    get headlessRunner() {
+      if (armed) {
+        armed = false;
+        throw new Error('adapter failed after the process started');
+      }
+
+      return null;
+    },
+  };
+
+  const client = await ctx.boot(failing);
+
+  const params = { cwd: '/tmp', cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const first = client.sendRequest('session.spawn', params);
+
+  expect(first).rejects.toMatchObject({ code: 'internal' });
+
+  await first.catch(() => null);
+
+  const retried = await client.sendRequest('session.spawn', params);
+  const list = await client.sendRequest('session.list');
+
+  expect(planned).toBe(2);
+  expect(list['sessions']).toStrictEqual([getRecord(retried, 'session')]);
+});
