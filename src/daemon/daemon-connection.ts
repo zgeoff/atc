@@ -23,13 +23,15 @@ import type { MessageRecord } from '../store/message-record';
 import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
+import { buildPayloadHash } from './build-payload-hash';
+import type { KeyedRequest } from './idempotency-ledger';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 import type { AnswerResult } from './permission-registry';
 import type { ScreenText } from './screen-model';
 import type { SessionDescriptor } from './sessions';
 
-interface SpawnParams {
+export interface SpawnParams {
   readonly cwd: string;
   readonly name: string;
   readonly prompt: string;
@@ -66,7 +68,13 @@ export interface DaemonContext {
   readonly collectFleet: () => Promise<FleetEntry[]>;
   readonly loadLastUsedAgent: () => Promise<AgentID>;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
-  readonly spawnSession: (p: SpawnParams) => SessionDescriptor;
+
+  // Answers with the `session.spawn` ok payload, which a keyed retry
+  // replays as the first spawn answered it.
+  readonly spawnSession: (
+    p: SpawnParams,
+    keyed: KeyedRequest | null,
+  ) => Promise<Readonly<Record<string, unknown>>>;
   readonly killSession: (id: SessionID) => Promise<boolean>;
   readonly updateSession: (id: SessionID, name?: string, pinned?: boolean) => boolean | 'child_pin';
   readonly quitDaemon: () => void;
@@ -359,7 +367,7 @@ export class DaemonConnection {
         return;
       }
       case 'session.spawn': {
-        this.applySpawn(req);
+        await this.applySpawn(req);
 
         return;
       }
@@ -600,7 +608,7 @@ export class DaemonConnection {
     }
   }
 
-  private applySpawn(req: RequestMsg): void {
+  private async applySpawn(req: RequestMsg): Promise<void> {
     const parsed = parseRequestParams('session.spawn', req.p);
 
     if (!parsed.ok) {
@@ -660,20 +668,30 @@ export class DaemonConnection {
       parent = owner.parent ?? owner.id;
     }
 
-    const session = this.ctx.spawnSession({
-      cwd,
-      name: name === '' ? basename(cwd) : name,
-      prompt: parsed.data.prompt,
-      cols: parsed.data.cols,
-      rows: parsed.data.rows,
-      resume: parsed.data.resume,
-      namedBy: name === '' ? 'auto' : 'user',
-      agent,
-      parent,
-      overrides: overrides.overrides,
-    });
+    // Every check above runs before the key is claimed, so a refused spawn
+    // leaves no claim behind.
+    const keyed =
+      parsed.data.idempotencyKey === undefined
+        ? null
+        : { key: parsed.data.idempotencyKey, payloadHash: buildPayloadHash(req.p ?? {}) };
 
-    this.sendOk(req.id, { session });
+    const spawned = await this.ctx.spawnSession(
+      {
+        cwd,
+        name: name === '' ? basename(cwd) : name,
+        prompt: parsed.data.prompt,
+        cols: parsed.data.cols,
+        rows: parsed.data.rows,
+        resume: parsed.data.resume,
+        namedBy: name === '' ? 'auto' : 'user',
+        agent,
+        parent,
+        overrides: overrides.overrides,
+      },
+      keyed,
+    );
+
+    this.sendOk(req.id, spawned);
   }
 
   private applyAttach(req: RequestMsg): void {

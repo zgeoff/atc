@@ -18,6 +18,7 @@ import { toSessionID } from '../shared/to-session-id';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry, FleetEntryUpdate, LegacyFleetEntry } from './fleet-entry';
+import type { IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
 import type { MessageOwner } from './message-owner';
 import type { MessageRecord } from './message-record';
 import { runMigrations } from './run-migrations';
@@ -563,6 +564,100 @@ export class StateStore {
       .execute();
   }
 
+  // Records a key in progress unless one is already held under the same
+  // principal and operation. Returns null when this call claimed the key,
+  // else the record the key already holds.
+  async claimIdempotencyKey(claim: IdempotencyClaim): Promise<IdempotencyRecord | null> {
+    const inserted = await this.db
+      .insertInto('idempotency')
+      .values({
+        principal: claim.principal,
+        operation: claim.operation,
+        key: claim.key,
+        payload_hash: claim.payloadHash,
+        state: 'in_progress',
+        effect_ref: claim.effectRef,
+        result: null,
+        created_at: claim.at,
+        updated_at: claim.at,
+      })
+      .onConflict((oc) => oc.columns(['principal', 'operation', 'key']).doNothing())
+      .returning('key')
+      .executeTakeFirst();
+
+    if (inserted !== undefined) {
+      return null;
+    }
+
+    const row = await this.db
+      .selectFrom('idempotency')
+      .selectAll()
+      .where('principal', '=', claim.principal)
+      .where('operation', '=', claim.operation)
+      .where('key', '=', claim.key)
+      .executeTakeFirstOrThrow();
+
+    return toIdempotencyRecord(row);
+  }
+
+  async updateIdempotencyCompleted(
+    record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
+    result: string,
+    at: number,
+  ): Promise<void> {
+    await this.db
+      .updateTable('idempotency')
+      .set({ state: 'completed', result, updated_at: at })
+      .where('principal', '=', record.principal)
+      .where('operation', '=', record.operation)
+      .where('key', '=', record.key)
+      .execute();
+  }
+
+  // Drops a claim whose effect never started, so a retry runs it fresh.
+  async removeIdempotencyKey(
+    record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
+  ): Promise<void> {
+    await this.db
+      .deleteFrom('idempotency')
+      .where('principal', '=', record.principal)
+      .where('operation', '=', record.operation)
+      .where('key', '=', record.key)
+      .execute();
+  }
+
+  // Runs once as a daemon starts, before it serves a request: every key
+  // still in progress belonged to a daemon that stopped mid-effect, so its
+  // outcome is unknown. A key whose effect left its row behind completes;
+  // one whose effect left no trace stays unknown.
+  async reconcileIdempotencyKeys(at: number): Promise<void> {
+    await this.db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable('idempotency')
+        .set({ state: 'outcome_unknown', updated_at: at })
+        .where('state', '=', 'in_progress')
+        .execute();
+
+      await trx
+        .updateTable('idempotency')
+        .set({ state: 'completed', updated_at: at })
+        .where('state', '=', 'outcome_unknown')
+        .where('operation', '=', 'session.spawn')
+        .where('effect_ref', 'in', (eb) => eb.selectFrom('fleet').select('session_id'))
+        .execute();
+    });
+  }
+
+  // Only completed keys expire: a key whose outcome is unknown stays, so a
+  // retry of it keeps answering outcome_unknown instead of running anew.
+  async removeExpiredIdempotencyKeys(before: number): Promise<void> {
+    await this.db
+      .deleteFrom('idempotency')
+      .where('state', '=', 'completed')
+      .where('updated_at', '<', before)
+      .execute();
+  }
+
   async stop(): Promise<void> {
     await this.db.destroy();
 
@@ -845,6 +940,20 @@ function buildOwnerFilter(
   return owner.agentSessionID === undefined
     ? byAtcID
     : eb.or([byAtcID, eb('agent_session_id', '=', owner.agentSessionID)]);
+}
+
+function toIdempotencyRecord(row: Readonly<StateStoreSchema['idempotency']>): IdempotencyRecord {
+  return {
+    principal: row.principal,
+    operation: row.operation,
+    key: row.key,
+    payloadHash: row.payload_hash,
+    state: row.state,
+    effectRef: row.effect_ref,
+    result: row.result,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRecord {

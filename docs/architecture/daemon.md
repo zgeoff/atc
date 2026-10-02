@@ -94,3 +94,9 @@ holds in `prefs`, and at which ownership epoch. A fleet write deletes and rewrit
 this daemon owns, and a restore loads only those rows. A write that touches a session another daemon
 owns, or one whose stored epoch is past this daemon's, fails whole with `stale_epoch`. Every row
 this daemon writes holds epoch 1.
+
+The `idempotency` table holds each idempotency key with its payload hash, its state, and the id of
+the effect it covers; the [protocol](./protocol.md#idempotent-requests) covers the answers a retry
+gets. A key completes only after the session's fleet row lands, so a completed spawn key always has
+a fleet row behind it. The daemon reconciles keys left in progress before it opens its sockets, and
+drops completed keys older than 24 hours at start and every hour after.

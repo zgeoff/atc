@@ -23,6 +23,8 @@ const ERROR_CODES = [
   'already_answered',
   'too_slow',
   'stale_epoch',
+  'idempotency_conflict',
+  'outcome_unknown',
   'internal',
 ] as const;
 

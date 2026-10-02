@@ -390,6 +390,7 @@ export class SessionManager {
   // resumes that specific session (fleet restore). parent makes the new
   // session a sub-session of that one. overrides hold the model and effort
   // the new process runs with, and the session keeps them for every revive.
+  // id is minted here unless the caller minted it ahead of the spawn.
   spawn(
     cwd: string,
     name: string,
@@ -401,6 +402,7 @@ export class SessionManager {
     agent: AgentID = 'claude',
     parent: SessionID | null = null,
     overrides: SpawnOverrides = {},
+    id: SessionID = mintSessionID(),
   ): Session {
     const adapter = this.findAdapter(agent);
 
@@ -408,7 +410,6 @@ export class SessionManager {
       throw new Error(`no adapter for agent '${agent}'`);
     }
 
-    const id = mintSessionID();
     const plan = adapter.planSpawn({ prompt, resume, ...overrides });
 
     const pty = spawn(plan.bin, plan.args, {

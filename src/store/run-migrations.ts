@@ -3,6 +3,7 @@ import { sql } from 'kysely';
 import type { Generated, Kysely } from 'kysely';
 import { DEFAULT_MIGRATION_TABLE, Migrator } from 'kysely/migration';
 import type { Migration, MigrationProvider, MigrationResultSet } from 'kysely/migration';
+import type { IdempotencyState } from './idempotency-record';
 import type { MessageStatus } from './message-record';
 
 interface FleetTable {
@@ -53,6 +54,22 @@ interface SessionOwnerTable {
   updated_at: number;
 }
 
+// One idempotency key per principal and operation: the hash of the payload
+// it first arrived with, where the keyed effect stands, and the effect it
+// names. A key whose outcome is unknown never expires, so a retry of it can
+// never start a fresh effect.
+interface IdempotencyTable {
+  principal: string;
+  operation: string;
+  key: string;
+  payload_hash: string;
+  state: IdempotencyState;
+  effect_ref: string;
+  result: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
 interface MessagesTable {
   id: string;
   atc_id: string;
@@ -81,6 +98,7 @@ export interface StateStoreSchema {
   prefs: PrefsTable;
   messages: MessagesTable;
   session_owner: SessionOwnerTable;
+  idempotency: IdempotencyTable;
 }
 
 // Every shape the fleet table has shipped with: the oldest carries only
@@ -293,6 +311,31 @@ const MIGRATIONS: Record<string, Migration> = {
 
         throw error;
       }
+    },
+  },
+  '017_create_idempotency': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('idempotency')
+        .ifNotExists()
+        .addColumn('principal', 'text', (c) => c.notNull())
+        .addColumn('operation', 'text', (c) => c.notNull())
+        .addColumn('key', 'text', (c) => c.notNull())
+        .addColumn('payload_hash', 'text', (c) => c.notNull())
+        .addColumn('state', 'text', (c) => c.notNull())
+        .addColumn('effect_ref', 'text', (c) => c.notNull())
+        .addColumn('result', 'text')
+        .addColumn('created_at', 'integer', (c) => c.notNull())
+        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addPrimaryKeyConstraint('idempotency_pk', ['principal', 'operation', 'key'])
+        .execute();
+
+      await db.schema
+        .createIndex('idempotency_state_updated_at')
+        .ifNotExists()
+        .on('idempotency')
+        .columns(['state', 'updated_at'])
+        .execute();
     },
   },
 };

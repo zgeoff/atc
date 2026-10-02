@@ -16,6 +16,14 @@ const SESSION_DEFAULTED = z.object({
   session: buildDefaultedString('').transform(toSessionID),
 });
 
+// The longest key a caller may send, with room left under the stored cap
+// for the suffix a nested spawn's fallback derives from it.
+const IDEMPOTENCY_KEY = z
+  .string({ error: 'idempotencyKey must be a string' })
+  .min(1, 'idempotencyKey must not be empty')
+  .max(200, 'idempotencyKey must be at most 200 characters')
+  .optional();
+
 export const REQUEST_PARAM_SCHEMAS = {
   'daemon.hello': z.object({
     client: buildDefaultedString('unknown client'),
@@ -49,6 +57,10 @@ export const REQUEST_PARAM_SCHEMAS = {
     // advertises before anything spawns.
     model: z.string({ error: 'session.spawn model must be a string' }).optional(),
     effort: z.string({ error: 'session.spawn effort must be a string' }).optional(),
+
+    // A retry carrying the same key replays the first spawn's answer instead
+    // of spawning again.
+    idempotencyKey: IDEMPOTENCY_KEY,
 
     // The session the new one is a sub-session of; absent or empty spawns a
     // top-level session.
