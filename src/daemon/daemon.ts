@@ -987,6 +987,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   });
 
   stopDaemon = async () => {
+    // Ends each client itself so every peer sees the close: a stopped
+    // listener does not reliably end the connections it already accepted.
+    for (const client of clients) {
+      client.dispose();
+    }
+
     server.stop(true);
     eventsServer?.stop();
     reporter.stop(true);
