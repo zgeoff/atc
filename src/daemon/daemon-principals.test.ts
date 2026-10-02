@@ -705,3 +705,22 @@ test("it refuses a narrow connection a spawn on a wider principal's target, with
 
   expect(daemon.harnesses).toStrictEqual(['box']);
 });
+
+test('it runs one spawn for one key on a principal connection, whatever principal each request acts as', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const client = await daemon.openClientAs('wide');
+
+  const spawn = (as: string) =>
+    client.sendRequest(
+      'session.spawn',
+      { cwd: '/tmp', target: 'local', idempotencyKey: 'k-1' },
+      as,
+    );
+
+  const first = await spawn('wide');
+  const second = await spawn('narrow');
+
+  expect(getRecord(second, 'session')['id']).toBe(getRecord(first, 'session')['id']);
+  expect(daemon.harnesses).toStrictEqual(['local']);
+});
