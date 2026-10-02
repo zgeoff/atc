@@ -306,9 +306,10 @@ principal and method; every request on the local socket acts as the principal `l
 
 The daemon records the key before it checks any param. A refused spawn drops the key again, so a
 retry runs fresh, and a retry of a key the daemon holds gets its answer from the key without any
-param checked again. The daemon records the key with a SHA-256 of the request's params, as JSON with
-sorted keys and without the key itself, and with the session id it mints before the session spawns.
-The daemon's answer to a retry depends on what the key holds:
+param checked again. The daemon records the key with a SHA-256 of the request's params as it parsed
+them, as JSON with sorted keys and without the key itself, so a default spelled out or a field the
+daemon ignores leaves the hash unchanged. It records the session id it mints before the session
+spawns as well. The daemon's answer to a retry depends on what the key holds:
 
 - The same key with different params is `idempotency_conflict`.
 - For a completed spawn, the daemon returns the session's current descriptor while it is listed,

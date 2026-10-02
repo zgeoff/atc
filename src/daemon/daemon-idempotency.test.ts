@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
+import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import { getRecord } from '../shared/get-record';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
@@ -103,6 +104,24 @@ test('it spawns once for two keyed spawns that arrive together', async () => {
   expect(list['sessions']).toHaveLength(1);
 });
 
+test('it replays a retried spawn whose params differ only in defaults and fields the daemon ignores', async () => {
+  await using ctx = await setupTest();
+
+  const client = await ctx.boot();
+  const first = await client.sendRequest('session.spawn', { cwd: '/tmp', idempotencyKey: 'k-1' });
+
+  const second = await client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    cols: 80,
+    rows: 24,
+    name: '',
+    unknown: true,
+    idempotencyKey: 'k-1',
+  });
+
+  expect(second).toMatchObject({ session: { id: getRecord(first, 'session')['id'] } });
+});
+
 test('it refuses a key reused with a different spawn payload as idempotency_conflict', async () => {
   await using ctx = await setupTest();
 
@@ -136,7 +155,7 @@ test('it answers a spawn retried after an interrupted run with outcome_unknown a
     principal: 'local',
     operation: 'session.spawn',
     key: 'k-1',
-    payloadHash: buildPayloadHash(params),
+    payloadHash: buildPayloadHash(REQUEST_PARAM_SCHEMAS['session.spawn'].parse(params)),
     effectRef: 'never-spawned',
     at: Date.now(),
   });
@@ -166,7 +185,7 @@ test('it completes an interrupted spawn whose session reached the fleet and repl
     principal: 'local',
     operation: 'session.spawn',
     key: 'k-1',
-    payloadHash: buildPayloadHash(params),
+    payloadHash: buildPayloadHash(REQUEST_PARAM_SCHEMAS['session.spawn'].parse(params)),
     effectRef: 'spawned-before-crash',
     at: Date.now(),
   });

@@ -678,7 +678,7 @@ export class DaemonConnection {
     const keyed =
       data.idempotencyKey === undefined
         ? null
-        : { key: data.idempotencyKey, payloadHash: buildPayloadHash(req.p ?? {}) };
+        : { key: data.idempotencyKey, payloadHash: buildPayloadHash(data) };
 
     const spawned = await this.ctx.spawnSession(plan, keyed);
 
