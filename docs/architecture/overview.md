@@ -39,6 +39,24 @@ parent, and a kill of the parent kills its live sub-sessions with it. The fleet 
 link by the parent's agent session id, so a restore rebuilds the set under fresh atc ids. A spawn
 with `detached: true` makes a top-level session from inside a session.
 
+## MCP server
+
+`atc mcp` is a stdio MCP server and a client of the daemon: each tool call becomes one protocol
+request. The tool definitions live in `src/mcp/mcp-tools.ts`, and each tool declares two things
+beside its schema:
+
+- Safety annotations, which `tools/list` returns. A read-scoped tool sets `readOnlyHint`. A tool
+  that can end a session or type raw keystrokes into one sets `destructiveHint`. A tool that starts
+  an agent or puts text in front of one sets `openWorldHint`, because the agent acts on that text
+  outside atc's control.
+- One scope out of `read`, `message`, `spawn`, and `kill`, which groups the tool by the access it
+  needs. `atc_session_input` takes `spawn`, because raw keystrokes can do anything a new session
+  can. The stdio server serves every scope to its caller.
+
+The server returns the client's requested protocol version from `initialize` when it supports it
+(`2025-11-25`, `2025-06-18`, or `2024-11-05`), else `2025-11-25`. The server leaves out
+`2025-03-26`, which requires JSON-RPC batching that atc does not implement.
+
 ## Agents and gateways
 
 A session records which agent it runs under as an id, and the daemon keys its adapter registry by

@@ -977,3 +977,59 @@ test('it reads a sent message back through atc_message_get', async () => {
     sentAt: expect.toBeNumber() as number,
   });
 });
+
+test('it lists every tool with its three safety hints over stdio', async () => {
+  const ctx = setupMCP();
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+
+  const listResponse = await ctx.waitForResponse(2);
+
+  const tools = getResult(listResponse)['tools'];
+
+  if (!Array.isArray(tools)) {
+    throw new TypeError('tools is not an array');
+  }
+
+  const killTool: unknown = tools.find(
+    (tool) => isRecord(tool) && tool['name'] === 'atc_session_kill',
+  );
+
+  if (!isRecord(killTool)) {
+    throw new TypeError('atc_session_kill is not listed');
+  }
+
+  expect(tools).toSatisfyAll(
+    (tool) =>
+      isRecord(tool) &&
+      isRecord(tool['annotations']) &&
+      typeof tool['annotations']['readOnlyHint'] === 'boolean' &&
+      typeof tool['annotations']['destructiveHint'] === 'boolean' &&
+      typeof tool['annotations']['openWorldHint'] === 'boolean',
+  );
+
+  expect(killTool['annotations']).toStrictEqual({
+    readOnlyHint: false,
+    destructiveHint: true,
+    openWorldHint: false,
+  });
+});
+
+test('it answers an unsupported protocol version with the latest supported one', async () => {
+  const ctx = setupMCP();
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: { protocolVersion: '2099-01-01', capabilities: {}, clientInfo: { name: 'test' } },
+  });
+
+  const response = await ctx.waitForResponse(1);
+
+  expect(getResult(response)['protocolVersion']).toBe('2025-11-25');
+});
