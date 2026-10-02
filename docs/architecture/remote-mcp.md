@@ -35,10 +35,13 @@ The server prints one line per request to stderr: the method, the path without i
 status, the time taken, and for an MCP request its JSON-RPC method, tool name, and
 `MCP-Protocol-Version` header, as in
 `POST /mcp 200 41ms rpc=tools/call tool=atc_message_get mcp-protocol-version=2025-06-18`. A line
-never holds a request body, a query, a token, a cookie, an authorization code, or an address. The
-lines are always on, since the terminal running `atc mcp --http` is your own. Approval lines go to
-stdout, so redirecting stderr keeps them on screen. The startup line shows the address the server is
-bound to, such as `http://100.67.122.120:8414` with `--host 100.67.122.120`.
+holds no request body, query, cookie, or header other than `MCP-Protocol-Version`, and no address.
+The path, JSON-RPC method, tool name, and version come from the client and appear as sent, without
+control characters or whitespace and cut to a fixed length, so a client that puts a secret in one of
+them puts it in the line. The lines are always on, since the terminal running `atc mcp --http` is
+your own. Approval lines go to stdout, so redirecting stderr keeps them on screen. The startup line
+shows the address the server is bound to, such as `http://100.67.122.120:8414` with
+`--host 100.67.122.120`.
 
 When the daemon restarts, the HTTP process reconnects on its next request. A tool call in flight at
 that moment fails, because a spawn or a message must not run twice. A read-only tool call is the

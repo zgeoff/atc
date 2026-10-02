@@ -2206,3 +2206,17 @@ test('it prints a request line without the query, the token, or the requester ad
     expect.stringMatching(/^POST \/mcp 200 \d+ms rpc=ping$/),
   ]);
 });
+
+test('it prints a refused MCP request without reading its JSON-RPC method', async () => {
+  await using server = await setupMCPHTTP();
+
+  const refused = await fetch(`${server.url}/mcp`, {
+    method: 'POST',
+    headers: { origin: 'https://evil.example' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  expect(refused.status).toBe(403);
+  expect(server.requests).toHaveLength(1);
+  expect(server.requests[0]).toMatch(/^POST \/mcp 403 \d+ms$/);
+});

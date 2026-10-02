@@ -91,10 +91,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     fetch: async (request, bunServer) => {
       const startedAt = performance.now();
       const state = holder.ready;
-
-      // The body is read from a copy, so the route still reads the original.
-      const body = isMCPCall(request) ? await request.clone().text() : null;
-      const rpc = body === null ? null : findRPCLabel(body);
+      let rpc: RPCLabel | null = null;
       let response: Response;
 
       if (state === null) {
@@ -105,6 +102,9 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
             state,
             request,
             bunServer.requestIP(request)?.address ?? null,
+            (label) => {
+              rpc = label;
+            },
           );
         } catch {
           response = new Response(null, { status: 503 });
@@ -185,10 +185,6 @@ interface ServerState {
 // bare origin. Both are the one resource `<origin>/mcp`.
 const MCP_PATHS: ReadonlySet<string> = new Set(['/mcp', '/']);
 
-function isMCPCall(request: Request): boolean {
-  return request.method === 'POST' && MCP_PATHS.has(new URL(request.url).pathname);
-}
-
 // The JSON-RPC method and tool name of an MCP request, for its request line.
 interface RPCLabel {
   readonly method: string;
@@ -260,11 +256,13 @@ const RESOURCE_METADATA: ReadonlySet<string> = new Set([
 ]);
 
 // `socketAddress` is the peer the request arrived from: the requester, or the
-// proxy or tunnel in front of atc.
+// proxy or tunnel in front of atc. `onRPC` receives an accepted MCP request's
+// JSON-RPC method and tool, for its request line.
 async function answerHTTPRequest(
   state: ServerState,
   request: Request,
   socketAddress: string | null,
+  onRPC: (label: RPCLabel | null) => void,
 ): Promise<Response> {
   const host = request.headers.get('host');
 
@@ -332,10 +330,14 @@ async function answerHTTPRequest(
       return new Response(null, { status: 405, headers: { allow: 'POST' } });
     }
 
+    const body = await request.text();
+
+    onRPC(findRPCLabel(body));
+
     return answerMCPRequest(ctx, {
       authorization: request.headers.get('authorization'),
       protocolVersion: request.headers.get('mcp-protocol-version'),
-      body: await request.text(),
+      body,
     });
   }
 
