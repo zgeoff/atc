@@ -263,8 +263,9 @@ export class GrantStore {
     }));
   }
 
-  // Drops expired tokens, grants with no live refresh token left, and clients
-  // registered more than clientGraceMs ago that never gained a grant.
+  // Drops expired tokens, grants with no live refresh token left along with
+  // their remaining tokens, and clients registered more than clientGraceMs ago
+  // that never gained a grant.
   async removeExpiredGrants(now: number, clientGraceMs: number): Promise<void> {
     await this.db.transaction().execute(async (trx) => {
       await trx.deleteFrom('grant_tokens').where('expires_at', '<=', now).execute();
@@ -281,6 +282,18 @@ export class GrantStore {
           const hasLiveRefresh = eb.exists(liveRefresh);
 
           return eb.or([eb('revoked_at', 'is not', null), eb.not(hasLiveRefresh)]);
+        })
+        .execute();
+
+      await trx
+        .deleteFrom('grant_tokens')
+        .where((eb) => {
+          const owningGrant = eb
+            .selectFrom('grants')
+            .select('grants.id')
+            .whereRef('grants.id', '=', 'grant_tokens.grant_id');
+
+          return eb.not(eb.exists(owningGrant));
         })
         .execute();
 
