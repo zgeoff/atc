@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { parseRequestParams } from './parse-request-params';
 
@@ -234,4 +235,37 @@ test('it clamps session.read limit to 200', () => {
   const parsed = parseRequestParams('session.read', { session: 's1', limit: 999 });
 
   expect(parsed).toStrictEqual({ ok: true, data: { session: toSessionID('s1'), limit: 200 } });
+});
+
+test('it rejects session.message without text', () => {
+  const parsed = parseRequestParams('session.message', { session: 's1', from: 'alice' });
+
+  expect(parsed).toStrictEqual({ ok: false, message: 'session.message requires text' });
+});
+
+test('it defaults session.message from to unknown', () => {
+  const parsed = parseRequestParams('session.message', { session: 's1', text: 'hi', from: '' });
+
+  expect(parsed).toStrictEqual({
+    ok: true,
+    data: { session: toSessionID('s1'), from: 'unknown', text: 'hi' },
+  });
+});
+
+test('it rejects message.ack without a message', () => {
+  const parsed = parseRequestParams('message.ack', { session: 's1' });
+
+  expect(parsed).toStrictEqual({ ok: false, message: 'message.ack requires a message' });
+});
+
+test('it rejects message.get without a message', () => {
+  const parsed = parseRequestParams('message.get', {});
+
+  expect(parsed).toStrictEqual({ ok: false, message: 'message.get requires a message' });
+});
+
+test('it parses message.get with a message id', () => {
+  const parsed = parseRequestParams('message.get', { message: 'm-1' });
+
+  expect(parsed).toStrictEqual({ ok: true, data: { message: toMessageID('m-1') } });
 });

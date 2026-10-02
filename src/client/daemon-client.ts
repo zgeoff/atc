@@ -16,9 +16,13 @@ interface Pending {
 export class DaemonClient {
   onEvent: (event: EventMsg) => void = () => {};
 
+  onClose: () => void = () => {};
+
   private queue: OutboundQueue | null = null;
 
   private buffer = '';
+
+  private readonly decoder = new TextDecoder();
 
   private nextID = 1;
 
@@ -33,13 +37,14 @@ export class DaemonClient {
       unix: socketPath,
       socket: {
         data(_s, buf) {
-          client.applyChunk(buf.toString());
+          client.applyChunk(client.decodeChunk(buf));
         },
         drain() {
           client.queue?.drain();
         },
         close() {
           client.drainPending('connection closed');
+          client.onClose();
         },
         error() {},
       },
@@ -72,6 +77,13 @@ export class DaemonClient {
   stop(): void {
     this.socket?.end();
     this.drainPending('client closed');
+  }
+
+  // Decodes with state kept across reads, so a multi-byte character split
+  // between two reads decodes whole.
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket read buffer has no readonly form
+  private decodeChunk(buf: Uint8Array): string {
+    return this.decoder.decode(buf, { stream: true });
   }
 
   private applyChunk(chunk: string): void {

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { buildOptionalBoolean } from '../shared/build-optional-boolean';
 import { buildOptionalString } from '../shared/build-optional-string';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 
 const EJECT_DEFAULT_PROMPT =
@@ -97,6 +98,17 @@ export const REQUEST_PARAM_SCHEMAS = {
     limit: buildDefaultedNumber(50).transform((v) => Math.min(Math.max(Math.trunc(v), 1), 200)),
     waitMs: buildDefaultedNumber(0).transform((v) => Math.min(Math.max(Math.trunc(v), 0), 30_000)),
   }),
+  'session.message': SESSION_DEFAULTED.extend({
+    from: buildDefaultedNonEmptyString('unknown'),
+    text: buildDefaultedString(''),
+  }).refine((v) => v.text !== '', { message: 'session.message requires text' }),
+  'session.tap': SESSION_DEFAULTED,
+  'message.get': z
+    .object({ message: buildDefaultedString('').transform(toMessageID) })
+    .refine((v) => v.message !== '', { message: 'message.get requires a message' }),
+  'message.ack': SESSION_DEFAULTED.extend({
+    message: buildDefaultedString('').transform(toMessageID),
+  }).refine((v) => v.message !== '', { message: 'message.ack requires a message' }),
 } as const;
 
 function buildDefaultedString(fallback: string) {

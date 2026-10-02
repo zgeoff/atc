@@ -4,12 +4,28 @@
 async function sendLine(sock: string, line: string): Promise<void> {
   const resolvers = Promise.withResolvers<void>();
 
+  const bytes = new TextEncoder().encode(line);
+
+  let written = 0;
+
   await Bun.connect({
     unix: sock,
     socket: {
+      // A write returns the bytes the socket accepted and drops the rest, so
+      // a line larger than the socket buffer goes out across drain calls.
       open(s) {
-        s.write(line);
-        s.end();
+        written += s.write(bytes.subarray(written));
+
+        if (written >= bytes.length) {
+          s.end();
+        }
+      },
+      drain(s) {
+        written += s.write(bytes.subarray(written));
+
+        if (written >= bytes.length) {
+          s.end();
+        }
       },
       close() {
         resolvers.resolve();

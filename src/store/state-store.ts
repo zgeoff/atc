@@ -1,16 +1,21 @@
 import { Database } from 'bun:sqlite';
 import { existsSync, readFileSync } from 'node:fs';
 import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
+import type { Expression, ExpressionBuilder, SqlBool } from 'kysely';
 import { toAgentID } from '../agents/agent-adapter';
 import type { AdapterEvent, AgentID } from '../agents/agent-adapter';
 import type { HookEvent } from '../daemon/hooks';
 import type { AgentSessionID } from '../shared/agent-session-id';
+import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry, FleetEntryUpdate } from './fleet-entry';
+import type { MessageOwner } from './message-owner';
+import type { MessageRecord } from './message-record';
 import { runMigrations } from './run-migrations';
 import type { StateStoreSchema } from './run-migrations';
 
@@ -32,8 +37,8 @@ export interface StoredEvent {
 
 /**
  * Daemon state in one SQLite store: the restorable fleet, the hook-event
- * trail that events.read and lastActivityAt read, and the spawn-directory
- * history. The statusline contract
+ * trail that events.read and lastActivityAt read, the spawn-directory
+ * history, and the per-session message inbox. The statusline contract
  * file (status.json) stays a plain file because reporters inside wrangled
  * sessions read it without speaking to the daemon. An existing fleet.json
  * seeds the fleet table once, so upgrading never loses a restorable fleet.
@@ -293,6 +298,115 @@ export class StateStore {
       .execute();
   }
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
+  async writeMessage(record: MessageRecord): Promise<void> {
+    await this.db
+      .insertInto('messages')
+      .values({
+        id: record.id,
+        atc_id: record.atcID,
+        agent_session_id: record.agentSessionID ?? null,
+        sender: record.from,
+        text: record.text,
+        status: record.status,
+        sent_at: record.sentAt,
+        delivered_at: record.deliveredAt ?? null,
+        answered_at: record.answeredAt ?? null,
+        answer: record.answer ?? null,
+      })
+      .execute();
+  }
+
+  async collectPendingMessages(owner: MessageOwner): Promise<MessageRecord[]> {
+    const rows = await this.db
+      .selectFrom('messages')
+      .selectAll()
+      .where('status', '=', 'accepted')
+      .where((eb) => buildOwnerFilter(eb, owner))
+      .orderBy('sent_at', 'asc')
+      .orderBy(sql`rowid`, 'asc')
+      .execute();
+
+    return rows.map((row) => toMessageRecord(row));
+  }
+
+  async findMessage(id: MessageID, owner: MessageOwner): Promise<MessageRecord | null> {
+    const row = await this.db
+      .selectFrom('messages')
+      .selectAll()
+      .where('id', '=', id)
+      .where((eb) => buildOwnerFilter(eb, owner))
+      .executeTakeFirst();
+
+    return row === undefined ? null : toMessageRecord(row);
+  }
+
+  async findMessageByID(id: MessageID): Promise<MessageRecord | null> {
+    const row = await this.db
+      .selectFrom('messages')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+
+    return row === undefined ? null : toMessageRecord(row);
+  }
+
+  async updateMessageDelivered(
+    id: MessageID,
+    owner: MessageOwner,
+    at: number,
+  ): Promise<MessageRecord | null> {
+    const row = await this.db
+      .updateTable('messages')
+      .set({ status: 'delivered', delivered_at: at })
+      .where('id', '=', id)
+      .where('status', '=', 'accepted')
+      .where((eb) => buildOwnerFilter(eb, owner))
+      .returningAll()
+      .executeTakeFirst();
+
+    return row === undefined ? null : toMessageRecord(row);
+  }
+
+  async updateMessageAnswered(
+    id: MessageID,
+    owner: MessageOwner,
+    answer: string,
+    at: number,
+  ): Promise<MessageRecord | null> {
+    const row = await this.db
+      .updateTable('messages')
+      .set({ status: 'answered', answered_at: at, answer })
+      .where('id', '=', id)
+      .where('status', 'in', ['accepted', 'delivered'])
+      .where((eb) => buildOwnerFilter(eb, owner))
+      .returningAll()
+      .executeTakeFirst();
+
+    return row === undefined ? null : toMessageRecord(row);
+  }
+
+  // Messages sent before the agent reported its session id carry no agent
+  // session id; this stamps them once it is known, and moves every message
+  // from a previous agent session id to a changed one.
+  async updateMessageOwner(
+    atcID: SessionID,
+    previous: AgentSessionID | undefined,
+    next: AgentSessionID,
+  ): Promise<void> {
+    await this.db
+      .updateTable('messages')
+      .set({ agent_session_id: next })
+      .where((eb) => {
+        const unstamped = eb.and([eb('atc_id', '=', atcID), eb('agent_session_id', 'is', null)]);
+
+        return previous === undefined
+          ? unstamped
+          : eb.or([unstamped, eb('agent_session_id', '=', previous)]);
+      })
+      .execute();
+  }
+
   async stop(): Promise<void> {
     await this.db.destroy();
 
@@ -360,4 +474,32 @@ function buildStoredEvents(rows: readonly EventRow[]): StoredEvent[] {
   }
 
   return events;
+}
+
+function buildOwnerFilter(
+  eb: ExpressionBuilder<StateStoreSchema, 'messages'>, // oxlint-disable-line prefer-readonly-parameter-types -- a kysely expression builder bound to a live query; not meaningfully freezable
+  owner: MessageOwner,
+): Expression<SqlBool> {
+  const byAtcID = eb('atc_id', '=', owner.atcID);
+
+  return owner.agentSessionID === undefined
+    ? byAtcID
+    : eb.or([byAtcID, eb('agent_session_id', '=', owner.agentSessionID)]);
+}
+
+function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRecord {
+  return {
+    id: toMessageID(row.id),
+    atcID: toSessionID(row.atc_id),
+    ...(row.agent_session_id === null
+      ? {}
+      : { agentSessionID: toAgentSessionID(row.agent_session_id) }),
+    from: row.sender,
+    text: row.text,
+    status: row.status,
+    sentAt: row.sent_at,
+    ...(row.delivered_at === null ? {} : { deliveredAt: row.delivered_at }),
+    ...(row.answered_at === null ? {} : { answeredAt: row.answered_at }),
+    ...(row.answer === null ? {} : { answer: row.answer }),
+  };
 }

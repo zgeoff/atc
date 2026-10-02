@@ -47,6 +47,8 @@ export class CodexAdapter implements AgentAdapter {
   // Codex's hooks are authoritative; no screen heuristics needed.
   readonly screenDetector = null;
 
+  readonly takesMessages = false;
+
   private readonly config: Config;
 
   constructor(config: Config) {

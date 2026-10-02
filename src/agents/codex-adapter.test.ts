@@ -204,3 +204,9 @@ test('it carries the whole last assistant message of a finished turn as its resu
   expect(ev).toMatchObject({ kind: 'turn-done', result: 'x'.repeat(700) });
   expect(ev.detail).toHaveLength(600);
 });
+
+test('it refuses inbox messages', () => {
+  const adapter = new CodexAdapter(buildCodexConfig());
+
+  expect(adapter.takesMessages).toBe(false);
+});

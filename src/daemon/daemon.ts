@@ -4,27 +4,35 @@ import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
 import type { SessionID } from '../shared/session-id';
+import { truncateToBytes } from '../shared/truncate-to-bytes';
+import type { MessageOwner } from '../store/message-owner';
+import type { MessageRecord } from '../store/message-record';
 import { StateStore } from '../store/state-store';
+import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildSessionEvent } from './build-session-event';
+import { buildSessionMessageEvent } from './build-session-message-event';
 import { DaemonConnection } from './daemon-connection';
-import type { DaemonContext, OutputClient } from './daemon-connection';
+import type { DaemonContext, OutputClient, TapClient } from './daemon-connection';
 import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
 import type { HookEvent } from './hooks';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
+import { mintMessageID } from './mint-message-id';
+import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
 import { restoreFleet } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
 import { ScreenModel } from './screen-model';
 import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
-import type { SessionDescriptor, SessionState } from './sessions';
+import type { Session, SessionDescriptor, SessionState } from './sessions';
 import { startEventsServer } from './start-events-server';
 import { startHeadlessTurn } from './start-headless-turn';
+import { TapRegistry } from './tap-registry';
 
 export interface DaemonOptions {
   readonly socketPath: string;
@@ -71,6 +79,7 @@ export interface DaemonOptions {
   // single revive waits for that signal before moving on regardless, so a
   // session that never reports cannot stall the rest. Zero waits forever.
   readonly restoreBootTimeoutMs?: number;
+  readonly tapGraceMs?: number;
 
   // Called after a client-requested quit has stopped the daemon; the real
   // entrypoint exits the process, tests leave it unset.
@@ -80,6 +89,10 @@ export interface DaemonOptions {
 export interface DaemonHandle {
   readonly stop: () => Promise<void>;
 }
+
+// How long a started Claude session may go without a tap before a message to
+// it is refused.
+const TAP_GRACE_MS = 15_000;
 
 /**
  * The daemon: owns the sessions, the client-protocol listener, and the
@@ -164,6 +177,81 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const findRuntime = (sessionID: SessionID) => runtimes.get(sessionID);
 
   const attachments = new AttachRegistry<OutputClient>();
+  const taps = new TapRegistry<TapClient>();
+
+  // Writes accepted messages one at a time so the store's insertion order is
+  // the order of their sent times, which the inbox drains by.
+  let lastMessageWrite: Promise<void> = Promise.resolve();
+
+  // Hands one pending message to the session's tap, once, and reports whether
+  // it did. The event goes to the tap connection alone: it never reaches
+  // other clients, the events socket, or hooks.
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
+  const sendInboxMessage = (sessionID: SessionID, record: MessageRecord): boolean => {
+    const tap = taps.claimDelivery(sessionID, record.id);
+
+    if (tap === null) {
+      return false;
+    }
+
+    tap.sendEvent({
+      v: PROTOCOL_V,
+      ev: 'InboxMessage',
+      s: sessionID,
+      message: record.id,
+      from: record.from,
+      text: record.text,
+      sentAt: record.sentAt,
+    });
+
+    return true;
+  };
+
+  // Reads the backlog from the store before sending anything, so a tap's
+  // ok response is always queued ahead of its first message. It sends one
+  // unclaimed message per call and the tap's ack calls it again, so the
+  // backlog never outgrows the connection's outbound queue.
+  const drainInbox = async (sessionID: SessionID) => {
+    const s = mgr.sessions.find((x) => x.id === sessionID);
+
+    if (s === undefined) {
+      return;
+    }
+
+    try {
+      const pending = await store.collectPendingMessages(buildMessageOwner(s));
+
+      for (const record of pending) {
+        if (sendInboxMessage(sessionID, record)) {
+          return;
+        }
+      }
+    } catch {}
+  };
+
+  const applyReport = async (e: HookEvent) => {
+    const report = parseReport(e.payload);
+
+    if (report === null) {
+      return;
+    }
+
+    const s = mgr.sessions.find((x) => x.id === e.atcId);
+    const owner = s === undefined ? { atcID: e.atcId } : buildMessageOwner(s);
+
+    try {
+      const answered = await store.updateMessageAnswered(
+        report.message,
+        owner,
+        truncateToBytes(report.answer, ANSWER_BYTE_CAP),
+        Date.now(),
+      );
+
+      if (answered !== null) {
+        emitEvent(buildSessionMessageEvent(e.atcId, answered), findHookScope(e.atcId));
+      }
+    } catch {}
+  };
 
   // The screen tier of the detector stack: once a session's output has
   // quiesced, judge the serialized screen and flip running/needs_you.
@@ -374,6 +462,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     if (kind === 'removed') {
       attachments.removeSession(s.id);
+
+      emitInboxClosed(taps.removeSession(s.id), s.id, 'removed');
       runtimes.get(s.id)?.dispose();
       runtimes.delete(s.id);
     }
@@ -394,6 +484,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   const reporter = startHookServer((e) => {
+    if (e.event === 'Report') {
+      void applyReport(e);
+
+      return;
+    }
+
+    const previousAgentSessionID = mgr.sessions.find((s) => s.id === e.atcId)?.agentSessionID;
     const ev = mgr.applyHook(e);
 
     if (e.event !== 'Statusline') {
@@ -402,6 +499,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     const kind = ev?.kind ?? null;
     const runtime = runtimes.get(e.atcId);
+    const currentAgentSessionID = mgr.sessions.find((s) => s.id === e.atcId)?.agentSessionID;
+
+    if (currentAgentSessionID !== undefined && currentAgentSessionID !== previousAgentSessionID) {
+      void store.updateMessageOwner(e.atcId, previousAgentSessionID, currentAgentSessionID);
+    }
 
     if (kind === 'ended') {
       runtime?.pendingEject?.();
@@ -410,6 +512,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     // A revived session announcing itself is the cue a staggered restore
     // waits on before booting the next one.
     if (kind === 'started') {
+      if (runtime !== undefined) {
+        runtime.startedAt = Date.now();
+      }
+
       runtime?.bootWaiter?.();
       const started = mgr.sessions.find((s) => s.id === e.atcId);
 
@@ -535,6 +641,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       if (runtime !== undefined) {
         runtime.dims = { cols, rows };
+        runtime.startedAt = null;
+        runtime.tapAttached = false;
 
         runtime.screen ??= new ScreenModel(cols, rows);
       }
@@ -720,6 +828,122 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         await eventSignal.waitForNext(generation, remaining);
       }
     },
+    writeSessionMessage: async (sessionID, from, text) => {
+      const s = mgr.sessions.find((x) => x.id === sessionID);
+
+      if (s === undefined) {
+        return 'missing';
+      }
+
+      if (!(s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'))) {
+        return 'dead';
+      }
+
+      if (mgr.findAdapter(s.agent)?.takesMessages !== true) {
+        return 'unsupported';
+      }
+
+      const runtime = runtimes.get(sessionID);
+
+      if (
+        runtime !== undefined &&
+        runtime.startedAt !== null &&
+        !runtime.tapAttached &&
+        Date.now() - runtime.startedAt >= (opts.tapGraceMs ?? TAP_GRACE_MS)
+      ) {
+        return 'no_tap';
+      }
+
+      const previousWrite = lastMessageWrite;
+      const written = Promise.withResolvers<void>();
+
+      lastMessageWrite = written.promise;
+
+      await previousWrite;
+
+      const record: MessageRecord = {
+        id: mintMessageID(),
+        atcID: sessionID,
+        ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
+        from,
+        text,
+        status: 'accepted',
+        sentAt: Date.now(),
+      };
+
+      try {
+        await store.writeMessage(record);
+      } finally {
+        written.resolve();
+      }
+
+      emitEvent(buildSessionMessageEvent(sessionID, record), findHookScope(sessionID));
+
+      await drainInbox(sessionID);
+
+      return record;
+    },
+    attachTap: (client, sessionID) => {
+      const s = mgr.sessions.find((x) => x.id === sessionID);
+
+      if (s === undefined) {
+        return 'missing';
+      }
+
+      if (mgr.findAdapter(s.agent)?.takesMessages !== true) {
+        return 'unsupported';
+      }
+
+      emitInboxClosed(taps.attach(sessionID, client), sessionID, 'replaced');
+
+      const runtime = runtimes.get(sessionID);
+
+      if (runtime !== undefined) {
+        runtime.tapAttached = true;
+      }
+
+      void drainInbox(sessionID);
+
+      return 'ok';
+    },
+    readMessage: async (messageID) => {
+      const record = await store.findMessageByID(messageID);
+
+      if (record === null) {
+        return null;
+      }
+
+      const owner = mgr.sessions.find(
+        (x) =>
+          x.id === record.atcID ||
+          (record.agentSessionID !== undefined && x.agentSessionID === record.agentSessionID),
+      );
+
+      return { session: owner?.id ?? record.atcID, record };
+    },
+    ackMessage: async (client, sessionID, messageID) => {
+      const s = mgr.sessions.find((x) => x.id === sessionID);
+
+      if (s === undefined || !taps.isTap(sessionID, client)) {
+        return 'not_tapping';
+      }
+
+      const owner = buildMessageOwner(s);
+
+      const delivered = await store.updateMessageDelivered(messageID, owner, Date.now());
+
+      void drainInbox(sessionID);
+
+      if (delivered !== null) {
+        emitEvent(buildSessionMessageEvent(sessionID, delivered), findHookScope(sessionID));
+
+        return delivered;
+      }
+
+      const current = await store.findMessage(messageID, owner);
+
+      return current ?? 'unknown';
+    },
   };
 
   try {
@@ -735,7 +959,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         clients.add(socket.data);
       },
       data(socket, buf) {
-        socket.data.applyChunk(buf.toString());
+        socket.data.applyChunk(socket.data.decodeChunk(buf));
       },
       drain(socket) {
         socket.data.drain();
@@ -743,6 +967,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       close(socket) {
         clients.delete(socket.data);
         ctx.detachClient(socket.data);
+        taps.detachAll(socket.data);
       },
       error() {},
     },
@@ -771,6 +996,23 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   return { stop: stopDaemon };
+}
+
+// Tells a tap its subscription is over so the `atc tap` process behind it
+// exits instead of idling on a session it no longer serves.
+function emitInboxClosed(
+  tap: TapClient | null,
+  sessionID: SessionID,
+  reason: 'replaced' | 'removed',
+): void {
+  tap?.sendEvent({ v: PROTOCOL_V, ev: 'InboxClosed', s: sessionID, reason });
+}
+
+function buildMessageOwner(s: Session): MessageOwner {
+  return {
+    atcID: s.id,
+    ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
+  };
 }
 
 function hasResumableTranscript(mgr: SessionManager, id: SessionID): boolean {

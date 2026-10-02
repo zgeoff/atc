@@ -77,3 +77,9 @@ test('it resumes only while the reported transcript is still on disk', () => {
   expect(adapter.canResume({ transcriptSource: transcript })).toBe(true);
   expect(adapter.canResume({ transcriptSource: join(dir, 'missing.jsonl') })).toBe(false);
 });
+
+test('it takes inbox messages', () => {
+  const adapter = buildGatewayAdapter();
+
+  expect(adapter.takesMessages).toBe(true);
+});

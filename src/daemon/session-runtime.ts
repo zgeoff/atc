@@ -37,6 +37,15 @@ export class SessionRuntime {
   // clears it, and a spawn that never reports leaves it stranded harmlessly.
   pendingLastUsed = false;
 
+  // When the agent reported SessionStart since its terminal last booted, or
+  // null before it has. A message queues for a grace window after that, and
+  // beyond it only if a tap has attached since the boot.
+  startedAt: number | null = null;
+
+  // Whether a tap has attached since the terminal last booted. A tap that
+  // later dropped may be restarting, so it keeps the inbox open.
+  tapAttached = false;
+
   dispose(): void {
     clearTimeout(this.resizeTimer);
     clearTimeout(this.detectTimer);

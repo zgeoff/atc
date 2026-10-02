@@ -29,7 +29,8 @@ const atcCommand =
     ? [process.execPath, join(repo, 'src', 'cli.ts')]
     : [process.env['ATC_BIN']];
 
-const hookReportCommand = `${atcCommand.map((part) => `"${part}"`).join(' ')} hook-report`;
+const atcLine = atcCommand.map((part) => `"${part}"`).join(' ');
+const hookReportCommand = `${atcLine} hook-report`;
 
 function getString(value: Readonly<Record<string, unknown>>, key: string): string {
   const inner = value[key];
@@ -92,7 +93,9 @@ function setupDaemonProc(
       fakeClaude,
       `#!/usr/bin/env bash
 echo "FAKE_CLAUDE_UP args: $@"
+if [ -f "$HOME/fake-claude-hold-start" ]; then while read -r line; do echo "GOT:$line"; done; sleep 30; exit 0; fi
 printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | ${hookReport}
+if [ -f "$HOME/fake-claude-tap" ]; then ${atcLine} tap --session "$ATC_SESSION_ID" >> "$HOME/tap.jsonl" & fi
 sleep 0.3
 printf '{"hook_event_name":"Notification","session_id":"fake-1","message":"needs permission"}' | ${hookReport}
 if [ -f "$HOME/fake-claude-events.jsonl" ]; then
@@ -1989,4 +1992,142 @@ test('it holds events.read open until the next event arrives', async () => {
 
   expect(getRecords(answered, 'events')[0]).toMatchObject({ kind: 'started', session: id });
   expect(Date.now()).toBeWithin(start, start + 9000);
+});
+
+test('it carries a message from accepted through delivered to answered', async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(join(ctx.home, 'fake-claude-tap'), '');
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const spawned = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(spawned, 'session'), 'id');
+
+  // The session may have started without its tap connected yet, so the
+  // message queues for the tap to drain.
+  const sent = await client.sendRequest('session.message', {
+    session: id,
+    text: 'ping from test',
+    from: 'e2e',
+  });
+
+  const messageID = getString(sent, 'message');
+
+  await waitFor(() => {
+    expect(readFileSync(join(ctx.home, 'tap.jsonl'), 'utf8')).toInclude(messageID);
+  });
+
+  const tapped = readFileSync(join(ctx.home, 'tap.jsonl'), 'utf8');
+
+  expect(tapped).toInclude('ping from test');
+
+  const delivered = await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionMessage' && e['status'] === 'delivered',
+  );
+
+  expect(delivered).toMatchObject({ s: id, message: messageID, from: 'e2e' });
+
+  const reporter = Bun.spawn([...atcCommand, 'report', 'answered', '--message', messageID], {
+    stdin: new TextEncoder().encode('final text'),
+    env: collectEnv({ ATC_SOCKET: join(ctx.home, 'atc.sock'), ATC_SESSION_ID: id }),
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
+
+  const reporterCode = await reporter.exited;
+
+  expect(reporterCode).toBe(0);
+
+  const answered = await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionMessage' && e['status'] === 'answered',
+  );
+
+  expect(answered).toMatchObject({ s: id, message: messageID, answerPreview: 'final text' });
+
+  const screen = await client.sendRequest('session.screen', { session: id });
+
+  expect(getString(screen, 'text')).not.toInclude('ping from test');
+});
+
+test('it delivers a message accepted before a daemon crash to the restored session', async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const spawned = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    resume: 'fake-1',
+    cols: 80,
+    rows: 24,
+  });
+
+  const originalID = getString(getRecord(spawned, 'session'), 'id');
+
+  const sent = await client.sendRequest('session.message', {
+    session: originalID,
+    text: 'survive the crash',
+    from: 'e2e',
+  });
+
+  const messageID = getString(sent, 'message');
+
+  ctx.proc.kill(9);
+
+  await ctx.proc.exited;
+
+  rmSync(join(ctx.home, 'fake-claude-hold-start'));
+  writeFileSync(join(ctx.home, 'fake-claude-tap'), '');
+
+  const revived = setupDaemonProc(ctx.home);
+
+  const client2 = await revived.openClient();
+
+  const events: EventMsg[] = [];
+
+  client2.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client2.sendHello('atc/test');
+
+  const restored = await client2.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  expect(restored).toStrictEqual({ restored: 1 });
+
+  await waitFor(() => {
+    expect(readFileSync(join(ctx.home, 'tap.jsonl'), 'utf8')).toInclude(messageID);
+  });
+
+  const tapped = readFileSync(join(ctx.home, 'tap.jsonl'), 'utf8');
+
+  expect(tapped).toInclude('survive the crash');
+
+  const list = await client2.sendRequest('session.list');
+
+  const restoredID = getString(getRecords(list, 'sessions')[0] ?? {}, 'id');
+
+  expect(restoredID).not.toBe(originalID);
+
+  const delivered = await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionMessage' && e['status'] === 'delivered',
+  );
+
+  expect(delivered).toMatchObject({ s: restoredID, message: messageID });
 });

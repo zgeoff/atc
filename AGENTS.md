@@ -185,10 +185,10 @@ per file: `daemon/` owns the fleet and per-session runtime state; `client/` is t
 connection to the daemon; `agents/` holds the `AgentAdapter` interface and the Claude, Grok, Codex,
 and gateway implementations; `store/` is the SQLite state store and its migrations; `protocol/` is
 the wire format and the transport it rides; `shared/` holds id types, config, and other utilities
-used across the rest of `src/`. `cli.ts` is the CLI entrypoint, and it wires in `hook-report.ts`,
-`statusline.ts`, `mcp-server.ts`, and `events.ts` as its own subcommands, so all five stay at `src/`
-root. `test/` holds the PTY-driven e2e suite, `bin/atc` is the executable shim. `scripts/` holds
-repo tooling, not app code.
+used across the rest of `src/`. `cli.ts` is the CLI entrypoint. A module that exists only to back
+one of its subcommands stays beside it at `src/` root, while the `tui` and `daemon` subcommands load
+their subsystems from `client/` and `daemon/`. `test/` holds the PTY-driven e2e suite, `bin/atc` is
+the executable shim. `scripts/` holds repo tooling, not app code.
 
 ## Runtime rules
 

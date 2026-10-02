@@ -63,6 +63,10 @@ const main = defineCommand({
           const restoreBootTimeoutMs =
             Number.isFinite(capOverride) && capOverride >= 0 ? capOverride : 15_000;
 
+          // How long a started session may go without a tap before a message
+          // to it is refused. Tests pin it to 0 to reach the refusal at once.
+          const graceOverride = Number(process.env['ATC_TAP_GRACE_MS']);
+
           const claudeAdapter = new claude.ClaudeAdapter(cfg, (runOpts, hooks) =>
             headless.startHeadlessRun({ ...runOpts, claudeBin: cfg.claudeBin }, hooks),
           );
@@ -89,6 +93,9 @@ const main = defineCommand({
             pidPath: config.daemonPidFile,
             hooks: cfg.hooks,
             restoreBootTimeoutMs,
+            ...(Number.isFinite(graceOverride) && graceOverride >= 0
+              ? { tapGraceMs: graceOverride }
+              : {}),
             ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
             onQuit: () => process.exit(0),
           });
@@ -150,6 +157,45 @@ const main = defineCommand({
           const reporter = await import('./hook-report');
 
           await reporter.runHookReport();
+        },
+      }),
+    tap: () =>
+      defineCommand({
+        meta: {
+          name: 'tap',
+          description: "Stream a session's inbox to stdout as NDJSON, acking each message",
+        },
+        args: {
+          session: {
+            type: 'string',
+            required: true,
+            description: 'The atc session id to tap',
+          },
+        },
+        async run(ctx) {
+          const tap = await import('./tap');
+
+          await tap.runTap(ctx.args.session);
+        },
+      }),
+    report: () =>
+      defineCommand({
+        meta: {
+          name: 'report',
+          description: 'Report a message event from a wrangled session to the atc socket',
+          hidden: true,
+        },
+
+        // Neither arg is required: a citty usage error exits nonzero, and
+        // reporters must always exit 0.
+        args: {
+          kind: { type: 'positional', required: false, default: '' },
+          message: { type: 'string', default: '' },
+        },
+        async run(ctx) {
+          const reporter = await import('./report');
+
+          await reporter.runReport(ctx.args.kind, ctx.args.message);
         },
       }),
     statusline: () =>

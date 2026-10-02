@@ -31,3 +31,13 @@ test('it cuts to two bytes without an ellipsis when the cap is two', () => {
 test('it backs off a split character when the cap is below the ellipsis length', () => {
   expect(truncateToBytes('é'.repeat(3), 1)).toBe('');
 });
+
+test('it never exceeds a cap smaller than three bytes', () => {
+  expect(truncateToBytes('abcdef', 1)).toBe('a');
+  expect(truncateToBytes('abcdef', 2)).toBe('ab');
+});
+
+test('it returns an empty string when a one or two byte cap lands inside the first character', () => {
+  expect(truncateToBytes('😀', 1)).toBe('');
+  expect(truncateToBytes('😀', 2)).toBe('');
+});
