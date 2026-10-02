@@ -57,15 +57,16 @@ says to restart the daemon.
 { "v": 3, "id": 1, "ok": { "daemon": "atc/0.4.0",
                            "limits": { "maxLine": 1048576, "maxChunk": 65536 },
                            "features": ["agents.list", "events.more", "events.session",
-                                        "message.turn", "message.wait"],
+                                        "message.turn", "message.wait", "spawn.options"],
                            "lastUsedAgent": "claude" } }
 ```
 
 `features` lists the request features the daemon serves beyond the protocol version: `agents.list`
 exists, `events.read` returns `more` and takes `session`, and `message.get` returns `turn` and
-`answeredWith` and takes `waitMs`. A daemon from before the list existed sends none, and it ignores
-the parameters it does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads
-the list rather than the build string to learn what the running daemon honours.
+`answeredWith` and takes `waitMs`, and `session.spawn` takes `model` and `effort` while
+`agents.list` returns `spawnOptions`. A daemon from before the list existed sends none, and it
+ignores the parameters it does not know. A client that outlives a daemon upgrade, such as `atc mcp`,
+reads the list rather than the build string to learn what the running daemon honours.
 
 `lastUsedAgent` is the agent id of the last deliberate spawn that reported SessionStart. The
 built-in ids are `claude`, `grok`, and `codex`. A spawn that never reports SessionStart does not
