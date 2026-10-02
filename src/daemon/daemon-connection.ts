@@ -165,6 +165,13 @@ export class DaemonConnection {
     this.queue = new OutboundQueue(peer, ctx.queueBytes);
   }
 
+  /**
+   * Ends the connection. Safe to call more than once.
+   */
+  dispose(): void {
+    this.peer.end();
+  }
+
   sendEvent(event: EventMsg): void {
     if (this.helloed && !this.queue.send(encodeMessage(event))) {
       this.peer.end();
