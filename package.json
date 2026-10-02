@@ -37,14 +37,17 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.222",
+    "@better-auth/mcp": "1.7.6",
+    "@better-auth/oauth-provider": "1.7.6",
     "@xterm/addon-serialize": "0.14.0",
     "@xterm/headless": "6.0.0",
+    "better-auth": "1.7.6",
     "bun-pty": "0.4.10",
     "citty": "0.2.2",
     "kysely": "0.29.5",
     "ts-pattern": "5.9.0",
     "xstate": "5.32.5",
-    "zod": "4.4.3"
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.0",

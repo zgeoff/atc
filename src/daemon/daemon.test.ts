@@ -137,6 +137,39 @@ test('it answers daemon.hello with the build and limits', async () => {
   });
 });
 
+test('it counts a client connection while it is open', async () => {
+  const tmp = setupTempDir('atc-daemon-');
+
+  const daemon = await startDaemon({
+    socketPath: join(tmp.dir, 'daemon.sock'),
+    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+    build: 'atc/test-build',
+    adapter: idleAdapter,
+    dbPath: join(tmp.dir, 'state.db'),
+    statusPath: join(tmp.dir, 'status.json'),
+  });
+
+  onTestFinished(async () => {
+    await daemon.stop();
+
+    tmp[Symbol.dispose]();
+  });
+
+  const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
+
+  await client.sendHello('atc/test-build');
+
+  const open = daemon.countClients();
+
+  client.stop();
+
+  await waitFor(() => {
+    expect(daemon.countClients()).toBe(0);
+  });
+
+  expect(open).toBe(1);
+});
+
 test('it rejects a protocol version mismatch naming both builds', async () => {
   const raw = await setupRawClient();
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
+import type { GrantScope } from '../shared/grant-scope';
 
 const NO_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(z.strictObject({}));
 
@@ -81,8 +82,6 @@ const EVENTS_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   { io: 'input' },
 );
 
-type MCPScope = 'read' | 'message' | 'spawn' | 'kill';
-
 interface MCPToolAnnotations {
   readonly readOnlyHint: boolean;
   readonly destructiveHint: boolean;
@@ -94,7 +93,7 @@ interface MCPToolDefinition {
   readonly description: string;
   readonly inputSchema: Readonly<Record<string, unknown>>;
   readonly annotations: MCPToolAnnotations;
-  readonly scope: MCPScope;
+  readonly scope: GrantScope;
 }
 
 const READ_ONLY: MCPToolAnnotations = {
@@ -254,7 +253,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
         from: {
           type: 'string',
           description:
-            'Who the message is from; defaults to the calling session id, or mcp outside a session',
+            'Who the message is from; defaults to the calling session id, or mcp outside a session. Ignored for a remote client, whose messages are always from its own name',
         },
       },
       required: ['session', 'text'],

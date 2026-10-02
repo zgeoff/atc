@@ -51,12 +51,14 @@ const DEFAULTS: Config = {
 
 const configDir = join(homedir(), '.config', 'atc');
 
+export const configFile = join(configDir, 'config.json');
 export const stateDir = join(homedir(), '.local', 'state', 'atc');
 export const socketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc.sock');
 export const daemonSocketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-daemon.sock');
 export const eventsSocketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-events.sock');
 export const statusFile = join(stateDir, 'status.json');
 export const dbFile = join(stateDir, 'atc.db');
+export const mcpAuthDBFile = join(stateDir, 'mcp-auth.db');
 export const legacyFleetFile = join(stateDir, 'fleet.json');
 export const daemonPidFile = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-daemon.pid');
 
@@ -80,7 +82,7 @@ export function loadConfig(): Config {
   mkdirSync(configDir, { recursive: true });
   mkdirSync(stateDir, { recursive: true });
 
-  const file = join(configDir, 'config.json');
+  const file = configFile;
 
   if (!existsSync(file)) {
     writeFileSync(file, `${JSON.stringify(DEFAULTS, null, 2)}\n`);

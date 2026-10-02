@@ -2,6 +2,8 @@
 // `statusline` are the commands injected into wrangled sessions.
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
+import { collectRedirectURIs } from './collect-redirect-uris';
+import { parsePort } from './parse-port';
 import { getBuild } from './shared/get-build';
 
 const main = defineCommand({
@@ -27,12 +29,120 @@ const main = defineCommand({
       defineCommand({
         meta: {
           name: 'mcp',
-          description: 'Run an MCP server over stdio exposing the fleet as tools',
+          description:
+            'Run an MCP server exposing the fleet as tools: over stdio, or with --http behind OAuth',
         },
-        async run() {
-          const server = await import('./mcp-server');
+        args: {
+          http: {
+            type: 'boolean',
+            default: false,
+            description: 'Serve MCP over HTTP behind OAuth',
+          },
+          host: {
+            type: 'string',
+            description: 'Address to bind with --http (default 127.0.0.1)',
+          },
+          port: { type: 'string', description: 'Port to listen on with --http (default 8414)' },
+          'public-url': {
+            type: 'string',
+            description:
+              'Origin clients reach the --http server at, such as https://mcp.example.com',
+          },
+        },
+        async run(ctx) {
+          if (!ctx.args.http) {
+            const server = await import('./mcp-server');
 
-          await server.runMCPServer(getBuild());
+            await server.runMCPServer(getBuild());
+
+            return;
+          }
+
+          const port = ctx.args.port === undefined ? null : parsePort(ctx.args.port);
+
+          if (port !== null && !port.ok) {
+            console.error(`atc mcp --http: ${port.message}`);
+            process.exit(1);
+          }
+
+          const http = await import('./mcp-http-server');
+
+          await http.runMCPHTTPServer(getBuild(), {
+            host: ctx.args.host ?? null,
+            port: port === null ? null : port.port,
+            publicURL: ctx.args['public-url'] ?? null,
+          });
+        },
+      }),
+    clients: () =>
+      defineCommand({
+        meta: {
+          name: 'clients',
+          description: 'List, add, or remove the clients that may connect to atc mcp --http',
+        },
+        default: 'list',
+        subCommands: {
+          list: () =>
+            defineCommand({
+              meta: { name: 'list', description: 'List the clients', hidden: true },
+              async run() {
+                const clients = await import('./clients');
+
+                await clients.runClients({ kind: 'list' });
+              },
+            }),
+          add: () =>
+            defineCommand({
+              meta: { name: 'add', description: 'Add a client and print its client ID' },
+              args: {
+                name: { type: 'positional', required: true, description: 'The client name' },
+                'redirect-uri': {
+                  type: 'string',
+                  required: true,
+                  description: 'A redirect URI the client returns to; repeat for more',
+                },
+              },
+              async run(ctx) {
+                const clients = await import('./clients');
+
+                await clients.runClients({
+                  kind: 'add',
+                  name: ctx.args.name,
+                  redirectURIs: collectRedirectURIs(ctx.rawArgs),
+                });
+              },
+            }),
+          remove: () =>
+            defineCommand({
+              meta: {
+                name: 'remove',
+                description: 'Remove a client and revoke every grant it holds',
+              },
+              args: {
+                id: { type: 'positional', required: true, description: 'The client ID' },
+              },
+              async run(ctx) {
+                const clients = await import('./clients');
+
+                await clients.runClients({ kind: 'remove', clientID: ctx.args.id });
+              },
+            }),
+        },
+      }),
+    grants: () =>
+      defineCommand({
+        meta: {
+          name: 'grants',
+          description:
+            'List the grants atc mcp --http clients hold, or revoke one with --revoke <id>',
+        },
+        args: {
+          revoke: { type: 'string', description: 'The ID of a grant to revoke' },
+        },
+        async run(ctx) {
+          const grants = await import('./grants');
+
+          await grants.runGrants(ctx.args.revoke ?? null);
         },
       }),
     daemon: () =>

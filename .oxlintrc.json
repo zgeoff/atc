@@ -32,6 +32,7 @@
           "refresh",
           "restart",
           "restore",
+          "revoke",
           "schedule",
           "spawn",
           "truncate",
@@ -100,7 +101,15 @@
           // a kysely connection bound to a live driver; not meaningfully freezable
           { "from": "package", "name": "DatabaseConnection", "package": "kysely" },
           // a migrator result read once for its error field, never mutated
-          { "from": "package", "name": "MigrationResultSet", "package": "kysely" }
+          { "from": "package", "name": "MigrationResultSet", "package": "kysely" },
+          // a live HTTP request: its body is a one-shot stream, so it has no
+          // readonly form
+          { "from": "package", "name": "Request", "package": "bun-types" },
+          // read only by the routes; its setters are the only mutable part
+          { "from": "package", "name": "URL", "package": "bun-types" },
+          // wraps a live better-auth instance and its database connection;
+          // not meaningfully freezable
+          { "from": "file", "name": "HTTPServerContext" }
         ]
       }
     ],

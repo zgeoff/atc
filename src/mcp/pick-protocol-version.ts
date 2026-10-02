@@ -1,11 +1,7 @@
-const SUPPORTED_PROTOCOL_VERSIONS: ReadonlySet<string> = new Set([
-  '2025-11-25',
-  '2025-06-18',
-  '2024-11-05',
-]);
+import { isSupportedProtocolVersion } from './is-supported-protocol-version';
 
 export function pickProtocolVersion(requested: unknown): string {
-  if (typeof requested === 'string' && SUPPORTED_PROTOCOL_VERSIONS.has(requested)) {
+  if (isSupportedProtocolVersion(requested)) {
     return requested;
   }
 
