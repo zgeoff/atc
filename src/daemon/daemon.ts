@@ -1111,12 +1111,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return 'ok';
     },
     resizeSession: (client, sessionID, dims) => {
-      const s = mgr.sessions.find((x) => x.id === sessionID);
-
-      if (s !== undefined && s.pty !== null) {
-        requireCapability(mgr.provider, 'resize');
-      }
-
       if (!attachments.updateDims(sessionID, client, dims)) {
         return false;
       }

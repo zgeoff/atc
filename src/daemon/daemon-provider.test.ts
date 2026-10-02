@@ -226,3 +226,37 @@ test('it refuses an attach with unsupported_operation when the provider streams 
 
   expect(attach).rejects.toMatchObject({ code: 'unsupported_operation' });
 });
+
+test('it takes a resize from an attached client on a provider that cannot resize', async () => {
+  const local = new LocalPTYProvider();
+
+  await using daemon = await setupTest({
+    kind: 'no-resize',
+    capabilities: { ...local.capabilities, resize: false },
+    spawnHarness: local.spawnHarness,
+    transferArchive: local.transferArchive,
+    runCommand: local.runCommand,
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await daemon.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  const resized = await daemon.client.sendRequest('session.resize', {
+    session: id,
+    cols: 120,
+    rows: 40,
+  });
+
+  expect(resized).toStrictEqual({});
+
+  await waitFor(() => {
+    expect(daemon.events).toPartiallyContain({ ev: 'SessionResized', cols: 120, rows: 40 });
+  });
+});
