@@ -2,6 +2,7 @@
 // `statusline` are the commands injected into wrangled sessions.
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
+import { collectRedirectURIs } from './collect-redirect-uris';
 import { parsePort } from './parse-port';
 import { getBuild } from './shared/get-build';
 
@@ -71,6 +72,77 @@ const main = defineCommand({
             port: port === null ? null : port.port,
             publicURL: ctx.args['public-url'] ?? null,
           });
+        },
+      }),
+    clients: () =>
+      defineCommand({
+        meta: {
+          name: 'clients',
+          description: 'List, add, or remove the clients that may connect to atc mcp --http',
+        },
+        default: 'list',
+        subCommands: {
+          list: () =>
+            defineCommand({
+              meta: { name: 'list', description: 'List the clients', hidden: true },
+              async run() {
+                const clients = await import('./clients');
+
+                await clients.runClients({ kind: 'list' });
+              },
+            }),
+          add: () =>
+            defineCommand({
+              meta: { name: 'add', description: 'Add a client and print its client ID' },
+              args: {
+                name: { type: 'positional', required: true, description: 'The client name' },
+                'redirect-uri': {
+                  type: 'string',
+                  required: true,
+                  description: 'A redirect URI the client returns to; repeat for more',
+                },
+              },
+              async run(ctx) {
+                const clients = await import('./clients');
+
+                await clients.runClients({
+                  kind: 'add',
+                  name: ctx.args.name,
+                  redirectURIs: collectRedirectURIs(ctx.rawArgs),
+                });
+              },
+            }),
+          remove: () =>
+            defineCommand({
+              meta: {
+                name: 'remove',
+                description: 'Remove a client and revoke every grant it holds',
+              },
+              args: {
+                id: { type: 'positional', required: true, description: 'The client ID' },
+              },
+              async run(ctx) {
+                const clients = await import('./clients');
+
+                await clients.runClients({ kind: 'remove', clientID: ctx.args.id });
+              },
+            }),
+        },
+      }),
+    grants: () =>
+      defineCommand({
+        meta: {
+          name: 'grants',
+          description:
+            'List the grants atc mcp --http clients hold, or revoke one with --revoke <id>',
+        },
+        args: {
+          revoke: { type: 'string', description: 'The ID of a grant to revoke' },
+        },
+        async run(ctx) {
+          const grants = await import('./grants');
+
+          await grants.runGrants(ctx.args.revoke ?? null);
         },
       }),
     daemon: () =>
