@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.5.1...@zgeoff/atc@2.6.0) (2026-10-02)
+
+
+### Features
+
+* **daemon:** add cursor reads for session state, transcripts and events ([#109](https://github.com/zgeoff/atc/issues/109)) ([eaa7239](https://github.com/zgeoff/atc/commit/eaa7239bb922992497a6060267056b44af6fa6ad))
+
 ## [2.5.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.5.0...@zgeoff/atc@2.5.1) (2026-10-02)
 
 ### Bug Fixes
