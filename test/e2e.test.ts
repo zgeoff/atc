@@ -75,8 +75,9 @@ done
   );
 
   // Grok speaks camelCase envelopes. Drop fake-grok-hold-start to skip
-  // SessionStart, or fake-grok-events.jsonl to replace the default
-  // permission_prompt with extra hook lines.
+  // SessionStart, fake-grok-delay-start to send it a second late, or
+  // fake-grok-events.jsonl to replace the default permission_prompt with
+  // extra hook lines.
   writeFileSync(
     fakeGrok,
     `#!/usr/bin/env bash
@@ -92,6 +93,9 @@ idle() {
 if [ -f "$HOME/fake-grok-hold-start" ]; then
   idle
   exit 0
+fi
+if [ -f "$HOME/fake-grok-delay-start" ]; then
+  sleep 1
 fi
 printf '{"hookEventName":"session_start","sessionId":"fake-grok-1","cwd":"%s"}' "$PWD" | ${hookReport}
 if [ -f "$HOME/fake-grok-events.jsonl" ]; then
@@ -881,7 +885,9 @@ test('it restores the fleet from disk after a crash', async () => {
       db.close();
     } catch {}
 
-    if (fleet.length > 0) {
+    // The row lands at spawn, before the agent reports its session id, so
+    // the wait runs until the row holds that id.
+    if (fleet.some((row) => isRecord(row) && row['agentSessionID'] !== null)) {
       break;
     }
 
@@ -982,6 +988,10 @@ test('it explains a revive that has no saved transcript instead of failing silen
 test('it spawns a grok session without resume or -p and marks it resumable', async () => {
   await using ctx = setupTest();
 
+  // The agent reports its session a second after it starts, while its fleet
+  // row already exists without the id.
+  writeFileSync(join(ctx.home, 'fake-grok-delay-start'), '');
+
   const pty = ctx.boot();
 
   await ctx.waitFor('atc — control tower');
@@ -1020,7 +1030,9 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
       db.close();
     } catch {}
 
-    if (fleet.length > 0) {
+    // The row lands at spawn, before the agent reports its session id, so
+    // the wait runs until the row holds that id.
+    if (fleet.some((row) => isRecord(row) && row['agentSessionID'] !== null)) {
       break;
     }
 
@@ -1141,7 +1153,9 @@ test('it restores a grok session with grok --resume after a crash', async () => 
       db.close();
     } catch {}
 
-    if (fleet.length > 0) {
+    // The row lands at spawn, before the agent reports its session id, so
+    // the wait runs until the row holds that id.
+    if (fleet.some((row) => isRecord(row) && row['agentSessionID'] !== null)) {
       break;
     }
 
