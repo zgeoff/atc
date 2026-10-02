@@ -4,6 +4,24 @@ A per-user daemon owns the sessions; thin clients attach over the [wire protocol
 The first `atc` invocation boots the daemon if its socket is absent, then connects — tmux-style
 auto-spawn. `atc daemon` runs it in the foreground for systemd or debugging.
 
+## One daemon per state directory
+
+A daemon takes an exclusive lock on `daemon.lock` in its state directory before it opens `atc.db`,
+binds a socket, or restores a session. The lock is a kernel `flock`, so two daemons started in the
+same instant cannot both take it, and it dies with its process, so a crashed daemon never blocks the
+next one. A daemon that finds the lock held waits two seconds for a daemon that is shutting down,
+then exits with status 1 and a message holding the holder's pid and socket. The lock file is never
+removed; removing it would let a newcomer lock a fresh file while the old daemon still holds the
+removed one.
+
+The lock follows the state directory, not the sockets. Socket paths come from `$XDG_RUNTIME_DIR`,
+and a process whose environment lacks it, such as `atc mcp` under the Codex sandbox, computes socket
+paths under the state directory instead. Once it holds the lock, the daemon writes `daemon.json`
+beside it: its pid and the paths of its three sockets. A client that finds no daemon at its own
+socket path reads that record and connects to the socket it holds before it boots a daemon.
+Overlapping boots in one process share one spawn, and the TUI's `u` restart joins a restart that is
+already running, with `⟳ restarting daemon` in the status bar until it finishes.
+
 Clients are disposable. A client crash or terminal close costs nothing; the daemon detaches its
 subscriptions and the fleet runs on. Each client has its own focused session, and a session streams
 to every attached client. Per-client focus is a subscription (`session.attach`/`detach`) — an

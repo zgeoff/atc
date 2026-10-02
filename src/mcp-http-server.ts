@@ -4,7 +4,7 @@ import { collectClients } from './mcp/collect-clients';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { ReconnectingCaller } from './mcp/reconnecting-caller';
 import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
-import { daemonSocketPath, mcpAuthDBFile, stateDir } from './shared/config';
+import { mcpAuthDBFile, stateDir } from './shared/config';
 import { loadMCPHTTPConfig } from './shared/load-mcp-http-config';
 
 interface MCPHTTPFlags {
@@ -27,7 +27,7 @@ export async function runMCPHTTPServer(build: string, flags: MCPHTTPFlags): Prom
 
   mkdirSync(stateDir, { recursive: true });
 
-  const caller = new ReconnectingCaller(daemonSocketPath, build);
+  const caller = new ReconnectingCaller(boot.socketPath, build);
 
   const server = await startMCPHTTPServer({
     caller,

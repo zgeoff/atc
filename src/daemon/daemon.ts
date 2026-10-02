@@ -1,8 +1,10 @@
 import { unlinkSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import type { AdapterEvent, AgentAdapter } from '../agents/agent-adapter';
 import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
+import { findDaemonRecord } from '../shared/find-daemon-record';
 import type { SessionID } from '../shared/session-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { MessageOwner } from '../store/message-owner';
@@ -17,6 +19,7 @@ import { buildReportTrailEntry } from './build-report-trail-entry';
 import { buildSessionEvent } from './build-session-event';
 import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionReportEvent } from './build-session-report-event';
+import { claimDaemonLock } from './claim-daemon-lock';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext, OutputClient, TapClient } from './daemon-connection';
 import { EventSignal } from './event-signal';
@@ -37,6 +40,7 @@ import type { Session, SessionDescriptor, SessionState } from './sessions';
 import { startEventsServer } from './start-events-server';
 import { startHeadlessTurn } from './start-headless-turn';
 import { TapRegistry } from './tap-registry';
+import { writeDaemonRecord } from './write-daemon-record';
 
 export interface DaemonOptions {
   readonly socketPath: string;
@@ -101,6 +105,10 @@ export interface DaemonHandle {
 // it is refused.
 const TAP_GRACE_MS = 15_000;
 
+// How long startup waits for a daemon that is shutting down to release the
+// state lock before refusing to start.
+const LOCK_WAIT_MS = 2000;
+
 /**
  * The daemon: owns the sessions, the client-protocol listener, and the
  * reporter listener. Protocol requests are NDJSON lines, one response per
@@ -112,6 +120,23 @@ const TAP_GRACE_MS = 15_000;
  */
 export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   let stopDaemon: (() => Promise<void>) | null = null;
+
+  // One daemon per state directory: the lock comes before the store, the
+  // sockets, or the fleet, so a second daemon touches none of them.
+  const stateDir = dirname(opts.dbPath);
+  const recordPath = join(stateDir, 'daemon.json');
+
+  const lock = await claimDaemonLock(join(stateDir, 'daemon.lock'), LOCK_WAIT_MS);
+
+  if (lock === null) {
+    const holder = findDaemonRecord(recordPath);
+    const where = holder === null ? '' : ` (pid ${holder.pid}, socket ${holder.socketPath})`;
+
+    throw Object.assign(
+      new Error(`atc daemon: another daemon already serves ${stateDir}${where}`),
+      { code: 'daemon_locked' },
+    );
+  }
 
   if (opts.pidPath !== undefined) {
     writeFileSync(opts.pidPath, String(process.pid));
@@ -1068,12 +1093,25 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     await store.stop();
 
+    try {
+      unlinkSync(recordPath);
+    } catch {}
+
     if (opts.pidPath !== undefined) {
       try {
         unlinkSync(opts.pidPath);
       } catch {}
     }
+
+    lock.dispose();
   };
+
+  writeDaemonRecord(recordPath, {
+    pid: process.pid,
+    socketPath: opts.socketPath,
+    reporterSocketPath: opts.reporterSocketPath,
+    eventsSocketPath: opts.eventsSocketPath ?? null,
+  });
 
   return { stop: stopDaemon, countClients: () => clients.size };
 }

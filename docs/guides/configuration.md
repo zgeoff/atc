@@ -186,5 +186,6 @@ covers clients, the approval flow, and the checks.
 ## State locations
 
 Daemon state lives in `~/.local/state/atc/` — the
-[architecture overview](../architecture/overview.md#state) covers the files. The daemon's pid file
-sits in `$XDG_RUNTIME_DIR/atc-daemon.pid`, beside its sockets.
+[architecture overview](../architecture/overview.md#state) covers the files. The daemon's sockets
+and pid file sit in `$XDG_RUNTIME_DIR`, and `daemon.json` in the state directory holds their paths
+for a client whose environment lacks that variable.

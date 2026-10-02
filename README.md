@@ -93,7 +93,8 @@ list.
 
 If the daemon dies, press `R` on the home screen and every session respawns from its transcript.
 After you upgrade atc, the status bar shows `⟳ update ready`, and `u` restarts the daemon and
-restores the fleet when you are ready.
+restores the fleet when you are ready. The bar shows `⟳ restarting daemon` until the restart
+finishes.
 
 atc runs inside zellij or tmux. Give the pane locked mode so the leader key reaches atc.
 

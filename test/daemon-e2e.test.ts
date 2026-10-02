@@ -573,6 +573,58 @@ test('it restores the fleet cold after a daemon crash', async () => {
   expect(sessions[0]).toMatchObject({ agentSessionID: 'fake-1', alive: true });
 });
 
+test('it lets exactly one of two daemons started at once serve a state directory', async () => {
+  const first = setupDaemonProc();
+  const second = setupDaemonProc(first.home);
+
+  const loserCode = await Promise.race([first.proc.exited, second.proc.exited]);
+  const client = await first.openClient();
+
+  await client.sendHello('atc/test');
+
+  const live = [first.proc, second.proc].filter((proc) => proc.exitCode === null);
+  const [survivor] = live;
+
+  if (survivor === undefined) {
+    throw new Error('neither daemon is serving');
+  }
+
+  const record: unknown = JSON.parse(
+    readFileSync(join(first.home, '.local', 'state', 'atc', 'daemon.json'), 'utf8'),
+  );
+
+  expect(loserCode).toBe(1);
+  expect(live).toHaveLength(1);
+  expect(record).toMatchObject({ pid: survivor.pid, socketPath: first.daemonSock });
+
+  expect(readFileSync(join(first.home, 'daemon.stderr'), 'utf8')).toInclude(
+    'another daemon already serves',
+  );
+});
+
+test('it starts a daemon on the state directory of one killed with SIGKILL', async () => {
+  const crashed = setupDaemonProc();
+
+  await crashed.openClient();
+
+  crashed.proc.kill(9);
+
+  await crashed.proc.exited;
+
+  const next = setupDaemonProc(crashed.home);
+
+  const client = await next.openClient();
+
+  await client.sendHello('atc/test');
+
+  const record: unknown = JSON.parse(
+    readFileSync(join(crashed.home, '.local', 'state', 'atc', 'daemon.json'), 'utf8'),
+  );
+
+  expect(next.proc.exitCode).toBeNull();
+  expect(record).toMatchObject({ pid: next.proc.pid });
+});
+
 test('it restores a killed session as exited across a daemon restart', async () => {
   const ctx = setupDaemonProc();
 

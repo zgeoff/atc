@@ -139,9 +139,10 @@ All in `~/.local/state/atc/`:
 | `status.json` | Counts + most urgent session, read by the injected statusline on each render — a plain file because reporters read it without speaking the protocol.                                                                                                                                                                                                                    |
 | `mcp-auth.db` | SQLite: the OAuth state of `atc mcp --http` (clients, consent, token hashes), owned by that process and by `atc clients` and `atc grants`; the daemon never opens it. [Remote MCP](./remote-mcp.md) covers it.                                                                                                                                                          |
 
-The daemon's pid file (`atc-daemon.pid`) lives beside its sockets in `$XDG_RUNTIME_DIR`, not in the
-state directory: a pid is only meaningful for the daemon owning those sockets, and a shared location
-would let one runtime's stale-daemon restart kill another runtime's healthy daemon.
+`daemon.lock` is the lock that keeps one daemon per state directory, and `daemon.json` holds the
+running daemon's pid and socket paths, so a client whose environment computes other socket paths
+still finds it; the [daemon architecture](./daemon.md#one-daemon-per-state-directory) covers both.
+The daemon also writes its pid file (`atc-daemon.pid`) beside its sockets in `$XDG_RUNTIME_DIR`.
 
 ## Recovery model
 
