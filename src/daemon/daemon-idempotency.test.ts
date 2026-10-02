@@ -291,3 +291,24 @@ test('it replays a completed keyed spawn even once its parent is gone', async ()
 
   expect(retried).toMatchObject({ session: { id: getRecord(first, 'session')['id'] } });
 });
+
+test('it refuses a spawn with fractional rows as bad_args before any session starts', async () => {
+  await using ctx = await setupTest();
+
+  const client = await ctx.boot();
+
+  const spawn = client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    cols: 80,
+    rows: 24.5,
+    idempotencyKey: 'k-1',
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
+
+  await spawn.catch(() => null);
+
+  const list = await client.sendRequest('session.list');
+
+  expect(list['sessions']).toStrictEqual([]);
+});

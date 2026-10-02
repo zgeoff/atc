@@ -24,6 +24,9 @@ const IDEMPOTENCY_KEY = z
   .max(200, 'idempotencyKey must be at most 200 characters')
   .optional();
 
+// The refusal of a terminal size outside the range a terminal takes.
+const TERMINAL_SIZE_ERROR = 'cols and rows must be whole numbers from 1 to 4096';
+
 export const REQUEST_PARAM_SCHEMAS = {
   'daemon.hello': z.object({
     client: buildDefaultedString('unknown client'),
@@ -35,15 +38,15 @@ export const REQUEST_PARAM_SCHEMAS = {
   'agents.list': z.object({}),
   'fleet.list': z.object({}),
   'fleet.restore': z.object({
-    cols: buildDefaultedNumber(80),
-    rows: buildDefaultedNumber(24),
+    cols: buildTerminalSize(80),
+    rows: buildTerminalSize(24),
   }),
   'session.spawn': z.object({
     cwd: z.string({ error: 'session.spawn requires a cwd' }).min(1, 'session.spawn requires a cwd'),
     name: buildDefaultedString(''),
     prompt: buildDefaultedString(''),
-    cols: buildDefaultedNumber(80),
-    rows: buildDefaultedNumber(24),
+    cols: buildTerminalSize(80),
+    rows: buildTerminalSize(24),
 
     resume: buildDefaultedBooleanOrString(false).transform((v) =>
       typeof v === 'string' ? toAgentSessionID(v) : v,
@@ -76,16 +79,16 @@ export const REQUEST_PARAM_SCHEMAS = {
     pinned: buildOptionalBoolean(),
   }),
   'session.attach': SESSION_DEFAULTED.extend({
-    cols: buildDefaultedNumber(80),
-    rows: buildDefaultedNumber(24),
+    cols: buildTerminalSize(80),
+    rows: buildTerminalSize(24),
   }),
   'session.detach': SESSION_DEFAULTED,
   'session.input': SESSION_DEFAULTED.extend({
     d: buildDefaultedString(''),
   }),
   'session.resize': SESSION_DEFAULTED.extend({
-    cols: buildDefaultedNumber(0),
-    rows: buildDefaultedNumber(0),
+    cols: buildTerminalSize(0),
+    rows: buildTerminalSize(0),
   }).refine((v) => v.cols >= 1 && v.rows >= 1, {
     message: 'session.resize requires positive cols and rows',
   }),
@@ -95,8 +98,8 @@ export const REQUEST_PARAM_SCHEMAS = {
     prompt: buildDefaultedNonEmptyString(EJECT_DEFAULT_PROMPT),
   }),
   'session.adopt': SESSION_DEFAULTED.extend({
-    cols: buildDefaultedNumber(80),
-    rows: buildDefaultedNumber(24),
+    cols: buildTerminalSize(80),
+    rows: buildTerminalSize(24),
   }),
   'permission.respond': z
     .object({
@@ -140,6 +143,22 @@ export const REQUEST_PARAM_SCHEMAS = {
 
 function buildDefaultedString(fallback: string) {
   return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().default(fallback));
+}
+
+// A terminal dimension: absent or not a number takes the fallback, and a
+// number must be a whole number in range, since the terminal emulator and
+// the PTY both assume one and a fractional size throws only after the
+// process starts.
+function buildTerminalSize(fallback: number) {
+  return z.preprocess(
+    (v) => (typeof v === 'number' ? v : undefined),
+    z
+      .number({ error: TERMINAL_SIZE_ERROR })
+      .int(TERMINAL_SIZE_ERROR)
+      .min(1, TERMINAL_SIZE_ERROR)
+      .max(4096, TERMINAL_SIZE_ERROR)
+      .default(fallback),
+  );
 }
 
 function buildDefaultedNumber(fallback: number) {
