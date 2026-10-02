@@ -162,7 +162,7 @@ sleep 30
         grokArgs: [],
         codexBin: fakeCodex,
         codexArgs: [],
-        gateways: [],
+        gateways: { zai: { baseURL: 'http://127.0.0.1:9' } },
       }),
     );
   }
@@ -2130,4 +2130,56 @@ test('it delivers a message accepted before a daemon crash to the restored sessi
   );
 
   expect(delivered).toMatchObject({ s: restoredID, message: messageID });
+});
+
+test('it starts a Claude session with the atc-bridge mod folder', async () => {
+  const ctx = setupDaemonProc();
+  const bridgeDir = join(ctx.home, '.local', 'state', 'atc', 'atc-bridge');
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  // Wide enough that the echoed args line never wraps mid-path.
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 400, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude(`--plugin-dir ${bridgeDir}`);
+  });
+
+  expect(readFileSync(join(bridgeDir, '.claude-plugin', 'plugin.json'), 'utf8')).toInclude(
+    '"name": "atc-bridge"',
+  );
+
+  expect(readFileSync(join(bridgeDir, 'hooks', 'atc-cli.ts'), 'utf8')).toIncludeMultiple(
+    atcCommand,
+  );
+});
+
+test('it starts a gateway session with the atc-bridge mod folder', async () => {
+  const ctx = setupDaemonProc();
+  const bridgeDir = join(ctx.home, '.local', 'state', 'atc', 'atc-bridge');
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'zai',
+    cols: 400,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude(`--plugin-dir ${bridgeDir}`);
+  });
 });

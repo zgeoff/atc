@@ -1,5 +1,4 @@
-import { join } from 'node:path';
-import { isCompiledBinary } from '../shared/is-compiled-binary';
+import { buildCLIArgv } from './build-cli-argv';
 
 /**
  * Command line that wrangled sessions invoke for atc subcommands: under bun
@@ -7,11 +6,7 @@ import { isCompiledBinary } from '../shared/is-compiled-binary';
  * the entry.
  */
 export function buildCLICommand(subcommand: string): string {
-  const exec = process.execPath;
-
-  if (isCompiledBinary()) {
-    return `"${exec}" ${subcommand}`;
-  }
-
-  return `"${exec}" "${join(import.meta.dir, '..', 'cli.ts')}" ${subcommand}`;
+  return `${buildCLIArgv()
+    .map((part) => `"${part}"`)
+    .join(' ')} ${subcommand}`;
 }

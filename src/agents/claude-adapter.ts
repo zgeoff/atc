@@ -18,6 +18,7 @@ import type {
 } from './agent-adapter';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { truncateDetail } from './truncate-detail';
+import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
 
 // Claude's hook payload keys, snake_case. An absent or wrong-typed field
@@ -54,6 +55,9 @@ export class ClaudeAdapter implements AgentAdapter {
   // Written on first spawn so constructing the adapter touches no state.
   private settingsFile: string | undefined;
 
+  // Written on first spawn so constructing the adapter touches no state.
+  private bridgeDir: string | undefined;
+
   constructor(config: Config, headlessRunner: HeadlessRunner | null = null) {
     this.config = config;
     this.headlessRunner = headlessRunner;
@@ -61,6 +65,7 @@ export class ClaudeAdapter implements AgentAdapter {
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
     this.settingsFile ??= writeHookSettings({ id: this.id });
+    this.bridgeDir ??= writeATCBridge();
 
     return {
       bin: this.config.claudeBin,
@@ -68,6 +73,8 @@ export class ClaudeAdapter implements AgentAdapter {
         ...this.config.claudeArgs,
         '--settings',
         this.settingsFile,
+        '--plugin-dir',
+        this.bridgeDir,
         ...(opts.resume === true ? ['--resume'] : []),
         ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
         ...(opts.prompt === '' ? [] : [opts.prompt]),

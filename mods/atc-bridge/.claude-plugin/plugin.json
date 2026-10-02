@@ -1,0 +1,6 @@
+{
+  "name": "atc-bridge",
+  "version": "1.0.0",
+  "author": { "name": "zgeoff" },
+  "description": "Delivers atc inbox messages into the session and reports back to atc"
+}

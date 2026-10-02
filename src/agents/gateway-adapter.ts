@@ -15,6 +15,7 @@ import type {
 } from './agent-adapter';
 import { ClaudeAdapter } from './claude-adapter';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
+import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
 
 /**
@@ -46,6 +47,9 @@ export class GatewayAdapter implements AgentAdapter {
   // Written on first spawn so constructing the adapter touches no state.
   private settingsFile: string | undefined;
 
+  // Written on first spawn so constructing the adapter touches no state.
+  private bridgeDir: string | undefined;
+
   constructor(
     gateway: GatewayConfig,
     config: Config,
@@ -69,6 +73,8 @@ export class GatewayAdapter implements AgentAdapter {
         ...this.gateway.args,
         '--settings',
         this.writeSettings(),
+        '--plugin-dir',
+        this.writeBridge(),
         ...(opts.resume === true ? ['--resume'] : []),
         ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
         ...(opts.prompt === '' ? [] : [opts.prompt]),
@@ -109,5 +115,11 @@ export class GatewayAdapter implements AgentAdapter {
     });
 
     return this.settingsFile;
+  }
+
+  private writeBridge(): string {
+    this.bridgeDir ??= writeATCBridge();
+
+    return this.bridgeDir;
   }
 }
