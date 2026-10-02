@@ -348,6 +348,7 @@ test('it refuses a request a reach wider than the principal its connection acts 
   ).rejects.toMatchObject({ code: 'target_forbidden', data: { target: 'box' } });
 
   expect(client.sendRequest('daemon.quit')).rejects.toMatchObject({ code: 'unauthorized' });
+  expect(client.sendRequest('fleet.restore')).rejects.toMatchObject({ code: 'unauthorized' });
 
   await client.sendRequest('daemon.ping');
 
