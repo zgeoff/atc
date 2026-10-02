@@ -23,16 +23,16 @@ export class EventSignal {
 
     const deferred = Promise.withResolvers<void>();
 
-    const resolveWait = () => {
+    const onWake = () => {
       clearTimeout(timer);
 
-      this.waiters.delete(resolveWait);
+      this.waiters.delete(onWake);
       deferred.resolve();
     };
 
-    const timer = setTimeout(resolveWait, timeoutMs);
+    const timer = setTimeout(onWake, timeoutMs);
 
-    this.waiters.add(resolveWait);
+    this.waiters.add(onWake);
 
     return deferred.promise;
   }

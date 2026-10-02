@@ -17,8 +17,8 @@ import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { Dims } from './attach-registry';
 import type { FleetEvent } from './build-fleet-events';
+import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
 import type { AnswerResult } from './permission-registry';
-import type { TranscriptPage, TranscriptPosition } from './read-transcript-page';
 import type { ScreenText } from './screen-model';
 import type { SessionDescriptor } from './sessions';
 
@@ -42,8 +42,8 @@ interface SessionRecord {
   readonly result: string | null;
 }
 
-// A transcript page with the file it came from, so the next cursor can
-// tell a replaced transcript from a grown one.
+// A transcript page with the file it came from, so a cursor into a replaced
+// transcript is distinguishable from one into a grown transcript.
 interface SessionTranscriptRead {
   readonly path: string;
   readonly page: TranscriptPage;
@@ -90,7 +90,7 @@ export interface DaemonContext {
   readonly queueBytes?: number;
   readonly getEffectiveDims: (sessionID: SessionID) => Dims;
   readonly readSessionRecord: (id: SessionID) => Promise<SessionRecord | 'missing'>;
-  readonly readSessionTranscript: (
+  readonly loadSessionTranscript: (
     id: SessionID,
     from: TranscriptPosition | null,
     limit: number,
@@ -722,7 +722,7 @@ export class DaemonConnection {
       from = { path: decoded.path, offset: decoded.offset };
     }
 
-    const read = await this.ctx.readSessionTranscript(id, from, parsed.data.limit);
+    const read = await this.ctx.loadSessionTranscript(id, from, parsed.data.limit);
 
     if (read === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${id}'`);

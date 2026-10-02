@@ -13,10 +13,10 @@ import type { DaemonContext, OutputClient } from './daemon-connection';
 import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
 import type { HookEvent } from './hooks';
+import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
 import { PermissionRegistry } from './permission-registry';
-import { readTranscriptPage } from './read-transcript-page';
 import { restoreFleet } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
 import { ScreenModel } from './screen-model';
@@ -669,7 +669,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         result: s.result ?? null,
       };
     },
-    readSessionTranscript: async (id, from, limit) => {
+    loadSessionTranscript: async (id, from, limit) => {
       const s = mgr.sessions.find((x) => x.id === id);
 
       if (s === undefined) {
@@ -689,7 +689,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       }
 
       // A page stays far under the protocol's 1 MiB line cap.
-      const page = await readTranscriptPage({ path, from, limit, maxBytes: 262_144, parseLine });
+      const page = await loadTranscriptPage({ path, from, limit, maxBytes: 262_144, parseLine });
 
       return { path, page };
     },

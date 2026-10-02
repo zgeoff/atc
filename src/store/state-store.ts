@@ -10,9 +10,12 @@ import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
-import type { FleetEntry } from './fleet-entry';
+import type { FleetEntry, FleetEntryUpdate } from './fleet-entry';
 import { runMigrations } from './run-migrations';
 import type { StateStoreSchema } from './run-migrations';
+
+// Spelled as the partial index's predicate so SQLite can match them.
+const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;
 
 export interface StoredEvent {
   readonly id: number;
@@ -29,7 +32,8 @@ export interface StoredEvent {
 
 /**
  * Daemon state in one SQLite store: the restorable fleet, the hook-event
- * debug trail, and the spawn-directory history. The statusline contract
+ * trail that events.read and lastActivityAt read, and the spawn-directory
+ * history. The statusline contract
  * file (status.json) stays a plain file because reporters inside wrangled
  * sessions read it without speaking to the daemon. An existing fleet.json
  * seeds the fleet table once, so upgrading never loses a restorable fleet.
@@ -163,6 +167,26 @@ export class StateStore {
     });
   }
 
+  // Rewrites fields on one existing row and leaves every other row as it
+  // stands. A session without a row yet is a no-op: the next fleet write
+  // inserts it with these fields.
+  async updateFleetEntry(agentSessionID: AgentSessionID, fields: FleetEntryUpdate): Promise<void> {
+    const values = {
+      ...(fields.result === undefined ? {} : { result: fields.result }),
+      ...(fields.transcriptPath === undefined ? {} : { transcript_path: fields.transcriptPath }),
+    };
+
+    if (Object.keys(values).length === 0) {
+      return;
+    }
+
+    await this.db
+      .updateTable('fleet')
+      .set(values)
+      .where('agent_session_id', '=', agentSessionID)
+      .execute();
+  }
+
   async recordEvent(e: HookEvent, ev: Readonly<AdapterEvent> | null = null): Promise<void> {
     const rawMessage = e.payload['message'];
     const rawSessionID = e.payload['session_id'] ?? e.payload['sessionId'];
@@ -189,8 +213,7 @@ export class StateStore {
       .selectFrom('events')
       .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
       .where('id', '>', afterID)
-      .where('kind', 'is not', null)
-      .where('kind', '!=', 'heartbeat')
+      .where(TRAIL_FILTER)
       .orderBy('id', 'asc')
       .limit(limit)
       .execute();
@@ -202,8 +225,7 @@ export class StateStore {
     const rows = await this.db
       .selectFrom('events')
       .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
-      .where('kind', 'is not', null)
-      .where('kind', '!=', 'heartbeat')
+      .where(TRAIL_FILTER)
       .orderBy('id', 'desc')
       .limit(limit)
       .execute();

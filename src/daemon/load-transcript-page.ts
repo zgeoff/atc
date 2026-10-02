@@ -19,7 +19,7 @@ interface TranscriptPageRequest {
   readonly parseLine: (line: string) => TranscriptRow | null;
 }
 
-export async function readTranscriptPage(req: TranscriptPageRequest): Promise<TranscriptPage> {
+export async function loadTranscriptPage(req: TranscriptPageRequest): Promise<TranscriptPage> {
   const file = Bun.file(req.path);
 
   if (!(await file.exists())) {

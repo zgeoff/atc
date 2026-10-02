@@ -32,6 +32,17 @@ export interface FleetEntry {
 export interface FleetStore {
   readonly loadFleet: () => Promise<FleetEntry[]>;
   readonly writeFleet: (entries: readonly FleetEntry[]) => Promise<void>;
+  readonly updateFleetEntry: (
+    agentSessionID: AgentSessionID,
+    fields: FleetEntryUpdate,
+  ) => Promise<void>;
+}
+
+// The fields a session rewrites on its own row while it runs, without
+// touching any sibling row.
+export interface FleetEntryUpdate {
+  readonly result?: string;
+  readonly transcriptPath?: string;
 }
 
 // A stored fleet row's keys. name, cwd, and the resolved agentSessionID are

@@ -143,6 +143,29 @@ const MIGRATIONS: Record<string, Migration> = {
       await db.schema.alterTable('events').addColumn('detail', 'text').execute();
     },
   },
+  '010_add_events_trail_indexes': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createIndex('events_atc_id_ts')
+        .ifNotExists()
+        .on('events')
+        .columns(['atc_id', 'ts'])
+        .execute();
+
+      await db.schema
+        .createIndex('events_session_id_ts')
+        .ifNotExists()
+        .on('events')
+        .columns(['session_id', 'ts'])
+        .execute();
+
+      // Partial, so the trail reads walk only the rows they return. The
+      // predicate text must match the reads' filter for SQLite to pick it.
+      await sql`CREATE INDEX IF NOT EXISTS events_trail ON events (id) WHERE kind IS NOT NULL AND kind != 'heartbeat'`.execute(
+        db,
+      );
+    },
+  },
 };
 
 const PROVIDER: MigrationProvider = {

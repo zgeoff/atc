@@ -813,6 +813,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '007_add_fleet_parent',
     '008_add_fleet_prompt_result_transcript',
     '009_add_events_kind_detail',
+    '010_add_events_trail_indexes',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -1128,4 +1129,90 @@ test('it loads no last activity time for a session that never reported', async (
   const at = await store.loadLastActivityAt(toSessionID('s1'), undefined);
 
   expect(at).toBeNull();
+});
+
+test('it updates one fleet row without touching its siblings', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    { name: 'a', cwd: '/a', agentSessionID: toAgentSessionID('a1'), agent: 'claude' },
+    { name: 'b', cwd: '/b', agentSessionID: toAgentSessionID('b1'), agent: 'claude' },
+  ]);
+
+  await store.updateFleetEntry(toAgentSessionID('a1'), {
+    result: 'done',
+    transcriptPath: '/a.jsonl',
+  });
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toIncludeSameMembers([
+    {
+      name: 'a',
+      cwd: '/a',
+      agentSessionID: toAgentSessionID('a1'),
+      agent: 'claude',
+      result: 'done',
+      transcriptPath: '/a.jsonl',
+    },
+    { name: 'b', cwd: '/b', agentSessionID: toAgentSessionID('b1'), agent: 'claude' },
+  ]);
+});
+
+test('it ignores an update for a session with no fleet row', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.updateFleetEntry(toAgentSessionID('ghost'), { result: 'done' });
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([]);
+});
+
+test('it serves the event-trail lookups from indexes', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const store = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const sqlite = new Database(dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    sqlite.close();
+  });
+
+  const plan = (query: string) =>
+    sqlite
+      .query<{ detail: string }, []>(`EXPLAIN QUERY PLAN ${query}`)
+      .all()
+      .map((row) => row.detail)
+      .join('\n');
+
+  expect(
+    plan(
+      "SELECT id FROM events WHERE id > 5 AND kind IS NOT NULL AND kind != 'heartbeat' ORDER BY id LIMIT 5",
+    ),
+  ).toInclude('USING INDEX events_trail');
+
+  expect(
+    plan(
+      "SELECT id FROM events WHERE kind IS NOT NULL AND kind != 'heartbeat' ORDER BY id DESC LIMIT 5",
+    ),
+  ).toInclude('USING INDEX events_trail');
+
+  const activityPlan = plan("SELECT MAX(ts) FROM events WHERE atc_id = 'a' OR session_id = 'b'");
+
+  expect(activityPlan).toInclude('USING INDEX events_atc_id_ts');
+  expect(activityPlan).toInclude('USING INDEX events_session_id_ts');
 });

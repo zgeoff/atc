@@ -779,3 +779,36 @@ test('it reads fleet events through a tool call', async () => {
     expect(parsed['events']).toPartiallyContain({ kind: 'started', session });
   });
 });
+
+test('it answers a session list while an events long-poll is still waiting', async () => {
+  const ctx = setupMCP();
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_events_read', arguments: { waitMs: 2000 } },
+  });
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 3,
+    method: 'tools/call',
+    params: { name: 'atc_session_list', arguments: {} },
+  });
+
+  const first = await Promise.race([ctx.waitForResponse(2), ctx.waitForResponse(3)]);
+
+  expect(first['id']).toBe(3);
+
+  const pollResponse = await ctx.waitForResponse(2);
+
+  const pollResult = getResult(pollResponse);
+
+  expect(pollResult['isError']).toBeUndefined();
+  expect(JSON.parse(getText(pollResult))).toMatchObject({ events: [] });
+});

@@ -483,13 +483,14 @@ export class SessionManager {
     const focused = this.focusedId === s.id;
     let dirty = false;
     let persist = false;
+    const rowUpdate: { result?: string; transcriptPath?: string } = {};
 
     if (ev.transcriptSource !== undefined) {
       s.transcriptSource = ev.transcriptSource;
 
       if (s.transcriptPath !== ev.transcriptSource) {
         s.transcriptPath = ev.transcriptSource;
-        persist = true;
+        rowUpdate.transcriptPath = ev.transcriptSource;
       }
     }
 
@@ -532,7 +533,7 @@ export class SessionManager {
         if (ev.result !== undefined) {
           // A runaway final message cannot bloat the fleet row.
           s.result = truncateToBytes(ev.result, 16_384);
-          persist = true;
+          rowUpdate.result = s.result;
         }
 
         break;
@@ -565,8 +566,13 @@ export class SessionManager {
       }
     }
 
+    // A fleet rewrite marks every session without a PTY as exited, so only a
+    // new agent session id (which adds or re-keys a row) takes it. Anything
+    // else touches this session's own row.
     if (persist) {
       void this.writeFleet();
+    } else if (s.agentSessionID !== undefined) {
+      void this.store.updateFleetEntry(s.agentSessionID, rowUpdate);
     }
 
     if (dirty) {

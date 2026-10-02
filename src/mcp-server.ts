@@ -54,8 +54,7 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
 );
 
 const SESSION_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
-  z.strictObject({
-    session: z.string().describe('The atc session id, from atc_session_list'),
+  SESSION_ID_BASE.extend({
     cursor: z
       .string()
       .optional()
@@ -69,7 +68,7 @@ const SESSION_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
       .max(200)
       .optional()
       .describe('Most rows to return; defaults to 50'),
-  }),
+  }).strict(),
   { io: 'input' },
 );
 
@@ -204,6 +203,10 @@ export async function runMCPServer(build: string): Promise<void> {
 
   let buffer = '';
 
+  // Each request runs on its own, so a long poll never holds up the others;
+  // responses carry their request's id.
+  const inFlight = new Set<Promise<void>>();
+
   for await (const chunk of Bun.stdin.stream()) {
     buffer += decoder.decode(chunk, { stream: true });
 
@@ -216,9 +219,24 @@ export async function runMCPServer(build: string): Promise<void> {
         continue;
       }
 
-      await applyRPCLine(client, build, line);
+      const finished = Promise.withResolvers<void>();
+
+      inFlight.add(finished.promise);
+
+      void (async () => {
+        try {
+          await applyRPCLine(client, build, line);
+        } catch {
+          // A failed line gets no response, the way a malformed one gets none.
+        } finally {
+          inFlight.delete(finished.promise);
+          finished.resolve();
+        }
+      })();
     }
   }
+
+  await Promise.all(inFlight);
 
   client.stop();
 }
