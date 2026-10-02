@@ -58,13 +58,17 @@ A client connects in 5 stages:
    or a redirect URI the client never registered gets an error page and is never redirected. Every
    later error redirects back with an OAuth error, and every redirect, success or error, carries
    `iss`. A valid request prints a line such as
-   `Approve ChatGPT (returns to chatgpt.com) with code K7QM-2XRT` in the terminal running
-   `atc mcp --http`, and the browser shows the approval page.
-4. Approval. You type the code and choose the scopes. The page starts with `read` and `message`
-   checked and `spawn` and `kill` unchecked. A wrong code shows the page again, and the fifth wrong
-   code ends the request. At most 5 approvals wait at once, at most 20 start per hour, and each
-   waits 10 minutes. Approving redirects back with an authorization code; denying, or approving with
-   no scope checked, redirects back with `access_denied`.
+   `Approve ChatGPT (verified by chatgpt.com; returns to chatgpt.com) with code K7QM-2XRT` in the
+   terminal running `atc mcp --http`, and the browser shows the approval page. A registered client
+   is labelled `unverified, registered itself` instead, on the page and in the terminal, because its
+   name is only what it claims; the page also shows the full redirect URI.
+4. Approval. You type the code and choose the scopes. The page starts with only `read` checked;
+   `message` lets the client instruct your agents, which can run commands, so it starts unchecked
+   with `spawn` and `kill`. A wrong code shows the page again, and the fifth wrong code ends the
+   request. Each client holds at most one waiting approval, and a new one replaces it. At most 5
+   approvals wait at once, and a sixth drops the oldest. Each client starts at most 20 per hour, and
+   each approval waits 10 minutes. Approving redirects back with an authorization code; denying, or
+   approving with no scope checked, redirects back with `access_denied`.
 5. Token exchange. `POST /token` exchanges the code within 60 seconds. The request must present the
    same `client_id` and `redirect_uri` as the authorization request and a `code_verifier` matching
    its S256 challenge. A code is exchangeable once; a second exchange fails and revokes the grant
@@ -98,7 +102,8 @@ Each tool declares one of 4 scopes, as the [overview](./overview.md#mcp-server) 
 `tools/list` returns every tool whatever the grant holds. A `tools/call` for a tool outside the
 grant's scopes gets HTTP 403 with `WWW-Authenticate: Bearer error="insufficient_scope"` and the
 missing scope; to widen a grant, the client connects again and you approve the larger set. A message
-sent through `atc_session_message` from a remote client carries the client's name as its sender.
+sent through `atc_session_message` from a remote client carries the client's name as its sender, and
+the tool's `from` argument is ignored.
 
 ## Request checks
 

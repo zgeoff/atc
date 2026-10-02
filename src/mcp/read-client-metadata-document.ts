@@ -1,6 +1,7 @@
 import { lookup } from 'node:dns/promises';
 import { isPublicAddress } from './is-public-address';
 import { parseClientMetadataDocument } from './parse-client-metadata-document';
+import { readBoundedText } from './read-bounded-text';
 import type { OAuthClientView } from './types';
 
 // A metadata document is a few hundred bytes; anything far larger is not one.
@@ -10,8 +11,9 @@ const MAX_DOCUMENT_BYTES = 16_384;
  * Reads the client metadata document a URL client id points at. Only an https
  * URL on a host the operator listed is fetched, and only when every address
  * the host resolves to is public, so a crafted client id cannot make atc
- * reach into the local network. Redirects are refused. Returns null when any
- * check fails or the document is not valid.
+ * reach into the local network. Redirects are refused, and a body past 16 KB
+ * is abandoned partway. Returns null when any check fails or the document is
+ * not valid.
  */
 export async function readClientMetadataDocument(
   clientID: string,
@@ -41,13 +43,13 @@ export async function readClientMetadataDocument(
     headers: { accept: 'application/json' },
   }).catch(() => null);
 
-  if (response === null || !response.ok) {
+  if (response === null || !response.ok || response.body === null) {
     return null;
   }
 
-  const text = await response.text();
+  const text = await readBoundedText(response.body, MAX_DOCUMENT_BYTES).catch(() => null);
 
-  if (text.length > MAX_DOCUMENT_BYTES) {
+  if (text === null) {
     return null;
   }
 

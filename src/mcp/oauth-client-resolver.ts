@@ -8,7 +8,8 @@ const METADATA_CACHE_MS = 600_000;
  * Resolves an OAuth client id to the client it identifies: an https URL is a
  * client metadata document, fetched only from a host the operator listed and
  * then reused for 10 minutes, and anything else is a client that registered
- * itself with the daemon.
+ * itself with the daemon. Only a metadata document client is verified: its
+ * client id is the URL atc read it from, so its host is proven.
  */
 export class OAuthClientResolver {
   private readonly caller: FleetCaller;
@@ -69,5 +70,6 @@ function toClientView(raw: unknown): OAuthClientView | null {
     clientID,
     name,
     redirectURIs: uris.filter((uri): uri is string => typeof uri === 'string'),
+    verified: false,
   };
 }

@@ -46,8 +46,11 @@ export async function runMCPHTTPServer(build: string, flags: MCPHTTPFlags): Prom
     publicURL: flags.publicURL ?? config.publicURL,
     allowedHosts: config.allowedHosts,
     metadataHosts: config.clientMetadataHosts,
+
+    // The line carries a client-supplied name, so control and format
+    // characters are dropped before it reaches the operator's terminal.
     printApproval: (line) => {
-      console.log(line);
+      console.log(line.replaceAll(/[\p{Cc}\p{Cf}]/gu, ''));
     },
   });
 

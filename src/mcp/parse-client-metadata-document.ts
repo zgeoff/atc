@@ -1,3 +1,4 @@
+import { normalizeClientName } from '../shared/normalize-client-name';
 import { isAllowedRedirectURI } from './is-allowed-redirect-uri';
 import type { OAuthClientView } from './types';
 
@@ -36,11 +37,10 @@ export function parseClientMetadataDocument(
     return null;
   }
 
-  const name = document['client_name'];
-
   return {
     clientID,
-    name: typeof name === 'string' && name !== '' ? name : new URL(clientID).hostname,
+    name: normalizeClientName(document['client_name'], new URL(clientID).hostname),
     redirectURIs: uris,
+    verified: true,
   };
 }

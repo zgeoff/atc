@@ -1,8 +1,11 @@
+import { DaemonError } from '../protocol/daemon-error';
+import { normalizeClientName } from '../shared/normalize-client-name';
 import { isAllowedRedirectURI } from './is-allowed-redirect-uri';
 import type { HTTPServerContext } from './types';
 
-// Longer client names are cut, since the operator reads them in a terminal line.
-const MAX_CLIENT_NAME = 100;
+// Registration is unauthenticated, so what one client may store is bounded.
+const MAX_REDIRECT_URIS = 5;
+const MAX_REDIRECT_URI_LENGTH = 2000;
 
 /**
  * Answers `POST /register`, OAuth dynamic client registration (RFC 7591) for
@@ -28,6 +31,17 @@ export async function answerRegisterRequest(
   const uris = record['redirect_uris'];
 
   if (
+    Array.isArray(uris) &&
+    (uris.length > MAX_REDIRECT_URIS ||
+      uris.some((uri) => typeof uri === 'string' && uri.length > MAX_REDIRECT_URI_LENGTH))
+  ) {
+    return buildRegisterError(
+      'invalid_redirect_uri',
+      `redirect_uris may list at most ${MAX_REDIRECT_URIS} URIs of at most ${MAX_REDIRECT_URI_LENGTH} characters each`,
+    );
+  }
+
+  if (
     !Array.isArray(uris) ||
     uris.length === 0 ||
     !uris.every((uri) => typeof uri === 'string' && isAllowedRedirectURI(uri))
@@ -47,16 +61,25 @@ export async function answerRegisterRequest(
     );
   }
 
-  const rawName = record['client_name'];
-
-  const name =
-    typeof rawName === 'string' && rawName.trim() !== ''
-      ? rawName.trim().slice(0, MAX_CLIENT_NAME)
-      : 'unnamed client';
-
+  const name = normalizeClientName(record['client_name']);
   const redirectURIs = uris.filter((uri): uri is string => typeof uri === 'string');
+  let registered: Readonly<Record<string, unknown>>;
 
-  const registered = await ctx.caller.sendRequest('grant.registerClient', { name, redirectURIs });
+  try {
+    registered = await ctx.caller.sendRequest('grant.registerClient', { name, redirectURIs });
+  } catch (error) {
+    if (error instanceof DaemonError && error.code === 'at_capacity') {
+      return Response.json(
+        {
+          error: 'temporarily_unavailable',
+          error_description: 'too many clients are waiting for approval; try again later',
+        },
+        { status: 503, headers: { 'retry-after': '600' } },
+      );
+    }
+
+    throw error;
+  }
 
   return Response.json(
     {

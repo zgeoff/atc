@@ -55,8 +55,8 @@ export function answerApprovalRequest(ctx: HTTPServerContext, body: string): Res
       {
         page: renderApprovalPage({
           pendingID: approval.id,
-          clientName: approval.client.name,
-          redirectHost: new URL(approval.redirectURI).host,
+          client: approval.client,
+          redirectURI: approval.redirectURI,
           scopes: approval.scopes,
           error: 'That approval code is wrong. Check the terminal running atc mcp --http.',
         }),

@@ -62,7 +62,7 @@ export async function answerMCPRequest(
   const outcome = await answerRPCRequest(message, {
     caller: ctx.caller,
     build: ctx.build,
-    toolContext: { callerSessionID: null, defaultFrom: access.clientName },
+    toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: access.clientName } },
     scopes: access.scopes,
   });
 

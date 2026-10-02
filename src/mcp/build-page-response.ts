@@ -23,7 +23,7 @@ export function buildPageResponse(
       'content-security-policy': `default-src 'none'; style-src 'unsafe-inline'; form-action 'self'${formTargets.map((target) => ` ${target}`).join('')}; frame-ancestors 'none'; base-uri 'none'`,
       'x-frame-options': 'DENY',
       'cache-control': 'no-store',
-      'referrer-policy': 'no-referrer',
+      'referrer-policy': 'same-origin',
     },
   });
 }

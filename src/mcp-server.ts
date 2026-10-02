@@ -16,7 +16,11 @@ export async function runMCPServer(build: string): Promise<void> {
   // spawn from inside a session nests under it by default.
   const inherited = process.env['ATC_SESSION_ID'];
   const callerSessionID = inherited === undefined || inherited === '' ? null : inherited;
-  const toolContext: ToolContext = { callerSessionID, defaultFrom: callerSessionID ?? 'mcp' };
+
+  const toolContext: ToolContext = {
+    callerSessionID,
+    sender: { kind: 'default', name: callerSessionID ?? 'mcp' },
+  };
 
   const decoder = new TextDecoder('utf-8');
 

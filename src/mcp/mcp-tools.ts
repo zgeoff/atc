@@ -253,7 +253,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
         from: {
           type: 'string',
           description:
-            'Who the message is from; defaults to the calling session id, or mcp outside a session',
+            'Who the message is from; defaults to the calling session id, or mcp outside a session. Ignored for a remote client, whose messages are always from its own name',
         },
       },
       required: ['session', 'text'],

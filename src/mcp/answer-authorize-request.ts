@@ -90,16 +90,20 @@ export async function answerAuthorizeRequest(
   if (approval === null) {
     return buildErrorRedirect(
       'temporarily_unavailable',
-      'too many approvals are waiting; try again later',
+      'this client started too many approvals in the last hour; try again later',
     );
   }
 
   const redirectHost = new URL(redirectURI).host;
 
+  const identity = client.verified
+    ? `verified by ${new URL(client.clientID).host}`
+    : 'unverified, registered itself';
+
   const code = approval.approvalCode;
 
   ctx.printApproval(
-    `Approve ${client.name} (returns to ${redirectHost}) with code ${code.slice(0, 4)}-${code.slice(4)}. The code expires in 10 minutes.`,
+    `Approve ${client.name} (${identity}; returns to ${redirectHost}) with code ${code.slice(0, 4)}-${code.slice(4)}. The code expires in 10 minutes.`,
   );
 
   return buildPageResponse(
@@ -107,8 +111,8 @@ export async function answerAuthorizeRequest(
     {
       page: renderApprovalPage({
         pendingID: approval.id,
-        clientName: client.name,
-        redirectHost,
+        client,
+        redirectURI,
         scopes,
         error: null,
       }),

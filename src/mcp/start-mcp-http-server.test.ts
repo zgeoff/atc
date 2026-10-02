@@ -243,6 +243,39 @@ test('it ends an approval after five wrong approval codes', async () => {
   expect(server.approvals).toBeArrayOfSize(1);
 });
 
+test('it prints a self-registered client as unverified with the host it returns to', async () => {
+  await using server = await setupMCPHTTP();
+
+  const registered = await fetch(`${server.url}/register`, {
+    method: 'POST',
+    body: JSON.stringify({ client_name: 'dots', redirect_uris: ['https://dots.example/cb'] }),
+  });
+
+  const registration = await readJSONRecord(registered);
+
+  const authorize = new URL(`${server.url}/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: String(registration['client_id']),
+    redirect_uri: 'https://dots.example/cb',
+    code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const answered = await fetch(authorize);
+
+  await answered.text();
+
+  const [line] = server.approvals;
+
+  expect(server.approvals).toBeArrayOfSize(1);
+
+  expect(line).toMatch(
+    /^Approve dots \(unverified, registered itself; returns to dots\.example\) with code \w{4}-\w{4}\./,
+  );
+});
+
 test('it never redirects an authorization request to an unregistered redirect URI', async () => {
   await using server = await setupMCPHTTP();
 
@@ -402,4 +435,120 @@ test('it keeps serving after the daemon restarts', async () => {
   });
 
   expect(pinged.status).toBe(200);
+});
+
+test('it registers a client listing five redirect URIs', async () => {
+  await using server = await setupMCPHTTP();
+
+  const registered = await fetch(`${server.url}/register`, {
+    method: 'POST',
+    body: JSON.stringify({
+      client_name: 'dots',
+      redirect_uris: [1, 2, 3, 4, 5].map((n) => `https://dots.example/cb${n}`),
+    }),
+  });
+
+  expect(registered.status).toBe(201);
+});
+
+test('it refuses a registration listing more than five redirect URIs', async () => {
+  await using server = await setupMCPHTTP();
+
+  const registered = await fetch(`${server.url}/register`, {
+    method: 'POST',
+    body: JSON.stringify({
+      client_name: 'dots',
+      redirect_uris: [1, 2, 3, 4, 5, 6].map((n) => `https://dots.example/cb${n}`),
+    }),
+  });
+
+  const refusal = await readJSONRecord(registered);
+
+  expect(registered.status).toBe(400);
+  expect(refusal).toMatchObject({ error: 'invalid_redirect_uri' });
+});
+
+test('it refuses a registration with a redirect URI longer than 2000 characters', async () => {
+  await using server = await setupMCPHTTP();
+
+  const registered = await fetch(`${server.url}/register`, {
+    method: 'POST',
+    body: JSON.stringify({
+      client_name: 'dots',
+      redirect_uris: [`https://dots.example/${'x'.repeat(2000)}`],
+    }),
+  });
+
+  const refusal = await readJSONRecord(registered);
+
+  expect(registered.status).toBe(400);
+  expect(refusal).toMatchObject({ error: 'invalid_redirect_uri' });
+});
+
+test('it answers a registration with 503 once 100 clients are waiting for a grant', async () => {
+  await using server = await setupMCPHTTP();
+
+  const waiting = await Promise.all(
+    Array.from({ length: 100 }, async (_, index) => {
+      const response = await fetch(`${server.url}/register`, {
+        method: 'POST',
+        body: JSON.stringify({
+          client_name: `client ${index}`,
+          redirect_uris: ['https://dots.example/cb'],
+        }),
+      });
+
+      await response.text();
+
+      return response.status;
+    }),
+  );
+
+  const refused = await fetch(`${server.url}/register`, {
+    method: 'POST',
+    body: JSON.stringify({
+      client_name: 'one too many',
+      redirect_uris: ['https://dots.example/cb'],
+    }),
+  });
+
+  const refusal = await readJSONRecord(refused);
+
+  expect(waiting).toSatisfyAll((status: number) => status === 201);
+  expect(refused.status).toBe(503);
+  expect(refusal).toMatchObject({ error: 'temporarily_unavailable' });
+});
+
+test('it registers a client name with its terminal escapes dropped', async () => {
+  await using server = await setupMCPHTTP();
+
+  const registered = await fetch(`${server.url}/register`, {
+    method: 'POST',
+    body: JSON.stringify({
+      client_name: `dots\u001B]52;c;AAAA\u0007\nApprove evil${String.fromCodePoint(0x20_2e)}`,
+      redirect_uris: ['https://dots.example/cb'],
+    }),
+  });
+
+  const registration = await readJSONRecord(registered);
+
+  const authorize = new URL(`${server.url}/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: String(registration['client_id']),
+    code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const consent = await fetch(authorize);
+
+  await consent.text();
+
+  expect(registration['client_name']).toBe('dots]52;c;AAAA Approve evil');
+  expect(server.approvals).toBeArrayOfSize(1);
+
+  expect(server.approvals[0]).toMatch(
+    /^Approve dots\]52;c;AAAA Approve evil \(unverified, registered itself; returns to dots\.example\)/,
+  );
 });

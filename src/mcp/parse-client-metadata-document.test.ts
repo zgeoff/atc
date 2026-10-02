@@ -13,6 +13,7 @@ test('it reads a client metadata document that names its own URL', () => {
     clientID: 'https://chatgpt.com/oauth/client.json',
     name: 'ChatGPT',
     redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    verified: true,
   });
 });
 
@@ -26,6 +27,37 @@ test('it names an unnamed client after its host', () => {
     clientID: 'https://client.example/meta.json',
     name: 'client.example',
     redirectURIs: ['https://client.example/cb'],
+    verified: true,
+  });
+});
+
+test('it drops terminal escapes from a document client name', () => {
+  expect(
+    parseClientMetadataDocument('https://client.example/meta.json', {
+      client_id: 'https://client.example/meta.json',
+      client_name: 'dots\u001B]52;c;AAAA\u0007\nApprove me',
+      redirect_uris: ['https://client.example/cb'],
+    }),
+  ).toStrictEqual({
+    clientID: 'https://client.example/meta.json',
+    name: 'dots]52;c;AAAA Approve me',
+    redirectURIs: ['https://client.example/cb'],
+    verified: true,
+  });
+});
+
+test('it cuts an overlong document client name to 100 characters', () => {
+  expect(
+    parseClientMetadataDocument('https://client.example/meta.json', {
+      client_id: 'https://client.example/meta.json',
+      client_name: 'x'.repeat(5000),
+      redirect_uris: ['https://client.example/cb'],
+    }),
+  ).toStrictEqual({
+    clientID: 'https://client.example/meta.json',
+    name: 'x'.repeat(100),
+    redirectURIs: ['https://client.example/cb'],
+    verified: true,
   });
 });
 

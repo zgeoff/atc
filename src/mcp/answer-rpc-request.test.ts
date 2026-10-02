@@ -20,7 +20,7 @@ test('it refuses a tool call whose scope the caller lacks without calling the da
         },
       },
       build: 'atc/test',
-      toolContext: { callerSessionID: null, defaultFrom: 'dots' },
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
       scopes: ['read', 'message'],
     },
   );
@@ -40,7 +40,7 @@ test('it runs a tool call whose scope the caller holds', async () => {
     {
       caller: { sendRequest: () => Promise.resolve({ sessions: [] }) },
       build: 'atc/test',
-      toolContext: { callerSessionID: null, defaultFrom: 'dots' },
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
       scopes: ['read'],
     },
   );
@@ -57,7 +57,7 @@ test('it lists every tool to a caller with one scope', async () => {
     {
       caller: { sendRequest: () => Promise.resolve({}) },
       build: 'atc/test',
-      toolContext: { callerSessionID: null, defaultFrom: 'dots' },
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
       scopes: ['read'],
     },
   );

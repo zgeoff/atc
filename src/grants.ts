@@ -1,4 +1,5 @@
 import { bootDaemonClient } from './client/boot-daemon';
+import { normalizeClientName } from './shared/normalize-client-name';
 import { isRecord } from './shared/report';
 
 /**
@@ -47,7 +48,7 @@ function formatGrant(grant: unknown): string {
 
   const created = typeof grant['createdAt'] === 'number' ? formatTime(grant['createdAt']) : '';
 
-  return `${String(grant['id'])}  ${String(grant['clientName'])}  [${scopes}]  created ${created}  last used ${lastUsed}`;
+  return `${String(grant['id'])}  ${normalizeClientName(grant['clientName'])}  [${scopes}]  created ${created}  last used ${lastUsed}`;
 }
 
 function formatTime(at: number): string {
