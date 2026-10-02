@@ -241,7 +241,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       const sender = mgr.sessions.find((x) => x.id === e.atcId);
 
       if (sender !== undefined) {
-        emitEvent(buildSessionReportEvent(sender.id, report, Date.now()), findHookScope(sender.id));
+        const capped = { ...report, text: truncateToBytes(report.text, ANSWER_BYTE_CAP) };
+
+        emitEvent(buildSessionReportEvent(sender.id, capped, Date.now()), findHookScope(sender.id));
       }
 
       return;
