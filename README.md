@@ -127,7 +127,8 @@ installs in detail.
   grok mcp add atc -- atc mcp
   ```
 
-  A session that is already running loads the server only after it restarts.
+  A Claude or Codex session that is already running loads the server only after it restarts. A
+  running Grok session loads it when you press `r` in its `/mcps` list.
 
 - A Claude session takes messages from other tools. `atc_session_message` queues one, and the
   session reads it in a new turn, or inside the turn it is running. `atc_message_get` returns the
