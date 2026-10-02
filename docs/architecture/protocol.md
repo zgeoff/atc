@@ -120,7 +120,7 @@ Multi-client rules, chosen to cover the realistic conflicts without a write-lock
 
 `SessionAdded`, `SessionState`, `SessionAttached`, `SessionDetached`, `SessionRenamed`,
 `SessionRemoved`, `SessionResized`, `SessionOutput`, `SessionDesync`, `SessionMessage`,
-`InboxMessage`, `InboxClosed`, `PermissionRequested`, `PermissionResolved`.
+`InboxMessage`, `InboxClosed`, `SessionReport`, `PermissionRequested`, `PermissionResolved`.
 
 State/lifecycle events broadcast to every client (every overlay needs them). `SessionOutput` goes
 only to clients attached to that session — an unfocused session costs a client zero bytes. Output
@@ -208,6 +208,10 @@ A message moves through three statuses:
 - `delivered`: a tap printed the message and acked it.
 - `answered`: the session reported the end of the turn the message started. The report arrives on
   the reporter socket from `atc report answered`, and that turn's final text becomes the answer.
+
+A session can report progress with no message attached: `atc report note` sends a labelled free-form
+report, and the daemon broadcasts it as `SessionReport` with the session id, label (`kind`), text,
+and time.
 
 Each status change broadcasts `SessionMessage` with the message id, status, sender, timestamps, and
 short previews of the text and answer. `message.get` returns the full text and answer.

@@ -188,7 +188,8 @@ the wire format and the transport it rides; `shared/` holds id types, config, an
 used across the rest of `src/`. `cli.ts` is the CLI entrypoint. A module that exists only to back
 one of its subcommands stays beside it at `src/` root, while the `tui` and `daemon` subcommands load
 their subsystems from `client/` and `daemon/`. `test/` holds the PTY-driven e2e suite, `bin/atc` is
-the executable shim. `scripts/` holds repo tooling, not app code.
+the executable shim. `mods/` holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling,
+not app code.
 
 ## Runtime rules
 
@@ -208,10 +209,15 @@ the executable shim. `scripts/` holds repo tooling, not app code.
 
 - Everything specific to one agent CLI lives in its adapter behind the `AgentAdapter` interface — a
   new agent CLI is an adapter, not a refactor.
-- Claude sessions are instrumented only via the generated `--settings` file (`writeHookSettings`):
-  hooks (`SessionStart`, `Notification`, `Stop`, `UserPromptSubmit`, `SessionEnd`) and a chained
-  statusline. Never write into the user's own agent config (Claude, Grok, or any future agent);
-  instrumentation an agent cannot take per-invocation is a documented self-install step.
+- Claude sessions are instrumented only through two files atc writes to its state directory and
+  passes per invocation: the generated `--settings` file (`writeHookSettings`), holding hooks
+  (`SessionStart`, `Notification`, `Stop`, `UserPromptSubmit`, `SessionEnd`) and a chained
+  statusline, and the `atc-bridge` mod passed as `--plugin-dir`.
+- The `atc-bridge` mod's source lives in `mods/atc-bridge/`. `bun run build:atc-bridge` regenerates
+  its embedded copy in `src/agents/atc-bridge-files.ts`, which compiled binaries write out. The mods
+  API is early access, so CI validates and tests the mod against one pinned Claude Code version.
+  Never write into the user's own agent config (Claude, Grok, or any future agent); instrumentation
+  an agent cannot take per-invocation is a documented self-install step.
 - A Claude-compatible backend is a configured gateway, not a new adapter class per vendor: it gets
   its own agent id, its own generated settings file, and its `ANTHROPIC_BASE_URL` in that file's
   `env` block. The credential never goes in the file — a helper command supplies it.
@@ -280,7 +286,8 @@ Testing conventions live in the shared `testing` skill and in atc's `project-tes
 harness, the fake `claude`, and the daemon-phase rules); load both. Two rules worth restating here:
 never spawn the real `claude` binary in tests (verification against real Claude Code happens
 manually before merging changes to the integration contract), and every gate is invoked as a root
-package script.
+package script. One exception to the first rule: `test:atc-bridge` runs `claude plugin validate` and
+`claude plugin test` on the mod, and neither starts a session.
 
 ## Dependencies
 
