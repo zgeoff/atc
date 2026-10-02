@@ -30,6 +30,10 @@ export class DaemonClient {
 
   private socket: { end: () => void } | null = null;
 
+  // Set once the connection ends, so a request sent afterwards rejects at
+  // once instead of waiting on a response that can never arrive.
+  private closedReason: string | null = null;
+
   static async open(socketPath: string): Promise<DaemonClient> {
     const client = new DaemonClient();
 
@@ -65,6 +69,10 @@ export class DaemonClient {
     m: string,
     p?: Readonly<Record<string, unknown>>,
   ): Promise<Readonly<Record<string, unknown>>> {
+    if (this.closedReason !== null) {
+      return Promise.reject(new DaemonError('internal', this.closedReason));
+    }
+
     const id = this.nextID++;
     const resolvers = Promise.withResolvers<Readonly<Record<string, unknown>>>();
 
@@ -135,6 +143,8 @@ export class DaemonClient {
   }
 
   private drainPending(reason: string): void {
+    this.closedReason ??= reason;
+
     for (const [id, waiter] of this.pending) {
       this.pending.delete(id);
       waiter.reject(new DaemonError('internal', reason));

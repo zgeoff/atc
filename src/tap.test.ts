@@ -120,7 +120,7 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
     { id: first['message'], from: 'alice', text: 'one', sentAt: expect.toBeNumber() },
     { id: second['message'], from: 'bob', text: 'two', sentAt: expect.toBeNumber() },
   ]);
-}, 15_000);
+});
 
 test('it exits 1 with a hint when no daemon listens', async () => {
   using tmp = setupTempDir('atc-tap-empty-');
@@ -144,7 +144,7 @@ test('it exits 1 with a hint when no daemon listens', async () => {
 
   expect(code).toBe(1);
   expect(stderr).toInclude('no daemon');
-}, 15_000);
+});
 
 test('it exits 1 when the session cannot be tapped', async () => {
   await using daemon = await setupTest();
@@ -168,10 +168,9 @@ test('it exits 1 when the session cannot be tapped', async () => {
 
   expect(code).toBe(1);
   expect(stderr).toInclude('no_such_session');
-}, 15_000);
+});
 
-// Hangs on main's CI only; tracked in zgeoff/atc#117.
-test.skip('it exits 0 once the daemon closes the connection', async () => {
+test('it exits 0 once the daemon closes the connection', async () => {
   await using daemon = await setupTest();
 
   const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
@@ -202,7 +201,7 @@ test.skip('it exits 0 once the daemon closes the connection', async () => {
   const code = await proc.exited;
 
   expect(code).toBe(0);
-}, 15_000);
+});
 
 test('it exits 0 when another tap replaces it', async () => {
   await using daemon = await setupTest();
@@ -241,4 +240,4 @@ test('it exits 0 when another tap replaces it', async () => {
   const code = await proc.exited;
 
   expect(code).toBe(0);
-}, 15_000);
+});
