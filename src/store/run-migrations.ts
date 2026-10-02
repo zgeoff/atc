@@ -5,6 +5,7 @@ import { DEFAULT_MIGRATION_TABLE, Migrator } from 'kysely/migration';
 import type { Migration, MigrationProvider, MigrationResultSet } from 'kysely/migration';
 import type { IdempotencyState } from './idempotency-record';
 import type { MessageStatus } from './message-record';
+import type { MaterializationPhase } from './workspace-materialization';
 
 interface FleetTable {
   session_id: string;
@@ -77,6 +78,23 @@ interface IdempotencyTable {
   effect_target_identity: string | null;
 }
 
+// One spawn's workspace on its way to the execution target, keyed by the
+// session it is for.
+interface WorkspaceMaterializationTable {
+  session_id: string;
+  target: string;
+  dir: string;
+  source_kind: 'path' | 'git';
+  phase: MaterializationPhase;
+  repo_url: string | null;
+  sha: string | null;
+  ref: string | null;
+  error_code: string | null;
+  started_at: number;
+  updated_at: number;
+  materialized_at: number | null;
+}
+
 interface MessagesTable {
   id: string;
   atc_id: string;
@@ -106,6 +124,7 @@ export interface StateStoreSchema {
   messages: MessagesTable;
   session_owner: SessionOwnerTable;
   idempotency: IdempotencyTable;
+  workspace_materialization: WorkspaceMaterializationTable;
 }
 
 // Every shape the fleet table has shipped with: the oldest carries only
@@ -358,6 +377,26 @@ const MIGRATIONS: Record<string, Migration> = {
       await db.schema
         .alterTable('idempotency')
         .addColumn('effect_target_identity', 'text')
+        .execute();
+    },
+  },
+  '019_create_workspace_materialization': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('workspace_materialization')
+        .ifNotExists()
+        .addColumn('session_id', 'text', (c) => c.primaryKey())
+        .addColumn('target', 'text', (c) => c.notNull())
+        .addColumn('dir', 'text', (c) => c.notNull())
+        .addColumn('source_kind', 'text', (c) => c.notNull())
+        .addColumn('phase', 'text', (c) => c.notNull())
+        .addColumn('repo_url', 'text')
+        .addColumn('sha', 'text')
+        .addColumn('ref', 'text')
+        .addColumn('error_code', 'text')
+        .addColumn('started_at', 'integer', (c) => c.notNull())
+        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addColumn('materialized_at', 'integer')
         .execute();
     },
   },

@@ -1054,6 +1054,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '017_create_idempotency',
     '018_add_fleet_target',
     '019_add_idempotency_effect_target',
+    '019_create_workspace_materialization',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -3127,5 +3128,219 @@ test("it moves a row that replaced its own parent under that parent's parent", a
   expect(fleet.map((entry) => [entry.sessionID, entry.parent])).toStrictEqual([
     [toSessionID('s-top'), undefined],
     [toSessionID('s-resumed'), toSessionID('s-top')],
+  ]);
+});
+
+test('it records a workspace materialization through its phases', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.createMaterialization(
+    { sessionID: toSessionID('s-ws'), target: 'box', dir: '/w/s-ws', sourceKind: 'git' },
+    1000,
+  );
+
+  await store.updateMaterialization(
+    toSessionID('s-ws'),
+    { phase: 'cloning', repoURL: 'https://example.com/r.git', sha: 'a'.repeat(40), ref: 'main' },
+    2000,
+  );
+
+  await store.updateMaterialization(
+    toSessionID('s-ws'),
+    { phase: 'ready', materializedAt: 3000 },
+    3000,
+  );
+
+  const row = await store.findMaterialization(toSessionID('s-ws'));
+
+  expect(row).toStrictEqual({
+    sessionID: toSessionID('s-ws'),
+    target: 'box',
+    dir: '/w/s-ws',
+    sourceKind: 'git',
+    phase: 'ready',
+    repoURL: 'https://example.com/r.git',
+    sha: 'a'.repeat(40),
+    ref: 'main',
+    errorCode: null,
+    startedAt: 1000,
+    updatedAt: 3000,
+    materializedAt: 3000,
+  });
+});
+
+test('it fails every materialization a stopped daemon left short of ready', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const first = await StateStore.open(dbPath);
+
+  await first.createMaterialization(
+    {
+      sessionID: toSessionID('s-resolving'),
+      target: 'box',
+      dir: '/w/s-resolving',
+      sourceKind: 'path',
+    },
+    1000,
+  );
+
+  await first.createMaterialization(
+    { sessionID: toSessionID('s-cloning'), target: 'box', dir: '/w/s-cloning', sourceKind: 'path' },
+    1000,
+  );
+
+  await first.createMaterialization(
+    {
+      sessionID: toSessionID('s-transferring'),
+      target: 'box',
+      dir: '/w/s-transferring',
+      sourceKind: 'path',
+    },
+    1000,
+  );
+
+  await first.createMaterialization(
+    {
+      sessionID: toSessionID('s-verifying'),
+      target: 'box',
+      dir: '/w/s-verifying',
+      sourceKind: 'path',
+    },
+    1000,
+  );
+
+  await first.createMaterialization(
+    { sessionID: toSessionID('s-ready'), target: 'box', dir: '/w/s-ready', sourceKind: 'path' },
+    1000,
+  );
+
+  await first.createMaterialization(
+    { sessionID: toSessionID('s-failed'), target: 'box', dir: '/w/s-failed', sourceKind: 'path' },
+    1000,
+  );
+
+  await first.updateMaterialization(toSessionID('s-cloning'), { phase: 'cloning' }, 1000);
+  await first.updateMaterialization(toSessionID('s-transferring'), { phase: 'transferring' }, 1000);
+  await first.updateMaterialization(toSessionID('s-verifying'), { phase: 'verifying' }, 1000);
+  await first.updateMaterialization(toSessionID('s-ready'), { phase: 'ready' }, 1000);
+
+  await first.updateMaterialization(
+    toSessionID('s-failed'),
+    { phase: 'failed', errorCode: 'clone_failed' },
+    1000,
+  );
+
+  await first.stop();
+
+  const second = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await second.stop();
+  });
+
+  await second.reconcileMaterializations(5000);
+
+  const rows = await Promise.all(
+    ['s-resolving', 's-cloning', 's-transferring', 's-verifying', 's-ready', 's-failed'].map((id) =>
+      second.findMaterialization(toSessionID(id)),
+    ),
+  );
+
+  expect(rows).toMatchObject([
+    {
+      sessionID: 's-resolving',
+      phase: 'failed',
+      errorCode: 'workspace_interrupted',
+      updatedAt: 5000,
+    },
+    {
+      sessionID: 's-cloning',
+      phase: 'failed',
+      errorCode: 'workspace_interrupted',
+      updatedAt: 5000,
+    },
+    {
+      sessionID: 's-transferring',
+      phase: 'failed',
+      errorCode: 'workspace_interrupted',
+      updatedAt: 5000,
+    },
+    {
+      sessionID: 's-verifying',
+      phase: 'failed',
+      errorCode: 'workspace_interrupted',
+      updatedAt: 5000,
+    },
+    { sessionID: 's-ready', phase: 'ready', errorCode: null, updatedAt: 1000 },
+    { sessionID: 's-failed', phase: 'failed', errorCode: 'clone_failed', updatedAt: 1000 },
+  ]);
+});
+
+test('it loads a fleet row with the workspace it materialized ready, and none short of ready', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.createMaterialization(
+    { sessionID: toSessionID('s-ready'), target: 'local', dir: '/w/s-ready', sourceKind: 'git' },
+    1000,
+  );
+
+  await store.createMaterialization(
+    {
+      sessionID: toSessionID('s-verifying'),
+      target: 'local',
+      dir: '/w/s-verifying',
+      sourceKind: 'git',
+    },
+    1000,
+  );
+
+  await store.updateMaterialization(
+    toSessionID('s-ready'),
+    {
+      phase: 'ready',
+      repoURL: 'https://example.com/r.git',
+      sha: 'b'.repeat(40),
+      ref: null,
+      materializedAt: 2000,
+    },
+    2000,
+  );
+
+  await store.updateMaterialization(
+    toSessionID('s-verifying'),
+    { phase: 'verifying', repoURL: 'https://example.com/r.git', sha: 'b'.repeat(40), ref: null },
+    2000,
+  );
+
+  await store.writeFleet([
+    { sessionID: toSessionID('s-ready'), name: 'ready', cwd: '/w/s-ready', agent: 'claude' },
+    { sessionID: toSessionID('s-verifying'), name: 'mid', cwd: '/w/s-verifying', agent: 'claude' },
+    { sessionID: toSessionID('s-plain'), name: 'plain', cwd: '/x', agent: 'claude' },
+  ]);
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    {
+      sessionID: toSessionID('s-ready'),
+      name: 'ready',
+      cwd: '/w/s-ready',
+      agent: 'claude',
+      workspace: {
+        repoURL: 'https://example.com/r.git',
+        sha: 'b'.repeat(40),
+        materializedAt: 2000,
+      },
+    },
+    { sessionID: toSessionID('s-verifying'), name: 'mid', cwd: '/w/s-verifying', agent: 'claude' },
+    { sessionID: toSessionID('s-plain'), name: 'plain', cwd: '/x', agent: 'claude' },
   ]);
 });
