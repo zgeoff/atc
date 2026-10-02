@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, realpathSync } from 'node:fs';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { GatewayAdapter } from '../src/agents/gateway-adapter';
 import { resolveAgentHome } from '../src/agents/resolve-agent-home';
@@ -115,8 +115,11 @@ test('it refuses to run under a test-home marker whose paths do not match it', (
     },
   );
 
-  expect(nested.exitCode).not.toBe(0);
-  expect(nested.stderr.toString()).toInclude('does not match the test home it marks');
+  const output = `${nested.stdout.toString()}${nested.stderr.toString()}`;
+
+  expect(nested.exitCode).toBe(2);
+  expect(output).toInclude('does not match the test home it marks');
+  expect(output).not.toInclude('(pass)');
 });
 
 test('it accepts the test home the package script sets up under a temp directory ending in a slash', () => {
@@ -149,4 +152,78 @@ test('it accepts the test home the package script sets up under a temp directory
   );
 
   expect(nested.exitCode).toBe(0);
+});
+
+test("it resolves the XDG config, data, state, and cache homes inside this run's own home", () => {
+  const root = process.env['ATC_TEST_HOME'];
+
+  if (root === undefined) {
+    throw new Error('the test home fixture is not in place');
+  }
+
+  expect([
+    process.env['XDG_CONFIG_HOME'],
+    process.env['XDG_DATA_HOME'],
+    process.env['XDG_STATE_HOME'],
+    process.env['XDG_CACHE_HOME'],
+  ]).toStrictEqual([
+    join(root, 'home', '.config'),
+    join(root, 'home', '.local', 'share'),
+    join(root, 'home', '.local', 'state'),
+    join(root, 'home', '.cache'),
+  ]);
+});
+
+test('it runs git without the git config of the host XDG config home', () => {
+  const read = Bun.spawnSync(['git', 'config', '--get', 'atc.canary'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  expect(read.stdout.toString()).toBe('');
+});
+
+test('it keeps a host XDG git config away from a command the package script runs', () => {
+  const root = process.env['ATC_TEST_HOME'];
+
+  if (root === undefined) {
+    throw new Error('the test home fixture is not in place');
+  }
+
+  const host = join(root, 'host-xdg-wrapped');
+
+  mkdirSync(join(host, 'git'), { recursive: true });
+  writeFileSync(join(host, 'git', 'config'), '[atc]\n\tcanary = host\n');
+
+  const read = Bun.spawnSync(
+    ['bash', 'scripts/with-test-home.sh', 'git', 'config', '--get', 'atc.canary'],
+    {
+      cwd: join(import.meta.dir, '..'),
+      env: { ...process.env, XDG_CONFIG_HOME: host },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+
+  expect(read.stdout.toString()).toBe('');
+});
+
+test('it stops a bare bun test before any test runs', () => {
+  const { ATC_TEST_HOME: _marker, ...outer } = process.env;
+
+  const nested = Bun.spawnSync(
+    ['bun', 'test', 'test/isolate-home.test.ts', '-t', 'no enclosing atc session'],
+    {
+      cwd: join(import.meta.dir, '..'),
+      env: outer,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+
+  const output = `${nested.stdout.toString()}${nested.stderr.toString()}`;
+
+  expect(nested.exitCode).toBe(2);
+  expect(output).toInclude('run `bun run test` instead');
+  expect(output).not.toInclude('(pass)');
 });

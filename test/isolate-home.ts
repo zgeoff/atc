@@ -1,36 +1,18 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join, normalize } from 'node:path';
 
-// Gives a test run its own home before any test imports atc. The package
-// test scripts set it up before Bun starts and mark it with ATC_TEST_HOME;
-// a bare `bun test` gets it here instead. Either way HOME, XDG_RUNTIME_DIR,
-// GROK_HOME, and CODEX_HOME point under ATC_TEST_HOME, so config, state,
-// the database, status file, daemon record, sockets, and agent homes all
-// resolve there, and an enclosing session's ATC_SESSION_ID and ATC_SOCKET
-// are dropped so no test reports to a live daemon.
+// Holds every test run to the isolated home the package test scripts set
+// up before Bun starts, marked by ATC_TEST_HOME. A bare `bun test` stops
+// here: Bun hands a spawned child the environment it started with, not one
+// a preload changed, so only a home set before Bun starts reaches every
+// subprocess a test runs. A run under a marker whose paths do not match it
+// stops too. Both exit before any test imports atc.
 const marker = process.env['ATC_TEST_HOME'];
 
 if (marker === undefined) {
-  const root = mkdtempSync(join(tmpdir(), 'atc-test-home-'));
-
-  mkdirSync(join(root, 'home'));
-  mkdirSync(join(root, 'runtime'), { mode: 0o700 });
-
-  process.env['ATC_TEST_HOME'] = root;
-  process.env['HOME'] = join(root, 'home');
-  process.env['XDG_RUNTIME_DIR'] = join(root, 'runtime');
-  process.env['GROK_HOME'] = join(root, 'home', '.grok');
-  process.env['CODEX_HOME'] = join(root, 'home', '.codex');
-  delete process.env['ATC_SESSION_ID'];
-  delete process.env['ATC_SOCKET'];
-
-  process.on('exit', () => {
-    rmSync(root, { recursive: true, force: true });
-  });
-} else {
-  assertTestHome(marker);
+  stopRun('a bare `bun test` runs against your real home; run `bun run test` instead');
 }
+
+assertTestHome(marker);
 
 // An inherited marker is trusted only when every isolated variable already
 // points under it and no enclosing session's variables remain; a stale or
@@ -39,6 +21,10 @@ function assertTestHome(root: string): void {
   const expected: Readonly<Record<string, string>> = {
     HOME: join(root, 'home'),
     XDG_RUNTIME_DIR: join(root, 'runtime'),
+    XDG_CONFIG_HOME: join(root, 'home', '.config'),
+    XDG_DATA_HOME: join(root, 'home', '.local', 'share'),
+    XDG_STATE_HOME: join(root, 'home', '.local', 'state'),
+    XDG_CACHE_HOME: join(root, 'home', '.cache'),
     GROK_HOME: join(root, 'home', '.grok'),
     CODEX_HOME: join(root, 'home', '.codex'),
   };
@@ -50,9 +36,14 @@ function assertTestHome(root: string): void {
   const leftover = ['ATC_SESSION_ID', 'ATC_SOCKET'].filter((name) => name in process.env);
 
   if (mismatched.length > 0 || leftover.length > 0) {
-    throw new Error(
+    stopRun(
       `ATC_TEST_HOME is set to ${root} but ${[...mismatched, ...leftover].join(', ')} ` +
-        'does not match the test home it marks; unset ATC_TEST_HOME or run the package test script',
+        'does not match the test home it marks; unset ATC_TEST_HOME and run `bun run test`',
     );
   }
+}
+
+function stopRun(message: string): never {
+  console.error(`test home: ${message}`);
+  process.exit(2);
 }
