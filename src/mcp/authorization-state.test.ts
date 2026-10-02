@@ -107,10 +107,10 @@ test('it drops the oldest waiting approval to make room for a sixth client', () 
       throw new Error('an approval was refused');
     }
 
-    return state.findPending(approval.id)?.client.clientID ?? null;
+    return state.findPending(approval.id);
   });
 
-  expect(found).toStrictEqual([null, 'c2', 'c3', 'c4', 'c5', 'c6']);
+  expect(found).toStrictEqual(created.with(0, null));
 });
 
 test("it refuses a client's twenty-first approval within an hour while another client still starts one", () => {
@@ -184,7 +184,19 @@ test('it reports a second exchange of a code as reuse of the grant it produced',
 
   state.updateCodeGrant(code, 'g-1');
 
-  expect(first).toMatchObject({ kind: 'claimed' });
+  expect(first).toMatchObject({
+    kind: 'claimed',
+    code: {
+      clientID: 'c1',
+      clientName: 'dots',
+      redirectURI: 'https://dots.example/cb',
+      codeChallenge: 'challenge',
+      scopes: ['read'],
+      resource: 'https://atc.example/mcp',
+      expiresAt: 61_000,
+    },
+  });
+
   expect(state.claimCode(code)).toStrictEqual({ kind: 'reused', grantID: 'g-1' });
 });
 

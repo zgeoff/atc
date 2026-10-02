@@ -4,10 +4,10 @@ import { runMCPAuthorization } from '../../test/run-mcp-authorization';
 import { setupMCPHTTP } from '../../test/setup-mcp-http';
 import { isRecord } from '../shared/report';
 
-test('it grants a client scoped access to the mcp tools until the grant is revoked', async () => {
+test('it issues an access and refresh token for an approved authorization code', async () => {
   await using server = await setupMCPHTTP();
 
-  const authorized = await runMCPAuthorization(server, ['read', 'message']);
+  const authorized = await runMCPAuthorization(server, ['read', 'kill']);
 
   const exchanged = await fetch(`${server.url}/token`, {
     method: 'POST',
@@ -24,11 +24,41 @@ test('it grants a client scoped access to the mcp tools until the grant is revok
 
   const tokens = await readJSONRecord(exchanged);
 
-  const bearer = `Bearer ${String(tokens['access_token'])}`;
+  expect(exchanged.status).toBe(200);
+
+  expect(tokens).toStrictEqual({
+    access_token: expect.stringMatching(/^atc_at_/),
+    token_type: 'Bearer',
+    expires_in: 3600,
+    refresh_token: expect.stringMatching(/^atc_rt_/),
+    scope: 'read kill',
+  });
+});
+
+test('it runs a tool call whose scope the grant holds', async () => {
+  await using server = await setupMCPHTTP();
+
+  const authorized = await runMCPAuthorization(server, ['read']);
+
+  const exchanged = await fetch(`${server.url}/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: authorized.redirectURI,
+      client_id: authorized.clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
 
   const listed = await fetch(`${server.url}/mcp`, {
     method: 'POST',
-    headers: { authorization: bearer, 'content-type': 'application/json' },
+    headers: {
+      authorization: `Bearer ${String(tokens['access_token'])}`,
+      'content-type': 'application/json',
+    },
     body: JSON.stringify({
       jsonrpc: '2.0',
       id: 1,
@@ -37,9 +67,41 @@ test('it grants a client scoped access to the mcp tools until the grant is revok
     }),
   });
 
+  const listedBody: unknown = await listed.json();
+
+  expect(listed.status).toBe(200);
+
+  expect(listedBody).toStrictEqual({
+    jsonrpc: '2.0',
+    id: 1,
+    result: { content: [{ type: 'text', text: '[]' }] },
+  });
+});
+
+test('it refuses a tool call whose scope the grant lacks with insufficient_scope', async () => {
+  await using server = await setupMCPHTTP();
+
+  const authorized = await runMCPAuthorization(server, ['read', 'message']);
+
+  const exchanged = await fetch(`${server.url}/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: authorized.redirectURI,
+      client_id: authorized.clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
   const killed = await fetch(`${server.url}/mcp`, {
     method: 'POST',
-    headers: { authorization: bearer, 'content-type': 'application/json' },
+    headers: {
+      authorization: `Bearer ${String(tokens['access_token'])}`,
+      'content-type': 'application/json',
+    },
     body: JSON.stringify({
       jsonrpc: '2.0',
       id: 2,
@@ -48,6 +110,32 @@ test('it grants a client scoped access to the mcp tools until the grant is revok
     }),
   });
 
+  await killed.text();
+
+  expect(killed.status).toBe(403);
+
+  expect(killed.headers.get('www-authenticate')).toBe(
+    `Bearer error="insufficient_scope", scope="kill", resource_metadata="${server.origin}/.well-known/oauth-protected-resource/mcp"`,
+  );
+});
+
+test('it refuses an access token once its grant is revoked', async () => {
+  await using server = await setupMCPHTTP();
+
+  const authorized = await runMCPAuthorization(server, ['read']);
+
+  const exchanged = await fetch(`${server.url}/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: authorized.redirectURI,
+      client_id: authorized.clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
   const grants = await server.caller.sendRequest('grant.list');
 
   const listedGrants = grants['grants'];
@@ -63,43 +151,164 @@ test('it grants a client scoped access to the mcp tools until the grant is revok
     throw new TypeError('grant.list returned an empty list');
   }
 
-  const grantID = firstGrant['id'];
-
-  await server.caller.sendRequest('grant.revoke', { grant: grantID });
+  await server.caller.sendRequest('grant.revoke', { grant: firstGrant['id'] });
 
   const afterRevoke = await fetch(`${server.url}/mcp`, {
     method: 'POST',
-    headers: { authorization: bearer, 'content-type': 'application/json' },
+    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
     body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'ping' }),
   });
 
-  expect(exchanged.status).toBe(200);
+  expect(afterRevoke.status).toBe(401);
+});
+
+test('it grants only the ticked scopes the client requested', async () => {
+  await using server = await setupMCPHTTP();
+
+  const authorized = await runMCPAuthorization(server, ['read', 'kill'], 'read');
+
+  const exchanged = await fetch(`${server.url}/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: authorized.redirectURI,
+      client_id: authorized.clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
 
   expect(tokens).toStrictEqual({
     access_token: expect.stringMatching(/^atc_at_/),
     token_type: 'Bearer',
     expires_in: 3600,
     refresh_token: expect.stringMatching(/^atc_rt_/),
-    scope: 'read message',
+    scope: 'read',
+  });
+});
+
+test('it refuses a code exchange whose redirect URI differs from the authorization request', async () => {
+  await using server = await setupMCPHTTP();
+
+  const authorized = await runMCPAuthorization(server, ['read']);
+
+  const exchanged = await fetch(`${server.url}/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://dots.example/other',
+      client_id: authorized.clientID,
+      code_verifier: authorized.verifier,
+    }),
   });
 
-  const listedBody: unknown = await listed.json();
+  const refusal = await readJSONRecord(exchanged);
 
-  expect(listed.status).toBe(200);
+  expect(exchanged.status).toBe(400);
 
-  expect(listedBody).toStrictEqual({
-    jsonrpc: '2.0',
-    id: 1,
-    result: { content: [{ type: 'text', text: '[]' }] },
+  expect(refusal).toStrictEqual({
+    error: 'invalid_grant',
+    error_description: 'the authorization code does not match this request',
+  });
+});
+
+test('it refuses a code exchange from a client the code was not issued to', async () => {
+  await using server = await setupMCPHTTP();
+
+  const authorized = await runMCPAuthorization(server, ['read']);
+
+  const exchanged = await fetch(`${server.url}/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: authorized.redirectURI,
+      client_id: 'c-someone-else',
+      code_verifier: authorized.verifier,
+    }),
   });
 
-  expect(killed.status).toBe(403);
+  const refusal = await readJSONRecord(exchanged);
 
-  expect(killed.headers.get('www-authenticate')).toStartWith(
-    'Bearer error="insufficient_scope", scope="kill"',
-  );
+  expect(exchanged.status).toBe(400);
 
-  expect(afterRevoke.status).toBe(401);
+  expect(refusal).toStrictEqual({
+    error: 'invalid_grant',
+    error_description: 'the authorization code does not match this request',
+  });
+});
+
+test('it refuses a token request for another resource with invalid_target', async () => {
+  await using server = await setupMCPHTTP();
+
+  const authorized = await runMCPAuthorization(server, ['read']);
+
+  const exchanged = await fetch(`${server.url}/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: authorized.redirectURI,
+      client_id: authorized.clientID,
+      code_verifier: authorized.verifier,
+      resource: 'https://other.example/mcp',
+    }),
+  });
+
+  const refusal = await readJSONRecord(exchanged);
+
+  expect(exchanged.status).toBe(400);
+
+  expect(refusal).toStrictEqual({
+    error: 'invalid_target',
+    error_description: `atc serves one resource: ${server.origin}/mcp`,
+  });
+});
+
+test('it redirects an authorization request for another resource back with invalid_target', async () => {
+  await using server = await setupMCPHTTP();
+
+  const registered = await fetch(`${server.url}/register`, {
+    method: 'POST',
+    body: JSON.stringify({ client_name: 'dots', redirect_uris: ['https://dots.example/cb'] }),
+  });
+
+  const registration = await readJSONRecord(registered);
+
+  const authorize = new URL(`${server.url}/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: String(registration['client_id']),
+    redirect_uri: 'https://dots.example/cb',
+    code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    code_challenge_method: 'S256',
+    state: 'abc',
+    resource: 'https://other.example/mcp',
+  }).toString();
+
+  const answered = await fetch(authorize, { redirect: 'manual' });
+
+  const location = answered.headers.get('location');
+
+  if (location === null) {
+    throw new Error('the authorization request was not redirected');
+  }
+
+  const redirected = new URL(location);
+
+  expect(answered.status).toBe(302);
+  expect(redirected.origin + redirected.pathname).toBe('https://dots.example/cb');
+
+  expect(Object.fromEntries(redirected.searchParams)).toStrictEqual({
+    error: 'invalid_target',
+    error_description: `atc serves one resource: ${server.origin}/mcp`,
+    state: 'abc',
+    iss: server.origin,
+  });
 });
 
 test('it rotates a refresh token into a working access token', async () => {
@@ -137,7 +346,14 @@ test('it rotates a refresh token into a working access token', async () => {
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  expect(second).toMatchObject({ token_type: 'Bearer', scope: 'read' });
+  expect(second).toStrictEqual({
+    access_token: expect.stringMatching(/^atc_at_/),
+    token_type: 'Bearer',
+    expires_in: 3600,
+    refresh_token: expect.stringMatching(/^atc_rt_/),
+    scope: 'read',
+  });
+
   expect(second['refresh_token']).not.toBe(first['refresh_token']);
   expect(pinged.status).toBe(200);
 });
@@ -168,7 +384,12 @@ test('it revokes the grant when an authorization code is exchanged twice', async
   const refusal: unknown = await second.json();
 
   expect(second.status).toBe(400);
-  expect(refusal).toMatchObject({ error: 'invalid_grant' });
+
+  expect(refusal).toStrictEqual({
+    error: 'invalid_grant',
+    error_description: 'the authorization code was already used',
+  });
+
   expect(pinged.status).toBe(401);
 });
 
@@ -191,10 +412,14 @@ test('it refuses a code exchange whose verifier does not match the challenge', a
   const refusal: unknown = await exchanged.json();
 
   expect(exchanged.status).toBe(400);
-  expect(refusal).toMatchObject({ error: 'invalid_grant' });
+
+  expect(refusal).toStrictEqual({
+    error: 'invalid_grant',
+    error_description: 'the authorization code does not match this request',
+  });
 });
 
-test('it ends an approval after five wrong approval codes', async () => {
+test('it refuses the right approval code after five wrong ones', async () => {
   await using server = await setupMCPHTTP();
 
   const registered = await fetch(`${server.url}/register`, {
@@ -222,25 +447,55 @@ test('it ends an approval after five wrong approval codes', async () => {
     throw new Error('consent page holds no pending approval');
   }
 
-  const wrong = new URLSearchParams({ pending: pendingID, code: 'ZZZZ-ZZZZ', decision: 'approve' });
+  const [approvalLine] = server.approvals;
 
-  const statuses: number[] = [];
-
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const answered = await fetch(`${server.url}/authorize`, {
-      method: 'POST',
-      redirect: 'manual',
-      headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
-      body: wrong.toString(),
-    });
-
-    statuses.push(answered.status);
-
-    await answered.text();
+  if (approvalLine === undefined) {
+    throw new Error('the server printed no approval line');
   }
 
-  expect(statuses).toStrictEqual([400, 400, 400, 400, 400, 400]);
-  expect(server.approvals).toBeArrayOfSize(1);
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(approvalLine)?.groups?.['code'];
+
+  if (approvalCode === undefined) {
+    throw new Error('the approval line holds no approval code');
+  }
+
+  const wrong = new URLSearchParams({ pending: pendingID, code: 'ZZZZ-ZZZZ', decision: 'approve' });
+
+  const headers = { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' };
+
+  const miss1 = await fetch(`${server.url}/authorize`, { method: 'POST', headers, body: wrong });
+  const miss2 = await fetch(`${server.url}/authorize`, { method: 'POST', headers, body: wrong });
+  const miss3 = await fetch(`${server.url}/authorize`, { method: 'POST', headers, body: wrong });
+  const miss4 = await fetch(`${server.url}/authorize`, { method: 'POST', headers, body: wrong });
+  const miss5 = await fetch(`${server.url}/authorize`, { method: 'POST', headers, body: wrong });
+
+  const answered = await fetch(`${server.url}/authorize`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers,
+    body: new URLSearchParams({
+      pending: pendingID,
+      code: approvalCode,
+      decision: 'approve',
+      scope: 'read',
+    }),
+  });
+
+  await Promise.all([
+    miss1.text(),
+    miss2.text(),
+    miss3.text(),
+    miss4.text(),
+    miss5.text(),
+    answered.text(),
+  ]);
+
+  expect([miss1.status, miss2.status, miss3.status, miss4.status, miss5.status]).toStrictEqual([
+    400, 400, 400, 400, 400,
+  ]);
+
+  expect(answered.status).toBe(400);
+  expect(answered.headers.get('location')).toBeNull();
 });
 
 test('it prints a self-registered client as unverified with the host it returns to', async () => {
@@ -322,12 +577,17 @@ test('it redirects an authorization request without PKCE back with an error and 
 
   const answered = await fetch(authorize, { redirect: 'manual' });
 
-  const location = new URL(answered.headers.get('location') ?? 'https://missing.example');
+  const location = answered.headers.get('location');
+
+  if (location === null) {
+    throw new Error('the authorization request was not redirected');
+  }
 
   expect(answered.status).toBe(302);
 
-  expect(Object.fromEntries(location.searchParams)).toMatchObject({
+  expect(Object.fromEntries(new URL(location).searchParams)).toStrictEqual({
     error: 'invalid_request',
+    error_description: 'atc requires a PKCE code_challenge with method S256',
     state: 'abc',
     iss: server.origin,
   });
@@ -343,6 +603,30 @@ test('it refuses an approval posted from another origin', async () => {
       'content-type': 'application/x-www-form-urlencoded',
     },
     body: 'pending=x&code=ABCD-EFGH&decision=approve',
+  });
+
+  expect(answered.status).toBe(403);
+});
+
+test('it refuses an approval posted without an Origin header', async () => {
+  await using server = await setupMCPHTTP();
+
+  const answered = await fetch(`${server.url}/authorize`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: 'pending=x&code=ABCD-EFGH&decision=approve',
+  });
+
+  expect(answered.status).toBe(403);
+});
+
+test('it refuses an mcp request from a foreign origin before asking for a token', async () => {
+  await using server = await setupMCPHTTP();
+
+  const answered = await fetch(`${server.url}/mcp`, {
+    method: 'POST',
+    headers: { origin: 'https://evil.example' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
   expect(answered.status).toBe(403);
@@ -405,7 +689,19 @@ test('it serves the protected resource metadata at both well-known paths', async
   const bareMetadata: unknown = await bare.json();
   const scopedMetadata: unknown = await scoped.json();
 
-  expect(bareMetadata).toStrictEqual(scopedMetadata);
+  expect(bareMetadata).toStrictEqual({
+    resource: `${server.origin}/mcp`,
+    authorization_servers: [server.origin],
+    scopes_supported: ['read', 'message', 'spawn', 'kill'],
+    bearer_methods_supported: ['header'],
+  });
+
+  expect(scopedMetadata).toStrictEqual({
+    resource: `${server.origin}/mcp`,
+    authorization_servers: [server.origin],
+    scopes_supported: ['read', 'message', 'spawn', 'kill'],
+    bearer_methods_supported: ['header'],
+  });
 });
 
 test('it keeps serving after the daemon restarts', async () => {
@@ -465,7 +761,11 @@ test('it refuses a registration listing more than five redirect URIs', async () 
   const refusal = await readJSONRecord(registered);
 
   expect(registered.status).toBe(400);
-  expect(refusal).toMatchObject({ error: 'invalid_redirect_uri' });
+
+  expect(refusal).toStrictEqual({
+    error: 'invalid_redirect_uri',
+    error_description: 'redirect_uris may list at most 5 URIs of at most 2000 characters each',
+  });
 });
 
 test('it refuses a registration with a redirect URI longer than 2000 characters', async () => {
@@ -482,7 +782,11 @@ test('it refuses a registration with a redirect URI longer than 2000 characters'
   const refusal = await readJSONRecord(registered);
 
   expect(registered.status).toBe(400);
-  expect(refusal).toMatchObject({ error: 'invalid_redirect_uri' });
+
+  expect(refusal).toStrictEqual({
+    error: 'invalid_redirect_uri',
+    error_description: 'redirect_uris may list at most 5 URIs of at most 2000 characters each',
+  });
 });
 
 test('it answers a registration with 503 once 100 clients are waiting for a grant', async () => {
@@ -516,7 +820,11 @@ test('it answers a registration with 503 once 100 clients are waiting for a gran
 
   expect(waiting).toSatisfyAll((status: number) => status === 201);
   expect(refused.status).toBe(503);
-  expect(refusal).toMatchObject({ error: 'temporarily_unavailable' });
+
+  expect(refusal).toStrictEqual({
+    error: 'temporarily_unavailable',
+    error_description: 'too many clients are waiting for approval; try again later',
+  });
 });
 
 test('it registers a client name with its terminal escapes dropped', async () => {

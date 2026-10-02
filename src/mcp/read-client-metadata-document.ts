@@ -7,17 +7,22 @@ import type { OAuthClientView } from './types';
 // A metadata document is a few hundred bytes; anything far larger is not one.
 const MAX_DOCUMENT_BYTES = 16_384;
 
+// Resolves a hostname to every address it has.
+type HostResolver = (hostname: string) => Promise<readonly { readonly address: string }[]>;
+
 /**
  * Reads the client metadata document a URL client id points at. Only an https
  * URL on a host the operator listed is fetched, and only when every address
  * the host resolves to is public, so a crafted client id cannot make atc
  * reach into the local network. Redirects are refused, and a body past 16 KB
  * is abandoned partway. Returns null when any check fails or the document is
- * not valid.
+ * not valid. Hosts resolve through the system resolver unless another is
+ * given.
  */
 export async function readClientMetadataDocument(
   clientID: string,
   allowedHosts: readonly string[],
+  resolveHost: HostResolver = (hostname) => lookup(hostname, { all: true }),
 ): Promise<OAuthClientView | null> {
   let url: URL;
 
@@ -31,7 +36,7 @@ export async function readClientMetadataDocument(
     return null;
   }
 
-  const resolved = await lookup(url.hostname, { all: true }).catch(() => []);
+  const resolved = await resolveHost(url.hostname).catch(() => []);
 
   if (resolved.length === 0 || !resolved.every((entry) => isPublicAddress(entry.address))) {
     return null;

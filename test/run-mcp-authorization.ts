@@ -16,13 +16,15 @@ interface AuthorizedClient {
 /**
  * Drives the OAuth steps before a token exchange against a running MCP HTTP
  * server: registers a client, opens the authorization request, and approves
- * it with the code the server printed and the scopes given. Returns what a
- * token request needs, and throws when any step's response lacks the value
- * the next step depends on.
+ * it with the code the server printed, ticking the scopes given. The request
+ * asks for the requested scope when one is given and for every scope
+ * otherwise. Returns what a token request needs, and throws when any step's
+ * response lacks the value the next step depends on.
  */
 export async function runMCPAuthorization(
   server: MCPAuthorizationServer,
   scopes: readonly string[],
+  requestedScope: string | null = null,
 ): Promise<AuthorizedClient> {
   const redirectURI = 'https://dots.example/cb';
   const verifier = 'test-verifier-0123456789-abcdefghijklmnopqrstuvwxyz';
@@ -50,6 +52,7 @@ export async function runMCPAuthorization(
     code_challenge: challenge,
     code_challenge_method: 'S256',
     state: 'state-1',
+    ...(requestedScope === null ? {} : { scope: requestedScope }),
   }).toString();
 
   const consent = await fetch(authorize);
