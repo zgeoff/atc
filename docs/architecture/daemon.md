@@ -91,15 +91,18 @@ provider:
 | `kill`     | end a running harness                                    |
 | `transfer` | unpack a tar archive into a directory on the host        |
 | `run`      | run a command on the host to completion                  |
+| `headless` | run an agent turn without a terminal                     |
 | `suspend`  | pause the host and resume it later with its state intact |
 | `destroy`  | delete the host and everything on it                     |
 
 Each configured execution target has its own provider, and every session holds the target it runs
-on, so each request checks the capability of that session's provider. A request that needs a
-capability the provider lacks fails with `unsupported_operation`. A host without `resize` keeps its
-terminal at the size it started with, while the session's screen model follows the attached clients.
-`local-pty` declares every capability except `suspend` and `destroy`: its host is the daemon's own
-machine.
+on. Every path that starts work on a session asks one check, `findExecutionRefusal`, for the
+session's target and the capability it needs, so no path can run a session on another target or fall
+back to the daemon's own machine. The [protocol](./protocol.md#targets) covers the refusals. A
+request that needs a capability the provider lacks fails with `unsupported_operation`. A host
+without `resize` keeps its terminal at the size it started with, while the session's screen model
+follows the attached clients. `local-pty` declares every capability except `suspend` and `destroy`:
+its host is the daemon's own machine.
 
 ## State
 

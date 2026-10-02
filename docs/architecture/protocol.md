@@ -39,11 +39,12 @@ Claude Code's hook events. The MCP tools map onto both mechanically (`session.sp
 `atc_session_spawn`, `SessionAdded` → a notification). Error codes are human-readable strings from a
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
 `no_such_session`, `session_dead`, `unsupported`, `unsupported_operation`, `unknown_target`,
-`target_unavailable`, `already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`,
-`outcome_unknown`, `internal`. An unknown method is an `unknown_method` error, never a disconnect;
-unknown fields in any message are ignored. A peer decodes an error code it does not know as
-`internal` and keeps its `msg`. These rules exist so additive evolution never breaks a peer. An
-error may also carry `data`, an object whose fields its code defines.
+`target_unavailable`, `target_changed`, `target_config_invalid`, `already_answered`, `too_slow`,
+`stale_epoch`, `idempotency_conflict`, `outcome_unknown`, `internal`. An unknown method is an
+`unknown_method` error, never a disconnect; unknown fields in any message are ignored. A peer
+decodes an error code it does not know as `internal` and keeps its `msg`. These rules exist so
+additive evolution never breaks a peer. An error may also carry `data`, an object whose fields its
+code defines.
 
 `unsupported_operation` refuses a request that the session's execution host cannot serve, such as
 input to a host that takes none. Its `data` holds the provider kind as `provider` and the missing
@@ -259,15 +260,18 @@ and no field describes which plans an agent's account holds.
 
 The answer also holds the execution targets:
 
-- `targets` holds one entry per configured target, in config order: its `id`, its `provider` kind,
-  `available`, `default`, and `capabilities`. `available` is false when this daemon has no provider
-  of that kind, and such a target's capabilities are all false. An entry never holds the target's
-  options, which can hold a host's address or an account.
-- `spawnDefaults` holds the `agent` and `target` a spawn without either runs with.
-- `configRevision` is a 16-digit hex digest of each target's id, provider kind, and options and of
-  the default target. It is the same for the daemon's whole life, and it changes whenever the target
-  config does.
-- `configWarnings` holds one line per config problem the daemon fell back from when it started.
+- `targets` holds one entry per well-formed target, in config order: its `id`, its `provider` kind,
+  `identity`, `available`, `default`, and `capabilities`. `available` is false when this daemon has
+  no provider of that kind, and such a target's capabilities are all false. An entry never holds the
+  target's options, which can hold a host's address or an account.
+- `spawnDefaults` holds the `agent` and `target` a spawn without either runs with. `target` is null
+  when the config gives no default, and such a spawn fails with `target_config_invalid`.
+- `configRevision` is a 16-digit hex digest of each target's id and identity, the default target,
+  and the target errors. It is the same for the daemon's whole life, and it changes whenever the
+  target config does.
+- `targetErrors` holds each config problem that leaves a target, or every target, unusable: its
+  `scope` (`targets`, `target`, or `defaultTarget`), the `target` id for an entry's problem, and the
+  `problem`.
 
 ### Spawn options
 
@@ -324,16 +328,30 @@ spawn without one runs on the default target, which `agents.list` returns as `sp
 A sub-session runs on the default target too, unless its spawn holds one; it never inherits its
 parent's. The [configuration guide](../guides/configuration.md#targets) covers how targets are set.
 
-The daemon never runs a session anywhere but the target it was sent to:
+A session binds to its target's identity when it spawns: the provider kind, a colon, and the first
+16 hex digits of a sha256 over the target's options with sorted keys, such as
+`local-pty:44136fa355b3678a`. The fleet row holds the target and the identity. A row without either
+binds to `local` with the identity of the implicit `local` target.
 
+Every request that starts work on a session checks the session's target first, in one place: a
+spawn, an adopt or fleet restore, terminal input, an attach, a kill, an eject, and a headless turn.
+The daemon never runs a session anywhere but the target it is bound to, and a check that fails
+refuses the request before anything starts:
+
+- A target whose config is malformed is `target_config_invalid`, with `data.target` and
+  `data.problem`. A spawn without a target when the config gives no default is the same code with
+  `data.problem` alone.
 - A target the config does not hold is `unknown_target`, with the id as `data.target`.
+- A target whose identity is not the session's is `target_changed`, with `data.target`,
+  `data.boundIdentity`, and `data.currentIdentity`.
 - A target whose provider kind this daemon does not have is `target_unavailable`, with `data.target`
   and `data.provider`.
-- A target whose provider cannot start a terminal is `unsupported_operation`.
+- A provider without the capability the request needs is `unsupported_operation`. A headless turn
+  needs `headless`.
 
-Each refusal comes before anything spawns, so a refused spawn under an idempotency key leaves the
-key free for a retry. The fleet row holds the session's target. A restore lists a session whose
-target the daemon cannot use as exited, and `session.adopt` on it answers with the same refusal.
+A refused spawn under an idempotency key leaves the key free for a retry. A restore lists a session
+whose target the daemon cannot use as exited, and input or `session.adopt` on it answers with the
+target refusal. A dead session takes no input on a target that works: `session_dead`.
 
 ## Idempotent requests
 

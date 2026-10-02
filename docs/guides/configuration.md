@@ -80,20 +80,32 @@ your own:
   entry is an option for that provider.
 - A target whose provider kind this atc does not have still lists, as unavailable, and a spawn to it
   fails with `target_unavailable`.
-- A `targets` map without `local` turns local sessions off. A spawn without a target then runs on
-  `defaultTarget`, and a spawn to `local` fails with `unknown_target`.
-- `defaultTarget` falls back to `local` when it matches no target, or to the first target when the
-  map holds no `local`. Without `defaultTarget`, the same rule picks the default.
+- A `targets` map without `local` turns local sessions off: a spawn to `local` fails with
+  `unknown_target`.
+- A spawn without a target runs on `defaultTarget`. Without `defaultTarget`, it runs on `local` when
+  the map holds it, and fails with `target_config_invalid` otherwise.
 
 atc never runs a session on a target other than the one it was sent to. A spawn to an unknown or
 unavailable target fails, and a restore lists a session whose target is gone as exited, with
 `no target '<target_id>'` as its last message. Revive it after you add the target back.
 
-A malformed `targets` falls back to `local` alone, never to a partial map: a `targets` that is not
-an object, an empty map, or a map with any entry that is not an object holding a non-empty string
-`provider`. Dropping only the bad entry could drop a mistyped `local` and turn local sessions off.
-The daemon prints each fallback to stderr when it starts, and `agents.list` returns them as
-`configWarnings`.
+A session stays bound to its target as the target stood when the session started: its provider kind
+and options. Change a target's provider or options, and each session started on it refuses input,
+resume, and revive with `target_changed`, listing as exited with `target '<target_id>' changed`.
+Restore the target's earlier config to use those sessions again, or kill them. Never put a
+credential value in a target's options; name an environment variable that holds it instead.
+
+A target config that is set but wrong fails closed. atc keeps running, the targets it can read keep
+working, and every spawn that resolves through the problem fails with `target_config_invalid`, whose
+message holds the problem:
+
+- A `targets` that is not an object, or an empty map, leaves no target usable, `local` included.
+- An entry that is not an object holding a non-empty string `provider` leaves that target unusable.
+- A `defaultTarget` that matches no well-formed target leaves no default, so a spawn without a
+  target fails.
+
+The daemon prints each problem to stderr when it starts, and `agents.list` returns them as
+`targetErrors`.
 
 ## Gateways
 
