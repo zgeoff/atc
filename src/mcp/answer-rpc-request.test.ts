@@ -237,6 +237,8 @@ test.each([
   ['atc_message_get', { message: 'm-1', waitMs: 5000 }],
   ['atc_events_read', { session: 's-1' }],
   ['atc_agents_list', {}],
+  ['atc_session_spawn', { cwd: '/tmp', model: 'opus' }],
+  ['atc_session_spawn', { cwd: '/tmp', effort: 'high' }],
 ])(
   'it refuses %p with a restart hint when the connected daemon predates it, sending nothing',
   async (name, args) => {
@@ -313,4 +315,38 @@ test('it reads a message from an older daemon when the call asks for no wait', a
     kind: 'reply',
     body: { result: { structuredContent: { message: 'm-legacy', status: 'accepted' } } },
   });
+});
+
+test('it names the registered agents in the spawn tool to a caller holding the read scope', async () => {
+  await using server = await setupMCPHTTP();
+
+  const outcome = await answerRPCRequest(
+    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    {
+      caller: server.caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      scopes: ['read'],
+    },
+  );
+
+  const listed = JSON.stringify(outcome);
+
+  expect(listed).toInclude('the host registered: claude (not installed).');
+});
+
+test('it names no agent in the spawn tool to a caller without the read scope', async () => {
+  await using server = await setupMCPHTTP();
+
+  const outcome = await answerRPCRequest(
+    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    {
+      caller: server.caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      scopes: ['kill'],
+    },
+  );
+
+  expect(JSON.stringify(outcome)).not.toInclude('the host registered');
 });

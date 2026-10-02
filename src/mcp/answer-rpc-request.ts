@@ -61,7 +61,8 @@ export async function answerRPCRequest(message: unknown, deps: RPCDeps): Promise
     .with('ping', () => ({ kind: 'reply' as const, body: buildRPCResult(id, {}) }))
     .with('tools/list', async () => {
       const features = await deps.caller.readFeatures();
-      const agents = features.has('agents.list') ? await tryReadAgents(deps.caller) : null;
+
+      const agents = features.has('agents.list') ? await tryReadAgents(deps) : null;
 
       return {
         kind: 'reply' as const,
@@ -105,10 +106,15 @@ const ROSTER_AGENT_SCHEMA = z.object({ id: z.string(), installed: z.boolean() })
 const AGENT_ROSTER_SCHEMA = z.object({ agents: z.array(ROSTER_AGENT_SCHEMA) });
 
 // The registered agents, or null when the daemon cannot answer, so the tool
-// list still builds with descriptions that name no agent.
-async function tryReadAgents(caller: FleetCaller): Promise<RegisteredAgent[] | null> {
+// list still builds with descriptions that name no agent. A caller without
+// the read scope gets null too, since listing agents is a read.
+async function tryReadAgents(deps: RPCDeps): Promise<RegisteredAgent[] | null> {
+  if (deps.scopes !== undefined && !deps.scopes.includes('read')) {
+    return null;
+  }
+
   try {
-    const answer = await caller.sendRequest('agents.list');
+    const answer = await deps.caller.sendRequest('agents.list');
 
     const parsed = AGENT_ROSTER_SCHEMA.safeParse(answer);
 

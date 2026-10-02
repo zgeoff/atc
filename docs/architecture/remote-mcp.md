@@ -195,7 +195,8 @@ environment, credential helper, or base URL; the [protocol](./protocol.md#agents
 [protocol](./protocol.md#spawn-options) covers the rules. Its input schema is the same on every
 host. Its description, and its `agent` field's description, list the agents the daemon registered
 when the server built the `tools/list` answer, marking any whose binary is missing as not installed.
-A client can cache that answer, so `atc_agents_list` is the current source.
+A token without `read` gets descriptions that list no agent, since listing agents is a read. A
+client can cache that answer, so `atc_agents_list` is the current source.
 
 The answer `atc_message_get` returns is the final output of the session turn that carried the
 message, which can carry other messages too; the [protocol](./protocol.md#messages) covers the turn

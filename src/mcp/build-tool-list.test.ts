@@ -11,7 +11,9 @@ test('it lists one entry per defined tool in definition order', () => {
 
 test('it lists each tool with only its name, description, schemas, and annotations', () => {
   expect(
-    buildToolList(new Set(DAEMON_FEATURES), null).map((tool) => Object.keys(tool).toSorted().join(',')),
+    buildToolList(new Set(DAEMON_FEATURES), null).map((tool) =>
+      Object.keys(tool).toSorted().join(','),
+    ),
   ).toSatisfyAll(
     (keys) =>
       keys === 'annotations,description,inputSchema,name' ||
