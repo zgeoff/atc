@@ -1,4 +1,3 @@
-// oxlint-disable typescript/await-thenable, typescript/no-confusing-void-expression -- bun types the rejects matchers as void, but they return a promise the test must await
 import { expect, onTestFinished, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -201,9 +200,11 @@ test('it refuses a message once the grace window passes with no tap ever attache
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
 
   await waitFor(async () => {
-    await expect(
+    const [outcome] = await Promise.allSettled([
       daemon.actor.sendRequest('session.message', { session: id, text: 'late' }),
-    ).rejects.toMatchObject({ code: 'unsupported' });
+    ]);
+
+    expect(outcome).toMatchObject({ status: 'rejected', reason: { code: 'unsupported' } });
   });
 });
 
@@ -248,7 +249,7 @@ test('it refuses a message to a session whose agent cannot take messages', async
     throw new TypeError('no session in spawn answer');
   }
 
-  await expect(
+  expect(
     daemon.actor.sendRequest('session.message', {
       session: descriptor['id'],
       text: 'hello',
@@ -259,7 +260,7 @@ test('it refuses a message to a session whose agent cannot take messages', async
 test('it answers a message for an unknown session with no_such_session', async () => {
   await using daemon = await setupTest();
 
-  await expect(
+  expect(
     daemon.actor.sendRequest('session.message', { session: 'nope', text: 'hello' }),
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });
@@ -271,7 +272,7 @@ test('it answers a message for a killed session with session_dead', async () => 
 
   await daemon.actor.sendRequest('session.kill', { session: id });
 
-  await expect(
+  expect(
     daemon.actor.sendRequest('session.message', { session: id, text: 'hello' }),
   ).rejects.toMatchObject({ code: 'session_dead' });
 });
@@ -281,7 +282,7 @@ test('it rejects a message without text as bad_args', async () => {
 
   const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
 
-  await expect(daemon.actor.sendRequest('session.message', { session: id })).rejects.toMatchObject({
+  expect(daemon.actor.sendRequest('session.message', { session: id })).rejects.toMatchObject({
     code: 'bad_args',
   });
 });
@@ -490,7 +491,7 @@ test('it refuses a tap on a session whose agent cannot take messages', async () 
     throw new TypeError('no session in spawn answer');
   }
 
-  await expect(
+  expect(
     daemon.tap.sendRequest('session.tap', { session: descriptor['id'] }),
   ).rejects.toMatchObject({ code: 'unsupported' });
 });
@@ -498,7 +499,7 @@ test('it refuses a tap on a session whose agent cannot take messages', async () 
 test('it refuses a tap on an unknown session', async () => {
   await using daemon = await setupTest();
 
-  await expect(daemon.tap.sendRequest('session.tap', { session: 'nope' })).rejects.toMatchObject({
+  expect(daemon.tap.sendRequest('session.tap', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
   });
 });
@@ -546,7 +547,7 @@ test('it refuses an ack from a connection that is not the session tap', async ()
 
   await daemon.tap.sendRequest('session.tap', { session: id });
 
-  await expect(
+  expect(
     daemon.actor.sendRequest('message.ack', {
       session: id,
       message: sent['message'],
@@ -584,7 +585,7 @@ test('it rejects an ack of an unknown message as bad_args', async () => {
 
   await daemon.tap.sendRequest('session.tap', { session: id });
 
-  await expect(
+  expect(
     daemon.tap.sendRequest('message.ack', { session: id, message: 'm-unknown' }),
   ).rejects.toMatchObject({ code: 'bad_args' });
 });
@@ -690,7 +691,7 @@ test('it refuses a message to a session whose process died even after a tap atta
   await daemon.tap.sendRequest('session.tap', { session: id });
   await daemon.actor.sendRequest('session.kill', { session: id });
 
-  await expect(
+  expect(
     daemon.actor.sendRequest('session.message', { session: id, text: 'hello' }),
   ).rejects.toMatchObject({ code: 'session_dead' });
 });
@@ -916,15 +917,15 @@ test('it caps a stored answer at the byte limit without splitting a character', 
 test('it rejects message.get for an unknown message as bad_args', async () => {
   await using daemon = await setupTest();
 
-  await expect(
-    daemon.actor.sendRequest('message.get', { message: 'm-unknown' }),
-  ).rejects.toMatchObject({ code: 'bad_args' });
+  expect(daemon.actor.sendRequest('message.get', { message: 'm-unknown' })).rejects.toMatchObject({
+    code: 'bad_args',
+  });
 });
 
 test('it rejects message.get without a message as bad_args', async () => {
   await using daemon = await setupTest();
 
-  await expect(daemon.actor.sendRequest('message.get', {})).rejects.toMatchObject({
+  expect(daemon.actor.sendRequest('message.get', {})).rejects.toMatchObject({
     code: 'bad_args',
   });
 });
