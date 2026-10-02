@@ -1,0 +1,227 @@
+import { expect, test } from 'bun:test';
+import { join } from 'node:path';
+import { setupTempDir } from '../../test/setup-temp-dir';
+import type { AgentAdapter } from '../agents/agent-adapter';
+import { DaemonClient } from '../client/daemon-client';
+import { startDaemon } from './daemon';
+
+async function setupTest() {
+  const tmp = setupTempDir('atc-grants-');
+  const sockPath = join(tmp.dir, 'daemon.sock');
+
+  const adapter: AgentAdapter = {
+    id: 'claude',
+    headlessRunner: null,
+    screenDetector: null,
+    takesMessages: false,
+    planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
+    normalizeHook: () => ({ kind: 'heartbeat' }),
+    loadName: () => Promise.resolve(null),
+    canResume: () => true,
+    buildResumeCommand: () => null,
+  };
+
+  const daemon = await startDaemon({
+    socketPath: sockPath,
+    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+    build: 'atc/test-build',
+    adapter,
+    dbPath: join(tmp.dir, 'state.db'),
+    statusPath: join(tmp.dir, 'status.json'),
+  });
+
+  const client = await DaemonClient.open(sockPath);
+
+  await client.sendHello('atc/test-build');
+
+  return {
+    client,
+    async [Symbol.asyncDispose]() {
+      client.stop();
+
+      await daemon.stop();
+
+      tmp[Symbol.dispose]();
+    },
+  };
+}
+
+test('it verifies, refreshes, and revokes a grant over the socket', async () => {
+  await using ctx = await setupTest();
+
+  const created = await ctx.client.sendRequest('grant.create', {
+    clientID: 'c1',
+    clientName: 'dots',
+    scopes: ['read', 'message'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+  });
+
+  const verified = await ctx.client.sendRequest('grant.verify', {
+    accessHash: 'a1',
+    resource: 'https://atc.example/mcp',
+  });
+
+  const refreshed = await ctx.client.sendRequest('grant.refresh', {
+    refreshHash: 'r1',
+    accessHash: 'a2',
+    nextRefreshHash: 'r2',
+    clientID: 'c1',
+    resource: 'https://atc.example/mcp',
+  });
+
+  const revoked = await ctx.client.sendRequest('grant.revoke', { grant: created['grant'] });
+
+  expect(created).toStrictEqual({ grant: expect.stringMatching(/^g-/), expiresIn: 3600 });
+  expect(verified).toStrictEqual({ grant: created['grant'], scopes: ['read', 'message'] });
+
+  expect(refreshed).toStrictEqual({
+    grant: created['grant'],
+    scopes: ['read', 'message'],
+    expiresIn: 3600,
+  });
+
+  expect(revoked).toStrictEqual({});
+
+  expect(
+    ctx.client.sendRequest('grant.verify', {
+      accessHash: 'a2',
+      resource: 'https://atc.example/mcp',
+    }),
+  ).rejects.toMatchObject({ code: 'unauthorized' });
+});
+
+test('it refuses an unknown access token with unauthorized', async () => {
+  await using ctx = await setupTest();
+
+  expect(
+    ctx.client.sendRequest('grant.verify', {
+      accessHash: 'nope',
+      resource: 'https://atc.example/mcp',
+    }),
+  ).rejects.toMatchObject({ code: 'unauthorized' });
+});
+
+test('it refuses a reused refresh token with unauthorized and drops the grant', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.client.sendRequest('grant.create', {
+    clientID: 'c1',
+    clientName: 'dots',
+    scopes: ['read'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+  });
+
+  await ctx.client.sendRequest('grant.refresh', {
+    refreshHash: 'r1',
+    accessHash: 'a2',
+    nextRefreshHash: 'r2',
+    clientID: 'c1',
+    resource: 'https://atc.example/mcp',
+  });
+
+  await ctx.client.sendRequest('grant.verify', {
+    accessHash: 'a2',
+    resource: 'https://atc.example/mcp',
+  });
+
+  const reuse = ctx.client.sendRequest('grant.refresh', {
+    refreshHash: 'r1',
+    accessHash: 'a3',
+    nextRefreshHash: 'r3',
+    clientID: 'c1',
+    resource: 'https://atc.example/mcp',
+  });
+
+  expect(reuse).rejects.toMatchObject({ code: 'unauthorized' });
+
+  await reuse.catch(() => null);
+
+  const listed = await ctx.client.sendRequest('grant.list');
+
+  expect(listed).toStrictEqual({ grants: [] });
+});
+
+test('it lists a live grant without any token material', async () => {
+  await using ctx = await setupTest();
+
+  const created = await ctx.client.sendRequest('grant.create', {
+    clientID: 'c1',
+    clientName: 'dots',
+    scopes: ['read'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+  });
+
+  const listed = await ctx.client.sendRequest('grant.list');
+
+  expect(listed).toStrictEqual({
+    grants: [
+      {
+        id: created['grant'],
+        clientID: 'c1',
+        clientName: 'dots',
+        scopes: ['read'],
+        resource: 'https://atc.example/mcp',
+        createdAt: expect.toBeNumber(),
+        lastUsedAt: null,
+      },
+    ],
+  });
+});
+
+test('it refuses to revoke an unknown grant with bad_args', async () => {
+  await using ctx = await setupTest();
+
+  expect(ctx.client.sendRequest('grant.revoke', { grant: 'g-missing' })).rejects.toMatchObject({
+    code: 'bad_args',
+  });
+});
+
+test('it refuses a grant with a scope outside the four with bad_args', async () => {
+  await using ctx = await setupTest();
+
+  expect(
+    ctx.client.sendRequest('grant.create', {
+      clientID: 'c1',
+      clientName: 'dots',
+      scopes: ['admin'],
+      resource: 'https://atc.example/mcp',
+      accessHash: 'a1',
+      refreshHash: 'r1',
+    }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
+});
+
+test('it registers a client and finds it by the id it minted', async () => {
+  await using ctx = await setupTest();
+
+  const registered = await ctx.client.sendRequest('grant.registerClient', {
+    name: 'dots',
+    redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+  });
+
+  const found = await ctx.client.sendRequest('grant.findClient', {
+    clientID: registered['clientID'],
+  });
+
+  expect(found).toStrictEqual({
+    client: {
+      clientID: registered['clientID'],
+      name: 'dots',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+});
+
+test('it finds no client for an id it never minted', async () => {
+  await using ctx = await setupTest();
+
+  const found = await ctx.client.sendRequest('grant.findClient', { clientID: 'c-missing' });
+
+  expect(found).toStrictEqual({ client: null });
+});

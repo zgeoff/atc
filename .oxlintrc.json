@@ -78,6 +78,7 @@
           { "from": "file", "name": "SessionRuntime" },
           // wraps a live db connection; not meaningfully freezable
           { "from": "file", "name": "StateStore" },
+          { "from": "file", "name": "GrantStore" },
           // wraps a live db connection; not meaningfully freezable
           { "from": "package", "name": "Database", "package": "bun:sqlite" },
           // a query builder bound to a live connection; not meaningfully

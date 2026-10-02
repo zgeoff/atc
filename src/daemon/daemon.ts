@@ -10,6 +10,8 @@ import type { MessageRecord } from '../store/message-record';
 import { StateStore } from '../store/state-store';
 import type { TrailEntry } from '../store/trail-entry';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
+import { answerGrantRequest } from './answer-grant-request';
+import type { GrantPolicy } from './answer-grant-request';
 import { AttachRegistry } from './attach-registry';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
@@ -85,6 +87,9 @@ export interface DaemonOptions {
   readonly restoreBootTimeoutMs?: number;
   readonly tapGraceMs?: number;
 
+  // Credential lifetimes for remote MCP grants; tests shorten them.
+  readonly grantPolicy?: GrantPolicy;
+
   // Called after a client-requested quit has stopped the daemon; the real
   // entrypoint exits the process, tests leave it unset.
   readonly onQuit?: () => void;
@@ -97,6 +102,16 @@ export interface DaemonHandle {
 // How long a started Claude session may go without a tap before a message to
 // it is refused.
 const TAP_GRACE_MS = 15_000;
+
+// An access token lasts an hour and a refresh token 30 days from its last
+// rotation. A spent refresh token presented again within 2 minutes is a retry
+// of its rotation, and a registered client gets 10 minutes to gain a grant.
+const GRANT_POLICY: GrantPolicy = {
+  accessMs: 3_600_000,
+  refreshMs: 2_592_000_000,
+  retryWindowMs: 120_000,
+  clientGraceMs: 600_000,
+};
 
 /**
  * The daemon: owns the sessions, the client-protocol listener, and the
@@ -115,6 +130,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   }
 
   const store = await StateStore.open(opts.dbPath, opts.legacyFleetPath);
+
+  const grantPolicy = opts.grantPolicy ?? GRANT_POLICY;
+
+  await store.grants.removeExpiredGrants(Date.now(), grantPolicy.clientGraceMs);
 
   const mgr = new SessionManager(opts.adapter, store, opts.statusPath, opts.adapters ?? []);
   const clients = new Set<DaemonConnection>();
@@ -589,6 +608,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   }, opts.reporterSocketPath);
 
   const ctx: DaemonContext = {
+    answerGrant: (method, params) =>
+      answerGrantRequest(method, params, {
+        store: store.grants,
+        policy: grantPolicy,
+        now: () => Date.now(),
+      }),
     build: opts.build,
     collectSessions: () => mgr.collectDescriptors(),
     collectSpawnDirs: () => store.collectSpawnDirs(),

@@ -100,6 +100,13 @@ semantics.
 | `session.tap`           | subscribe to a session's inbox; messages arrive as `InboxMessage` events                                                                                                                                           |
 | `message.ack`           | mark a tapped message delivered (`{ session, message }`)                                                                                                                                                           |
 | `message.get`           | one message with its status, answer, and timestamps (`{ message }`)                                                                                                                                                |
+| `grant.create`          | store a new remote MCP grant from its client, scopes, resource, and token hashes; the ok holds the grant id                                                                                                        |
+| `grant.verify`          | check an access token hash against its resource; the ok holds the grant id and scopes, and a bad token is `unauthorized`                                                                                           |
+| `grant.refresh`         | rotate a refresh token hash into a new pair; a bad or reused token is `unauthorized`, and reuse revokes the grant                                                                                                  |
+| `grant.list`            | the live grants, without token hashes                                                                                                                                                                              |
+| `grant.revoke`          | revoke a grant by id (`{ grant }`); an unknown id is `bad_args`                                                                                                                                                    |
+| `grant.registerClient`  | register an OAuth client (`{ name, redirectURIs }`); the ok holds the client id the daemon minted                                                                                                                  |
+| `grant.findClient`      | one registered client by id (`{ clientID }`), or `null`                                                                                                                                                            |
 
 `session.input` is a request (it gets an ok, preserving the rule that state-changing messages are
 acknowledged) but clients need not await it — measured cost of the JSON round trip is ~0.2 µs

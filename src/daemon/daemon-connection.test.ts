@@ -44,6 +44,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
 
   const ctx: DaemonContext = {
     build: 'atc/test',
+    answerGrant: assertUnreachable,
     collectSessions: () => [],
     collectSpawnDirs: assertUnreachable,
     collectFleet: assertUnreachable,

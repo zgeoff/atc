@@ -17,6 +17,8 @@ import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { MessageRecord } from '../store/message-record';
+import { isGrantMethod } from './answer-grant-request';
+import type { GrantAnswer, GrantMethod } from './answer-grant-request';
 import type { Dims } from './attach-registry';
 import type { FleetEvent } from './build-fleet-events';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
@@ -53,6 +55,7 @@ interface SessionTranscriptRead {
 
 export interface DaemonContext {
   readonly build: string;
+  readonly answerGrant: (method: GrantMethod, params: unknown) => Promise<GrantAnswer>;
   readonly collectSessions: () => SessionDescriptor[];
   readonly collectSpawnDirs: () => Promise<string[]>;
   readonly collectFleet: () => Promise<FleetEntry[]>;
@@ -556,6 +559,18 @@ export class DaemonConnection {
         return;
       }
       default: {
+        if (isGrantMethod(req.m)) {
+          const answer = await this.ctx.answerGrant(req.m, req.p);
+
+          if ('err' in answer) {
+            this.sendErr(req.id, answer.err.code, answer.err.msg);
+          } else {
+            this.sendOk(req.id, answer.ok);
+          }
+
+          return;
+        }
+
         this.sendErr(req.id, 'unknown_method', `unknown method '${req.m}'`);
       }
     }

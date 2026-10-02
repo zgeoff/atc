@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { buildOptionalBoolean } from '../shared/build-optional-boolean';
 import { buildOptionalString } from '../shared/build-optional-string';
+import { GRANT_SCOPES } from '../shared/grant-scope';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -109,7 +110,43 @@ export const REQUEST_PARAM_SCHEMAS = {
   'message.ack': SESSION_DEFAULTED.extend({
     message: buildDefaultedString('').transform(toMessageID),
   }).refine((v) => v.message !== '', { message: 'message.ack requires a message' }),
+  'grant.create': z.object({
+    clientID: buildRequiredString('grant.create requires a clientID'),
+    clientName: buildRequiredString('grant.create requires a clientName'),
+    scopes: z.array(z.enum(GRANT_SCOPES), { error: 'grant.create requires scopes' }),
+    resource: buildRequiredString('grant.create requires a resource'),
+    accessHash: buildRequiredString('grant.create requires an accessHash'),
+    refreshHash: buildRequiredString('grant.create requires a refreshHash'),
+  }),
+  'grant.verify': z.object({
+    accessHash: buildRequiredString('grant.verify requires an accessHash'),
+    resource: buildRequiredString('grant.verify requires a resource'),
+  }),
+  'grant.refresh': z.object({
+    refreshHash: buildRequiredString('grant.refresh requires a refreshHash'),
+    accessHash: buildRequiredString('grant.refresh requires an accessHash'),
+    nextRefreshHash: buildRequiredString('grant.refresh requires a nextRefreshHash'),
+    clientID: buildRequiredString('grant.refresh requires a clientID'),
+    resource: buildRequiredString('grant.refresh requires a resource'),
+  }),
+  'grant.list': z.object({}),
+  'grant.revoke': z.object({
+    grant: buildRequiredString('grant.revoke requires a grant'),
+  }),
+  'grant.registerClient': z.object({
+    name: buildRequiredString('grant.registerClient requires a name'),
+    redirectURIs: z
+      .array(z.string(), { error: 'grant.registerClient requires redirectURIs' })
+      .min(1, 'grant.registerClient requires redirectURIs'),
+  }),
+  'grant.findClient': z.object({
+    clientID: buildRequiredString('grant.findClient requires a clientID'),
+  }),
 } as const;
+
+function buildRequiredString(message: string) {
+  return z.string({ error: message }).min(1, message);
+}
 
 function buildDefaultedString(fallback: string) {
   return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().default(fallback));
