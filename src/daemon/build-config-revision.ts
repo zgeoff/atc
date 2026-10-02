@@ -16,7 +16,11 @@ export function buildConfigRevision(
   const canonical = JSON.stringify({
     targets: targets.map((target) => [target.id, target.identity]),
     defaultTarget,
-    errors: errors.map((error) => [error.scope, error.target ?? null, error.problem]),
+    errors: errors.map((error) =>
+      error.scope === 'config'
+        ? [error.scope, error.path, error.problem, error.detail]
+        : [error.scope, error.target ?? null, error.problem],
+    ),
   });
 
   return createHash('sha256').update(canonical).digest('hex').slice(0, 16);

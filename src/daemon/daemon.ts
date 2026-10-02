@@ -923,20 +923,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     findAdapter: (kind) => mgr.findAdapter(kind),
     resolveSpawnTarget: (requested) => {
       const target = requested ?? defaultTarget;
+      const refusal = mgr.findExecutionRefusal({ target, targetIdentity: null }, 'spawn');
 
-      if (target === null) {
-        const problem =
-          targetErrors.find((error) => error.scope !== 'target')?.problem ??
-          'the targets map holds no local target and no defaultTarget is set';
-
-        throw new DaemonError(
-          'target_config_invalid',
-          `no default execution target: ${problem}. Name a target on the spawn, or fix targets in config.json and restart the daemon`,
-          { problem },
-        );
+      if (refusal !== null) {
+        throw refusal;
       }
 
-      mgr.requireExecution({ target, targetIdentity: null }, 'spawn');
+      if (target === null) {
+        throw new Error('a spawn without a target passed its checks');
+      }
 
       return target;
     },

@@ -5,9 +5,10 @@ import type { ExecutionCapability } from './execution-provider';
 
 // The target a session runs on and the identity it was bound to there; a
 // null identity is a session not yet bound, which binds to the target as
-// it stands now.
+// it stands now. A null target is a spawn that names none when the config
+// gives no default.
 interface TargetBinding {
-  readonly target: string;
+  readonly target: string | null;
   readonly targetIdentity: string | null;
 }
 
@@ -17,8 +18,10 @@ interface TargetBinding {
  * harness, writes to one, or runs a headless turn asks this first, so no
  * path runs a session anywhere but the target it is bound to:
  *
- * - `target_config_invalid` when the config's `targets` map, or the
- *   target's own entry, is malformed.
+ * - `target_config_invalid` when the config file exists but cannot be
+ *   read or parsed, which refuses every target, `local` included; when the
+ *   config's `targets` map, or the target's own entry, is malformed; and
+ *   when there is no target because the config gives no default.
  * - `unknown_target` when no target holds the id.
  * - `target_changed` when the target's identity is not the one the session
  *   was bound to: the name now holds another provider or other options.
@@ -31,7 +34,29 @@ export function findExecutionRefusal(
   binding: TargetBinding,
   capability: ExecutionCapability,
 ): DaemonError | null {
+  const fileError = errors.find((error) => error.scope === 'config');
+
+  if (fileError !== undefined) {
+    return new DaemonError(
+      'target_config_invalid',
+      `config file ${fileError.path} cannot be used (${fileError.problem}: ${fileError.detail}), so no session runs on any target, local included. Fix the file and restart the daemon`,
+      { problem: fileError.problem, path: fileError.path, detail: fileError.detail },
+    );
+  }
+
   const id = binding.target;
+
+  if (id === null) {
+    const problem =
+      errors.find((error) => error.scope !== 'target')?.problem ??
+      'the targets map holds no local target and no defaultTarget is set';
+
+    return new DaemonError(
+      'target_config_invalid',
+      `no default execution target: ${problem}. Name a target on the spawn, or fix targets in config.json and restart the daemon`,
+      { problem },
+    );
+  }
 
   const configError = errors.find(
     (error) => error.scope === 'targets' || (error.scope === 'target' && error.target === id),

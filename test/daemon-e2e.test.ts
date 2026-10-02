@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -2516,6 +2517,44 @@ test('it revives a restored session that has no model or effort without either f
   });
 
   expect(fleet[0]).not.toContainAnyKeys(['model', 'effort']);
+});
+
+test('it starts with a broken config, prints the problem, and refuses every spawn, local included', async () => {
+  const first = setupDaemonProc();
+
+  first.proc.kill();
+
+  await first.proc.exited;
+
+  const configPath = join(first.home, '.config', 'atc', 'config.json');
+
+  writeFileSync(configPath, '{ "targets": { "box": { "provider": "imp" } },');
+
+  // The broken file drops the configured claude binary, so the default name
+  // resolves on PATH to the fake one.
+  mkdirSync(join(first.home, 'bin'));
+  symlinkSync(join(first.home, 'fake-claude'), join(first.home, 'bin', 'claude'));
+
+  const ctx = setupDaemonProc(first.home, {
+    PATH: `${join(first.home, 'bin')}:/usr/sbin:/usr/bin:/bin`,
+  });
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const spawn = client.sendRequest('session.spawn', { cwd: ctx.home, target: 'local' });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'target_config_invalid',
+    data: { problem: 'config_malformed', path: configPath },
+  });
+
+  expect(client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
+
+  expect(readFileSync(join(ctx.home, 'daemon.stderr'), 'utf8')).toInclude(
+    `atc daemon: config: ${configPath} cannot be used (config_malformed: `,
+  );
 });
 
 test('it keeps the configured model and effort when a spawn sets neither', async () => {

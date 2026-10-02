@@ -12,14 +12,31 @@ export interface TargetConfig {
 
 /**
  * A config problem that leaves a target, or every target, unusable: the
- * `targets` map as a whole, one entry of it, or `defaultTarget`.
+ * config file as a whole, the `targets` map, one entry of it, or
+ * `defaultTarget`.
  */
-export interface TargetConfigError {
+export type TargetConfigError = TargetSectionError | ConfigFileError;
+
+interface TargetSectionError {
   readonly scope: 'targets' | 'target' | 'defaultTarget';
 
   // The entry the problem is in; present only for an entry's problem.
   readonly target?: string;
   readonly problem: string;
+}
+
+/**
+ * A config file that exists but cannot be used, so no target in it can be
+ * trusted: `config_malformed` when its text is not JSON or its root is not
+ * an object, `config_unreadable` when reading it fails for any reason but
+ * its absence. `detail` holds the parse message, the root's kind, or the
+ * read's error code.
+ */
+interface ConfigFileError {
+  readonly scope: 'config';
+  readonly problem: 'config_malformed' | 'config_unreadable';
+  readonly path: string;
+  readonly detail: string;
 }
 
 interface TargetsConfig {
@@ -82,7 +99,7 @@ export function collectTargets(rawTargets: unknown, rawDefault: unknown): Target
 
 interface TargetEntries {
   readonly targets: readonly TargetConfig[];
-  readonly errors: readonly TargetConfigError[];
+  readonly errors: readonly TargetSectionError[];
 }
 
 function collectTargetEntries(raw: unknown): TargetEntries {
@@ -101,7 +118,7 @@ function collectTargetEntries(raw: unknown): TargetEntries {
   }
 
   const targets: TargetConfig[] = [];
-  const errors: TargetConfigError[] = [];
+  const errors: TargetSectionError[] = [];
 
   for (const [id, entry] of Object.entries(raw)) {
     const provider = isRecord(entry) ? entry['provider'] : undefined;

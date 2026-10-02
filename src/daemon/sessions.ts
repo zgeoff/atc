@@ -216,9 +216,10 @@ export class SessionManager {
   }
 
   // The refusal for running work of a capability on a binding's target, or
-  // null when the target serves it.
+  // null when the target serves it. A null target is a spawn that names
+  // none when the config gives no default, which is always refused.
   findExecutionRefusal(
-    binding: Readonly<TargetBinding>,
+    binding: Readonly<{ target: string | null; targetIdentity: string | null }>,
     capability: ExecutionCapability,
   ): DaemonError | null {
     return findExecutionRefusal(this.targets, this.targetErrors, binding, capability);

@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import { buildOptionalString } from './build-optional-string';
 import { buildOptionalStringArray } from './build-optional-string-array';
@@ -10,6 +10,7 @@ import { collectHooks } from './collect-hooks';
 import type { HooksConfig } from './collect-hooks';
 import { collectTargets } from './collect-targets';
 import type { TargetConfig, TargetConfigError } from './collect-targets';
+import { isRecord } from './report';
 import { resolveHomeDir } from './resolve-home-dir';
 
 export interface Config {
@@ -98,23 +99,78 @@ const CONFIG_SCHEMA = z.object({
   defaultTarget: z.unknown().optional(),
 });
 
-export function loadConfig(): Config {
-  mkdirSync(configDir, { recursive: true });
-  mkdirSync(stateDir, { recursive: true });
+/**
+ * Reads and parses config.json. Only an absent file means every default,
+ * the implicit `local` target included, and a first run writes those
+ * defaults out. A file that exists but cannot be read or parsed loads as
+ * unusable: every default but the targets, which it leaves empty with the
+ * problem as the one target error, so nothing runs until the file is fixed.
+ * Never throws.
+ */
+export function loadConfig(file: string = configFile): Config {
+  // Every atc process writes under the state directory; a failure here
+  // comes back from the first write into it.
+  try {
+    mkdirSync(stateDir, { recursive: true });
+  } catch {}
 
-  const file = configFile;
-
-  if (!existsSync(file)) {
-    writeFileSync(file, renderDefaultConfig());
-
-    return { ...DEFAULTS };
-  }
+  let text: string;
 
   try {
-    return parseConfig(JSON.parse(readFileSync(file, 'utf8')));
-  } catch {
+    text = readFileSync(file, 'utf8');
+  } catch (error) {
+    const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : undefined;
+
+    if (code !== 'ENOENT') {
+      return buildUnusableConfig('config_unreadable', file, String(code ?? error));
+    }
+
+    tryWriteDefaultConfig(file);
+
     return { ...DEFAULTS };
   }
+
+  let raw: unknown;
+
+  try {
+    raw = JSON.parse(text);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+
+    return buildUnusableConfig('config_malformed', file, detail);
+  }
+
+  return parseConfig(raw, file);
+}
+
+/**
+ * A config for a file that exists but cannot be used: every default but the
+ * targets, which are empty, with no default target and the file's problem
+ * as the one target error.
+ */
+function buildUnusableConfig(
+  problem: 'config_malformed' | 'config_unreadable',
+  path: string,
+  detail: string,
+): Config {
+  return {
+    ...DEFAULTS,
+    targets: [],
+    defaultTarget: null,
+    targetErrors: [{ scope: 'config', problem, path, detail }],
+  };
+}
+
+/**
+ * Writes the first-run config, never over a file that appeared since the
+ * read. A failure leaves the defaults in effect for this run, so it is not
+ * an error.
+ */
+function tryWriteDefaultConfig(file: string): void {
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, renderDefaultConfig(), { flag: 'wx' });
+  } catch {}
 }
 
 /**
@@ -136,14 +192,23 @@ export function renderDefaultConfig(): string {
 /**
  * Parses a user-written config.json's already-decoded JSON value into a
  * Config, applying every default a malformed or absent field falls back to.
- * Total: no shape of `raw` throws, so a hand-edited config never stops atc
- * starting.
+ * A root that is not an object leaves the config unusable, with no targets,
+ * and `file` is the path its error holds. Total: no shape of `raw` throws,
+ * so a hand-edited config never stops atc starting.
  */
-export function parseConfig(raw: unknown): Config {
+export function parseConfig(raw: unknown, file: string = configFile): Config {
+  if (!isRecord(raw) || Array.isArray(raw)) {
+    return buildUnusableConfig(
+      'config_malformed',
+      file,
+      `the root is ${formatRootKind(raw)}, not an object`,
+    );
+  }
+
   const parsed = CONFIG_SCHEMA.safeParse(raw);
 
   if (!parsed.success) {
-    return { ...DEFAULTS };
+    return buildUnusableConfig('config_malformed', file, parsed.error.message);
   }
 
   const claudeBin = parsed.data.claudeBin ?? DEFAULTS.claudeBin;
@@ -175,6 +240,19 @@ export function parseConfig(raw: unknown): Config {
     defaultTarget: targets.defaultTarget,
     targetErrors: targets.errors,
   };
+}
+
+// The kind of JSON value a config root holds, as an error detail.
+function formatRootKind(raw: unknown): string {
+  if (raw === null) {
+    return 'null';
+  }
+
+  if (Array.isArray(raw)) {
+    return 'an array';
+  }
+
+  return `a ${typeof raw}`;
 }
 
 // Control bytes the terminal needs for its own input: enter, tab, and esc

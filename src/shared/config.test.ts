@@ -3,8 +3,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { parseConfig, renderDefaultConfig } from './config';
 
-test('it falls back to every default when the file is not an object', () => {
-  expect(parseConfig(null)).toStrictEqual({
+test('it leaves every target unusable, local included, when the root is not an object', () => {
+  expect(parseConfig(null, '/home/u/.config/atc/config.json')).toStrictEqual({
     claudeBin: 'claude',
     claudeArgs: [],
     grokBin: 'grok',
@@ -15,32 +15,29 @@ test('it falls back to every default when the file is not an object', () => {
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
+    targets: [],
+    defaultTarget: null,
+    targetErrors: [
+      {
+        scope: 'config',
+        problem: 'config_malformed',
+        path: '/home/u/.config/atc/config.json',
+        detail: 'the root is null, not an object',
+      },
+    ],
   });
 });
 
-test.each([[null], [undefined], [[]], ['garbage'], [42]])(
-  'it falls back to every default when the file holds %p',
-  (raw) => {
-    expect(parseConfig(raw)).toStrictEqual({
-      claudeBin: 'claude',
-      claudeArgs: [],
-      grokBin: 'grok',
-      grokArgs: [],
-      codexBin: 'codex',
-      codexArgs: [],
-      dirs: { roots: [] },
-      gateways: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-      defaultTarget: 'local',
-      targetErrors: [],
-    });
-  },
-);
+test.each([
+  [[], 'the root is an array, not an object'],
+  ['garbage', 'the root is a string, not an object'],
+  [42, 'the root is a number, not an object'],
+  [true, 'the root is a boolean, not an object'],
+])('it reports a malformed config when the root is %p', (raw, detail) => {
+  expect(parseConfig(raw, '/c.json').targetErrors).toStrictEqual([
+    { scope: 'config', problem: 'config_malformed', path: '/c.json', detail },
+  ]);
+});
 
 test('it falls back field by field when a field is wrong-typed instead of failing the whole file', () => {
   const config = parseConfig({

@@ -168,7 +168,12 @@ const main = defineCommand({
           const cfg = config.loadConfig();
 
           for (const error of cfg.targetErrors) {
-            console.error(`atc daemon: config: ${error.problem}`);
+            const line =
+              error.scope === 'config'
+                ? `${error.path} cannot be used (${error.problem}: ${error.detail}); every spawn is refused, local ones included, until it is fixed`
+                : error.problem;
+
+            console.error(`atc daemon: config: ${line}`);
           }
 
           // Cap on how long a fleet restore waits for one revived session to
