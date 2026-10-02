@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { parseConfig, renderDefaultConfig } from './config';
 
-test('it leaves every target unusable, local included, when the root is not an object', () => {
+test('it leaves every target unusable, local included, and grants no principal a target when the root is not an object', () => {
   expect(parseConfig(null, '/home/u/.config/atc/config.json')).toStrictEqual({
     claudeBin: 'claude',
     claudeArgs: [],
@@ -25,7 +25,7 @@ test('it leaves every target unusable, local included, when the root is not an o
         detail: 'the root is null, not an object',
       },
     ],
-    principals: null,
+    principals: new Map(),
     principalErrors: [],
   });
 });

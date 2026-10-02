@@ -158,7 +158,8 @@ export function loadConfig(file: string = configFile): Config {
 /**
  * A config for a file that exists but cannot be used: every default but the
  * targets, which are empty, with no default target and the file's problem
- * as the one target error.
+ * as the one target error, and the principals, which get no target, since
+ * the file's own principals cannot be read.
  */
 function buildUnusableConfig(
   problem: 'config_malformed' | 'config_unreadable',
@@ -170,6 +171,7 @@ function buildUnusableConfig(
     targets: [],
     defaultTarget: null,
     targetErrors: [{ scope: 'config', problem, path, detail }],
+    principals: new Map(),
   };
 }
 

@@ -136,6 +136,11 @@ named `local` whose provider is `local-pty` with no options. Such a principal ne
 target, nor a `local` that now holds another provider or other options. Its spawn without a target
 fails with `target_forbidden` when `defaultTarget` is another target.
 
+These legacy rights need a config that atc can read, or no config file at all. An existing
+config.json that atc cannot use, because it is not valid JSON, its root is not an object, or atc
+cannot read it, grants no principal any target until you fix it, since atc cannot read the
+principals the file may hold.
+
 Adding a `principals` key takes every principal it leaves out, and every principal it grants an
 empty list, off every target. To keep a client on local sessions and grant it a further target, list
 both under its client ID:
