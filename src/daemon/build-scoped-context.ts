@@ -6,9 +6,8 @@ import type { TargetAccess } from './target-access';
 
 /**
  * The daemon as a principal with the given access sees it. Its keyed
- * spawns and messages hold keys of their own, apart from every other
- * principal's. A session on a
- * target outside the access does not exist here: every lookup of it answers
+ * spawns and messages hold their keys in the given namespace, apart from
+ * every other namespace's. A session on a target outside the access does not exist here: every lookup of it answers
  * as a lookup of an unknown session does, so the request's own handling
  * refuses it with the words and data it gives a session that never
  * existed. Lists leave such sessions out, and a spawn may use only a target
@@ -17,11 +16,11 @@ import type { TargetAccess } from './target-access';
 export function buildScopedContext(
   ctx: DaemonContext,
   access: TargetAccess,
-  principal: string,
+  keyNamespace: string,
 ): DaemonContext {
-  // A keyed request's key, held under this principal alone.
+  // A keyed request's key, held in this namespace alone.
   const buildPrincipalKey = (keyed: KeyedRequest | null): KeyedRequest | null =>
-    keyed === null ? null : { ...keyed, principal: `client:${principal}` };
+    keyed === null ? null : { ...keyed, principal: keyNamespace };
 
   const canSee = (id: SessionID): boolean => {
     const grant = ctx.findSessionGrant(id);

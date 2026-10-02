@@ -215,10 +215,10 @@ export interface TapClient {
   readonly sendEvent: (event: EventMsg) => void;
 }
 
-// The principal a request acts as and the targets it may use.
+// The targets a request may use and the namespace of its idempotency keys.
 interface RequestScope {
-  readonly principal: string;
   readonly access: TargetAccess;
+  readonly keyNamespace: string;
 }
 
 // The requests that act on the whole daemon, which only its owner may make.
@@ -390,26 +390,39 @@ export class DaemonConnection {
     }
 
     const ctx =
-      scope === null ? this.ctx : buildScopedContext(this.ctx, scope.access, scope.principal);
+      scope === null ? this.ctx : buildScopedContext(this.ctx, scope.access, scope.keyNamespace);
 
     this.answerAsync(req.id, () => this.applyRequest(req, ctx));
 
     return true;
   }
 
-  // The principal a request acts as and the targets it may use: the
-  // request's own principal, limited to what the connection's may use, else
-  // the connection's. Null is the daemon's owner.
+  // The targets a request may use and the namespace its idempotency keys
+  // live in: the request's own principal, limited to what the connection's
+  // may use, else the connection's. Null is the daemon's owner. The owner
+  // may act as any principal, keys included; a connection that acts as a
+  // principal keeps the keys of a request that acts as another apart from
+  // that principal's own.
   private findRequestScope(req: RequestMsg): RequestScope | null {
     if (req.as === undefined) {
       return this.principal === null || this.access === null
         ? null
-        : { principal: this.principal, access: this.access };
+        : { access: this.access, keyNamespace: `client:${this.principal}` };
     }
 
     const access = this.ctx.buildTargetAccess(req.as);
 
-    return { principal: req.as, access: this.access === null ? access : this.access.merge(access) };
+    if (this.principal === null || this.access === null) {
+      return { access, keyNamespace: `client:${req.as}` };
+    }
+
+    return {
+      access: this.access.merge(access),
+      keyNamespace:
+        req.as === this.principal
+          ? `client:${req.as}`
+          : `client:${JSON.stringify([this.principal, req.as])}`,
+    };
   }
 
   // Whether this connection may see an event: always for the daemon's

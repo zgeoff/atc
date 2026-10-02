@@ -42,7 +42,7 @@ async function setupTest(raw: RawConfig) {
     adapter: {
       id: 'claude',
       screenDetector: null,
-      takesMessages: false,
+      takesMessages: true,
       headlessRunner: null,
       planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
       normalizeHook: () => ({ kind: 'prompt-submitted' }),
@@ -394,4 +394,77 @@ test('it refuses a handshake whose principal it cannot read', async () => {
   await using daemon = await setupTest({ principals: { narrow: { targets: ['local'] } } });
 
   expect(daemon.openClientAs(5)).rejects.toMatchObject({ code: 'bad_args' });
+});
+
+test('it answers message.get for a message of a session outside the principal as for an unknown message', async () => {
+  await using daemon = await setupTest({
+    targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+    principals: { 'client-a': { targets: ['local'] } },
+  });
+
+  const hidden = await daemon.spawnOn('box');
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: hidden,
+    from: 'owner',
+    text: 'hello',
+  });
+
+  const messageID = String(sent['message']);
+  const missing = `m-${randomUUID()}`;
+
+  const owner = await daemon.client.sendRequest('message.get', { message: messageID });
+
+  const answered = await readAnswer(
+    () => daemon.client.sendRequest('message.get', { message: messageID }, 'client-a'),
+    messageID,
+  );
+
+  const unknown = await readAnswer(
+    () => daemon.client.sendRequest('message.get', { message: missing }, 'client-a'),
+    missing,
+  );
+
+  expect(owner).toMatchObject({ message: messageID, session: hidden });
+  expect(answered).toStrictEqual(unknown);
+});
+
+test("it holds each principal's idempotency keys apart and checks each payload within them", async () => {
+  await using daemon = await setupTest({});
+
+  const spawn = (principal: string, cwd: string) =>
+    daemon.client.sendRequest('session.spawn', { cwd, idempotencyKey: 'k-1' }, principal);
+
+  const first = await spawn('client-a', '/tmp');
+  const other = await spawn('client-b', '/tmp');
+  const retried = await spawn('client-a', '/tmp');
+
+  expect(spawn('client-a', '/')).rejects.toMatchObject({ code: 'idempotency_conflict' });
+
+  await daemon.client.sendRequest('daemon.ping');
+
+  expect(getRecord(other, 'session')['id']).not.toBe(getRecord(first, 'session')['id']);
+  expect(getRecord(retried, 'session')['id']).toBe(getRecord(first, 'session')['id']);
+  expect(daemon.harnesses).toStrictEqual(['local', 'local']);
+});
+
+test("it keeps a principal connection out of another principal's idempotency keys", async () => {
+  await using daemon = await setupTest({});
+
+  const owned = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp', idempotencyKey: 'k-1' },
+    'client-b',
+  );
+
+  const client = await daemon.openClientAs('client-a');
+
+  const reached = await client.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp', idempotencyKey: 'k-1' },
+    'client-b',
+  );
+
+  expect(getRecord(reached, 'session')['id']).not.toBe(getRecord(owned, 'session')['id']);
+  expect(daemon.harnesses).toStrictEqual(['local', 'local']);
 });
