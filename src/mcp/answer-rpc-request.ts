@@ -1,3 +1,4 @@
+import { match } from 'ts-pattern';
 import { DaemonError } from '../protocol/daemon-error';
 import { isRecord } from '../shared/report';
 import { buildToolList } from './build-tool-list';
@@ -35,35 +36,31 @@ export async function answerRPCRequest(message: unknown, deps: RPCDeps): Promise
 
   const params = isRecord(message['params']) ? message['params'] : {};
 
-  switch (method) {
-    case 'initialize': {
-      return {
-        kind: 'reply',
-        body: buildRPCResult(id, {
-          protocolVersion: pickProtocolVersion(params['protocolVersion']),
-          capabilities: { tools: {} },
-          serverInfo: { name: 'atc', version: deps.build },
-        }),
-      };
-    }
-    case 'ping': {
-      return { kind: 'reply', body: buildRPCResult(id, {}) };
-    }
-    case 'tools/list': {
-      return { kind: 'reply', body: buildRPCResult(id, { tools: buildToolList() }) };
-    }
-    case 'tools/call': {
+  const outcome = await match(method)
+    .with('initialize', () => ({
+      kind: 'reply' as const,
+      body: buildRPCResult(id, {
+        protocolVersion: pickProtocolVersion(params['protocolVersion']),
+        capabilities: { tools: {} },
+        serverInfo: { name: 'atc', version: deps.build },
+      }),
+    }))
+    .with('ping', () => ({ kind: 'reply' as const, body: buildRPCResult(id, {}) }))
+    .with('tools/list', () => ({
+      kind: 'reply' as const,
+      body: buildRPCResult(id, { tools: buildToolList() }),
+    }))
+    .with('tools/call', async () => {
       const result = await answerToolCall(deps, params);
 
-      return { kind: 'reply', body: buildRPCResult(id, result) };
-    }
-    default: {
-      return {
-        kind: 'reply',
-        body: buildRPCError(id, -32_601, `unknown method '${method}'`),
-      };
-    }
-  }
+      return { kind: 'reply' as const, body: buildRPCResult(id, result) };
+    })
+    .otherwise(() => ({
+      kind: 'reply' as const,
+      body: buildRPCError(id, -32_601, `unknown method '${method}'`),
+    }));
+
+  return outcome;
 }
 
 async function answerToolCall(
