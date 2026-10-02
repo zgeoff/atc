@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.6.0...@zgeoff/atc@2.7.0) (2026-10-02)
+
+
+### Features
+
+* **daemon:** add a message inbox per session ([#108](https://github.com/zgeoff/atc/issues/108)) ([08bd84a](https://github.com/zgeoff/atc/commit/08bd84aceae89ab37e8db5138c79cd47bb7d05d4))
+
 ## [2.6.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.5.1...@zgeoff/atc@2.6.0) (2026-10-02)
 
 ### Features
