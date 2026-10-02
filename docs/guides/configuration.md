@@ -104,8 +104,16 @@ message holds the problem:
 - A `defaultTarget` that matches no well-formed target leaves no default, so a spawn without a
   target fails.
 
+A `config.json` that exists but that atc cannot use fails closed for every target, `local` included.
+Invalid JSON, or a root that is not an object, is `config_malformed`. A read that fails for any
+reason but a missing file, such as a directory at the path or a file you cannot read, is
+`config_unreadable`. atc then has no targets and no default, and every spawn, revive, and headless
+turn fails with `target_config_invalid` until you fix the file and restart the daemon. Listing and
+reading sessions keep working. Only a missing file means the defaults, and atc writes them out on
+its first run.
+
 The daemon prints each problem to stderr when it starts, and `agents.list` returns them as
-`targetErrors`.
+`targetErrors`. A file problem there has `scope` `config`, with `problem`, `path`, and `detail`.
 
 ## Gateways
 

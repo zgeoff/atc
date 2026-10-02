@@ -270,8 +270,10 @@ The answer also holds the execution targets:
   and the target errors. It is the same for the daemon's whole life, and it changes whenever the
   target config does.
 - `targetErrors` holds each config problem that leaves a target, or every target, unusable: its
-  `scope` (`targets`, `target`, or `defaultTarget`), the `target` id for an entry's problem, and the
-  `problem`.
+  `scope` (`config`, `targets`, `target`, or `defaultTarget`), the `target` id for an entry's
+  problem, and the `problem`. A `config` problem is a config file that exists but cannot be used:
+  its `problem` is `config_malformed` or `config_unreadable`, with the file's `path` and a `detail`,
+  and it leaves no target usable, `local` included.
 
 ### Spawn options
 
@@ -338,6 +340,9 @@ spawn, an adopt or fleet restore, terminal input, an attach, a kill, an eject, a
 The daemon never runs a session anywhere but the target it is bound to, and a check that fails
 refuses the request before anything starts:
 
+- A config file that exists but cannot be read or parsed is `target_config_invalid` for every
+  target, `local` included, with `data.problem` (`config_malformed` or `config_unreadable`),
+  `data.path`, and `data.detail`.
 - A target whose config is malformed is `target_config_invalid`, with `data.target` and
   `data.problem`. A spawn without a target when the config gives no default is the same code with
   `data.problem` alone.
