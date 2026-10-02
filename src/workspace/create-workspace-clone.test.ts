@@ -9,9 +9,14 @@ import { createWorkspaceClone } from './create-workspace-clone';
 async function setupTest() {
   // A git hook exports GIT_DIR and friends, which would point these
   // commands at the repository running the hook instead of the temp tree.
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')),
-  );
+  // The host's system and global config are ignored too: a system-wide Git
+  // LFS install adds hooks to every repository its filter touches, and its
+  // pre-push hook refuses the fixture's pointer files.
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+  };
 
   const dir = await mkdtemp(join(tmpdir(), 'atc-clone-'));
 
