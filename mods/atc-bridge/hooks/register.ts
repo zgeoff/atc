@@ -312,26 +312,34 @@ function updateTurnCompleted(
     state.runningTurnID = null;
   }
 
+  const answered: string[] = [];
+
   for (const msg of carried) {
     if (state.unseen.delete(msg.id)) {
       scheduleDelivery($, state, msg);
     } else if (isAnswered) {
-      scheduleAnsweredReport($, state, msg.id, turnID, answer);
+      answered.push(msg.id);
     }
+  }
+
+  // One report carries every message the turn answered, so atc records the
+  // whole group at once and no member reads as answered before the rest.
+  if (answered.length > 0) {
+    scheduleAnsweredReport($, state, answered, turnID, answer);
   }
 }
 
 function scheduleAnsweredReport(
   $: EngineInterface,
   state: BridgeState,
-  messageID: string,
+  messageIDs: readonly string[],
   turnID: string,
   answer: string,
 ): void {
   state.reporting = state.reporting
     .then(async () => {
       await $.process.run(
-        [...ATC_CLI, 'report', 'answered', '--message', messageID, '--turn', turnID],
+        [...ATC_CLI, 'report', 'answered', '--messages', messageIDs.join(','), '--turn', turnID],
         {
           stdin: answer,
           timeoutMs: 5000,
@@ -339,6 +347,8 @@ function scheduleAnsweredReport(
       );
     })
     .catch((error: unknown) => {
-      $.ui.log(`atc-bridge: reporting ${messageID} failed (${String(error)})`, { to: 'debug' });
+      $.ui.log(`atc-bridge: reporting ${messageIDs.join(', ')} failed (${String(error)})`, {
+        to: 'debug',
+      });
     });
 }

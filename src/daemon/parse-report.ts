@@ -4,7 +4,9 @@ import { toMessageID } from '../shared/to-message-id';
 
 interface AnsweredReport {
   readonly kind: 'answered';
-  readonly message: MessageID;
+
+  // Every message the turn answered, recorded together.
+  readonly messages: readonly MessageID[];
   readonly answer: string;
 
   // The turn whose final reply the answer is; null from a reporter that
@@ -27,13 +29,20 @@ const TURN_SCHEMA = z.preprocess(
   z.string().optional(),
 );
 
+const MESSAGE_IDS_SCHEMA = z.array(z.string().min(1)).min(1).optional();
+
 const REPORT_SCHEMA = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('answered'),
-    message: z.string().min(1),
-    answer: z.string(),
-    turn: TURN_SCHEMA,
-  }),
+  z
+    .object({
+      kind: z.literal('answered'),
+
+      // One message, or every message one turn answered.
+      message: z.string().min(1).optional(),
+      messages: MESSAGE_IDS_SCHEMA,
+      answer: z.string(),
+      turn: TURN_SCHEMA,
+    })
+    .refine((v) => (v.message === undefined) !== (v.messages === undefined)),
   z.object({ kind: z.literal('note'), label: z.string().min(1).max(64), text: z.string().min(1) }),
 ]);
 
@@ -54,7 +63,7 @@ export function parseReport(payload: Readonly<Record<string, unknown>>): Report 
 
   return {
     kind: 'answered',
-    message: toMessageID(parsed.data.message),
+    messages: (parsed.data.messages ?? [parsed.data.message ?? '']).map((id) => toMessageID(id)),
     answer: parsed.data.answer,
     turn: parsed.data.turn ?? null,
   };

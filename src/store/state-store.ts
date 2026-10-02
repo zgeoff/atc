@@ -436,23 +436,30 @@ export class StateStore {
     return row === undefined ? null : toMessageRecord(row);
   }
 
-  async updateMessageAnswered(
-    id: MessageID,
+  // Answers every given message the owner holds unanswered in one statement,
+  // so a reader sees all of one turn's messages answered or none of them.
+  // Returns the messages it answered, oldest first.
+  async updateMessagesAnswered(
+    ids: readonly MessageID[],
     owner: MessageOwner,
     answer: string,
     at: number,
     turn: string | null = null,
-  ): Promise<MessageRecord | null> {
-    const row = await this.db
+  ): Promise<MessageRecord[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const rows = await this.db
       .updateTable('messages')
       .set({ status: 'answered', answered_at: at, answer, turn_id: turn })
-      .where('id', '=', id)
+      .where('id', 'in', ids)
       .where('status', 'in', ['accepted', 'delivered'])
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
-      .executeTakeFirst();
+      .execute();
 
-    return row === undefined ? null : toMessageRecord(row);
+    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
   }
 
   // Messages sent before the agent reported its session id carry no agent

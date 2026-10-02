@@ -3,6 +3,9 @@ import { REPORT_KINDS } from './shared/report-kinds';
 
 interface ReportOptions {
   readonly message: string;
+
+  // Comma-separated ids of every message one turn answered, reported together.
+  readonly messages: string;
   readonly label: string;
 
   // The turn whose final reply an `answered` report carries; empty when unknown.
@@ -13,7 +16,8 @@ interface ReportOptions {
  * Runs inside wrangled sessions: reads stdin verbatim and forwards it to the
  * atc socket as a Report envelope of the given kind. An `answered` report
  * carries stdin as the final reply of the turn that carried the given
- * message, plus that turn's id when one is given; a `note` carries
+ * message, or every given message at once, plus that turn's id when one is
+ * given; a `note` carries
  * it as text for the user under the given label, `progress` when none is
  * given. Always exits 0 so it never blocks the session it reports on.
  */
@@ -48,18 +52,18 @@ function buildReportPayload(
   kind: string,
   options: ReportOptions,
   stdin: string,
-): Record<string, string> | null {
+): Record<string, string | readonly string[]> | null {
   if (kind === 'answered') {
-    if (options.message === '') {
-      return null;
+    const messages = options.messages.split(',').filter((id) => id !== '');
+    const turn = options.turn === '' ? {} : { turn: options.turn };
+
+    if (messages.length > 0) {
+      return { kind, messages, answer: stdin, ...turn };
     }
 
-    return {
-      kind,
-      message: options.message,
-      answer: stdin,
-      ...(options.turn === '' ? {} : { turn: options.turn }),
-    };
+    return options.message === ''
+      ? null
+      : { kind, message: options.message, answer: stdin, ...turn };
   }
 
   if (kind === 'note') {

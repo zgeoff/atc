@@ -95,6 +95,39 @@ test('it forwards an answered report with the turn that carried the message', as
   });
 });
 
+test('it forwards one answered report for every message a turn answered', async () => {
+  using listener = setupTest();
+
+  const proc = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, 'cli.ts'),
+      'report',
+      'answered',
+      '--messages',
+      'm-1,m-2',
+      '--turn',
+      't-7',
+    ],
+    {
+      stdin: new TextEncoder().encode('both done'),
+      env: { ...process.env, ATC_SOCKET: listener.sock, ATC_SESSION_ID: 's1' },
+      stdout: 'ignore',
+      stderr: 'ignore',
+    },
+  );
+
+  const [code, line] = await Promise.all([proc.exited, listener.waitForLine()]);
+
+  expect(code).toBe(0);
+
+  expect(JSON.parse(line)).toStrictEqual({
+    atcId: 's1',
+    event: 'Report',
+    payload: { kind: 'answered', messages: ['m-1', 'm-2'], answer: 'both done', turn: 't-7' },
+  });
+});
+
 test('it exits 0 when nothing listens at the socket', async () => {
   using tmp = setupTempDir('atc-report-empty-');
 

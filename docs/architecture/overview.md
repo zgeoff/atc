@@ -106,8 +106,9 @@ through `CLAUDE_CODE_PLUGIN_DIRS`. The mod connects the session to its
 - At session start it runs `atc tap` for the session. It submits each message as a new turn when the
   session is idle and appends it to the running turn otherwise, inside an `<atc-message>` envelope
   that holds the sender and message id.
-- When a turn that carried messages ends with a reply, the mod reports each message answered with
-  that reply and the turn's id. An aborted or failed turn leaves its messages delivered.
+- When a turn that carried messages ends with a reply, the mod reports every message the turn
+  carried as answered with that reply and the turn's id, in one report. An aborted or failed turn
+  leaves its messages delivered.
 - It gives the model a `report` tool for progress mid-turn, which clients receive as a
   `SessionReport` event.
 

@@ -7,7 +7,7 @@ test('it parses an answered report', () => {
 
   expect(report).toStrictEqual({
     kind: 'answered',
-    message: toMessageID('m-1'),
+    messages: [toMessageID('m-1')],
     answer: 'done',
     turn: null,
   });
@@ -18,10 +18,36 @@ test('it parses the turn an answered report carries', () => {
 
   expect(report).toStrictEqual({
     kind: 'answered',
-    message: toMessageID('m-1'),
+    messages: [toMessageID('m-1')],
     answer: 'done',
     turn: 't-1',
   });
+});
+
+test('it parses an answered report for every message one turn answered', () => {
+  const report = parseReport({
+    kind: 'answered',
+    messages: ['m-1', 'm-2'],
+    answer: 'both',
+    turn: 't-1',
+  });
+
+  expect(report).toStrictEqual({
+    kind: 'answered',
+    messages: [toMessageID('m-1'), toMessageID('m-2')],
+    answer: 'both',
+    turn: 't-1',
+  });
+});
+
+test('it rejects an answered report holding both one message and a list', () => {
+  expect(
+    parseReport({ kind: 'answered', message: 'm-1', messages: ['m-2'], answer: 'x' }),
+  ).toBeNull();
+});
+
+test('it rejects an answered report with an empty message list', () => {
+  expect(parseReport({ kind: 'answered', messages: [], answer: 'x' })).toBeNull();
 });
 
 test.each([[''], [42]])('it reads an answered report turn of %p as unknown', (turn) => {

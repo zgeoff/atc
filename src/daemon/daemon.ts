@@ -342,16 +342,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const owner = s === undefined ? { atcID: e.atcId } : buildMessageOwner(s);
 
     try {
-      const answered = await store.updateMessageAnswered(
-        report.message,
+      // One statement answers the whole turn, so a reader that sees any
+      // member answered already finds every sibling answered beside it.
+      const answered = await store.updateMessagesAnswered(
+        report.messages,
         owner,
         truncateToBytes(report.answer, ANSWER_BYTE_CAP),
         Date.now(),
         report.turn,
       );
 
-      if (answered !== null) {
-        await recordMessageStatus(e.atcId, answered);
+      for (const record of answered) {
+        await recordMessageStatus(e.atcId, record);
       }
     } catch {}
   };

@@ -316,6 +316,7 @@ const main = defineCommand({
           kind: { type: 'positional', required: false, default: '' },
           message: { type: 'string', default: '' },
           label: { type: 'string', default: '' },
+          messages: { type: 'string', default: '' },
           turn: { type: 'string', default: '' },
         },
         async run(ctx) {
@@ -323,6 +324,7 @@ const main = defineCommand({
 
           await reporter.runReport(ctx.args.kind, {
             message: ctx.args.message,
+            messages: ctx.args.messages,
             label: ctx.args.label,
             turn: ctx.args.turn,
           });

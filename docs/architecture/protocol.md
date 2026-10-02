@@ -56,8 +56,16 @@ says to restart the daemon.
 
 { "v": 3, "id": 1, "ok": { "daemon": "atc/0.4.0",
                            "limits": { "maxLine": 1048576, "maxChunk": 65536 },
+                           "features": ["agents.list", "events.more", "events.session",
+                                        "message.turn", "message.wait"],
                            "lastUsedAgent": "claude" } }
 ```
+
+`features` lists the request features the daemon serves beyond the protocol version: `agents.list`
+exists, `events.read` returns `more` and takes `session`, and `message.get` returns `turn` and
+`answeredWith` and takes `waitMs`. A daemon from before the list existed sends none, and it ignores
+the parameters it does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads
+the list rather than the build string to learn what the running daemon honours.
 
 `lastUsedAgent` is the agent id of the last deliberate spawn that reported SessionStart. The
 built-in ids are `claude`, `grok`, and `codex`. A spawn that never reports SessionStart does not
@@ -249,8 +257,10 @@ A message moves through three statuses:
 
 An answer is the final output of the turn that carried the message, never a reply written to that
 message alone. A message that arrives during a running turn joins that turn, so one turn can carry
-several messages, and each of them gets the same answer. The `atc-bridge` mod reports the turn id
-with each answer, and the daemon stores it on the message. `message.get` returns it as `turn`, null
+several messages, and each of them gets the same answer. When a turn ends, the `atc-bridge` mod
+sends one report holding every message the turn answered and the turn id. The daemon marks all of
+them answered in one statement and stores the turn id on each, so a client that reads any of them as
+`answered` finds the whole group answered too. `message.get` returns the turn id as `turn`, null
 when the reporter sent none, and returns the other messages the same turn answered as
 `answeredWith`, empty when there are none. A report from an older mod holds no turn id, so its
 message stores null.

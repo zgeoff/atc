@@ -1015,7 +1015,7 @@ test('it gives two messages one turn answered the same turn and lists each besid
 
   await sendReport(
     daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: first['message'], answer: 'both', turn: 't-1' } })}\n${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: second['message'], answer: 'both', turn: 't-1' } })}\n`,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', messages: [first['message'], second['message']], answer: 'both', turn: 't-1' } })}\n`,
     2000,
   );
 
@@ -1038,6 +1038,38 @@ test('it gives two messages one turn answered the same turn and lists each besid
     answer: 'both',
     turn: 't-1',
     answeredWith: [first['message']],
+  });
+});
+
+test("it wakes a held read of one turn's message with the whole group already answered", async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const first = await daemon.actor.sendRequest('session.message', { session: id, text: 'one' });
+  const second = await daemon.actor.sendRequest('session.message', { session: id, text: 'two' });
+  const third = await daemon.actor.sendRequest('session.message', { session: id, text: 'three' });
+
+  const pending = daemon.actor.sendRequest('message.get', {
+    message: first['message'],
+    waitMs: 10_000,
+  });
+
+  // The daemon answers one connection's requests in the order they started,
+  // so the ping's answer means the held read already took its first look.
+  await daemon.actor.sendRequest('daemon.ping');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', messages: [first['message'], second['message'], third['message']], answer: 'all', turn: 't-1' } })}\n`,
+    2000,
+  );
+
+  const woken = await pending;
+
+  expect(woken).toMatchObject({
+    status: 'answered',
+    turn: 't-1',
+    answeredWith: [second['message'], third['message']],
   });
 });
 
