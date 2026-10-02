@@ -32,3 +32,9 @@ test.each([
 test('it falls back to the given name when nothing printable is left', () => {
   expect(normalizeClientName('\u001B', 'client.example')).toBe('client.example');
 });
+
+test('it cuts to the given length in code points', () => {
+  expect(normalizeClientName(`Mozilla/5.0 ${'😀'.repeat(10)}`, 'none', 14)).toBe(
+    'Mozilla/5.0 😀😀',
+  );
+});

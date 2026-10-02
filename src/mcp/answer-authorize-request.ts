@@ -3,6 +3,13 @@ import { buildPageResponse } from './build-page-response';
 import { findClientName } from './find-client-name';
 import type { HTTPServerContext } from './types';
 
+// Where an authorization request came from, as the HTTP request shows it.
+interface Requester {
+  readonly socketAddress: string | null;
+  readonly connectingIP: string | null;
+  readonly userAgent: string | null;
+}
+
 /**
  * Answers `GET /oauth2/authorize`. Before better-auth validates the request,
  * atc sets three parameters of its own:
@@ -15,10 +22,16 @@ import type { HTTPServerContext } from './types';
  *   to the one resource atc serves.
  *
  * A request better-auth sends on to the login page gets a pending approval,
- * and its code prints in atc's terminal with the client's name and the host
- * it returns to.
+ * and its code prints in atc's terminal with the client's name, the host it
+ * returns to, and who asked: the `CF-Connecting-IP` address when the request
+ * carries one, labelled as reported since anyone can send that header, else
+ * the socket's peer address, plus the start of the user agent.
  */
-export async function answerAuthorizeRequest(ctx: HTTPServerContext, url: URL): Promise<Response> {
+export async function answerAuthorizeRequest(
+  ctx: HTTPServerContext,
+  url: URL,
+  requester: Requester,
+): Promise<Response> {
   const params = new URLSearchParams(url.searchParams);
 
   params.set('prompt', 'login consent');
@@ -70,8 +83,15 @@ export async function answerAuthorizeRequest(ctx: HTTPServerContext, url: URL): 
 
   const code = `${approval.approvalCode.slice(0, 4)}-${approval.approvalCode.slice(4)}`;
 
+  const from =
+    requester.connectingIP === null
+      ? normalizeClientName(requester.socketAddress, 'an unknown address', 45)
+      : `${normalizeClientName(requester.connectingIP, 'an empty address', 45)} (reported by CF-Connecting-IP)`;
+
+  const userAgent = normalizeClientName(requester.userAgent, 'none', 60);
+
   ctx.printApproval(
-    `Approve ${clientName} (returns to ${new URL(redirectURI).host}) with code ${code}. The code expires in 10 minutes.`,
+    `Approve ${clientName} (returns to ${new URL(redirectURI).host}) with code ${code}. Requested from ${from}, user agent "${userAgent}". The code expires in 10 minutes.`,
   );
 
   return response;

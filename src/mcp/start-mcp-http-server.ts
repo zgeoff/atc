@@ -79,7 +79,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     // A long poll holds a request open for up to 30 seconds without a byte.
     idleTimeout: 60,
     maxRequestBodySize: MAX_LINE,
-    fetch: async (request) => {
+    fetch: async (request, bunServer) => {
       const state = holder.ready;
 
       if (state === null) {
@@ -87,7 +87,11 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
       }
 
       try {
-        const answered = await answerHTTPRequest(state, request);
+        const answered = await answerHTTPRequest(
+          state,
+          request,
+          bunServer.requestIP(request)?.address ?? null,
+        );
 
         return answered;
       } catch {
@@ -157,7 +161,13 @@ const PASSED_THROUGH: ReadonlySet<string> = new Set([
   'POST /oauth2/revoke',
 ]);
 
-async function answerHTTPRequest(state: ServerState, request: Request): Promise<Response> {
+// `socketAddress` is the peer the request arrived from: the requester, or the
+// proxy or tunnel in front of atc.
+async function answerHTTPRequest(
+  state: ServerState,
+  request: Request,
+  socketAddress: string | null,
+): Promise<Response> {
   const host = request.headers.get('host');
 
   if (host === null || !state.hosts.has(host)) {
@@ -181,7 +191,11 @@ async function answerHTTPRequest(state: ServerState, request: Request): Promise<
   }
 
   if (route === 'GET /oauth2/authorize') {
-    return answerAuthorizeRequest(ctx, url);
+    return answerAuthorizeRequest(ctx, url, {
+      socketAddress,
+      connectingIP: request.headers.get('cf-connecting-ip'),
+      userAgent: request.headers.get('user-agent'),
+    });
   }
 
   if (route === 'POST /oauth2/token') {

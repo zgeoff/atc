@@ -128,7 +128,7 @@ test('it returns to the client with the issuer and the state it sent', async () 
   });
 });
 
-test('it prints the client name, the host it returns to, and the approval code', async () => {
+test('it prints the client name, the host it returns to, the approval code, and the requester', async () => {
   await using server = await setupMCPHTTP();
 
   const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
@@ -143,7 +143,7 @@ test('it prints the client name, the host it returns to, and the approval code',
   expect(server.approvals).toBeArrayOfSize(1);
 
   expect(server.approvals[0]).toMatch(
-    /^Approve Claude \(returns to claude\.ai\) with code [0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}\. The code expires in 10 minutes\.$/,
+    /^Approve Claude \(returns to claude\.ai\) with code [0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}\. Requested from 127\.0\.0\.1, user agent "Bun\/[^"]+"\. The code expires in 10 minutes\.$/,
   );
 });
 
@@ -1957,4 +1957,67 @@ test('it deletes the owner session once its authorization code is exchanged', as
 
   expect(exchanged.status).toBe(200);
   expect(sessions).toBeEmpty();
+});
+
+test('it prints the CF-Connecting-IP address as reported when the request carries one', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorize = new URL(`${server.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  await fetch(authorize, {
+    redirect: 'manual',
+    headers: { 'cf-connecting-ip': '203.0.113.7', 'user-agent': 'Claude-User/1.0' },
+  });
+
+  expect(server.approvals).toBeArrayOfSize(1);
+
+  expect(server.approvals[0]).toInclude(
+    '. Requested from 203.0.113.7 (reported by CF-Connecting-IP), user agent "Claude-User/1.0". ',
+  );
+});
+
+test('it prints the requester with control characters dropped and the user agent cut to 60 characters', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorize = new URL(`${server.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  await fetch(authorize, {
+    redirect: 'manual',
+    headers: {
+      'cf-connecting-ip': '203.0.113.7\u0085\u00AD',
+      'user-agent': `Evil\u0085\u00AD\u007F\tUA ${'A'.repeat(100)}`,
+    },
+  });
+
+  expect(server.approvals).toBeArrayOfSize(1);
+
+  expect(server.approvals[0]).toInclude(
+    `. Requested from 203.0.113.7 (reported by CF-Connecting-IP), user agent "Evil UA ${'A'.repeat(52)}". `,
+  );
 });
