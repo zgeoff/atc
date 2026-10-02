@@ -13,8 +13,9 @@ const CTRL_SPACE = String.fromCodePoint(0);
 const BEL = String.fromCodePoint(7);
 
 // A cold client boot spawns and handshakes a cold daemon before the first
-// frame, so a journey's budget covers that boot plus its interactions.
-setDefaultTimeout(15_000);
+// frame, so a journey's budget covers that boot plus its interactions, and
+// a boot that never draws still leaves room for dispose to stop its daemon.
+setDefaultTimeout(20_000);
 
 function collectEnv(extra: Readonly<Record<string, string>>): Record<string, string> {
   const env: Record<string, string> = {};
