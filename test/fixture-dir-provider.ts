@@ -30,7 +30,8 @@ interface FixtureDirOptions {
  * given, and a command runs as a child process in its working directory.
  * Paths pass through unchanged, so a test points them into its own temp
  * tree. Every transfer and command is recorded in `calls`. Harnesses start
- * on a local pseudo-terminal.
+ * on a local pseudo-terminal, and each one's spec is recorded in
+ * `harnesses`.
  */
 export class FixtureDirProvider implements ExecutionProvider {
   readonly kind = 'fixture-dir';
@@ -38,6 +39,9 @@ export class FixtureDirProvider implements ExecutionProvider {
   readonly capabilities: ExecutionCapabilities;
 
   readonly calls: FixtureCall[] = [];
+
+  // Every harness the provider started, as the daemon specified it.
+  readonly harnesses: HarnessSpec[] = [];
 
   private readonly afterTransfer: ((dir: string) => Promise<void>) | undefined;
 
@@ -62,7 +66,11 @@ export class FixtureDirProvider implements ExecutionProvider {
     this.afterTransfer = options.afterTransfer;
   }
 
-  readonly spawnHarness = (spec: HarnessSpec): HarnessHandle => this.terminals.spawnHarness(spec);
+  readonly spawnHarness = (spec: HarnessSpec): HarnessHandle => {
+    this.harnesses.push(spec);
+
+    return this.terminals.spawnHarness(spec);
+  };
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- archive bytes have no readonly form
   readonly transferArchive = async (archive: Uint8Array, dir: string): Promise<void> => {

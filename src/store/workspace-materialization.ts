@@ -41,6 +41,10 @@ export interface WorkspaceMaterialization {
   readonly startedAt: number;
   readonly updatedAt: number;
   readonly materializedAt: number | null;
+
+  // The environment variable names every harness the session starts goes
+  // without: the workspace credential's variable and the askpass context.
+  readonly withheldEnv: readonly string[];
 }
 
 // The fields a materialization rewrites as it moves through its phases.

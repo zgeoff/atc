@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { $ } from 'bun';
 import type { AgentAdapter, HeadlessRunner } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -168,6 +169,56 @@ test('it ejects a terminal session into a headless run with its agent id', async
   }
 
   expect(sessions[0]).toMatchObject({ kind: 'headless', alive: true, state: 'running' });
+});
+
+test('it starts the headless run of an ejected workspace session without its workspace credential', async () => {
+  const ctx = await setupHeadlessDaemon();
+
+  const dir = mkdtempSync(join(tmpdir(), 'atc-headless-workspace-'));
+
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+  };
+
+  process.env['ATC_TEST_WORKSPACE_CRED'] = 'fixture-not-a-secret';
+
+  onTestFinished(() => {
+    delete process.env['ATC_TEST_WORKSPACE_CRED'];
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  await $`git init --quiet --bare --initial-branch=main ${join(dir, 'up.git')}`.env(env).quiet();
+  await $`git clone --quiet ${join(dir, 'up.git')} ${join(dir, 'work')}`.env(env).quiet();
+
+  await $`git -c user.name=atc -c user.email=atc@example.com commit --quiet --allow-empty -m one`
+    .env(env)
+    .cwd(join(dir, 'work'))
+    .quiet();
+
+  await $`git push --quiet origin main`.env(env).cwd(join(dir, 'work')).quiet();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: join(dir, 'ws'),
+    resume: 'sess-ws',
+    workspace: {
+      kind: 'git',
+      url: join(dir, 'up.git'),
+      ref: 'main',
+      credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_CRED' },
+    },
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await ctx.client.sendRequest('session.eject', { session: id, prompt: 'keep going' });
+
+  await waitForRun(ctx.runs, 1);
+
+  expect(ctx.runs[0]?.opts).toMatchObject({
+    withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
+  });
 });
 
 test('it reports a finished headless turn as done', async () => {

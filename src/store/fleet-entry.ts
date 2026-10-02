@@ -54,6 +54,10 @@ export interface FleetEntry {
   // spawned with a workspace source; a fleet write leaves it to the
   // materialization record that holds it.
   readonly workspace?: SessionWorkspace;
+
+  // The environment variable names every harness the session starts goes
+  // without, held with its ready workspace; never their values.
+  readonly withheldEnv?: readonly string[];
 }
 
 export interface FleetStore {

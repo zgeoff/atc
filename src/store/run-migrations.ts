@@ -93,6 +93,10 @@ interface WorkspaceMaterializationTable {
   started_at: number;
   updated_at: number;
   materialized_at: number | null;
+
+  // JSON array of the environment variable names every harness the session
+  // starts goes without; names only, never their values.
+  withheld_env: string | null;
 }
 
 interface MessagesTable {
@@ -397,6 +401,7 @@ const MIGRATIONS: Record<string, Migration> = {
         .addColumn('started_at', 'integer', (c) => c.notNull())
         .addColumn('updated_at', 'integer', (c) => c.notNull())
         .addColumn('materialized_at', 'integer')
+        .addColumn('withheld_env', 'text')
         .execute();
     },
   },

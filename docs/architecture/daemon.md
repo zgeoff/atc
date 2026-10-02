@@ -123,8 +123,10 @@ keyed by the session id, and the daemon records each phase in it before the phas
 
 The session registers only once its workspace is ready, so no client lists a session over a partial
 checkout. The row holds the URL without its credential, the commit, and the ref, and never a
-credential or the name of the variable that holds one. A fleet load returns a ready row's provenance
-with its session.
+credential. It also holds the names of the variables the session withholds: the `credentialRef`
+variable, `GIT_ASKPASS`, and `ATC_GIT_ASKPASS_SECRET`. The harness starts without them on every
+provider, and so does each revive and headless run of the session. A fleet load returns a ready
+row's provenance and withheld names with its session.
 
 A daemon that stops partway through leaves a row short of ready. The next daemon fails every such
 row as `workspace_interrupted` before it serves a request. The interrupted spawn never registered a

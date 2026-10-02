@@ -89,3 +89,21 @@ test('it rejects an archive tar cannot unpack', async () => {
 
   expect(failure).toBeInstanceOf(Error);
 });
+
+test('it starts a harness on a local terminal and records its spec', async () => {
+  await using tmp = setupTest();
+
+  const provider = new FixtureDirProvider();
+
+  const spec = { bin: 'true', args: [], cwd: tmp.dir, env: { A: '1' }, cols: 80, rows: 24 };
+  const exited = Promise.withResolvers<number>();
+
+  provider.spawnHarness(spec).onExit((exit) => {
+    exited.resolve(exit.exitCode);
+  });
+
+  const exitCode = await exited.promise;
+
+  expect(provider.harnesses).toStrictEqual([spec]);
+  expect(exitCode).toBe(0);
+});

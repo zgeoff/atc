@@ -5,6 +5,9 @@ interface HeadlessEnvParams {
   readonly pluginDir?: string;
   readonly sessionID?: SessionID;
   readonly socketPath: string;
+
+  // Variables the run goes without, such as a workspace credential.
+  readonly withheldEnv?: readonly string[];
 }
 
 /**
@@ -14,10 +17,13 @@ interface HeadlessEnvParams {
  * since the mod stays off outside atc.
  */
 export function buildHeadlessEnv(params: HeadlessEnvParams): Record<string, string> {
-  return collectCleanEnv({
-    ...(params.pluginDir === undefined ? {} : { CLAUDE_CODE_PLUGIN_DIRS: params.pluginDir }),
-    ...(params.sessionID === undefined
-      ? {}
-      : { ATC_SESSION_ID: params.sessionID, ATC_SOCKET: params.socketPath }),
-  });
+  return collectCleanEnv(
+    {
+      ...(params.pluginDir === undefined ? {} : { CLAUDE_CODE_PLUGIN_DIRS: params.pluginDir }),
+      ...(params.sessionID === undefined
+        ? {}
+        : { ATC_SESSION_ID: params.sessionID, ATC_SOCKET: params.socketPath }),
+    },
+    params.withheldEnv,
+  );
 }

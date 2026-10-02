@@ -37,13 +37,16 @@ interface MaterializeDeps {
   readonly log: (line: string) => void;
 }
 
-type MaterializedWorkspace =
-  | { readonly kind: 'in_place' }
-  | {
-      readonly kind: 'ready';
-      readonly workspace: SessionWorkspace;
-      readonly warnings: readonly string[];
-    };
+type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
+
+interface ReadyWorkspace {
+  readonly kind: 'ready';
+  readonly workspace: SessionWorkspace;
+  readonly warnings: readonly string[];
+
+  // The variables every harness the session starts goes without.
+  readonly withheldEnv: readonly string[];
+}
 
 interface MaterializationProgress {
   phase: MaterializationPhase;
@@ -97,6 +100,7 @@ export async function materializeWorkspace(
   }
 
   const secret = findCredentialSecret(source);
+  const withheldEnv = buildWithheldEnv(source);
 
   const staging = await mkdtemp(join(tmpdir(), 'atc-workspace-'));
 
@@ -112,12 +116,15 @@ export async function materializeWorkspace(
       target: request.target,
       dir: request.dir,
       sourceKind: source.kind,
+      withheldEnv,
     },
     Date.now(),
   );
 
   try {
-    return await runMaterialization(request, deps, staging, updateProgress, secret);
+    const ready = await runMaterialization(request, deps, staging, updateProgress, secret);
+
+    return { ...ready, withheldEnv };
   } catch (error) {
     const refusal = toScrubbedRefusal(error, progress.phase, secret);
 
@@ -132,6 +139,18 @@ export async function materializeWorkspace(
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
+}
+
+// The variables only the clone's git commands may see: a git source's
+// credential variable, and the askpass helper and secret variables the clone
+// hands its network commands. A harness inherits the daemon's environment,
+// so the session withholds these from every harness it starts.
+const ASKPASS_ENV = ['GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'];
+
+function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
+  return source.kind === 'git' && source.credentialRef !== undefined
+    ? [source.credentialRef.name, ...ASKPASS_ENV]
+    : [...ASKPASS_ENV];
 }
 
 // Whether a path is a directory that no git work tree holds.
@@ -161,7 +180,7 @@ async function runMaterialization(
   staging: string,
   updateProgress: ProgressTracker,
   secret: string | null,
-): Promise<MaterializedWorkspace> {
+): Promise<Omit<ReadyWorkspace, 'withheldEnv'>> {
   const pinned = await resolveSource(request.source, staging);
 
   // What is recorded and returned is scrubbed of the credential, even

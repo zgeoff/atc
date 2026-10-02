@@ -27,6 +27,27 @@ test('it strips parent-session grok keys and keeps home and api keys', () => {
   expect(env['XAI_API_KEY']).toBe('xai-test-key');
 });
 
+test('it leaves withheld variables out and keeps an explicit extra of the same name', () => {
+  const prevWithheld = process.env['ATC_TEST_WITHHELD'];
+  const prevExplicit = process.env['ATC_TEST_EXPLICIT'];
+
+  process.env['ATC_TEST_WITHHELD'] = 'fixture-not-a-secret';
+  process.env['ATC_TEST_EXPLICIT'] = 'inherited';
+
+  onTestFinished(() => {
+    restoreEnv('ATC_TEST_WITHHELD', prevWithheld);
+    restoreEnv('ATC_TEST_EXPLICIT', prevExplicit);
+  });
+
+  const env = collectCleanEnv({ ATC_TEST_EXPLICIT: 'configured' }, [
+    'ATC_TEST_WITHHELD',
+    'ATC_TEST_EXPLICIT',
+  ]);
+
+  expect(env).not.toContainKey('ATC_TEST_WITHHELD');
+  expect(env['ATC_TEST_EXPLICIT']).toBe('configured');
+});
+
 function restoreEnv(key: string, prior: string | undefined): void {
   if (prior === undefined) {
     delete process.env[key];

@@ -3139,7 +3139,13 @@ test('it records a workspace materialization through its phases', async () => {
   });
 
   await store.createMaterialization(
-    { sessionID: toSessionID('s-ws'), target: 'box', dir: '/w/s-ws', sourceKind: 'git' },
+    {
+      sessionID: toSessionID('s-ws'),
+      target: 'box',
+      dir: '/w/s-ws',
+      sourceKind: 'git',
+      withheldEnv: ['APP_GIT_TOKEN'],
+    },
     1000,
   );
 
@@ -3170,6 +3176,7 @@ test('it records a workspace materialization through its phases', async () => {
     startedAt: 1000,
     updatedAt: 3000,
     materializedAt: 3000,
+    withheldEnv: ['APP_GIT_TOKEN'],
   });
 });
 
@@ -3184,12 +3191,19 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
       target: 'box',
       dir: '/w/s-resolving',
       sourceKind: 'path',
+      withheldEnv: [],
     },
     1000,
   );
 
   await first.createMaterialization(
-    { sessionID: toSessionID('s-cloning'), target: 'box', dir: '/w/s-cloning', sourceKind: 'path' },
+    {
+      sessionID: toSessionID('s-cloning'),
+      target: 'box',
+      dir: '/w/s-cloning',
+      sourceKind: 'path',
+      withheldEnv: [],
+    },
     1000,
   );
 
@@ -3199,6 +3213,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
       target: 'box',
       dir: '/w/s-transferring',
       sourceKind: 'path',
+      withheldEnv: [],
     },
     1000,
   );
@@ -3209,17 +3224,30 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
       target: 'box',
       dir: '/w/s-verifying',
       sourceKind: 'path',
+      withheldEnv: [],
     },
     1000,
   );
 
   await first.createMaterialization(
-    { sessionID: toSessionID('s-ready'), target: 'box', dir: '/w/s-ready', sourceKind: 'path' },
+    {
+      sessionID: toSessionID('s-ready'),
+      target: 'box',
+      dir: '/w/s-ready',
+      sourceKind: 'path',
+      withheldEnv: [],
+    },
     1000,
   );
 
   await first.createMaterialization(
-    { sessionID: toSessionID('s-failed'), target: 'box', dir: '/w/s-failed', sourceKind: 'path' },
+    {
+      sessionID: toSessionID('s-failed'),
+      target: 'box',
+      dir: '/w/s-failed',
+      sourceKind: 'path',
+      withheldEnv: [],
+    },
     1000,
   );
 
@@ -3280,7 +3308,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
   ]);
 });
 
-test('it loads a fleet row with the workspace it materialized ready, and none short of ready', async () => {
+test('it loads a fleet row with its ready workspace and withheld variables, and none short of ready', async () => {
   const store = await StateStore.open(join(setupDir(), 'state.db'));
 
   onTestFinished(async () => {
@@ -3288,7 +3316,13 @@ test('it loads a fleet row with the workspace it materialized ready, and none sh
   });
 
   await store.createMaterialization(
-    { sessionID: toSessionID('s-ready'), target: 'local', dir: '/w/s-ready', sourceKind: 'git' },
+    {
+      sessionID: toSessionID('s-ready'),
+      target: 'local',
+      dir: '/w/s-ready',
+      sourceKind: 'git',
+      withheldEnv: ['APP_GIT_TOKEN', 'GIT_ASKPASS'],
+    },
     1000,
   );
 
@@ -3298,6 +3332,7 @@ test('it loads a fleet row with the workspace it materialized ready, and none sh
       target: 'local',
       dir: '/w/s-verifying',
       sourceKind: 'git',
+      withheldEnv: ['APP_GIT_TOKEN'],
     },
     1000,
   );
@@ -3339,6 +3374,7 @@ test('it loads a fleet row with the workspace it materialized ready, and none sh
         sha: 'b'.repeat(40),
         materializedAt: 2000,
       },
+      withheldEnv: ['APP_GIT_TOKEN', 'GIT_ASKPASS'],
     },
     { sessionID: toSessionID('s-verifying'), name: 'mid', cwd: '/w/s-verifying', agent: 'claude' },
     { sessionID: toSessionID('s-plain'), name: 'plain', cwd: '/x', agent: 'claude' },

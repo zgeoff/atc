@@ -47,6 +47,7 @@ export function startHeadlessTurn(
       sessionID,
       ...(s.model === undefined ? {} : { model: s.model }),
       ...(s.effort === undefined ? {} : { effort: s.effort }),
+      ...(s.withheldEnv.length === 0 ? {} : { withheldEnv: s.withheldEnv }),
     },
     {
       onOutput: (text) => {

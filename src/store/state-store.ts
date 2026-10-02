@@ -163,6 +163,7 @@ export class StateStore {
         'workspace.sha',
         'workspace.ref',
         'workspace.materialized_at',
+        'workspace.withheld_env',
       ])
       .execute();
 
@@ -189,6 +190,7 @@ export class StateStore {
         ...(row.target === null ? {} : { target: row.target }),
         ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
         ...buildWorkspaceField(row),
+        ...buildWithheldEnvField(row.withheld_env),
       });
     }
 
@@ -729,7 +731,10 @@ export class StateStore {
 
   // Records a materialization as it starts, in the resolving phase.
   async createMaterialization(
-    row: Pick<WorkspaceMaterialization, 'sessionID' | 'target' | 'dir' | 'sourceKind'>,
+    row: Pick<
+      WorkspaceMaterialization,
+      'sessionID' | 'target' | 'dir' | 'sourceKind' | 'withheldEnv'
+    >,
     at: number,
   ): Promise<void> {
     await this.db
@@ -747,6 +752,7 @@ export class StateStore {
         started_at: at,
         updated_at: at,
         materialized_at: null,
+        withheld_env: JSON.stringify(row.withheldEnv),
       })
       .execute();
   }
@@ -868,6 +874,22 @@ function buildWorkspaceField(
 //    row above it.
 //
 // Every walk takes at most one step per entry, so it ends on any input.
+// A ready workspace's withheld variable names as their entry field, or
+// nothing for a row that withholds none.
+function buildWithheldEnvField(stored: string | null): { readonly withheldEnv?: string[] } {
+  const names = parseWithheldEnv(stored);
+
+  return names.length === 0 ? {} : { withheldEnv: names };
+}
+
+function parseWithheldEnv(stored: string | null): string[] {
+  const parsed: unknown = stored === null ? [] : JSON.parse(stored);
+
+  return Array.isArray(parsed)
+    ? parsed.filter((name): name is string => typeof name === 'string')
+    : [];
+}
+
 function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEntry[] {
   const survivors = new Map<AgentSessionID, SessionID>();
 
@@ -1157,5 +1179,6 @@ function toWorkspaceMaterialization(
     startedAt: row.started_at,
     updatedAt: row.updated_at,
     materializedAt: row.materialized_at,
+    withheldEnv: parseWithheldEnv(row.withheld_env),
   };
 }

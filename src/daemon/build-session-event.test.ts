@@ -54,6 +54,7 @@ function buildGhostSession(): Session {
     parent: null,
     target: 'local',
     targetIdentity: 'local-pty:test',
+    withheldEnv: [],
   };
 }
 

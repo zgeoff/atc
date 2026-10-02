@@ -422,7 +422,8 @@ the checkout is verified:
 - A `git` source is a repository URL with exactly one of `ref`, a branch or tag, and `sha`, a full
   commit id. `credentialRef` holds the name of the daemon environment variable its token is read
   from. git receives the token through a private askpass helper for the ref lookup and the clone
-  alone, and atc never writes, logs, or stores it.
+  alone, and atc never writes, logs, or stores it. The session's harness starts without that
+  variable and without the askpass context, and the workspace it receives holds no credential.
 
 `cwd` must not exist on the target. The daemon creates it before it clones, so a directory that
 already exists refuses the spawn as `workspace_exists` and stays as it was. A refusal after that

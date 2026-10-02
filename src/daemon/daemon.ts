@@ -788,11 +788,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const prepared =
       p.workspace === null ? null : await materializeSpawnWorkspace(p, id, p.workspace);
 
-    const workspace = prepared?.kind === 'ready' ? prepared.workspace : null;
-    const warnings = prepared?.kind === 'ready' ? prepared.warnings : [];
+    const materialized = prepared?.kind === 'ready' ? prepared : null;
+    const warnings = materialized === null ? [] : materialized.warnings;
 
     try {
-      const session = startSpawnedSession(p, id, workspace);
+      const session = startSpawnedSession(p, id, materialized);
 
       return warnings.length === 0 ? { session } : { session, warnings };
     } catch (error) {
@@ -843,7 +843,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const startSpawnedSession = (
     p: SpawnParams,
     id: SessionID,
-    workspace: SessionWorkspace | null,
+    materialized: Readonly<{
+      workspace: SessionWorkspace;
+      withheldEnv: readonly string[];
+    }> | null,
   ): SessionDescriptor => {
     const s = mgr.spawn(
       p.cwd,
@@ -858,7 +861,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       p.overrides,
       id,
       p.target,
-      workspace,
+      materialized,
     );
 
     const runtime = runtimes.get(s.id);

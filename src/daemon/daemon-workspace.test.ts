@@ -6,11 +6,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { FixtureDirProvider } from '../../test/fixture-dir-provider';
+import { startGitHTTPServer } from '../../test/start-git-http-server';
 import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { DaemonError } from '../protocol/daemon-error';
 import { getRecord } from '../shared/get-record';
+import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toSessionID } from '../shared/to-session-id';
+import { StateStore } from '../store/state-store';
 import { startDaemon } from './daemon';
 import type { DaemonHandle } from './daemon';
 import type { ExecutionProvider } from './execution-provider';
@@ -409,11 +413,154 @@ test('it keeps a credential out of every row, provenance, log line, and refusal'
   expect(refused.data).toStrictEqual({ phase: 'cloning' });
   expect(state).not.toBeEmpty();
   expect(stored).toSatisfyAll((bytes: string) => !bytes.includes('tok-7d1e5a'));
-  expect(stored).toSatisfyAll((bytes: string) => !bytes.includes('ATC_TEST_WORKSPACE_TOKEN'));
   expect(JSON.stringify(spawned)).not.toInclude('tok-7d1e5a');
   expect(JSON.stringify(fleet)).not.toInclude('tok-7d1e5a');
   expect(ctx.logs).not.toBeEmpty();
   expect(ctx.logs).toSatisfyAll((line: string) => !line.includes('tok-7d1e5a'));
+});
+
+test('it clones with the workspace credential and starts the harness without it or the askpass context', async () => {
+  await using ctx = await setupTest();
+
+  const server = startGitHTTPServer(ctx.dir, ctx.env);
+
+  onTestFinished(async () => {
+    await server.stop();
+  });
+
+  // The askpass variables stand in for a daemon whose own environment holds
+  // them; the credential variable is the one the spawn names.
+  for (const [name, value] of [
+    ['ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret'],
+    ['GIT_ASKPASS', '/fixture/askpass'],
+    ['ATC_GIT_ASKPASS_SECRET', 'fixture-not-a-secret'],
+  ] as const) {
+    const previous = process.env[name];
+
+    process.env[name] = value;
+
+    onTestFinished(() => {
+      const restored = previous === undefined ? {} : { [name]: previous };
+
+      Reflect.deleteProperty(process.env, name);
+      Object.assign(process.env, restored);
+    });
+  }
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  const dest = join(ctx.dir, 'box', 'ws');
+  const url = `${server.url}upstream.git`;
+
+  await booted.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: {
+      kind: 'git',
+      url,
+      ref: 'main',
+      credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_CRED' },
+    },
+  });
+
+  const [harness] = box.harnesses;
+
+  if (harness === undefined) {
+    throw new Error('the spawn started no harness');
+  }
+
+  const tree = await $`grep -rl fixture-not-a-secret ${dest}`.nothrow().quiet().text();
+  const origin = await $`git config --get remote.origin.url`.env(ctx.env).cwd(dest).text();
+
+  expect(server.authorizations).not.toBeEmpty();
+
+  expect(server.authorizations).toSatisfyAll(
+    (header: string) =>
+      header === `Basic ${Buffer.from('x-access-token:fixture-not-a-secret').toString('base64')}`,
+  );
+
+  expect(harness.env).not.toContainAnyKeys([
+    'ATC_TEST_WORKSPACE_CRED',
+    'GIT_ASKPASS',
+    'ATC_GIT_ASKPASS_SECRET',
+  ]);
+
+  expect(harness.env).toContainKey('ATC_SESSION_ID');
+  expect(tree).toBe('');
+  expect(origin.trim()).toBe(url);
+});
+
+test('it starts a revived harness after a restart without the workspace credential', async () => {
+  await using ctx = await setupTest();
+
+  const seeded = await StateStore.open(ctx.dbPath);
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  await seeded.createMaterialization(
+    {
+      sessionID: toSessionID('s-ws'),
+      target: 'box',
+      dir: dest,
+      sourceKind: 'git',
+      withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
+    },
+    1000,
+  );
+
+  await seeded.updateMaterialization(
+    toSessionID('s-ws'),
+    { phase: 'ready', repoURL: ctx.upstream, sha: 'a'.repeat(40), materializedAt: 1000 },
+    1000,
+  );
+
+  await seeded.writeFleet([
+    {
+      sessionID: toSessionID('s-ws'),
+      name: 'ws',
+      cwd: dest,
+      agentSessionID: toAgentSessionID('agent-ws'),
+      agent: 'claude',
+      target: 'box',
+      targetIdentity: 'test:box',
+    },
+  ]);
+
+  await seeded.stop();
+
+  const previous = process.env['ATC_TEST_WORKSPACE_CRED'];
+
+  process.env['ATC_TEST_WORKSPACE_CRED'] = 'fixture-not-a-secret';
+
+  onTestFinished(() => {
+    const restored = previous === undefined ? {} : { ATC_TEST_WORKSPACE_CRED: previous };
+
+    delete process.env['ATC_TEST_WORKSPACE_CRED'];
+    Object.assign(process.env, restored);
+  });
+
+  mkdirSync(dest, { recursive: true });
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  await booted.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const harness = await waitFor(() => {
+    const [revived] = box.harnesses;
+
+    if (revived === undefined) {
+      throw new Error('no harness revived yet');
+    }
+
+    return revived;
+  });
+
+  expect(harness.cwd).toBe(dest);
+  expect(harness.env).not.toContainKey('ATC_TEST_WORKSPACE_CRED');
 });
 
 test('it fails the spawn when the target checkout is not at the pinned commit, and removes it', async () => {
