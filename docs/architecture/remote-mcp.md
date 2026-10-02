@@ -22,10 +22,11 @@ https public URL. To serve a tailnet, keep the loopback bind and let the tailnet
 end, such as `tailscale serve`, carry the https origin.
 
 The authorization server keeps its state in `~/.local/state/atc/mcp-auth.db`, a SQLite file separate
-from `atc.db`. The daemon never opens it. `atc clients` and `atc grants` open it directly, so they
-work whether or not the server is running. The file holds clients, consent, short-lived owner
-sessions, and SHA-256 hashes of access tokens, refresh tokens, and authorization codes, never one of
-those three in the clear.
+from `atc.db`, readable and writable by its owner only: atc creates it with mode 600 and sets that
+mode again on every open. The daemon never opens it. `atc clients` and `atc grants` open it
+directly, so they work whether or not the server is running. The file holds clients, consent,
+short-lived owner sessions, and SHA-256 hashes of access tokens, refresh tokens, and authorization
+codes, never one of those three in the clear.
 
 The HTTP process keeps pending approvals in memory and signs each authorization request with a
 secret it draws at start. Restarting it ends the approvals in progress; grants survive.
@@ -48,7 +49,8 @@ better-auth runs the OAuth protocol through `@better-auth/mcp`, which configures
 
 atc adds the rest:
 
-- the owner: one user, signed in for a single authorization by the approval code atc prints
+- the owner: one user, signed in for a single authorization by the approval code atc prints, with
+  that session bound to the one request the code approved
 - the login and consent pages, and the parameters atc sets on every authorization request
 - the bearer check on `/mcp` and the per-tool scope check
 - the route list, the Host and Origin checks, and the page headers
@@ -103,18 +105,25 @@ A client connects in 5 stages:
    error page and is never redirected; every later error redirects back with an OAuth error. A
    resource other than `<origin>/mcp` gets `invalid_target`.
 3. Approval code. A valid request prints a line such as
-   `Approve Claude (returns to claude.ai) with code K7QM-2XRT. The code expires in 10 minutes.` in
-   the terminal running `atc mcp --http`, and the browser shows the approval code page with the full
-   redirect URI. The right code signs in the owner for this one authorization. A wrong code shows
-   the page again, and the fifth wrong code ends the request. Each client holds at most 3 waiting
-   approvals, and a fourth drops its oldest. At most 16 approvals wait at once, and a seventeenth
-   drops the oldest. At most 10 approvals start per minute across every client, which bounds how
-   fast approval lines print.
-4. Consent. The consent page lists the scopes the client requested, with only `read` ticked to
-   start; `message` lets the client instruct your agents, which can run commands. Allowing redirects
-   back with an authorization code for the ticked scopes; denying, or allowing nothing, redirects
-   back with `access_denied`. better-auth refuses a scope the client did not request. Either answer
-   clears the owner session cookie.
+   `Approve Claude (returns to claude.ai) with code K7QM-2XRT. Requested from 203.0.113.7 (reported by CF-Connecting-IP), user agent "Claude-User/1.0". The code expires in 10 minutes.`
+   in the terminal running `atc mcp --http`, and the browser shows the approval code page with the
+   full redirect URI. The requester is the `CF-Connecting-IP` address when the request carries that
+   header, marked as reported because any client can send it, and otherwise the address the
+   connection came from, which behind a proxy or tunnel is the proxy's. The user agent is cut to 60
+   characters. Check both before typing a code: an approval you did not start is someone else's. The
+   right code signs in the owner for this one authorization and binds the new session to that
+   request alone. A wrong code shows the page again, and the fifth wrong code ends the request. Each
+   client holds at most 3 waiting approvals, and a fourth drops its oldest. At most 16 approvals
+   wait at once, and a seventeenth drops the oldest. At most 10 approvals start per minute across
+   every client, which bounds how fast approval lines print.
+4. Consent. The consent page and its answer require the session the approval code signed in, for the
+   request that code approved; any other request, a query whose signature fails, or a query still at
+   the login stage gets an error page. The page lists the scopes the client requested, with only
+   `read` ticked to start; `message` lets the client instruct your agents, which can run commands.
+   Allowing redirects back with an authorization code for the ticked scopes; denying, or allowing
+   nothing, redirects back with `access_denied`. better-auth refuses a scope the client did not
+   request. One login answers one consent: either answer ends the session's binding and clears its
+   cookie, so the session can approve nothing else.
 5. Token exchange. `POST /oauth2/token` exchanges the code within 10 minutes. The request must
    present the same `client_id` and `redirect_uri` as the authorization request and a
    `code_verifier` matching its S256 challenge. A code is exchangeable once; a second exchange fails
@@ -137,8 +146,10 @@ grant loses access on its next request. The check also requires the token's audi
 `<origin>/mcp`. When the public URL changes, the server drops the resource the earlier URL served,
 so a token bound to it stops working.
 
-The owner session that approves an authorization ends 30 minutes after sign-in. Once a code is
-exchanged, atc detaches every token from its session, so a session's end never ends a grant.
+One login approves exactly one authorization. A consent answer that issues no code deletes the owner
+session. An answer that issues a code shortens the session to the code's 10 minutes, because
+better-auth refuses a code exchange whose session is gone, and the exchange deletes it. Once a code
+is exchanged, atc detaches every token from its session, so a session's end never ends a grant.
 
 A refresh rotates both tokens. Presenting a spent refresh token again counts as replay: better-auth
 revokes every refresh token the client holds, so each of that client's grants has to be approved
@@ -167,8 +178,10 @@ carries the client's name as its sender, and the tool's `from` argument is ignor
 - Pages. The login, consent, and error pages carry a Content Security Policy that blocks scripts and
   frames and limits form posts to atc and the client's redirect origin, plus
   `X-Frame-Options: DENY`, `Cache-Control: no-store`, and `Referrer-Policy: same-origin`. Every
-  dynamic value on them is escaped, and the client name printed in the terminal has its control and
-  format characters dropped.
+  dynamic value on them is escaped, and the client name, requester address, and user agent printed
+  in the terminal have their control and format characters dropped. The error page shows a fixed
+  sentence for each error code better-auth sends there and a generic one for any other, never text
+  from the link, so a crafted link cannot put its own words on atc's origin.
 - Protocol version. A request whose `MCP-Protocol-Version` header holds a version atc does not speak
   gets an empty 400, so a newer client falls back to `initialize`.
 - Transport. The server answers each `POST /mcp` with JSON and does not open a server-to-client
