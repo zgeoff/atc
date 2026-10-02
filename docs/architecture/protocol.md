@@ -120,7 +120,7 @@ Multi-client rules, chosen to cover the realistic conflicts without a write-lock
 
 `SessionAdded`, `SessionState`, `SessionAttached`, `SessionDetached`, `SessionRenamed`,
 `SessionRemoved`, `SessionResized`, `SessionOutput`, `SessionDesync`, `SessionMessage`,
-`InboxMessage`, `PermissionRequested`, `PermissionResolved`.
+`InboxMessage`, `InboxClosed`, `PermissionRequested`, `PermissionResolved`.
 
 State/lifecycle events broadcast to every client (every overlay needs them). `SessionOutput` goes
 only to clients attached to that session — an unfocused session costs a client zero bytes. Output
@@ -197,8 +197,10 @@ session takes it through a tap.
 A tap is a connection that sent `session.tap` for one session. `atc tap --session <id>` is that
 client: it prints each message as one NDJSON line on stdout and acks it with `message.ack`. When a
 tap attaches, the daemon sends every pending message in order, then each new one as it arrives.
-`InboxMessage` events go to the tap alone, the way `SessionOutput` goes only to attached clients. A
-second tap for the same session replaces the first, and the daemon closes the replaced connection.
+`InboxMessage` and `InboxClosed` events go to the tap alone, the way `SessionOutput` goes only to
+attached clients. A second tap for the same session replaces the first. The daemon sends the
+replaced tap `InboxClosed` with reason `replaced`, or `removed` when the session itself goes away,
+and `atc tap` exits on it.
 
 A message moves through three statuses:
 
