@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { decodeCursor } from '../protocol/decode-cursor';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildFleetEvents } from './build-fleet-events';
 
@@ -142,4 +143,62 @@ test('it gives each event a cursor that decodes to its id', () => {
   }
 
   expect(decodeCursor(event.cursor)).toStrictEqual({ kind: 'events', id: 7 });
+});
+
+test('it carries the message id on a message event', () => {
+  const events = buildFleetEvents(
+    [
+      {
+        id: 1,
+        at: 1000,
+        atcID: toSessionID('s1'),
+        agentSessionID: null,
+        kind: 'message-delivered',
+        detail: 'hello',
+        message: toMessageID('m-1'),
+      },
+    ],
+    [],
+  );
+
+  expect(events).toStrictEqual([
+    {
+      cursor: expect.toBeString(),
+      at: 1000,
+      session: 's1',
+      name: null,
+      kind: 'message-delivered',
+      detail: 'hello',
+      message: toMessageID('m-1'),
+    },
+  ]);
+});
+
+test('it carries the label on a report event', () => {
+  const events = buildFleetEvents(
+    [
+      {
+        id: 1,
+        at: 1000,
+        atcID: toSessionID('s1'),
+        agentSessionID: null,
+        kind: 'report',
+        detail: 'need review',
+        label: 'blocked',
+      },
+    ],
+    [],
+  );
+
+  expect(events).toStrictEqual([
+    {
+      cursor: expect.toBeString(),
+      at: 1000,
+      session: 's1',
+      name: null,
+      kind: 'report',
+      detail: 'need review',
+      label: 'blocked',
+    },
+  ]);
 });

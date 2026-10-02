@@ -18,6 +18,7 @@ import type { MessageOwner } from './message-owner';
 import type { MessageRecord } from './message-record';
 import { runMigrations } from './run-migrations';
 import type { StateStoreSchema } from './run-migrations';
+import type { TrailEntry } from './trail-entry';
 
 // Spelled as the partial index's predicate so SQLite can match them.
 const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;
@@ -33,11 +34,18 @@ export interface StoredEvent {
 
   // The event's detail, else the hook's message.
   readonly detail: string | null;
+
+  // The message id on a message status event.
+  readonly message?: MessageID;
+
+  // The report label on a report event.
+  readonly label?: string;
 }
 
 /**
- * Daemon state in one SQLite store: the restorable fleet, the hook-event
- * trail that events.read and lastActivityAt read, the spawn-directory
+ * Daemon state in one SQLite store: the restorable fleet, the event trail
+ * (hook events, message status changes, and reports) that events.read and
+ * lastActivityAt read, the spawn-directory
  * history, and the per-session message inbox. The statusline contract
  * file (status.json) stays a plain file because reporters inside wrangled
  * sessions read it without speaking to the daemon. An existing fleet.json
@@ -213,6 +221,23 @@ export class StateStore {
       .execute();
   }
 
+  async recordTrailEntry(entry: TrailEntry): Promise<void> {
+    await this.db
+      .insertInto('events')
+      .values({
+        ts: new Date(entry.at).toISOString(),
+        atc_id: entry.atcID,
+        event: entry.kind === 'report' ? 'SessionReport' : 'SessionMessage',
+
+        // The message column holds the message id or the report label; the reads hand it back by kind.
+        message: entry.kind === 'report' ? entry.label : entry.message,
+        session_id: entry.agentSessionID,
+        kind: entry.kind,
+        detail: entry.detail,
+      })
+      .execute();
+  }
+
   async collectEventsAfter(afterID: number, limit: number): Promise<StoredEvent[]> {
     const rows = await this.db
       .selectFrom('events')
@@ -298,7 +323,6 @@ export class StateStore {
       .execute();
   }
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
   async writeMessage(record: MessageRecord): Promise<void> {
     await this.db
       .insertInto('messages')
@@ -407,6 +431,19 @@ export class StateStore {
       .execute();
   }
 
+  // Trail entries written before the agent reported its session id carry
+  // none; this stamps them once it is known, so they follow the session
+  // across a restore.
+  async updateTrailOwner(atcID: SessionID, next: AgentSessionID): Promise<void> {
+    await this.db
+      .updateTable('events')
+      .set({ session_id: next })
+      .where('atc_id', '=', atcID)
+      .where('session_id', 'is', null)
+      .where('kind', 'in', ['message-accepted', 'message-delivered', 'message-answered', 'report'])
+      .execute();
+  }
+
   async stop(): Promise<void> {
     await this.db.destroy();
 
@@ -469,11 +506,35 @@ function buildStoredEvents(rows: readonly EventRow[]): StoredEvent[] {
       atcID: toSessionID(row.atc_id),
       agentSessionID: row.session_id === null ? null : toAgentSessionID(row.session_id),
       kind: row.kind,
-      detail: row.detail ?? row.message,
+      ...buildTrailFields(row.kind, row.detail, row.message),
     });
   }
 
   return events;
+}
+
+const MESSAGE_TRAIL_KINDS: ReadonlySet<string> = new Set([
+  'message-accepted',
+  'message-delivered',
+  'message-answered',
+]);
+
+// Message and report rows keep their message id or label where hook rows keep
+// the hook's message, so only hook rows fall back to it for a detail.
+function buildTrailFields(
+  kind: string,
+  detail: string | null,
+  message: string | null,
+): Pick<StoredEvent, 'detail' | 'message' | 'label'> {
+  if (MESSAGE_TRAIL_KINDS.has(kind)) {
+    return { detail, ...(message === null ? {} : { message: toMessageID(message) }) };
+  }
+
+  if (kind === 'report') {
+    return { detail, ...(message === null ? {} : { label: message }) };
+  }
+
+  return { detail: detail ?? message };
 }
 
 function buildOwnerFilter(

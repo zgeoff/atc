@@ -8,9 +8,12 @@ import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { MessageOwner } from '../store/message-owner';
 import type { MessageRecord } from '../store/message-record';
 import { StateStore } from '../store/state-store';
+import type { TrailEntry } from '../store/trail-entry';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
 import { buildFleetEvents } from './build-fleet-events';
+import { buildMessageTrailEntry } from './build-message-trail-entry';
+import { buildReportTrailEntry } from './build-report-trail-entry';
 import { buildSessionEvent } from './build-session-event';
 import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionReportEvent } from './build-session-report-event';
@@ -150,6 +153,27 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const registry = new PermissionRegistry();
   const eventSignal = new EventSignal();
 
+  // A trail write that fails never fails the message request or report behind it.
+  const recordTrailEntry = async (entry: TrailEntry) => {
+    try {
+      await store.recordTrailEntry(entry);
+    } catch {
+      return;
+    }
+
+    eventSignal.emit();
+  };
+
+  // Notes a message status change in the trail before broadcasting it, so a
+  // client reading the trail on the broadcast finds the change already there.
+  const recordMessageStatus = async (sessionID: SessionID, record: MessageRecord) => {
+    const s = mgr.sessions.find((x) => x.id === sessionID);
+
+    await recordTrailEntry(buildMessageTrailEntry(sessionID, s?.agentSessionID, record));
+
+    emitEvent(buildSessionMessageEvent(sessionID, record), findHookScope(sessionID));
+  };
+
   registry.onRequested = (req) => {
     emitEvent(
       {
@@ -187,7 +211,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // Hands one pending message to the session's tap, once, and reports whether
   // it did. The event goes to the tap connection alone: it never reaches
   // other clients, the events socket, or hooks.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
   const sendInboxMessage = (sessionID: SessionID, record: MessageRecord): boolean => {
     const tap = taps.claimDelivery(sessionID, record.id);
 
@@ -242,8 +265,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       if (sender !== undefined) {
         const capped = { ...report, text: truncateToBytes(report.text, ANSWER_BYTE_CAP) };
+        const reportedAt = Date.now();
 
-        emitEvent(buildSessionReportEvent(sender.id, capped, Date.now()), findHookScope(sender.id));
+        await recordTrailEntry(
+          buildReportTrailEntry(sender.id, sender.agentSessionID, capped, reportedAt),
+        );
+
+        emitEvent(buildSessionReportEvent(sender.id, capped, reportedAt), findHookScope(sender.id));
       }
 
       return;
@@ -261,7 +289,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       );
 
       if (answered !== null) {
-        emitEvent(buildSessionMessageEvent(e.atcId, answered), findHookScope(e.atcId));
+        await recordMessageStatus(e.atcId, answered);
       }
     } catch {}
   };
@@ -516,6 +544,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     if (currentAgentSessionID !== undefined && currentAgentSessionID !== previousAgentSessionID) {
       void store.updateMessageOwner(e.atcId, previousAgentSessionID, currentAgentSessionID);
+      void store.updateTrailOwner(e.atcId, currentAgentSessionID);
     }
 
     if (kind === 'ended') {
@@ -886,11 +915,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       try {
         await store.writeMessage(record);
+
+        await recordMessageStatus(sessionID, record);
       } finally {
         written.resolve();
       }
-
-      emitEvent(buildSessionMessageEvent(sessionID, record), findHookScope(sessionID));
 
       await drainInbox(sessionID);
 
@@ -948,7 +977,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       void drainInbox(sessionID);
 
       if (delivered !== null) {
-        emitEvent(buildSessionMessageEvent(sessionID, delivered), findHookScope(sessionID));
+        await recordMessageStatus(sessionID, delivered);
 
         return delivered;
       }

@@ -171,10 +171,20 @@ same parent, so a set stays one level deep.
 without attaching or reading the screen. A cursor is an opaque string: a client passes back the one
 it received and never builds one. `limit` defaults to 50 and clamps to 1–200.
 
-`events.read` serves the hook-event trail in `atc.db`, oldest first. Each event holds its cursor,
-time, session id and name, kind (`started`, `prompt-submitted`, `needs-input`, `turn-done`, or
-`ended`), and a short detail. Without a cursor, it returns the most recent `limit` events. `waitMs`
-holds the request open until an event arrives or the wait ends, for at most 30 seconds.
+`events.read` serves the event trail in `atc.db`, oldest first. Each event holds its cursor, time,
+session id and name, kind, and a short detail. The trail holds three groups of kinds:
+
+- Hook events: `started`, `prompt-submitted`, `needs-input`, `turn-done`, and `ended`.
+- Message status changes: `message-accepted`, `message-delivered`, and `message-answered`. A
+  `message` field holds the message id, which `message.get` takes. The detail previews the answer
+  once there is one, else the text.
+- Reports: `report`. A `label` field holds the report's label, and the detail holds the first 600
+  characters of its text.
+
+Without a cursor, `events.read` returns the most recent `limit` events. `waitMs` holds the request
+open until an event arrives or the wait ends, for at most 30 seconds. The daemon writes a message or
+report event to the trail before it broadcasts the matching `SessionMessage` or `SessionReport`, so
+a client that reads the trail on the broadcast finds the event there.
 
 `session.read` returns a Claude session's transcript as user and assistant rows with tool uses
 summarised, oldest first. A page holds at most `limit` rows and about 256 KiB. Without a cursor, it
@@ -183,9 +193,9 @@ from before `/clear`, restarts at the top of the current file. `session.read` re
 sessions with `unsupported`.
 
 `session.get` returns the session descriptor plus the prompt the session was spawned with, its last
-activity time, the prompt or question it waits on while it needs you, and the final message of its
-latest turn, cut at 16 KiB. The fleet row holds the spawn prompt and latest result, so both survive
-a restore.
+activity time (the time of its latest trail event of any kind), the prompt or question it waits on
+while it needs you, and the final message of its latest turn, cut at 16 KiB. The fleet row holds the
+spawn prompt and latest result, so both survive a restore.
 
 ## Messages
 

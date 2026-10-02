@@ -2132,6 +2132,176 @@ test('it delivers a message accepted before a daemon crash to the restored sessi
   expect(delivered).toMatchObject({ s: restoredID, message: messageID });
 });
 
+test('it names a message event from before a daemon crash by the restored session', async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const spawned = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    resume: 'fake-1',
+    cols: 80,
+    rows: 24,
+  });
+
+  const originalID = getString(getRecord(spawned, 'session'), 'id');
+
+  const sent = await client.sendRequest('session.message', {
+    session: originalID,
+    text: 'survive the crash',
+    from: 'e2e',
+  });
+
+  const messageID = getString(sent, 'message');
+
+  ctx.proc.kill(9);
+
+  await ctx.proc.exited;
+
+  rmSync(join(ctx.home, 'fake-claude-hold-start'));
+  writeFileSync(join(ctx.home, 'fake-claude-tap'), '');
+
+  const revived = setupDaemonProc(ctx.home);
+
+  const client2 = await revived.openClient();
+
+  const events: EventMsg[] = [];
+
+  client2.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client2.sendHello('atc/test');
+  await client2.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const list = await client2.sendRequest('session.list');
+
+  const restoredID = getString(getRecords(list, 'sessions')[0] ?? {}, 'id');
+
+  await waitForEvent(events, (e) => e.ev === 'SessionMessage' && e['status'] === 'delivered');
+
+  const read = await waitFor(async () => {
+    const answer = await client2.sendRequest('events.read', {});
+
+    const ours = getRecords(answer, 'events').filter((e) => e['message'] === messageID);
+
+    expect(ours).toHaveLength(2);
+
+    return ours;
+  });
+
+  expect(read).toStrictEqual([
+    {
+      cursor: expect.toBeString(),
+      at: expect.toBeNumber(),
+      session: restoredID,
+      name: expect.toBeString(),
+      kind: 'message-accepted',
+      detail: 'survive the crash',
+      message: messageID,
+    },
+    {
+      cursor: expect.toBeString(),
+      at: expect.toBeNumber(),
+      session: restoredID,
+      name: expect.toBeString(),
+      kind: 'message-delivered',
+      detail: 'survive the crash',
+      message: messageID,
+    },
+  ]);
+});
+
+test('it names a message event sent before SessionStart by the restored session', async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const spawned = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    cols: 80,
+    rows: 24,
+  });
+
+  const originalID = getString(getRecord(spawned, 'session'), 'id');
+
+  const sent = await client.sendRequest('session.message', {
+    session: originalID,
+    text: 'sent before start',
+    from: 'e2e',
+  });
+
+  const messageID = getString(sent, 'message');
+
+  const reporter = Bun.spawn([...atcCommand, 'hook-report'], {
+    stdin: new TextEncoder().encode(
+      JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'fake-1' }),
+    ),
+    env: { ...process.env, ATC_SOCKET: join(ctx.home, 'atc.sock'), ATC_SESSION_ID: originalID },
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
+
+  await reporter.exited;
+
+  await waitFor(async () => {
+    const list = await client.sendRequest('session.list');
+
+    expect(getRecords(list, 'sessions')[0]).toMatchObject({ agentSessionID: 'fake-1' });
+  });
+
+  ctx.proc.kill(9);
+
+  await ctx.proc.exited;
+
+  rmSync(join(ctx.home, 'fake-claude-hold-start'));
+
+  const revived = setupDaemonProc(ctx.home);
+
+  const client2 = await revived.openClient();
+
+  await client2.sendHello('atc/test');
+  await client2.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const list = await client2.sendRequest('session.list');
+
+  const restoredSession = getRecords(list, 'sessions')[0] ?? {};
+  const restoredID = getString(restoredSession, 'id');
+  const restoredName = getString(restoredSession, 'name');
+
+  expect(restoredID).not.toBe(originalID);
+
+  const read = await waitFor(async () => {
+    const answer = await client2.sendRequest('events.read', {});
+
+    const ours = getRecords(answer, 'events').filter((e) => e['message'] === messageID);
+
+    expect(ours).toHaveLength(1);
+
+    return ours;
+  });
+
+  expect(read).toStrictEqual([
+    {
+      cursor: expect.toBeString(),
+      at: expect.toBeNumber(),
+      session: restoredID,
+      name: restoredName,
+      kind: 'message-accepted',
+      detail: 'sent before start',
+      message: messageID,
+    },
+  ]);
+});
+
 test('it starts a Claude session with the atc-bridge mod folder', async () => {
   const ctx = setupDaemonProc();
   const bridgeDir = join(ctx.home, '.local', 'state', 'atc', 'atc-bridge');

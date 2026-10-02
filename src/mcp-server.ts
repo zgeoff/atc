@@ -184,7 +184,7 @@ const TOOLS: readonly MCPTool[] = [
   {
     name: 'atc_events_read',
     description:
-      'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended) since a cursor, oldest first, each with the session id and name. Without a cursor it returns the most recent events. Pass the returned cursor next time. waitMs holds the call open until an event arrives.',
+      'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-accepted, message-delivered, message-answered), and reports (report) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A report event carries its label. Without a cursor it returns the most recent events. Pass the returned cursor next time. waitMs holds the call open until an event arrives.',
     inputSchema: EVENTS_READ_INPUT,
   },
   {

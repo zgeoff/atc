@@ -1,4 +1,5 @@
 import { encodeCursor } from '../protocol/encode-cursor';
+import type { MessageID } from '../shared/message-id';
 import type { StoredEvent } from '../store/state-store';
 import type { SessionDescriptor } from './sessions';
 
@@ -9,6 +10,12 @@ export interface FleetEvent {
   readonly name: string | null;
   readonly kind: string;
   readonly detail: string | null;
+
+  // The message id on a message status event, for message.get.
+  readonly message?: MessageID;
+
+  // The report label on a report event.
+  readonly label?: string;
 }
 
 export function buildFleetEvents(
@@ -30,6 +37,8 @@ export function buildFleetEvents(
       name: live?.name ?? null,
       kind: row.kind,
       detail: row.detail,
+      ...(row.message === undefined ? {} : { message: row.message }),
+      ...(row.label === undefined ? {} : { label: row.label }),
     };
   });
 }
