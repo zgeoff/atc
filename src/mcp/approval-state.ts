@@ -135,6 +135,10 @@ export class ApprovalState {
     return this.approved.get(sessionID)?.binding ?? null;
   }
 
+  removeApproved(sessionID: string): void {
+    this.approved.delete(sessionID);
+  }
+
   private removeExpired(now: number): void {
     for (const [key, approval] of this.pending) {
       if (approval.expiresAt <= now) {

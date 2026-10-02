@@ -1780,3 +1780,181 @@ test('it shows an error page instead of the consent page to a browser with no ow
   expect(consent.pathname).toBe('/consent');
   expect(page.status).toBe(400);
 });
+
+test('it refuses a second consent answer from one login', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorize = new URL(`${server.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read kill',
+    state: 'state-1',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const signedIn = await fetch(`${server.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
+  });
+
+  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+
+  const cookie = signedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  const first = await fetch(`${server.url}/consent`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      oauth_query: consent.search.slice(1),
+      decision: 'approve',
+      scope: 'read',
+    }),
+  });
+
+  const second = await fetch(`${server.url}/consent`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      oauth_query: consent.search.slice(1),
+      decision: 'approve',
+      scope: 'kill',
+    }),
+  });
+
+  expect(first.status).toBe(302);
+  expect(second.status).toBe(400);
+  expect(second.headers.get('location')).toBeNull();
+});
+
+test('it deletes the owner session when the operator denies the request', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorize = new URL(`${server.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    state: 'state-1',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const signedIn = await fetch(`${server.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
+  });
+
+  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+
+  const cookie = signedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  const before = await server.store.db.selectFrom('session').select('id').execute();
+
+  const denied = await fetch(`${server.url}/consent`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: consent.search.slice(1), decision: 'deny' }),
+  });
+
+  const after = await server.store.db.selectFrom('session').select('id').execute();
+
+  expect(before).toBeArrayOfSize(1);
+  expect(denied.status).toBe(302);
+  expect(after).toBeEmpty();
+});
+
+test('it keeps the owner session no longer than the authorization code it approved', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  await runMCPAuthorization(server, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const sessions = await server.store.db.selectFrom('session').select('expiresAt').execute();
+
+  const [session] = sessions;
+
+  if (session === undefined) {
+    throw new Error('the consent left no owner session');
+  }
+
+  expect(sessions).toBeArrayOfSize(1);
+  expect(Date.parse(session.expiresAt)).toBeLessThanOrEqual(Date.now() + 600_000);
+});
+
+test('it deletes the owner session once its authorization code is exchanged', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorized = await runMCPAuthorization(server, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const sessions = await server.store.db.selectFrom('session').select('id').execute();
+
+  expect(exchanged.status).toBe(200);
+  expect(sessions).toBeEmpty();
+});

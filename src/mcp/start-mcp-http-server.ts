@@ -268,7 +268,8 @@ async function answerMetadataRequest(
 
 // A code exchange binds its tokens to the owner session that approved it;
 // once issued, every token is detached from its session, so a session's end
-// never ends the grant.
+// never ends the grant, and the session, whose one authorization is done, is
+// deleted.
 async function answerTokenRequest(
   ctx: HTTPServerContext,
   request: Request,
@@ -277,6 +278,20 @@ async function answerTokenRequest(
   const response = await ctx.store.auth.handler(toPublicRequest(ctx, request, url));
 
   if (response.ok) {
+    const attached = await ctx.store.db
+      .selectFrom('oauthAccessToken')
+      .select('sessionId')
+      .where('sessionId', 'is not', null)
+      .union(
+        ctx.store.db
+          .selectFrom('oauthRefreshToken')
+          .select('sessionId')
+          .where('sessionId', 'is not', null),
+      )
+      .execute();
+
+    const sessionIDs = attached.flatMap((row) => (row.sessionId === null ? [] : [row.sessionId]));
+
     await ctx.store.db
       .updateTable('oauthAccessToken')
       .set({ sessionId: null })
@@ -291,7 +306,12 @@ async function answerTokenRequest(
 
     await ctx.store.db
       .deleteFrom('session')
-      .where('expiresAt', '<', new Date().toISOString())
+      .where((eb) =>
+        eb.or([
+          eb('expiresAt', '<', new Date().toISOString()),
+          ...(sessionIDs.length === 0 ? [] : [eb('id', 'in', sessionIDs)]),
+        ]),
+      )
       .execute();
   }
 

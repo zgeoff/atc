@@ -16,17 +16,24 @@ interface ConsentRequest {
   readonly body: string;
 }
 
+// How long an authorization code stays exchangeable.
+const CODE_MS = 600_000;
+
 /**
  * Answers `GET /consent` and `POST /consent`. Both refuse a request unless
  * its signed query is valid, its prompt no longer asks for a login, and its
  * owner session is the one an approval code signed in for this same request.
  * The page lists the scopes the client requested, with only `read` ticked to
- * start. The form goes to
- * better-auth's consent endpoint with the ticked scopes plus
- * `offline_access`; better-auth refuses any scope the client did not request.
- * Allowing nothing denies the request. Either way the browser returns to the
- * client, and its owner session cookie is cleared, so the next authorization
- * starts with no session.
+ * start. The form goes to better-auth's consent endpoint with the ticked
+ * scopes plus `offline_access`; better-auth refuses any scope the client did
+ * not request. Allowing nothing denies the request. Either way the browser
+ * returns to the client with its owner session cookie cleared.
+ *
+ * One login answers one consent: the answer ends the session's binding, so
+ * it can approve nothing else. An answer that issues no authorization code
+ * deletes the session outright. One that issues a code leaves the session
+ * only until the code expires, since the code exchange needs it, and the
+ * exchange deletes it.
  */
 export async function answerConsentRequest(
   ctx: HTTPServerContext,
@@ -67,6 +74,8 @@ export async function answerConsentRequest(
     return buildPageResponse(200, { page }, formTargets);
   }
 
+  ctx.approvals.removeApproved(sessionID);
+
   const ticked = form.getAll('scope');
   const scopes = GRANT_SCOPES.filter((scope) => ticked.includes(scope));
   const accept = form.get('decision') === 'approve' && scopes.length > 0;
@@ -92,6 +101,17 @@ export async function answerConsentRequest(
   const answer: unknown = await consented.json();
 
   const next = isRecord(answer) ? (answer['url'] ?? answer['redirect_uri']) : undefined;
+
+  const issuedCode =
+    consented.ok && typeof next === 'string' && new URL(next).searchParams.has('code');
+
+  await (issuedCode
+    ? ctx.store.db
+        .updateTable('session')
+        .set({ expiresAt: new Date(Date.now() + CODE_MS).toISOString() })
+        .where('id', '=', sessionID)
+        .execute()
+    : ctx.store.db.deleteFrom('session').where('id', '=', sessionID).execute());
 
   if (!consented.ok || typeof next !== 'string') {
     return buildPageResponse(400, {
