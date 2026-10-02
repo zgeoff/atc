@@ -2,10 +2,11 @@
 
 ## [2.5.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.5.0...@zgeoff/atc@2.5.1) (2026-10-02)
 
-
 ### Bug Fixes
 
-* **deps:** pin fast-uri, ip-address and brace-expansion past advisories ([#110](https://github.com/zgeoff/atc/issues/110)) ([96b93b0](https://github.com/zgeoff/atc/commit/96b93b0c9f8e8d48ad3a8833a9a58cc09cbe15a4))
+- **deps:** pin fast-uri, ip-address and brace-expansion past advisories
+  ([#110](https://github.com/zgeoff/atc/issues/110))
+  ([96b93b0](https://github.com/zgeoff/atc/commit/96b93b0c9f8e8d48ad3a8833a9a58cc09cbe15a4))
 
 ## [2.5.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.4.1...@zgeoff/atc@2.5.0) (2026-09-25)
 
