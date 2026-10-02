@@ -245,3 +245,205 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
   expect(mgr.sessions.some((s) => s.id === dead.id)).toBe(false);
   expect(live.parent).toBeNull();
 });
+
+test("it keeps a finished turn's last message as the session result", async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  const finishing: AgentAdapter = {
+    ...idleAdapter,
+    normalizeHook: () => ({ kind: 'turn-done', result: 'all green' }),
+  };
+
+  const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), [finishing]);
+
+  const s = mgr.spawn('/tmp', 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
+
+  onTestFinished(() => {
+    mgr.killAll();
+  });
+
+  mgr.applyHook({ atcId: s.id, event: 'Stop', payload: {} });
+
+  await mgr.writeFleet();
+
+  const stored = await store.loadFleet();
+
+  expect(stored).toStrictEqual([
+    {
+      name: 'worker',
+      cwd: '/tmp',
+      agentSessionID: toAgentSessionID('c-1'),
+      agent: 'claude',
+      lastAttachedAt: expect.toBeNumber(),
+      prompt: 'go',
+      result: 'all green',
+    },
+  ]);
+});
+
+test('it truncates a stored result past 16 KiB', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  const finishing: AgentAdapter = {
+    ...idleAdapter,
+    normalizeHook: () => ({ kind: 'turn-done', result: 'x'.repeat(20_000) }),
+  };
+
+  const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), [finishing]);
+
+  const s = mgr.spawn('/tmp', 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
+
+  onTestFinished(() => {
+    mgr.killAll();
+  });
+
+  mgr.applyHook({ atcId: s.id, event: 'Stop', payload: {} });
+
+  await mgr.writeFleet();
+
+  const [stored] = await store.loadFleet();
+
+  if (stored?.result === undefined) {
+    throw new Error('expected a stored result');
+  }
+
+  expect(Buffer.byteLength(stored.result)).toBeLessThanOrEqual(16_384);
+});
+
+test('it persists the transcript path its hooks report', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  const starting: AgentAdapter = {
+    ...idleAdapter,
+    normalizeHook: () => ({
+      kind: 'started',
+      agentSessionID: toAgentSessionID('c-2'),
+      transcriptSource: '/t/c-2.jsonl',
+    }),
+  };
+
+  const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), [starting]);
+
+  const s = mgr.spawn('/tmp', 'worker', '', 80, 24);
+
+  onTestFinished(() => {
+    mgr.killAll();
+  });
+
+  mgr.applyHook({ atcId: s.id, event: 'SessionStart', payload: {} });
+
+  await mgr.writeFleet();
+
+  const stored = await store.loadFleet();
+
+  expect(stored).toStrictEqual([
+    {
+      name: 'worker',
+      cwd: '/tmp',
+      agentSessionID: toAgentSessionID('c-2'),
+      agent: 'claude',
+      lastAttachedAt: expect.toBeNumber(),
+      transcriptPath: '/t/c-2.jsonl',
+    },
+  ]);
+});
+
+test("it restores an entry's prompt, result, and transcript path onto the session", async () => {
+  const mgr = await setupManager();
+
+  const session = mgr.restore({
+    name: 'wrangler',
+    cwd: '/tmp/proj',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    prompt: 'go',
+    result: 'done',
+    transcriptPath: '/t.jsonl',
+  });
+
+  expect(session).toMatchObject({ prompt: 'go', result: 'done', transcriptPath: '/t.jsonl' });
+  expect(session.transcriptSource).toBeUndefined();
+});
+
+test('it keeps a crashed sibling restorable as live when another session finishes a turn', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  const finishing: AgentAdapter = {
+    ...idleAdapter,
+    normalizeHook: () => ({ kind: 'turn-done', result: 'all green' }),
+  };
+
+  const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), [finishing]);
+
+  const finisher = mgr.spawn('/tmp', 'finisher', 'go', 80, 24, toAgentSessionID('c-1'));
+  const crasher = mgr.spawn('/tmp', 'crasher', 'go', 80, 24, toAgentSessionID('c-2'));
+
+  onTestFinished(() => {
+    mgr.killAll();
+  });
+
+  await mgr.writeFleet();
+
+  crasher.pty?.kill();
+  const deadline = Date.now() + 5000;
+
+  while (crasher.state !== 'exited' && Date.now() < deadline) {
+    await Bun.sleep(10);
+  }
+
+  mgr.applyHook({ atcId: finisher.id, event: 'Stop', payload: {} });
+
+  let stored = await store.loadFleet();
+
+  while (!stored.some((e) => e.result === 'all green') && Date.now() < deadline) {
+    await Bun.sleep(10);
+
+    stored = await store.loadFleet();
+  }
+
+  expect(crasher.state).toBe('exited');
+
+  expect(stored).toStrictEqual([
+    {
+      name: 'finisher',
+      cwd: '/tmp',
+      agentSessionID: toAgentSessionID('c-1'),
+      agent: 'claude',
+      lastAttachedAt: expect.toBeNumber(),
+      prompt: 'go',
+      result: 'all green',
+    },
+    {
+      name: 'crasher',
+      cwd: '/tmp',
+      agentSessionID: toAgentSessionID('c-2'),
+      agent: 'claude',
+      lastAttachedAt: expect.toBeNumber(),
+      prompt: 'go',
+    },
+  ]);
+});

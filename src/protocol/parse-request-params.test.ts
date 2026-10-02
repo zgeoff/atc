@@ -50,6 +50,13 @@ test.each([
     { request: 'r1', decision: 'allow' },
     { request: 'r1', decision: 'allow' },
   ],
+  ['session.get', { session: 's1' }, { session: toSessionID('s1') }],
+  [
+    'session.read',
+    { session: 's1', cursor: 'c', limit: 10 },
+    { session: toSessionID('s1'), cursor: 'c', limit: 10 },
+  ],
+  ['events.read', { cursor: 'c', limit: 10, waitMs: 500 }, { cursor: 'c', limit: 10, waitMs: 500 }],
 ] as const)('it parses a valid %s payload', (method, payload, expected) => {
   const parsed = parseRequestParams(method, payload);
 
@@ -202,4 +209,29 @@ test('it tolerates a wrong-typed optional field by falling back to its default',
 
 test('it treats missing params as an empty object', () => {
   expect(parseRequestParams('daemon.ping', undefined)).toStrictEqual({ ok: true, data: {} });
+});
+
+test('it defaults events.read to 50 events with no wait', () => {
+  const parsed = parseRequestParams('events.read', {});
+
+  expect(parsed).toStrictEqual({ ok: true, data: { limit: 50, waitMs: 0 } });
+});
+
+test.each([
+  [
+    { limit: 1000, waitMs: 120_000 },
+    { limit: 200, waitMs: 30_000 },
+  ],
+  [
+    { limit: 0, waitMs: -5 },
+    { limit: 1, waitMs: 0 },
+  ],
+] as const)('it clamps events.read %p into range', (payload, expected) => {
+  expect(parseRequestParams('events.read', payload)).toStrictEqual({ ok: true, data: expected });
+});
+
+test('it clamps session.read limit to 200', () => {
+  const parsed = parseRequestParams('session.read', { session: 's1', limit: 999 });
+
+  expect(parsed).toStrictEqual({ ok: true, data: { session: toSessionID('s1'), limit: 200 } });
 });

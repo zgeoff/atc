@@ -46,6 +46,23 @@ export interface AdapterEvent {
   // Claude resume-existence path. Distinct from nameSource: a naming
   // handle is not a resume gate.
   transcriptSource?: string;
+
+  // The agent's whole final message for a finished turn; detail holds a bounded preview of it.
+  result?: string;
+}
+
+export interface TranscriptToolUse {
+  readonly name: string;
+  readonly input: string;
+}
+
+export interface TranscriptRow {
+  readonly role: 'user' | 'assistant';
+  readonly text: string;
+  readonly tools: readonly TranscriptToolUse[];
+
+  // Epoch ms from the line's timestamp.
+  readonly at: number | null;
 }
 
 export interface NameUpdate {
@@ -118,4 +135,9 @@ export interface AgentAdapter {
     cwd: string,
     agentSessionID: AgentSessionID | undefined,
   ) => string | null;
+
+  // Turns one line of the agent's transcript file into a conversation row,
+  // null for a line that is not one. Absent: atc cannot read this agent's
+  // transcript.
+  readonly parseTranscriptLine?: (line: string) => TranscriptRow | null;
 }

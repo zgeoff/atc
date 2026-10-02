@@ -14,6 +14,7 @@ import type {
   SpawnPlan,
 } from './agent-adapter';
 import { ClaudeAdapter } from './claude-adapter';
+import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { writeHookSettings } from './write-hook-settings';
 
 /**
@@ -32,6 +33,9 @@ export class GatewayAdapter implements AgentAdapter {
 
   // The CLI's hooks are authoritative; no screen heuristics needed.
   readonly screenDetector = null;
+
+  // The gateway runs the Claude CLI, which writes the same transcript.
+  readonly parseTranscriptLine = parseClaudeTranscriptLine;
 
   private readonly gateway: GatewayConfig;
 

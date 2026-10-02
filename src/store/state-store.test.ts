@@ -811,6 +811,9 @@ test('it opens a database twice without re-running migrations or corrupting data
     '005_add_fleet_agent',
     '006_add_fleet_exited',
     '007_add_fleet_parent',
+    '008_add_fleet_prompt_result_transcript',
+    '009_add_events_kind_detail',
+    '010_add_events_trail_indexes',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -919,4 +922,297 @@ test('it creates prefs for a database that predates the table', async () => {
   const afterGrok = await store.loadLastUsedAgent();
 
   expect(afterGrok).toBe('grok');
+});
+
+test("it round-trips a fleet row's prompt, result, and transcript path", async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const entry: FleetEntry = {
+    name: 'a',
+    cwd: '/x',
+    agentSessionID: toAgentSessionID('c1'),
+    agent: 'claude',
+    prompt: 'fix the auth bug',
+    result: 'All green.',
+    transcriptPath: '/t/c1.jsonl',
+  };
+
+  await store.writeFleet([entry]);
+
+  const stored = await store.loadFleet();
+
+  expect(stored).toStrictEqual([entry]);
+});
+
+test('it records a hook event with its normalized kind and detail', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'c1' } },
+    { kind: 'turn-done', detail: 'all green' },
+  );
+
+  const events = await store.collectLatestEvents(10);
+
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: toAgentSessionID('c1'),
+      kind: 'turn-done',
+      detail: 'all green',
+    },
+  ]);
+});
+
+test('it falls back to the hook message for an event recorded without a detail', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Notification', payload: { message: 'needs permission' } },
+    { kind: 'needs-input' },
+  );
+
+  const events = await store.collectLatestEvents(10);
+
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'needs-input',
+      detail: 'needs permission',
+    },
+  ]);
+});
+
+test('it leaves heartbeats and unclassified events out of the event reads', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordEvent({ atcId: toSessionID('s1'), event: 'Statusline', payload: {} });
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Other', payload: {} },
+    { kind: 'heartbeat' },
+  );
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
+    { kind: 'started' },
+  );
+
+  const events = await store.collectLatestEvents(10);
+
+  expect(events.map((event) => event.kind)).toStrictEqual(['started']);
+});
+
+test('it collects events after an id oldest first, up to the limit', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
+    { kind: 'started', detail: 'one' },
+  );
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
+    { kind: 'turn-done', detail: 'two' },
+  );
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionEnd', payload: {} },
+    { kind: 'ended', detail: 'three' },
+  );
+
+  const [first] = await store.collectLatestEvents(10);
+
+  if (first === undefined) {
+    throw new Error('expected events');
+  }
+
+  const after = await store.collectEventsAfter(first.id, 1);
+
+  expect(after.map((event) => event.detail)).toStrictEqual(['two']);
+});
+
+test('it collects the latest events oldest first', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
+    { kind: 'started', detail: 'one' },
+  );
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
+    { kind: 'turn-done', detail: 'two' },
+  );
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionEnd', payload: {} },
+    { kind: 'ended', detail: 'three' },
+  );
+
+  const latest = await store.collectLatestEvents(2);
+
+  expect(latest.map((event) => event.detail)).toStrictEqual(['two', 'three']);
+});
+
+test("it loads a session's last activity time by its agent session id", async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const before = Date.now();
+
+  await store.recordEvent(
+    { atcId: toSessionID('s-old'), event: 'Stop', payload: { session_id: 'c1' } },
+    { kind: 'turn-done' },
+  );
+
+  const at = await store.loadLastActivityAt(toSessionID('s-new'), toAgentSessionID('c1'));
+
+  expect(at).toBeWithin(before, Date.now() + 1);
+});
+
+test('it loads no last activity time for a session that never reported', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const at = await store.loadLastActivityAt(toSessionID('s1'), undefined);
+
+  expect(at).toBeNull();
+});
+
+test('it updates one fleet row without touching its siblings', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    { name: 'a', cwd: '/a', agentSessionID: toAgentSessionID('a1'), agent: 'claude' },
+    { name: 'b', cwd: '/b', agentSessionID: toAgentSessionID('b1'), agent: 'claude' },
+  ]);
+
+  await store.updateFleetEntry(toAgentSessionID('a1'), {
+    result: 'done',
+    transcriptPath: '/a.jsonl',
+  });
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toIncludeSameMembers([
+    {
+      name: 'a',
+      cwd: '/a',
+      agentSessionID: toAgentSessionID('a1'),
+      agent: 'claude',
+      result: 'done',
+      transcriptPath: '/a.jsonl',
+    },
+    { name: 'b', cwd: '/b', agentSessionID: toAgentSessionID('b1'), agent: 'claude' },
+  ]);
+});
+
+test('it ignores an update for a session with no fleet row', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.updateFleetEntry(toAgentSessionID('ghost'), { result: 'done' });
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([]);
+});
+
+test('it serves the event-trail lookups from indexes', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const store = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const sqlite = new Database(dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    sqlite.close();
+  });
+
+  const plan = (query: string) =>
+    sqlite
+      .query<{ detail: string }, []>(`EXPLAIN QUERY PLAN ${query}`)
+      .all()
+      .map((row) => row.detail)
+      .join('\n');
+
+  expect(
+    plan(
+      "SELECT id FROM events WHERE id > 5 AND kind IS NOT NULL AND kind != 'heartbeat' ORDER BY id LIMIT 5",
+    ),
+  ).toInclude('USING INDEX events_trail');
+
+  expect(
+    plan(
+      "SELECT id FROM events WHERE kind IS NOT NULL AND kind != 'heartbeat' ORDER BY id DESC LIMIT 5",
+    ),
+  ).toInclude('USING INDEX events_trail');
+
+  const activityPlan = plan("SELECT MAX(ts) FROM events WHERE atc_id = 'a' OR session_id = 'b'");
+
+  expect(activityPlan).toInclude('USING INDEX events_atc_id_ts');
+  expect(activityPlan).toInclude('USING INDEX events_session_id_ts');
 });

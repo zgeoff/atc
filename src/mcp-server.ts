@@ -53,6 +53,53 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   { io: 'input' },
 );
 
+const SESSION_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
+  SESSION_ID_BASE.extend({
+    cursor: z
+      .string()
+      .optional()
+      .describe(
+        'The cursor a previous atc_session_read returned; omit to read from the start of the conversation',
+      ),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('Most rows to return; defaults to 50'),
+  }).strict(),
+  { io: 'input' },
+);
+
+const EVENTS_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
+  z.strictObject({
+    cursor: z
+      .string()
+      .optional()
+      .describe(
+        'The cursor a previous atc_events_read returned; omit to get the most recent events',
+      ),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('Most events to return; defaults to 50'),
+    waitMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(30_000)
+      .optional()
+      .describe(
+        'How long to wait for a new event when none is pending, in milliseconds; defaults to 0, capped at 30000. Keep it short.',
+      ),
+  }),
+  { io: 'input' },
+);
+
 const TOOLS: readonly MCPTool[] = [
   {
     name: 'atc_session_list',
@@ -122,6 +169,24 @@ const TOOLS: readonly MCPTool[] = [
     description: 'List directories sessions were previously spawned from, most recent first.',
     inputSchema: NO_INPUT,
   },
+  {
+    name: 'atc_session_get',
+    description:
+      'Read one session in a single call: its descriptor (state, unread flag, last activity message), the prompt it was spawned with, when it last reported activity, the prompt or question it is waiting on while it needs you (read-only; answer it with atc_session_input), and the final message of its latest finished turn.',
+    inputSchema: SESSION_INPUT,
+  },
+  {
+    name: 'atc_session_read',
+    description:
+      "Read a session's conversation a page at a time, oldest first: user and assistant messages with tool uses summarised. Pass the returned cursor to continue where you left off; more is true when the page stopped before the end. Claude sessions only; other agents answer unsupported.",
+    inputSchema: SESSION_READ_INPUT,
+  },
+  {
+    name: 'atc_events_read',
+    description:
+      'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended) since a cursor, oldest first, each with the session id and name. Without a cursor it returns the most recent events. Pass the returned cursor next time. waitMs holds the call open until an event arrives.',
+    inputSchema: EVENTS_READ_INPUT,
+  },
 ];
 
 /**
@@ -138,6 +203,10 @@ export async function runMCPServer(build: string): Promise<void> {
 
   let buffer = '';
 
+  // Each request runs on its own, so a long poll never holds up the others;
+  // responses carry their request's id.
+  const inFlight = new Set<Promise<void>>();
+
   for await (const chunk of Bun.stdin.stream()) {
     buffer += decoder.decode(chunk, { stream: true });
 
@@ -150,9 +219,24 @@ export async function runMCPServer(build: string): Promise<void> {
         continue;
       }
 
-      await applyRPCLine(client, build, line);
+      const finished = Promise.withResolvers<void>();
+
+      inFlight.add(finished.promise);
+
+      void (async () => {
+        try {
+          await applyRPCLine(client, build, line);
+        } catch {
+          // A failed line gets no response, the way a malformed one gets none.
+        } finally {
+          inFlight.delete(finished.promise);
+          finished.resolve();
+        }
+      })();
     }
   }
+
+  await Promise.all(inFlight);
 
   client.stop();
 }
@@ -316,6 +400,29 @@ async function runTool(
       const ok = await client.sendRequest('dirs.list');
 
       return JSON.stringify(ok['dirs'], null, 2);
+    }
+    case 'atc_session_get': {
+      const ok = await client.sendRequest('session.get', { session: args['session'] });
+
+      return JSON.stringify(ok, null, 2);
+    }
+    case 'atc_session_read': {
+      const ok = await client.sendRequest('session.read', {
+        session: args['session'],
+        ...(typeof args['cursor'] === 'string' ? { cursor: args['cursor'] } : {}),
+        ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
+      });
+
+      return JSON.stringify(ok, null, 2);
+    }
+    case 'atc_events_read': {
+      const ok = await client.sendRequest('events.read', {
+        ...(typeof args['cursor'] === 'string' ? { cursor: args['cursor'] } : {}),
+        ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
+        ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
+      });
+
+      return JSON.stringify(ok, null, 2);
     }
     default: {
       throw new Error(`unknown tool '${name}'`);

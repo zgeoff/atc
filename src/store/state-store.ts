@@ -2,19 +2,38 @@ import { Database } from 'bun:sqlite';
 import { existsSync, readFileSync } from 'node:fs';
 import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
 import { toAgentID } from '../agents/agent-adapter';
-import type { AgentID } from '../agents/agent-adapter';
+import type { AdapterEvent, AgentID } from '../agents/agent-adapter';
 import type { HookEvent } from '../daemon/hooks';
 import type { AgentSessionID } from '../shared/agent-session-id';
+import type { SessionID } from '../shared/session-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toSessionID } from '../shared/to-session-id';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
-import type { FleetEntry } from './fleet-entry';
+import type { FleetEntry, FleetEntryUpdate } from './fleet-entry';
 import { runMigrations } from './run-migrations';
 import type { StateStoreSchema } from './run-migrations';
 
+// Spelled as the partial index's predicate so SQLite can match them.
+const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;
+
+export interface StoredEvent {
+  readonly id: number;
+
+  // Epoch ms of ts.
+  readonly at: number;
+  readonly atcID: SessionID;
+  readonly agentSessionID: AgentSessionID | null;
+  readonly kind: string;
+
+  // The event's detail, else the hook's message.
+  readonly detail: string | null;
+}
+
 /**
  * Daemon state in one SQLite store: the restorable fleet, the hook-event
- * debug trail, and the spawn-directory history. The statusline contract
+ * trail that events.read and lastActivityAt read, and the spawn-directory
+ * history. The statusline contract
  * file (status.json) stays a plain file because reporters inside wrangled
  * sessions read it without speaking to the daemon. An existing fleet.json
  * seeds the fleet table once, so upgrading never loses a restorable fleet.
@@ -72,6 +91,9 @@ export class StateStore {
         'agent',
         'exited',
         'parent',
+        'prompt',
+        'result',
+        'transcript_path',
       ])
       .execute();
 
@@ -87,6 +109,9 @@ export class StateStore {
         ...(row.last_attached === null ? {} : { lastAttachedAt: row.last_attached }),
         ...(row.exited === 0 ? {} : { exited: true }),
         ...(row.parent === null ? {} : { parent: toAgentSessionID(row.parent) }),
+        ...(row.prompt === null ? {} : { prompt: row.prompt }),
+        ...(row.result === null ? {} : { result: row.result }),
+        ...(row.transcript_path === null ? {} : { transcriptPath: row.transcript_path }),
       });
     }
 
@@ -132,6 +157,9 @@ export class StateStore {
             agent: entry.agent,
             exited: entry.exited === true ? 1 : 0,
             parent: entry.parent ?? null,
+            prompt: entry.prompt ?? null,
+            result: entry.result ?? null,
+            transcript_path: entry.transcriptPath ?? null,
           })
           .orReplace()
           .execute();
@@ -139,7 +167,27 @@ export class StateStore {
     });
   }
 
-  async recordEvent(e: HookEvent): Promise<void> {
+  // Rewrites fields on one existing row and leaves every other row as it
+  // stands. A session without a row yet is a no-op: the next fleet write
+  // inserts it with these fields.
+  async updateFleetEntry(agentSessionID: AgentSessionID, fields: FleetEntryUpdate): Promise<void> {
+    const values = {
+      ...(fields.result === undefined ? {} : { result: fields.result }),
+      ...(fields.transcriptPath === undefined ? {} : { transcript_path: fields.transcriptPath }),
+    };
+
+    if (Object.keys(values).length === 0) {
+      return;
+    }
+
+    await this.db
+      .updateTable('fleet')
+      .set(values)
+      .where('agent_session_id', '=', agentSessionID)
+      .execute();
+  }
+
+  async recordEvent(e: HookEvent, ev: Readonly<AdapterEvent> | null = null): Promise<void> {
     const rawMessage = e.payload['message'];
     const rawSessionID = e.payload['session_id'] ?? e.payload['sessionId'];
     const message = typeof rawMessage === 'string' ? rawMessage : null;
@@ -154,8 +202,55 @@ export class StateStore {
         event: e.event,
         message,
         session_id: sessionID,
+        kind: ev === null ? null : ev.kind,
+        detail: ev?.detail ?? null,
       })
       .execute();
+  }
+
+  async collectEventsAfter(afterID: number, limit: number): Promise<StoredEvent[]> {
+    const rows = await this.db
+      .selectFrom('events')
+      .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
+      .where('id', '>', afterID)
+      .where(TRAIL_FILTER)
+      .orderBy('id', 'asc')
+      .limit(limit)
+      .execute();
+
+    return buildStoredEvents(rows);
+  }
+
+  async collectLatestEvents(limit: number): Promise<StoredEvent[]> {
+    const rows = await this.db
+      .selectFrom('events')
+      .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
+      .where(TRAIL_FILTER)
+      .orderBy('id', 'desc')
+      .limit(limit)
+      .execute();
+
+    return buildStoredEvents(rows).toReversed();
+  }
+
+  // Matches the session by either id, since a restore re-mints the atc id
+  // while the agent session id carries on.
+  async loadLastActivityAt(
+    atcID: SessionID,
+    agentSessionID: AgentSessionID | undefined,
+  ): Promise<number | null> {
+    const row = await this.db
+      .selectFrom('events')
+      .select(sql<string | null>`MAX(ts)`.as('ts'))
+      .where((eb) =>
+        eb.or([
+          eb('atc_id', '=', atcID),
+          ...(agentSessionID === undefined ? [] : [eb('session_id', '=', agentSessionID)]),
+        ]),
+      )
+      .executeTakeFirst();
+
+    return row?.ts === null || row?.ts === undefined ? null : Date.parse(row.ts);
   }
 
   async recordSpawnDir(cwd: string): Promise<void> {
@@ -234,4 +329,35 @@ export class StateStore {
       await this.writeFleet(entries);
     } catch {}
   }
+}
+
+interface EventRow {
+  readonly id: number;
+  readonly ts: string;
+  readonly atc_id: string;
+  readonly session_id: string | null;
+  readonly kind: string | null;
+  readonly detail: string | null;
+  readonly message: string | null;
+}
+
+function buildStoredEvents(rows: readonly EventRow[]): StoredEvent[] {
+  const events: StoredEvent[] = [];
+
+  for (const row of rows) {
+    if (row.kind === null) {
+      continue;
+    }
+
+    events.push({
+      id: row.id,
+      at: Date.parse(row.ts),
+      atcID: toSessionID(row.atc_id),
+      agentSessionID: row.session_id === null ? null : toAgentSessionID(row.session_id),
+      kind: row.kind,
+      detail: row.detail ?? row.message,
+    });
+  }
+
+  return events;
 }

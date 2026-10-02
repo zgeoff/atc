@@ -64,3 +64,16 @@ test('it treats wrong-typed hook payload fields as absent instead of throwing', 
 
   expect(ev).toStrictEqual({ kind: 'turn-done' });
 });
+
+test('it carries the whole last assistant message of a finished turn as its result', () => {
+  const adapter = new ClaudeAdapter(buildClaudeConfig());
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'Stop',
+    payload: { session_id: 'c-1', last_assistant_message: 'x'.repeat(700) },
+  });
+
+  expect(ev).toMatchObject({ kind: 'turn-done', result: 'x'.repeat(700) });
+  expect(ev.detail).toHaveLength(600);
+});

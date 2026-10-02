@@ -1,15 +1,19 @@
 import { unlinkSync, writeFileSync } from 'node:fs';
-import type { AgentAdapter } from '../agents/agent-adapter';
+import type { AdapterEvent, AgentAdapter } from '../agents/agent-adapter';
 import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
 import type { SessionID } from '../shared/session-id';
 import { StateStore } from '../store/state-store';
 import { AttachRegistry } from './attach-registry';
+import { buildFleetEvents } from './build-fleet-events';
 import { buildSessionEvent } from './build-session-event';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext, OutputClient } from './daemon-connection';
+import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
+import type { HookEvent } from './hooks';
+import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
 import { PermissionRegistry } from './permission-registry';
@@ -130,6 +134,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   const registry = new PermissionRegistry();
+  const eventSignal = new EventSignal();
 
   registry.onRequested = (req) => {
     emitEvent(
@@ -382,12 +387,20 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
+  const recordHookEvent = async (e: HookEvent, ev: Readonly<AdapterEvent> | null) => {
+    await store.recordEvent(e, ev);
+
+    eventSignal.emit();
+  };
+
   const reporter = startHookServer((e) => {
+    const ev = mgr.applyHook(e);
+
     if (e.event !== 'Statusline') {
-      void store.recordEvent(e);
+      void recordHookEvent(e, ev);
     }
 
-    const kind = mgr.applyHook(e);
+    const kind = ev?.kind ?? null;
     const runtime = runtimes.get(e.atcId);
 
     if (kind === 'ended') {
@@ -636,6 +649,77 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       runtimes.get(sessionID)?.dims ?? { cols: 80, rows: 24 },
     restoreFleet: (cols, rows) =>
       restoreFleet({ mgr, store, findRuntime, cols, rows, capMs: opts.restoreBootTimeoutMs ?? 0 }),
+    readSessionRecord: async (id) => {
+      const s = mgr.sessions.find((x) => x.id === id);
+
+      if (s === undefined) {
+        return 'missing';
+      }
+
+      // Every session-derived field is taken before the await: a kill or a
+      // hook may change the session meanwhile.
+      const session = getDescriptor(mgr, id);
+      const prompt = s.prompt ?? null;
+      const pending = s.state === 'needs_you' ? { message: s.lastMsg } : null;
+      const result = s.result ?? null;
+      const createdAt = s.createdAt;
+
+      const lastEventAt = await store.loadLastActivityAt(s.id, s.agentSessionID);
+
+      return {
+        session,
+        prompt,
+        lastActivityAt: lastEventAt ?? createdAt,
+        pending,
+        result,
+      };
+    },
+    loadSessionTranscript: async (id, from, limit) => {
+      const s = mgr.sessions.find((x) => x.id === id);
+
+      if (s === undefined) {
+        return 'missing';
+      }
+
+      const parseLine = mgr.findAdapter(s.agent)?.parseTranscriptLine;
+
+      if (parseLine === undefined) {
+        return 'unsupported';
+      }
+
+      const path = s.transcriptPath ?? '';
+
+      if (path === '') {
+        return { path, page: { rows: [], offset: 0, more: false } };
+      }
+
+      // A page stays far under the protocol's 1 MiB line cap.
+      const page = await loadTranscriptPage({ path, from, limit, maxBytes: 262_144, parseLine });
+
+      return { path, page };
+    },
+    readEvents: async (afterID, limit, waitMs) => {
+      const deadline = Date.now() + waitMs;
+
+      // A wake for an event the read leaves out (a heartbeat) loops back to
+      // wait out the rest of the window.
+      for (;;) {
+        const generation = eventSignal.generation;
+
+        const rows =
+          afterID === null
+            ? await store.collectLatestEvents(limit)
+            : await store.collectEventsAfter(afterID, limit);
+
+        const remaining = deadline - Date.now();
+
+        if (rows.length > 0 || remaining <= 0 || eventSignal.disposed) {
+          return buildFleetEvents(rows, mgr.collectDescriptors());
+        }
+
+        await eventSignal.waitForNext(generation, remaining);
+      }
+    },
   };
 
   try {
@@ -675,6 +759,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
 
     runtimes.clear();
+    eventSignal.dispose();
 
     await store.stop();
 

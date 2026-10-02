@@ -1,5 +1,7 @@
 import { basename } from 'node:path';
 import type { AgentAdapter, AgentID, SpawnOptions } from '../agents/agent-adapter';
+import { decodeCursor } from '../protocol/decode-cursor';
+import { encodeCursor } from '../protocol/encode-cursor';
 import { OutboundQueue } from '../protocol/outbound-queue';
 import type { SocketWriter } from '../protocol/outbound-queue';
 import { parseRequestParams } from '../protocol/parse-request-params';
@@ -14,6 +16,8 @@ import type { ErrorCode, EventMsg, RequestMsg } from '../protocol/protocol';
 import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { Dims } from './attach-registry';
+import type { FleetEvent } from './build-fleet-events';
+import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
 import type { AnswerResult } from './permission-registry';
 import type { ScreenText } from './screen-model';
 import type { SessionDescriptor } from './sessions';
@@ -28,6 +32,21 @@ interface SpawnParams {
   readonly namedBy: 'user' | 'auto';
   readonly agent: AgentID;
   readonly parent: SessionID | null;
+}
+
+interface SessionRecord {
+  readonly session: SessionDescriptor;
+  readonly prompt: string | null;
+  readonly lastActivityAt: number;
+  readonly pending: { readonly message: string } | null;
+  readonly result: string | null;
+}
+
+// A transcript page with the file it came from, so a cursor into a replaced
+// transcript is distinguishable from one into a grown transcript.
+interface SessionTranscriptRead {
+  readonly path: string;
+  readonly page: TranscriptPage;
 }
 
 export interface DaemonContext {
@@ -70,6 +89,17 @@ export interface DaemonContext {
   readonly resyncClient: (sessionID: SessionID, client: OutputClient) => Promise<void>;
   readonly queueBytes?: number;
   readonly getEffectiveDims: (sessionID: SessionID) => Dims;
+  readonly readSessionRecord: (id: SessionID) => Promise<SessionRecord | 'missing'>;
+  readonly loadSessionTranscript: (
+    id: SessionID,
+    from: TranscriptPosition | null,
+    limit: number,
+  ) => Promise<SessionTranscriptRead | 'missing' | 'unsupported'>;
+  readonly readEvents: (
+    afterID: number | null,
+    limit: number,
+    waitMs: number,
+  ) => Promise<FleetEvent[]>;
 }
 
 // The slice of a connection the attach bookkeeping needs: identity plus the
@@ -448,6 +478,21 @@ export class DaemonConnection {
 
         return;
       }
+      case 'session.get': {
+        await this.applySessionGet(req);
+
+        return;
+      }
+      case 'session.read': {
+        await this.applySessionRead(req);
+
+        return;
+      }
+      case 'events.read': {
+        await this.applyEventsRead(req);
+
+        return;
+      }
       default: {
         this.sendErr(req.id, 'unknown_method', `unknown method '${req.m}'`);
       }
@@ -629,6 +674,105 @@ export class DaemonConnection {
         this.sendErr(req.id, 'bad_args', `unknown permission request '${request}'`);
       }
     }
+  }
+
+  private async applySessionGet(req: RequestMsg): Promise<void> {
+    const parsed = parseRequestParams('session.get', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const id = parsed.data.session;
+
+    const record = await this.ctx.readSessionRecord(id);
+
+    if (record === 'missing') {
+      this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
+
+      return;
+    }
+
+    this.sendOk(req.id, { ...record });
+  }
+
+  private async applySessionRead(req: RequestMsg): Promise<void> {
+    const parsed = parseRequestParams('session.read', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const id = parsed.data.session;
+    let from: TranscriptPosition | null = null;
+
+    if (parsed.data.cursor !== undefined) {
+      const decoded = decodeCursor(parsed.data.cursor);
+
+      if (decoded === null || decoded.kind !== 'transcript') {
+        this.sendErr(req.id, 'bad_args', `'${parsed.data.cursor}' is not a session.read cursor`);
+
+        return;
+      }
+
+      from = { path: decoded.path, offset: decoded.offset };
+    }
+
+    const read = await this.ctx.loadSessionTranscript(id, from, parsed.data.limit);
+
+    if (read === 'missing') {
+      this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
+    } else if (read === 'unsupported') {
+      this.sendErr(
+        req.id,
+        'unsupported',
+        `session '${id}' runs an agent whose transcript atc cannot read`,
+      );
+    } else {
+      this.sendOk(req.id, {
+        rows: read.page.rows,
+        cursor: encodeCursor({ kind: 'transcript', path: read.path, offset: read.page.offset }),
+        more: read.page.more,
+      });
+    }
+  }
+
+  private async applyEventsRead(req: RequestMsg): Promise<void> {
+    const parsed = parseRequestParams('events.read', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    let afterID: number | null = null;
+
+    if (parsed.data.cursor !== undefined) {
+      const decoded = decodeCursor(parsed.data.cursor);
+
+      if (decoded === null || decoded.kind !== 'events') {
+        this.sendErr(req.id, 'bad_args', `'${parsed.data.cursor}' is not an events.read cursor`);
+
+        return;
+      }
+
+      afterID = decoded.id;
+    }
+
+    const events = await this.ctx.readEvents(afterID, parsed.data.limit, parsed.data.waitMs);
+
+    const last = events.at(-1);
+
+    // A cursor always comes back so a client can long-poll from an empty trail.
+    this.sendOk(req.id, {
+      events,
+      cursor: last === undefined ? encodeCursor({ kind: 'events', id: afterID ?? 0 }) : last.cursor,
+    });
   }
 
   private async applySessionVerb(

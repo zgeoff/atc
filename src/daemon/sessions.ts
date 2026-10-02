@@ -7,6 +7,7 @@ import { collectCleanEnv } from '../shared/collect-clean-env';
 import { socketPath, statusFile } from '../shared/config';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { SessionID } from '../shared/session-id';
+import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { FleetEntry, FleetStore } from '../store/fleet-entry';
 import type { HookEvent } from './hooks';
 import { mintSessionID } from './mint-session-id';
@@ -75,6 +76,16 @@ export interface Session {
   // The session that spawned this one as a sub-session; null for a
   // top-level session. One level deep: a sub-session never owns another.
   parent: SessionID | null;
+
+  // the prompt the session was spawned with
+  prompt?: string;
+
+  // the agent's final message from its latest finished turn, capped in size
+  result?: string;
+
+  // the transcript file the agent's hooks last reported. Kept apart from the
+  // resume check so a restored path never changes whether a revive is allowed.
+  transcriptPath?: string;
 }
 
 export class SessionManager {
@@ -180,6 +191,9 @@ export class SessionManager {
       namedBy: 'auto',
       createdAt: Date.now(),
       parent: this.findByAgentSessionID(entry.parent)?.id ?? null,
+      ...(entry.prompt === undefined ? {} : { prompt: entry.prompt }),
+      ...(entry.result === undefined ? {} : { result: entry.result }),
+      ...(entry.transcriptPath === undefined ? {} : { transcriptPath: entry.transcriptPath }),
     };
 
     this.sessions.push(session);
@@ -385,6 +399,7 @@ export class SessionManager {
       namedBy,
       createdAt: Date.now(),
       parent,
+      ...(prompt === '' ? {} : { prompt }),
     };
 
     pty.onData((d) => {
@@ -442,9 +457,9 @@ export class SessionManager {
     return this.sessions.filter((s) => s.parent === id);
   }
 
-  // Returns the normalized event kind so the caller can key lifecycle
-  // bookkeeping on it, or null when no session or adapter matches.
-  applyHook(e: HookEvent): AdapterEvent['kind'] | null {
+  // Returns the normalized event so the caller can key lifecycle bookkeeping
+  // and the event trail on it, or null when no session or adapter matches.
+  applyHook(e: HookEvent): AdapterEvent | null {
     const s = this.sessions.find((x) => x.id === e.atcId);
 
     if (!s) {
@@ -462,24 +477,31 @@ export class SessionManager {
     // Reporters belong to the terminal process; once a session is headless,
     // late reports from the dying terminal must not clobber its state.
     if (s.kind === 'headless') {
-      return ev.kind;
+      return ev;
     }
 
     const focused = this.focusedId === s.id;
     let dirty = false;
+    let persist = false;
+    const rowUpdate: { result?: string; transcriptPath?: string } = {};
+
+    if (ev.transcriptSource !== undefined) {
+      s.transcriptSource = ev.transcriptSource;
+
+      if (s.transcriptPath !== ev.transcriptSource) {
+        s.transcriptPath = ev.transcriptSource;
+        rowUpdate.transcriptPath = ev.transcriptSource;
+      }
+    }
 
     if (ev.agentSessionID !== undefined && s.agentSessionID !== ev.agentSessionID) {
       s.agentSessionID = ev.agentSessionID;
-      void this.writeFleet();
+      persist = true;
       dirty = true;
     }
 
     if (ev.detail !== undefined) {
       s.lastDetail = ev.detail;
-    }
-
-    if (ev.transcriptSource !== undefined) {
-      s.transcriptSource = ev.transcriptSource;
     }
 
     if (ev.nameSource !== undefined) {
@@ -507,6 +529,13 @@ export class SessionManager {
         s.unread = !focused;
         s.lastMsg = 'turn done';
         dirty = true;
+
+        if (ev.result !== undefined) {
+          // A runaway final message cannot bloat the fleet row.
+          s.result = truncateToBytes(ev.result, 16_384);
+          rowUpdate.result = s.result;
+        }
+
         break;
       }
       case 'prompt-submitted': {
@@ -537,12 +566,21 @@ export class SessionManager {
       }
     }
 
+    // A fleet rewrite marks every session without a PTY as exited, so only a
+    // new agent session id (which adds or re-keys a row) takes it. Anything
+    // else touches this session's own row.
+    if (persist) {
+      void this.writeFleet();
+    } else if (s.agentSessionID !== undefined) {
+      void this.store.updateFleetEntry(s.agentSessionID, rowUpdate);
+    }
+
     if (dirty) {
       this.onEvent('state', s);
       this.emitChange();
     }
 
-    return ev.kind;
+    return ev;
   }
 
   private async refreshName(s: Session, source: string) {
@@ -731,6 +769,9 @@ export class SessionManager {
         lastAttachedAt: s.lastAttachedAt,
         ...(live ? {} : { exited: true }),
         ...(parent === undefined ? {} : { parent }),
+        ...(s.prompt === undefined ? {} : { prompt: s.prompt }),
+        ...(s.result === undefined ? {} : { result: s.result }),
+        ...(s.transcriptPath === undefined ? {} : { transcriptPath: s.transcriptPath }),
       });
     }
 

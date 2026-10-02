@@ -18,11 +18,31 @@ export interface FleetEntry {
 
   // The agent session id of the session this one is a sub-session of.
   readonly parent?: AgentSessionID;
+
+  // The prompt the session was spawned with.
+  readonly prompt?: string;
+
+  // The agent's final message from the session's latest finished turn.
+  readonly result?: string;
+
+  // The transcript file the agent's hooks last reported for the session.
+  readonly transcriptPath?: string;
 }
 
 export interface FleetStore {
   readonly loadFleet: () => Promise<FleetEntry[]>;
   readonly writeFleet: (entries: readonly FleetEntry[]) => Promise<void>;
+  readonly updateFleetEntry: (
+    agentSessionID: AgentSessionID,
+    fields: FleetEntryUpdate,
+  ) => Promise<void>;
+}
+
+// The fields a session rewrites on its own row while it runs, without
+// touching any sibling row.
+export interface FleetEntryUpdate {
+  readonly result?: string;
+  readonly transcriptPath?: string;
 }
 
 // A stored fleet row's keys. name, cwd, and the resolved agentSessionID are

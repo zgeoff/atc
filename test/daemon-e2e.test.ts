@@ -1,6 +1,13 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
@@ -88,6 +95,14 @@ echo "FAKE_CLAUDE_UP args: $@"
 printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | ${hookReport}
 sleep 0.3
 printf '{"hook_event_name":"Notification","session_id":"fake-1","message":"needs permission"}' | ${hookReport}
+if [ -f "$HOME/fake-claude-events.jsonl" ]; then
+  sleep 0.3
+  while IFS= read -r ev; do
+    [ -n "$ev" ] || continue
+    printf '%s' "$ev" | ${hookReport}
+    sleep 0.2
+  done < "$HOME/fake-claude-events.jsonl"
+fi
 while read -r line; do echo "GOT:$line"; done
 sleep 30
 `,
@@ -1634,4 +1649,344 @@ test('it builds codex resume commands and keeps codex in the fleet on kill', asy
   const answer = await client.sendRequest('session.resumeCommand', { session: id });
 
   expect(answer['command']).toBe(`cd '${ctx.home}' && codex resume fake-codex-1`);
+});
+
+test("it reports a session's pending prompt through session.get while it needs you", async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const start = Date.now();
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    name: 'pending-check',
+    prompt: 'fix the auth bug',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
+
+  const record = await client.sendRequest('session.get', { session: id });
+
+  expect(record).toMatchObject({
+    prompt: 'fix the auth bug',
+    pending: { message: 'needs permission' },
+    result: null,
+    session: { state: 'needs_you' },
+  });
+
+  expect(record['lastActivityAt']).toBeWithin(start, Date.now() + 1);
+});
+
+test("it reports a finished turn's last message through session.get", async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(
+    join(ctx.home, 'fake-claude-events.jsonl'),
+    `${JSON.stringify({
+      hook_event_name: 'Stop',
+      session_id: 'fake-1',
+      last_assistant_message: 'All tests pass.',
+    })}\n`,
+  );
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'done',
+  );
+
+  const record = await client.sendRequest('session.get', { session: id });
+
+  expect(record).toMatchObject({ result: 'All tests pass.', pending: null });
+});
+
+test('it keeps the spawn prompt and latest result across a daemon restart', async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(
+    join(ctx.home, 'fake-claude-events.jsonl'),
+    `${JSON.stringify({
+      hook_event_name: 'Stop',
+      session_id: 'fake-1',
+      last_assistant_message: 'All tests pass.',
+    })}\n`,
+  );
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    prompt: 'fix the auth bug',
+    cols: 80,
+    rows: 24,
+  });
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('fleet.list');
+
+    const fleet = getRecords(listed, 'fleet');
+
+    expect(fleet[0]).toMatchObject({
+      prompt: 'fix the auth bug',
+      result: 'All tests pass.',
+      transcriptPath: join(ctx.home, 'fake-transcript.jsonl'),
+    });
+  });
+
+  ctx.proc.kill(9);
+
+  await ctx.proc.exited;
+
+  const revived = setupDaemonProc(ctx.home);
+
+  const client2 = await revived.openClient();
+
+  await client2.sendHello('atc/test');
+  await client2.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const listed = await client2.sendRequest('session.list');
+
+  const sessions = getRecords(listed, 'sessions');
+  const id = getString(sessions[0] ?? {}, 'id');
+
+  const record = await client2.sendRequest('session.get', { session: id });
+
+  expect(record).toMatchObject({ prompt: 'fix the auth bug', result: 'All tests pass.' });
+});
+
+test("it pages a claude session's transcript through session.read", async () => {
+  const ctx = setupDaemonProc();
+  const t0 = '2026-10-01T10:00:00.000Z';
+  const t1 = '2026-10-01T10:00:05.000Z';
+  const t2 = '2026-10-01T10:00:06.000Z';
+  const t3 = '2026-10-01T10:00:09.000Z';
+  const t4 = '2026-10-01T10:01:00.000Z';
+
+  writeFileSync(
+    join(ctx.home, 'fake-transcript.jsonl'),
+    [
+      { type: 'user', message: { role: 'user', content: 'fix the auth bug' }, timestamp: t0 },
+      {
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'Running the tests.' },
+            { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'bun test' } },
+          ],
+        },
+        timestamp: t1,
+      },
+      {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }],
+        },
+        timestamp: t2,
+      },
+      {
+        type: 'assistant',
+        message: { role: 'assistant', content: [{ type: 'text', text: 'All green.' }] },
+        timestamp: t3,
+      },
+    ]
+      .map((line) => `${JSON.stringify(line)}\n`)
+      .join(''),
+  );
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  const first = await waitFor(async () => {
+    const page = await client.sendRequest('session.read', { session: id, limit: 2 });
+
+    expect(getRecords(page, 'rows')).toHaveLength(2);
+
+    return page;
+  });
+
+  expect(first).toStrictEqual({
+    rows: [
+      { role: 'user', text: 'fix the auth bug', tools: [], at: Date.parse(t0) },
+      {
+        role: 'assistant',
+        text: 'Running the tests.',
+        tools: [{ name: 'Bash', input: 'bun test' }],
+        at: Date.parse(t1),
+      },
+    ],
+    cursor: expect.any(String),
+    more: true,
+  });
+
+  const second = await client.sendRequest('session.read', {
+    session: id,
+    cursor: first['cursor'],
+    limit: 2,
+  });
+
+  expect(second).toStrictEqual({
+    rows: [{ role: 'assistant', text: 'All green.', tools: [], at: Date.parse(t3) }],
+    cursor: expect.any(String),
+    more: false,
+  });
+
+  appendFileSync(
+    join(ctx.home, 'fake-transcript.jsonl'),
+    `${JSON.stringify({ type: 'user', message: { role: 'user', content: 'thanks' }, timestamp: t4 })}\n`,
+  );
+
+  const third = await client.sendRequest('session.read', {
+    session: id,
+    cursor: second['cursor'],
+    limit: 2,
+  });
+
+  expect(third).toStrictEqual({
+    rows: [{ role: 'user', text: 'thanks', tools: [], at: Date.parse(t4) }],
+    cursor: expect.any(String),
+    more: false,
+  });
+});
+
+test.each([['grok'], ['codex']])(
+  'it answers session.read on a %s session with unsupported',
+  async (agent) => {
+    const ctx = setupDaemonProc();
+
+    const client = await ctx.openClient();
+
+    await client.sendHello('atc/test');
+
+    const ok = await client.sendRequest('session.spawn', {
+      cwd: ctx.home,
+      agent,
+      cols: 80,
+      rows: 24,
+    });
+
+    const id = getString(getRecord(ok, 'session'), 'id');
+
+    expect(client.sendRequest('session.read', { session: id })).rejects.toMatchObject({
+      code: 'unsupported',
+    });
+  },
+);
+
+test('it reads hook events from a cursor through events.read', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    name: 'watched',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  const answer = await waitFor(async () => {
+    const read = await client.sendRequest('events.read', {});
+
+    expect(getRecords(read, 'events')).toHaveLength(2);
+
+    return read;
+  });
+
+  expect(answer).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'watched',
+        kind: 'started',
+        detail: null,
+      },
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'watched',
+        kind: 'needs-input',
+        detail: 'needs permission',
+      },
+    ],
+    cursor: expect.toBeString(),
+  });
+
+  const cursor = getString(answer, 'cursor');
+
+  const next = await client.sendRequest('events.read', { cursor });
+
+  expect(next).toStrictEqual({ events: [], cursor });
+});
+
+test('it holds events.read open until the next event arrives', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const first = await client.sendRequest('events.read', {});
+
+  const pending = client.sendRequest('events.read', { cursor: first['cursor'], waitMs: 10_000 });
+  const start = Date.now();
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    name: 'late',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  const answered = await pending;
+
+  expect(getRecords(answered, 'events')[0]).toMatchObject({ kind: 'started', session: id });
+  expect(Date.now()).toBeWithin(start, start + 9000);
 });
