@@ -2,6 +2,7 @@
 // `statusline` are the commands injected into wrangled sessions.
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
+import { parsePort } from './parse-port';
 import { getBuild } from './shared/get-build';
 
 const main = defineCommand({
@@ -27,12 +28,49 @@ const main = defineCommand({
       defineCommand({
         meta: {
           name: 'mcp',
-          description: 'Run an MCP server over stdio exposing the fleet as tools',
+          description:
+            'Run an MCP server exposing the fleet as tools: over stdio, or with --http behind OAuth',
         },
-        async run() {
-          const server = await import('./mcp-server');
+        args: {
+          http: {
+            type: 'boolean',
+            default: false,
+            description: 'Serve MCP over HTTP behind OAuth',
+          },
+          host: {
+            type: 'string',
+            description: 'Address to bind with --http (default 127.0.0.1)',
+          },
+          port: { type: 'string', description: 'Port to listen on with --http (default 8414)' },
+          'public-url': {
+            type: 'string',
+            description:
+              'Origin clients reach the --http server at, such as https://mcp.example.com',
+          },
+        },
+        async run(ctx) {
+          if (!ctx.args.http) {
+            const server = await import('./mcp-server');
 
-          await server.runMCPServer(getBuild());
+            await server.runMCPServer(getBuild());
+
+            return;
+          }
+
+          const port = ctx.args.port === undefined ? null : parsePort(ctx.args.port);
+
+          if (port !== null && !port.ok) {
+            console.error(`atc mcp --http: ${port.message}`);
+            process.exit(1);
+          }
+
+          const http = await import('./mcp-http-server');
+
+          await http.runMCPHTTPServer(getBuild(), {
+            host: ctx.args.host ?? null,
+            port: port === null ? null : port.port,
+            publicURL: ctx.args['public-url'] ?? null,
+          });
         },
       }),
     daemon: () =>
