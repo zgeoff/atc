@@ -18,6 +18,15 @@ export interface FleetEntry {
 
   // The agent session id of the session this one is a sub-session of.
   readonly parent?: AgentSessionID;
+
+  // The prompt the session was spawned with.
+  readonly prompt?: string;
+
+  // The agent's final message from the session's latest finished turn.
+  readonly result?: string;
+
+  // The transcript file the agent's hooks last reported for the session.
+  readonly transcriptPath?: string;
 }
 
 export interface FleetStore {

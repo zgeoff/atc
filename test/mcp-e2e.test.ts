@@ -228,6 +228,9 @@ test('it initializes and lists the fleet tools', async () => {
     'atc_session_ack',
     'atc_resume_command',
     'atc_dirs_list',
+    'atc_session_get',
+    'atc_session_read',
+    'atc_events_read',
   ]);
 });
 
@@ -623,4 +626,156 @@ test('it spawns a top-level session when the caller id matches no session', asyn
   expect(stray['isError']).toBeUndefined();
   expect(getText(stray)).toInclude('"name": "stray"');
   expect(getText(stray)).not.toInclude('"parent"');
+});
+
+test('it reads a session record through a tool call', async () => {
+  const ctx = setupMCP();
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home, prompt: 'say hi' } },
+  });
+
+  const spawnResponse = await ctx.waitForResponse(2);
+
+  const spawned: unknown = JSON.parse(getText(getResult(spawnResponse)));
+
+  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
+    throw new TypeError('spawn answer has no session id');
+  }
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 3,
+    method: 'tools/call',
+    params: { name: 'atc_session_get', arguments: { session: spawned['id'] } },
+  });
+
+  const getResponse = await ctx.waitForResponse(3);
+
+  const result = getResult(getResponse);
+  const record: unknown = JSON.parse(getText(result));
+
+  if (!isRecord(record)) {
+    throw new TypeError('session record is not an object');
+  }
+
+  expect(result['isError']).toBeUndefined();
+  expect(record).toMatchObject({ prompt: 'say hi', pending: null, result: null });
+});
+
+test('it pages a session transcript through a tool call', async () => {
+  const ctx = setupMCP();
+
+  writeFileSync(
+    join(ctx.home, 'fake-transcript.jsonl'),
+    [
+      { type: 'user', message: { role: 'user', content: 'hello' } },
+      {
+        type: 'assistant',
+        message: { role: 'assistant', content: [{ type: 'text', text: 'hi there' }] },
+      },
+    ]
+      .map((line) => `${JSON.stringify(line)}\n`)
+      .join(''),
+  );
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home } },
+  });
+
+  const spawnResponse = await ctx.waitForResponse(2);
+
+  const spawned: unknown = JSON.parse(getText(getResult(spawnResponse)));
+
+  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
+    throw new TypeError('spawn answer has no session id');
+  }
+
+  const session = spawned['id'];
+  let rpcID = 3;
+
+  await waitFor(async () => {
+    const id = rpcID++;
+
+    ctx.sendRPC({
+      jsonrpc: '2.0',
+      id,
+      method: 'tools/call',
+      params: { name: 'atc_session_read', arguments: { session } },
+    });
+
+    const response = await ctx.waitForResponse(id);
+
+    const parsed: unknown = JSON.parse(getText(getResult(response)));
+
+    expect(parsed).toStrictEqual({
+      rows: [
+        { role: 'user', text: 'hello', tools: [], at: null },
+        { role: 'assistant', text: 'hi there', tools: [], at: null },
+      ],
+      cursor: expect.toBeString(),
+      more: false,
+    });
+  });
+});
+
+test('it reads fleet events through a tool call', async () => {
+  const ctx = setupMCP();
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home } },
+  });
+
+  const spawnResponse = await ctx.waitForResponse(2);
+
+  const spawned: unknown = JSON.parse(getText(getResult(spawnResponse)));
+
+  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
+    throw new TypeError('spawn answer has no session id');
+  }
+
+  const session = spawned['id'];
+  let rpcID = 3;
+
+  await waitFor(async () => {
+    const id = rpcID++;
+
+    ctx.sendRPC({
+      jsonrpc: '2.0',
+      id,
+      method: 'tools/call',
+      params: { name: 'atc_events_read', arguments: {} },
+    });
+
+    const response = await ctx.waitForResponse(id);
+
+    const parsed: unknown = JSON.parse(getText(getResult(response)));
+
+    if (!isRecord(parsed)) {
+      throw new TypeError('events answer is not an object');
+    }
+
+    expect(parsed['events']).toPartiallyContain({ kind: 'started', session });
+  });
 });

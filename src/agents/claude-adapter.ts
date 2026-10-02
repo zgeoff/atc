@@ -16,6 +16,7 @@ import type {
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
+import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { truncateDetail } from './truncate-detail';
 import { writeHookSettings } from './write-hook-settings';
 
@@ -43,6 +44,8 @@ export class ClaudeAdapter implements AgentAdapter {
 
   // Claude's hooks are authoritative; no screen heuristics needed.
   readonly screenDetector = null;
+
+  readonly parseTranscriptLine = parseClaudeTranscriptLine;
 
   private readonly config: Config;
 
@@ -110,7 +113,7 @@ export class ClaudeAdapter implements AgentAdapter {
           ...named,
           kind: 'turn-done',
           ...(lastMessage !== undefined && lastMessage !== ''
-            ? { detail: truncateDetail(lastMessage) }
+            ? { detail: truncateDetail(lastMessage), result: lastMessage }
             : {}),
         };
       }

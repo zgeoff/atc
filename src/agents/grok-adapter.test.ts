@@ -338,3 +338,19 @@ test('it resumes when a session id was captured and not from a summary path', ()
 
   expect(adapter.canResume({})).toBe(false);
 });
+
+test('it carries the whole last assistant message of a finished turn as its result', () => {
+  const adapter = new GrokAdapter(buildGrokConfig());
+
+  const ev = adapter.normalizeHook(
+    buildGrokHook('Stop', {
+      sessionId: 'g1',
+      cwd: '/tmp',
+      reason: 'end_turn',
+      lastAssistantMessage: 'x'.repeat(700),
+    }),
+  );
+
+  expect(ev).toMatchObject({ kind: 'turn-done', result: 'x'.repeat(700) });
+  expect(ev.detail).toHaveLength(600);
+});

@@ -811,6 +811,8 @@ test('it opens a database twice without re-running migrations or corrupting data
     '005_add_fleet_agent',
     '006_add_fleet_exited',
     '007_add_fleet_parent',
+    '008_add_fleet_prompt_result_transcript',
+    '009_add_events_kind_detail',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -919,4 +921,211 @@ test('it creates prefs for a database that predates the table', async () => {
   const afterGrok = await store.loadLastUsedAgent();
 
   expect(afterGrok).toBe('grok');
+});
+
+test("it round-trips a fleet row's prompt, result, and transcript path", async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const entry: FleetEntry = {
+    name: 'a',
+    cwd: '/x',
+    agentSessionID: toAgentSessionID('c1'),
+    agent: 'claude',
+    prompt: 'fix the auth bug',
+    result: 'All green.',
+    transcriptPath: '/t/c1.jsonl',
+  };
+
+  await store.writeFleet([entry]);
+
+  const stored = await store.loadFleet();
+
+  expect(stored).toStrictEqual([entry]);
+});
+
+test('it records a hook event with its normalized kind and detail', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'c1' } },
+    { kind: 'turn-done', detail: 'all green' },
+  );
+
+  const events = await store.collectLatestEvents(10);
+
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: toAgentSessionID('c1'),
+      kind: 'turn-done',
+      detail: 'all green',
+    },
+  ]);
+});
+
+test('it falls back to the hook message for an event recorded without a detail', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Notification', payload: { message: 'needs permission' } },
+    { kind: 'needs-input' },
+  );
+
+  const events = await store.collectLatestEvents(10);
+
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'needs-input',
+      detail: 'needs permission',
+    },
+  ]);
+});
+
+test('it leaves heartbeats and unclassified events out of the event reads', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordEvent({ atcId: toSessionID('s1'), event: 'Statusline', payload: {} });
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Other', payload: {} },
+    { kind: 'heartbeat' },
+  );
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
+    { kind: 'started' },
+  );
+
+  const events = await store.collectLatestEvents(10);
+
+  expect(events.map((event) => event.kind)).toStrictEqual(['started']);
+});
+
+test('it collects events after an id oldest first, up to the limit', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
+    { kind: 'started', detail: 'one' },
+  );
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
+    { kind: 'turn-done', detail: 'two' },
+  );
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionEnd', payload: {} },
+    { kind: 'ended', detail: 'three' },
+  );
+
+  const [first] = await store.collectLatestEvents(10);
+
+  if (first === undefined) {
+    throw new Error('expected events');
+  }
+
+  const after = await store.collectEventsAfter(first.id, 1);
+
+  expect(after.map((event) => event.detail)).toStrictEqual(['two']);
+});
+
+test('it collects the latest events oldest first', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
+    { kind: 'started', detail: 'one' },
+  );
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
+    { kind: 'turn-done', detail: 'two' },
+  );
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionEnd', payload: {} },
+    { kind: 'ended', detail: 'three' },
+  );
+
+  const latest = await store.collectLatestEvents(2);
+
+  expect(latest.map((event) => event.detail)).toStrictEqual(['two', 'three']);
+});
+
+test("it loads a session's last activity time by its agent session id", async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const before = Date.now();
+
+  await store.recordEvent(
+    { atcId: toSessionID('s-old'), event: 'Stop', payload: { session_id: 'c1' } },
+    { kind: 'turn-done' },
+  );
+
+  const at = await store.loadLastActivityAt(toSessionID('s-new'), toAgentSessionID('c1'));
+
+  expect(at).toBeWithin(before, Date.now() + 1);
+});
+
+test('it loads no last activity time for a session that never reported', async () => {
+  const dir = setupDir();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const at = await store.loadLastActivityAt(toSessionID('s1'), undefined);
+
+  expect(at).toBeNull();
 });

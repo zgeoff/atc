@@ -269,7 +269,7 @@ function buildTurnDoneEvent(named: Readonly<AdapterEvent>, payload: GrokHookPayl
     ...named,
     kind: 'turn-done',
     ...(lastMessage !== undefined && lastMessage !== ''
-      ? { detail: truncateDetail(lastMessage) }
+      ? { detail: truncateDetail(lastMessage), result: lastMessage }
       : {}),
   };
 }

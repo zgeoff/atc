@@ -87,6 +87,16 @@ export const REQUEST_PARAM_SCHEMAS = {
     .refine((v) => v.request !== '' && v.decision !== '', {
       message: 'permission.respond requires a request and a decision',
     }),
+  'session.get': SESSION_DEFAULTED,
+  'session.read': SESSION_DEFAULTED.extend({
+    cursor: buildOptionalCursor(),
+    limit: buildDefaultedNumber(50).transform((v) => Math.min(Math.max(Math.trunc(v), 1), 200)),
+  }),
+  'events.read': z.object({
+    cursor: buildOptionalCursor(),
+    limit: buildDefaultedNumber(50).transform((v) => Math.min(Math.max(Math.trunc(v), 1), 200)),
+    waitMs: buildDefaultedNumber(0).transform((v) => Math.min(Math.max(Math.trunc(v), 0), 30_000)),
+  }),
 } as const;
 
 function buildDefaultedString(fallback: string) {
@@ -113,5 +123,13 @@ function buildDefaultedNonEmptyString(fallback: string) {
   return z.preprocess(
     (v) => (typeof v === 'string' && v !== '' ? v : undefined),
     z.string().default(fallback),
+  );
+}
+
+// An empty cursor reads as no cursor, the way a client starting fresh sends it.
+function buildOptionalCursor() {
+  return z.preprocess(
+    (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+    z.string().optional(),
   );
 }

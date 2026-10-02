@@ -191,3 +191,16 @@ test('it builds codex resume commands with and without a captured id', () => {
 
   expect(adapter.buildResumeCommand('/tmp', undefined)).toBe(`cd '/tmp' && codex resume`);
 });
+
+test('it carries the whole last assistant message of a finished turn as its result', () => {
+  const adapter = new CodexAdapter(buildCodexConfig());
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'Stop',
+    payload: { session_id: 'c-1', last_assistant_message: 'x'.repeat(700) },
+  });
+
+  expect(ev).toMatchObject({ kind: 'turn-done', result: 'x'.repeat(700) });
+  expect(ev.detail).toHaveLength(600);
+});

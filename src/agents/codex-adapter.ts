@@ -117,7 +117,7 @@ export class CodexAdapter implements AgentAdapter {
           ...named,
           kind: 'turn-done',
           ...(lastMessage !== undefined && lastMessage !== ''
-            ? { detail: truncateDetail(lastMessage) }
+            ? { detail: truncateDetail(lastMessage), result: lastMessage }
             : {}),
         };
       }

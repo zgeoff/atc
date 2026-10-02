@@ -12,6 +12,9 @@ interface FleetTable {
   agent: string;
   exited: number;
   parent: string | null;
+  prompt: string | null;
+  result: string | null;
+  transcript_path: string | null;
 }
 
 interface EventsTable {
@@ -21,6 +24,8 @@ interface EventsTable {
   event: string;
   message: string | null;
   session_id: string | null;
+  kind: string | null;
+  detail: string | null;
 }
 
 interface SpawnHistoryTable {
@@ -46,9 +51,9 @@ export interface StateStoreSchema {
 
 // Every shape the fleet table has shipped with: the oldest carries only
 // agent_session_id under its Claude-era name plus name and cwd, and each
-// later step adds one column the daemon grew to depend on. events,
-// spawn_history, and prefs have carried one shape since they were added, so
-// they need only their initial creation.
+// later step adds one column the daemon grew to depend on. events later gains
+// columns of its own, while spawn_history and prefs have carried one shape
+// since they were added.
 const MIGRATIONS: Record<string, Migration> = {
   '001_create_initial_schema': {
     async up(db: Kysely<StateStoreSchema>) {
@@ -123,6 +128,19 @@ const MIGRATIONS: Record<string, Migration> = {
   '007_add_fleet_parent': {
     async up(db: Kysely<StateStoreSchema>) {
       await db.schema.alterTable('fleet').addColumn('parent', 'text').execute();
+    },
+  },
+  '008_add_fleet_prompt_result_transcript': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('prompt', 'text').execute();
+      await db.schema.alterTable('fleet').addColumn('result', 'text').execute();
+      await db.schema.alterTable('fleet').addColumn('transcript_path', 'text').execute();
+    },
+  },
+  '009_add_events_kind_detail': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('events').addColumn('kind', 'text').execute();
+      await db.schema.alterTable('events').addColumn('detail', 'text').execute();
     },
   },
 };

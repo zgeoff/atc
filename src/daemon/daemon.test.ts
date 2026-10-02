@@ -8,6 +8,7 @@ import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
+import { encodeCursor } from '../protocol/encode-cursor';
 import { OutboundQueue } from '../protocol/outbound-queue';
 import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
@@ -961,4 +962,122 @@ test('it runs a configured hook with the same event JSON a watching client recei
 
   expect(JSON.parse(payload)).toStrictEqual(event);
   expect(eventName).toBe('SessionAttached');
+});
+
+test('it answers session.get for an unknown session with no_such_session', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  expect(client.sendRequest('session.get', { session: 'nope' })).rejects.toMatchObject({
+    code: 'no_such_session',
+  });
+});
+
+test("it reads a spawned session's prompt through session.get", async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  const spawned = await client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    prompt: 'fix the auth bug',
+    cols: 80,
+    rows: 24,
+  });
+
+  const session = spawned['session'];
+
+  if (!isRecord(session) || typeof session['id'] !== 'string') {
+    throw new Error('no session in spawn answer');
+  }
+
+  const record = await client.sendRequest('session.get', { session: session['id'] });
+
+  expect(record).toStrictEqual({
+    session: expect.objectContaining({ id: session['id'] }),
+    prompt: 'fix the auth bug',
+    lastActivityAt: expect.toBeNumber(),
+    pending: null,
+    result: null,
+  });
+});
+
+test('it answers session.read for an unknown session with no_such_session', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  expect(client.sendRequest('session.read', { session: 'nope' })).rejects.toMatchObject({
+    code: 'no_such_session',
+  });
+});
+
+test('it answers session.read with unsupported for an agent atc cannot read the transcript of', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  const id = await spawnNamedSession((m, p) => client.sendRequest(m, p), 'worker', '/tmp');
+
+  expect(client.sendRequest('session.read', { session: id })).rejects.toMatchObject({
+    code: 'unsupported',
+  });
+});
+
+test('it rejects a session.read cursor the daemon never issued with bad_args', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  expect(
+    client.sendRequest('session.read', { session: 'nope', cursor: 'garbage' }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
+});
+
+test('it rejects an events cursor passed to session.read with bad_args', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  const events = await client.sendRequest('events.read', {});
+
+  expect(
+    client.sendRequest('session.read', { session: 'nope', cursor: events['cursor'] }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
+});
+
+test('it rejects a transcript cursor passed to events.read with bad_args', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  const cursor = encodeCursor({ kind: 'transcript', path: '/x', offset: 0 });
+
+  expect(client.sendRequest('events.read', { cursor })).rejects.toMatchObject({
+    code: 'bad_args',
+  });
+});
+
+test('it answers events.read on an empty trail at once with no events and a cursor', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  const answer = await client.sendRequest('events.read', {});
+
+  expect(answer).toStrictEqual({ events: [], cursor: expect.any(String) });
+});
+
+test('it holds events.read open for waitMs when no event arrives', async () => {
+  const client = await setupClient();
+
+  await client.sendHello('atc/test-build');
+
+  const before = Date.now();
+
+  const answer = await client.sendRequest('events.read', { waitMs: 300 });
+
+  expect(answer).toStrictEqual({ events: [], cursor: expect.any(String) });
+  expect(Date.now()).toBeWithin(before + 250, before + 3000);
 });
