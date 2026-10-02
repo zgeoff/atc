@@ -14,6 +14,7 @@ const sleepAdapter: AgentAdapter = {
   id: 'claude',
   headlessRunner: null,
   screenDetector: null,
+  takesMessages: false,
   planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
   normalizeHook: () => ({ kind: 'heartbeat' }),
   loadName: () => Promise.resolve(null),

@@ -37,6 +37,8 @@ export class GatewayAdapter implements AgentAdapter {
   // The gateway runs the Claude CLI, which writes the same transcript.
   readonly parseTranscriptLine = parseClaudeTranscriptLine;
 
+  readonly takesMessages = true;
+
   private readonly gateway: GatewayConfig;
 
   private readonly claude: ClaudeAdapter;

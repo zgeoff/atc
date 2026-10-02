@@ -187,6 +187,25 @@ const TOOLS: readonly MCPTool[] = [
       'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended) since a cursor, oldest first, each with the session id and name. Without a cursor it returns the most recent events. Pass the returned cursor next time. waitMs holds the call open until an event arrives.',
     inputSchema: EVENTS_READ_INPUT,
   },
+  {
+    name: 'atc_session_message',
+    description:
+      'Send a session a message and get its id back. The message waits in the session inbox until the session takes it; its status moves accepted, delivered, answered, each broadcast as a SessionMessage event. A session that cannot take messages (Grok, Codex, or a Claude session with no connected tap) refuses it as unsupported. The message is never typed into the terminal.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        session: { type: 'string', description: 'The atc session id, from atc_session_list' },
+        text: { type: 'string', description: 'The message text' },
+        from: {
+          type: 'string',
+          description:
+            'Who the message is from; defaults to the calling session id, or mcp outside a session',
+        },
+      },
+      required: ['session', 'text'],
+      additionalProperties: false,
+    },
+  },
 ];
 
 /**
@@ -420,6 +439,25 @@ async function runTool(
         ...(typeof args['cursor'] === 'string' ? { cursor: args['cursor'] } : {}),
         ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
         ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
+      });
+
+      return JSON.stringify(ok, null, 2);
+    }
+    case 'atc_session_message': {
+      const caller = process.env['ATC_SESSION_ID'];
+      const given = args['from'];
+      let from = 'mcp';
+
+      if (typeof given === 'string' && given !== '') {
+        from = given;
+      } else if (caller !== undefined && caller !== '') {
+        from = caller;
+      }
+
+      const ok = await client.sendRequest('session.message', {
+        session: args['session'],
+        text: args['text'],
+        from,
       });
 
       return JSON.stringify(ok, null, 2);

@@ -47,6 +47,8 @@ export class ClaudeAdapter implements AgentAdapter {
 
   readonly parseTranscriptLine = parseClaudeTranscriptLine;
 
+  readonly takesMessages = true;
+
   private readonly config: Config;
 
   // Written on first spawn so constructing the adapter touches no state.

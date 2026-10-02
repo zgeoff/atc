@@ -16,6 +16,8 @@ interface Pending {
 export class DaemonClient {
   onEvent: (event: EventMsg) => void = () => {};
 
+  onClose: () => void = () => {};
+
   private queue: OutboundQueue | null = null;
 
   private buffer = '';
@@ -40,6 +42,7 @@ export class DaemonClient {
         },
         close() {
           client.drainPending('connection closed');
+          client.onClose();
         },
         error() {},
       },

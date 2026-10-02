@@ -60,6 +60,8 @@ export class GrokAdapter implements AgentAdapter {
   // Grok's hooks are authoritative; no screen heuristics needed.
   readonly screenDetector = null;
 
+  readonly takesMessages = false;
+
   private readonly config: Config;
 
   private readonly hookState = new Map<SessionID, GrokSessionHookState>();

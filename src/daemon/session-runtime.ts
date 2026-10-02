@@ -37,6 +37,11 @@ export class SessionRuntime {
   // clears it, and a spawn that never reports leaves it stranded harmlessly.
   pendingLastUsed = false;
 
+  // Whether the agent has reported SessionStart since its terminal last
+  // booted; a message to a started session needs a connected tap, while one
+  // that has not started yet queues.
+  started = false;
+
   dispose(): void {
     clearTimeout(this.resizeTimer);
     clearTimeout(this.detectTimer);

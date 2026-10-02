@@ -4,27 +4,32 @@ import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
 import type { SessionID } from '../shared/session-id';
+import type { MessageOwner, MessageRecord } from '../store/message-record';
 import { StateStore } from '../store/state-store';
 import { AttachRegistry } from './attach-registry';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildSessionEvent } from './build-session-event';
+import { buildSessionMessageEvent } from './build-session-message-event';
 import { DaemonConnection } from './daemon-connection';
-import type { DaemonContext, OutputClient } from './daemon-connection';
+import type { DaemonContext, OutputClient, TapClient } from './daemon-connection';
 import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
 import type { HookEvent } from './hooks';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
+import { mintMessageID } from './mint-message-id';
+import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
 import { restoreFleet } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
 import { ScreenModel } from './screen-model';
 import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
-import type { SessionDescriptor, SessionState } from './sessions';
+import type { Session, SessionDescriptor, SessionState } from './sessions';
 import { startEventsServer } from './start-events-server';
 import { startHeadlessTurn } from './start-headless-turn';
+import { TapRegistry } from './tap-registry';
 
 export interface DaemonOptions {
   readonly socketPath: string;
@@ -164,6 +169,65 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const findRuntime = (sessionID: SessionID) => runtimes.get(sessionID);
 
   const attachments = new AttachRegistry<OutputClient>();
+  const taps = new TapRegistry<TapClient>();
+
+  // Hands one pending message to the session's tap, once. The event goes to
+  // the tap connection alone: it never reaches other clients, the events
+  // socket, or hooks.
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- every field is readonly; the branded id has no readonly form to wrap it in
+  const sendInboxMessage = (sessionID: SessionID, record: MessageRecord) => {
+    taps.claimDelivery(sessionID, record.id)?.sendEvent({
+      v: PROTOCOL_V,
+      ev: 'InboxMessage',
+      s: sessionID,
+      message: record.id,
+      from: record.from,
+      text: record.text,
+      sentAt: record.sentAt,
+    });
+  };
+
+  // Reads the backlog from the store before sending anything, so a tap's
+  // ok response is always queued ahead of its first message.
+  const drainInbox = async (sessionID: SessionID) => {
+    const s = mgr.sessions.find((x) => x.id === sessionID);
+
+    if (s === undefined) {
+      return;
+    }
+
+    try {
+      const pending = await store.collectPendingMessages(buildMessageOwner(s));
+
+      for (const record of pending) {
+        sendInboxMessage(sessionID, record);
+      }
+    } catch {}
+  };
+
+  const applyReport = async (e: HookEvent) => {
+    const report = parseReport(e.payload);
+
+    if (report === null) {
+      return;
+    }
+
+    const s = mgr.sessions.find((x) => x.id === e.atcId);
+    const owner = s === undefined ? { atcID: e.atcId } : buildMessageOwner(s);
+
+    try {
+      const answered = await store.updateMessageAnswered(
+        report.message,
+        owner,
+        report.answer,
+        Date.now(),
+      );
+
+      if (answered !== null) {
+        emitEvent(buildSessionMessageEvent(e.atcId, answered), findHookScope(e.atcId));
+      }
+    } catch {}
+  };
 
   // The screen tier of the detector stack: once a session's output has
   // quiesced, judge the serialized screen and flip running/needs_you.
@@ -374,6 +438,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     if (kind === 'removed') {
       attachments.removeSession(s.id);
+      taps.removeSession(s.id);
       runtimes.get(s.id)?.dispose();
       runtimes.delete(s.id);
     }
@@ -394,6 +459,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   const reporter = startHookServer((e) => {
+    if (e.event === 'Report') {
+      void applyReport(e);
+
+      return;
+    }
+
+    const previousAgentSessionID = mgr.sessions.find((s) => s.id === e.atcId)?.agentSessionID;
     const ev = mgr.applyHook(e);
 
     if (e.event !== 'Statusline') {
@@ -402,6 +474,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     const kind = ev?.kind ?? null;
     const runtime = runtimes.get(e.atcId);
+    const currentAgentSessionID = mgr.sessions.find((s) => s.id === e.atcId)?.agentSessionID;
+
+    if (currentAgentSessionID !== undefined && currentAgentSessionID !== previousAgentSessionID) {
+      void store.updateMessageOwner(e.atcId, previousAgentSessionID, currentAgentSessionID);
+    }
 
     if (kind === 'ended') {
       runtime?.pendingEject?.();
@@ -410,6 +487,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     // A revived session announcing itself is the cue a staggered restore
     // waits on before booting the next one.
     if (kind === 'started') {
+      if (runtime !== undefined) {
+        runtime.started = true;
+      }
+
       runtime?.bootWaiter?.();
       const started = mgr.sessions.find((s) => s.id === e.atcId);
 
@@ -535,6 +616,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       if (runtime !== undefined) {
         runtime.dims = { cols, rows };
+        runtime.started = false;
 
         runtime.screen ??= new ScreenModel(cols, rows);
       }
@@ -720,6 +802,79 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         await eventSignal.waitForNext(generation, remaining);
       }
     },
+    writeSessionMessage: async (sessionID, from, text) => {
+      const s = mgr.sessions.find((x) => x.id === sessionID);
+
+      if (s === undefined) {
+        return 'missing';
+      }
+
+      if (!(s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'))) {
+        return 'dead';
+      }
+
+      if (mgr.findAdapter(s.agent)?.takesMessages !== true) {
+        return 'unsupported';
+      }
+
+      if (runtimes.get(sessionID)?.started === true && !taps.hasTap(sessionID)) {
+        return 'no_tap';
+      }
+
+      const record: MessageRecord = {
+        id: mintMessageID(),
+        atcID: sessionID,
+        ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
+        from,
+        text,
+        status: 'accepted',
+        sentAt: Date.now(),
+      };
+
+      await store.writeMessage(record);
+
+      emitEvent(buildSessionMessageEvent(sessionID, record), findHookScope(sessionID));
+      sendInboxMessage(sessionID, record);
+
+      return record;
+    },
+    attachTap: (client, sessionID) => {
+      const s = mgr.sessions.find((x) => x.id === sessionID);
+
+      if (s === undefined) {
+        return 'missing';
+      }
+
+      if (mgr.findAdapter(s.agent)?.takesMessages !== true) {
+        return 'unsupported';
+      }
+
+      taps.attach(sessionID, client);
+      void drainInbox(sessionID);
+
+      return 'ok';
+    },
+    ackMessage: async (client, sessionID, messageID) => {
+      const s = mgr.sessions.find((x) => x.id === sessionID);
+
+      if (s === undefined || !taps.isTap(sessionID, client)) {
+        return 'not_tapping';
+      }
+
+      const owner = buildMessageOwner(s);
+
+      const delivered = await store.updateMessageDelivered(messageID, owner, Date.now());
+
+      if (delivered !== null) {
+        emitEvent(buildSessionMessageEvent(sessionID, delivered), findHookScope(sessionID));
+
+        return delivered;
+      }
+
+      const current = await store.findMessage(messageID, owner);
+
+      return current ?? 'unknown';
+    },
   };
 
   try {
@@ -743,6 +898,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       close(socket) {
         clients.delete(socket.data);
         ctx.detachClient(socket.data);
+        taps.detachAll(socket.data);
       },
       error() {},
     },
@@ -771,6 +927,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   return { stop: stopDaemon };
+}
+
+function buildMessageOwner(s: Session): MessageOwner {
+  return {
+    atcID: s.id,
+    ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
+  };
 }
 
 function hasResumableTranscript(mgr: SessionManager, id: SessionID): boolean {

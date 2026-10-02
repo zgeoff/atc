@@ -235,3 +235,24 @@ test('it clamps session.read limit to 200', () => {
 
   expect(parsed).toStrictEqual({ ok: true, data: { session: toSessionID('s1'), limit: 200 } });
 });
+
+test('it rejects session.message without text', () => {
+  const parsed = parseRequestParams('session.message', { session: 's1', from: 'alice' });
+
+  expect(parsed).toStrictEqual({ ok: false, message: 'session.message requires text' });
+});
+
+test('it defaults session.message from to unknown', () => {
+  const parsed = parseRequestParams('session.message', { session: 's1', text: 'hi', from: '' });
+
+  expect(parsed).toStrictEqual({
+    ok: true,
+    data: { session: toSessionID('s1'), from: 'unknown', text: 'hi' },
+  });
+});
+
+test('it rejects message.ack without a message', () => {
+  const parsed = parseRequestParams('message.ack', { session: 's1' });
+
+  expect(parsed).toStrictEqual({ ok: false, message: 'message.ack requires a message' });
+});

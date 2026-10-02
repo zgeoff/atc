@@ -152,6 +152,45 @@ const main = defineCommand({
           await reporter.runHookReport();
         },
       }),
+    tap: () =>
+      defineCommand({
+        meta: {
+          name: 'tap',
+          description: "Stream a session's inbox to stdout as NDJSON, acking each message",
+        },
+        args: {
+          session: {
+            type: 'string',
+            required: true,
+            description: 'The atc session id to tap',
+          },
+        },
+        async run(ctx) {
+          const tap = await import('./tap');
+
+          await tap.runTap(ctx.args.session);
+        },
+      }),
+    report: () =>
+      defineCommand({
+        meta: {
+          name: 'report',
+          description: 'Report a message event from a wrangled session to the atc socket',
+          hidden: true,
+        },
+
+        // Neither arg is required: a citty usage error exits nonzero, and
+        // reporters must always exit 0.
+        args: {
+          kind: { type: 'positional', required: false, default: '' },
+          message: { type: 'string', default: '' },
+        },
+        async run(ctx) {
+          const reporter = await import('./report');
+
+          await reporter.runReport(ctx.args.kind, ctx.args.message);
+        },
+      }),
     statusline: () =>
       defineCommand({
         meta: {

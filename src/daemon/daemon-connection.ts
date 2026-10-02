@@ -13,8 +13,10 @@ import {
   encodeMessage,
 } from '../protocol/protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from '../protocol/protocol';
+import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
+import type { MessageRecord } from '../store/message-record';
 import type { Dims } from './attach-registry';
 import type { FleetEvent } from './build-fleet-events';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
@@ -100,12 +102,28 @@ export interface DaemonContext {
     limit: number,
     waitMs: number,
   ) => Promise<FleetEvent[]>;
+  readonly writeSessionMessage: (
+    sessionID: SessionID,
+    from: string,
+    text: string,
+  ) => Promise<MessageRecord | 'missing' | 'dead' | 'unsupported' | 'no_tap'>;
+  readonly attachTap: (client: TapClient, sessionID: SessionID) => 'ok' | 'missing' | 'unsupported';
+  readonly ackMessage: (
+    client: TapClient,
+    sessionID: SessionID,
+    messageID: MessageID,
+  ) => Promise<MessageRecord | 'not_tapping' | 'unknown'>;
 }
 
 // The slice of a connection the attach bookkeeping needs: identity plus the
 // ability to receive output events.
 export interface OutputClient {
   readonly sendOutput: (sessionID: SessionID, event: EventMsg, byteLength: number) => void;
+}
+
+// The slice of a connection a tap subscription needs.
+export interface TapClient {
+  readonly sendEvent: (event: EventMsg) => void;
 }
 
 interface PeerSocket extends SocketWriter {
@@ -463,6 +481,21 @@ export class DaemonConnection {
 
         return;
       }
+      case 'session.message': {
+        await this.applySessionMessage(req);
+
+        return;
+      }
+      case 'session.tap': {
+        this.applyTap(req);
+
+        return;
+      }
+      case 'message.ack': {
+        await this.applyMessageAck(req);
+
+        return;
+      }
       case 'fleet.restore': {
         const parsed = parseRequestParams('fleet.restore', req.p);
 
@@ -773,6 +806,114 @@ export class DaemonConnection {
       events,
       cursor: last === undefined ? encodeCursor({ kind: 'events', id: afterID ?? 0 }) : last.cursor,
     });
+  }
+
+  private async applySessionMessage(req: RequestMsg): Promise<void> {
+    const parsed = parseRequestParams('session.message', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const sessionID = parsed.data.session;
+
+    const result = await this.ctx.writeSessionMessage(
+      sessionID,
+      parsed.data.from,
+      parsed.data.text,
+    );
+
+    if (result === 'missing') {
+      this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
+
+      return;
+    }
+
+    if (result === 'dead') {
+      this.sendErr(req.id, 'session_dead', `session '${sessionID}' has no live process`);
+
+      return;
+    }
+
+    if (result === 'unsupported') {
+      this.sendErr(
+        req.id,
+        'unsupported',
+        `session '${sessionID}' cannot take messages: its agent has no message tap`,
+      );
+
+      return;
+    }
+
+    if (result === 'no_tap') {
+      this.sendErr(
+        req.id,
+        'unsupported',
+        `session '${sessionID}' has no connected tap to take messages`,
+      );
+
+      return;
+    }
+
+    this.sendOk(req.id, { message: result.id, status: result.status });
+  }
+
+  private applyTap(req: RequestMsg): void {
+    const parsed = parseRequestParams('session.tap', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const sessionID = parsed.data.session;
+    const result = this.ctx.attachTap(this, sessionID);
+
+    if (result === 'missing') {
+      this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
+
+      return;
+    }
+
+    if (result === 'unsupported') {
+      this.sendErr(req.id, 'unsupported', `session '${sessionID}' cannot take messages`);
+
+      return;
+    }
+
+    this.sendOk(req.id, {});
+  }
+
+  private async applyMessageAck(req: RequestMsg): Promise<void> {
+    const parsed = parseRequestParams('message.ack', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const sessionID = parsed.data.session;
+    const messageID = parsed.data.message;
+
+    const result = await this.ctx.ackMessage(this, sessionID, messageID);
+
+    if (result === 'not_tapping') {
+      this.sendErr(req.id, 'bad_args', `this connection is not tapping session '${sessionID}'`);
+
+      return;
+    }
+
+    if (result === 'unknown') {
+      this.sendErr(req.id, 'bad_args', `no message '${messageID}' for session '${sessionID}'`);
+
+      return;
+    }
+
+    this.sendOk(req.id, { message: result.id, status: result.status });
   }
 
   private async applySessionVerb(

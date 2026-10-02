@@ -124,6 +124,10 @@ export interface AgentAdapter {
 
   // The detector stack's screen tier; null when hooks are authoritative.
   readonly screenDetector: ScreenDetector | null;
+
+  // Whether a session under this agent can take inbox messages through a tap;
+  // false refuses every message as unsupported.
+  readonly takesMessages: boolean;
   readonly planSpawn: (opts: SpawnOptions) => SpawnPlan;
   readonly normalizeHook: (e: HookEvent) => AdapterEvent;
   readonly loadName: (

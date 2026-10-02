@@ -17,6 +17,7 @@ const promptAdapter: AgentAdapter = {
   screenDetector: {
     detectAttention: (screen) => (screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working'),
   },
+  takesMessages: false,
   planSpawn: () => ({
     bin: 'bash',
     args: [

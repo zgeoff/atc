@@ -4,8 +4,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import type { FleetEntry } from './fleet-entry';
+import type { MessageRecord } from './message-record';
 import { StateStore } from './state-store';
 
 function setupDir(): string {
@@ -814,6 +816,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '008_add_fleet_prompt_result_transcript',
     '009_add_events_kind_detail',
     '010_add_events_trail_indexes',
+    '011_create_messages',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -1215,4 +1218,351 @@ test('it serves the event-trail lookups from indexes', async () => {
 
   expect(activityPlan).toInclude('USING INDEX events_atc_id_ts');
   expect(activityPlan).toInclude('USING INDEX events_session_id_ts');
+});
+
+test('it lists an accepted message as pending for the session it was sent to', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  await store.writeMessage(record);
+
+  const pending = await store.collectPendingMessages({ atcID: toSessionID('s1') });
+
+  expect(pending).toStrictEqual([record]);
+});
+
+test('it lists pending messages in the order they were sent', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const first: MessageRecord = {
+    id: toMessageID('m-z'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-z',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  const second: MessageRecord = {
+    id: toMessageID('m-a'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-a',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  const third: MessageRecord = {
+    id: toMessageID('m-m'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-m',
+    status: 'accepted',
+    sentAt: 1001,
+  };
+
+  await store.writeMessage(first);
+  await store.writeMessage(second);
+  await store.writeMessage(third);
+
+  const pending = await store.collectPendingMessages({ atcID: toSessionID('s1') });
+
+  expect(pending).toStrictEqual([first, second, third]);
+});
+
+test('it finds pending messages by agent session id under a new atc id', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+    agentSessionID: toAgentSessionID('a1'),
+  };
+
+  await store.writeMessage(record);
+
+  const pending = await store.collectPendingMessages({
+    atcID: toSessionID('s2'),
+    agentSessionID: toAgentSessionID('a1'),
+  });
+
+  expect(pending).toStrictEqual([record]);
+});
+
+test('it moves an accepted message to delivered once', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  const owner = { atcID: toSessionID('s1') };
+
+  await store.writeMessage(record);
+
+  const first = await store.updateMessageDelivered(record.id, owner, 2000);
+  const second = await store.updateMessageDelivered(record.id, owner, 3000);
+
+  expect(first).toStrictEqual({ ...record, status: 'delivered', deliveredAt: 2000 });
+  expect(second).toBeNull();
+
+  const pending = await store.collectPendingMessages(owner);
+
+  expect(pending).toStrictEqual([]);
+});
+
+test('it moves a delivered message to answered with the final text', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  const owner = { atcID: toSessionID('s1') };
+
+  await store.writeMessage(record);
+  await store.updateMessageDelivered(record.id, owner, 2000);
+
+  const answered = await store.updateMessageAnswered(record.id, owner, 'done', 3000);
+
+  expect(answered).toStrictEqual({
+    ...record,
+    status: 'answered',
+    deliveredAt: 2000,
+    answeredAt: 3000,
+    answer: 'done',
+  });
+});
+
+test('it answers an accepted message that was never acked', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  const owner = { atcID: toSessionID('s1') };
+
+  await store.writeMessage(record);
+
+  const answered = await store.updateMessageAnswered(record.id, owner, 'done', 3000);
+
+  expect(answered).toStrictEqual({
+    ...record,
+    status: 'answered',
+    answeredAt: 3000,
+    answer: 'done',
+  });
+});
+
+test('it refuses to deliver a message owned by another session', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  await store.writeMessage(record);
+
+  const updated = await store.updateMessageDelivered(record.id, { atcID: toSessionID('s2') }, 2000);
+
+  expect(updated).toBeNull();
+});
+
+test('it refuses to answer a message owned by another session', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  await store.writeMessage(record);
+
+  const updated = await store.updateMessageAnswered(
+    record.id,
+    { atcID: toSessionID('s2') },
+    'done',
+    2000,
+  );
+
+  expect(updated).toBeNull();
+});
+
+test('it gives messages sent before SessionStart their agent session id', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  await store.writeMessage(record);
+  await store.updateMessageOwner(toSessionID('s1'), undefined, toAgentSessionID('a1'));
+
+  const found = await store.findMessage(record.id, {
+    atcID: toSessionID('s2'),
+    agentSessionID: toAgentSessionID('a1'),
+  });
+
+  expect(found).toStrictEqual({ ...record, agentSessionID: toAgentSessionID('a1') });
+});
+
+test('it moves messages to a changed agent session id', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+    agentSessionID: toAgentSessionID('a1'),
+  };
+
+  await store.writeMessage(record);
+  await store.updateMessageOwner(toSessionID('s2'), toAgentSessionID('a1'), toAgentSessionID('a2'));
+
+  const found = await store.findMessage(record.id, {
+    atcID: toSessionID('s3'),
+    agentSessionID: toAgentSessionID('a2'),
+  });
+
+  expect(found).toStrictEqual({ ...record, agentSessionID: toAgentSessionID('a2') });
+});
+
+test('it keeps messages across a store reopen', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  const first = await StateStore.open(dbPath);
+
+  await first.writeMessage(record);
+  await first.stop();
+
+  const second = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await second.stop();
+  });
+
+  const pending = await second.collectPendingMessages({ atcID: toSessionID('s1') });
+
+  expect(pending).toStrictEqual([record]);
+});
+
+test('it finds a message only for its own session', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  await store.writeMessage(record);
+
+  const own = await store.findMessage(record.id, { atcID: toSessionID('s1') });
+
+  expect(own).toStrictEqual(record);
+
+  const other = await store.findMessage(record.id, { atcID: toSessionID('s2') });
+
+  expect(other).toBeNull();
 });

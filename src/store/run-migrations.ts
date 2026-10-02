@@ -2,6 +2,7 @@ import { sql } from 'kysely';
 import type { Generated, Kysely } from 'kysely';
 import { DEFAULT_MIGRATION_TABLE, Migrator } from 'kysely/migration';
 import type { Migration, MigrationProvider, MigrationResultSet } from 'kysely/migration';
+import type { MessageStatus } from './message-record';
 
 interface FleetTable {
   agent_session_id: string;
@@ -38,6 +39,19 @@ interface PrefsTable {
   value: string;
 }
 
+interface MessagesTable {
+  id: string;
+  atc_id: string;
+  agent_session_id: string | null;
+  sender: string;
+  text: string;
+  status: MessageStatus;
+  sent_at: number;
+  delivered_at: number | null;
+  answered_at: number | null;
+  answer: string | null;
+}
+
 /**
  * The state store's schema: what the query builder and the migration
  * ladder both build against.
@@ -47,13 +61,14 @@ export interface StateStoreSchema {
   events: EventsTable;
   spawn_history: SpawnHistoryTable;
   prefs: PrefsTable;
+  messages: MessagesTable;
 }
 
 // Every shape the fleet table has shipped with: the oldest carries only
 // agent_session_id under its Claude-era name plus name and cwd, and each
 // later step adds one column the daemon grew to depend on. events later gains
-// columns of its own, while spawn_history and prefs have carried one shape
-// since they were added.
+// columns of its own, while spawn_history, prefs, and messages have carried one
+// shape since they were added.
 const MIGRATIONS: Record<string, Migration> = {
   '001_create_initial_schema': {
     async up(db: Kysely<StateStoreSchema>) {
@@ -164,6 +179,24 @@ const MIGRATIONS: Record<string, Migration> = {
       await sql`CREATE INDEX IF NOT EXISTS events_trail ON events (id) WHERE kind IS NOT NULL AND kind != 'heartbeat'`.execute(
         db,
       );
+    },
+  },
+  '011_create_messages': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('messages')
+        .ifNotExists()
+        .addColumn('id', 'text', (c) => c.primaryKey())
+        .addColumn('atc_id', 'text', (c) => c.notNull())
+        .addColumn('agent_session_id', 'text')
+        .addColumn('sender', 'text', (c) => c.notNull())
+        .addColumn('text', 'text', (c) => c.notNull())
+        .addColumn('status', 'text', (c) => c.notNull())
+        .addColumn('sent_at', 'integer', (c) => c.notNull())
+        .addColumn('delivered_at', 'integer')
+        .addColumn('answered_at', 'integer')
+        .addColumn('answer', 'text')
+        .execute();
     },
   },
 };

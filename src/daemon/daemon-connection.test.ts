@@ -75,6 +75,9 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     },
     queueBytes,
     getEffectiveDims: assertUnreachable,
+    writeSessionMessage: assertUnreachable,
+    attachTap: assertUnreachable,
+    ackMessage: assertUnreachable,
   };
 
   const conn = new DaemonConnection(peer, ctx);
