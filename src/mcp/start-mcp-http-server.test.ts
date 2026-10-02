@@ -34,6 +34,8 @@ test('it advertises public clients with PKCE, issuer responses, and no registrat
     'registration_endpoint',
     'introspection_endpoint',
   ]);
+
+  expect(Object.keys(metadata)).toSatisfyAll((key: string) => !key.startsWith('dpop_'));
 });
 
 test.each([
@@ -50,6 +52,8 @@ test.each([
     authorization_servers: [server.origin],
     scopes_supported: ['read', 'message', 'spawn', 'kill'],
   });
+
+  expect(Object.keys(metadata)).toSatisfyAll((key: string) => !key.startsWith('dpop_'));
 });
 
 test('it challenges a request without a token with where to find the resource metadata', async () => {
@@ -193,7 +197,7 @@ test('it runs a tool call whose scope the token holds', async () => {
   expect(body).toStrictEqual({
     jsonrpc: '2.0',
     id: 1,
-    result: { content: [{ type: 'text', text: '[]' }] },
+    result: { content: [{ type: 'text', text: '[]' }], structuredContent: { sessions: [] } },
   });
 });
 
@@ -1322,6 +1326,7 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
     allowedHosts: [],
     dbPath: server.dbPath,
     printApproval: () => {},
+    printRequest: () => {},
   });
 
   onTestFinished(async () => {
@@ -1360,6 +1365,7 @@ test.each([
     allowedHosts: [],
     dbPath: join(tmp.dir, 'mcp-auth.db'),
     printApproval: () => {},
+    printRequest: () => {},
   });
 
   expect(started).rejects.toThrow(/needs an https public URL/);
@@ -1379,6 +1385,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
     allowedHosts: [],
     dbPath: join(tmp.dir, 'mcp-auth.db'),
     printApproval: () => {},
+    printRequest: () => {},
   });
 
   onTestFinished(async () => {
@@ -1387,6 +1394,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
   });
 
   expect(server.origin).toBe('https://mcp.example.com');
+  expect(server.listening).toMatch(/^http:\/\/0\.0\.0\.0:\d+$/);
 });
 
 test('it refuses a consent answer for a request whose approval code was never typed', async () => {
@@ -2063,4 +2071,138 @@ test('it shows the sentence for an unknown client on the error page', async () =
   expect(html).toInclude(
     'atc refused this authorization request: the client is not one added to atc.',
   );
+});
+
+test('it accepts a token bound to /mcp at the bare origin', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
+
+  const authorized = await runMCPAuthorization(server, {
+    clientID,
+    redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://chatgpt.com/connector_platform_oauth_redirect',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+      resource: `${server.origin}/mcp`,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  const listed = await fetch(`${server.url}/`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_session_list', arguments: {} },
+    }),
+  });
+
+  const body: unknown = await listed.json();
+
+  expect(listed.status).toBe(200);
+
+  expect(body).toStrictEqual({
+    jsonrpc: '2.0',
+    id: 1,
+    result: { content: [{ type: 'text', text: '[]' }], structuredContent: { sessions: [] } },
+  });
+});
+
+test('it challenges a request to the bare origin with the /mcp resource metadata', async () => {
+  await using server = await setupMCPHTTP();
+
+  const answered = await fetch(`${server.url}/`, {
+    method: 'POST',
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  expect(answered.status).toBe(401);
+
+  expect(answered.headers.get('www-authenticate')).toBe(
+    `Bearer resource_metadata="${server.origin}/.well-known/oauth-protected-resource/mcp"`,
+  );
+});
+
+test('it prints one line per request with its method, path, tool, status, time, and protocol version', async () => {
+  await using server = await setupMCPHTTP();
+
+  await fetch(`${server.url}/mcp`, {
+    method: 'POST',
+    headers: { authorization: 'Bearer not-a-token', 'mcp-protocol-version': '2025-06-18' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_session_list', arguments: {} },
+    }),
+  });
+
+  expect(server.requests).toHaveLength(1);
+
+  expect(server.requests[0]).toMatch(
+    /^POST \/mcp 401 \d+ms rpc=tools\/call tool=atc_session_list mcp-protocol-version=2025-06-18$/,
+  );
+});
+
+test('it prints a request line without the query, the token, or the requester address', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorized = await runMCPAuthorization(server, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  const token = String(tokens['access_token']);
+
+  await fetch(`${server.url}/mcp`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  expect(server.requests).toSatisfyAll(
+    (line: string) =>
+      !line.includes('?') &&
+      !line.includes(token) &&
+      !line.includes(authorized.code) &&
+      !line.includes('127.0.0.1'),
+  );
+
+  expect(server.requests).toIncludeAllMembers([
+    expect.stringMatching(/^GET \/oauth2\/authorize 302 \d+ms$/),
+    expect.stringMatching(/^POST \/oauth2\/token 200 \d+ms$/),
+    expect.stringMatching(/^POST \/mcp 200 \d+ms rpc=ping$/),
+  ]);
 });

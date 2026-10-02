@@ -63,8 +63,52 @@ test('it runs a tool call whose scope the caller holds', async () => {
 
   expect(outcome).toStrictEqual({
     kind: 'reply',
-    body: { jsonrpc: '2.0', id: 1, result: { content: [{ type: 'text', text: '[]' }] } },
+    body: {
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        content: [{ type: 'text', text: '[]' }],
+        structuredContent: { sessions: [] },
+      },
+    },
   });
+});
+
+test('it returns a tool result object as structured content beside its JSON text', async () => {
+  await using server = await setupMCPHTTP();
+
+  const outcome = await answerRPCRequest(
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_events_read', arguments: {} },
+    },
+    {
+      caller: server.caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+    },
+  );
+
+  if (outcome.kind !== 'reply' || !isRecord(outcome.body['result'])) {
+    throw new Error('no tool result');
+  }
+
+  const result = outcome.body['result'];
+  const content: unknown = Array.isArray(result['content']) ? result['content'][0] : null;
+
+  if (!isRecord(content) || typeof content['text'] !== 'string') {
+    throw new Error('no text content');
+  }
+
+  expect(result['structuredContent']).toStrictEqual({
+    events: [],
+    cursor: expect.toBeString(),
+    more: false,
+  });
+
+  expect(JSON.parse(content['text'])).toStrictEqual(result['structuredContent']);
 });
 
 test('it lists every tool to a caller with one scope', async () => {

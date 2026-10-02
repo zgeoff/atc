@@ -54,8 +54,16 @@ const SESSION_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   { io: 'input' },
 );
 
+const WAIT_MS = z.number().int().min(0).max(30_000).optional();
+
 const EVENTS_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   z.strictObject({
+    session: z
+      .string()
+      .optional()
+      .describe(
+        "An atc session id; limits the read to that session's events. Cursors stay valid across filtered and unfiltered reads",
+      ),
     cursor: z
       .string()
       .optional()
@@ -69,18 +77,77 @@ const EVENTS_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
       .max(200)
       .optional()
       .describe('Most events to return; defaults to 50'),
-    waitMs: z
-      .number()
-      .int()
-      .min(0)
-      .max(30_000)
-      .optional()
-      .describe(
-        'How long to wait for a new event when none is pending, in milliseconds; defaults to 0, capped at 30000. Keep it short.',
-      ),
+    waitMs: WAIT_MS.describe(
+      'How long to wait for a new event when none is pending, in milliseconds; defaults to 0, capped at 30000. Keep it short.',
+    ),
   }),
   { io: 'input' },
 );
+
+const MESSAGE_GET_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
+  z.strictObject({
+    message: z.string().describe('The message id atc_session_message returned'),
+    waitMs: WAIT_MS.describe(
+      'How long to hold the call until the message status changes from what it was when you called, in milliseconds; defaults to 0, capped at 30000',
+    ),
+  }),
+  { io: 'input' },
+);
+
+// Output schemas leave further properties open, so a field the daemon adds
+// later never fails a client that validates results against them.
+const MESSAGE_OUTPUT: Readonly<Record<string, unknown>> = {
+  type: 'object',
+  properties: {
+    message: { type: 'string' },
+    session: { type: 'string' },
+    from: { type: 'string' },
+    text: { type: 'string' },
+    status: { type: 'string', enum: ['accepted', 'delivered', 'answered'] },
+    answer: { type: 'string' },
+    turn: { type: ['string', 'null'] },
+    answeredWith: { type: 'array', items: { type: 'string' } },
+    sentAt: { type: 'number' },
+    deliveredAt: { type: 'number' },
+    answeredAt: { type: 'number' },
+  },
+  required: ['message', 'session', 'from', 'text', 'status', 'turn', 'answeredWith', 'sentAt'],
+};
+
+const MESSAGE_SENT_OUTPUT: Readonly<Record<string, unknown>> = {
+  type: 'object',
+  properties: {
+    message: { type: 'string' },
+    status: { type: 'string', enum: ['accepted', 'delivered', 'answered'] },
+  },
+  required: ['message', 'status'],
+};
+
+const EVENTS_OUTPUT: Readonly<Record<string, unknown>> = {
+  type: 'object',
+  properties: {
+    events: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          cursor: { type: 'string' },
+          at: { type: 'number' },
+          session: { type: 'string' },
+          name: { type: ['string', 'null'] },
+          kind: { type: 'string' },
+          detail: { type: ['string', 'null'] },
+          message: { type: 'string' },
+          label: { type: 'string' },
+        },
+        required: ['cursor', 'at', 'session', 'name', 'kind', 'detail'],
+      },
+    },
+    cursor: { type: 'string' },
+    more: { type: 'boolean' },
+  },
+  required: ['events', 'cursor', 'more'],
+};
 
 interface MCPToolAnnotations {
   readonly readOnlyHint: boolean;
@@ -92,6 +159,9 @@ interface MCPToolDefinition {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: Readonly<Record<string, unknown>>;
+
+  // The shape of the tool's structured result, for the tools that declare one.
+  readonly outputSchema?: Readonly<Record<string, unknown>>;
   readonly annotations: MCPToolAnnotations;
   readonly scope: GrantScope;
 }
@@ -236,15 +306,16 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-accepted, message-delivered, message-answered), and reports (report) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A report event carries its label. Without a cursor it returns the most recent events. Pass the returned cursor next time. waitMs holds the call open until an event arrives.',
+      'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-accepted, message-delivered, message-answered), and reports (report) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A report event carries its label. Without a cursor it returns the most recent events. Pass the returned cursor next time; more is true when the page stopped before the newest event, so read again at once. session limits the read to one session. waitMs holds the call open until an event arrives; pass it instead of polling in a tight loop.',
     inputSchema: EVENTS_READ_INPUT,
+    outputSchema: EVENTS_OUTPUT,
   },
   {
     name: 'atc_session_message',
     annotations: AGENT_FACING,
     scope: 'message',
     description:
-      "Send a session a message and get its id back. Follow up by polling atc_message_get with the id until its status is answered, which returns the session's final reply; don't read the session's screen or transcript to check on it. The message waits in the session inbox until the session takes it, and its status moves accepted, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (Grok, Codex), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
+      "Send a session a message and get its id back. Follow up with atc_message_get, passing waitMs so each call waits for the next status change instead of polling in a tight loop, until its status is answered; don't read the session's screen or transcript to check on it. The answer is the final output of the session turn that carried the message, and one turn can carry several messages. The message waits in the session inbox until the session takes it, and its status moves accepted, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (Grok, Codex), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -259,20 +330,15 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       required: ['session', 'text'],
       additionalProperties: false,
     },
+    outputSchema: MESSAGE_SENT_OUTPUT,
   },
   {
     name: 'atc_message_get',
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Read one message sent with atc_session_message: its id, session, from, text, status (accepted, delivered, or answered), the answer once answered, and the sentAt, deliveredAt, and answeredAt timestamps. Poll it until the status is answered.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        message: { type: 'string', description: 'The message id atc_session_message returned' },
-      },
-      required: ['message'],
-      additionalProperties: false,
-    },
+      'Read one message sent with atc_session_message: its id, session, from, text, status (accepted, delivered, or answered), the answer once answered, turn, answeredWith, and the sentAt, deliveredAt, and answeredAt timestamps. The answer is the final output of the session turn that carried the message, not a reply to that message alone: when one turn carries several messages, each gets the same answer. turn is that turn id, or null when the session reported none, and answeredWith lists the other messages the same turn answered. Pass waitMs to hold the call until the status changes from what it was when you called, up to 30000 ms, instead of polling in a tight loop; an answered message returns at once. Message ids and statuses persist, so after a call ends or times out, call again with the same id.',
+    inputSchema: MESSAGE_GET_INPUT,
+    outputSchema: MESSAGE_OUTPUT,
   },
 ];

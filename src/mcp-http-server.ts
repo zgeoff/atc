@@ -43,9 +43,14 @@ export async function runMCPHTTPServer(build: string, flags: MCPHTTPFlags): Prom
     printApproval: (line) => {
       console.log(line.replaceAll(/[\p{Cc}\p{Cf}]/gu, ''));
     },
+
+    // Request lines go to stderr, so stdout keeps the approval lines alone.
+    printRequest: (line) => {
+      console.error(line);
+    },
   });
 
-  console.log(`atc mcp --http: serving ${server.origin}/mcp, listening on ${server.url}`);
+  console.log(`atc mcp --http: serving ${server.origin}/mcp, listening on ${server.listening}`);
 
   const admin = await openMCPAuth({ dbPath: mcpAuthDBFile, origin: null });
   const clients = await collectClients(admin.db);

@@ -1,18 +1,33 @@
 import { match } from 'ts-pattern';
 import { DaemonError } from '../protocol/daemon-error';
+import { isRecord } from '../shared/report';
 import type { FleetCaller, ToolContext } from './types';
+
+/**
+ * A tool's result: the text every client reads, and for a tool whose result
+ * is data, that data as an object for clients that read structured content.
+ */
+interface ToolResult {
+  readonly text: string;
+  readonly structured: Readonly<Record<string, unknown>> | null;
+}
 
 export function runTool(
   caller: FleetCaller,
   name: string,
   args: Readonly<Record<string, unknown>>,
   ctx: ToolContext,
-): Promise<string> {
+): Promise<ToolResult> {
   return match(name)
     .with('atc_session_list', async () => {
       const ok = await caller.sendRequest('session.list');
 
-      return JSON.stringify(ok['sessions'], null, 2);
+      // The text stays the bare list older clients read; structured content
+      // has to be an object.
+      return {
+        text: JSON.stringify(ok['sessions'], null, 2),
+        structured: { sessions: ok['sessions'] },
+      };
     })
     .with('atc_session_spawn', async () => {
       const rawAgent = args['agent'];
@@ -32,7 +47,7 @@ export function runTool(
           ? await sendNestedSpawn(caller, params, ctx.callerSessionID)
           : await caller.sendRequest('session.spawn', params);
 
-      return JSON.stringify(ok['session'], null, 2);
+      return buildObjectResult(ok['session']);
     })
     .with('atc_session_input', async () => {
       await caller.sendRequest('session.input', {
@@ -40,12 +55,15 @@ export function runTool(
         d: `${typeof args['text'] === 'string' ? args['text'] : ''}\n`,
       });
 
-      return 'sent';
+      return { text: 'sent', structured: null };
     })
     .with('atc_session_screen', async () => {
       const ok = await caller.sendRequest('session.screen', { session: args['session'] });
 
-      return typeof ok['text'] === 'string' ? ok['text'] : JSON.stringify(ok);
+      return {
+        text: typeof ok['text'] === 'string' ? ok['text'] : JSON.stringify(ok),
+        structured: null,
+      };
     })
     .with('atc_session_update', async () => {
       await caller.sendRequest('session.update', {
@@ -54,32 +72,35 @@ export function runTool(
         ...(typeof args['pinned'] === 'boolean' ? { pinned: args['pinned'] } : {}),
       });
 
-      return 'updated';
+      return { text: 'updated', structured: null };
     })
     .with('atc_session_kill', async () => {
       await caller.sendRequest('session.kill', { session: args['session'] });
 
-      return 'killed';
+      return { text: 'killed', structured: null };
     })
     .with('atc_session_ack', async () => {
       await caller.sendRequest('session.ack', { session: args['session'] });
 
-      return 'acked';
+      return { text: 'acked', structured: null };
     })
     .with('atc_resume_command', async () => {
       const ok = await caller.sendRequest('session.resumeCommand', { session: args['session'] });
 
-      return typeof ok['command'] === 'string' ? ok['command'] : JSON.stringify(ok);
+      return {
+        text: typeof ok['command'] === 'string' ? ok['command'] : JSON.stringify(ok),
+        structured: null,
+      };
     })
     .with('atc_dirs_list', async () => {
       const ok = await caller.sendRequest('dirs.list');
 
-      return JSON.stringify(ok['dirs'], null, 2);
+      return { text: JSON.stringify(ok['dirs'], null, 2), structured: { dirs: ok['dirs'] } };
     })
     .with('atc_session_get', async () => {
       const ok = await caller.sendRequest('session.get', { session: args['session'] });
 
-      return JSON.stringify(ok, null, 2);
+      return buildObjectResult(ok);
     })
     .with('atc_session_read', async () => {
       const ok = await caller.sendRequest('session.read', {
@@ -88,16 +109,17 @@ export function runTool(
         ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
       });
 
-      return JSON.stringify(ok, null, 2);
+      return buildObjectResult(ok);
     })
     .with('atc_events_read', async () => {
       const ok = await caller.sendRequest('events.read', {
         ...(typeof args['cursor'] === 'string' ? { cursor: args['cursor'] } : {}),
         ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
         ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
+        ...(typeof args['session'] === 'string' ? { session: args['session'] } : {}),
       });
 
-      return JSON.stringify(ok, null, 2);
+      return buildObjectResult(ok);
     })
     .with('atc_session_message', async () => {
       const given = args['from'];
@@ -113,14 +135,24 @@ export function runTool(
         from,
       });
 
-      return JSON.stringify(ok, null, 2);
+      return buildObjectResult(ok);
     })
     .with('atc_message_get', async () => {
-      const ok = await caller.sendRequest('message.get', { message: args['message'] });
+      const ok = await caller.sendRequest('message.get', {
+        message: args['message'],
+        ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
+      });
 
-      return JSON.stringify(ok, null, 2);
+      return buildObjectResult(ok);
     })
     .otherwise(() => Promise.reject(new Error(`unknown tool '${name}'`)));
+}
+
+function buildObjectResult(value: unknown): ToolResult {
+  return {
+    text: JSON.stringify(value, null, 2),
+    structured: isRecord(value) ? value : null,
+  };
 }
 
 // The inherited id can point at a session another daemon hosts, or one

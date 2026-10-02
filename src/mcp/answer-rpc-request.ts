@@ -101,9 +101,12 @@ async function answerToolCall(
   const args = isRecord(params['arguments']) ? params['arguments'] : {};
 
   try {
-    const text = await runTool(deps.caller, name, args, deps.toolContext);
+    const result = await runTool(deps.caller, name, args, deps.toolContext);
 
-    return { content: [{ type: 'text', text }] };
+    return {
+      content: [{ type: 'text', text: result.text }],
+      ...(result.structured === null ? {} : { structuredContent: result.structured }),
+    };
   } catch (error) {
     return { content: [{ type: 'text', text: formatToolError(error) }], isError: true };
   }
