@@ -1857,3 +1857,42 @@ test('it answers every message of one turn in one call and returns them oldest f
 
   expect(siblings).toStrictEqual([toMessageID('m-2')]);
 });
+
+test('it lists the other messages of one turn in send order when they share a send time', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const owner = { atcID: toSessionID('s1') };
+
+  const base = {
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    status: 'accepted' as const,
+    sentAt: 1000,
+  };
+
+  await store.writeMessage({ ...base, id: toMessageID('m-c'), text: 'first' });
+  await store.writeMessage({ ...base, id: toMessageID('m-b'), text: 'second' });
+  await store.writeMessage({ ...base, id: toMessageID('m-a'), text: 'third' });
+
+  await store.updateMessagesAnswered(
+    [toMessageID('m-c'), toMessageID('m-b'), toMessageID('m-a')],
+    owner,
+    'all',
+    2000,
+    't-1',
+  );
+
+  const first = await store.findMessage(toMessageID('m-c'), owner);
+
+  if (first === null) {
+    throw new Error('first message missing');
+  }
+
+  const siblings = await store.collectTurnSiblings(first);
+
+  expect(siblings).toStrictEqual([toMessageID('m-b'), toMessageID('m-a')]);
+});

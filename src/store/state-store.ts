@@ -413,7 +413,7 @@ export class StateStore {
       .where('id', '!=', record.id)
       .where((eb) => buildOwnerFilter(eb, owner))
       .orderBy('sent_at', 'asc')
-      .orderBy('id', 'asc')
+      .orderBy(sql`rowid`, 'asc')
       .execute();
 
     return rows.map((row) => toMessageID(row.id));
