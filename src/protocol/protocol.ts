@@ -20,6 +20,7 @@ const ERROR_CODES = [
   'no_such_session',
   'session_dead',
   'unsupported',
+  'unsupported_operation',
   'already_answered',
   'too_slow',
   'stale_epoch',
