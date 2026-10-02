@@ -97,3 +97,24 @@ test("it writes the atc-bridge mod inside this run's own home by default", () =>
 
   expect(realpathSync(dir)).toStartWith(`${realpathSync(join(root, 'home'))}${sep}`);
 });
+
+test('it refuses to run under a test-home marker whose paths do not match it', () => {
+  const root = process.env['ATC_TEST_HOME'];
+
+  if (root === undefined) {
+    throw new Error('the test home fixture is not in place');
+  }
+
+  const nested = Bun.spawnSync(
+    ['bun', 'test', 'test/isolate-home.test.ts', '-t', 'no enclosing atc session'],
+    {
+      cwd: join(import.meta.dir, '..'),
+      env: { ...process.env, ATC_TEST_HOME: join(root, 'stale-marker') },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+
+  expect(nested.exitCode).not.toBe(0);
+  expect(nested.stderr.toString()).toInclude('does not match the test home it marks');
+});

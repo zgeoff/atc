@@ -9,7 +9,9 @@ import { join } from 'node:path';
 // the database, status file, daemon record, sockets, and agent homes all
 // resolve there, and an enclosing session's ATC_SESSION_ID and ATC_SOCKET
 // are dropped so no test reports to a live daemon.
-if (process.env['ATC_TEST_HOME'] === undefined) {
+const marker = process.env['ATC_TEST_HOME'];
+
+if (marker === undefined) {
   const root = mkdtempSync(join(tmpdir(), 'atc-test-home-'));
 
   mkdirSync(join(root, 'home'));
@@ -26,4 +28,31 @@ if (process.env['ATC_TEST_HOME'] === undefined) {
   process.on('exit', () => {
     rmSync(root, { recursive: true, force: true });
   });
+} else {
+  assertTestHome(marker);
+}
+
+// An inherited marker is trusted only when every isolated variable already
+// points under it and no enclosing session's variables remain; a stale or
+// hand-set marker stops the run before any test imports atc.
+function assertTestHome(root: string): void {
+  const expected: Readonly<Record<string, string>> = {
+    HOME: join(root, 'home'),
+    XDG_RUNTIME_DIR: join(root, 'runtime'),
+    GROK_HOME: join(root, 'home', '.grok'),
+    CODEX_HOME: join(root, 'home', '.codex'),
+  };
+
+  const mismatched = Object.entries(expected)
+    .filter(([name, path]) => process.env[name] !== path)
+    .map(([name]) => name);
+
+  const leftover = ['ATC_SESSION_ID', 'ATC_SOCKET'].filter((name) => name in process.env);
+
+  if (mismatched.length > 0 || leftover.length > 0) {
+    throw new Error(
+      `ATC_TEST_HOME is set to ${root} but ${[...mismatched, ...leftover].join(', ')} ` +
+        'does not match the test home it marks; unset ATC_TEST_HOME or run the package test script',
+    );
+  }
 }

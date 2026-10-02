@@ -4,9 +4,9 @@
 # with HOME, XDG_RUNTIME_DIR, GROK_HOME, CODEX_HOME, ATC_SESSION_ID, and
 # ATC_SOCKET all pointing into it, the way a run inside an atc session sees
 # them. It fails when the gate changes, removes, or reads a canary, or
-# creates a file under the synthetic home's atc, codex, grok, or claude
-# directories. Reads are caught through access times, so they are detected
-# only on a filesystem that updates them.
+# creates a file, directory, or socket under the synthetic home's atc,
+# codex, grok, or claude directories. Reads are caught through access
+# times, so they are detected only on a filesystem that updates them.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -59,7 +59,7 @@ snapshot() {
   done
 
   find "$home/.local/state/atc" "$home/.config/atc" "$home/.codex" "$home/.grok" \
-    "$home/.claude" "$run" -type f | sort
+    "$home/.claude" "$run" -mindepth 1 | sort
 }
 
 before=$(snapshot)
