@@ -117,15 +117,16 @@ export type HeadlessRunner = (
   hooks: HeadlessRunEvents,
 ) => { readonly stop: () => void };
 
-export type AgentKind = 'claude' | 'gateway' | 'codex' | 'grok';
-
 /**
  * How `agents.list` describes an agent. It holds no secret: never an
  * environment value, a credential, a helper command, or a base URL.
  */
 export interface AgentProfile {
   readonly label: string;
-  readonly kind: AgentKind;
+
+  // The family the agent belongs to, chosen by its adapter; agents.list
+  // reports it as given, and any string is a valid kind.
+  readonly kind: string;
 
   // The binary a spawn runs: a name looked up on PATH, or a path.
   readonly bin: string;

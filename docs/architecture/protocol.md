@@ -217,9 +217,12 @@ spawn prompt and latest result, so both survive a restore.
 ## Agents
 
 `agents.list` returns a `daemon` object with the host's name, platform, and architecture and the
-daemon build, plus one entry per registered agent id. An entry holds the id, label, kind (`claude`,
-`gateway`, `codex`, or `grok`), `installed`, `capabilities`, and `models`:
+daemon build, plus one entry per registered agent id. An entry holds the id, label, kind,
+`installed`, `capabilities`, and `models`:
 
+- `kind` is the agent CLI family, which the agent's adapter declares. It is an open string, so a
+  client must accept a kind it has not seen. An adapter without a profile is listed with its id as
+  its label and kind.
 - `installed` is true when the agent's binary resolves on the daemon's `PATH` or at its configured
   path. A registered agent whose binary is missing stays in the list with `installed` false.
 - `capabilities` holds one boolean each for `spawn`, `readTranscript`, `message`, `attach`,

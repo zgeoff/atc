@@ -1,7 +1,39 @@
 import { expect, test } from 'bun:test';
+import { z } from 'zod';
 import { MCP_TOOLS } from './mcp-tools';
 
 type ToolDefinition = (typeof MCP_TOOLS)[number];
+
+test('it declares an agents result whose kind can be any string an adapter declares', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_agents_list')?.outputSchema;
+
+  if (schema === undefined) {
+    throw new Error('the agents tool declares no output schema');
+  }
+
+  const parsed = z.fromJSONSchema(schema).safeParse({
+    daemon: { hostname: 'host', platform: 'linux', arch: 'x64', build: 'atc/test-build' },
+    agents: [
+      {
+        id: 'acme',
+        label: 'Acme Agent',
+        kind: 'acme-cli',
+        installed: true,
+        capabilities: {
+          spawn: true,
+          readTranscript: false,
+          message: false,
+          attach: true,
+          screen: true,
+          input: true,
+        },
+        models: null,
+      },
+    ],
+  });
+
+  expect(parsed.success).toBe(true);
+});
 
 test('it gives every tool one of the four scopes', () => {
   expect(MCP_TOOLS).toSatisfyAll((tool: ToolDefinition) =>

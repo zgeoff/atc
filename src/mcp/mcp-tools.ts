@@ -144,7 +144,7 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
         properties: {
           id: { type: 'string' },
           label: { type: 'string' },
-          kind: { type: 'string', enum: ['claude', 'gateway', 'codex', 'grok'] },
+          kind: { type: 'string' },
           installed: { type: 'boolean' },
           capabilities: {
             type: 'object',
@@ -343,7 +343,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      "List the agents this atc host can run sessions under, plus the host itself (daemon: hostname, platform, arch, build). Each agent has its id (pass it as atc_session_spawn's agent), label, kind (claude, gateway, codex, or grok), installed (whether its binary resolves on this host; a registered agent that is not installed cannot spawn), capabilities (spawn, readTranscript, message, attach, screen, input), and models: the model names the config sets for it, or null. It never includes credentials, environment values, or endpoints, and holds nothing about which plans or subscriptions an agent's account has.",
+      "List the agents this atc host can run sessions under, plus the host itself (daemon: hostname, platform, arch, build). Each agent has its id (pass it as atc_session_spawn's agent), label, kind (the agent CLI family it runs), installed (whether its binary resolves on this host; a registered agent that is not installed cannot spawn), capabilities (spawn, readTranscript, message, attach, screen, input), and models: the model names the config sets for it, or null. It never includes credentials, environment values, or endpoints, and holds nothing about which plans or subscriptions an agent's account has.",
     inputSchema: NO_INPUT,
     outputSchema: AGENTS_OUTPUT,
     requires: { tool: 'agents.list' },
