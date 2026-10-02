@@ -15,9 +15,10 @@ and gateway implementations; `store/` is the SQLite state store and its migratio
 the wire format and the transport it rides; `shared/` holds id types, config, and other utilities
 used across the rest of `src/`. `cli.ts` is the CLI entrypoint. A module that exists only to back
 one of its subcommands stays beside it at `src/` root, while the `tui` and `daemon` subcommands load
-their subsystems from `client/` and `daemon/`. `test/` holds the PTY-driven e2e suite, `bin/atc` is
-the executable shim. `mods/` holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling,
-not app code.
+their subsystems from `client/` and `daemon/`. `mcp/` holds the MCP tool definitions and request
+handling that `mcp-server.ts` serves. `test/` holds the PTY-driven e2e suite, `bin/atc` is the
+executable shim. `mods/` holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling, not
+app code.
 
 ## Runtime rules
 

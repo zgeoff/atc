@@ -25,13 +25,13 @@ test("it pins every tool's scope and safety hints", () => {
       scope: 'spawn',
       readOnlyHint: false,
       destructiveHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
     },
     atc_session_input: {
-      scope: 'message',
+      scope: 'spawn',
       readOnlyHint: false,
       destructiveHint: true,
-      openWorldHint: false,
+      openWorldHint: true,
     },
     atc_session_screen: {
       scope: 'read',
@@ -91,7 +91,7 @@ test("it pins every tool's scope and safety hints", () => {
       scope: 'message',
       readOnlyHint: false,
       destructiveHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
     },
     atc_message_get: {
       scope: 'read',

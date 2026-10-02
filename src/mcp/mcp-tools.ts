@@ -115,6 +115,20 @@ const DESTRUCTIVE: MCPToolAnnotations = {
   openWorldHint: false,
 };
 
+// A tool that starts an agent or puts text in front of one reaches past atc: the agent acts on
+// what it reads, outside atc's control.
+const AGENT_FACING: MCPToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  openWorldHint: true,
+};
+
+const AGENT_FACING_DESTRUCTIVE: MCPToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  openWorldHint: true,
+};
+
 export const MCP_TOOLS: readonly MCPToolDefinition[] = [
   {
     name: 'atc_session_list',
@@ -126,7 +140,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
   },
   {
     name: 'atc_session_spawn',
-    annotations: ADDITIVE,
+    annotations: AGENT_FACING,
     scope: 'spawn',
     description:
       'Spawn a new session in a directory. Optional agent is an agent id the daemon has registered, such as claude, grok, or codex; omitted agent is always Claude, never the TUI last-used value. An unregistered id is rejected. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.',
@@ -134,8 +148,8 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
   },
   {
     name: 'atc_session_input',
-    annotations: DESTRUCTIVE,
-    scope: 'message',
+    annotations: AGENT_FACING_DESTRUCTIVE,
+    scope: 'spawn',
     description:
       'Type a line of text into a running session, as if the operator typed it and pressed enter. Use it to answer a session that is waiting on input.',
     inputSchema: {
@@ -228,7 +242,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
   },
   {
     name: 'atc_session_message',
-    annotations: ADDITIVE,
+    annotations: AGENT_FACING,
     scope: 'message',
     description:
       "Send a session a message and get its id back. Follow up by polling atc_message_get with the id until its status is answered, which returns the session's final reply; don't read the session's screen or transcript to check on it. The message waits in the session inbox until the session takes it, and its status moves accepted, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (Grok, Codex), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
