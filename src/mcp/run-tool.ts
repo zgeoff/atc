@@ -101,7 +101,11 @@ export function runTool(
     })
     .with('atc_session_message', async () => {
       const given = args['from'];
-      const from = typeof given === 'string' && given !== '' ? given : ctx.defaultFrom;
+
+      const from =
+        ctx.sender.kind === 'default' && typeof given === 'string' && given !== ''
+          ? given
+          : ctx.sender.name;
 
       const ok = await caller.sendRequest('session.message', {
         session: args['session'],

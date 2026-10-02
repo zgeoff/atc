@@ -8,5 +8,8 @@ export interface FleetCaller {
 
 export interface ToolContext {
   readonly callerSessionID: string | null;
-  readonly defaultFrom: string;
+
+  // Who a sent message is from. A `fixed` sender is always used; a `default`
+  // one gives way to a sender the tool call gives.
+  readonly sender: { readonly kind: 'fixed' | 'default'; readonly name: string };
 }
