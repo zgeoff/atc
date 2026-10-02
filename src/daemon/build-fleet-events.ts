@@ -23,7 +23,8 @@ export function buildFleetEvents(
   sessions: readonly SessionDescriptor[],
 ): FleetEvent[] {
   return rows.map((row) => {
-    // A restore re-mints atc ids, so the agent session id is the stable link.
+    // Rows written before atc session ids stayed stable across restores
+    // carry an earlier atc id, so the agent session id links them.
     const live =
       (row.agentSessionID === null
         ? undefined

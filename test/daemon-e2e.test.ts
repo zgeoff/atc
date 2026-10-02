@@ -16,6 +16,7 @@ import type { EventMsg } from '../src/protocol/protocol';
 import { getRecord } from '../src/shared/get-record';
 import { isRecord } from '../src/shared/report';
 import { toAgentSessionID } from '../src/shared/to-agent-session-id';
+import { toSessionID } from '../src/shared/to-session-id';
 import { StateStore } from '../src/store/state-store';
 import { waitFor } from './wait-for';
 
@@ -904,9 +905,27 @@ sleep 30
   const seed = await StateStore.open(dbPath);
 
   await seed.writeFleet([
-    { name: 'one', cwd: home, agentSessionID: toAgentSessionID('fake-a'), agent: 'claude' },
-    { name: 'two', cwd: home, agentSessionID: toAgentSessionID('fake-b'), agent: 'claude' },
-    { name: 'three', cwd: home, agentSessionID: toAgentSessionID('fake-c'), agent: 'claude' },
+    {
+      sessionID: toSessionID('s-fake-a'),
+      name: 'one',
+      cwd: home,
+      agentSessionID: toAgentSessionID('fake-a'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-fake-b'),
+      name: 'two',
+      cwd: home,
+      agentSessionID: toAgentSessionID('fake-b'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-fake-c'),
+      name: 'three',
+      cwd: home,
+      agentSessionID: toAgentSessionID('fake-c'),
+      agent: 'claude',
+    },
   ]);
 
   await seed.stop();
@@ -2175,7 +2194,7 @@ test('it delivers a message accepted before a daemon crash to the restored sessi
 
   const restoredID = getString(getRecords(list, 'sessions')[0] ?? {}, 'id');
 
-  expect(restoredID).not.toBe(originalID);
+  expect(restoredID).toBe(originalID);
 
   const delivered = await waitForEvent(
     events,
@@ -2330,7 +2349,7 @@ test('it names a message event sent before SessionStart by the restored session'
   const restoredID = getString(restoredSession, 'id');
   const restoredName = getString(restoredSession, 'name');
 
-  expect(restoredID).not.toBe(originalID);
+  expect(restoredID).toBe(originalID);
 
   const read = await waitFor(async () => {
     const answer = await client2.sendRequest('events.read', {});

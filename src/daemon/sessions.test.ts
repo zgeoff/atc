@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { SessionManager } from './sessions';
 
@@ -37,6 +38,7 @@ test('it restores an entry whose agent id is registered as waiting for its termi
   const mgr = await setupManager();
 
   const session = mgr.restore({
+    sessionID: toSessionID('s-c-1'),
     name: 'claude work',
     cwd: '/tmp/proj',
 
@@ -51,6 +53,7 @@ test('it restores an entry whose agent id is unregistered without reviving it as
   const mgr = await setupManager();
 
   const session = mgr.restore({
+    sessionID: toSessionID('s-z-1'),
     name: 'glm work',
     cwd: '/tmp/proj',
 
@@ -92,10 +95,11 @@ test('it reports a screen detector when a registered adapter provides one', asyn
   expect(mgr.hasScreenDetector).toBe(true);
 });
 
-test('it links a restored sub-session to the parent already registered under its agent id', async () => {
+test('it links a restored sub-session to the parent already registered under its session id', async () => {
   const mgr = await setupManager();
 
   const parent = mgr.restore({
+    sessionID: toSessionID('s-c-parent'),
     name: 'wrangler',
     cwd: '/tmp/proj',
     agentSessionID: toAgentSessionID('c-parent'),
@@ -103,11 +107,12 @@ test('it links a restored sub-session to the parent already registered under its
   });
 
   const child = mgr.restore({
+    sessionID: toSessionID('s-c-child'),
     name: 'worker',
     cwd: '/tmp/proj',
     agentSessionID: toAgentSessionID('c-child'),
     agent: 'claude',
-    parent: toAgentSessionID('c-parent'),
+    parent: toSessionID('s-c-parent'),
   });
 
   expect(child.parent).toBe(parent.id);
@@ -117,17 +122,18 @@ test('it restores a sub-session whose parent is absent as a top-level session', 
   const mgr = await setupManager();
 
   const child = mgr.restore({
+    sessionID: toSessionID('s-c-child'),
     name: 'worker',
     cwd: '/tmp/proj',
     agentSessionID: toAgentSessionID('c-child'),
     agent: 'claude',
-    parent: toAgentSessionID('c-gone'),
+    parent: toSessionID('s-c-gone'),
   });
 
   expect(child.parent).toBeNull();
 });
 
-test('it persists a sub-session link by the parent agent session id', async () => {
+test('it persists a sub-session link by the parent atc session id', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
 
   onTestFinished(() => {
@@ -139,13 +145,24 @@ test('it persists a sub-session link by the parent agent session id', async () =
   const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), []);
 
   const parent = mgr.restore({
+    sessionID: toSessionID('s-c-parent'),
     name: 'wrangler',
     cwd: '/tmp/proj',
     agentSessionID: toAgentSessionID('c-parent'),
     agent: 'claude',
   });
 
-  mgr.spawn('/tmp', 'worker', '', 80, 24, toAgentSessionID('c-child'), 'user', 'claude', parent.id);
+  const child = mgr.spawn(
+    '/tmp',
+    'worker',
+    '',
+    80,
+    24,
+    toAgentSessionID('c-child'),
+    'user',
+    'claude',
+    parent.id,
+  );
 
   onTestFinished(() => {
     mgr.killAll();
@@ -157,6 +174,7 @@ test('it persists a sub-session link by the parent agent session id', async () =
 
   expect(stored).toStrictEqual([
     {
+      sessionID: toSessionID('s-c-parent'),
       name: 'wrangler',
       cwd: '/tmp/proj',
       agentSessionID: toAgentSessionID('c-parent'),
@@ -164,12 +182,13 @@ test('it persists a sub-session link by the parent agent session id', async () =
       lastAttachedAt: expect.toBeNumber(),
     },
     {
+      sessionID: child.id,
       name: 'worker',
       cwd: '/tmp',
       agentSessionID: toAgentSessionID('c-child'),
       agent: 'claude',
       lastAttachedAt: expect.toBeNumber(),
-      parent: toAgentSessionID('c-parent'),
+      parent: parent.id,
     },
   ]);
 });
@@ -178,6 +197,7 @@ test('it refuses to pin a sub-session', async () => {
   const mgr = await setupManager();
 
   const parent = mgr.restore({
+    sessionID: toSessionID('s-c-parent'),
     name: 'wrangler',
     cwd: '/tmp/proj',
     agentSessionID: toAgentSessionID('c-parent'),
@@ -185,11 +205,12 @@ test('it refuses to pin a sub-session', async () => {
   });
 
   const child = mgr.restore({
+    sessionID: toSessionID('s-c-child'),
     name: 'worker',
     cwd: '/tmp/proj',
     agentSessionID: toAgentSessionID('c-child'),
     agent: 'claude',
-    parent: toAgentSessionID('c-parent'),
+    parent: toSessionID('s-c-parent'),
   });
 
   expect(mgr.updateSession(child.id, undefined, true)).toBe('child_pin');
@@ -218,6 +239,7 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
   const mgr = await setupManager();
 
   const parent = mgr.restore({
+    sessionID: toSessionID('s-c-parent'),
     name: 'wrangler',
     cwd: '/tmp/proj',
     agentSessionID: toAgentSessionID('c-parent'),
@@ -226,12 +248,13 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
   });
 
   const dead = mgr.restore({
+    sessionID: toSessionID('s-c-dead'),
     name: 'dead worker',
     cwd: '/tmp/proj',
     agentSessionID: toAgentSessionID('c-dead'),
     agent: 'claude',
     exited: true,
-    parent: toAgentSessionID('c-parent'),
+    parent: toSessionID('s-c-parent'),
   });
 
   const live = mgr.spawn('/tmp', 'live worker', '', 80, 24, false, 'user', 'claude', parent.id);
@@ -277,6 +300,7 @@ test("it keeps a finished turn's last message as the session result", async () =
 
   expect(stored).toStrictEqual([
     {
+      sessionID: s.id,
       name: 'worker',
       cwd: '/tmp',
       agentSessionID: toAgentSessionID('c-1'),
@@ -357,6 +381,7 @@ test('it persists the transcript path its hooks report', async () => {
 
   expect(stored).toStrictEqual([
     {
+      sessionID: s.id,
       name: 'worker',
       cwd: '/tmp',
       agentSessionID: toAgentSessionID('c-2'),
@@ -371,6 +396,7 @@ test("it restores an entry's prompt, result, and transcript path onto the sessio
   const mgr = await setupManager();
 
   const session = mgr.restore({
+    sessionID: toSessionID('s-c-1'),
     name: 'wrangler',
     cwd: '/tmp/proj',
     agentSessionID: toAgentSessionID('c-1'),
@@ -430,6 +456,7 @@ test('it keeps a crashed sibling restorable as live when another session finishe
 
   expect(stored).toStrictEqual([
     {
+      sessionID: finisher.id,
       name: 'finisher',
       cwd: '/tmp',
       agentSessionID: toAgentSessionID('c-1'),
@@ -439,12 +466,73 @@ test('it keeps a crashed sibling restorable as live when another session finishe
       result: 'all green',
     },
     {
+      sessionID: crasher.id,
       name: 'crasher',
       cwd: '/tmp',
       agentSessionID: toAgentSessionID('c-2'),
       agent: 'claude',
       lastAttachedAt: expect.toBeNumber(),
       prompt: 'go',
+    },
+  ]);
+});
+
+test('it restores an entry under the session id its row holds', async () => {
+  const mgr = await setupManager();
+
+  const session = mgr.restore({
+    sessionID: toSessionID('7d3f0c1e-2b4a-4c5d-8e9f-0a1b2c3d4e5f'),
+    name: 'claude work',
+    cwd: '/tmp/proj',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+  });
+
+  expect(session.id).toBe(toSessionID('7d3f0c1e-2b4a-4c5d-8e9f-0a1b2c3d4e5f'));
+});
+
+test('it restores an entry with no agent session id as exited', async () => {
+  const mgr = await setupManager();
+
+  const session = mgr.restore({
+    sessionID: toSessionID('s-booting'),
+    name: 'booting',
+    cwd: '/tmp/proj',
+    agent: 'claude',
+  });
+
+  expect(session.state).toBe('exited');
+  expect(session.lastMsg).toBe('nothing to resume');
+});
+
+test('it persists a session the agent has not yet given a session id', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), []);
+
+  const s = mgr.spawn('/tmp', 'booting', '', 80, 24);
+
+  onTestFinished(() => {
+    mgr.killAll();
+  });
+
+  await mgr.writeFleet();
+
+  const stored = await store.loadFleet();
+
+  expect(stored).toStrictEqual([
+    {
+      sessionID: s.id,
+      name: 'booting',
+      cwd: '/tmp',
+      agent: 'claude',
+      lastAttachedAt: expect.toBeNumber(),
     },
   ]);
 });

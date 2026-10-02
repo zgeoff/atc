@@ -10,6 +10,7 @@ import { DaemonClient } from '../client/daemon-client';
 import type { EventMsg } from '../protocol/protocol';
 import { isRecord, sendReport } from '../shared/report';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toSessionID } from '../shared/to-session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import { StateStore } from '../store/state-store';
 import { startDaemon } from './daemon';
@@ -293,8 +294,20 @@ test('it rejects a message without text as bad_args', async () => {
 test('it queues a message for a session waiting to restore', async () => {
   await using daemon = await setupTest({
     fleet: [
-      { name: 'a', cwd: '/tmp', agentSessionID: toAgentSessionID('agent-a'), agent: 'claude' },
-      { name: 'b', cwd: '/tmp', agentSessionID: toAgentSessionID('agent-b'), agent: 'claude' },
+      {
+        sessionID: toSessionID('s-agent-a'),
+        name: 'a',
+        cwd: '/tmp',
+        agentSessionID: toAgentSessionID('agent-a'),
+        agent: 'claude',
+      },
+      {
+        sessionID: toSessionID('s-agent-b'),
+        name: 'b',
+        cwd: '/tmp',
+        agentSessionID: toAgentSessionID('agent-b'),
+        agent: 'claude',
+      },
     ],
   });
 

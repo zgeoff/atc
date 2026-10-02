@@ -78,3 +78,8 @@ SQLite (`bun:sqlite`) in the daemon holds the fleet, event trail, spawn history,
 in one store with no cross-process write races; the [overview](./overview.md#state) covers the
 files. `status.json` alone stays a plain file, because statusline reporters in wrangled sessions
 read it without speaking the protocol.
+
+The fleet table keys each row by the atc session id. The agent session id is optional, since a row
+exists from the moment a session spawns, and unique, since one agent session belongs to one row.
+When a resume gives a second session the same agent session id, the row written last replaces the
+earlier one.

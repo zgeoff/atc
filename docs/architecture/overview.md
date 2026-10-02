@@ -36,8 +36,9 @@ A sub-session is a session spawned from inside another session through the MCP s
 the calling session's id from its environment. The sub-session lists indented under its parent and
 sorts among its siblings alone, so its attention never moves the parent's row. It pins with its
 parent, and a kill of the parent kills its live sub-sessions with it. The fleet table persists the
-link by the parent's agent session id, so a restore rebuilds the set under fresh atc ids. A spawn
-with `detached: true` makes a top-level session from inside a session.
+link by the parent's atc session id, and a restore brings every session back under the id its row
+holds, so the set comes back intact. A spawn with `detached: true` makes a top-level session from
+inside a session.
 
 ## MCP server
 
@@ -159,6 +160,13 @@ so sessions are data, not processes. Restore reconstructs each row with the matc
 single keypress (`R`) after a cold boot. The same mechanism powers adopt (`r`) and yank/eject
 (`y`/`Y`). A session killed before its first exchange has nothing on disk yet, so revive (`P`)
 reports that in the overlay's message column instead of resuming.
+
+A session keeps one atc session id for its whole life. The daemon mints a random UUID at spawn, the
+fleet row keeps it, and every restore brings the session back under it, so a client that held the id
+before a daemon restart still reaches the same session after it. A session whose agent never
+reported its own session id persists too, and a restore lists it as exited: there is nothing to
+resume. A restore that finds a stored session still listed, with its process dead, revives that
+session in place instead of listing the id twice.
 
 Reviving a whole fleet is incremental but visible from the start. Every fleet entry registers as a
 session without a terminal before any process boots — each broadcasts `SessionAdded`, so clients

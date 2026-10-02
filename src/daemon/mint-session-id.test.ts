@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { mintSessionID } from './mint-session-id';
 
-test('it mints a counter-and-timestamp id', () => {
+test('it mints a random uuid', () => {
   const id = mintSessionID();
 
-  expect(id).toMatch(/^s\d+-[0-9a-z]+$/);
+  expect(id).toMatch(/^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/);
 });
 
 test('it never mints the same id twice in a row', () => {

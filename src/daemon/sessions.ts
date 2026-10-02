@@ -167,26 +167,32 @@ export class SessionManager {
     return s;
   }
 
-  // Registers a fleet entry as a session with no terminal yet, so a
-  // fleet-wide restore can show every incoming session at once; adopting it
-  // later attaches the terminal. Exited entries come back as killed
-  // sessions: still listed and revivable, never auto-adopted.
+  // Registers a fleet entry as a session with no terminal yet, under the
+  // atc session id its row holds, so a fleet-wide restore can show every
+  // incoming session at once; adopting it later attaches the terminal.
+  // Exited entries come back as killed sessions: still listed and revivable,
+  // never auto-adopted. An entry without an agent session id has nothing to
+  // resume, so it comes back exited too.
   restore(entry: FleetEntry): Session {
-    const exited = entry.exited === true;
+    const exited = entry.exited === true || entry.agentSessionID === undefined;
 
     // An entry whose agent is no longer registered still gets its row, so a
     // backend dropped from the config shows as itself instead of vanishing or
     // reviving under another agent. Adopting a terminal for it is refused.
     let lastMsg = 'waiting to restore';
 
-    if (exited) {
+    if (entry.exited !== true && entry.agentSessionID === undefined) {
+      lastMsg = 'nothing to resume';
+    } else if (exited) {
       lastMsg = 'killed';
     } else if (this.findAdapter(entry.agent) === null) {
       lastMsg = `no adapter for '${entry.agent}'`;
     }
 
+    const parent = entry.parent ?? null;
+
     const session: Session = {
-      id: mintSessionID(),
+      id: entry.sessionID,
       name: entry.name,
       cwd: entry.cwd,
       kind: 'headless',
@@ -194,14 +200,14 @@ export class SessionManager {
       state: exited ? 'exited' : 'running',
       unread: false,
       lastMsg,
-      agentSessionID: entry.agentSessionID,
+      ...(entry.agentSessionID === undefined ? {} : { agentSessionID: entry.agentSessionID }),
       agent: entry.agent,
       pinned: entry.pinned ?? false,
       lastAttachedAt: entry.lastAttachedAt ?? Date.now(),
       repoRoot: resolveRepoRoot(entry.cwd),
       namedBy: 'auto',
       createdAt: Date.now(),
-      parent: this.findByAgentSessionID(entry.parent)?.id ?? null,
+      parent: parent !== null && this.sessions.some((s) => s.id === parent) ? parent : null,
       ...(entry.prompt === undefined ? {} : { prompt: entry.prompt }),
       ...(entry.result === undefined ? {} : { result: entry.result }),
       ...(entry.transcriptPath === undefined ? {} : { transcriptPath: entry.transcriptPath }),
@@ -214,14 +220,6 @@ export class SessionManager {
     this.onEvent('added', session);
 
     return session;
-  }
-
-  private findByAgentSessionID(agentSessionID: AgentSessionID | undefined): Session | undefined {
-    if (agentSessionID === undefined) {
-      return undefined;
-    }
-
-    return this.sessions.find((s) => s.agentSessionID === agentSessionID);
   }
 
   // Adopts a headless session back into a terminal: a fresh PTY resumes the
@@ -336,10 +334,7 @@ export class SessionManager {
     if (result !== undefined) {
       s.result = truncateToBytes(result, 16_384);
       s.lastDetail = truncateDetail(result);
-
-      if (s.agentSessionID !== undefined) {
-        void this.store.updateFleetEntry(s.agentSessionID, { result: s.result });
-      }
+      void this.store.updateFleetEntry(s.id, { result: s.result });
     }
 
     this.onEvent('state', s);
@@ -600,12 +595,12 @@ export class SessionManager {
     }
 
     // A fleet rewrite marks every session without a PTY as exited, so only a
-    // new agent session id (which adds or re-keys a row) takes it. Anything
-    // else touches this session's own row.
+    // new agent session id takes it. Anything else touches this session's
+    // own row.
     if (persist) {
       void this.writeFleet();
-    } else if (s.agentSessionID !== undefined) {
-      void this.store.updateFleetEntry(s.agentSessionID, rowUpdate);
+    } else {
+      void this.store.updateFleetEntry(s.id, rowUpdate);
     }
 
     if (dirty) {
@@ -775,33 +770,24 @@ export class SessionManager {
   // Deliberate kills rewrite the file; unexpected session/atc deaths do not,
   // so the last known fleet survives for `R` restore. Sessions whose
   // terminal is gone persist as exited entries, so the killed archive
-  // survives a daemon restart too.
+  // survives a daemon restart too. A session the agent has not yet given
+  // its own session id persists as well, under its atc session id alone.
   async writeFleet(): Promise<void> {
     const fleet: FleetEntry[] = [];
 
     for (const s of this.sessions) {
-      if (s.agentSessionID === undefined) {
-        continue;
-      }
-
       const live = s.pty !== null || (s.kind === 'headless' && s.state !== 'exited');
 
-      // The link persists by the parent's agent session id, since atc ids
-      // are minted afresh on restore.
-      const parent =
-        s.parent === null
-          ? undefined
-          : this.sessions.find((x) => x.id === s.parent)?.agentSessionID;
-
       fleet.push({
+        sessionID: s.id,
         name: s.name,
         cwd: s.cwd,
-        agentSessionID: s.agentSessionID,
+        ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
         agent: s.agent,
         ...(s.pinned ? { pinned: true } : {}),
         lastAttachedAt: s.lastAttachedAt,
         ...(live ? {} : { exited: true }),
-        ...(parent === undefined ? {} : { parent }),
+        ...(s.parent === null ? {} : { parent: s.parent }),
         ...(s.prompt === undefined ? {} : { prompt: s.prompt }),
         ...(s.result === undefined ? {} : { result: s.result }),
         ...(s.transcriptPath === undefined ? {} : { transcriptPath: s.transcriptPath }),

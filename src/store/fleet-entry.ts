@@ -5,19 +5,26 @@ import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalBoolean } from '../shared/build-optional-boolean';
 import { buildOptionalString } from '../shared/build-optional-string';
 import { isRecord } from '../shared/report';
+import type { SessionID } from '../shared/session-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 
+// One fleet row. The atc session id keys it and stays the same for the
+// session's whole life, across daemon restarts and fleet restores.
 export interface FleetEntry {
+  readonly sessionID: SessionID;
   readonly name: string;
   readonly cwd: string;
-  readonly agentSessionID: AgentSessionID;
+
+  // Absent until the agent reports its own session id; a row without one
+  // restores as an exited session, since there is nothing to resume.
+  readonly agentSessionID?: AgentSessionID;
   readonly agent: AgentID;
   readonly pinned?: boolean;
   readonly lastAttachedAt?: number;
   readonly exited?: boolean;
 
-  // The agent session id of the session this one is a sub-session of.
-  readonly parent?: AgentSessionID;
+  // The atc session id of the session this one is a sub-session of.
+  readonly parent?: SessionID;
 
   // The prompt the session was spawned with.
   readonly prompt?: string;
@@ -37,10 +44,7 @@ export interface FleetEntry {
 export interface FleetStore {
   readonly loadFleet: () => Promise<FleetEntry[]>;
   readonly writeFleet: (entries: readonly FleetEntry[]) => Promise<void>;
-  readonly updateFleetEntry: (
-    agentSessionID: AgentSessionID,
-    fields: FleetEntryUpdate,
-  ) => Promise<void>;
+  readonly updateFleetEntry: (sessionID: SessionID, fields: FleetEntryUpdate) => Promise<void>;
 }
 
 // The fields a session rewrites on its own row while it runs, without
@@ -50,7 +54,21 @@ export interface FleetEntryUpdate {
   readonly transcriptPath?: string;
 }
 
-// A stored fleet row's keys. name, cwd, and the resolved agentSessionID are
+// One entry of a legacy fleet.json, from before the fleet moved into the
+// state store: keyed by the agent session id, with the parent link held as
+// the parent's agent session id.
+export interface LegacyFleetEntry {
+  readonly name: string;
+  readonly cwd: string;
+  readonly agentSessionID: AgentSessionID;
+  readonly agent: AgentID;
+  readonly pinned?: boolean;
+  readonly lastAttachedAt?: number;
+  readonly exited?: boolean;
+  readonly parent?: AgentSessionID;
+}
+
+// A legacy fleet.json entry's keys. name, cwd, and the resolved agentSessionID are
 // required: a row missing any of them cannot restore a session, so the whole
 // row parses to undefined rather than a half-built entry. Fleet files
 // written before the id key was agent-neutral carry it under its Claude-era
@@ -76,7 +94,7 @@ const FLEET_ENTRY_SCHEMA = z.preprocess(
   }),
 );
 
-export function parseFleetEntry(raw: unknown): FleetEntry | undefined {
+export function parseFleetEntry(raw: unknown): LegacyFleetEntry | undefined {
   const parsed = FLEET_ENTRY_SCHEMA.safeParse(raw);
 
   if (!parsed.success) {
