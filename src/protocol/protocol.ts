@@ -22,6 +22,7 @@ const ERROR_CODES = [
   'unsupported',
   'already_answered',
   'too_slow',
+  'at_capacity',
   'internal',
 ] as const;
 

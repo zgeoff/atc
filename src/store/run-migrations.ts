@@ -78,6 +78,7 @@ interface GrantTokensTable {
   expires_at: number;
   used_at: number | null;
   parent_hash: string | null;
+  superseded_at: number | null;
 }
 
 /**
@@ -281,6 +282,7 @@ const MIGRATIONS: Record<string, Migration> = {
         .addColumn('expires_at', 'integer', (c) => c.notNull())
         .addColumn('used_at', 'integer')
         .addColumn('parent_hash', 'text')
+        .addColumn('superseded_at', 'integer')
         .execute();
 
       await db.schema

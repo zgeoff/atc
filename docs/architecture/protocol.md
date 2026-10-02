@@ -38,9 +38,9 @@ Methods are `noun.verb`; events are PascalCase, the naming style hook consumers 
 Claude Code's hook events. The MCP tools map onto both mechanically (`session.spawn` → tool
 `atc_session_spawn`, `SessionAdded` → a notification). Error codes are human-readable strings from a
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
-`no_such_session`, `session_dead`, `unsupported`, `already_answered`, `too_slow`, `internal`. An
-unknown method is an `unknown_method` error, never a disconnect; unknown fields in any message are
-ignored. Both rules exist so additive evolution never breaks a peer.
+`no_such_session`, `session_dead`, `unsupported`, `already_answered`, `too_slow`, `at_capacity`,
+`internal`. An unknown method is an `unknown_method` error, never a disconnect; unknown fields in
+any message are ignored. Both rules exist so additive evolution never breaks a peer.
 
 ## Handshake
 
@@ -105,7 +105,7 @@ semantics.
 | `grant.refresh`         | rotate a refresh token hash into a new pair; a bad or reused token is `unauthorized`, and reuse revokes the grant                                                                                                  |
 | `grant.list`            | the live grants, without token hashes                                                                                                                                                                              |
 | `grant.revoke`          | revoke a grant by id (`{ grant }`); an unknown id is `bad_args`                                                                                                                                                    |
-| `grant.registerClient`  | register an OAuth client (`{ name, redirectURIs }`); the ok holds the client id the daemon minted                                                                                                                  |
+| `grant.registerClient`  | register an OAuth client (`{ name, redirectURIs }`); the ok holds the client id the daemon minted, and 100 clients still without a grant make it `at_capacity`                                                     |
 | `grant.findClient`      | one registered client by id (`{ clientID }`), or `null`                                                                                                                                                            |
 
 `session.input` is a request (it gets an ok, preserving the rule that state-changing messages are

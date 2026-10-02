@@ -167,6 +167,10 @@ async function answerRevoke(rawParams: unknown, desk: GrantDesk): Promise<GrantA
   return { ok: {} };
 }
 
+// Registration is unauthenticated, so the clients it can leave behind before
+// any of them gains a grant are capped.
+const MAX_CLIENTS_WITHOUT_GRANT = 100;
+
 async function answerRegisterClient(rawParams: unknown, desk: GrantDesk): Promise<GrantAnswer> {
   const parsed = parseRequestParams('grant.registerClient', rawParams);
 
@@ -174,11 +178,24 @@ async function answerRegisterClient(rawParams: unknown, desk: GrantDesk): Promis
     return buildBadArgs(parsed.message);
   }
 
+  const now = desk.now();
+
+  await desk.store.removeExpiredGrants(now, desk.policy.clientGraceMs);
+
+  if ((await desk.store.countClientsWithoutGrant()) >= MAX_CLIENTS_WITHOUT_GRANT) {
+    return {
+      err: {
+        code: 'at_capacity',
+        msg: `${MAX_CLIENTS_WITHOUT_GRANT} registered clients are still waiting for a grant`,
+      },
+    };
+  }
+
   const clientID = mintClientID();
 
   await desk.store.createClient(
     { clientID, name: parsed.data.name, redirectURIs: parsed.data.redirectURIs },
-    desk.now(),
+    now,
   );
 
   return { ok: { clientID } };

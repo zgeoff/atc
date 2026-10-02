@@ -208,13 +208,187 @@ test('it reissues a pair when a spent refresh token is retried before its succes
     scopes: ['read'],
   });
 
+  const a3Access = await ctx.grants.verifyAccessToken('a3', 'https://atc.example/mcp', 6000);
+
+  expect(a3Access).toStrictEqual({ grantID: 'g1', clientName: 'dots', scopes: ['read'] });
+});
+
+test('it revokes the grant when the access token a retry superseded is presented', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.grants.createGrant({
+    id: 'g1',
+    clientID: 'c1',
+    clientName: 'dots',
+    scopes: ['read'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+    now: 1000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+  });
+
+  await ctx.grants.refreshGrant({
+    refreshHash: 'r1',
+    accessHash: 'a2',
+    nextRefreshHash: 'r2',
+    clientID: 'c1',
+    resource: 'https://atc.example/mcp',
+    now: 2000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+    retryWindowMs: 120_000,
+  });
+
+  await ctx.grants.refreshGrant({
+    refreshHash: 'r1',
+    accessHash: 'a3',
+    nextRefreshHash: 'r3',
+    clientID: 'c1',
+    resource: 'https://atc.example/mcp',
+    now: 5000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+    retryWindowMs: 120_000,
+  });
+
   const a2Access = await ctx.grants.verifyAccessToken('a2', 'https://atc.example/mcp', 6000);
 
   expect(a2Access).toBeNull();
 
-  const a3Access = await ctx.grants.verifyAccessToken('a3', 'https://atc.example/mcp', 6000);
+  const a3Access = await ctx.grants.verifyAccessToken('a3', 'https://atc.example/mcp', 7000);
 
-  expect(a3Access).not.toBeNull();
+  expect(a3Access).toBeNull();
+
+  const grants = await ctx.grants.collectGrants();
+
+  expect(grants).toStrictEqual([]);
+});
+
+test('it revokes the grant when the refresh token a retry superseded is presented', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.grants.createGrant({
+    id: 'g1',
+    clientID: 'c1',
+    clientName: 'dots',
+    scopes: ['read'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+    now: 1000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+  });
+
+  await ctx.grants.refreshGrant({
+    refreshHash: 'r1',
+    accessHash: 'a2',
+    nextRefreshHash: 'r2',
+    clientID: 'c1',
+    resource: 'https://atc.example/mcp',
+    now: 2000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+    retryWindowMs: 120_000,
+  });
+
+  await ctx.grants.refreshGrant({
+    refreshHash: 'r1',
+    accessHash: 'a3',
+    nextRefreshHash: 'r3',
+    clientID: 'c1',
+    resource: 'https://atc.example/mcp',
+    now: 5000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+    retryWindowMs: 120_000,
+  });
+
+  const superseded = await ctx.grants.refreshGrant({
+    refreshHash: 'r2',
+    accessHash: 'a4',
+    nextRefreshHash: 'r4',
+    clientID: 'c1',
+    resource: 'https://atc.example/mcp',
+    now: 6000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+    retryWindowMs: 120_000,
+  });
+
+  expect(superseded).toStrictEqual({ kind: 'revoked' });
+
+  const a3Access = await ctx.grants.verifyAccessToken('a3', 'https://atc.example/mcp', 7000);
+
+  expect(a3Access).toBeNull();
+
+  const grants = await ctx.grants.collectGrants();
+
+  expect(grants).toStrictEqual([]);
+});
+
+test('it refuses a refresh token presented for a different resource', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.grants.createGrant({
+    id: 'g1',
+    clientID: 'c1',
+    clientName: 'dots',
+    scopes: ['read'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+    now: 1000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+  });
+
+  const outcome = await ctx.grants.refreshGrant({
+    refreshHash: 'r1',
+    accessHash: 'a2',
+    nextRefreshHash: 'r2',
+    clientID: 'c1',
+    resource: 'https://other.example/mcp',
+    now: 2000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+    retryWindowMs: 120_000,
+  });
+
+  expect(outcome).toStrictEqual({ kind: 'invalid' });
+});
+
+test('it refuses a refresh token after it expires', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.grants.createGrant({
+    id: 'g1',
+    clientID: 'c1',
+    clientName: 'dots',
+    scopes: ['read'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+    now: 1000,
+    accessMs: 500,
+    refreshMs: 1000,
+  });
+
+  const outcome = await ctx.grants.refreshGrant({
+    refreshHash: 'r1',
+    accessHash: 'a2',
+    nextRefreshHash: 'r2',
+    clientID: 'c1',
+    resource: 'https://atc.example/mcp',
+    now: 2000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+    retryWindowMs: 120_000,
+  });
+
+  expect(outcome).toStrictEqual({ kind: 'invalid' });
 });
 
 test('it revokes the grant when a spent refresh token returns after its successor was used', async () => {
@@ -445,6 +619,58 @@ test('it keeps a registered client while a grant uses it', async () => {
   expect(client).toStrictEqual({
     clientID: 'c1',
     name: 'dots',
+    redirectURIs: ['https://chatgpt.com/cb'],
+  });
+});
+
+test('it counts only registered clients that hold no grant', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.grants.createClient(
+    { clientID: 'c1', name: 'dots', redirectURIs: ['https://chatgpt.com/cb'] },
+    1000,
+  );
+
+  await ctx.grants.createClient(
+    { clientID: 'c2', name: 'lines', redirectURIs: ['https://chatgpt.com/cb'] },
+    1000,
+  );
+
+  await ctx.grants.createGrant({
+    id: 'g1',
+    clientID: 'c1',
+    clientName: 'dots',
+    scopes: ['read'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+    now: 1000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+  });
+
+  const waiting = await ctx.grants.countClientsWithoutGrant();
+
+  expect(waiting).toBe(1);
+});
+
+test('it finds a stored client name with its control characters dropped', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.grants.createClient(
+    {
+      clientID: 'c1',
+      name: 'dots\u001B]52;c;AAAA\u0007\nforged',
+      redirectURIs: ['https://chatgpt.com/cb'],
+    },
+    1000,
+  );
+
+  const client = await ctx.grants.findClient('c1');
+
+  expect(client).toStrictEqual({
+    clientID: 'c1',
+    name: 'dots]52;c;AAAA forged',
     redirectURIs: ['https://chatgpt.com/cb'],
   });
 });

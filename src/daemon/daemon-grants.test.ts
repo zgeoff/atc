@@ -230,3 +230,40 @@ test('it finds no client for an id it never minted', async () => {
 
   expect(found).toStrictEqual({ client: null });
 });
+
+test('it registers clients until 100 are waiting for a grant', async () => {
+  await using ctx = await setupTest();
+
+  const registered = await Promise.all(
+    Array.from({ length: 100 }, (_, index) =>
+      ctx.client.sendRequest('grant.registerClient', {
+        name: `client ${index}`,
+        redirectURIs: ['https://chatgpt.com/cb'],
+      }),
+    ),
+  );
+
+  expect(registered).toSatisfyAll(
+    (answer: Readonly<Record<string, unknown>>) => typeof answer['clientID'] === 'string',
+  );
+});
+
+test('it refuses a registration with at_capacity once 100 clients are waiting for a grant', async () => {
+  await using ctx = await setupTest();
+
+  await Promise.all(
+    Array.from({ length: 100 }, (_, index) =>
+      ctx.client.sendRequest('grant.registerClient', {
+        name: `client ${index}`,
+        redirectURIs: ['https://chatgpt.com/cb'],
+      }),
+    ),
+  );
+
+  expect(
+    ctx.client.sendRequest('grant.registerClient', {
+      name: 'one too many',
+      redirectURIs: ['https://chatgpt.com/cb'],
+    }),
+  ).rejects.toMatchObject({ code: 'at_capacity' });
+});

@@ -1,6 +1,7 @@
 import type { Kysely, Transaction } from 'kysely';
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import type { GrantScope } from '../shared/grant-scope';
+import { normalizeClientName } from '../shared/normalize-client-name';
 import type { StateStoreSchema } from './run-migrations';
 
 interface GrantLifetimes {
@@ -76,7 +77,10 @@ export interface OAuthClient {
  * The grants remote MCP clients hold, stored as token hashes only. Each grant
  * has one live access token and one live refresh token. A refresh rotates
  * both; presenting a spent refresh token again revokes the grant, except as a
- * retry of the rotation it started.
+ * retry of the rotation it started. A retry supersedes the pair the first
+ * rotation issued instead of dropping it, so whichever party holds that pair
+ * revokes the grant the moment it presents either token: a stolen refresh
+ * token replayed inside the retry window cannot silently take a grant over.
  */
 export class GrantStore {
   private readonly db: Kysely<StateStoreSchema>;
@@ -110,9 +114,28 @@ export class GrantStore {
 
     return {
       clientID: row.client_id,
-      name: row.name,
+      name: normalizeClientName(row.name),
       redirectURIs: parseURIList(row.redirect_uris),
     };
+  }
+
+  // Clients registered but not yet holding a grant: what unauthenticated
+  // registration can pile up before an operator approves anything.
+  async countClientsWithoutGrant(): Promise<number> {
+    const row = await this.db
+      .selectFrom('oauth_clients')
+      .select((eb) => eb.fn.countAll<number>().as('count'))
+      .where((eb) => {
+        const grantsOfClient = eb
+          .selectFrom('grants')
+          .select('grants.id')
+          .whereRef('grants.client_id', '=', 'oauth_clients.client_id');
+
+        return eb.not(eb.exists(grantsOfClient));
+      })
+      .executeTakeFirstOrThrow();
+
+    return row.count;
   }
 
   async createGrant(grant: NewGrant): Promise<void> {
@@ -146,12 +169,18 @@ export class GrantStore {
       .innerJoin('grants', 'grants.id', 'grant_tokens.grant_id')
       .select(['grants.id', 'grants.client_name', 'grants.scopes', 'grants.resource'])
       .select(['grants.revoked_at'])
-      .select(['grant_tokens.expires_at', 'grant_tokens.used_at'])
+      .select(['grant_tokens.expires_at', 'grant_tokens.used_at', 'grant_tokens.superseded_at'])
       .where('grant_tokens.hash', '=', hash)
       .where('grant_tokens.kind', '=', 'access')
       .executeTakeFirst();
 
     if (row === undefined || row.revoked_at !== null || row.expires_at <= now) {
+      return null;
+    }
+
+    if (row.superseded_at !== null) {
+      await this.revokeGrant(row.id, now);
+
       return null;
     }
 
@@ -184,12 +213,19 @@ export class GrantStore {
         .select(['grants.id', 'grants.scopes', 'grants.client_id', 'grants.client_name'])
         .select(['grants.resource'])
         .select(['grants.revoked_at', 'grant_tokens.expires_at', 'grant_tokens.used_at'])
+        .select(['grant_tokens.superseded_at'])
         .where('grant_tokens.hash', '=', refresh.refreshHash)
         .where('grant_tokens.kind', '=', 'refresh')
         .executeTakeFirst();
 
       if (row === undefined || row.revoked_at !== null || row.expires_at <= refresh.now) {
         return { kind: 'invalid' };
+      }
+
+      if (row.superseded_at !== null) {
+        await revokeGrantIn(trx, row.id, refresh.now);
+
+        return { kind: 'revoked' };
       }
 
       if (row.client_id !== refresh.clientID || row.resource !== refresh.resource) {
@@ -225,8 +261,10 @@ export class GrantStore {
 
       if (retried) {
         await trx
-          .deleteFrom('grant_tokens')
+          .updateTable('grant_tokens')
+          .set({ superseded_at: refresh.now })
           .where('parent_hash', '=', refresh.refreshHash)
+          .where('superseded_at', 'is', null)
           .execute();
 
         await createTokenPair(
@@ -270,7 +308,8 @@ export class GrantStore {
     }));
   }
 
-  // Drops expired tokens, grants with no live refresh token left along with
+  // Drops expired tokens (superseded ones included), grants with no live,
+  // unsuperseded refresh token left along with
   // their remaining tokens, and clients registered more than clientGraceMs ago
   // that never gained a grant.
   async removeExpiredGrants(now: number, clientGraceMs: number): Promise<void> {
@@ -284,7 +323,8 @@ export class GrantStore {
             .selectFrom('grant_tokens')
             .select('grant_tokens.hash')
             .whereRef('grant_tokens.grant_id', '=', 'grants.id')
-            .where('grant_tokens.kind', '=', 'refresh');
+            .where('grant_tokens.kind', '=', 'refresh')
+            .where('grant_tokens.superseded_at', 'is', null);
 
           const hasLiveRefresh = eb.exists(liveRefresh);
 
@@ -339,6 +379,7 @@ async function createTokenPair(
         expires_at: lifetimes.now + lifetimes.accessMs,
         used_at: null,
         parent_hash: parentHash,
+        superseded_at: null,
       },
       {
         hash: refreshHash,
@@ -348,6 +389,7 @@ async function createTokenPair(
         expires_at: lifetimes.now + lifetimes.refreshMs,
         used_at: null,
         parent_hash: parentHash,
+        superseded_at: null,
       },
     ])
     .execute();
@@ -355,7 +397,8 @@ async function createTokenPair(
 
 // A spent refresh token presented again inside the retry window, while the
 // pair its rotation produced is still unused, means the client never received
-// that pair; any other reuse means the token leaked.
+// that pair; any other reuse means the token leaked. Pairs an earlier retry
+// already superseded are left out: they can only ever revoke.
 async function isRetriedRotation(
   trx: Transaction<StateStoreSchema>,
   refresh: GrantRefresh,
@@ -369,6 +412,7 @@ async function isRetriedRotation(
     .selectFrom('grant_tokens')
     .select(['used_at'])
     .where('parent_hash', '=', refresh.refreshHash)
+    .where('superseded_at', 'is', null)
     .execute();
 
   return successors.every((row) => row.used_at === null);
