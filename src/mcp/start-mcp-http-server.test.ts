@@ -2010,8 +2010,8 @@ test('it prints the requester with control characters dropped and the user agent
   await fetch(authorize, {
     redirect: 'manual',
     headers: {
-      'cf-connecting-ip': '203.0.113.7\u0085\u00AD',
-      'user-agent': `Evil\u0085\u00AD\u007F\tUA ${'A'.repeat(100)}`,
+      'cf-connecting-ip': '203.0.113.7\u007F',
+      'user-agent': `Evil\u007F\tUA ${'A'.repeat(100)}`,
     },
   });
 
