@@ -2,10 +2,11 @@
 
 ## [2.8.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.8.0...@zgeoff/atc@2.8.1) (2026-10-02)
 
-
 ### Bug Fixes
 
-* steer agents to report milestones and follow messages by id ([#121](https://github.com/zgeoff/atc/issues/121)) ([0f4ec34](https://github.com/zgeoff/atc/commit/0f4ec34e21d562e1f9dd2afa6ec5657c09f00686))
+- steer agents to report milestones and follow messages by id
+  ([#121](https://github.com/zgeoff/atc/issues/121))
+  ([0f4ec34](https://github.com/zgeoff/atc/commit/0f4ec34e21d562e1f9dd2afa6ec5657c09f00686))
 
 ## [2.8.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.7.0...@zgeoff/atc@2.8.0) (2026-10-02)
 
