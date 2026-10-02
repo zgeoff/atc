@@ -5,11 +5,13 @@ import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
 import { findDaemonRecord } from '../shared/find-daemon-record';
+import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { MessageOwner } from '../store/message-owner';
-import type { MessageRecord } from '../store/message-record';
+import type { MessageRecord, MessageStatus } from '../store/message-record';
 import { StateStore } from '../store/state-store';
+import type { EventScope } from '../store/state-store';
 import type { TrailEntry } from '../store/trail-entry';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
@@ -202,6 +204,35 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     emitEvent(buildSessionMessageEvent(sessionID, record), findHookScope(sessionID));
   };
 
+  // A live session's scope also matches the rows it wrote under an earlier
+  // atc id, through the agent session id a restore carries on.
+  const buildEventScope = (sessionID: SessionID): EventScope => ({
+    atcID: sessionID,
+    agentSessionID: mgr.sessions.find((x) => x.id === sessionID)?.agentSessionID,
+  });
+
+  // A message belongs to the live session holding its atc id or its agent
+  // session id, else to the atc id it was sent to.
+  const readMessageView = async (messageID: MessageID) => {
+    const record = await store.findMessageByID(messageID);
+
+    if (record === null) {
+      return null;
+    }
+
+    const owner = mgr.sessions.find(
+      (x) =>
+        x.id === record.atcID ||
+        (record.agentSessionID !== undefined && x.agentSessionID === record.agentSessionID),
+    );
+
+    return {
+      session: owner?.id ?? record.atcID,
+      record,
+      answeredWith: await store.collectTurnSiblings(record),
+    };
+  };
+
   registry.onRequested = (req) => {
     emitEvent(
       {
@@ -314,6 +345,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         owner,
         truncateToBytes(report.answer, ANSWER_BYTE_CAP),
         Date.now(),
+        report.turn,
       );
 
       if (answered !== null) {
@@ -905,23 +937,30 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return { path, page };
     },
-    readEvents: async (afterID, limit, waitMs) => {
+    readEvents: async (afterID, limit, waitMs, sessionID) => {
       const deadline = Date.now() + waitMs;
+      const scope = sessionID === null ? null : buildEventScope(sessionID);
 
-      // A wake for an event the read leaves out (a heartbeat) loops back to
-      // wait out the rest of the window.
+      // A wake for an event the read leaves out (a heartbeat, or another
+      // session's event under a session filter) loops back to wait out the
+      // rest of the window.
       for (;;) {
         const generation = eventSignal.generation;
 
+        // A read from a cursor takes one row past the limit to learn whether
+        // more follow; the latest events have nothing after them.
         const rows =
           afterID === null
-            ? await store.collectLatestEvents(limit)
-            : await store.collectEventsAfter(afterID, limit);
+            ? await store.collectLatestEvents(limit, scope)
+            : await store.collectEventsAfter(afterID, limit + 1, scope);
 
         const remaining = deadline - Date.now();
 
         if (rows.length > 0 || remaining <= 0 || eventSignal.disposed) {
-          return buildFleetEvents(rows, mgr.collectDescriptors());
+          return {
+            events: buildFleetEvents(rows.slice(0, limit), mgr.collectDescriptors()),
+            more: rows.length > limit,
+          };
         }
 
         await eventSignal.waitForNext(generation, remaining);
@@ -1005,20 +1044,38 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return 'ok';
     },
-    readMessage: async (messageID) => {
-      const record = await store.findMessageByID(messageID);
+    readMessage: async (messageID, waitMs) => {
+      const deadline = Date.now() + waitMs;
+      let initialStatus: MessageStatus | null = null;
 
-      if (record === null) {
-        return null;
+      // Every message status change writes a trail entry and wakes the
+      // signal, so a wake re-reads the message and returns once its status
+      // moved from the status at call time. An answered message has no
+      // further status to wait for.
+      for (;;) {
+        const generation = eventSignal.generation;
+
+        const view = await readMessageView(messageID);
+
+        if (view === null) {
+          return null;
+        }
+
+        initialStatus ??= view.record.status;
+
+        const remaining = deadline - Date.now();
+
+        if (
+          view.record.status !== initialStatus ||
+          view.record.status === 'answered' ||
+          remaining <= 0 ||
+          eventSignal.disposed
+        ) {
+          return view;
+        }
+
+        await eventSignal.waitForNext(generation, remaining);
       }
-
-      const owner = mgr.sessions.find(
-        (x) =>
-          x.id === record.atcID ||
-          (record.agentSessionID !== undefined && x.agentSessionID === record.agentSessionID),
-      );
-
-      return { session: owner?.id ?? record.atcID, record };
     },
     ackMessage: async (client, sessionID, messageID) => {
       const s = mgr.sessions.find((x) => x.id === sessionID);

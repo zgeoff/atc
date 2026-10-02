@@ -35,8 +35,9 @@ const REPORT_TOOL = 'mcp__atc-bridge__report';
 
 /**
  * Delivers the atc inbox of the session named by ATC_SESSION_ID into the
- * conversation, reports each delivered message's answer when its turn ends,
- * and serves the report tool. Outside atc it changes nothing.
+ * conversation and serves the report tool. When a turn ends, it reports the
+ * turn's final reply, with the turn's id, as the answer to every message the
+ * turn carried. Outside atc it changes nothing.
  */
 export const register: Register = (on) => {
   const state: BridgeState = {
@@ -315,7 +316,7 @@ function updateTurnCompleted(
     if (state.unseen.delete(msg.id)) {
       scheduleDelivery($, state, msg);
     } else if (isAnswered) {
-      scheduleAnsweredReport($, state, msg.id, answer);
+      scheduleAnsweredReport($, state, msg.id, turnID, answer);
     }
   }
 }
@@ -324,14 +325,18 @@ function scheduleAnsweredReport(
   $: EngineInterface,
   state: BridgeState,
   messageID: string,
+  turnID: string,
   answer: string,
 ): void {
   state.reporting = state.reporting
     .then(async () => {
-      await $.process.run([...ATC_CLI, 'report', 'answered', '--message', messageID], {
-        stdin: answer,
-        timeoutMs: 5000,
-      });
+      await $.process.run(
+        [...ATC_CLI, 'report', 'answered', '--message', messageID, '--turn', turnID],
+        {
+          stdin: answer,
+          timeoutMs: 5000,
+        },
+      );
     })
     .catch((error: unknown) => {
       $.ui.log(`atc-bridge: reporting ${messageID} failed (${String(error)})`, { to: 'debug' });

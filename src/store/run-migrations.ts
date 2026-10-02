@@ -50,6 +50,10 @@ interface MessagesTable {
   delivered_at: number | null;
   answered_at: number | null;
   answer: string | null;
+
+  // The turn whose final reply is the answer; null for a message answered
+  // without one.
+  turn_id: string | null;
 }
 
 /**
@@ -67,8 +71,8 @@ export interface StateStoreSchema {
 // Every shape the fleet table has shipped with: the oldest carries only
 // agent_session_id under its Claude-era name plus name and cwd, and each
 // later step adds one column the daemon grew to depend on. events later gains
-// columns of its own, while spawn_history, prefs, and messages have carried one
-// shape since they were added.
+// columns of its own, as does messages, while spawn_history and prefs have
+// carried one shape since they were added.
 const MIGRATIONS: Record<string, Migration> = {
   '001_create_initial_schema': {
     async up(db: Kysely<StateStoreSchema>) {
@@ -213,6 +217,18 @@ const MIGRATIONS: Record<string, Migration> = {
         .ifNotExists()
         .on('messages')
         .columns(['agent_session_id', 'status', 'sent_at'])
+        .execute();
+    },
+  },
+  '013_add_messages_turn_id': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('messages').addColumn('turn_id', 'text').execute();
+
+      await db.schema
+        .createIndex('messages_turn_id')
+        .ifNotExists()
+        .on('messages')
+        .column('turn_id')
         .execute();
     },
   },

@@ -101,13 +101,14 @@ export interface DaemonContext {
     afterID: number | null,
     limit: number,
     waitMs: number,
-  ) => Promise<FleetEvent[]>;
+    sessionID: SessionID | null,
+  ) => Promise<EventsPage>;
   readonly writeSessionMessage: (
     sessionID: SessionID,
     from: string,
     text: string,
   ) => Promise<MessageRecord | 'missing' | 'dead' | 'unsupported' | 'no_tap'>;
-  readonly readMessage: (messageID: MessageID) => Promise<MessageView | null>;
+  readonly readMessage: (messageID: MessageID, waitMs: number) => Promise<MessageView | null>;
   readonly attachTap: (client: TapClient, sessionID: SessionID) => 'ok' | 'missing' | 'unsupported';
   readonly ackMessage: (
     client: TapClient,
@@ -122,11 +123,18 @@ export interface OutputClient {
   readonly sendOutput: (sessionID: SessionID, event: EventMsg, byteLength: number) => void;
 }
 
-// One message as `message.get` reports it: the session it belongs to now and
-// every field of the record.
+// One `events.read` answer: the events, and whether more follow them.
+interface EventsPage {
+  readonly events: readonly FleetEvent[];
+  readonly more: boolean;
+}
+
+// One message as `message.get` reports it: the session it belongs to now,
+// every field of the record, and the other messages its turn answered.
 interface MessageView {
   readonly session: SessionID;
   readonly record: MessageRecord;
+  readonly answeredWith: readonly MessageID[];
 }
 
 // The slice of a connection a tap subscription needs.
@@ -826,14 +834,20 @@ export class DaemonConnection {
       afterID = decoded.id;
     }
 
-    const events = await this.ctx.readEvents(afterID, parsed.data.limit, parsed.data.waitMs);
+    const page = await this.ctx.readEvents(
+      afterID,
+      parsed.data.limit,
+      parsed.data.waitMs,
+      parsed.data.session ?? null,
+    );
 
-    const last = events.at(-1);
+    const last = page.events.at(-1);
 
     // A cursor always comes back so a client can long-poll from an empty trail.
     this.sendOk(req.id, {
-      events,
+      events: page.events,
       cursor: last === undefined ? encodeCursor({ kind: 'events', id: afterID ?? 0 }) : last.cursor,
+      more: page.more,
     });
   }
 
@@ -923,7 +937,7 @@ export class DaemonConnection {
 
     const messageID = parsed.data.message;
 
-    const view = await this.ctx.readMessage(messageID);
+    const view = await this.ctx.readMessage(messageID, parsed.data.waitMs);
 
     if (view === null) {
       this.sendErr(req.id, 'bad_args', `no message '${messageID}'`);
@@ -943,6 +957,8 @@ export class DaemonConnection {
       ...(record.deliveredAt === undefined ? {} : { deliveredAt: record.deliveredAt }),
       ...(record.answeredAt === undefined ? {} : { answeredAt: record.answeredAt }),
       ...(record.answer === undefined ? {} : { answer: record.answer }),
+      turn: record.turn ?? null,
+      answeredWith: view.answeredWith,
     });
   }
 

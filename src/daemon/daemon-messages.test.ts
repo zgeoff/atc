@@ -905,6 +905,8 @@ test('it reads a message back through message.get at each status', async () => {
     text: 'hello',
     status: 'accepted',
     sentAt: expect.any(Number),
+    turn: null,
+    answeredWith: [],
   });
 
   await daemon.tap.sendRequest('session.tap', { session: id });
@@ -920,6 +922,8 @@ test('it reads a message back through message.get at each status', async () => {
     status: 'delivered',
     sentAt: expect.any(Number),
     deliveredAt: expect.any(Number),
+    turn: null,
+    answeredWith: [],
   });
 
   await sendReport(
@@ -941,6 +945,8 @@ test('it reads a message back through message.get at each status', async () => {
       sentAt: expect.any(Number),
       deliveredAt: expect.any(Number),
       answeredAt: expect.any(Number),
+      turn: null,
+      answeredWith: [],
     });
   });
 });
@@ -998,6 +1004,164 @@ test('it caps a stored answer at the byte limit without splitting a character', 
 
   expect(got['answer']).toBe(`${'é'.repeat(32_766)}…`);
   expect(new TextEncoder().encode(String(got['answer']))).toHaveLength(65_535);
+});
+
+test('it gives two messages one turn answered the same turn and lists each beside the other', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const first = await daemon.actor.sendRequest('session.message', { session: id, text: 'one' });
+  const second = await daemon.actor.sendRequest('session.message', { session: id, text: 'two' });
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: first['message'], answer: 'both', turn: 't-1' } })}\n${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: second['message'], answer: 'both', turn: 't-1' } })}\n`,
+    2000,
+  );
+
+  await waitFor(async () => {
+    const got = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+
+    expect(got['status']).toBe('answered');
+  });
+
+  const firstGot = await daemon.actor.sendRequest('message.get', { message: first['message'] });
+  const secondGot = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+
+  expect(firstGot).toMatchObject({
+    answer: 'both',
+    turn: 't-1',
+    answeredWith: [second['message']],
+  });
+
+  expect(secondGot).toMatchObject({
+    answer: 'both',
+    turn: 't-1',
+    answeredWith: [first['message']],
+  });
+});
+
+test('it lists no other messages for a message its own turn answered', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const first = await daemon.actor.sendRequest('session.message', { session: id, text: 'one' });
+  const second = await daemon.actor.sendRequest('session.message', { session: id, text: 'two' });
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: first['message'], answer: 'first', turn: 't-1' } })}\n${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: second['message'], answer: 'second', turn: 't-2' } })}\n`,
+    2000,
+  );
+
+  await waitFor(async () => {
+    const got = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+
+    expect(got['status']).toBe('answered');
+  });
+
+  const firstGot = await daemon.actor.sendRequest('message.get', { message: first['message'] });
+  const secondGot = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+
+  expect(firstGot).toMatchObject({ answer: 'first', turn: 't-1', answeredWith: [] });
+  expect(secondGot).toMatchObject({ answer: 'second', turn: 't-2', answeredWith: [] });
+});
+
+test('it stores no turn for an answer reported without one', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const first = await daemon.actor.sendRequest('session.message', { session: id, text: 'one' });
+  const second = await daemon.actor.sendRequest('session.message', { session: id, text: 'two' });
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: first['message'], answer: 'both' } })}\n${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: second['message'], answer: 'both' } })}\n`,
+    2000,
+  );
+
+  await waitFor(async () => {
+    const got = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+
+    expect(got['status']).toBe('answered');
+  });
+
+  const firstGot = await daemon.actor.sendRequest('message.get', { message: first['message'] });
+  const secondGot = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+
+  expect(firstGot).toMatchObject({ answer: 'both', turn: null, answeredWith: [] });
+  expect(secondGot).toMatchObject({ answer: 'both', turn: null, answeredWith: [] });
+});
+
+test('it holds message.get open until the message status changes', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+
+  const start = Date.now();
+
+  const pending = daemon.actor.sendRequest('message.get', {
+    message: sent['message'],
+    waitMs: 10_000,
+  });
+
+  // The daemon answers one connection's requests in the order they started,
+  // so the ping's answer means the held read already took its first look.
+  await daemon.actor.sendRequest('daemon.ping');
+  await daemon.tap.sendRequest('session.tap', { session: id });
+  await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+
+  const got = await pending;
+
+  expect(got).toMatchObject({ message: sent['message'], status: 'delivered' });
+  expect(Date.now()).toBeWithin(start, start + 9000);
+});
+
+test('it answers a held message.get with the unchanged status once the wait ends', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+
+  const start = Date.now();
+
+  const got = await daemon.actor.sendRequest('message.get', {
+    message: sent['message'],
+    waitMs: 300,
+  });
+
+  expect(got).toMatchObject({ message: sent['message'], status: 'accepted' });
+  expect(Date.now()).toBeWithin(start + 290, start + 5000);
+});
+
+test('it answers message.get for an answered message at once whatever the wait', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: sent['message'], answer: 'done' } })}\n`,
+    2000,
+  );
+
+  await waitFor(async () => {
+    const got = await daemon.actor.sendRequest('message.get', { message: sent['message'] });
+
+    expect(got['status']).toBe('answered');
+  });
+
+  const start = Date.now();
+
+  const got = await daemon.actor.sendRequest('message.get', {
+    message: sent['message'],
+    waitMs: 10_000,
+  });
+
+  expect(got).toMatchObject({ status: 'answered', answer: 'done' });
+  expect(Date.now()).toBeWithin(start, start + 5000);
 });
 
 test('it rejects message.get for an unknown message as bad_args', async () => {
@@ -1127,6 +1291,7 @@ test('it records each message status change in events.read in order', async () =
       },
     ],
     cursor: expect.toBeString(),
+    more: false,
   });
 });
 
@@ -1183,6 +1348,72 @@ test('it wakes a waiting events.read when a message is accepted', async () => {
   expect(Date.now()).toBeWithin(start, start + 9000);
 });
 
+test("it limits events.read to one session's events", async () => {
+  await using daemon = await setupTest();
+
+  const one = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const two = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'two', '/tmp');
+
+  await daemon.actor.sendRequest('session.message', { session: one, text: 'to one' });
+  await daemon.actor.sendRequest('session.message', { session: two, text: 'to two' });
+
+  const read = await daemon.actor.sendRequest('events.read', { session: two });
+
+  expect(read).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: two,
+        name: 'two',
+        kind: 'message-accepted',
+        detail: 'to two',
+        message: expect.toBeString(),
+      },
+    ],
+    cursor: expect.toBeString(),
+    more: false,
+  });
+});
+
+test("it wakes a held events.read only for the filtered session's event", async () => {
+  await using daemon = await setupTest();
+
+  const one = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const two = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'two', '/tmp');
+  const first = await daemon.actor.sendRequest('events.read', {});
+
+  const pending = daemon.actor.sendRequest('events.read', {
+    cursor: first['cursor'],
+    session: two,
+    waitMs: 10_000,
+  });
+
+  await daemon.actor.sendRequest('session.message', { session: one, text: 'to one' });
+  await daemon.actor.sendRequest('session.message', { session: two, text: 'to two' });
+
+  const woken = await pending;
+
+  expect(woken['events']).toMatchObject([{ session: two, detail: 'to two' }]);
+});
+
+test('it marks an events.read page that stopped before the end of the trail', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const start = await daemon.actor.sendRequest('events.read', {});
+
+  await daemon.actor.sendRequest('session.message', { session: id, text: 'a' });
+  await daemon.actor.sendRequest('session.message', { session: id, text: 'b' });
+  await daemon.actor.sendRequest('session.message', { session: id, text: 'c' });
+
+  const page = await daemon.actor.sendRequest('events.read', { cursor: start['cursor'], limit: 2 });
+  const rest = await daemon.actor.sendRequest('events.read', { cursor: page['cursor'], limit: 2 });
+
+  expect(page).toMatchObject({ events: [{ detail: 'a' }, { detail: 'b' }], more: true });
+  expect(rest).toMatchObject({ events: [{ detail: 'c' }], more: false });
+});
+
 test('it records a note in events.read with its label', async () => {
   await using daemon = await setupTest();
 
@@ -1215,6 +1446,7 @@ test('it records a note in events.read with its label', async () => {
       },
     ],
     cursor: expect.toBeString(),
+    more: false,
   });
 });
 
@@ -1256,6 +1488,7 @@ test('it leaves a note from an unknown session out of the trail', async () => {
       },
     ],
     cursor: expect.toBeString(),
+    more: false,
   });
 });
 

@@ -2010,13 +2010,14 @@ test('it reads hook events from a cursor through events.read', async () => {
       },
     ],
     cursor: expect.toBeString(),
+    more: false,
   });
 
   const cursor = getString(answer, 'cursor');
 
   const next = await client.sendRequest('events.read', { cursor });
 
-  expect(next).toStrictEqual({ events: [], cursor });
+  expect(next).toStrictEqual({ events: [], cursor, more: false });
 });
 
 test('it holds events.read open until the next event arrives', async () => {

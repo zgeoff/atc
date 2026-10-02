@@ -1100,7 +1100,7 @@ test('it answers events.read on an empty trail at once with no events and a curs
 
   const answer = await client.sendRequest('events.read', {});
 
-  expect(answer).toStrictEqual({ events: [], cursor: expect.any(String) });
+  expect(answer).toStrictEqual({ events: [], cursor: expect.any(String), more: false });
 });
 
 test('it holds events.read open for waitMs when no event arrives', async () => {
@@ -1112,6 +1112,6 @@ test('it holds events.read open for waitMs when no event arrives', async () => {
 
   const answer = await client.sendRequest('events.read', { waitMs: 300 });
 
-  expect(answer).toStrictEqual({ events: [], cursor: expect.any(String) });
+  expect(answer).toStrictEqual({ events: [], cursor: expect.any(String), more: false });
   expect(Date.now()).toBeWithin(before + 250, before + 3000);
 });

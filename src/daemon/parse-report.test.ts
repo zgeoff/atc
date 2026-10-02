@@ -5,7 +5,29 @@ import { parseReport } from './parse-report';
 test('it parses an answered report', () => {
   const report = parseReport({ kind: 'answered', message: 'm-1', answer: 'done' });
 
-  expect(report).toStrictEqual({ kind: 'answered', message: toMessageID('m-1'), answer: 'done' });
+  expect(report).toStrictEqual({
+    kind: 'answered',
+    message: toMessageID('m-1'),
+    answer: 'done',
+    turn: null,
+  });
+});
+
+test('it parses the turn an answered report carries', () => {
+  const report = parseReport({ kind: 'answered', message: 'm-1', answer: 'done', turn: 't-1' });
+
+  expect(report).toStrictEqual({
+    kind: 'answered',
+    message: toMessageID('m-1'),
+    answer: 'done',
+    turn: 't-1',
+  });
+});
+
+test.each([[''], [42]])('it reads an answered report turn of %p as unknown', (turn) => {
+  const report = parseReport({ kind: 'answered', message: 'm-1', answer: 'done', turn });
+
+  expect(report).toMatchObject({ kind: 'answered', turn: null });
 });
 
 test('it rejects a report without a message id', () => {

@@ -23,6 +23,16 @@ import type { TrailEntry } from './trail-entry';
 // Spelled as the partial index's predicate so SQLite can match them.
 const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;
 
+/**
+ * One session's slice of the event trail: rows under its atc id, plus rows
+ * under its agent session id, since a restore re-mints the atc id while the
+ * agent session id carries on.
+ */
+export interface EventScope {
+  readonly atcID: SessionID;
+  readonly agentSessionID: AgentSessionID | undefined;
+}
+
 export interface StoredEvent {
   readonly id: number;
 
@@ -238,12 +248,17 @@ export class StateStore {
       .execute();
   }
 
-  async collectEventsAfter(afterID: number, limit: number): Promise<StoredEvent[]> {
+  async collectEventsAfter(
+    afterID: number,
+    limit: number,
+    scope: EventScope | null = null,
+  ): Promise<StoredEvent[]> {
     const rows = await this.db
       .selectFrom('events')
       .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
       .where('id', '>', afterID)
       .where(TRAIL_FILTER)
+      .where((eb) => buildScopeMatch(eb, scope))
       .orderBy('id', 'asc')
       .limit(limit)
       .execute();
@@ -251,11 +266,15 @@ export class StateStore {
     return buildStoredEvents(rows);
   }
 
-  async collectLatestEvents(limit: number): Promise<StoredEvent[]> {
+  async collectLatestEvents(
+    limit: number,
+    scope: EventScope | null = null,
+  ): Promise<StoredEvent[]> {
     const rows = await this.db
       .selectFrom('events')
       .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
       .where(TRAIL_FILTER)
+      .where((eb) => buildScopeMatch(eb, scope))
       .orderBy('id', 'desc')
       .limit(limit)
       .execute();
@@ -375,6 +394,31 @@ export class StateStore {
     return row === undefined ? null : toMessageRecord(row);
   }
 
+  // The other messages of the same session the given message's turn
+  // answered, oldest first; none when the message has no turn.
+  async collectTurnSiblings(record: MessageRecord): Promise<MessageID[]> {
+    if (record.turn === undefined) {
+      return [];
+    }
+
+    const owner: MessageOwner =
+      record.agentSessionID === undefined
+        ? { atcID: record.atcID }
+        : { atcID: record.atcID, agentSessionID: record.agentSessionID };
+
+    const rows = await this.db
+      .selectFrom('messages')
+      .select('id')
+      .where('turn_id', '=', record.turn)
+      .where('id', '!=', record.id)
+      .where((eb) => buildOwnerFilter(eb, owner))
+      .orderBy('sent_at', 'asc')
+      .orderBy('id', 'asc')
+      .execute();
+
+    return rows.map((row) => toMessageID(row.id));
+  }
+
   async updateMessageDelivered(
     id: MessageID,
     owner: MessageOwner,
@@ -397,10 +441,11 @@ export class StateStore {
     owner: MessageOwner,
     answer: string,
     at: number,
+    turn: string | null = null,
   ): Promise<MessageRecord | null> {
     const row = await this.db
       .updateTable('messages')
-      .set({ status: 'answered', answered_at: at, answer })
+      .set({ status: 'answered', answered_at: at, answer, turn_id: turn })
       .where('id', '=', id)
       .where('status', 'in', ['accepted', 'delivered'])
       .where((eb) => buildOwnerFilter(eb, owner))
@@ -480,6 +525,20 @@ export class StateStore {
       await this.writeFleet(entries);
     } catch {}
   }
+}
+
+function buildScopeMatch(
+  eb: ExpressionBuilder<StateStoreSchema, 'events'>, // oxlint-disable-line prefer-readonly-parameter-types -- a kysely expression builder bound to a live query; not meaningfully freezable
+  scope: EventScope | null,
+): Expression<SqlBool> {
+  if (scope === null) {
+    return eb.lit(true);
+  }
+
+  return eb.or([
+    eb('atc_id', '=', scope.atcID),
+    ...(scope.agentSessionID === undefined ? [] : [eb('session_id', '=', scope.agentSessionID)]),
+  ]);
 }
 
 interface EventRow {
@@ -562,5 +621,6 @@ function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRe
     ...(row.delivered_at === null ? {} : { deliveredAt: row.delivered_at }),
     ...(row.answered_at === null ? {} : { answeredAt: row.answered_at }),
     ...(row.answer === null ? {} : { answer: row.answer }),
+    ...(row.turn_id === null ? {} : { turn: row.turn_id }),
   };
 }

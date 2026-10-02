@@ -6,6 +6,10 @@ interface AnsweredReport {
   readonly kind: 'answered';
   readonly message: MessageID;
   readonly answer: string;
+
+  // The turn whose final reply the answer is; null from a reporter that
+  // sends none.
+  readonly turn: string | null;
 }
 
 export interface NoteReport {
@@ -16,8 +20,20 @@ export interface NoteReport {
 
 export type Report = AnsweredReport | NoteReport;
 
+// Optional, so a report from an older bridge still parses; a missing, empty,
+// or wrong-typed turn reads as unknown.
+const TURN_SCHEMA = z.preprocess(
+  (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+  z.string().optional(),
+);
+
 const REPORT_SCHEMA = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('answered'), message: z.string().min(1), answer: z.string() }),
+  z.object({
+    kind: z.literal('answered'),
+    message: z.string().min(1),
+    answer: z.string(),
+    turn: TURN_SCHEMA,
+  }),
   z.object({ kind: z.literal('note'), label: z.string().min(1).max(64), text: z.string().min(1) }),
 ]);
 
@@ -40,5 +56,6 @@ export function parseReport(payload: Readonly<Record<string, unknown>>): Report 
     kind: 'answered',
     message: toMessageID(parsed.data.message),
     answer: parsed.data.answer,
+    turn: parsed.data.turn ?? null,
   };
 }

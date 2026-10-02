@@ -62,6 +62,39 @@ test('it forwards an answered report with the final text from stdin', async () =
   });
 });
 
+test('it forwards an answered report with the turn that carried the message', async () => {
+  using listener = setupTest();
+
+  const proc = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, 'cli.ts'),
+      'report',
+      'answered',
+      '--message',
+      'm-1',
+      '--turn',
+      't-7',
+    ],
+    {
+      stdin: new TextEncoder().encode('all done'),
+      env: { ...process.env, ATC_SOCKET: listener.sock, ATC_SESSION_ID: 's1' },
+      stdout: 'ignore',
+      stderr: 'ignore',
+    },
+  );
+
+  const [code, line] = await Promise.all([proc.exited, listener.waitForLine()]);
+
+  expect(code).toBe(0);
+
+  expect(JSON.parse(line)).toStrictEqual({
+    atcId: 's1',
+    event: 'Report',
+    payload: { kind: 'answered', message: 'm-1', answer: 'all done', turn: 't-7' },
+  });
+});
+
 test('it exits 0 when nothing listens at the socket', async () => {
   using tmp = setupTempDir('atc-report-empty-');
 
