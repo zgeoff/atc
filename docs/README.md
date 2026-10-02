@@ -11,6 +11,8 @@ Architecture and guides for atc, the terminal control tower for coding-agent ses
   model, sessions and adapters.
 - [Protocol](./architecture/protocol.md) — the daemon/client wire protocol: NDJSON envelope, methods
   and events, the events socket, streaming, backpressure, permissions.
+- [Remote MCP](./architecture/remote-mcp.md) — `atc mcp --http`: the HTTP transport, the OAuth
+  authorization server, grants and scopes, and the request checks.
 
 ## Guides
 

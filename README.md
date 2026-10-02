@@ -130,6 +130,10 @@ installs in detail.
   A Claude or Codex session that is already running loads the server only after it restarts. A
   running Grok session loads it when you press `r` in its `/mcps` list.
 
+- `atc mcp --http` serves the same tools over HTTP behind atc's own OAuth, so a hosted assistant can
+  reach your sessions with the scopes you approve. You approve each client with a code printed in
+  its terminal, and `atc grants` lists and revokes grants.
+  [Remote MCP](./docs/architecture/remote-mcp.md) covers it.
 - A Claude session takes messages from other tools. `atc_session_message` queues one, and the
   session reads it in a new turn, or inside the turn it is running. `atc_message_get` returns the
   reply once that turn ends. The [protocol](./docs/architecture/protocol.md#messages) covers the

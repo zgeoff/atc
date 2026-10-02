@@ -154,6 +154,34 @@ Codex hooks live in `$CODEX_HOME/hooks.json` (`~/.codex` when `CODEX_HOME` is un
 Sessions you start outside atc report events too; the reporter exits immediately when no atc session
 id is present.
 
+## Remote MCP
+
+`atc mcp --http` reads the `mcpHTTP` section, and nothing else in atc does. Command-line flags win
+over it: `--port` over `port`, `--public-url` over `publicURL`.
+
+```json
+{
+  "mcpHTTP": {
+    "publicURL": "https://mcp.example.com",
+    "port": 8414,
+    "allowedHosts": [],
+    "clientMetadataHosts": ["chatgpt.com"]
+  }
+}
+```
+
+| Field                 | Default | Meaning                                                                                                                                      |
+| --------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `publicURL`           | none    | the origin clients reach the server at; https unless the host is loopback, with no path. Without it, the origin is `http://127.0.0.1:<port>` |
+| `port`                | `8414`  | the local port; `0` picks a free one                                                                                                         |
+| `allowedHosts`        | `[]`    | further `Host` header values to accept, for a proxy that rewrites `Host`                                                                     |
+| `clientMetadataHosts` | `[]`    | hosts whose https client ids atc may fetch as client metadata documents                                                                      |
+
+`clientMetadataHosts` has no default, so list each client's host yourself. ChatGPT identifies itself
+with a metadata document at `https://chatgpt.com/oauth/client.json`, so connecting it needs
+`"chatgpt.com"` in the list; without it, the authorization request fails with an unrecognized
+client. [Remote MCP](../architecture/remote-mcp.md) covers the flow and the checks.
+
 ## State locations
 
 Daemon state lives in `~/.local/state/atc/` — the

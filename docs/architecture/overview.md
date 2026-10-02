@@ -51,7 +51,8 @@ beside its schema:
   outside atc's control.
 - One scope out of `read`, `message`, `spawn`, and `kill`, which groups the tool by the access it
   needs. `atc_session_input` takes `spawn`, because raw keystrokes can do anything a new session
-  can. The stdio server serves every scope to its caller.
+  can. The stdio server serves every scope to its caller; `atc mcp --http` serves only the scopes a
+  client's grant holds, as [Remote MCP](./remote-mcp.md) describes.
 
 The server returns the client's requested protocol version from `initialize` when it supports it
 (`2025-11-25`, `2025-06-18`, or `2024-11-05`), else `2025-11-25`. The server leaves out
