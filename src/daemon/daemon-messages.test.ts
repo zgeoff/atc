@@ -1067,3 +1067,215 @@ test('it ends the tap subscription when its session is removed', async () => {
     expect(daemon.tapClosed).toStrictEqual([{ v: 3, ev: 'InboxClosed', s: id, reason: 'removed' }]);
   });
 });
+
+test('it records each message status change in events.read in order', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  const sent = await daemon.actor.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+    from: 'alice',
+  });
+
+  await daemon.tap.sendRequest('session.tap', { session: id });
+  await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: sent['message'], answer: 'done' } })}\n`,
+    2000,
+  );
+
+  const read = await waitFor(async () => {
+    const answer = await daemon.actor.sendRequest('events.read', {});
+
+    expect(answer['events']).toHaveLength(3);
+
+    return answer;
+  });
+
+  expect(read).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'one',
+        kind: 'message-accepted',
+        detail: 'hello',
+        message: sent['message'],
+      },
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'one',
+        kind: 'message-delivered',
+        detail: 'hello',
+        message: sent['message'],
+      },
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'one',
+        kind: 'message-answered',
+        detail: 'done',
+        message: sent['message'],
+      },
+    ],
+    cursor: expect.toBeString(),
+  });
+});
+
+test('it records a repeated ack in the trail once', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await daemon.tap.sendRequest('session.tap', { session: id });
+  await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+  await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+  await daemon.actor.sendRequest('daemon.ping');
+
+  const read = await daemon.actor.sendRequest('events.read', {});
+
+  const events = Array.isArray(read['events']) ? read['events'] : [];
+
+  expect(events.filter((e) => isRecord(e) && e['kind'] === 'message-delivered')).toHaveLength(1);
+});
+
+test('it wakes a waiting events.read when a message is accepted', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const first = await daemon.actor.sendRequest('events.read', {});
+
+  const pending = daemon.actor.sendRequest('events.read', {
+    cursor: first['cursor'],
+    waitMs: 10_000,
+  });
+
+  const start = Date.now();
+
+  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  const woken = await pending;
+
+  expect(woken['events']).toStrictEqual([
+    {
+      cursor: expect.toBeString(),
+      at: expect.toBeNumber(),
+      session: id,
+      name: 'one',
+      kind: 'message-accepted',
+      detail: 'hello',
+      message: sent['message'],
+    },
+  ]);
+
+  expect(Date.now()).toBeWithin(start, start + 9000);
+});
+
+test('it records a note in events.read with its label', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'need review' } })}\n`,
+    2000,
+  );
+
+  const read = await waitFor(async () => {
+    const answer = await daemon.actor.sendRequest('events.read', {});
+
+    expect(answer['events']).toHaveLength(1);
+
+    return answer;
+  });
+
+  expect(read).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'one',
+        kind: 'report',
+        detail: 'need review',
+        label: 'blocked',
+      },
+    ],
+    cursor: expect.toBeString(),
+  });
+});
+
+test('it leaves a note from an unknown session out of the trail', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: 'nope', event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'bogus' } })}\n`,
+    2000,
+  );
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'valid' } })}\n`,
+    2000,
+  );
+
+  const read = await waitFor(async () => {
+    const answer = await daemon.actor.sendRequest('events.read', {});
+
+    expect(answer['events']).toHaveLength(1);
+
+    return answer;
+  });
+
+  expect(read['events']).toMatchObject([{ session: id, detail: 'valid' }]);
+});
+
+test("it counts a note toward the session's last activity time", async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const before = await daemon.actor.sendRequest('session.get', { session: id });
+
+  const createdAt = isRecord(before['session']) ? before['session']['createdAt'] : undefined;
+
+  if (typeof createdAt !== 'number') {
+    throw new TypeError('no createdAt on the session');
+  }
+
+  await waitFor(() => {
+    expect(Date.now()).toBeGreaterThan(createdAt);
+  });
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'need review' } })}\n`,
+    2000,
+  );
+
+  const report = await waitFor(() => {
+    const found = daemon.events.find((e) => e.ev === 'SessionReport');
+
+    if (found === undefined) {
+      throw new Error('no SessionReport yet');
+    }
+
+    return found;
+  });
+
+  const after = await daemon.actor.sendRequest('session.get', { session: id });
+
+  expect(after['lastActivityAt']).toBe(report['reportedAt']);
+  expect(after['lastActivityAt']).toBeGreaterThan(createdAt);
+});
