@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { stateDir } from '../shared/config';
@@ -14,6 +14,7 @@ export function writeHookSettings(profile: HookSettingsProfile): string {
   const file = join(stateDir, `hook-settings-${profile.id}.json`);
   const settings = buildHookSettings(profile, readStatuslinePadding());
 
+  mkdirSync(stateDir, { recursive: true });
   writeFileSync(file, JSON.stringify(settings, null, 2));
 
   return file;
