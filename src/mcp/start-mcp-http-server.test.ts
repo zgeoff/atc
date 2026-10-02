@@ -659,7 +659,12 @@ test('it shows the consent page again to a client whose grant was revoked', asyn
 
   const next = new URL(signedIn.headers.get('location') ?? '/', server.url);
 
-  const page = await fetch(next);
+  const cookie = signedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  const page = await fetch(next, { headers: { cookie } });
   const html = await page.text();
 
   expect(next.pathname).toBe('/consent');
@@ -1379,4 +1384,399 @@ test('it listens beyond loopback behind an https public URL', async () => {
   });
 
   expect(server.origin).toBe('https://mcp.example.com');
+});
+
+test('it refuses a consent answer for a request whose approval code was never typed', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const unapproved = new URL(`${server.url}/oauth2/authorize`);
+
+  unapproved.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read message spawn kill',
+    state: 'state-attacker',
+    code_challenge: createHash('sha256')
+      .update('attacker-verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const started = await fetch(unapproved, { redirect: 'manual' });
+
+  const unapprovedLogin = new URL(started.headers.get('location') ?? '/', server.url);
+  const approved = new URL(`${server.url}/oauth2/authorize`);
+
+  approved.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    state: 'state-operator',
+    code_challenge: createHash('sha256')
+      .update('operator-verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(approved, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const signedIn = await fetch(`${server.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
+  });
+
+  const cookie = signedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  const form = new URLSearchParams({
+    oauth_query: unapprovedLogin.search.slice(1),
+    decision: 'approve',
+  });
+
+  form.append('scope', 'read');
+  form.append('scope', 'kill');
+
+  const consented = await fetch(`${server.url}/consent`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: form,
+  });
+
+  expect(signedIn.status).toBe(302);
+  expect(consented.status).toBe(400);
+  expect(consented.headers.get('location')).toBeNull();
+});
+
+test("it refuses a consent answer carrying another approval's owner session", async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const first = new URL(`${server.url}/oauth2/authorize`);
+
+  first.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    state: 'state-1',
+    code_challenge: createHash('sha256')
+      .update('first-verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const firstStarted = await fetch(first, { redirect: 'manual' });
+
+  const firstLogin = new URL(firstStarted.headers.get('location') ?? '/', server.url);
+
+  const firstCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const second = new URL(`${server.url}/oauth2/authorize`);
+
+  second.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read kill',
+    state: 'state-2',
+    code_challenge: createHash('sha256')
+      .update('second-verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const secondStarted = await fetch(second, { redirect: 'manual' });
+
+  const secondLogin = new URL(secondStarted.headers.get('location') ?? '/', server.url);
+
+  const secondCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const firstSignedIn = await fetch(`${server.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: firstLogin.search.slice(1), code: firstCode ?? '' }),
+  });
+
+  const secondSignedIn = await fetch(`${server.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: secondLogin.search.slice(1), code: secondCode ?? '' }),
+  });
+
+  const firstCookie = firstSignedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  const secondConsent = new URL(secondSignedIn.headers.get('location') ?? '/', server.url);
+
+  const form = new URLSearchParams({
+    oauth_query: secondConsent.search.slice(1),
+    decision: 'approve',
+  });
+
+  form.append('scope', 'read');
+  form.append('scope', 'kill');
+
+  const consented = await fetch(`${server.url}/consent`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      origin: server.url,
+      cookie: firstCookie,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: form,
+  });
+
+  expect(secondConsent.pathname).toBe('/consent');
+  expect(consented.status).toBe(400);
+  expect(consented.headers.get('location')).toBeNull();
+});
+
+test('it refuses a consent answer whose query still asks for a login', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorize = new URL(`${server.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    state: 'state-1',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const signedIn = await fetch(`${server.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
+  });
+
+  const cookie = signedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  const consented = await fetch(`${server.url}/consent`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      oauth_query: login.search.slice(1),
+      decision: 'approve',
+      scope: 'read',
+    }),
+  });
+
+  expect(login.searchParams.get('prompt')).toBe('login consent');
+  expect(consented.status).toBe(400);
+  expect(consented.headers.get('location')).toBeNull();
+});
+
+test("it shows an error page instead of the consent page for another approval's request", async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const first = new URL(`${server.url}/oauth2/authorize`);
+
+  first.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    state: 'state-1',
+    code_challenge: createHash('sha256')
+      .update('first-verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const firstStarted = await fetch(first, { redirect: 'manual' });
+
+  const firstLogin = new URL(firstStarted.headers.get('location') ?? '/', server.url);
+
+  const firstCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const second = new URL(`${server.url}/oauth2/authorize`);
+
+  second.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    state: 'state-2',
+    code_challenge: createHash('sha256')
+      .update('second-verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const secondStarted = await fetch(second, { redirect: 'manual' });
+
+  const secondLogin = new URL(secondStarted.headers.get('location') ?? '/', server.url);
+
+  const secondCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const firstSignedIn = await fetch(`${server.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: firstLogin.search.slice(1), code: firstCode ?? '' }),
+  });
+
+  const secondSignedIn = await fetch(`${server.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: secondLogin.search.slice(1), code: secondCode ?? '' }),
+  });
+
+  const firstCookie = firstSignedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  const secondConsent = new URL(secondSignedIn.headers.get('location') ?? '/', server.url);
+
+  const page = await fetch(secondConsent, { headers: { cookie: firstCookie } });
+  const html = await page.text();
+
+  expect(page.status).toBe(400);
+  expect(html).toInclude('This approval expired or was already used.');
+  expect(html).not.toInclude('<form');
+});
+
+test('it shows an error page instead of the consent page for a query with a broken signature', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorize = new URL(`${server.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    state: 'state-1',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const signedIn = await fetch(`${server.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
+  });
+
+  const cookie = signedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+
+  consent.searchParams.set('scope', 'read kill offline_access');
+
+  const page = await fetch(consent, { headers: { cookie } });
+  const html = await page.text();
+
+  expect(page.status).toBe(400);
+  expect(html).not.toInclude('Kill sessions');
+});
+
+test('it shows an error page instead of the consent page to a browser with no owner session', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorize = new URL(`${server.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    state: 'state-1',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const signedIn = await fetch(`${server.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
+  });
+
+  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+
+  const page = await fetch(consent);
+
+  expect(consent.pathname).toBe('/consent');
+  expect(page.status).toBe(400);
 });

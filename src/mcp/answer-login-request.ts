@@ -1,14 +1,17 @@
 import { isRecord } from '../shared/report';
+import { buildConsentBinding } from './build-consent-binding';
 import { buildPageResponse } from './build-page-response';
+import { findOwnerSessionID } from './find-owner-session-id';
 import { renderLoginPage } from './render-login-page';
 import type { HTTPServerContext } from './types';
 
 /**
  * Answers `GET /login` and `POST /login`, the approval code page better-auth
  * sends a browser to. The page exists only for an authorization request that
- * holds a pending approval. The right code signs the operator in, and
- * better-auth carries the request on to the consent page. A wrong code shows
- * the page again, and the fifth wrong code ends the request.
+ * holds a pending approval. The right code signs the operator in, binds the
+ * new owner session to this one request, and better-auth carries the request
+ * on to the consent page. A wrong code shows the page again, and the fifth
+ * wrong code ends the request.
  */
 export async function answerLoginRequest(
   ctx: HTTPServerContext,
@@ -80,9 +83,24 @@ export async function answerLoginRequest(
     });
   }
 
+  const setCookies = signedIn.headers.getSetCookie();
+
+  const sessionID = await findOwnerSessionID(
+    ctx,
+    setCookies.map((line) => line.split(';')[0]).join('; '),
+  );
+
+  if (sessionID === null) {
+    return buildPageResponse(400, {
+      message: 'atc could not continue this approval. Start again from the client.',
+    });
+  }
+
+  ctx.approvals.recordApproved(sessionID, buildConsentBinding(oauthQuery));
+
   const headers = new Headers({ location: new URL(next, ctx.origin).href });
 
-  for (const cookie of signedIn.headers.getSetCookie()) {
+  for (const cookie of setCookies) {
     headers.append('set-cookie', cookie);
   }
 

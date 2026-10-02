@@ -137,3 +137,24 @@ test('it starts approvals again a minute after the limit was reached', () => {
     }),
   ).not.toBeNull();
 });
+
+test('it holds the binding an owner session approved', () => {
+  const state = new ApprovalState(600_000, () => 1000);
+
+  state.recordApproved('session-1', 'binding-1');
+
+  expect(state.findApproved('session-1')).toBe('binding-1');
+  expect(state.findApproved('session-2')).toBeNull();
+});
+
+test('it forgets an approved binding once it expires', () => {
+  let now = 1000;
+
+  const state = new ApprovalState(600_000, () => now);
+
+  state.recordApproved('session-1', 'binding-1');
+
+  now = 601_000;
+
+  expect(state.findApproved('session-1')).toBeNull();
+});
