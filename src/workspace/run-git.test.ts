@@ -17,3 +17,9 @@ test('it drops git config that the host environment injects', async () => {
   expect(read.stdout).toBe('');
   expect(read.stderr).toInclude('missing config key GIT_CONFIG_KEY_0');
 });
+
+test('it reads no system attributes file in an isolated command', async () => {
+  const located = await runGit(['var', 'GIT_ATTR_SYSTEM'], { isolated: true });
+
+  expect(located).toStrictEqual({ exitCode: 1, stdout: '', stderr: '' });
+});

@@ -19,11 +19,12 @@ interface GitRun {
  * Variables that pin git to some other repository, such as the `GIT_DIR` a
  * git hook exports, are dropped so the command acts on its own directory.
  *
- * An isolated command reads only the repository's own config: the host's
- * system and global config and its global attributes file are ignored, and
- * every LFS filter is switched off. A checkout run this way runs no filter
- * the host configured, so it can neither execute host code nor reach the
- * network with the host's credentials.
+ * An isolated command reads only the repository's own config and
+ * attributes: the host's system and global config and its system and global
+ * attributes files are ignored, and every LFS filter is switched off. A
+ * checkout run this way runs no filter the host configured, so it can
+ * neither execute host code nor reach the network with the host's
+ * credentials.
  */
 const ISOLATED_ARGS = [
   '-c',
@@ -38,6 +39,7 @@ const ISOLATED_ARGS = [
 
 const ISOLATED_ENV = {
   GIT_CONFIG_NOSYSTEM: '1',
+  GIT_ATTR_NOSYSTEM: '1',
   GIT_CONFIG_GLOBAL: '/dev/null',
   GIT_LFS_SKIP_SMUDGE: '1',
 };
