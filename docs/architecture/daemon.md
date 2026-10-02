@@ -16,11 +16,12 @@ separate:
 
 - The client protocol socket ([protocol](./protocol.md)): long-lived connections, handshake,
   request/response/event envelope.
-- The reporter socket: a one-line NDJSON dialect spoken by `hook-report` and `statusline`,
-  short-lived processes spawned inside wrangled sessions on every hook event and statusline render.
-  Forcing them through the framed protocol would mean a handshake per invocation. Reporter events
-  feed the session state machine, which then emits `SessionState` / `PermissionRequested` protocol
-  events to clients.
+- The reporter socket: a one-line NDJSON dialect spoken by `hook-report`, `statusline`, and
+  `report`, short-lived processes spawned inside wrangled sessions on every hook event, statusline
+  render, and message report. Forcing them through the framed protocol would mean a handshake per
+  invocation. Hook and statusline reports feed the session state machine, which then emits
+  `SessionState` / `PermissionRequested` protocol events to clients. Message reports update the
+  [inbox](./protocol.md#messages), which emits `SessionMessage`.
 - The [events socket](./protocol.md#events-socket): a read-only broadcast stream for outside
   subscribers, with no handshake and no requests.
 

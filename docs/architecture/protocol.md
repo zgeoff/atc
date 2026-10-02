@@ -96,6 +96,10 @@ semantics.
 | `session.get`           | one session's descriptor plus its spawn prompt, last activity, pending prompt, and latest result (`{ session }`)                                                                                                   |
 | `session.read`          | a Claude session's transcript, a page at a time from a cursor (`{ session, cursor?, limit? }`)                                                                                                                     |
 | `events.read`           | fleet events from the hook-event trail since a cursor (`{ cursor?, limit?, waitMs? }`)                                                                                                                             |
+| `session.message`       | queue a message for a session (`{ session, from, text }`); the ok holds the message id. [Messages](#messages) covers refusals                                                                                      |
+| `session.tap`           | subscribe to a session's inbox; messages arrive as `InboxMessage` events                                                                                                                                           |
+| `message.ack`           | mark a tapped message delivered (`{ session, message }`)                                                                                                                                                           |
+| `message.get`           | one message with its status, answer, and timestamps (`{ message }`)                                                                                                                                                |
 
 `session.input` is a request (it gets an ok, preserving the rule that state-changing messages are
 acknowledged) but clients need not await it — measured cost of the JSON round trip is ~0.2 µs
@@ -115,8 +119,8 @@ Multi-client rules, chosen to cover the realistic conflicts without a write-lock
 ## Events
 
 `SessionAdded`, `SessionState`, `SessionAttached`, `SessionDetached`, `SessionRenamed`,
-`SessionRemoved`, `SessionResized`, `SessionOutput`, `SessionDesync`, `PermissionRequested`,
-`PermissionResolved`.
+`SessionRemoved`, `SessionResized`, `SessionOutput`, `SessionDesync`, `SessionMessage`,
+`InboxMessage`, `PermissionRequested`, `PermissionResolved`.
 
 State/lifecycle events broadcast to every client (every overlay needs them). `SessionOutput` goes
 only to clients attached to that session — an unfocused session costs a client zero bytes. Output
@@ -182,6 +186,37 @@ sessions with `unsupported`.
 activity time, the prompt or question it waits on while it needs you, and the final message of its
 latest turn, cut at 16 KiB. The fleet row holds the spawn prompt and latest result, so both survive
 a restore.
+
+## Messages
+
+A client sends a session a message with `session.message`, and the daemon keeps it in the session's
+inbox until the session takes it. Messages live in `atc.db`, so they survive a daemon restart and a
+fleet restore. The daemon never types a message into the session's terminal: a process inside the
+session takes it through a tap.
+
+A tap is a connection that sent `session.tap` for one session. `atc tap --session <id>` is that
+client: it prints each message as one NDJSON line on stdout and acks it with `message.ack`. When a
+tap attaches, the daemon sends every pending message in order, then each new one as it arrives.
+`InboxMessage` events go to the tap alone, the way `SessionOutput` goes only to attached clients. A
+second tap for the same session replaces the first, and the daemon closes the replaced connection.
+
+A message moves through three statuses:
+
+- `accepted`: the message is in the inbox.
+- `delivered`: a tap printed the message and acked it.
+- `answered`: the session reported the end of the turn the message started. The report arrives on
+  the reporter socket from `atc report answered`, and that turn's final text becomes the answer.
+
+Each status change broadcasts `SessionMessage` with the message id, status, sender, timestamps, and
+short previews of the text and answer. `message.get` returns the full text and answer.
+
+`session.message` refuses a message with `unsupported` in two cases:
+
+- The session's agent has no tap. Claude and Claude gateways have one, and Grok and Codex do not.
+- A Claude session reported `SessionStart` more than 15 seconds ago, and no tap has attached since.
+
+Otherwise the message queues, including while a session restores and while a dropped tap reconnects.
+A message to a session with no live process fails with `session_dead`.
 
 ## Events socket
 
