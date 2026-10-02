@@ -82,4 +82,6 @@ read it without speaking the protocol.
 The fleet table keys each row by the atc session id. The agent session id is optional, since a row
 exists from the moment a session spawns, and unique, since one agent session belongs to one row.
 When a resume gives a second session the same agent session id, the row written last replaces the
-earlier one, and every sub-session of the replaced row moves under the row that replaced it.
+earlier one, and every sub-session of the replaced row moves under the row that replaced it. A row
+that was a sub-session of the row it replaced takes that row's place, so no row is its own parent,
+and sub-sessions stay one level deep.

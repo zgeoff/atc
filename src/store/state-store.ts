@@ -547,7 +547,8 @@ export class StateStore {
 // Two sessions share an agent session id when one resumes the other's agent
 // session. The fleet keeps one row per agent session id, the entry written
 // last, and moves every sub-session of a dropped entry under that survivor,
-// so no link points at a row the write drops.
+// so no link points at a row the write drops. A survivor that was a
+// sub-session of the entry it replaced takes that entry's place instead.
 function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEntry[] {
   const survivors = new Map<AgentSessionID, SessionID>();
 
@@ -568,6 +569,37 @@ function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEnt
     }
   }
 
+  const parents = new Map(entries.map((entry) => [entry.sessionID, entry.parent]));
+
+  // Where an entry's parent link points once replaced rows are gone: a
+  // replaced parent resolves to the row that replaced it. A row that replaced
+  // its own parent takes that parent's parent instead, so no row is its own
+  // parent.
+  const resolveParent = (entry: FleetEntry): SessionID | undefined => {
+    if (entry.parent === undefined) {
+      return undefined;
+    }
+
+    const survivor = replaced.get(entry.parent);
+
+    if (survivor === undefined) {
+      return entry.parent;
+    }
+
+    if (survivor !== entry.sessionID) {
+      return survivor;
+    }
+
+    const grandparent = parents.get(entry.parent);
+
+    const resolved =
+      grandparent === undefined ? undefined : (replaced.get(grandparent) ?? grandparent);
+
+    return resolved === entry.sessionID ? undefined : resolved;
+  };
+
+  const resolved = new Map(entries.map((entry) => [entry.sessionID, resolveParent(entry)]));
+
   const kept: FleetEntry[] = [];
 
   for (const entry of entries) {
@@ -575,8 +607,13 @@ function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEnt
       continue;
     }
 
-    const parent = entry.parent === undefined ? undefined : replaced.get(entry.parent);
-    const relinked = parent === undefined ? entry : { ...entry, parent };
+    const { parent: _parent, ...rest } = entry;
+    const target = resolved.get(entry.sessionID);
+
+    // Sub-sessions nest one level deep: a link to a row that is itself a
+    // sub-session moves up to that row's parent.
+    const parent = target === undefined ? undefined : (resolved.get(target) ?? target);
+    const relinked = parent === undefined ? rest : { ...rest, parent };
 
     kept.push(relinked);
   }

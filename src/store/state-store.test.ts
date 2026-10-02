@@ -2344,3 +2344,98 @@ test('it keeps the later of two fleet entries that share an agent session id', a
     },
   ]);
 });
+
+test('it writes no row as its own parent when every row in a chain shares one agent session id', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    {
+      sessionID: toSessionID('s-top'),
+      name: 'top',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-sub'),
+      name: 'sub',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      parent: toSessionID('s-top'),
+    },
+    {
+      sessionID: toSessionID('s-resumed'),
+      name: 'resumed',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      parent: toSessionID('s-sub'),
+    },
+  ]);
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    {
+      sessionID: toSessionID('s-resumed'),
+      name: 'resumed',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+    },
+  ]);
+});
+
+test('it moves the sub-sessions of a replaced row up to the parent of the sub-session that replaced it', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    {
+      sessionID: toSessionID('s-other'),
+      name: 'other',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-other'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-first'),
+      name: 'first',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-worker'),
+      name: 'worker',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-worker'),
+      agent: 'claude',
+      parent: toSessionID('s-first'),
+    },
+    {
+      sessionID: toSessionID('s-resumed'),
+      name: 'resumed',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      parent: toSessionID('s-other'),
+    },
+  ]);
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet.map((entry) => [entry.sessionID, entry.parent])).toStrictEqual([
+    [toSessionID('s-other'), undefined],
+    [toSessionID('s-worker'), toSessionID('s-other')],
+    [toSessionID('s-resumed'), toSessionID('s-other')],
+  ]);
+});

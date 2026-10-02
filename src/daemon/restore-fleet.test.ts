@@ -155,3 +155,79 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
 
   expect(restoredChild?.parent).toBe(resumed.id);
 });
+
+test('it keeps a sub-session under a sub-session that resumed their parent agent session', async () => {
+  await using ctx = await setupTest();
+
+  const parent = ctx.mgr.restore({
+    sessionID: toSessionID('s-parent'),
+    name: 'wrangler',
+    cwd: '/tmp',
+    agentSessionID: toAgentSessionID('c-parent'),
+    agent: 'claude',
+    exited: true,
+  });
+
+  const child = ctx.mgr.spawn(
+    '/tmp',
+    'worker',
+    '',
+    80,
+    24,
+    toAgentSessionID('c-child'),
+    'user',
+    'claude',
+    parent.id,
+  );
+
+  // Spawned under the session whose agent session it resumes, so the row
+  // it replaces is its own parent.
+  const resumed = ctx.mgr.spawn(
+    '/tmp',
+    'wrangler',
+    '',
+    80,
+    24,
+    toAgentSessionID('c-parent'),
+    'user',
+    'claude',
+    parent.id,
+  );
+
+  await ctx.mgr.writeFleet();
+
+  const stored = await ctx.store.loadFleet();
+
+  expect(stored.map((entry) => [entry.sessionID, entry.parent])).toStrictEqual([
+    [child.id, resumed.id],
+    [resumed.id, undefined],
+  ]);
+
+  const restarted = new SessionManager(idleAdapter, ctx.store, ctx.statusPath, []);
+
+  onTestFinished(() => {
+    restarted.killAll();
+  });
+
+  await restoreFleet({
+    mgr: restarted,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  await waitFor(() => {
+    expect(restarted.sessions.every((s) => s.pty !== null)).toBe(true);
+  });
+
+  await restarted.writeFleet();
+
+  const restored = restarted.sessions.map((s) => [s.id, s.parent]);
+
+  expect(restored).toIncludeSameMembers([
+    [child.id, resumed.id],
+    [resumed.id, null],
+  ]);
+});
