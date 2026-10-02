@@ -61,7 +61,8 @@ says to restart the daemon.
                            "limits": { "maxLine": 1048576, "maxChunk": 65536 },
                            "features": ["agents.list", "events.more", "events.session",
                                         "message.turn", "message.wait", "spawn.options",
-                                        "daemon.id", "session.locator", "spawn.idempotency"],
+                                        "daemon.id", "session.locator", "spawn.idempotency",
+                                        "message.idempotency"],
                            "lastUsedAgent": "claude" } }
 ```
 
@@ -69,9 +70,10 @@ says to restart the daemon.
 exists, `events.read` returns `more` and takes `session`, and `message.get` returns `turn` and
 `answeredWith` and takes `waitMs`, `session.spawn` takes `model` and `effort` while `agents.list`
 returns `spawnOptions`, `daemon.hello` returns `daemonID`, every session descriptor holds a
-`locator`, and `session.spawn` takes `idempotencyKey`. A daemon from before the list existed sends
-none, and it ignores the parameters it does not know. A client that outlives a daemon upgrade, such
-as `atc mcp`, reads the list rather than the build string to learn what the running daemon honours.
+`locator`, and `session.spawn` and `session.message` each take `idempotencyKey`. A daemon from
+before the list existed sends none, and it ignores the parameters it does not know. A client that
+outlives a daemon upgrade, such as `atc mcp`, reads the list rather than the build string to learn
+what the running daemon honours.
 
 `daemonID` is the id the daemon minted into its state store the first time it opened it, so it stays
 the same across daemon restarts. Every session descriptor holds a `locator` of
@@ -116,7 +118,7 @@ semantics.
 | `session.get`           | one session's descriptor plus its spawn prompt, last activity, pending prompt, and latest result (`{ session }`)                                                                                                                                                                                                                                                                                                   |
 | `session.read`          | a Claude session's transcript, a page at a time from a cursor (`{ session, cursor?, limit? }`)                                                                                                                                                                                                                                                                                                                     |
 | `events.read`           | fleet events from the hook-event trail since a cursor (`{ cursor?, limit?, waitMs?, session? }`)                                                                                                                                                                                                                                                                                                                   |
-| `session.message`       | queue a message for a session (`{ session, from, text }`); the ok holds the message id. [Messages](#messages) covers refusals                                                                                                                                                                                                                                                                                      |
+| `session.message`       | queue a message for a session (`{ session, from, text, idempotencyKey? }`); the ok holds the message id. [Messages](#messages) covers refusals, and [idempotent requests](#idempotent-requests) covers `idempotencyKey`                                                                                                                                                                                            |
 | `session.tap`           | subscribe to a session's inbox; messages arrive as `InboxMessage` events                                                                                                                                                                                                                                                                                                                                           |
 | `message.ack`           | mark a tapped message delivered (`{ session, message }`)                                                                                                                                                                                                                                                                                                                                                           |
 | `message.get`           | one message with its status, answer, turn, and timestamps (`{ message, waitMs? }`)                                                                                                                                                                                                                                                                                                                                 |
@@ -299,34 +301,38 @@ stored value passes neither flag, so a session spawned without them keeps behavi
 
 ## Idempotent requests
 
-A `session.spawn` that carries an `idempotencyKey` spawns at most once for that key. Retry a spawn
-with the same key and the same params, and the daemon answers with the session the first spawn
-created instead of spawning another. The key holds 1 to 200 characters, and the daemon keys it per
-principal and method; every request on the local socket acts as the principal `local`.
+A `session.spawn` or `session.message` that carries an `idempotencyKey` takes effect at most once
+for that key. Retry a spawn with the same key and the same params, and the daemon answers with the
+session the first spawn created instead of spawning another; a retried message gets the first
+message's id instead of a second message. The key holds 1 to 200 characters, and the daemon keys it
+per principal and method; every request on the local socket acts as the principal `local`.
 
-The daemon records the key before it checks any param. A refused spawn drops the key again, so a
+The daemon records the key before it checks any param. A refused request drops the key again, so a
 retry runs fresh. A spawn that fails after its process starts kills that process and drops its
 session first, and drops the key only once the kill succeeds and the fleet without that session is
 written. When either step fails, the session may still stand, so the daemon keeps the key as
 `outcome_unknown` and answers the spawn with that error. A retry of a key the daemon holds gets its
 answer from the key without any param checked again. The daemon records the key with a SHA-256 of
 the request's params as it parsed them, as JSON with sorted keys and without the key itself, so a
-default spelled out or a field the daemon ignores leaves the hash unchanged. It records the session
-id it mints before the session spawns as well. The daemon's answer to a retry depends on what the
-key holds:
+default spelled out or a field the daemon ignores leaves the hash unchanged. It records the id it
+mints for the effect before the effect runs as well: the new session's id, or the new message's id.
+The daemon's answer to a retry depends on what the key holds:
 
 - The same key with different params is `idempotency_conflict`.
 - For a completed spawn, the daemon returns the session's current descriptor while it is listed,
   else the descriptor the first spawn returned.
-- A spawn that a stopped daemon may or may not have run, or one whose failed start the daemon could
-  not take back, is `outcome_unknown`, with the session id in `err.data.effectRef`. The daemon never
-  spawns again under that key; check the session and retry under a new key.
+- For a completed message, the daemon returns the message id with the message's current status.
+- A request that a stopped daemon may or may not have run, or a spawn whose failed start the daemon
+  could not take back, is `outcome_unknown`, with the session or message id in `err.data.effectRef`.
+  The daemon never runs it again under that key; check the session or message and retry under a new
+  key.
 
 At start, before it serves a request, the daemon marks every key a stopped daemon left in progress
 as `outcome_unknown`, then completes each `outcome_unknown` spawn key whose session is in the fleet
-table. Such a key has no stored answer, so a retry is `no_such_session` with `err.data.effectRef`
-until a fleet restore lists the session; after that, the daemon returns its descriptor. The daemon
-keeps a completed key for 24 hours and an `outcome_unknown` key indefinitely.
+table and each `outcome_unknown` message key whose message row exists. A spawn key completed this
+way has no stored answer, so a retry is `no_such_session` with `err.data.effectRef` until a fleet
+restore lists the session; after that, the daemon returns its descriptor. The daemon keeps a
+completed key for 24 hours and an `outcome_unknown` key indefinitely.
 
 A failed spawn whose cleanup the daemon could not confirm, and whose session row is gone from the
 fleet table at the next start, keeps its key as `outcome_unknown` for good: the hourly sweep expires

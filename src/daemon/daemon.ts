@@ -10,6 +10,7 @@ import { findDaemonRecord } from '../shared/find-daemon-record';
 import type { MessageID } from '../shared/message-id';
 import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
+import { toMessageID } from '../shared/to-message-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { IdempotencyRecord } from '../store/idempotency-record';
 import type { MessageOwner } from '../store/message-owner';
@@ -28,7 +29,13 @@ import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionReportEvent } from './build-session-report-event';
 import { claimDaemonLock } from './claim-daemon-lock';
 import { DaemonConnection } from './daemon-connection';
-import type { DaemonContext, OutputClient, SpawnParams, TapClient } from './daemon-connection';
+import type {
+  DaemonContext,
+  MessageRefusal,
+  OutputClient,
+  SpawnParams,
+  TapClient,
+} from './daemon-connection';
 import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
@@ -756,6 +763,101 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const ledger = new IdempotencyLedger(store, LOCAL_PRINCIPAL);
 
+  // Why the session refuses a message right now, or null when it takes one.
+  const findMessageRefusal = (sessionID: SessionID): MessageRefusal | null => {
+    const s = mgr.sessions.find((x) => x.id === sessionID);
+
+    if (s === undefined) {
+      return 'missing';
+    }
+
+    if (!(s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'))) {
+      return 'dead';
+    }
+
+    if (mgr.findAdapter(s.agent)?.takesMessages !== true) {
+      return 'unsupported';
+    }
+
+    const runtime = runtimes.get(sessionID);
+
+    if (
+      runtime !== undefined &&
+      runtime.startedAt !== null &&
+      !runtime.tapAttached &&
+      Date.now() - runtime.startedAt >= (opts.tapGraceMs ?? TAP_GRACE_MS)
+    ) {
+      return 'no_tap';
+    }
+
+    return null;
+  };
+
+  // Writes the message under the id given, notes it in the trail, and hands
+  // it to the session's tap when one is attached. Only the write itself can
+  // reject: every later step swallows its own failure, so a rejection means
+  // no message was written.
+  const writeAcceptedMessage = async (
+    sessionID: SessionID,
+    from: string,
+    text: string,
+    id: MessageID,
+  ): Promise<MessageRecord> => {
+    const s = mgr.sessions.find((x) => x.id === sessionID);
+    const previousWrite = lastMessageWrite;
+    const written = Promise.withResolvers<void>();
+
+    lastMessageWrite = written.promise;
+
+    await previousWrite;
+
+    const record: MessageRecord = {
+      id,
+      atcID: sessionID,
+      ...(s?.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
+      from,
+      text,
+      status: 'accepted',
+      sentAt: Date.now(),
+    };
+
+    try {
+      await store.writeMessage(record);
+
+      await recordMessageStatus(sessionID, record);
+    } finally {
+      written.resolve();
+    }
+
+    await drainInbox(sessionID);
+
+    return record;
+  };
+
+  // A retried send answers with the message's current status, so a caller
+  // that lost the first answer learns where its message stands now.
+  const loadMessageReplay = async (
+    record: IdempotencyRecord,
+  ): Promise<Readonly<Record<string, unknown>>> => {
+    const current = await store.findMessageByID(toMessageID(record.effectRef));
+
+    if (current !== null) {
+      return { message: current.id, status: current.status };
+    }
+
+    const stored: unknown = record.result === null ? null : JSON.parse(record.result);
+
+    if (isRecord(stored)) {
+      return stored;
+    }
+
+    throw new DaemonError(
+      'internal',
+      `the message under idempotency key '${record.key}' has no stored row`,
+      { effectRef: record.effectRef },
+    );
+  };
+
   const ctx: DaemonContext = {
     build: opts.build,
     daemonID: store.daemonID,
@@ -1072,60 +1174,51 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         await eventSignal.waitForNext(generation, remaining);
       }
     },
-    writeSessionMessage: async (sessionID, from, text) => {
-      const s = mgr.sessions.find((x) => x.id === sessionID);
+    writeSessionMessage: async (sessionID, from, text, keyed) => {
+      if (keyed === null) {
+        const refusal = findMessageRefusal(sessionID);
 
-      if (s === undefined) {
-        return 'missing';
+        if (refusal !== null) {
+          return refusal;
+        }
+
+        const record = await writeAcceptedMessage(sessionID, from, text, mintMessageID());
+
+        return { message: record.id, status: record.status };
       }
 
-      if (!(s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'))) {
-        return 'dead';
-      }
-
-      if (mgr.findAdapter(s.agent)?.takesMessages !== true) {
-        return 'unsupported';
-      }
-
-      const runtime = runtimes.get(sessionID);
-
-      if (
-        runtime !== undefined &&
-        runtime.startedAt !== null &&
-        !runtime.tapAttached &&
-        Date.now() - runtime.startedAt >= (opts.tapGraceMs ?? TAP_GRACE_MS)
-      ) {
-        return 'no_tap';
-      }
-
-      const previousWrite = lastMessageWrite;
-      const written = Promise.withResolvers<void>();
-
-      lastMessageWrite = written.promise;
-
-      await previousWrite;
-
-      const record: MessageRecord = {
-        id: mintMessageID(),
-        atcID: sessionID,
-        ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
-        from,
-        text,
-        status: 'accepted',
-        sentAt: Date.now(),
-      };
+      const effectRef = mintMessageID();
 
       try {
-        await store.writeMessage(record);
+        return await ledger.run({
+          operation: 'session.message',
+          keyed,
+          effectRef,
 
-        await recordMessageStatus(sessionID, record);
-      } finally {
-        written.resolve();
+          // A refusal throws, so the claim drops and a retry runs fresh.
+          start: async () => {
+            const refusal = findMessageRefusal(sessionID);
+
+            if (refusal !== null) {
+              throw new MessageRefusedError(refusal);
+            }
+
+            const record = await writeAcceptedMessage(sessionID, from, text, effectRef);
+
+            return { message: record.id, status: record.status };
+          },
+
+          // The message row is the effect, and the start already wrote it.
+          settle: () => Promise.resolve(),
+          replay: (record) => loadMessageReplay(record),
+        });
+      } catch (error) {
+        if (error instanceof MessageRefusedError) {
+          return error.refusal;
+        }
+
+        throw error;
       }
-
-      await drainInbox(sessionID);
-
-      return record;
     },
     attachTap: (client, sessionID) => {
       const s = mgr.sessions.find((x) => x.id === sessionID);
@@ -1336,4 +1429,17 @@ async function tryRemoveExpiredIdempotencyKeys(store: StateStore): Promise<boole
   }
 
   return true;
+}
+
+// Carries a message refusal out of a keyed send's start, so the claim drops
+// and the refusal still answers the request.
+class MessageRefusedError extends Error {
+  readonly refusal: MessageRefusal;
+
+  constructor(refusal: MessageRefusal) {
+    super(`message refused: ${refusal}`);
+
+    this.refusal = refusal;
+    this.name = 'MessageRefusedError';
+  }
 }

@@ -7,6 +7,7 @@ import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import { getRecord } from '../shared/get-record';
+import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildPayloadHash } from './build-payload-hash';
@@ -460,4 +461,124 @@ test('it keeps the key as outcome_unknown when a failed spawn cannot be removed 
 
   expect(planned).toBe(1);
   expect(list['sessions']).toStrictEqual([]);
+});
+
+test('it answers a retried keyed message with the first message and sends once', async () => {
+  await using ctx = await setupTest();
+
+  const client = await ctx.boot({ ...idleAdapter, takesMessages: true });
+  const spawned = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+
+  const session = getRecord(spawned, 'session')['id'];
+  const params = { session, text: 'hello', idempotencyKey: 'm-key' };
+
+  const first = await client.sendRequest('session.message', params);
+  const second = await client.sendRequest('session.message', params);
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  const rows = db.query('SELECT id FROM messages').all();
+
+  db.close();
+
+  expect(second).toStrictEqual({ message: first['message'], status: 'accepted' });
+  expect(rows).toStrictEqual([{ id: first['message'] }]);
+});
+
+test('it refuses a message key reused with different text as idempotency_conflict', async () => {
+  await using ctx = await setupTest();
+
+  const client = await ctx.boot({ ...idleAdapter, takesMessages: true });
+  const spawned = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+
+  const session = getRecord(spawned, 'session')['id'];
+
+  await client.sendRequest('session.message', { session, text: 'one', idempotencyKey: 'm-key' });
+
+  expect(
+    client.sendRequest('session.message', { session, text: 'two', idempotencyKey: 'm-key' }),
+  ).rejects.toMatchObject({ code: 'idempotency_conflict' });
+});
+
+test('it drops the claim of a keyed message its session refuses', async () => {
+  await using ctx = await setupTest();
+
+  const client = await ctx.boot({ ...idleAdapter, takesMessages: true });
+
+  expect(
+    client.sendRequest('session.message', {
+      session: 'ghost',
+      text: 'hello',
+      idempotencyKey: 'm-key',
+    }),
+  ).rejects.toMatchObject({ code: 'no_such_session' });
+
+  await client.sendRequest('session.list');
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  const rows = db.query('SELECT key FROM idempotency').all();
+
+  db.close();
+
+  expect(rows).toStrictEqual([]);
+});
+
+test('it completes an interrupted message whose row was written and replays it', async () => {
+  await using ctx = await setupTest();
+
+  const params = { session: 's-gone', text: 'hello', idempotencyKey: 'm-key' };
+
+  const seed = await StateStore.open(ctx.dbPath);
+
+  await seed.claimIdempotencyKey({
+    principal: 'local',
+    operation: 'session.message',
+    key: 'm-key',
+    payloadHash: buildPayloadHash(params),
+    effectRef: 'm-written',
+    at: Date.now(),
+  });
+
+  await seed.writeMessage({
+    id: toMessageID('m-written'),
+    atcID: toSessionID('s-gone'),
+    from: 'unknown',
+    text: 'hello',
+    status: 'accepted',
+    sentAt: Date.now(),
+  });
+
+  await seed.stop();
+
+  const client = await ctx.boot({ ...idleAdapter, takesMessages: true });
+  const replayed = await client.sendRequest('session.message', params);
+
+  expect(replayed).toStrictEqual({ message: 'm-written', status: 'accepted' });
+});
+
+test('it answers a message retried after an interrupted send with outcome_unknown', async () => {
+  await using ctx = await setupTest();
+
+  const params = { session: 's-gone', text: 'hello', idempotencyKey: 'm-key' };
+
+  const seed = await StateStore.open(ctx.dbPath);
+
+  await seed.claimIdempotencyKey({
+    principal: 'local',
+    operation: 'session.message',
+    key: 'm-key',
+    payloadHash: buildPayloadHash(params),
+    effectRef: 'm-never-written',
+    at: Date.now(),
+  });
+
+  await seed.stop();
+
+  const client = await ctx.boot({ ...idleAdapter, takesMessages: true });
+
+  expect(client.sendRequest('session.message', params)).rejects.toMatchObject({
+    code: 'outcome_unknown',
+    data: { effectRef: 'm-never-written' },
+  });
 });

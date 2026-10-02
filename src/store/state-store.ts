@@ -660,6 +660,14 @@ export class StateStore {
         .where('operation', '=', 'session.spawn')
         .where('effect_ref', 'in', (eb) => eb.selectFrom('fleet').select('session_id'))
         .execute();
+
+      await trx
+        .updateTable('idempotency')
+        .set({ state: 'completed', updated_at: at })
+        .where('state', '=', 'outcome_unknown')
+        .where('operation', '=', 'session.message')
+        .where('effect_ref', 'in', (eb) => eb.selectFrom('messages').select('id'))
+        .execute();
     });
   }
 

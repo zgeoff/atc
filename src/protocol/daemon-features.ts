@@ -31,6 +31,9 @@ export const DAEMON_FEATURES = [
 
   // `session.spawn` takes `idempotencyKey`.
   'spawn.idempotency',
+
+  // `session.message` takes `idempotencyKey`.
+  'message.idempotency',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];
