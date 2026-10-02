@@ -1,5 +1,4 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { resolveAgentHome } from './resolve-agent-home';
 
@@ -31,14 +30,26 @@ test('it returns the env var when set and non-empty', () => {
   expect(resolveAgentHome(VAR, '.agent')).toBe('/custom/agent/home');
 });
 
-test('it falls back to the default directory when the env var is empty', () => {
+test('it falls back to the default directory under the home when the env var is empty', () => {
   setupEnv('');
 
-  expect(resolveAgentHome(VAR, '.agent')).toBe(join(homedir(), '.agent'));
+  const root = process.env['ATC_TEST_HOME'];
+
+  if (root === undefined) {
+    throw new Error('the test home fixture is not in place');
+  }
+
+  expect(resolveAgentHome(VAR, '.agent')).toBe(join(root, 'home', '.agent'));
 });
 
-test('it falls back to the default directory when the env var is unset', () => {
+test('it falls back to the default directory under the home when the env var is unset', () => {
   setupEnv(undefined);
 
-  expect(resolveAgentHome(VAR, '.agent')).toBe(join(homedir(), '.agent'));
+  const root = process.env['ATC_TEST_HOME'];
+
+  if (root === undefined) {
+    throw new Error('the test home fixture is not in place');
+  }
+
+  expect(resolveAgentHome(VAR, '.agent')).toBe(join(root, 'home', '.agent'));
 });

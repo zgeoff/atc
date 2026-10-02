@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
-import { tmpdir, userInfo } from 'node:os';
-import { join } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { GatewayAdapter } from '../src/agents/gateway-adapter';
+import { resolveAgentHome } from '../src/agents/resolve-agent-home';
+import { writeATCBridge } from '../src/agents/write-atc-bridge';
 import {
   configFile,
   daemonPidFile,
@@ -17,28 +18,52 @@ import {
   statusFile,
 } from '../src/shared/config';
 
-test("it resolves every atc config, state, and socket path under a temporary directory, never the account's home", () => {
-  const paths = [
-    configFile,
-    stateDir,
-    statusFile,
-    dbFile,
-    mcpAuthDBFile,
-    legacyFleetFile,
-    daemonPidFile,
-    socketPath,
-    daemonSocketPath,
-    eventsSocketPath,
-  ];
+test("it resolves every atc config and state path inside this run's own home", () => {
+  const root = process.env['ATC_TEST_HOME'];
 
-  expect(paths).toSatisfyAll(
-    (path: string) => path.startsWith(tmpdir()) && !path.startsWith(userInfo().homedir),
+  if (root === undefined) {
+    throw new Error('the test home fixture is not in place');
+  }
+
+  expect([configFile, stateDir, statusFile, dbFile, mcpAuthDBFile, legacyFleetFile]).toSatisfyAll(
+    (path: string) => path.startsWith(`${join(root, 'home')}${sep}`),
   );
 });
 
-test("it writes a gateway's generated settings file under the temporary state directory", () => {
-  if (!stateDir.startsWith(tmpdir())) {
-    throw new Error(`refusing to write: the state directory ${stateDir} is not a temporary one`);
+test("it resolves every atc socket and the daemon record inside this run's own runtime directory", () => {
+  const root = process.env['ATC_TEST_HOME'];
+
+  if (root === undefined) {
+    throw new Error('the test home fixture is not in place');
+  }
+
+  expect([socketPath, daemonSocketPath, eventsSocketPath, daemonPidFile]).toSatisfyAll(
+    (path: string) => path.startsWith(`${join(root, 'runtime')}${sep}`),
+  );
+});
+
+test("it resolves the grok and codex homes inside this run's own home", () => {
+  const root = process.env['ATC_TEST_HOME'];
+
+  if (root === undefined) {
+    throw new Error('the test home fixture is not in place');
+  }
+
+  expect([
+    resolveAgentHome('GROK_HOME', '.grok'),
+    resolveAgentHome('CODEX_HOME', '.codex'),
+  ]).toStrictEqual([join(root, 'home', '.grok'), join(root, 'home', '.codex')]);
+});
+
+test('it runs with no enclosing atc session to report to', () => {
+  expect(process.env).not.toContainAnyKeys(['ATC_SESSION_ID', 'ATC_SOCKET']);
+});
+
+test("it writes a gateway's generated settings file inside this run's own home", () => {
+  const root = process.env['ATC_TEST_HOME'];
+
+  if (root === undefined || !stateDir.startsWith(`${join(root, 'home')}${sep}`)) {
+    throw new Error(`refusing to write: ${stateDir} is not inside the test home fixture`);
   }
 
   const adapter = new GatewayAdapter(
@@ -54,8 +79,21 @@ test("it writes a gateway's generated settings file under the temporary state di
     parseConfig({}),
   );
 
-  const command = adapter.buildResumeCommand('/tmp', undefined);
+  adapter.buildResumeCommand('/tmp', undefined);
 
-  expect(command).toInclude(join(stateDir, 'hook-settings-isolation-probe.json'));
-  expect(existsSync(join(stateDir, 'hook-settings-isolation-probe.json'))).toBe(true);
+  expect(realpathSync(join(stateDir, 'hook-settings-isolation-probe.json'))).toStartWith(
+    `${realpathSync(join(root, 'home'))}${sep}`,
+  );
+});
+
+test("it writes the atc-bridge mod inside this run's own home by default", () => {
+  const root = process.env['ATC_TEST_HOME'];
+
+  if (root === undefined || !stateDir.startsWith(`${join(root, 'home')}${sep}`)) {
+    throw new Error(`refusing to write: ${stateDir} is not inside the test home fixture`);
+  }
+
+  const dir = writeATCBridge();
+
+  expect(realpathSync(dir)).toStartWith(`${realpathSync(join(root, 'home'))}${sep}`);
 });

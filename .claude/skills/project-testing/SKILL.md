@@ -23,6 +23,20 @@ production code.
   its module.
 - A factory arrives only when a domain type crosses module boundaries, and none does yet.
 
+## The test home
+
+Every test run gets its own home, so no test reads or writes your real config, state, sockets, or
+agent homes. The package test scripts start through `scripts/with-test-home.sh`, which points
+`HOME`, `XDG_RUNTIME_DIR`, `GROK_HOME`, and `CODEX_HOME` at a fresh temporary directory before Bun
+starts and drops an enclosing session's `ATC_SESSION_ID` and `ATC_SOCKET`. A bare `bun test` gets
+the same directory from the `test/isolate-home.ts` preload, which records its root in
+`ATC_TEST_HOME`.
+
+- Derive a home path from `resolveHomeDir()`, never `os.homedir()`: Bun reads `HOME` for
+  `os.homedir()` once at startup, so the preload cannot move it.
+- `bun run test:isolation` runs a gate inside a synthetic home of canary files and fails when the
+  gate reads, changes, or adds to them. Run it after adding anything that writes generated state.
+
 ## The PTY harness
 
 Patterns specific to driving the real TUI, each learned from a real failure:
