@@ -245,6 +245,28 @@ test("it keeps a finished headless turn's whole final message as the latest resu
   expect(record['result']).toBe(result);
 });
 
+test("it shows a finished headless turn's result as the session's latest detail", async () => {
+  const ctx = await setupHeadlessDaemon();
+  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+
+  await ctx.client.sendRequest('session.eject', { session: id });
+
+  await waitForRun(ctx.runs, 1);
+
+  ctx.runs[0]?.finish('done', 'all green after the retry fix');
+
+  const done = await waitForEvent(
+    ctx.events,
+    (e) =>
+      e.ev === 'SessionState' &&
+      isRecord(e['session']) &&
+      e['session']['id'] === id &&
+      e['session']['state'] === 'done',
+  );
+
+  expect(getRecord(done, 'session')['lastDetail']).toBe('all green after the retry fix');
+});
+
 test("it records a headless turn's prompt and finish in the event trail", async () => {
   const ctx = await setupHeadlessDaemon();
   const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
