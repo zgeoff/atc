@@ -32,6 +32,7 @@
           "refresh",
           "restart",
           "restore",
+          "revoke",
           "schedule",
           "spawn",
           "truncate",
@@ -82,6 +83,7 @@
           // a query builder bound to a live connection; not meaningfully
           // freezable
           { "from": "package", "name": "Kysely", "package": "kysely" },
+          { "from": "package", "name": "Transaction", "package": "kysely" },
           // every field is already readonly; the type itself has no
           // readonly form to wrap it in
           { "from": "package", "name": "CompiledQuery", "package": "kysely" },

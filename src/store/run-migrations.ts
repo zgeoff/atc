@@ -52,6 +52,34 @@ interface MessagesTable {
   answer: string | null;
 }
 
+interface OAuthClientsTable {
+  client_id: string;
+  name: string;
+  redirect_uris: string;
+  created_at: number;
+}
+
+interface GrantsTable {
+  id: string;
+  client_id: string;
+  client_name: string;
+  scopes: string;
+  resource: string;
+  created_at: number;
+  last_used_at: number | null;
+  revoked_at: number | null;
+}
+
+interface GrantTokensTable {
+  hash: string;
+  grant_id: string;
+  kind: 'access' | 'refresh';
+  created_at: number;
+  expires_at: number;
+  used_at: number | null;
+  parent_hash: string | null;
+}
+
 /**
  * The state store's schema: what the query builder and the migration
  * ladder both build against.
@@ -62,13 +90,16 @@ export interface StateStoreSchema {
   spawn_history: SpawnHistoryTable;
   prefs: PrefsTable;
   messages: MessagesTable;
+  oauth_clients: OAuthClientsTable;
+  grants: GrantsTable;
+  grant_tokens: GrantTokensTable;
 }
 
 // Every shape the fleet table has shipped with: the oldest carries only
 // agent_session_id under its Claude-era name plus name and cwd, and each
 // later step adds one column the daemon grew to depend on. events later gains
 // columns of its own, while spawn_history, prefs, and messages have carried one
-// shape since they were added.
+// shape since they were added, as have the grant tables.
 const MIGRATIONS: Record<string, Migration> = {
   '001_create_initial_schema': {
     async up(db: Kysely<StateStoreSchema>) {
@@ -213,6 +244,57 @@ const MIGRATIONS: Record<string, Migration> = {
         .ifNotExists()
         .on('messages')
         .columns(['agent_session_id', 'status', 'sent_at'])
+        .execute();
+    },
+  },
+  '013_create_grants': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('oauth_clients')
+        .ifNotExists()
+        .addColumn('client_id', 'text', (c) => c.primaryKey())
+        .addColumn('name', 'text', (c) => c.notNull())
+        .addColumn('redirect_uris', 'text', (c) => c.notNull())
+        .addColumn('created_at', 'integer', (c) => c.notNull())
+        .execute();
+
+      await db.schema
+        .createTable('grants')
+        .ifNotExists()
+        .addColumn('id', 'text', (c) => c.primaryKey())
+        .addColumn('client_id', 'text', (c) => c.notNull())
+        .addColumn('client_name', 'text', (c) => c.notNull())
+        .addColumn('scopes', 'text', (c) => c.notNull())
+        .addColumn('resource', 'text', (c) => c.notNull())
+        .addColumn('created_at', 'integer', (c) => c.notNull())
+        .addColumn('last_used_at', 'integer')
+        .addColumn('revoked_at', 'integer')
+        .execute();
+
+      await db.schema
+        .createTable('grant_tokens')
+        .ifNotExists()
+        .addColumn('hash', 'text', (c) => c.primaryKey())
+        .addColumn('grant_id', 'text', (c) => c.notNull())
+        .addColumn('kind', 'text', (c) => c.notNull())
+        .addColumn('created_at', 'integer', (c) => c.notNull())
+        .addColumn('expires_at', 'integer', (c) => c.notNull())
+        .addColumn('used_at', 'integer')
+        .addColumn('parent_hash', 'text')
+        .execute();
+
+      await db.schema
+        .createIndex('grant_tokens_grant_id')
+        .ifNotExists()
+        .on('grant_tokens')
+        .column('grant_id')
+        .execute();
+
+      await db.schema
+        .createIndex('grant_tokens_parent_hash')
+        .ifNotExists()
+        .on('grant_tokens')
+        .column('parent_hash')
         .execute();
     },
   },

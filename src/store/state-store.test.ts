@@ -818,6 +818,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '010_add_events_trail_indexes',
     '011_create_messages',
     '012_index_messages_by_owner',
+    '013_create_grants',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');

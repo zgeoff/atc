@@ -14,6 +14,7 @@ import { toSessionID } from '../shared/to-session-id';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry, FleetEntryUpdate } from './fleet-entry';
+import { GrantStore } from './grant-store';
 import type { MessageOwner } from './message-owner';
 import type { MessageRecord } from './message-record';
 import { runMigrations } from './run-migrations';
@@ -60,9 +61,14 @@ export class StateStore {
 
   private readonly db: Kysely<StateStoreSchema>;
 
+  // The remote MCP grants, in the same database and behind the same writer.
+  readonly grants: GrantStore;
+
   private constructor(sqlite: Database, db: Kysely<StateStoreSchema>) {
     this.sqlite = sqlite;
     this.db = db;
+
+    this.grants = new GrantStore(db);
   }
 
   // Migrations run statements that cannot happen inside a constructor, so
