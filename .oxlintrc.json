@@ -25,6 +25,7 @@
           "jiggle",
           "kill",
           "log",
+          "materialize",
           "mint",
           "open",
           "quit",

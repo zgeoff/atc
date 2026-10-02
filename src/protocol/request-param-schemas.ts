@@ -23,6 +23,55 @@ const IDEMPOTENCY_KEY = z
   .max(200, 'idempotencyKey must be at most 200 characters')
   .optional();
 
+// A full commit id, SHA-1 or SHA-256.
+const COMMIT_ID = /^(?:[\da-f]{40}|[\da-f]{64})$/u;
+
+// The daemon environment variable a git workspace's token is read from.
+const CREDENTIAL_REF = z.strictObject({
+  kind: z.literal('env'),
+  name: z.string().regex(/^[A-Za-z_]\w*$/u, 'a credentialRef names an environment variable'),
+});
+
+/**
+ * Where a spawn's working directory comes from, materialized as a clean
+ * checkout into the spawn's `cwd` on its execution target. A `path` source
+ * is a directory on the daemon's host, resolved to its origin URL and
+ * pushed HEAD; `allowDirty: 'warn'` resolves a tree with uncommitted
+ * changes to HEAD and leaves the changes behind with a warning. A `git`
+ * source is a repository URL with exactly one of a branch or tag `ref` or
+ * a full commit `sha`, and an optional `credentialRef` naming the daemon
+ * environment variable that holds its token.
+ */
+const WORKSPACE_SOURCE = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('path'),
+    path: z
+      .string({ error: 'a path workspace requires an absolute path' })
+      .startsWith('/', 'a path workspace requires an absolute path'),
+    allowDirty: z.enum(['refuse', 'warn']).optional(),
+  }),
+  z
+    .strictObject({
+      kind: z.literal('git'),
+      url: z
+        .string({ error: 'a git workspace requires a url' })
+        .min(1, 'a git workspace requires a url')
+        .refine((url) => !url.startsWith('-'), 'a git workspace url must not start with -'),
+      ref: z
+        .string()
+        .min(1, 'a git workspace ref must not be empty')
+        .refine((ref) => !ref.startsWith('-'), 'a git workspace ref must not start with -')
+        .optional(),
+      sha: z.string().regex(COMMIT_ID, 'a git workspace sha is a full commit id').optional(),
+      credentialRef: CREDENTIAL_REF.optional(),
+    })
+    .refine((source) => (source.ref === undefined) !== (source.sha === undefined), {
+      message: 'a git workspace takes exactly one of ref or sha',
+    }),
+]);
+
+export type SpawnWorkspaceSource = z.infer<typeof WORKSPACE_SOURCE>;
+
 // The refusal of a terminal size outside the range a terminal takes.
 const TERMINAL_SIZE_ERROR = 'cols and rows must be whole numbers from 1 to 4096';
 
@@ -74,6 +123,11 @@ export const REQUEST_PARAM_SCHEMAS = {
       .string({ error: 'session.spawn target must be a non-empty target id' })
       .min(1, 'session.spawn target must be a non-empty target id')
       .optional(),
+
+    // Where the session's working directory comes from: absent runs the
+    // session in cwd as it stands, and a source materializes a clean
+    // checkout into cwd first.
+    workspace: WORKSPACE_SOURCE.optional(),
 
     // The session the new one is a sub-session of; absent or empty spawns a
     // top-level session.

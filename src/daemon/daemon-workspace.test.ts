@@ -1,0 +1,705 @@
+import { Database } from 'bun:sqlite';
+import { expect, onTestFinished, test } from 'bun:test';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { $ } from 'bun';
+import { FixtureDirProvider } from '../../test/fixture-dir-provider';
+import { waitFor } from '../../test/wait-for';
+import type { AgentAdapter } from '../agents/agent-adapter';
+import { DaemonClient } from '../client/daemon-client';
+import { DaemonError } from '../protocol/daemon-error';
+import { getRecord } from '../shared/get-record';
+import { startDaemon } from './daemon';
+import type { DaemonHandle } from './daemon';
+import type { ExecutionProvider } from './execution-provider';
+import { LocalPTYProvider } from './local-pty-provider';
+
+const idleAdapter: AgentAdapter = {
+  id: 'claude',
+  headlessRunner: null,
+  screenDetector: null,
+  takesMessages: false,
+  planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
+  normalizeHook: () => ({ kind: 'heartbeat' }),
+  loadName: () => Promise.resolve(null),
+  canResume: () => true,
+  buildResumeCommand: () => null,
+};
+
+// A temp tree holding a bare upstream and a clone of it with one pushed
+// commit, and daemons booted on one state directory with a `local` target
+// and a `box` target on the provider a test hands in. Fixture git commands
+// read neither the host's system nor its global git config. Every line a
+// daemon logs is kept.
+async function setupTest() {
+  const dir = await mkdtemp(join(tmpdir(), 'atc-workspace-'));
+
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+  };
+
+  const upstream = join(dir, 'upstream.git');
+  const work = join(dir, 'work');
+
+  await $`git init --quiet --bare --template= --initial-branch=main ${upstream}`.env(env).quiet();
+  await $`git clone --quiet --template= ${upstream} ${work}`.env(env).quiet();
+  await $`git config user.name atc`.env(env).cwd(work).quiet();
+  await $`git config user.email atc@example.com`.env(env).cwd(work).quiet();
+  await $`git config commit.gpgsign false`.env(env).cwd(work).quiet();
+
+  writeFileSync(join(work, 'README.md'), 'hello\n');
+
+  await $`git add README.md`.env(env).cwd(work).quiet();
+  await $`git commit --quiet -m initial`.env(env).cwd(work).quiet();
+  await $`git push --quiet origin main`.env(env).cwd(work).quiet();
+
+  const dbPath = join(dir, 'state.db');
+  const socketPath = join(dir, 'daemon.sock');
+  const daemons: DaemonHandle[] = [];
+  const clients: DaemonClient[] = [];
+  const logs: string[] = [];
+
+  return {
+    dir,
+    env,
+    upstream,
+    work,
+    dbPath,
+    logs,
+    async boot(box: ExecutionProvider) {
+      const daemon = await startDaemon({
+        socketPath,
+        reporterSocketPath: join(dir, 'reporter.sock'),
+        build: 'atc/test-build',
+        adapter: idleAdapter,
+        dbPath,
+        statusPath: join(dir, 'status.json'),
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'test:local',
+            provider: new LocalPTYProvider(),
+          },
+          { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        ],
+        log: (line) => {
+          logs.push(line);
+        },
+      });
+
+      daemons.push(daemon);
+
+      const client = await DaemonClient.open(socketPath);
+
+      clients.push(client);
+
+      await client.sendHello('atc/test-build');
+
+      return { daemon, client };
+    },
+    async [Symbol.asyncDispose]() {
+      for (const client of clients) {
+        client.stop();
+      }
+
+      for (const daemon of daemons) {
+        await daemon.stop();
+      }
+
+      await rm(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+test('it materializes a path source at its pushed HEAD on the target and verifies it there', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+  const sha = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
+
+  const dest = join(ctx.dir, 'box', 'ws');
+  const before = Date.now();
+
+  const spawned = await booted.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(dest).text();
+
+  const session = getRecord(spawned, 'session');
+
+  expect(session).toMatchObject({ cwd: dest, locator: { targetID: 'box' } });
+
+  const workspace = getRecord(session, 'workspace');
+
+  expect(workspace).toContainAllKeys(['repoURL', 'sha', 'ref', 'materializedAt']);
+  expect(workspace).toMatchObject({ repoURL: ctx.upstream, sha: sha.trim(), ref: 'main' });
+  expect(workspace['materializedAt']).toBeWithin(before, Date.now() + 1);
+  expect(head.trim()).toBe(sha.trim());
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
+
+  expect(box.calls).toMatchObject([
+    { op: 'run', argv: ['mkdir', '-p', '--', join(ctx.dir, 'box')], cwd: '/' },
+    { op: 'run', argv: ['mkdir', '--', dest], cwd: '/' },
+    { op: 'transfer', dir: dest },
+    { op: 'run', argv: ['git', 'rev-parse', '--verify', 'HEAD^{commit}'], cwd: dest },
+  ]);
+});
+
+test('it records a ready workspace and lists it again on the session after a restart', async () => {
+  await using ctx = await setupTest();
+
+  const first = await ctx.boot(new FixtureDirProvider());
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  const spawned = await first.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  const workspace = getRecord(spawned, 'session')['workspace'];
+
+  await first.daemon.stop();
+
+  const second = await ctx.boot(new FixtureDirProvider());
+  const restored = await second.client.sendRequest('fleet.list');
+
+  expect(restored).toStrictEqual({
+    fleet: [expect.objectContaining({ cwd: dest, target: 'box', workspace })],
+  });
+});
+
+test('it refuses a path source whose HEAD was never pushed, transferring nothing', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  writeFileSync(join(ctx.work, 'README.md'), 'unpushed\n');
+
+  await $`git commit --quiet -am unpushed`.env(ctx.env).cwd(ctx.work).quiet();
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'unpushed_head', data: { phase: 'resolving' } });
+
+  await spawn.catch(() => null);
+
+  const listed = await booted.client.sendRequest('session.list');
+
+  expect(box.calls).toStrictEqual([]);
+  expect(listed).toStrictEqual({ sessions: [] });
+});
+
+test('it refuses a path source with uncommitted changes as workspace_dirty', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  writeFileSync(join(ctx.work, 'README.md'), 'edited\n');
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'workspace_dirty' });
+
+  await spawn.catch(() => null);
+
+  expect(box.calls).toStrictEqual([]);
+});
+
+test('it materializes the committed HEAD of a dirty path source with a warning when dirt is allowed', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+  const sha = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  writeFileSync(join(ctx.work, 'README.md'), 'edited\n');
+  writeFileSync(join(ctx.work, 'scratch.txt'), 'untracked\n');
+
+  const spawned = await booted.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work, allowDirty: 'warn' },
+  });
+
+  const session = getRecord(spawned, 'session');
+
+  expect(session['workspace']).toMatchObject({ sha: sha.trim() });
+
+  expect(spawned['warnings']).toStrictEqual([
+    `uncommitted and untracked changes in ${ctx.work} stay behind; using ${sha.trim()}`,
+  ]);
+
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(existsSync(join(dest, 'scratch.txt'))).toBeFalse();
+});
+
+test('it refuses a path source that uses submodules, transferring nothing', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+  const sha = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
+
+  await $`git update-index --add --cacheinfo 160000,${sha.trim()},vendor/lib`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .quiet();
+
+  await $`git commit --quiet -m submodule`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git push --quiet origin main`.env(ctx.env).cwd(ctx.work).quiet();
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'has_submodules' });
+
+  await spawn.catch(() => null);
+
+  expect(box.calls).toStrictEqual([]);
+});
+
+test('it refuses a git source that tracks LFS paths, transferring nothing and leaving no directory', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  writeFileSync(join(ctx.work, '.gitattributes'), '*.bin filter=lfs diff=lfs merge=lfs -text\n');
+  writeFileSync(join(ctx.work, 'model.bin'), 'version https://git-lfs.github.com/spec/v1\n');
+
+  await $`git add .gitattributes model.bin`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git commit --quiet -m lfs`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git push --quiet origin main`.env(ctx.env).cwd(ctx.work).quiet();
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'lfs_unsupported', data: { phase: 'cloning' } });
+
+  await spawn.catch(() => null);
+
+  expect(box.calls.filter((call) => call.op === 'transfer')).toStrictEqual([]);
+  expect(existsSync(dest)).toBeFalse();
+});
+
+test('it refuses a path source whose git config rewrites its origin into a URL with a token', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  await $`git config ${`url.https://x-access-token:tok-1@example.com/.insteadOf`} ${ctx.upstream}`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .quiet();
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'credential_in_url' });
+
+  await spawn.catch(() => null);
+
+  expect(box.calls).toStrictEqual([]);
+});
+
+test('it refuses a git source whose URL carries a token', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'git', url: 'https://x-access-token:tok-1@example.com/r.git', ref: 'main' },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'credential_in_url' });
+
+  await spawn.catch(() => null);
+
+  expect(box.calls).toStrictEqual([]);
+});
+
+test('it keeps a credential out of every row, provenance, log line, and refusal', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+
+  process.env['ATC_TEST_WORKSPACE_TOKEN'] = 'tok-7d1e5a';
+
+  onTestFinished(() => {
+    delete process.env['ATC_TEST_WORKSPACE_TOKEN'];
+  });
+
+  const credentialRef = { kind: 'env', name: 'ATC_TEST_WORKSPACE_TOKEN' };
+
+  const spawned = await booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main', credentialRef },
+  });
+
+  // A ref spelled as the token makes git's own refusal carry it.
+  const refused = await booted.client
+    .sendRequest('session.spawn', {
+      cwd: join(ctx.dir, 'box', 'ws-2'),
+      target: 'box',
+      workspace: { kind: 'git', url: ctx.upstream, ref: 'tok-7d1e5a', credentialRef },
+    })
+    .then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+  const fleet = await booted.client.sendRequest('fleet.list');
+
+  const state = readdirSync(ctx.dir).filter((name) => name.startsWith('state.db'));
+  const stored = state.map((name) => readFileSync(join(ctx.dir, name)).toString('latin1'));
+
+  if (!(refused instanceof DaemonError)) {
+    throw new TypeError('the spawn under a missing ref was not refused');
+  }
+
+  expect(refused.code).toBe('ref_not_found');
+  expect(refused.message).toInclude('[credential]');
+  expect(refused.message).not.toInclude('tok-7d1e5a');
+  expect(refused.data).toStrictEqual({ phase: 'cloning' });
+  expect(state).not.toBeEmpty();
+  expect(stored).toSatisfyAll((bytes: string) => !bytes.includes('tok-7d1e5a'));
+  expect(stored).toSatisfyAll((bytes: string) => !bytes.includes('ATC_TEST_WORKSPACE_TOKEN'));
+  expect(JSON.stringify(spawned)).not.toInclude('tok-7d1e5a');
+  expect(JSON.stringify(fleet)).not.toInclude('tok-7d1e5a');
+  expect(ctx.logs).not.toBeEmpty();
+  expect(ctx.logs).toSatisfyAll((line: string) => !line.includes('tok-7d1e5a'));
+});
+
+test('it fails the spawn when the target checkout is not at the pinned commit, and removes it', async () => {
+  await using ctx = await setupTest();
+
+  const parent = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
+
+  writeFileSync(join(ctx.work, 'README.md'), 'second\n');
+
+  await $`git commit --quiet -am second`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git push --quiet origin main`.env(ctx.env).cwd(ctx.work).quiet();
+
+  const pinned = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
+
+  // The host's checkout lands on another commit than the one sent.
+  const box = new FixtureDirProvider({
+    afterTransfer: async (dir) => {
+      await Bun.write(join(dir, '.git', 'HEAD'), parent);
+    },
+  });
+
+  const booted = await ctx.boot(box);
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, sha: pinned.trim() },
+  });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'workspace_mismatch',
+    data: { phase: 'verifying', expected: pinned.trim(), actual: parent.trim() },
+  });
+
+  await spawn.catch(() => null);
+
+  const listed = await booted.client.sendRequest('session.list');
+
+  using db = new Database(ctx.dbPath, { readonly: true });
+
+  const rows = db.query('SELECT phase, error_code, sha FROM workspace_materialization').all();
+
+  expect(listed).toStrictEqual({ sessions: [] });
+  expect(existsSync(dest)).toBeFalse();
+
+  expect(rows).toStrictEqual([
+    { phase: 'failed', error_code: 'workspace_mismatch', sha: pinned.trim() },
+  ]);
+});
+
+test.each([['transfer'], ['run']] as const)(
+  'it refuses a workspace on a target whose provider cannot %s before any git command runs',
+  async (capability) => {
+    await using ctx = await setupTest();
+
+    const box = new FixtureDirProvider({ lacking: [capability] });
+
+    const booted = await ctx.boot(box);
+
+    // A dirty tree refuses as workspace_dirty once resolution runs.
+    writeFileSync(join(ctx.work, 'README.md'), 'edited\n');
+
+    const spawn = booted.client.sendRequest('session.spawn', {
+      cwd: join(ctx.dir, 'box', 'ws'),
+      target: 'box',
+      workspace: { kind: 'path', path: ctx.work },
+    });
+
+    expect(spawn).rejects.toMatchObject({
+      code: 'unsupported_operation',
+      data: { provider: 'fixture-dir', capability },
+    });
+
+    await spawn.catch(() => null);
+
+    using db = new Database(ctx.dbPath, { readonly: true });
+
+    const rows = db.query('SELECT * FROM workspace_materialization').all();
+
+    expect(box.calls).toStrictEqual([]);
+    expect(rows).toStrictEqual([]);
+  },
+);
+
+test('it fails a materialization that a restart interrupts and lists no session for it', async () => {
+  await using ctx = await setupTest();
+
+  const held = Promise.withResolvers<undefined>();
+
+  onTestFinished(() => {
+    held.resolve(undefined);
+  });
+
+  const box = new FixtureDirProvider({ afterTransfer: () => held.promise });
+
+  const first = await ctx.boot(box);
+
+  const spawn = first.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  await waitFor(() => {
+    expect(box.calls).toPartiallyContain({ op: 'transfer' });
+  });
+
+  await first.daemon.stop();
+  await spawn.catch(() => null);
+
+  const second = await ctx.boot(new FixtureDirProvider());
+  const listed = await second.client.sendRequest('session.list');
+
+  using db = new Database(ctx.dbPath, { readonly: true });
+
+  const rows = db.query('SELECT phase, error_code FROM workspace_materialization').all();
+
+  held.resolve(undefined);
+
+  // The stopped daemon's materialization resumes into its closed store and
+  // fails there.
+  await waitFor(() => {
+    expect(ctx.logs).toSatisfyAny((line: string) => line.includes('failed while transferring'));
+  });
+
+  expect(listed).toStrictEqual({ sessions: [] });
+  expect(rows).toStrictEqual([{ phase: 'failed', error_code: 'workspace_interrupted' }]);
+});
+
+test('it refuses to materialize into a directory that already exists and leaves it as it was', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  mkdirSync(dest, { recursive: true });
+  writeFileSync(join(dest, 'mine.txt'), 'keep\n');
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'workspace_exists', data: { dir: dest } });
+
+  await spawn.catch(() => null);
+
+  expect(box.calls.filter((call) => call.op === 'transfer')).toStrictEqual([]);
+  expect(readdirSync(dest)).toStrictEqual(['mine.txt']);
+});
+
+test('it refuses a workspace spawn whose cwd is relative before anything runs', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: 'ws',
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
+
+  await spawn.catch(() => null);
+
+  expect(box.calls).toStrictEqual([]);
+});
+
+test('it refuses a directory outside git as the workspace of a target off the daemon host', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  const plain = join(ctx.dir, 'plain');
+
+  mkdirSync(plain);
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: plain },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'not_a_git_repo' });
+
+  await spawn.catch(() => null);
+
+  expect(box.calls).toStrictEqual([]);
+});
+
+test('it runs a local session in a directory outside git as it stands', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+
+  const plain = join(ctx.dir, 'plain');
+
+  mkdirSync(plain);
+
+  const spawned = await booted.client.sendRequest('session.spawn', {
+    cwd: plain,
+    target: 'local',
+    workspace: { kind: 'path', path: plain },
+  });
+
+  using db = new Database(ctx.dbPath, { readonly: true });
+
+  const rows = db.query('SELECT * FROM workspace_materialization').all();
+
+  expect(getRecord(spawned, 'session')).not.toContainKey('workspace');
+  expect(getRecord(spawned, 'session')['cwd']).toBe(plain);
+  expect(rows).toStrictEqual([]);
+});
+
+test('it refuses a local directory outside git as the workspace of a spawn elsewhere', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+
+  const plain = join(ctx.dir, 'plain');
+
+  mkdirSync(plain);
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'elsewhere'),
+    target: 'local',
+    workspace: { kind: 'path', path: plain },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args', data: { phase: 'resolving' } });
+
+  await spawn.catch(() => null);
+
+  expect(existsSync(join(ctx.dir, 'elsewhere'))).toBeFalse();
+});
+
+test('it materializes a git source on the local target like on any other', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+  const sha = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
+
+  const dest = join(ctx.dir, 'local', 'ws');
+
+  const spawned = await booted.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'local',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(dest).text();
+
+  expect(spawned).toMatchObject({
+    session: { cwd: dest, workspace: { repoURL: ctx.upstream, sha: sha.trim(), ref: 'main' } },
+  });
+
+  expect(head.trim()).toBe(sha.trim());
+});
+
+test('it runs a local spawn without a workspace in its directory as it stands', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+  const spawned = await booted.client.sendRequest('session.spawn', { cwd: ctx.work });
+
+  using db = new Database(ctx.dbPath, { readonly: true });
+
+  const rows = db.query('SELECT * FROM workspace_materialization').all();
+
+  expect(getRecord(spawned, 'session')).not.toContainKey('workspace');
+
+  expect(getRecord(spawned, 'session')).toMatchObject({
+    cwd: ctx.work,
+    locator: { targetID: 'local' },
+  });
+
+  expect(rows).toStrictEqual([]);
+});

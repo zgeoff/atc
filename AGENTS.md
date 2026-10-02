@@ -247,11 +247,15 @@ not app code.
 
 Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
 `.oxlintrc.json`): `ack`, `adopt`, `answer`, `attach`, `boot`, `copy`, `detach`, `dispose`, `draw`,
-`jiggle`, `kill`, `log`, `mint`, `open`, `quit`, `reconcile`, `record`, `refresh`, `restart`,
-`restore`, `revoke`, `sanitize`, `schedule`, `spawn`, `transfer`, `truncate`, `yank`.
+`jiggle`, `kill`, `log`, `materialize`, `mint`, `open`, `quit`, `reconcile`, `record`, `refresh`,
+`restart`, `restore`, `revoke`, `sanitize`, `schedule`, `spawn`, `transfer`, `truncate`, `yank`.
 
 `dispose` releases every resource an object holds in one call (`SessionRuntime.dispose`), and is
 safe to call more than once.
+
+`materialize` builds a resource on an execution target from a source held elsewhere, through the
+target's provider operations, and checks the result before it counts as ready
+(`materializeWorkspace`).
 
 `mint` generates a new id that atc itself is the sole authority for (`mintSessionID`), as opposed to
 `to<Brand>`, which trusts an id that arrived from outside atc.
