@@ -384,7 +384,7 @@ const MIGRATIONS: Record<string, Migration> = {
         .execute();
     },
   },
-  '019_create_workspace_materialization': {
+  '020_create_workspace_materialization': {
     async up(db: Kysely<StateStoreSchema>) {
       await db.schema
         .createTable('workspace_materialization')

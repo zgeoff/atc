@@ -1054,7 +1054,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '017_create_idempotency',
     '018_add_fleet_target',
     '019_add_idempotency_effect_target',
-    '019_create_workspace_materialization',
+    '020_create_workspace_materialization',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
