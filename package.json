@@ -50,7 +50,7 @@
     "@commitlint/cli": "21.2.0",
     "@stylistic/eslint-plugin": "5.10.0",
     "@tsconfig/strictest": "2.0.8",
-    "@types/bun": "1.3.14",
+    "@types/bun": "1.4.2",
     "@zgeoff/bun-test-extended": "0.0.4",
     "@zgeoff/format-codemod": "0.0.8",
     "@zgeoff/oxlint-config": "0.0.6",
