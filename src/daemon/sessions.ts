@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
 import type { AdapterEvent, AgentAdapter, AgentID } from '../agents/agent-adapter';
+import { truncateDetail } from '../agents/truncate-detail';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { collectCleanEnv } from '../shared/collect-clean-env';
 import { socketPath, statusFile } from '../shared/config';
@@ -302,7 +303,9 @@ export class SessionManager {
     return true;
   }
 
-  updateSurfaceState(id: SessionID, state: SessionState, msg: string) {
+  // A result, when given, becomes the session's latest result the way a
+  // terminal turn's final message does.
+  updateSurfaceState(id: SessionID, state: SessionState, msg: string, result?: string) {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s || s.kind !== 'headless') {
@@ -312,6 +315,15 @@ export class SessionManager {
     s.state = state;
     s.lastMsg = msg;
     s.unread = this.focusedId !== s.id;
+
+    if (result !== undefined) {
+      s.result = truncateToBytes(result, 16_384);
+      s.lastDetail = truncateDetail(result);
+
+      if (s.agentSessionID !== undefined) {
+        void this.store.updateFleetEntry(s.agentSessionID, { result: s.result });
+      }
+    }
 
     this.onEvent('state', s);
     this.emitChange();

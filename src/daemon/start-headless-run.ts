@@ -6,6 +6,7 @@ import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { buildHeadlessEnv } from './build-headless-env';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
+import { truncateSummary } from './truncate-summary';
 
 const PERMISSION_MODES = [
   'default',
@@ -40,7 +41,7 @@ interface HeadlessRunHandle {
 /**
  * Runs one headless Agent SDK turn over a session, rendering its structured
  * messages as plain lines into the session's output pipe. The run ends in
- * done (with the result as the summary) or needs_you (errors, turn limits,
+ * done (with the turn's whole result) or needs_you (errors, turn limits,
  * anything a human must look at).
  */
 export function startHeadlessRun(
@@ -89,7 +90,7 @@ export function startHeadlessRun(
         }
 
         if (message.subtype === 'success') {
-          hooks.onDone(truncateSummary(message.result));
+          hooks.onDone(message.result);
           continue;
         }
 
@@ -169,10 +170,4 @@ export function renderSdkMessage(message: RenderableMessage): string | null {
   }
 
   return null;
-}
-
-function truncateSummary(text: string): string {
-  const flat = text.replaceAll('\n', ' ');
-
-  return flat.length <= 200 ? flat : `${flat.slice(0, 199)}…`;
 }

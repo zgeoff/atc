@@ -104,6 +104,12 @@ Claude-only: the Agent SDK and the CLI share the session store, and the handoff 
 the two never run the same session concurrently. Grok and Codex have no headless handoff — the
 overlay hides `H` on their rows, and `session.eject` is `unsupported`.
 
+The daemon writes a headless turn to the event trail itself, because the run has no terminal hooks:
+`prompt-submitted` when the run starts, then `turn-done` or `needs-input` when it ends. The run's
+whole final message becomes the session's latest result, the same as a terminal turn's. Hook reports
+that arrive for a headless session stay out of the trail, so a gateway run's own hooks never
+duplicate these events.
+
 ## State
 
 All in `~/.local/state/atc/`:
