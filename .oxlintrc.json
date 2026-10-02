@@ -34,6 +34,7 @@
           "restart",
           "restore",
           "revoke",
+          "sanitize",
           "schedule",
           "spawn",
           "transfer",
