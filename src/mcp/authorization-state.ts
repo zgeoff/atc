@@ -45,7 +45,8 @@ export interface IssuedCode {
   readonly expiresAt: number;
 }
 
-interface CodeEntry extends IssuedCode {
+interface CodeEntry {
+  readonly code: IssuedCode;
   claimed: boolean;
   grantID: string | null;
   revokeWhenGranted: boolean;
@@ -171,8 +172,7 @@ export class AuthorizationState {
     const token = mintToken('atc_ac_');
 
     this.codes.set(deriveTokenHash(token), {
-      ...code,
-      expiresAt: this.now() + this.limits.codeMs,
+      code: { ...code, expiresAt: this.now() + this.limits.codeMs },
       claimed: false,
       grantID: null,
       revokeWhenGranted: false,
@@ -198,7 +198,7 @@ export class AuthorizationState {
 
     entry.claimed = true;
 
-    return { kind: 'claimed', code: entry };
+    return { kind: 'claimed', code: entry.code };
   }
 
   // Records the grant a claimed code produced. Returns true when the code was
@@ -229,7 +229,7 @@ export class AuthorizationState {
     }
 
     for (const [hash, entry] of this.codes) {
-      if (entry.expiresAt <= now) {
+      if (entry.code.expiresAt <= now) {
         this.codes.delete(hash);
       }
     }

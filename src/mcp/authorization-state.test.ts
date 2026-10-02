@@ -184,7 +184,7 @@ test('it reports a second exchange of a code as reuse of the grant it produced',
 
   state.updateCodeGrant(code, 'g-1');
 
-  expect(first).toMatchObject({
+  expect(first).toStrictEqual({
     kind: 'claimed',
     code: {
       clientID: 'c1',
