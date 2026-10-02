@@ -53,6 +53,7 @@ export interface GrantSummary {
  */
 export interface GrantAccess {
   readonly grantID: string;
+  readonly clientName: string;
   readonly scopes: readonly GrantScope[];
 }
 
@@ -143,7 +144,8 @@ export class GrantStore {
     const row = await this.db
       .selectFrom('grant_tokens')
       .innerJoin('grants', 'grants.id', 'grant_tokens.grant_id')
-      .select(['grants.id', 'grants.scopes', 'grants.resource', 'grants.revoked_at'])
+      .select(['grants.id', 'grants.client_name', 'grants.scopes', 'grants.resource'])
+      .select(['grants.revoked_at'])
       .select(['grant_tokens.expires_at', 'grant_tokens.used_at'])
       .where('grant_tokens.hash', '=', hash)
       .where('grant_tokens.kind', '=', 'access')
@@ -171,7 +173,7 @@ export class GrantStore {
       .where('id', '=', row.id)
       .execute();
 
-    return { grantID: row.id, scopes: parseScopes(row.scopes) };
+    return { grantID: row.id, clientName: row.client_name, scopes: parseScopes(row.scopes) };
   }
 
   refreshGrant(refresh: GrantRefresh): Promise<GrantRefreshOutcome> {
@@ -179,7 +181,8 @@ export class GrantStore {
       const row = await trx
         .selectFrom('grant_tokens')
         .innerJoin('grants', 'grants.id', 'grant_tokens.grant_id')
-        .select(['grants.id', 'grants.scopes', 'grants.client_id', 'grants.resource'])
+        .select(['grants.id', 'grants.scopes', 'grants.client_id', 'grants.client_name'])
+        .select(['grants.resource'])
         .select(['grants.revoked_at', 'grant_tokens.expires_at', 'grant_tokens.used_at'])
         .where('grant_tokens.hash', '=', refresh.refreshHash)
         .where('grant_tokens.kind', '=', 'refresh')
@@ -193,7 +196,11 @@ export class GrantStore {
         return { kind: 'invalid' };
       }
 
-      const access: GrantAccess = { grantID: row.id, scopes: parseScopes(row.scopes) };
+      const access: GrantAccess = {
+        grantID: row.id,
+        clientName: row.client_name,
+        scopes: parseScopes(row.scopes),
+      };
 
       if (row.used_at === null) {
         await trx

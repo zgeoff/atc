@@ -105,7 +105,7 @@ async function answerVerify(rawParams: unknown, desk: GrantDesk): Promise<GrantA
     return { err: { code: 'unauthorized', msg: 'the access token is not valid' } };
   }
 
-  return { ok: { grant: access.grantID, scopes: access.scopes } };
+  return { ok: { grant: access.grantID, clientName: access.clientName, scopes: access.scopes } };
 }
 
 async function answerRefresh(rawParams: unknown, desk: GrantDesk): Promise<GrantAnswer> {

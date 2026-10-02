@@ -74,7 +74,12 @@ test('it verifies, refreshes, and revokes a grant over the socket', async () => 
   const revoked = await ctx.client.sendRequest('grant.revoke', { grant: created['grant'] });
 
   expect(created).toStrictEqual({ grant: expect.stringMatching(/^g-/), expiresIn: 3600 });
-  expect(verified).toStrictEqual({ grant: created['grant'], scopes: ['read', 'message'] });
+
+  expect(verified).toStrictEqual({
+    grant: created['grant'],
+    clientName: 'dots',
+    scopes: ['read', 'message'],
+  });
 
   expect(refreshed).toStrictEqual({
     grant: created['grant'],

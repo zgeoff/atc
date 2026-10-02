@@ -39,6 +39,7 @@ test('it verifies a fresh access token and returns its grant scopes', async () =
 
   expect(a1Access).toStrictEqual({
     grantID: 'g1',
+    clientName: 'dots',
     scopes: ['read', 'message'],
   });
 });
@@ -113,12 +114,18 @@ test('it rotates a refresh token into an access token that verifies', async () =
     retryWindowMs: 120_000,
   });
 
-  expect(outcome).toStrictEqual({ kind: 'rotated', grantID: 'g1', scopes: ['read'] });
+  expect(outcome).toStrictEqual({
+    kind: 'rotated',
+    grantID: 'g1',
+    clientName: 'dots',
+    scopes: ['read'],
+  });
 
   const a2Access = await ctx.grants.verifyAccessToken('a2', 'https://atc.example/mcp', 3000);
 
   expect(a2Access).toStrictEqual({
     grantID: 'g1',
+    clientName: 'dots',
     scopes: ['read'],
   });
 });
@@ -194,7 +201,12 @@ test('it reissues a pair when a spent refresh token is retried before its succes
     retryWindowMs: 120_000,
   });
 
-  expect(retried).toStrictEqual({ kind: 'rotated', grantID: 'g1', scopes: ['read'] });
+  expect(retried).toStrictEqual({
+    kind: 'rotated',
+    grantID: 'g1',
+    clientName: 'dots',
+    scopes: ['read'],
+  });
 
   const a2Access = await ctx.grants.verifyAccessToken('a2', 'https://atc.example/mcp', 6000);
 
