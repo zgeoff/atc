@@ -410,6 +410,9 @@ export class SessionManager {
       throw new Error(`no adapter for agent '${agent}'`);
     }
 
+    // The repository root resolves before the process starts: resolving it
+    // can throw, and a spawn that throws must leave nothing running.
+    const repoRoot = resolveRepoRoot(cwd);
     const plan = adapter.planSpawn({ prompt, resume, ...overrides });
 
     const pty = spawn(plan.bin, plan.args, {
@@ -439,7 +442,7 @@ export class SessionManager {
       agent,
       pinned: false,
       lastAttachedAt: Date.now(),
-      repoRoot: resolveRepoRoot(cwd),
+      repoRoot,
       namedBy,
       createdAt: Date.now(),
       parent,
