@@ -40,6 +40,10 @@ export interface FleetEntry {
   // that runs on the agent's configured default.
   readonly model?: string;
   readonly effort?: string;
+
+  // The execution target the session runs on; a row without one restores
+  // on the `local` target.
+  readonly target?: string;
 }
 
 export interface FleetStore {

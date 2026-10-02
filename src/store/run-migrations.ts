@@ -21,6 +21,7 @@ interface FleetTable {
   transcript_path: string | null;
   model: string | null;
   effort: string | null;
+  target: string | null;
 }
 
 interface EventsTable {
@@ -336,6 +337,11 @@ const MIGRATIONS: Record<string, Migration> = {
         .on('idempotency')
         .columns(['state', 'updated_at'])
         .execute();
+    },
+  },
+  '018_add_fleet_target': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('target', 'text').execute();
     },
   },
 };
