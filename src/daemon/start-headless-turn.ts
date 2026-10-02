@@ -31,6 +31,7 @@ export function startHeadlessTurn(
       prompt,
       ...(s.agentSessionID === undefined ? {} : { resume: s.agentSessionID }),
       permissionMode: 'auto',
+      sessionID,
     },
     {
       onOutput: (text) => {

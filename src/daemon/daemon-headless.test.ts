@@ -157,6 +157,7 @@ test('it ejects a terminal session into a headless run with its agent id', async
     prompt: 'keep going',
     resume: 'sess-123',
     permissionMode: 'auto',
+    sessionID: id,
   });
 
   const list = await ctx.client.sendRequest('session.list');

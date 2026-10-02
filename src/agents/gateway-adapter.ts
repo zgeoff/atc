@@ -50,11 +50,15 @@ export class GatewayAdapter implements AgentAdapter {
   // Written on first spawn so constructing the adapter touches no state.
   private bridgeDir: string | undefined;
 
+  private readonly bridgeTarget: string | undefined;
+
   constructor(
     gateway: GatewayConfig,
     config: Config,
     headlessRunner: HeadlessRunner | null = null,
+    bridgeTarget?: string,
   ) {
+    this.bridgeTarget = bridgeTarget;
     this.gateway = gateway;
     this.id = gateway.id;
 
@@ -63,7 +67,11 @@ export class GatewayAdapter implements AgentAdapter {
     this.headlessRunner =
       headlessRunner === null
         ? null
-        : (opts, hooks) => headlessRunner({ ...opts, settings: this.writeSettings() }, hooks);
+        : (opts, hooks) =>
+            headlessRunner(
+              { ...opts, settings: this.writeSettings(), pluginDir: this.writeBridge() },
+              hooks,
+            );
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
@@ -118,7 +126,7 @@ export class GatewayAdapter implements AgentAdapter {
   }
 
   private writeBridge(): string {
-    this.bridgeDir ??= writeATCBridge();
+    this.bridgeDir ??= writeATCBridge(this.bridgeTarget);
 
     return this.bridgeDir;
   }

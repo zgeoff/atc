@@ -66,8 +66,8 @@ test('it submits a mid-turn message when the session refuses the append', async 
 
   await clock.settle();
 
-  expect(submitted).toEqual(['<atc-message id="m-3" from="bob">\nlate\n</atc-message>']);
-  expect(ran).toEqual([]);
+  expect(submitted).toStrictEqual(['<atc-message id="m-3" from="bob">\nlate\n</atc-message>']);
+  expect(ran).toStrictEqual([]);
 });
 
 test('it starts no tap when the build refuses the report tool', async (engine, on) => {
@@ -94,6 +94,6 @@ test('it starts no tap when the build refuses the report tool', async (engine, o
 
   await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
 
-  expect(spawned).toEqual([]);
+  expect(spawned).toStrictEqual([]);
   expect(logs).toHaveLength(1);
 });

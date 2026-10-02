@@ -123,7 +123,7 @@ export const register: Register = (on) => {
     const completed = await next(e);
 
     if (state.sessionID !== null && e.agentId === undefined) {
-      updateTurnCompleted($, state, e.turnId, e.answer);
+      updateTurnCompleted($, state, e.turnId, e.answer, e.reason === 'answer');
     }
 
     return completed;
@@ -220,13 +220,19 @@ function scheduleDelivery($: EngineInterface, state: BridgeState, msg: TapMessag
 
 async function sendMessage($: EngineInterface, state: BridgeState, msg: TapMessage): Promise<void> {
   const turnID = state.runningTurnID;
-  const isAppended = turnID !== null && (await tryUpdateConversation($, msg));
 
-  if (turnID !== null && isAppended) {
-    state.carried.get(turnID)?.push(msg);
-    state.unseen.add(msg.id);
+  if (turnID !== null && (await tryUpdateConversation($, msg))) {
+    const carried = state.carried.get(turnID);
 
-    return;
+    // The append can resolve after the turn completed; the turn then no
+    // longer reports or redelivers anything, so the message goes out as a
+    // fresh submit instead.
+    if (carried !== undefined && state.runningTurnID === turnID) {
+      carried.push(msg);
+      state.unseen.add(msg.id);
+
+      return;
+    }
   }
 
   state.awaitingTurn.set(msg.id, msg);
@@ -293,6 +299,7 @@ function updateTurnCompleted(
   state: BridgeState,
   turnID: string,
   answer: string,
+  isAnswered: boolean,
 ): void {
   const carried = state.carried.get(turnID) ?? [];
 
@@ -305,7 +312,7 @@ function updateTurnCompleted(
   for (const msg of carried) {
     if (state.unseen.delete(msg.id)) {
       scheduleDelivery($, state, msg);
-    } else {
+    } else if (isAnswered) {
       scheduleAnsweredReport($, state, msg.id, answer);
     }
   }

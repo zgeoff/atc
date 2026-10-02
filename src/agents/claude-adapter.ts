@@ -58,14 +58,20 @@ export class ClaudeAdapter implements AgentAdapter {
   // Written on first spawn so constructing the adapter touches no state.
   private bridgeDir: string | undefined;
 
-  constructor(config: Config, headlessRunner: HeadlessRunner | null = null) {
+  private readonly bridgeTarget: string | undefined;
+
+  constructor(config: Config, headlessRunner: HeadlessRunner | null = null, bridgeTarget?: string) {
+    this.bridgeTarget = bridgeTarget;
     this.config = config;
-    this.headlessRunner = headlessRunner;
+
+    this.headlessRunner =
+      headlessRunner === null
+        ? null
+        : (opts, hooks) => headlessRunner({ ...opts, pluginDir: this.writeBridge() }, hooks);
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
     this.settingsFile ??= writeHookSettings({ id: this.id });
-    this.bridgeDir ??= writeATCBridge();
 
     return {
       bin: this.config.claudeBin,
@@ -74,12 +80,18 @@ export class ClaudeAdapter implements AgentAdapter {
         '--settings',
         this.settingsFile,
         '--plugin-dir',
-        this.bridgeDir,
+        this.writeBridge(),
         ...(opts.resume === true ? ['--resume'] : []),
         ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
         ...(opts.prompt === '' ? [] : [opts.prompt]),
       ],
     };
+  }
+
+  private writeBridge(): string {
+    this.bridgeDir ??= writeATCBridge(this.bridgeTarget);
+
+    return this.bridgeDir;
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {

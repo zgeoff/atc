@@ -24,8 +24,8 @@ test('it registers nothing outside atc', async (engine, on) => {
 
   await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
 
-  expect(registered).toEqual([]);
-  expect(spawned).toEqual([]);
+  expect(registered).toStrictEqual([]);
+  expect(spawned).toStrictEqual([]);
 });
 
 test('it submits a tapped message when no turn runs', async (engine, on) => {
@@ -57,8 +57,8 @@ test('it submits a tapped message when no turn runs', async (engine, on) => {
   await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
   await clock.settle();
 
-  expect(spawned).toEqual([['atc', 'tap', '--session', 's-1']]);
-  expect(submitted).toEqual(['<atc-message id="m-1" from="alice">\nhi\n</atc-message>']);
+  expect(spawned).toStrictEqual([['atc', 'tap', '--session', 's-1']]);
+  expect(submitted).toStrictEqual(['<atc-message id="m-1" from="alice">\nhi\n</atc-message>']);
 });
 
 test('it reports the answer for the message a turn carried', async (engine, on) => {
@@ -114,7 +114,65 @@ test('it reports the answer for the message a turn carried', async (engine, on) 
 
   await clock.settle();
 
-  expect(ran).toEqual([{ argv: ['atc', 'report', 'answered', '--message', 'm-1'], stdin: 'done' }]);
+  expect(ran).toStrictEqual([
+    { argv: ['atc', 'report', 'answered', '--message', 'm-1'], stdin: 'done' },
+  ]);
+});
+
+test('it reports nothing for a turn that ended in an error', async (engine, on) => {
+  const clock = mock.clock(on);
+  const ran: { argv: string[]; stdin: string | undefined }[] = [];
+
+  on('ui.log', () => ({ value: undefined }));
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', ($, e) => ({ value: { tool: `mcp__atc-bridge__${e.name}` } }));
+
+  on('process.spawn', async function* () {
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('process.run', ($, e) => {
+    ran.push({ argv: [...e.argv], stdin: e.init?.stdin });
+
+    return {
+      value: {
+        exitCode: 0,
+        stdout: '',
+        stderr: '',
+        isStdoutTruncated: false,
+        isStderrTruncated: false,
+      },
+    };
+  });
+
+  on('prompt.submit', async (_, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  on('turn.start', ($, e) => ({ turnId: e.turnId }));
+  on('turn.complete', ($, e) => ({ text: e.answer }));
+  on('session.start', ($, e) => ({ cwd: e.cwd }));
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await clock.settle();
+
+  await engine.turn.complete({
+    answer: '',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'error',
+  });
+
+  await clock.settle();
+
+  expect(ran).toStrictEqual([]);
 });
 
 test('it sends a report through atc', async (engine, on) => {
@@ -155,7 +213,7 @@ test('it sends a report through atc', async (engine, on) => {
   });
 
   expect(answered.result).toBe('Sent to the user through atc.');
-  expect(ran).toEqual([['atc', 'report', 'note', '--label', 'blocked']]);
+  expect(ran).toStrictEqual([['atc', 'report', 'note', '--label', 'blocked']]);
 });
 
 test('it refuses a report without text', async (engine, on) => {
@@ -192,7 +250,7 @@ test('it refuses a report without text', async (engine, on) => {
   const answered = await engine.tool.call({ tool: 'mcp__atc-bridge__report', text: '   ' });
 
   expect(answered.deny).toBe('report needs non-empty text');
-  expect(ran).toEqual([]);
+  expect(ran).toStrictEqual([]);
 });
 
 test('it reports every message a queued turn carried', async (engine, on) => {
@@ -249,7 +307,7 @@ test('it reports every message a queued turn carried', async (engine, on) => {
 
   await clock.settle();
 
-  expect(ran).toEqual([
+  expect(ran).toStrictEqual([
     ['atc', 'report', 'answered', '--message', 'm-1'],
     ['atc', 'report', 'answered', '--message', 'm-2'],
   ]);

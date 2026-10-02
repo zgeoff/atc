@@ -74,3 +74,34 @@ jobs:
 
       - name: Test
         run: bun test
+
+  atc-bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LEFTHOOK: 0
+      # the mods API is early access and changes between Claude Code releases,
+      # so the mod is validated and tested against one exact build
+      CLAUDE_CODE_VERSION: 2.1.287
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Install Claude Code
+        run: npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+
+      - name: Check Embedded Mod Drift
+        run: |
+          bun run build:atc-bridge
+          git diff --exit-code src/agents/atc-bridge-files.ts
+
+      - name: Test Mod
+        run: bun run test:atc-bridge

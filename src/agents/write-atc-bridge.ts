@@ -18,7 +18,7 @@ export function writeATCBridge(dir: string = join(stateDir, 'atc-bridge')): stri
   for (const [path, content] of Object.entries(files)) {
     const file = join(dir, path);
 
-    if (findFileText(file) === content) {
+    if (tryReadFileText(file) === content) {
       continue;
     }
 
@@ -33,7 +33,7 @@ function renderATCCLIModule(argv: readonly string[]): string {
   return `export const ATC_CLI: readonly string[] = ${JSON.stringify(argv)};\n`;
 }
 
-function findFileText(file: string): string | null {
+function tryReadFileText(file: string): string | null {
   try {
     return readFileSync(file, 'utf8');
   } catch {
