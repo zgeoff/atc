@@ -89,16 +89,28 @@ export class GrantStore {
     this.db = db;
   }
 
-  async createClient(client: OAuthClient, now: number): Promise<void> {
-    await this.db
-      .insertInto('oauth_clients')
-      .values({
-        client_id: client.clientID,
-        name: client.name,
-        redirect_uris: JSON.stringify(client.redirectURIs),
-        created_at: now,
-      })
-      .execute();
+  // Registers the client only while fewer than maxWaiting clients wait for a
+  // grant; the count and the insert run as one transaction, so concurrent
+  // registrations can never overshoot the limit together. False means the
+  // limit was reached and nothing was written.
+  tryCreateClient(client: OAuthClient, now: number, maxWaiting: number): Promise<boolean> {
+    return this.db.transaction().execute(async (trx) => {
+      if ((await countClientsWithoutGrantIn(trx)) >= maxWaiting) {
+        return false;
+      }
+
+      await trx
+        .insertInto('oauth_clients')
+        .values({
+          client_id: client.clientID,
+          name: normalizeClientName(client.name),
+          redirect_uris: JSON.stringify(client.redirectURIs),
+          created_at: now,
+        })
+        .execute();
+
+      return true;
+    });
   }
 
   async findClient(clientID: string): Promise<OAuthClient | null> {
@@ -114,28 +126,9 @@ export class GrantStore {
 
     return {
       clientID: row.client_id,
-      name: normalizeClientName(row.name),
+      name: row.name,
       redirectURIs: parseURIList(row.redirect_uris),
     };
-  }
-
-  // Clients registered but not yet holding a grant: what unauthenticated
-  // registration can pile up before an operator approves anything.
-  async countClientsWithoutGrant(): Promise<number> {
-    const row = await this.db
-      .selectFrom('oauth_clients')
-      .select((eb) => eb.fn.countAll<number>().as('count'))
-      .where((eb) => {
-        const grantsOfClient = eb
-          .selectFrom('grants')
-          .select('grants.id')
-          .whereRef('grants.client_id', '=', 'oauth_clients.client_id');
-
-        return eb.not(eb.exists(grantsOfClient));
-      })
-      .executeTakeFirstOrThrow();
-
-    return row.count;
   }
 
   async createGrant(grant: NewGrant): Promise<void> {
@@ -145,7 +138,7 @@ export class GrantStore {
         .values({
           id: grant.id,
           client_id: grant.clientID,
-          client_name: grant.clientName,
+          client_name: normalizeClientName(grant.clientName),
           scopes: grant.scopes.join(' '),
           resource: grant.resource,
           created_at: grant.now,
@@ -358,6 +351,25 @@ export class GrantStore {
         .execute();
     });
   }
+}
+
+// Clients registered but not yet holding a grant: what unauthenticated
+// registration can pile up before an operator approves anything.
+async function countClientsWithoutGrantIn(trx: Transaction<StateStoreSchema>): Promise<number> {
+  const row = await trx
+    .selectFrom('oauth_clients')
+    .select((eb) => eb.fn.countAll<number>().as('count'))
+    .where((eb) => {
+      const grantsOfClient = eb
+        .selectFrom('grants')
+        .select('grants.id')
+        .whereRef('grants.client_id', '=', 'oauth_clients.client_id');
+
+      return eb.not(eb.exists(grantsOfClient));
+    })
+    .executeTakeFirstOrThrow();
+
+  return row.count;
 }
 
 async function createTokenPair(

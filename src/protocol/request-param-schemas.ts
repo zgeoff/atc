@@ -134,10 +134,20 @@ export const REQUEST_PARAM_SCHEMAS = {
     grant: buildRequiredString('grant.revoke requires a grant'),
   }),
   'grant.registerClient': z.object({
-    name: buildRequiredString('grant.registerClient requires a name'),
+    name: buildRequiredString('grant.registerClient requires a name').max(
+      200,
+      'grant.registerClient takes a name of at most 200 characters',
+    ),
     redirectURIs: z
-      .array(z.string(), { error: 'grant.registerClient requires redirectURIs' })
-      .min(1, 'grant.registerClient requires redirectURIs'),
+      .array(
+        buildRequiredString('grant.registerClient requires non-empty redirectURIs').max(
+          2000,
+          'grant.registerClient takes redirectURIs of at most 2000 characters each',
+        ),
+        { error: 'grant.registerClient requires redirectURIs' },
+      )
+      .min(1, 'grant.registerClient requires redirectURIs')
+      .max(5, 'grant.registerClient takes at most 5 redirectURIs'),
   }),
   'grant.findClient': z.object({
     clientID: buildRequiredString('grant.findClient requires a clientID'),

@@ -97,6 +97,9 @@ export interface DaemonOptions {
 
 export interface DaemonHandle {
   readonly stop: () => Promise<void>;
+
+  // How many client-protocol connections are open right now.
+  readonly countClients: () => number;
 }
 
 // How long a started Claude session may go without a tap before a message to
@@ -1097,7 +1100,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
-  return { stop: stopDaemon };
+  return { stop: stopDaemon, countClients: () => clients.size };
 }
 
 // Tells a tap its subscription is over so the `atc tap` process behind it

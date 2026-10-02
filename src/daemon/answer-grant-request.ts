@@ -75,8 +75,6 @@ async function answerCreate(rawParams: unknown, desk: GrantDesk): Promise<GrantA
   const now = desk.now();
   const id = mintGrantID();
 
-  await desk.store.removeExpiredGrants(now, desk.policy.clientGraceMs);
-
   await desk.store.createGrant({
     ...parsed.data,
     id,
@@ -84,6 +82,10 @@ async function answerCreate(rawParams: unknown, desk: GrantDesk): Promise<GrantA
     accessMs: desk.policy.accessMs,
     refreshMs: desk.policy.refreshMs,
   });
+
+  // Pruned only once the grant exists, so a registered client past its grace
+  // is kept by the grant it just gained instead of removed right before it.
+  await desk.store.removeExpiredGrants(now, desk.policy.clientGraceMs);
 
   return { ok: { grant: id, expiresIn: Math.floor(desk.policy.accessMs / 1000) } };
 }
@@ -182,7 +184,15 @@ async function answerRegisterClient(rawParams: unknown, desk: GrantDesk): Promis
 
   await desk.store.removeExpiredGrants(now, desk.policy.clientGraceMs);
 
-  if ((await desk.store.countClientsWithoutGrant()) >= MAX_CLIENTS_WITHOUT_GRANT) {
+  const clientID = mintClientID();
+
+  const created = await desk.store.tryCreateClient(
+    { clientID, name: parsed.data.name, redirectURIs: parsed.data.redirectURIs },
+    now,
+    MAX_CLIENTS_WITHOUT_GRANT,
+  );
+
+  if (!created) {
     return {
       err: {
         code: 'at_capacity',
@@ -190,13 +200,6 @@ async function answerRegisterClient(rawParams: unknown, desk: GrantDesk): Promis
       },
     };
   }
-
-  const clientID = mintClientID();
-
-  await desk.store.createClient(
-    { clientID, name: parsed.data.name, redirectURIs: parsed.data.redirectURIs },
-    now,
-  );
 
   return { ok: { clientID } };
 }

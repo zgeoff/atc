@@ -269,3 +269,61 @@ test('it parses message.get with a message id', () => {
 
   expect(parsed).toStrictEqual({ ok: true, data: { message: toMessageID('m-1') } });
 });
+
+test.each([
+  [
+    'a name over 200 characters',
+    { name: 'x'.repeat(201), redirectURIs: ['https://chatgpt.com/cb'] },
+    'grant.registerClient takes a name of at most 200 characters',
+  ],
+  [
+    'no redirect URIs',
+    { name: 'dots', redirectURIs: [] },
+    'grant.registerClient requires redirectURIs',
+  ],
+  [
+    'more than 5 redirect URIs',
+    {
+      name: 'dots',
+      redirectURIs: [
+        'https://a/1',
+        'https://a/2',
+        'https://a/3',
+        'https://a/4',
+        'https://a/5',
+        'https://a/6',
+      ],
+    },
+    'grant.registerClient takes at most 5 redirectURIs',
+  ],
+  [
+    'an empty redirect URI',
+    { name: 'dots', redirectURIs: [''] },
+    'grant.registerClient requires non-empty redirectURIs',
+  ],
+  [
+    'a redirect URI over 2000 characters',
+    { name: 'dots', redirectURIs: [`https://a/${'x'.repeat(1991)}`] },
+    'grant.registerClient takes redirectURIs of at most 2000 characters each',
+  ],
+] as const)('it rejects grant.registerClient with %s', (_case, payload, message) => {
+  expect(parseRequestParams('grant.registerClient', payload)).toStrictEqual({ ok: false, message });
+});
+
+test('it accepts grant.registerClient at every bound', () => {
+  const payload = {
+    name: 'x'.repeat(200),
+    redirectURIs: [
+      'https://a/1',
+      'https://a/2',
+      'https://a/3',
+      'https://a/4',
+      `https://a/${'x'.repeat(1990)}`,
+    ],
+  };
+
+  expect(parseRequestParams('grant.registerClient', payload)).toStrictEqual({
+    ok: true,
+    data: payload,
+  });
+});

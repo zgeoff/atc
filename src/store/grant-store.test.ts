@@ -579,9 +579,10 @@ test('it removes a grant whose refresh token expired', async () => {
 test('it removes a registered client that never gained a grant once its grace ends', async () => {
   await using ctx = await setupTest();
 
-  await ctx.grants.createClient(
+  await ctx.grants.tryCreateClient(
     { clientID: 'c1', name: 'dots', redirectURIs: ['https://chatgpt.com/cb'] },
     1000,
+    100,
   );
 
   await ctx.grants.removeExpiredGrants(700_000, 600_000);
@@ -594,9 +595,10 @@ test('it removes a registered client that never gained a grant once its grace en
 test('it keeps a registered client while a grant uses it', async () => {
   await using ctx = await setupTest();
 
-  await ctx.grants.createClient(
+  await ctx.grants.tryCreateClient(
     { clientID: 'c1', name: 'dots', redirectURIs: ['https://chatgpt.com/cb'] },
     1000,
+    100,
   );
 
   await ctx.grants.createGrant({
@@ -623,17 +625,34 @@ test('it keeps a registered client while a grant uses it', async () => {
   });
 });
 
-test('it counts only registered clients that hold no grant', async () => {
+test('it refuses a client once the limit of clients waiting for a grant is reached', async () => {
   await using ctx = await setupTest();
 
-  await ctx.grants.createClient(
+  await ctx.grants.tryCreateClient(
     { clientID: 'c1', name: 'dots', redirectURIs: ['https://chatgpt.com/cb'] },
     1000,
+    1,
   );
 
-  await ctx.grants.createClient(
+  const created = await ctx.grants.tryCreateClient(
     { clientID: 'c2', name: 'lines', redirectURIs: ['https://chatgpt.com/cb'] },
     1000,
+    1,
+  );
+
+  const found = await ctx.grants.findClient('c2');
+
+  expect(created).toBeFalse();
+  expect(found).toBeNull();
+});
+
+test('it admits a client past the limit when the clients before it hold grants', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.grants.tryCreateClient(
+    { clientID: 'c1', name: 'dots', redirectURIs: ['https://chatgpt.com/cb'] },
+    1000,
+    1,
   );
 
   await ctx.grants.createGrant({
@@ -649,21 +668,26 @@ test('it counts only registered clients that hold no grant', async () => {
     refreshMs: 2_592_000_000,
   });
 
-  const waiting = await ctx.grants.countClientsWithoutGrant();
+  const created = await ctx.grants.tryCreateClient(
+    { clientID: 'c2', name: 'lines', redirectURIs: ['https://chatgpt.com/cb'] },
+    1000,
+    1,
+  );
 
-  expect(waiting).toBe(1);
+  expect(created).toBeTrue();
 });
 
 test('it finds a stored client name with its control characters dropped', async () => {
   await using ctx = await setupTest();
 
-  await ctx.grants.createClient(
+  await ctx.grants.tryCreateClient(
     {
       clientID: 'c1',
       name: 'dots\u001B]52;c;AAAA\u0007\nforged',
       redirectURIs: ['https://chatgpt.com/cb'],
     },
     1000,
+    100,
   );
 
   const client = await ctx.grants.findClient('c1');
@@ -673,4 +697,60 @@ test('it finds a stored client name with its control characters dropped', async 
     name: 'dots]52;c;AAAA forged',
     redirectURIs: ['https://chatgpt.com/cb'],
   });
+});
+
+test('it verifies an access token with its grant client name cleaned of control characters', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.grants.createGrant({
+    id: 'g1',
+    clientID: 'c1',
+    clientName: 'dots\u001B]52;c;AAAA\u0007\nforged',
+    scopes: ['read'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+    now: 1000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+  });
+
+  const access = await ctx.grants.verifyAccessToken('a1', 'https://atc.example/mcp', 2000);
+
+  expect(access).toStrictEqual({
+    grantID: 'g1',
+    clientName: 'dots]52;c;AAAA forged',
+    scopes: ['read'],
+  });
+});
+
+test('it lists a grant with its client name cleaned of control characters', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.grants.createGrant({
+    id: 'g1',
+    clientID: 'c1',
+    clientName: 'dots\u001B]52;c;AAAA\u0007\nforged',
+    scopes: ['read'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+    now: 1000,
+    accessMs: 3_600_000,
+    refreshMs: 2_592_000_000,
+  });
+
+  const grants = await ctx.grants.collectGrants();
+
+  expect(grants).toStrictEqual([
+    {
+      id: 'g1',
+      clientID: 'c1',
+      clientName: 'dots]52;c;AAAA forged',
+      scopes: ['read'],
+      resource: 'https://atc.example/mcp',
+      createdAt: 1000,
+      lastUsedAt: null,
+    },
+  ]);
 });

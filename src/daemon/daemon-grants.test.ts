@@ -306,3 +306,33 @@ test('it refuses a registration with at_capacity once 100 clients are waiting fo
     }),
   ).rejects.toMatchObject({ code: 'at_capacity' });
 });
+
+test('it admits exactly 100 of 150 registrations sent at once', async () => {
+  await using ctx = await setupTest();
+
+  const outcomes = await Promise.allSettled(
+    Array.from({ length: 150 }, (_, index) =>
+      ctx.client.sendRequest('grant.registerClient', {
+        name: `client ${index}`,
+        redirectURIs: ['https://chatgpt.com/cb'],
+      }),
+    ),
+  );
+
+  expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(100);
+
+  expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toMatchObject(
+    Array.from({ length: 50 }, () => ({ status: 'rejected', reason: { code: 'at_capacity' } })),
+  );
+});
+
+test('it refuses a registration with a name over 200 characters with bad_args', async () => {
+  await using ctx = await setupTest();
+
+  expect(
+    ctx.client.sendRequest('grant.registerClient', {
+      name: 'x'.repeat(201),
+      redirectURIs: ['https://chatgpt.com/cb'],
+    }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
+});
