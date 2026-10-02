@@ -188,9 +188,10 @@ the wire format and the transport it rides; `shared/` holds id types, config, an
 used across the rest of `src/`. `cli.ts` is the CLI entrypoint. A module that exists only to back
 one of its subcommands stays beside it at `src/` root, while the `tui` and `daemon` subcommands load
 their subsystems from `client/` and `daemon/`. `mcp/` holds the MCP tool definitions and request
-handling that `mcp-server.ts` serves. `test/` holds the PTY-driven e2e suite, `bin/atc` is the
-executable shim. `mods/` holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling, not
-app code.
+handling that `mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the
+better-auth authorization server and its pages. `test/` holds the PTY-driven e2e suite, `bin/atc` is
+the executable shim. `mods/` holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling,
+not app code.
 
 ## Runtime rules
 
@@ -236,21 +237,26 @@ app code.
   `ATC_SESSION_ID`; `detached: true` opts out.
 - State lives in `~/.local/state/atc/`: `atc.db` (SQLite — fleet, hook-event trail, spawn history)
   plus `status.json`, which stays a plain file because statusline reporters read it without speaking
-  the protocol. The fleet is rewritten on deliberate kills only, so crashes leave a restorable
-  fleet; killed sessions persist as exited entries until a second kill removes them.
+  the protocol. `mcp-auth.db` holds the OAuth state of `atc mcp --http`; only that process,
+  `atc clients`, and `atc grants` open it, never the daemon. The fleet is rewritten on deliberate
+  kills only, so crashes leave a restorable fleet; killed sessions persist as exited entries until a
+  second kill removes them.
 
 ## Function naming — project verbs
 
 Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
 `.oxlintrc.json`): `ack`, `adopt`, `answer`, `attach`, `boot`, `copy`, `detach`, `dispose`, `draw`,
 `jiggle`, `kill`, `log`, `mint`, `open`, `quit`, `record`, `refresh`, `restart`, `restore`,
-`schedule`, `spawn`, `truncate`, `yank`.
+`revoke`, `schedule`, `spawn`, `truncate`, `yank`.
 
 `dispose` releases every resource an object holds in one call (`SessionRuntime.dispose`), and is
 safe to call more than once.
 
 `mint` generates a new id that atc itself is the sole authority for (`mintSessionID`), as opposed to
 `to<Brand>`, which trusts an id that arrived from outside atc.
+
+`revoke` withdraws a credential atc issued so it no longer authorizes anything (`revokeGrant`), as
+opposed to `remove`, which deletes a resource outright.
 
 Exempt names (tiny geometry/row helpers and script entrypoints): `cols`, `rows`, `ptyRows`, `out`,
 `main`, `boxTop`, `boxDivider`, `boxBottom`, `boxRow`, `dimRow`.

@@ -51,7 +51,8 @@ beside its schema:
   outside atc's control.
 - One scope out of `read`, `message`, `spawn`, and `kill`, which groups the tool by the access it
   needs. `atc_session_input` takes `spawn`, because raw keystrokes can do anything a new session
-  can. The stdio server serves every scope to its caller.
+  can. The stdio server serves every scope to its caller; `atc mcp --http` serves only the scopes a
+  client's grant holds, as [Remote MCP](./remote-mcp.md) describes.
 
 The server returns the client's requested protocol version from `initialize` when it supports it
 (`2025-11-25`, `2025-06-18`, or `2024-11-05`), else `2025-11-25`. The server leaves out
@@ -136,6 +137,7 @@ All in `~/.local/state/atc/`:
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `atc.db`      | SQLite: the restorable fleet (rewritten on deliberate kills only; killed sessions persist as exited entries; each row holds the spawn prompt, latest result, and transcript path), the hook-event trail, the message inbox, the spawn-directory history for the picker, and last-used agent (written on a deliberate-spawn SessionStart, advertised on `daemon.hello`). |
 | `status.json` | Counts + most urgent session, read by the injected statusline on each render — a plain file because reporters read it without speaking the protocol.                                                                                                                                                                                                                    |
+| `mcp-auth.db` | SQLite: the OAuth state of `atc mcp --http` (clients, consent, token hashes), owned by that process and by `atc clients` and `atc grants`; the daemon never opens it. [Remote MCP](./remote-mcp.md) covers it.                                                                                                                                                          |
 
 The daemon's pid file (`atc-daemon.pid`) lives beside its sockets in `$XDG_RUNTIME_DIR`, not in the
 state directory: a pid is only meaningful for the daemon owning those sockets, and a shared location

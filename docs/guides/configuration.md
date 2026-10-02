@@ -154,6 +154,35 @@ Codex hooks live in `$CODEX_HOME/hooks.json` (`~/.codex` when `CODEX_HOME` is un
 Sessions you start outside atc report events too; the reporter exits immediately when no atc session
 id is present.
 
+## Remote MCP
+
+`atc mcp --http` reads the `mcpHTTP` section, and nothing else in atc does. Command-line flags win
+over it: `--host` over `host`, `--port` over `port`, `--public-url` over `publicURL`.
+
+```json
+{
+  "mcpHTTP": {
+    "publicURL": "https://mcp.example.com",
+    "host": "127.0.0.1",
+    "port": 8414,
+    "allowedHosts": []
+  }
+}
+```
+
+| Field          | Default     | Meaning                                                                                                                                      |
+| -------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `publicURL`    | none        | the origin clients reach the server at; https unless the host is loopback, with no path. Without it, the origin is `http://127.0.0.1:<port>` |
+| `host`         | `127.0.0.1` | the address the server binds                                                                                                                 |
+| `port`         | `8414`      | the port the server binds, from 1 to 65535                                                                                                   |
+| `allowedHosts` | `[]`        | further `Host` header values to accept, for a proxy that rewrites `Host`                                                                     |
+
+Clients are not config: add each one with `atc clients add`, which prints the client ID the
+connector needs. ChatGPT returns to `https://chatgpt.com/connector_platform_oauth_redirect`, and
+Claude returns to `https://claude.ai/api/mcp/auth_callback` or
+`https://claude.com/api/mcp/auth_callback`. [Remote MCP](../architecture/remote-mcp.md#clients)
+covers clients, the approval flow, and the checks.
+
 ## State locations
 
 Daemon state lives in `~/.local/state/atc/` — the
