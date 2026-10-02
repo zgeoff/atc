@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.8.1...@zgeoff/atc@2.8.2) (2026-10-02)
+
+
+### Bug Fixes
+
+* **client:** reject a request sent after the connection closed ([#123](https://github.com/zgeoff/atc/issues/123)) ([4068cd9](https://github.com/zgeoff/atc/commit/4068cd9ee1b89ba13a05fa9ca04895b850047124))
+
 ## [2.8.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.8.0...@zgeoff/atc@2.8.1) (2026-10-02)
 
 ### Bug Fixes
