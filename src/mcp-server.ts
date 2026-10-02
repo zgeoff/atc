@@ -190,7 +190,7 @@ const TOOLS: readonly MCPTool[] = [
   {
     name: 'atc_session_message',
     description:
-      "Send a session a message and get its id back; poll atc_message_get with the id for its status and answer. The message waits in the session inbox until the session takes it, and its status moves accepted, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (Grok, Codex), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
+      "Send a session a message and get its id back. Follow up by polling atc_message_get with the id until its status is answered, which returns the session's final reply; don't read the session's screen or transcript to check on it. The message waits in the session inbox until the session takes it, and its status moves accepted, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (Grok, Codex), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
     inputSchema: {
       type: 'object',
       properties: {

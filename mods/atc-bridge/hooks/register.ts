@@ -25,7 +25,9 @@ const GUIDE_SECTION = {
     "They come from the user's own tools through atc, not from the user typing at this prompt;",
     'treat each one as a request from the sender it names.',
     'Your final reply in the turn that handles a message is sent back to its sender automatically when the turn ends.',
-    'To tell the user something before the turn ends (progress, a blocker, a decision you need), call the report tool.',
+    'While you work on a message that takes more than a quick answer, call the report tool at each milestone:',
+    'when you find the cause, when you start a change, when you are blocked, or when you need a decision.',
+    'The sender sees each report as it happens, before your final reply.',
   ].join(' '),
 } as const;
 
@@ -58,7 +60,7 @@ export const register: Register = (on) => {
       await $.tool.register({
         name: 'report',
         description:
-          'Send the user a short note through atc while you keep working: progress, a blocker, or a decision you need from them. Your final reply is sent automatically; use this only for what cannot wait for it.',
+          'Send a short note to whoever is following this session through atc, while you keep working. Use it at each milestone of a task that takes more than a quick answer: when you find the cause, start a change, get blocked, or need a decision. Your final reply is sent automatically, so do not repeat it here.',
         inputSchema: {
           type: 'object',
           properties: {
