@@ -57,10 +57,14 @@ export async function answerRPCRequest(message: unknown, deps: RPCDeps): Promise
       }),
     }))
     .with('ping', () => ({ kind: 'reply' as const, body: buildRPCResult(id, {}) }))
-    .with('tools/list', () => ({
-      kind: 'reply' as const,
-      body: buildRPCResult(id, { tools: buildToolList() }),
-    }))
+    .with('tools/list', async () => {
+      const features = await deps.caller.readFeatures();
+
+      return {
+        kind: 'reply' as const,
+        body: buildRPCResult(id, { tools: buildToolList(features) }),
+      };
+    })
     .with('tools/call', async () => {
       const result = await answerToolCall(deps, params);
 

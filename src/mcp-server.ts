@@ -12,6 +12,13 @@ export async function runMCPServer(build: string): Promise<void> {
 
   const client = boot.client;
 
+  // The connection lives as long as the server, so the features its
+  // handshake announced hold for every call.
+  const caller: FleetCaller = {
+    sendRequest: (m, p) => client.sendRequest(m, p),
+    readFeatures: () => Promise.resolve(boot.features),
+  };
+
   // The server inherits the calling session's id from its environment, so a
   // spawn from inside a session nests under it by default.
   const inherited = process.env['ATC_SESSION_ID'];
@@ -48,7 +55,7 @@ export async function runMCPServer(build: string): Promise<void> {
 
       void (async () => {
         try {
-          await answerRPCLine(client, build, toolContext, line);
+          await answerRPCLine(caller, build, toolContext, line);
         } catch {
           // A failed line gets no response, the way a malformed one gets none.
         } finally {

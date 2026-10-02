@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { runTool } from './run-tool';
 
 test('it sends a message from a fixed sender whatever sender the call gives', async () => {
@@ -11,6 +12,7 @@ test('it sends a message from a fixed sender whatever sender the call gives', as
 
         return Promise.resolve({ message: 'm1' });
       },
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
     },
     'atc_session_message',
     { session: 's1', text: 'hello', from: 'owner' },
@@ -32,6 +34,7 @@ test('it sends a message from the sender the call gives over a default sender', 
 
         return Promise.resolve({ message: 'm1' });
       },
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
     },
     'atc_session_message',
     { session: 's1', text: 'hello', from: 'reviewer' },
@@ -53,6 +56,7 @@ test('it sends a message from a default sender when the call gives none', async 
 
         return Promise.resolve({ message: 'm1' });
       },
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
     },
     'atc_session_message',
     { session: 's1', text: 'hello' },
@@ -74,6 +78,7 @@ test('it forwards a message wait to the daemon', async () => {
 
         return Promise.resolve({ message: 'm1', status: 'delivered' });
       },
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
     },
     'atc_message_get',
     { message: 'm1', waitMs: 20_000 },
@@ -93,6 +98,7 @@ test('it forwards an events session filter to the daemon', async () => {
 
         return Promise.resolve({ events: [], cursor: 'c', more: false });
       },
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
     },
     'atc_events_read',
     { session: 's1', waitMs: 1000 },

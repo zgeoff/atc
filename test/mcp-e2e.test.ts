@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
 import { isRecord } from '../src/shared/report';
+import { startLegacyDaemon } from './start-legacy-daemon';
 import { waitFor } from './wait-for';
 
 const repo = dirname(import.meta.dir);
@@ -1094,4 +1095,47 @@ test('it answers an unsupported protocol version with the latest supported one',
   const response = await ctx.waitForResponse(1);
 
   expect(getResult(response)['protocolVersion']).toBe('2025-11-25');
+});
+
+test('it serves an older daemon over stdio with only what that daemon supports', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'atc-mcp-legacy-'));
+  const legacy = startLegacyDaemon(join(home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    legacy.stop();
+  });
+
+  const ctx = setupMCP({ home });
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 3,
+    method: 'tools/call',
+    params: { name: 'atc_message_get', arguments: { message: 'm-legacy', waitMs: 5000 } },
+  });
+
+  const listResponse = await ctx.waitForResponse(2);
+  const callResponse = await ctx.waitForResponse(3);
+
+  const listed = getResult(listResponse);
+  const refused = getResult(callResponse);
+  const tools = listed['tools'];
+
+  if (!Array.isArray(tools)) {
+    throw new TypeError('tools is not an array');
+  }
+
+  expect(tools.map((tool) => (isRecord(tool) ? tool['name'] : null))).not.toContain(
+    'atc_agents_list',
+  );
+
+  expect(refused['isError']).toBe(true);
+  expect(getText(refused)).toStartWith('daemon_outdated: ');
+  expect(legacy.requests.map((req) => req.m)).not.toContain('message.get');
 });

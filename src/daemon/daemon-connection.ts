@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 import type { AgentAdapter, AgentID, SpawnOptions } from '../agents/agent-adapter';
+import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { decodeCursor } from '../protocol/decode-cursor';
 import { encodeCursor } from '../protocol/encode-cursor';
 import { OutboundQueue } from '../protocol/outbound-queue';
@@ -1059,6 +1060,7 @@ export class DaemonConnection {
     this.sendOk(id, {
       daemon: this.ctx.build,
       limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
+      features: DAEMON_FEATURES,
       lastUsedAgent: await this.ctx.loadLastUsedAgent(),
     });
   }

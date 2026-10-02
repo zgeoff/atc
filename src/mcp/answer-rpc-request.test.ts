@@ -1,7 +1,11 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
+import { join } from 'node:path';
 import { setupMCPHTTP } from '../../test/setup-mcp-http';
+import { setupTempDir } from '../../test/setup-temp-dir';
+import { startLegacyDaemon } from '../../test/start-legacy-daemon';
 import { isRecord } from '../shared/report';
 import { answerRPCRequest } from './answer-rpc-request';
+import { ReconnectingCaller } from './reconnecting-caller';
 
 test('it refuses a tool call whose scope the caller lacks and leaves the session running', async () => {
   await using server = await setupMCPHTTP();
@@ -179,5 +183,134 @@ test('it lists the agents to a caller holding only the read scope', async () => 
         },
       },
     },
+  });
+});
+
+test('it lists the agents tool only when the connected daemon announces it', async () => {
+  using tmp = setupTempDir('atc-legacy-rpc-');
+
+  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+
+  onTestFinished(async () => {
+    await caller.stop();
+
+    legacy.stop();
+  });
+
+  const outcome = await answerRPCRequest(
+    { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+    {
+      caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+    },
+  );
+
+  if (outcome.kind !== 'reply' || !isRecord(outcome.body['result'])) {
+    throw new Error('no tools/list result');
+  }
+
+  const tools: unknown = outcome.body['result']['tools'];
+
+  if (!Array.isArray(tools)) {
+    throw new TypeError('no tools array');
+  }
+
+  const messageGet: unknown = tools.find(
+    (tool) => isRecord(tool) && tool['name'] === 'atc_message_get',
+  );
+
+  expect(tools.map((tool) => (isRecord(tool) ? tool['name'] : null))).not.toContain(
+    'atc_agents_list',
+  );
+
+  expect(messageGet).toMatchObject({
+    inputSchema: { properties: { message: { type: 'string' } } },
+  });
+
+  expect(messageGet).not.toContainKey('outputSchema');
+});
+
+test.each([
+  ['atc_message_get', { message: 'm-1', waitMs: 5000 }],
+  ['atc_events_read', { session: 's-1' }],
+  ['atc_agents_list', {}],
+])(
+  'it refuses %p with a restart hint when the connected daemon predates it, sending nothing',
+  async (name, args) => {
+    using tmp = setupTempDir('atc-legacy-rpc-');
+
+    const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
+
+    const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+
+    onTestFinished(async () => {
+      await caller.stop();
+
+      legacy.stop();
+    });
+
+    const outcome = await answerRPCRequest(
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
+      {
+        caller,
+        build: 'atc/test-build',
+        toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      },
+    );
+
+    expect(outcome).toStrictEqual({
+      kind: 'reply',
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        result: {
+          content: [
+            {
+              type: 'text',
+              text: expect.toStartWith('daemon_outdated: ') as string,
+            },
+          ],
+          isError: true,
+        },
+      },
+    });
+
+    expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+  },
+);
+
+test('it reads a message from an older daemon when the call asks for no wait', async () => {
+  using tmp = setupTempDir('atc-legacy-rpc-');
+
+  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+
+  onTestFinished(async () => {
+    await caller.stop();
+
+    legacy.stop();
+  });
+
+  const outcome = await answerRPCRequest(
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_message_get', arguments: { message: 'm-legacy' } },
+    },
+    {
+      caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+    },
+  );
+
+  expect(outcome).toMatchObject({
+    kind: 'reply',
+    body: { result: { structuredContent: { message: 'm-legacy', status: 'accepted' } } },
   });
 });

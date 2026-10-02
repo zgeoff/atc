@@ -1,12 +1,15 @@
+import type { DaemonFeature } from '../protocol/daemon-features';
 import type { ApprovalState } from './approval-state';
 import type { openMCPAuth } from './open-mcp-auth';
 
-// The slice of the daemon client the tool handlers need.
+// The slice of the daemon client the tool handlers need: requests, and the
+// features the connected daemon announced at its handshake.
 export interface FleetCaller {
   readonly sendRequest: (
     m: string,
     p?: Readonly<Record<string, unknown>>,
   ) => Promise<Readonly<Record<string, unknown>>>;
+  readonly readFeatures: () => Promise<ReadonlySet<DaemonFeature>>;
 }
 
 export interface ToolContext {

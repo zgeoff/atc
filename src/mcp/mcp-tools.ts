@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { DaemonFeature } from '../protocol/daemon-features';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import type { GrantScope } from '../shared/grant-scope';
 
@@ -206,6 +207,15 @@ interface MCPToolDefinition {
   // The shape of the tool's structured result, for the tools that declare one.
   readonly outputSchema?: Readonly<Record<string, unknown>>;
   readonly annotations: MCPToolAnnotations;
+
+  // What the connected daemon has to announce for the tool to be listed at
+  // all, for its output schema to be declared, and for each listed input
+  // property to be offered. An older daemon gets the tool without them.
+  readonly requires?: {
+    readonly tool?: DaemonFeature;
+    readonly output?: DaemonFeature;
+    readonly inputs?: Readonly<Record<string, DaemonFeature>>;
+  };
   readonly scope: GrantScope;
 }
 
@@ -336,6 +346,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       "List the agents this atc host can run sessions under, plus the host itself (daemon: hostname, platform, arch, build). Each agent has its id (pass it as atc_session_spawn's agent), label, kind (claude, gateway, codex, or grok), installed (whether its binary resolves on this host; a registered agent that is not installed cannot spawn), capabilities (spawn, readTranscript, message, attach, screen, input), and models: the model names the config sets for it, or null. It never includes credentials, environment values, or endpoints, and holds nothing about which plans or subscriptions an agent's account has.",
     inputSchema: NO_INPUT,
     outputSchema: AGENTS_OUTPUT,
+    requires: { tool: 'agents.list' },
   },
   {
     name: 'atc_session_get',
@@ -361,6 +372,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-accepted, message-delivered, message-answered), and reports (report) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A report event carries its label. Without a cursor it returns the most recent events. Pass the returned cursor next time; more is true when the page stopped before the newest event, so read again at once. session limits the read to one session. waitMs holds the call open until an event arrives; pass it instead of polling in a tight loop.',
     inputSchema: EVENTS_READ_INPUT,
     outputSchema: EVENTS_OUTPUT,
+    requires: { output: 'events.more', inputs: { session: 'events.session' } },
   },
   {
     name: 'atc_session_message',
@@ -392,5 +404,6 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       'Read one message sent with atc_session_message: its id, session, from, text, status (accepted, delivered, or answered), the answer once answered, turn, answeredWith, and the sentAt, deliveredAt, and answeredAt timestamps. The answer is the final output of the session turn that carried the message, not a reply to that message alone: when one turn carries several messages, each gets the same answer. turn is that turn id, or null when the session reported none, and answeredWith lists the other messages the same turn answered. Pass waitMs to hold the call until the status changes from what it was when you called, up to 30000 ms, instead of polling in a tight loop; an answered message returns at once. Message ids and statuses persist, so after a call ends or times out, call again with the same id.',
     inputSchema: MESSAGE_GET_INPUT,
     outputSchema: MESSAGE_OUTPUT,
+    requires: { output: 'message.turn', inputs: { waitMs: 'message.wait' } },
   },
 ];
