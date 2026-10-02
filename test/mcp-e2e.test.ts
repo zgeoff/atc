@@ -52,6 +52,7 @@ function setupMCP(options: MCPOptions = {}): MCPContext {
     fakeClaude,
     `#!/usr/bin/env bash
 echo "FAKE_CLAUDE_UP args: $@"
+if [ -f "$HOME/fake-claude-hold-start" ]; then sleep 30; exit 0; fi
 printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | ${hookReport}
 sleep 30
 `,
@@ -231,6 +232,7 @@ test('it initializes and lists the fleet tools', async () => {
     'atc_session_get',
     'atc_session_read',
     'atc_events_read',
+    'atc_session_message',
   ]);
 });
 
@@ -811,4 +813,102 @@ test('it answers a session list while an events long-poll is still waiting', asy
 
   expect(pollResult['isError']).toBeUndefined();
   expect(JSON.parse(getText(pollResult))).toMatchObject({ events: [] });
+});
+
+test('it reports a message to a session with no tap as a failed tool call', async () => {
+  const ctx = setupMCP();
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home } },
+  });
+
+  const spawnResponse = await ctx.waitForResponse(2);
+
+  const spawned: unknown = JSON.parse(getText(getResult(spawnResponse)));
+
+  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
+    throw new TypeError('spawn answer has no session id');
+  }
+
+  const session = spawned['id'];
+  let rpcID = 3;
+
+  await waitFor(async () => {
+    const id = rpcID++;
+
+    ctx.sendRPC({
+      jsonrpc: '2.0',
+      id,
+      method: 'tools/call',
+      params: { name: 'atc_session_list', arguments: {} },
+    });
+
+    const listResponse = await ctx.waitForResponse(id);
+
+    const listed = getResult(listResponse);
+
+    expect(getText(listed)).toInclude('"agentSessionID": "fake-1"');
+  });
+
+  const messageRPC = rpcID++;
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: messageRPC,
+    method: 'tools/call',
+    params: { name: 'atc_session_message', arguments: { session, text: 'hello' } },
+  });
+
+  const messageResponse = await ctx.waitForResponse(messageRPC);
+
+  const result = getResult(messageResponse);
+
+  expect(result['isError']).toBe(true);
+  expect(getText(result)).toStartWith('unsupported:');
+});
+
+test('it sends a message to a session that has not started', async () => {
+  const ctx = setupMCP();
+
+  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home } },
+  });
+
+  const spawnResponse = await ctx.waitForResponse(2);
+
+  const spawned: unknown = JSON.parse(getText(getResult(spawnResponse)));
+
+  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
+    throw new TypeError('spawn answer has no session id');
+  }
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 3,
+    method: 'tools/call',
+    params: { name: 'atc_session_message', arguments: { session: spawned['id'], text: 'hello' } },
+  });
+
+  const messageResponse = await ctx.waitForResponse(3);
+
+  const result = getResult(messageResponse);
+
+  expect(result['isError']).toBeUndefined();
+  expect(getText(result)).toInclude('"status": "accepted"');
 });
