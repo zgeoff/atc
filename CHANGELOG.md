@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.10.1...@zgeoff/atc@2.10.2) (2026-10-02)
+
+
+### Bug Fixes
+
+* **daemon:** admit one daemon per state directory ([#142](https://github.com/zgeoff/atc/issues/142)) ([e849f39](https://github.com/zgeoff/atc/commit/e849f39997980b89e772ede9c70e01a825689f2b))
+
 ## [2.10.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.10.0...@zgeoff/atc@2.10.1) (2026-10-02)
 
 ### Bug Fixes
