@@ -1,5 +1,6 @@
 import type { HookEvent } from '../daemon/hooks';
 import type { AgentSessionID } from '../shared/agent-session-id';
+import type { SessionID } from '../shared/session-id';
 
 /**
  * Which agent a session runs under: the key the adapter registry is looked
@@ -95,6 +96,12 @@ interface HeadlessRunRequest {
   // Settings file the run's CLI is started with, so a headless turn reaches
   // the same backend the session's terminal did.
   readonly settings?: string;
+
+  // The atc session the run belongs to; the mod reads it to tap the inbox.
+  readonly sessionID?: SessionID;
+
+  // Folder of the atc-bridge mod the run's CLI loads, supplied by the adapter.
+  readonly pluginDir?: string;
 }
 
 interface HeadlessRunEvents {

@@ -29,3 +29,7 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.*.example
+
+# laid into the atc-bridge mod folder by Claude Code when it loads the mod
+mods/atc-bridge/.claude-plugin/types/
+mods/atc-bridge/tsconfig.json

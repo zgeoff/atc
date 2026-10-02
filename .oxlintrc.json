@@ -114,5 +114,5 @@
     "promise/avoid-new": "off",
     "require-unicode-regexp": "off"
   },
-  "ignorePatterns": [".claude/**"]
+  "ignorePatterns": [".claude/**", "mods/**"]
 }

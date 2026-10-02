@@ -120,6 +120,10 @@ installs in detail.
 - `atc mcp` exposes the fleet as MCP tools, so an agent can spawn, drive, and read other agents. A
   session spawned this way lists under the session that spawned it and is killed with it. Register
   it with `claude mcp add --scope user atc -- atc mcp`.
+- A Claude session takes messages from other tools. `atc_session_message` queues one, and the
+  session reads it in a new turn, or inside the turn it is running. `atc_message_get` returns the
+  reply once that turn ends. The [protocol](./docs/architecture/protocol.md#messages) covers the
+  details.
 - `atc events` prints every fleet event as one NDJSON line. The same stream is on a unix socket, and
   `config.json` hooks run your own commands on events. The [events guide](./docs/guides/events.md)
   covers all three.

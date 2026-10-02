@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setupTempDir } from '../../test/setup-temp-dir';
 import type { Config } from '../shared/config';
 import { toSessionID } from '../shared/to-session-id';
 import { ClaudeAdapter } from './claude-adapter';
@@ -82,4 +83,27 @@ test('it takes inbox messages', () => {
   const adapter = new ClaudeAdapter(buildClaudeConfig());
 
   expect(adapter.takesMessages).toBe(true);
+});
+
+test('it hands a headless run the folder of the atc-bridge mod', () => {
+  using tmp = setupTempDir('atc-claude-bridge-');
+
+  let received: Readonly<Record<string, unknown>> = {};
+
+  const adapter = new ClaudeAdapter(
+    buildClaudeConfig(),
+    (opts) => {
+      received = { ...opts };
+
+      return { stop: () => {} };
+    },
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go' },
+    { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
+  );
+
+  expect(received).toMatchObject({ cwd: '/tmp', pluginDir: expect.toEndWith('atc-bridge') });
 });

@@ -13,6 +13,7 @@ import { AttachRegistry } from './attach-registry';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildSessionEvent } from './build-session-event';
 import { buildSessionMessageEvent } from './build-session-message-event';
+import { buildSessionReportEvent } from './build-session-report-event';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext, OutputClient, TapClient } from './daemon-connection';
 import { EventSignal } from './event-signal';
@@ -233,6 +234,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const report = parseReport(e.payload);
 
     if (report === null) {
+      return;
+    }
+
+    if (report.kind === 'note') {
+      const sender = mgr.sessions.find((x) => x.id === e.atcId);
+
+      if (sender !== undefined) {
+        const capped = { ...report, text: truncateToBytes(report.text, ANSWER_BYTE_CAP) };
+
+        emitEvent(buildSessionReportEvent(sender.id, capped, Date.now()), findHookScope(sender.id));
+      }
+
       return;
     }
 

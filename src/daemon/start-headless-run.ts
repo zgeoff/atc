@@ -1,8 +1,10 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentSessionID } from '../shared/agent-session-id';
-import { collectCleanEnv } from '../shared/collect-clean-env';
+import { socketPath } from '../shared/config';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
 import { isRecord } from '../shared/report';
+import type { SessionID } from '../shared/session-id';
+import { buildHeadlessEnv } from './build-headless-env';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
 const PERMISSION_MODES = [
@@ -21,6 +23,8 @@ interface HeadlessRunOptions {
   readonly resume?: AgentSessionID;
   readonly permissionMode?: string;
   readonly settings?: string;
+  readonly sessionID?: SessionID;
+  readonly pluginDir?: string;
 }
 
 interface HeadlessRunHooks {
@@ -54,7 +58,11 @@ export function startHeadlessRun(
         prompt: opts.prompt,
         options: {
           cwd: opts.cwd,
-          env: collectCleanEnv(),
+          env: buildHeadlessEnv({
+            socketPath,
+            ...(opts.pluginDir === undefined ? {} : { pluginDir: opts.pluginDir }),
+            ...(opts.sessionID === undefined ? {} : { sessionID: opts.sessionID }),
+          }),
           abortController: controller,
           stderr: (data: string) => {
             stderrTail = `${stderrTail}${data}`.slice(-2000);

@@ -18,6 +18,7 @@ import type {
 } from './agent-adapter';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { truncateDetail } from './truncate-detail';
+import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
 
 // Claude's hook payload keys, snake_case. An absent or wrong-typed field
@@ -54,9 +55,19 @@ export class ClaudeAdapter implements AgentAdapter {
   // Written on first spawn so constructing the adapter touches no state.
   private settingsFile: string | undefined;
 
-  constructor(config: Config, headlessRunner: HeadlessRunner | null = null) {
+  // Written on first spawn so constructing the adapter touches no state.
+  private bridgeDir: string | undefined;
+
+  private readonly bridgeTarget: string | undefined;
+
+  constructor(config: Config, headlessRunner: HeadlessRunner | null = null, bridgeTarget?: string) {
+    this.bridgeTarget = bridgeTarget;
     this.config = config;
-    this.headlessRunner = headlessRunner;
+
+    this.headlessRunner =
+      headlessRunner === null
+        ? null
+        : (opts, hooks) => headlessRunner({ ...opts, pluginDir: this.writeBridge() }, hooks);
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
@@ -68,11 +79,19 @@ export class ClaudeAdapter implements AgentAdapter {
         ...this.config.claudeArgs,
         '--settings',
         this.settingsFile,
+        '--plugin-dir',
+        this.writeBridge(),
         ...(opts.resume === true ? ['--resume'] : []),
         ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
         ...(opts.prompt === '' ? [] : [opts.prompt]),
       ],
     };
+  }
+
+  private writeBridge(): string {
+    this.bridgeDir ??= writeATCBridge(this.bridgeTarget);
+
+    return this.bridgeDir;
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {

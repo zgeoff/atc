@@ -2,5 +2,6 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["bin/atc", "test/**/*.test.ts"],
   "project": ["src/**/*.ts", "test/**/*.ts"],
+  "ignore": ["mods/**"],
   "ignoreDependencies": ["@stylistic/eslint-plugin", "@zgeoff/oxlint-config"]
 }

@@ -74,6 +74,21 @@ Claude sessions are instrumented via a generated settings file passed as `claude
 - Session names are pulled from Claude's transcripts (`custom-title` lines from `/rename`, `summary`
   lines as fallback) — atc is not the naming authority.
 
+Claude sessions also load the `atc-bridge` mod, a Claude Code plugin of function hooks. atc writes
+it to `~/.local/state/atc/atc-bridge/` and passes it as `--plugin-dir`, and headless runs get it
+through `CLAUDE_CODE_PLUGIN_DIRS`. The mod connects the session to its
+[inbox](./protocol.md#messages):
+
+- At session start it runs `atc tap` for the session. It submits each message as a new turn when the
+  session is idle and appends it to the running turn otherwise, inside an `<atc-message>` envelope
+  that holds the sender and message id.
+- When a turn that carried messages ends with a reply, the mod reports each message answered with
+  that reply. An aborted or failed turn leaves its messages delivered.
+- It gives the model a `report` tool for progress mid-turn, which clients receive as a
+  `SessionReport` event.
+
+Outside atc, with no `ATC_SESSION_ID` in its environment, the mod does nothing.
+
 Grok sessions take their hooks from a self-installed file at `$GROK_HOME/hooks/atc-reporter.json`;
 the reporter forwards Grok's camelCase envelopes to the same socket. Grok names come from
 `summary.json`. atc always appends `--no-leader` to the Grok spawn so the hosted TUI never swallows

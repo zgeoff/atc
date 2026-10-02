@@ -182,20 +182,25 @@ const main = defineCommand({
       defineCommand({
         meta: {
           name: 'report',
-          description: 'Report a message event from a wrangled session to the atc socket',
+          description:
+            'Report a message answer or a note from a wrangled session to the atc socket',
           hidden: true,
         },
 
-        // Neither arg is required: a citty usage error exits nonzero, and
+        // No arg is required: a citty usage error exits nonzero, and
         // reporters must always exit 0.
         args: {
           kind: { type: 'positional', required: false, default: '' },
           message: { type: 'string', default: '' },
+          label: { type: 'string', default: '' },
         },
         async run(ctx) {
           const reporter = await import('./report');
 
-          await reporter.runReport(ctx.args.kind, ctx.args.message);
+          await reporter.runReport(ctx.args.kind, {
+            message: ctx.args.message,
+            label: ctx.args.label,
+          });
         },
       }),
     statusline: () =>
