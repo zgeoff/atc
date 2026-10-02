@@ -547,6 +547,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     if (currentAgentSessionID !== undefined && currentAgentSessionID !== previousAgentSessionID) {
       void store.updateMessageOwner(e.atcId, previousAgentSessionID, currentAgentSessionID);
+      void store.updateTrailOwner(e.atcId, currentAgentSessionID);
     }
 
     if (kind === 'ended') {

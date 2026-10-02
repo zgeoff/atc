@@ -29,5 +29,12 @@ test('it holds no agent session id for a session that has not reported one', () 
     1000,
   );
 
-  expect(entry).toMatchObject({ agentSessionID: null });
+  expect(entry).toStrictEqual({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'report',
+    label: 'blocked',
+    detail: 'need review',
+  });
 });

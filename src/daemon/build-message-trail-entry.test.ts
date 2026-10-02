@@ -79,7 +79,14 @@ test('it falls back to the agent session id the message carries', () => {
     sentAt: 1000,
   });
 
-  expect(entry).toMatchObject({ agentSessionID: toAgentSessionID('c2') });
+  expect(entry).toStrictEqual({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: toAgentSessionID('c2'),
+    kind: 'message-accepted',
+    message: toMessageID('m-1'),
+    detail: 'hello',
+  });
 });
 
 test('it holds no agent session id when neither the session nor the message has one', () => {
@@ -92,7 +99,14 @@ test('it holds no agent session id when neither the session nor the message has 
     sentAt: 1000,
   });
 
-  expect(entry).toMatchObject({ agentSessionID: null });
+  expect(entry).toStrictEqual({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'message-accepted',
+    message: toMessageID('m-1'),
+    detail: 'hello',
+  });
 });
 
 test('it caps the detail at the preview length', () => {
@@ -105,5 +119,12 @@ test('it caps the detail at the preview length', () => {
     sentAt: 1000,
   });
 
-  expect(entry).toMatchObject({ detail: `${'x'.repeat(599)}…` });
+  expect(entry).toStrictEqual({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'message-accepted',
+    message: toMessageID('m-1'),
+    detail: `${'x'.repeat(599)}…`,
+  });
 });

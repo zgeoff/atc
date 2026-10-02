@@ -1143,7 +1143,11 @@ test('it records a repeated ack in the trail once', async () => {
 
   const read = await daemon.actor.sendRequest('events.read', {});
 
-  const events = Array.isArray(read['events']) ? read['events'] : [];
+  const events = read['events'];
+
+  if (!Array.isArray(events)) {
+    throw new TypeError('no events array');
+  }
 
   expect(events.filter((e) => isRecord(e) && e['kind'] === 'message-delivered')).toHaveLength(1);
 });
@@ -1239,7 +1243,20 @@ test('it leaves a note from an unknown session out of the trail', async () => {
     return answer;
   });
 
-  expect(read['events']).toMatchObject([{ session: id, detail: 'valid' }]);
+  expect(read).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'one',
+        kind: 'report',
+        detail: 'valid',
+        label: 'blocked',
+      },
+    ],
+    cursor: expect.toBeString(),
+  });
 });
 
 test("it counts a note toward the session's last activity time", async () => {
@@ -1248,7 +1265,11 @@ test("it counts a note toward the session's last activity time", async () => {
   const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
   const before = await daemon.actor.sendRequest('session.get', { session: id });
 
-  const createdAt = isRecord(before['session']) ? before['session']['createdAt'] : undefined;
+  if (!isRecord(before['session'])) {
+    throw new TypeError('no session');
+  }
+
+  const createdAt = before['session']['createdAt'];
 
   if (typeof createdAt !== 'number') {
     throw new TypeError('no createdAt on the session');

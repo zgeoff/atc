@@ -1739,6 +1739,57 @@ test('it reads the trail in order across hook events and message entries', async
   expect(events.map((e) => e.kind)).toStrictEqual(['started', 'message-accepted', 'turn-done']);
 });
 
+test('it stamps trail entries recorded before the agent session id was known', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordTrailEntry({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'message-accepted',
+    message: toMessageID('m-1'),
+    detail: 'hello',
+  });
+
+  await store.recordTrailEntry({
+    at: 2000,
+    atcID: toSessionID('s2'),
+    agentSessionID: null,
+    kind: 'report',
+    label: 'blocked',
+    detail: 'other session',
+  });
+
+  await store.updateTrailOwner(toSessionID('s1'), toAgentSessionID('c1'));
+
+  const events = await store.collectLatestEvents(10);
+
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: 1000,
+      atcID: toSessionID('s1'),
+      agentSessionID: toAgentSessionID('c1'),
+      kind: 'message-accepted',
+      detail: 'hello',
+      message: toMessageID('m-1'),
+    },
+    {
+      id: expect.toBeNumber(),
+      at: 2000,
+      atcID: toSessionID('s2'),
+      agentSessionID: null,
+      kind: 'report',
+      detail: 'other session',
+      label: 'blocked',
+    },
+  ]);
+});
+
 test("it counts a trail entry toward its session's last activity time", async () => {
   const store = await StateStore.open(join(setupDir(), 'state.db'));
 

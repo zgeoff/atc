@@ -434,6 +434,19 @@ export class StateStore {
       .execute();
   }
 
+  // Trail entries written before the agent reported its session id carry
+  // none; this stamps them once it is known, so they follow the session
+  // across a restore.
+  async updateTrailOwner(atcID: SessionID, next: AgentSessionID): Promise<void> {
+    await this.db
+      .updateTable('events')
+      .set({ session_id: next })
+      .where('atc_id', '=', atcID)
+      .where('session_id', 'is', null)
+      .where('kind', 'in', ['message-accepted', 'message-delivered', 'message-answered', 'report'])
+      .execute();
+  }
+
   async stop(): Promise<void> {
     await this.db.destroy();
 
