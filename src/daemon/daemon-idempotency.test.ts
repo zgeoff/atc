@@ -485,6 +485,31 @@ test('it answers a retried keyed message with the first message and sends once',
   expect(rows).toStrictEqual([{ id: first['message'] }]);
 });
 
+test('it replays a retried message whose params differ only in a default and a field the daemon ignores', async () => {
+  await using ctx = await setupTest();
+
+  const client = await ctx.boot({ ...idleAdapter, takesMessages: true });
+  const spawned = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+
+  const session = getRecord(spawned, 'session')['id'];
+
+  const first = await client.sendRequest('session.message', {
+    session,
+    text: 'hello',
+    idempotencyKey: 'm-key',
+  });
+
+  const second = await client.sendRequest('session.message', {
+    session,
+    text: 'hello',
+    from: 'unknown',
+    unknown: true,
+    idempotencyKey: 'm-key',
+  });
+
+  expect(second).toStrictEqual({ message: first['message'], status: 'accepted' });
+});
+
 test('it refuses a message key reused with different text as idempotency_conflict', async () => {
   await using ctx = await setupTest();
 
@@ -535,7 +560,7 @@ test('it completes an interrupted message whose row was written and replays it',
     principal: 'local',
     operation: 'session.message',
     key: 'm-key',
-    payloadHash: buildPayloadHash(params),
+    payloadHash: buildPayloadHash(REQUEST_PARAM_SCHEMAS['session.message'].parse(params)),
     effectRef: 'm-written',
     at: Date.now(),
   });
@@ -568,7 +593,7 @@ test('it answers a message retried after an interrupted send with outcome_unknow
     principal: 'local',
     operation: 'session.message',
     key: 'm-key',
-    payloadHash: buildPayloadHash(params),
+    payloadHash: buildPayloadHash(REQUEST_PARAM_SCHEMAS['session.message'].parse(params)),
     effectRef: 'm-never-written',
     at: Date.now(),
   });
