@@ -59,7 +59,7 @@ export interface MCPAuthSchema {
  * The authorization server's store: the better-auth instance and the
  * database under it.
  */
-export type MCPAuth = Awaited<ReturnType<typeof openMCPAuth>>;
+type MCPAuth = Awaited<ReturnType<typeof openMCPAuth>>;
 
 // What every HTTP route reads: the daemon, the server's own identity, the
 // authorization server, and the approvals waiting for the operator.
