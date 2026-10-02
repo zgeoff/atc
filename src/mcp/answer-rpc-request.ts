@@ -1,7 +1,9 @@
 import { match } from 'ts-pattern';
 import { DaemonError } from '../protocol/daemon-error';
+import type { GrantScope } from '../shared/grant-scope';
 import { isRecord } from '../shared/report';
 import { buildToolList } from './build-tool-list';
+import { MCP_TOOLS } from './mcp-tools';
 import { pickProtocolVersion } from './pick-protocol-version';
 import { runTool } from './run-tool';
 import type { FleetCaller, ToolContext } from './types';
@@ -10,12 +12,16 @@ interface RPCDeps {
   readonly caller: FleetCaller;
   readonly build: string;
   readonly toolContext: ToolContext;
+
+  // The scopes the caller holds; absent means every tool is allowed.
+  readonly scopes?: readonly GrantScope[];
 }
 
 type RPCOutcome =
   | { readonly kind: 'reply'; readonly body: Readonly<Record<string, unknown>> }
   | { readonly kind: 'accepted' }
-  | { readonly kind: 'invalid' };
+  | { readonly kind: 'invalid' }
+  | { readonly kind: 'forbidden'; readonly scope: GrantScope };
 
 export async function answerRPCRequest(message: unknown, deps: RPCDeps): Promise<RPCOutcome> {
   if (!isRecord(message) || typeof message['method'] !== 'string') {
@@ -35,6 +41,11 @@ export async function answerRPCRequest(message: unknown, deps: RPCDeps): Promise
   }
 
   const params = isRecord(message['params']) ? message['params'] : {};
+  const missingScope = method === 'tools/call' ? findMissingScope(params, deps.scopes) : null;
+
+  if (missingScope !== null) {
+    return { kind: 'forbidden', scope: missingScope };
+  }
 
   const outcome = await match(method)
     .with('initialize', () => ({
@@ -61,6 +72,25 @@ export async function answerRPCRequest(message: unknown, deps: RPCDeps): Promise
     }));
 
   return outcome;
+}
+
+// The scope a tool call needs and the caller lacks. An unknown tool needs no
+// scope here; running it reports the unknown name as a tool error.
+function findMissingScope(
+  params: Readonly<Record<string, unknown>>,
+  scopes: readonly GrantScope[] | undefined,
+): GrantScope | null {
+  if (scopes === undefined) {
+    return null;
+  }
+
+  const tool = MCP_TOOLS.find((candidate) => candidate.name === params['name']);
+
+  if (tool === undefined || scopes.includes(tool.scope)) {
+    return null;
+  }
+
+  return tool.scope;
 }
 
 async function answerToolCall(
