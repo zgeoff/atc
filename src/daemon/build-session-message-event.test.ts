@@ -20,7 +20,7 @@ test('it builds an accepted event without delivery or answer fields', () => {
     message: 'm-1',
     status: 'accepted',
     from: 'alice',
-    text: 'hello',
+    textPreview: 'hello',
     sentAt: 1000,
   });
 });
@@ -45,10 +45,27 @@ test('it builds an answered event with the answer and both timestamps', () => {
     message: 'm-1',
     status: 'answered',
     from: 'alice',
-    text: 'hello',
+    textPreview: 'hello',
     sentAt: 1000,
     deliveredAt: 2000,
     answeredAt: 3000,
-    answer: 'done',
+    answerPreview: 'done',
   });
+});
+
+test('it carries only a preview of a long text and a long answer', () => {
+  const event = buildSessionMessageEvent(toSessionID('s1'), {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'q'.repeat(5000),
+    status: 'answered',
+    sentAt: 1000,
+    answeredAt: 3000,
+    answer: 'a'.repeat(5000),
+  });
+
+  expect(event['textPreview']).toBe(`${'q'.repeat(599)}…`);
+  expect(event['answerPreview']).toBe(`${'a'.repeat(599)}…`);
+  expect(event).not.toContainKeys(['text', 'answer']);
 });

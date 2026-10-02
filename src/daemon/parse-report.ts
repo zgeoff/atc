@@ -1,20 +1,20 @@
 import { z } from 'zod';
 import type { MessageID } from '../shared/message-id';
+import { REPORT_KINDS } from '../shared/report-kinds';
+import type { ReportKind } from '../shared/report-kinds';
 import { toMessageID } from '../shared/to-message-id';
 
 export interface Report {
-  readonly kind: 'answered';
+  readonly kind: ReportKind;
   readonly message: MessageID;
   readonly answer: string;
 }
 
-const REPORT_SCHEMA = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('answered'),
-    message: z.string().min(1),
-    answer: z.string(),
-  }),
-]);
+const REPORT_SCHEMA = z.object({
+  kind: z.enum(REPORT_KINDS),
+  message: z.string().min(1),
+  answer: z.string(),
+});
 
 /**
  * Parses a Report envelope's payload into the report its kind discriminates,

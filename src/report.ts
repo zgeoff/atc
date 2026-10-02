@@ -1,6 +1,5 @@
 import { sendReport } from './shared/report';
-
-const REPORT_KINDS = new Set(['answered']);
+import { REPORT_KINDS } from './shared/report-kinds';
 
 /**
  * Runs inside wrangled sessions: reads the final text from stdin verbatim
@@ -18,7 +17,7 @@ export async function runReport(kind: string, message: string): Promise<void> {
       sock !== '' &&
       atcId !== undefined &&
       atcId !== '' &&
-      REPORT_KINDS.has(kind) &&
+      REPORT_KINDS.some((known) => known === kind) &&
       message !== ''
     ) {
       const answer = await new Response(Bun.stdin.stream()).text();

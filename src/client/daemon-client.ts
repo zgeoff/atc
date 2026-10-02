@@ -22,6 +22,8 @@ export class DaemonClient {
 
   private buffer = '';
 
+  private readonly decoder = new TextDecoder();
+
   private nextID = 1;
 
   private readonly pending = new Map<number, Pending>();
@@ -35,7 +37,7 @@ export class DaemonClient {
       unix: socketPath,
       socket: {
         data(_s, buf) {
-          client.applyChunk(buf.toString());
+          client.applyChunk(client.decodeChunk(buf));
         },
         drain() {
           client.queue?.drain();
@@ -75,6 +77,13 @@ export class DaemonClient {
   stop(): void {
     this.socket?.end();
     this.drainPending('client closed');
+  }
+
+  // Decodes with state kept across reads, so a multi-byte character split
+  // between two reads decodes whole.
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket read buffer has no readonly form
+  private decodeChunk(buf: Uint8Array): string {
+    return this.decoder.decode(buf, { stream: true });
   }
 
   private applyChunk(chunk: string): void {

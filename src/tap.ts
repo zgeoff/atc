@@ -24,7 +24,8 @@ interface InboxMessage {
  * is already running and never boots one: a tap runs inside the session it
  * serves, so a restart from here would take the whole fleet down. Exits 1
  * with a hint when no daemon listens or the session cannot be tapped, and
- * 0 once the daemon closes the connection.
+ * 0 once the daemon closes the connection or ends the subscription because
+ * another tap replaced it or the session was removed.
  */
 export async function runTap(session: string): Promise<void> {
   let client: DaemonClient;
@@ -44,6 +45,12 @@ export async function runTap(session: string): Promise<void> {
   };
 
   client.onEvent = (event) => {
+    if (event.ev === 'InboxClosed' && event['s'] === session) {
+      closed.resolve();
+
+      return;
+    }
+
     if (event.ev !== 'InboxMessage' || event['s'] !== session) {
       return;
     }

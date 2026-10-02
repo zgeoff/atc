@@ -76,6 +76,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     queueBytes,
     getEffectiveDims: assertUnreachable,
     writeSessionMessage: assertUnreachable,
+    readMessage: assertUnreachable,
     attachTap: assertUnreachable,
     ackMessage: assertUnreachable,
   };

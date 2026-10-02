@@ -63,6 +63,10 @@ const main = defineCommand({
           const restoreBootTimeoutMs =
             Number.isFinite(capOverride) && capOverride >= 0 ? capOverride : 15_000;
 
+          // How long a started session may go without a tap before a message
+          // to it is refused. Tests pin it to 0 to reach the refusal at once.
+          const graceOverride = Number(process.env['ATC_TAP_GRACE_MS']);
+
           const claudeAdapter = new claude.ClaudeAdapter(cfg, (runOpts, hooks) =>
             headless.startHeadlessRun({ ...runOpts, claudeBin: cfg.claudeBin }, hooks),
           );
@@ -89,6 +93,9 @@ const main = defineCommand({
             pidPath: config.daemonPidFile,
             hooks: cfg.hooks,
             restoreBootTimeoutMs,
+            ...(Number.isFinite(graceOverride) && graceOverride >= 0
+              ? { tapGraceMs: graceOverride }
+              : {}),
             ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
             onQuit: () => process.exit(0),
           });

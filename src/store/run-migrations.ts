@@ -199,6 +199,23 @@ const MIGRATIONS: Record<string, Migration> = {
         .execute();
     },
   },
+  '012_index_messages_by_owner': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createIndex('messages_atc_id_status_sent_at')
+        .ifNotExists()
+        .on('messages')
+        .columns(['atc_id', 'status', 'sent_at'])
+        .execute();
+
+      await db.schema
+        .createIndex('messages_agent_session_id_status_sent_at')
+        .ifNotExists()
+        .on('messages')
+        .columns(['agent_session_id', 'status', 'sent_at'])
+        .execute();
+    },
+  },
 };
 
 const PROVIDER: MigrationProvider = {

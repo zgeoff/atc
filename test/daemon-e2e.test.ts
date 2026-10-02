@@ -2013,11 +2013,13 @@ test('it carries a message from accepted through delivered to answered', async (
 
   const id = getString(getRecord(spawned, 'session'), 'id');
 
-  // The request is refused as unsupported while the session has started
-  // and its tap has not connected yet.
-  const sent = await waitFor(() =>
-    client.sendRequest('session.message', { session: id, text: 'ping from test', from: 'e2e' }),
-  );
+  // The session may have started without its tap connected yet, so the
+  // message queues for the tap to drain.
+  const sent = await client.sendRequest('session.message', {
+    session: id,
+    text: 'ping from test',
+    from: 'e2e',
+  });
 
   const messageID = getString(sent, 'message');
 
@@ -2052,7 +2054,7 @@ test('it carries a message from accepted through delivered to answered', async (
     (e) => e.ev === 'SessionMessage' && e['status'] === 'answered',
   );
 
-  expect(answered).toMatchObject({ s: id, message: messageID, answer: 'final text' });
+  expect(answered).toMatchObject({ s: id, message: messageID, answerPreview: 'final text' });
 
   const screen = await client.sendRequest('session.screen', { session: id });
 

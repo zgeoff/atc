@@ -103,6 +103,9 @@ export const REQUEST_PARAM_SCHEMAS = {
     text: buildDefaultedString(''),
   }).refine((v) => v.text !== '', { message: 'session.message requires text' }),
   'session.tap': SESSION_DEFAULTED,
+  'message.get': z
+    .object({ message: buildDefaultedString('').transform(toMessageID) })
+    .refine((v) => v.message !== '', { message: 'message.get requires a message' }),
   'message.ack': SESSION_DEFAULTED.extend({
     message: buildDefaultedString('').transform(toMessageID),
   }).refine((v) => v.message !== '', { message: 'message.ack requires a message' }),

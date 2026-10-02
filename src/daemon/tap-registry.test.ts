@@ -85,3 +85,36 @@ test('it forgets the tap of a removed session', () => {
 
   expect(taps.hasTap(session)).toBe(false);
 });
+
+test('it returns the client a new tap displaces', () => {
+  const taps = new TapRegistry<{ name: string }>();
+
+  const session = toSessionID('s1');
+  const first = { name: 'a' };
+
+  expect(taps.attach(session, first)).toBeNull();
+  expect(taps.attach(session, { name: 'b' })).toBe(first);
+});
+
+test('it displaces no one when the same client taps again', () => {
+  const taps = new TapRegistry<{ name: string }>();
+
+  const session = toSessionID('s1');
+  const client = { name: 'a' };
+
+  taps.attach(session, client);
+
+  expect(taps.attach(session, client)).toBeNull();
+});
+
+test('it returns the client of a removed session', () => {
+  const taps = new TapRegistry<{ name: string }>();
+
+  const session = toSessionID('s1');
+  const client = { name: 'a' };
+
+  taps.attach(session, client);
+
+  expect(taps.removeSession(session)).toBe(client);
+  expect(taps.removeSession(session)).toBeNull();
+});

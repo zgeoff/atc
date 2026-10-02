@@ -16,10 +16,3 @@ export interface MessageRecord {
   readonly answeredAt?: number;
   readonly answer?: string;
 }
-
-// Which session a message belongs to: the atc id it was sent to, or the
-// agent session id that survives a restore's re-minted atc id.
-export interface MessageOwner {
-  readonly atcID: SessionID;
-  readonly agentSessionID?: AgentSessionID;
-}

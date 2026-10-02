@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { parseRequestParams } from './parse-request-params';
 
@@ -255,4 +256,16 @@ test('it rejects message.ack without a message', () => {
   const parsed = parseRequestParams('message.ack', { session: 's1' });
 
   expect(parsed).toStrictEqual({ ok: false, message: 'message.ack requires a message' });
+});
+
+test('it rejects message.get without a message', () => {
+  const parsed = parseRequestParams('message.get', {});
+
+  expect(parsed).toStrictEqual({ ok: false, message: 'message.get requires a message' });
+});
+
+test('it parses message.get with a message id', () => {
+  const parsed = parseRequestParams('message.get', { message: 'm-1' });
+
+  expect(parsed).toStrictEqual({ ok: true, data: { message: toMessageID('m-1') } });
 });

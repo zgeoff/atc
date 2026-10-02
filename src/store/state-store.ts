@@ -14,7 +14,8 @@ import { toSessionID } from '../shared/to-session-id';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry, FleetEntryUpdate } from './fleet-entry';
-import type { MessageOwner, MessageRecord } from './message-record';
+import type { MessageOwner } from './message-owner';
+import type { MessageRecord } from './message-record';
 import { runMigrations } from './run-migrations';
 import type { StateStoreSchema } from './run-migrations';
 
@@ -335,6 +336,16 @@ export class StateStore {
       .selectAll()
       .where('id', '=', id)
       .where((eb) => buildOwnerFilter(eb, owner))
+      .executeTakeFirst();
+
+    return row === undefined ? null : toMessageRecord(row);
+  }
+
+  async findMessageByID(id: MessageID): Promise<MessageRecord | null> {
+    const row = await this.db
+      .selectFrom('messages')
+      .selectAll()
+      .where('id', '=', id)
       .executeTakeFirst();
 
     return row === undefined ? null : toMessageRecord(row);

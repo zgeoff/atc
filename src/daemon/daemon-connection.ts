@@ -107,6 +107,7 @@ export interface DaemonContext {
     from: string,
     text: string,
   ) => Promise<MessageRecord | 'missing' | 'dead' | 'unsupported' | 'no_tap'>;
+  readonly readMessage: (messageID: MessageID) => Promise<MessageView | null>;
   readonly attachTap: (client: TapClient, sessionID: SessionID) => 'ok' | 'missing' | 'unsupported';
   readonly ackMessage: (
     client: TapClient,
@@ -119,6 +120,13 @@ export interface DaemonContext {
 // ability to receive output events.
 export interface OutputClient {
   readonly sendOutput: (sessionID: SessionID, event: EventMsg, byteLength: number) => void;
+}
+
+// One message as `message.get` reports it: the session it belongs to now and
+// every field of the record.
+interface MessageView {
+  readonly session: SessionID;
+  readonly record: MessageRecord;
 }
 
 // The slice of a connection a tap subscription needs.
@@ -138,6 +146,8 @@ export class DaemonConnection {
   private readonly queue: OutboundQueue;
 
   private buffer = '';
+
+  private readonly decoder = new TextDecoder();
 
   private helloed = false;
 
@@ -181,6 +191,13 @@ export class DaemonConnection {
     if (!this.queue.send(encodeMessage(event))) {
       this.desynced.set(sessionID, byteLength);
     }
+  }
+
+  // Decodes with state kept across reads, so a multi-byte character split
+  // between two reads decodes whole.
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket read buffer has no readonly form
+  decodeChunk(buf: Uint8Array): string {
+    return this.decoder.decode(buf, { stream: true });
   }
 
   applyChunk(chunk: string): void {
@@ -488,6 +505,11 @@ export class DaemonConnection {
       }
       case 'session.tap': {
         this.applyTap(req);
+
+        return;
+      }
+      case 'message.get': {
+        await this.applyMessageGet(req);
 
         return;
       }
@@ -848,11 +870,7 @@ export class DaemonConnection {
     }
 
     if (result === 'no_tap') {
-      this.sendErr(
-        req.id,
-        'unsupported',
-        `session '${sessionID}' has no connected tap to take messages`,
-      );
+      this.sendErr(req.id, 'unsupported', `session '${sessionID}' never attached a message tap`);
 
       return;
     }
@@ -885,6 +903,40 @@ export class DaemonConnection {
     }
 
     this.sendOk(req.id, {});
+  }
+
+  private async applyMessageGet(req: RequestMsg): Promise<void> {
+    const parsed = parseRequestParams('message.get', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const messageID = parsed.data.message;
+
+    const view = await this.ctx.readMessage(messageID);
+
+    if (view === null) {
+      this.sendErr(req.id, 'bad_args', `no message '${messageID}'`);
+
+      return;
+    }
+
+    const record = view.record;
+
+    this.sendOk(req.id, {
+      message: record.id,
+      session: view.session,
+      from: record.from,
+      text: record.text,
+      status: record.status,
+      sentAt: record.sentAt,
+      ...(record.deliveredAt === undefined ? {} : { deliveredAt: record.deliveredAt }),
+      ...(record.answeredAt === undefined ? {} : { answeredAt: record.answeredAt }),
+      ...(record.answer === undefined ? {} : { answer: record.answer }),
+    });
   }
 
   private async applyMessageAck(req: RequestMsg): Promise<void> {

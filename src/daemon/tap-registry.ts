@@ -13,8 +13,16 @@ interface TapEntry<TClient> {
 export class TapRegistry<TClient> {
   private readonly bySession = new Map<SessionID, TapEntry<TClient>>();
 
-  attach(sessionID: SessionID, client: TClient): void {
+  /**
+   * Makes the client the session's tap and returns the client it displaced,
+   * or null when there was none or it is the same connection.
+   */
+  attach(sessionID: SessionID, client: TClient): TClient | null {
+    const previous = this.bySession.get(sessionID)?.client ?? null;
+
     this.bySession.set(sessionID, { client, claimed: new Set() });
+
+    return previous === client ? null : previous;
   }
 
   detachAll(client: TClient): void {
@@ -25,8 +33,16 @@ export class TapRegistry<TClient> {
     }
   }
 
-  removeSession(sessionID: SessionID): void {
+  /**
+   * Forgets the session's tap and returns its client, or null when the
+   * session had none.
+   */
+  removeSession(sessionID: SessionID): TClient | null {
+    const previous = this.bySession.get(sessionID)?.client ?? null;
+
     this.bySession.delete(sessionID);
+
+    return previous;
   }
 
   hasTap(sessionID: SessionID): boolean {

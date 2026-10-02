@@ -202,3 +202,42 @@ test('it exits 0 once the daemon closes the connection', async () => {
 
   expect(code).toBe(0);
 });
+
+test('it exits 0 when another tap replaces it', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  const proc = Bun.spawn(
+    [process.execPath, join(import.meta.dir, 'cli.ts'), 'tap', '--session', id],
+    {
+      env: { ...process.env, XDG_RUNTIME_DIR: daemon.dir, HOME: daemon.dir },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+
+  onTestFinished(() => {
+    proc.kill();
+  });
+
+  // A message reaching delivered proves the tap is subscribed.
+  await waitFor(async () => {
+    await daemon.actor.sendRequest('session.message', { session: id, text: 'ping' });
+
+    expect(daemon.events).toPartiallyContain({ ev: 'SessionMessage', status: 'delivered' });
+  });
+
+  const replacement = await DaemonClient.open(join(daemon.dir, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    replacement.stop();
+  });
+
+  await replacement.sendHello('atc/test-build');
+  await replacement.sendRequest('session.tap', { session: id });
+
+  const code = await proc.exited;
+
+  expect(code).toBe(0);
+});

@@ -88,6 +88,7 @@ sleep 30
         XDG_RUNTIME_DIR: home,
         PATH: '/usr/sbin:/usr/bin:/bin',
         ATC_SESSION_ID: options.callerSessionID ?? '',
+        ATC_TAP_GRACE_MS: '0',
       }),
       stdin: 'pipe',
       stdout: 'pipe',
@@ -233,6 +234,7 @@ test('it initializes and lists the fleet tools', async () => {
     'atc_session_read',
     'atc_events_read',
     'atc_session_message',
+    'atc_message_get',
   ]);
 });
 
@@ -911,4 +913,67 @@ test('it sends a message to a session that has not started', async () => {
 
   expect(result['isError']).toBeUndefined();
   expect(getText(result)).toInclude('"status": "accepted"');
+});
+
+test('it reads a sent message back through atc_message_get', async () => {
+  const ctx = setupMCP();
+
+  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home } },
+  });
+
+  const spawnResponse = await ctx.waitForResponse(2);
+
+  const spawned: unknown = JSON.parse(getText(getResult(spawnResponse)));
+
+  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
+    throw new TypeError('spawn answer has no session id');
+  }
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 3,
+    method: 'tools/call',
+    params: {
+      name: 'atc_session_message',
+      arguments: { session: spawned['id'], text: 'hello', from: 'tester' },
+    },
+  });
+
+  const sentResponse = await ctx.waitForResponse(3);
+
+  const sent: unknown = JSON.parse(getText(getResult(sentResponse)));
+
+  if (!isRecord(sent) || typeof sent['message'] !== 'string') {
+    throw new TypeError('message answer has no message id');
+  }
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 4,
+    method: 'tools/call',
+    params: { name: 'atc_message_get', arguments: { message: sent['message'] } },
+  });
+
+  const getResponse = await ctx.waitForResponse(4);
+
+  const got: unknown = JSON.parse(getText(getResult(getResponse)));
+
+  expect(got).toStrictEqual({
+    message: sent['message'],
+    session: spawned['id'],
+    from: 'tester',
+    text: 'hello',
+    status: 'accepted',
+    sentAt: expect.toBeNumber() as number,
+  });
 });

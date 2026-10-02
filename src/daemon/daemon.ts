@@ -4,8 +4,11 @@ import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
 import type { SessionID } from '../shared/session-id';
-import type { MessageOwner, MessageRecord } from '../store/message-record';
+import { truncateToBytes } from '../shared/truncate-to-bytes';
+import type { MessageOwner } from '../store/message-owner';
+import type { MessageRecord } from '../store/message-record';
 import { StateStore } from '../store/state-store';
+import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildSessionEvent } from './build-session-event';
@@ -76,6 +79,7 @@ export interface DaemonOptions {
   // single revive waits for that signal before moving on regardless, so a
   // session that never reports cannot stall the rest. Zero waits forever.
   readonly restoreBootTimeoutMs?: number;
+  readonly tapGraceMs?: number;
 
   // Called after a client-requested quit has stopped the daemon; the real
   // entrypoint exits the process, tests leave it unset.
@@ -85,6 +89,10 @@ export interface DaemonOptions {
 export interface DaemonHandle {
   readonly stop: () => Promise<void>;
 }
+
+// How long a started Claude session may go without a tap before a message to
+// it is refused.
+const TAP_GRACE_MS = 15_000;
 
 /**
  * The daemon: owns the sessions, the client-protocol listener, and the
@@ -171,6 +179,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const attachments = new AttachRegistry<OutputClient>();
   const taps = new TapRegistry<TapClient>();
 
+  // Writes accepted messages one at a time so the store's insertion order is
+  // the order of their sent times, which the inbox drains by.
+  let lastMessageWrite: Promise<void> = Promise.resolve();
+
   // Hands one pending message to the session's tap, once, and reports whether
   // it did. The event goes to the tap connection alone: it never reaches
   // other clients, the events socket, or hooks.
@@ -231,7 +243,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       const answered = await store.updateMessageAnswered(
         report.message,
         owner,
-        report.answer,
+        truncateToBytes(report.answer, ANSWER_BYTE_CAP),
         Date.now(),
       );
 
@@ -450,7 +462,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     if (kind === 'removed') {
       attachments.removeSession(s.id);
-      taps.removeSession(s.id);
+
+      emitInboxClosed(taps.removeSession(s.id), s.id, 'removed');
       runtimes.get(s.id)?.dispose();
       runtimes.delete(s.id);
     }
@@ -500,7 +513,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     // waits on before booting the next one.
     if (kind === 'started') {
       if (runtime !== undefined) {
-        runtime.started = true;
+        runtime.startedAt = Date.now();
       }
 
       runtime?.bootWaiter?.();
@@ -628,7 +641,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       if (runtime !== undefined) {
         runtime.dims = { cols, rows };
-        runtime.started = false;
+        runtime.startedAt = null;
+        runtime.tapAttached = false;
 
         runtime.screen ??= new ScreenModel(cols, rows);
       }
@@ -829,9 +843,23 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'unsupported';
       }
 
-      if (runtimes.get(sessionID)?.started === true && !taps.hasTap(sessionID)) {
+      const runtime = runtimes.get(sessionID);
+
+      if (
+        runtime !== undefined &&
+        runtime.startedAt !== null &&
+        !runtime.tapAttached &&
+        Date.now() - runtime.startedAt >= (opts.tapGraceMs ?? TAP_GRACE_MS)
+      ) {
         return 'no_tap';
       }
+
+      const previousWrite = lastMessageWrite;
+      const written = Promise.withResolvers<void>();
+
+      lastMessageWrite = written.promise;
+
+      await previousWrite;
 
       const record: MessageRecord = {
         id: mintMessageID(),
@@ -843,10 +871,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         sentAt: Date.now(),
       };
 
-      await store.writeMessage(record);
+      try {
+        await store.writeMessage(record);
+      } finally {
+        written.resolve();
+      }
 
       emitEvent(buildSessionMessageEvent(sessionID, record), findHookScope(sessionID));
-      sendInboxMessage(sessionID, record);
+
+      await drainInbox(sessionID);
 
       return record;
     },
@@ -861,10 +894,32 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'unsupported';
       }
 
-      taps.attach(sessionID, client);
+      emitInboxClosed(taps.attach(sessionID, client), sessionID, 'replaced');
+
+      const runtime = runtimes.get(sessionID);
+
+      if (runtime !== undefined) {
+        runtime.tapAttached = true;
+      }
+
       void drainInbox(sessionID);
 
       return 'ok';
+    },
+    readMessage: async (messageID) => {
+      const record = await store.findMessageByID(messageID);
+
+      if (record === null) {
+        return null;
+      }
+
+      const owner = mgr.sessions.find(
+        (x) =>
+          x.id === record.atcID ||
+          (record.agentSessionID !== undefined && x.agentSessionID === record.agentSessionID),
+      );
+
+      return { session: owner?.id ?? record.atcID, record };
     },
     ackMessage: async (client, sessionID, messageID) => {
       const s = mgr.sessions.find((x) => x.id === sessionID);
@@ -904,7 +959,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         clients.add(socket.data);
       },
       data(socket, buf) {
-        socket.data.applyChunk(buf.toString());
+        socket.data.applyChunk(socket.data.decodeChunk(buf));
       },
       drain(socket) {
         socket.data.drain();
@@ -941,6 +996,16 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   return { stop: stopDaemon };
+}
+
+// Tells a tap its subscription is over so the `atc tap` process behind it
+// exits instead of idling on a session it no longer serves.
+function emitInboxClosed(
+  tap: TapClient | null,
+  sessionID: SessionID,
+  reason: 'replaced' | 'removed',
+): void {
+  tap?.sendEvent({ v: PROTOCOL_V, ev: 'InboxClosed', s: sessionID, reason });
 }
 
 function buildMessageOwner(s: Session): MessageOwner {

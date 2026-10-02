@@ -190,7 +190,7 @@ const TOOLS: readonly MCPTool[] = [
   {
     name: 'atc_session_message',
     description:
-      'Send a session a message and get its id back. The message waits in the session inbox until the session takes it; its status moves accepted, delivered, answered, each broadcast as a SessionMessage event. A session that cannot take messages (Grok, Codex, or a Claude session with no connected tap) refuses it as unsupported. The message is never typed into the terminal.',
+      "Send a session a message and get its id back; poll atc_message_get with the id for its status and answer. The message waits in the session inbox until the session takes it, and its status moves accepted, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (Grok, Codex), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -203,6 +203,19 @@ const TOOLS: readonly MCPTool[] = [
         },
       },
       required: ['session', 'text'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'atc_message_get',
+    description:
+      'Read one message sent with atc_session_message: its id, session, from, text, status (accepted, delivered, or answered), the answer once answered, and the sentAt, deliveredAt, and answeredAt timestamps. Poll it until the status is answered.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'The message id atc_session_message returned' },
+      },
+      required: ['message'],
       additionalProperties: false,
     },
   },
@@ -459,6 +472,11 @@ async function runTool(
         text: args['text'],
         from,
       });
+
+      return JSON.stringify(ok, null, 2);
+    }
+    case 'atc_message_get': {
+      const ok = await client.sendRequest('message.get', { message: args['message'] });
 
       return JSON.stringify(ok, null, 2);
     }

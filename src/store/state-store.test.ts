@@ -817,6 +817,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '009_add_events_kind_detail',
     '010_add_events_trail_indexes',
     '011_create_messages',
+    '012_index_messages_by_owner',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -1584,4 +1585,63 @@ test('it finds no message for another session', async () => {
   const other = await store.findMessage(record.id, { atcID: toSessionID('s2') });
 
   expect(other).toBeNull();
+});
+
+test('it answers the owner lookups for pending messages from an index', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const store = await StateStore.open(dbPath);
+
+  await store.stop();
+
+  const db = new Database(dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    db.close();
+  });
+
+  const byAtcID = db
+    .query<{ detail: string }, []>(
+      "EXPLAIN QUERY PLAN SELECT * FROM messages WHERE status = 'accepted' AND atc_id = 's1' ORDER BY sent_at",
+    )
+    .all();
+
+  const byAgentSessionID = db
+    .query<{ detail: string }, []>(
+      "EXPLAIN QUERY PLAN SELECT * FROM messages WHERE status = 'accepted' AND agent_session_id = 'a1' ORDER BY sent_at",
+    )
+    .all();
+
+  expect(byAtcID.map((row) => row.detail).join('\n')).toInclude(
+    'USING INDEX messages_atc_id_status_sent_at',
+  );
+
+  expect(byAgentSessionID.map((row) => row.detail).join('\n')).toInclude(
+    'USING INDEX messages_agent_session_id_status_sent_at',
+  );
+});
+
+test('it finds a message by its id alone and misses an unknown id', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  await store.writeMessage(record);
+
+  const found = await store.findMessageByID(record.id);
+  const missing = await store.findMessageByID(toMessageID('m-2'));
+
+  expect(found).toStrictEqual(record);
+  expect(missing).toBeNull();
 });
