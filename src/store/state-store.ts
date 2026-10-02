@@ -174,10 +174,12 @@ export class StateStore {
   }
 
   async writeFleet(entries: readonly FleetEntry[]): Promise<void> {
+    const kept = buildFleetWithoutReplacedRows(entries);
+
     await this.db.transaction().execute(async (trx) => {
       await trx.deleteFrom('fleet').execute();
 
-      for (const entry of entries) {
+      for (const entry of kept) {
         await trx
           .insertInto('fleet')
           .values({
@@ -197,9 +199,6 @@ export class StateStore {
             effort: entry.effort ?? null,
           })
 
-          // Two sessions can share an agent session id when one resumes the
-          // other's; the row written last replaces the earlier one.
-          .orReplace()
           .execute();
       }
     });
@@ -543,6 +542,46 @@ export class StateStore {
       await this.writeFleet(buildFleetFromLegacy(legacy));
     } catch {}
   }
+}
+
+// Two sessions share an agent session id when one resumes the other's agent
+// session. The fleet keeps one row per agent session id, the entry written
+// last, and moves every sub-session of a dropped entry under that survivor,
+// so no link points at a row the write drops.
+function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEntry[] {
+  const survivors = new Map<AgentSessionID, SessionID>();
+
+  for (const entry of entries) {
+    if (entry.agentSessionID !== undefined) {
+      survivors.set(entry.agentSessionID, entry.sessionID);
+    }
+  }
+
+  const replaced = new Map<SessionID, SessionID>();
+
+  for (const entry of entries) {
+    const survivor =
+      entry.agentSessionID === undefined ? undefined : survivors.get(entry.agentSessionID);
+
+    if (survivor !== undefined && survivor !== entry.sessionID) {
+      replaced.set(entry.sessionID, survivor);
+    }
+  }
+
+  const kept: FleetEntry[] = [];
+
+  for (const entry of entries) {
+    if (replaced.has(entry.sessionID)) {
+      continue;
+    }
+
+    const parent = entry.parent === undefined ? undefined : replaced.get(entry.parent);
+    const relinked = parent === undefined ? entry : { ...entry, parent };
+
+    kept.push(relinked);
+  }
+
+  return kept;
 }
 
 // Mints each legacy entry an atc session id, then moves each sub-session

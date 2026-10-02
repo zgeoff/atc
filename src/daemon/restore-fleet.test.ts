@@ -1,7 +1,8 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -26,12 +27,15 @@ async function setupTest() {
   const dir = await mkdtemp(join(tmpdir(), 'atc-restore-'));
   const store = await StateStore.open(join(dir, 'state.db'));
 
-  const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), []);
+  const statusPath = join(dir, 'status.json');
+
+  const mgr = new SessionManager(idleAdapter, store, statusPath, []);
   const runtimes = new Map<string, SessionRuntime>();
 
   return {
     store,
     mgr,
+    statusPath,
     findRuntime: (id: string) => runtimes.get(id),
     async [Symbol.asyncDispose]() {
       mgr.killAll();
@@ -94,4 +98,60 @@ test('it revives a listed dead session in place instead of listing its id twice'
 
   expect(ctx.mgr.sessions.map((x) => x.id)).toStrictEqual([s.id]);
   expect(s.pty).not.toBeNull();
+});
+
+test('it keeps a sub-session under the session that resumed its parent agent session', async () => {
+  await using ctx = await setupTest();
+
+  const parent = ctx.mgr.restore({
+    sessionID: toSessionID('s-parent'),
+    name: 'wrangler',
+    cwd: '/tmp',
+    agentSessionID: toAgentSessionID('c-parent'),
+    agent: 'claude',
+    exited: true,
+  });
+
+  const child = ctx.mgr.spawn(
+    '/tmp',
+    'worker',
+    '',
+    80,
+    24,
+    toAgentSessionID('c-child'),
+    'user',
+    'claude',
+    parent.id,
+  );
+
+  const resumed = ctx.mgr.spawn('/tmp', 'wrangler', '', 80, 24, toAgentSessionID('c-parent'));
+
+  await ctx.mgr.writeFleet();
+
+  const restarted = new SessionManager(idleAdapter, ctx.store, ctx.statusPath, []);
+
+  onTestFinished(() => {
+    restarted.killAll();
+  });
+
+  await restoreFleet({
+    mgr: restarted,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  // Every adopted terminal fires a fleet write; the last write queues
+  // behind them, so none lands after the store closes.
+  await waitFor(() => {
+    expect(restarted.sessions.every((s) => s.pty !== null)).toBe(true);
+  });
+
+  await restarted.writeFleet();
+
+  const restoredChild = restarted.sessions.find((s) => s.id === child.id);
+
+  expect(restoredChild?.parent).toBe(resumed.id);
 });
