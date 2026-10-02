@@ -106,7 +106,9 @@ interface HeadlessRunRequest {
 
 interface HeadlessRunEvents {
   readonly onOutput: (text: string) => void;
-  readonly onDone: (summary: string) => void;
+
+  // The turn's whole final message.
+  readonly onDone: (result: string) => void;
   readonly onNeedsYou: (msg: string) => void;
 }
 

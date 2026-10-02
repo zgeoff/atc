@@ -24,7 +24,7 @@ const sleepAdapter: AgentAdapter = {
 
 interface FakeRun {
   readonly opts: Readonly<Record<string, unknown>>;
-  readonly finish: (how: 'done' | 'stuck') => void;
+  readonly finish: (how: 'done' | 'stuck', result?: string) => void;
   readonly stopped: boolean;
 }
 
@@ -54,9 +54,9 @@ async function setupHeadlessDaemon(withRunner = true): Promise<HeadlessContext> 
     const entry = {
       opts: { ...opts },
       stopped: false,
-      finish(how: 'done' | 'stuck') {
+      finish(how: 'done' | 'stuck', result = 'wrapped up cleanly') {
         if (how === 'done') {
-          hooks.onDone('wrapped up cleanly');
+          hooks.onDone(result);
         } else {
           hooks.onNeedsYou('stuck on a decision');
         }
@@ -217,6 +217,88 @@ test('it reports a stuck headless turn as needs_you', async () => {
   const needySession = getRecord(needy, 'session');
 
   expect(needySession['lastMsg']).toBe('stuck on a decision');
+});
+
+test("it keeps a finished headless turn's whole final message as the latest result", async () => {
+  const ctx = await setupHeadlessDaemon();
+  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+
+  const result = `Fixed the auth bug.\n\n${'The token refresh now retries once. '.repeat(10)}`;
+
+  await ctx.client.sendRequest('session.eject', { session: id });
+
+  await waitForRun(ctx.runs, 1);
+
+  ctx.runs[0]?.finish('done', result);
+
+  await waitForEvent(
+    ctx.events,
+    (e) =>
+      e.ev === 'SessionState' &&
+      isRecord(e['session']) &&
+      e['session']['id'] === id &&
+      e['session']['state'] === 'done',
+  );
+
+  const record = await ctx.client.sendRequest('session.get', { session: id });
+
+  expect(record['result']).toBe(result);
+});
+
+test("it records a headless turn's prompt and finish in the event trail", async () => {
+  const ctx = await setupHeadlessDaemon();
+  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+  const empty = await ctx.client.sendRequest('events.read', {});
+
+  await ctx.client.sendRequest('session.eject', { session: id, prompt: 'keep going' });
+
+  await waitForRun(ctx.runs, 1);
+
+  const started = await ctx.client.sendRequest('events.read', {
+    cursor: empty['cursor'],
+    waitMs: 5000,
+  });
+
+  ctx.runs[0]?.finish('done', 'all green');
+
+  const finished = await ctx.client.sendRequest('events.read', {
+    cursor: started['cursor'],
+    waitMs: 5000,
+  });
+
+  expect(started['events']).toStrictEqual([
+    expect.objectContaining({ session: id, kind: 'prompt-submitted', detail: 'keep going' }),
+  ]);
+
+  expect(finished['events']).toStrictEqual([
+    expect.objectContaining({ session: id, kind: 'turn-done', detail: 'all green' }),
+  ]);
+});
+
+test('it records a stuck headless turn as needs-input in the event trail', async () => {
+  const ctx = await setupHeadlessDaemon();
+  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+  const empty = await ctx.client.sendRequest('events.read', {});
+
+  await ctx.client.sendRequest('session.eject', { session: id, prompt: 'keep going' });
+
+  await waitForRun(ctx.runs, 1);
+
+  const started = await ctx.client.sendRequest('events.read', {
+    cursor: empty['cursor'],
+    waitMs: 5000,
+  });
+
+  ctx.runs[0]?.finish('stuck');
+
+  const stuck = await ctx.client.sendRequest('events.read', {
+    cursor: started['cursor'],
+    waitMs: 5000,
+  });
+
+  expect(stuck['events']).toStrictEqual([
+    expect.objectContaining({ session: id, kind: 'needs-input', detail: 'stuck on a decision' }),
+  ]);
 });
 
 test('it starts the next headless turn from session input once idle', async () => {

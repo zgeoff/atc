@@ -1,11 +1,15 @@
+import type { AdapterEvent } from '../agents/agent-adapter';
+import { truncateDetail } from '../agents/truncate-detail';
 import type { SessionID } from '../shared/session-id';
 import type { SessionRuntime } from './session-runtime';
 import type { SessionManager } from './sessions';
+import { truncateSummary } from './truncate-summary';
 
 /**
  * Starts one headless turn for a session: finds its adapter's headless
  * runner, wires the run's output and completion into the session manager,
- * and records the live handle on the session's runtime. Returns false
+ * passes the turn's start and end to the event trail the way a terminal
+ * turn's hooks do, and records the live handle on the session's runtime. Returns false
  * without starting anything when the session is unknown, its agent has no
  * headless runner, or a turn is already running.
  */
@@ -14,6 +18,7 @@ export function startHeadlessTurn(
   findRuntime: (sessionID: SessionID) => SessionRuntime | undefined,
   sessionID: SessionID,
   prompt: string,
+  recordTurnEvent: (sessionID: SessionID, ev: Readonly<AdapterEvent>) => void,
 ): boolean {
   const s = mgr.sessions.find((x) => x.id === sessionID);
   const runner = s === undefined ? null : (mgr.findAdapter(s.agent)?.headlessRunner ?? null);
@@ -24,6 +29,8 @@ export function startHeadlessTurn(
   }
 
   mgr.updateSurfaceState(sessionID, 'running', 'headless turn running');
+
+  recordTurnEvent(sessionID, { kind: 'prompt-submitted', detail: truncateDetail(prompt) });
 
   const handle = runner(
     {
@@ -37,17 +44,22 @@ export function startHeadlessTurn(
       onOutput: (text) => {
         mgr.onOutput(s, text);
       },
-      onDone: (summary) => {
+      onDone: (result) => {
         runtime.headlessRun = null;
 
+        const summary = truncateSummary(result);
         const doneMsg = summary === '' ? 'headless turn done' : summary;
 
-        mgr.updateSurfaceState(sessionID, 'done', doneMsg);
+        mgr.updateSurfaceState(sessionID, 'done', doneMsg, result);
+
+        recordTurnEvent(sessionID, { kind: 'turn-done', detail: truncateDetail(result) });
       },
       onNeedsYou: (msg) => {
         runtime.headlessRun = null;
 
         mgr.updateSurfaceState(sessionID, 'needs_you', msg);
+
+        recordTurnEvent(sessionID, { kind: 'needs-input', message: msg, detail: msg });
       },
     },
   );

@@ -524,6 +524,21 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     eventSignal.emit();
   };
 
+  // A headless turn has no terminal hooks of its own, so the daemon writes
+  // its start and end to the trail under a synthetic event name.
+  const recordHeadlessTurnEvent = (sessionID: SessionID, ev: Readonly<AdapterEvent>) => {
+    const s = mgr.sessions.find((x) => x.id === sessionID);
+
+    void recordHookEvent(
+      {
+        atcId: sessionID,
+        event: 'HeadlessTurn',
+        payload: s?.agentSessionID === undefined ? {} : { session_id: s.agentSessionID },
+      },
+      ev,
+    );
+  };
+
   const reporter = startHookServer((e) => {
     if (e.event === 'Report') {
       void applyReport(e);
@@ -531,11 +546,16 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return;
     }
 
-    const previousAgentSessionID = mgr.sessions.find((s) => s.id === e.atcId)?.agentSessionID;
+    const before = mgr.sessions.find((s) => s.id === e.atcId);
+    const previousAgentSessionID = before?.agentSessionID;
     const ev = mgr.applyHook(e);
 
+    // A headless session's trail comes from its runs alone: hook reports from
+    // its dying terminal, or from a run's own CLI, stay out of it.
+    const trailEvent = before?.kind === 'headless' ? null : ev;
+
     if (e.event !== 'Statusline') {
-      void recordHookEvent(e, ev);
+      void recordHookEvent(e, trailEvent);
     }
 
     const kind = ev?.kind ?? null;
@@ -662,7 +682,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         prompt,
         settleMs: opts.ejectSettleMs ?? 4000,
         runtime,
-        startHeadlessTurn: (sid, p) => startHeadlessTurn(mgr, findRuntime, sid, p),
+        startHeadlessTurn: (sid, p) =>
+          startHeadlessTurn(mgr, findRuntime, sid, p, recordHeadlessTurnEvent),
       });
 
       return 'ok';
@@ -772,7 +793,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           return 'busy';
         }
 
-        return startHeadlessTurn(mgr, findRuntime, sessionID, data.trimEnd()) ? 'ok' : 'dead';
+        return startHeadlessTurn(
+          mgr,
+          findRuntime,
+          sessionID,
+          data.trimEnd(),
+          recordHeadlessTurnEvent,
+        )
+          ? 'ok'
+          : 'dead';
       }
 
       if (s.pty === null) {
