@@ -191,24 +191,37 @@ const main = defineCommand({
               ),
           );
 
-          const handle = await daemon.startDaemon({
-            socketPath: config.daemonSocketPath,
-            reporterSocketPath: config.socketPath,
-            eventsSocketPath: config.eventsSocketPath,
-            build: getBuild(),
-            adapter: claudeAdapter,
-            adapters: [claudeAdapter, grokAdapter, codexAdapter, ...gatewayAdapters],
-            dbPath: config.dbFile,
-            legacyFleetPath: config.legacyFleetFile,
-            pidPath: config.daemonPidFile,
-            hooks: cfg.hooks,
-            restoreBootTimeoutMs,
-            ...(Number.isFinite(graceOverride) && graceOverride >= 0
-              ? { tapGraceMs: graceOverride }
-              : {}),
-            ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
-            onQuit: () => process.exit(0),
-          });
+          let handle: Awaited<ReturnType<typeof daemon.startDaemon>>;
+
+          try {
+            handle = await daemon.startDaemon({
+              socketPath: config.daemonSocketPath,
+              reporterSocketPath: config.socketPath,
+              eventsSocketPath: config.eventsSocketPath,
+              build: getBuild(),
+              adapter: claudeAdapter,
+              adapters: [claudeAdapter, grokAdapter, codexAdapter, ...gatewayAdapters],
+              dbPath: config.dbFile,
+              legacyFleetPath: config.legacyFleetFile,
+              pidPath: config.daemonPidFile,
+              hooks: cfg.hooks,
+              restoreBootTimeoutMs,
+              ...(Number.isFinite(graceOverride) && graceOverride >= 0
+                ? { tapGraceMs: graceOverride }
+                : {}),
+              ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
+              onQuit: () => process.exit(0),
+            });
+          } catch (error) {
+            // A second daemon on the same state directory refuses to start
+            // and touches nothing; any other startup failure stays a crash.
+            if (error instanceof Error && Reflect.get(error, 'code') === 'daemon_locked') {
+              console.error(error.message);
+              process.exit(1);
+            }
+
+            throw error;
+          }
 
           process.on('SIGTERM', () => {
             void (async () => {

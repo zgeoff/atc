@@ -75,6 +75,7 @@ export interface StatusView {
   readonly urgentName: string | null;
   readonly leaderLabel: string;
   readonly stale: boolean;
+  readonly restarting: boolean;
 }
 
 export function drawStatusBar(view: StatusView) {
@@ -101,7 +102,9 @@ export function drawStatusBar(view: StatusView) {
     parts.push(`✗ ${c.exited}`);
   }
 
-  if (view.stale) {
+  if (view.restarting) {
+    parts.push('⟳ restarting daemon');
+  } else if (view.stale) {
     parts.push('⟳ update ready');
   }
 

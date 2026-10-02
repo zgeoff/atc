@@ -62,6 +62,10 @@ export const mcpAuthDBFile = join(stateDir, 'mcp-auth.db');
 export const legacyFleetFile = join(stateDir, 'fleet.json');
 export const daemonPidFile = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-daemon.pid');
 
+// Written by the running daemon: its pid and the socket paths it listens
+// on, for a client whose environment computes other socket paths.
+export const daemonRecordFile = join(stateDir, 'daemon.json');
+
 // A user-written config.json's top-level keys. An absent or wrong-typed
 // field parses to undefined rather than failing the file, so a bad config
 // falls back to a default instead of refusing to start atc.

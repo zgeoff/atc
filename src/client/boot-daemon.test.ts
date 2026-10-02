@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentAdapter } from '../agents/agent-adapter';
@@ -81,4 +81,61 @@ boot.client.stop();
   }
 
   expect(parsed).toStrictEqual({ lastUsedAgent: 'codex' });
+});
+
+test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR is unset', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-boot-daemon-'));
+  const runDir = join(dir, 'run');
+  const stateDir = join(dir, '.local', 'state', 'atc');
+
+  mkdirSync(runDir);
+  mkdirSync(stateDir, { recursive: true });
+
+  const daemon = await startDaemon({
+    socketPath: join(runDir, 'atc-daemon.sock'),
+    reporterSocketPath: join(runDir, 'atc.sock'),
+    build: 'atc/test-build',
+    adapter: idleAdapter,
+    dbPath: join(stateDir, 'atc.db'),
+    statusPath: join(stateDir, 'status.json'),
+  });
+
+  const probePath = join(dir, 'probe.ts');
+
+  writeFileSync(
+    probePath,
+    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
+const boot = await bootDaemonClient();
+process.stdout.write(JSON.stringify({ socketPath: boot.socketPath }));
+boot.client.stop();
+`,
+  );
+
+  onTestFinished(async () => {
+    await daemon.stop();
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const env: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined && key !== 'XDG_RUNTIME_DIR') {
+      env[key] = value;
+    }
+  }
+
+  env['HOME'] = dir;
+
+  const proc = Bun.spawn([process.execPath, probePath], { env, stdout: 'pipe', stderr: 'pipe' });
+
+  const stdout = await new Response(proc.stdout).text();
+
+  await proc.exited;
+
+  const record: unknown = JSON.parse(readFileSync(join(stateDir, 'daemon.json'), 'utf8'));
+
+  expect(JSON.parse(stdout)).toStrictEqual({ socketPath: join(runDir, 'atc-daemon.sock') });
+  expect(record).toMatchObject({ pid: process.pid });
+  expect(existsSync(join(stateDir, 'atc-daemon.sock'))).toBeFalse();
 });

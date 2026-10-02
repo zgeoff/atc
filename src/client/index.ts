@@ -4,6 +4,7 @@ import type { AgentID } from '../agents/agent-adapter';
 import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from '../daemon/sessions';
 import type { EventMsg } from '../protocol/protocol';
 import { loadConfig } from '../shared/config';
+import { makeSingleFlight } from '../shared/make-single-flight';
 import { bootDaemonClient } from './boot-daemon';
 import { buildClientMachine } from './build-client-machine';
 import { buildLeaderChords } from './build-leader-chords';
@@ -82,6 +83,7 @@ function scheduleStatus() {
         urgentName: urgent === undefined ? null : urgent.name,
         leaderLabel: leader.label,
         stale: daemonStale,
+        restarting: daemonRestarting,
       });
     }
   }, 50);
@@ -214,7 +216,7 @@ function renderOverlay() {
     selected: overlaySelected,
     confirmKill,
     filter: overlayFilter,
-    stale: daemonStale,
+    stale: daemonStale && !daemonRestarting,
     grouped: overlayGrouped,
   });
 
@@ -616,7 +618,7 @@ function applyOverlayKey(buf: Buffer) {
   }
 
   if (ch === 'u' && daemonStale) {
-    void restartDaemon();
+    void restartDaemonOnce();
 
     return;
   }
@@ -734,6 +736,7 @@ const boot = await bootDaemonClient();
 
 let client = boot.client;
 let daemonStale = boot.stale;
+let daemonRestarting = false;
 
 lastUsedAgent = boot.lastUsedAgent;
 client.onEvent = applyDaemonEvent;
@@ -767,8 +770,24 @@ async function refreshMirror() {
 /**
  * The deliberate half of the stale-daemon story: quits the old daemon,
  * boots one from the current build, and restores the whole fleet, so an
- * update never interrupts sessions until the user picks the moment.
+ * update never interrupts sessions until the user picks the moment. A
+ * press while a restart runs joins it rather than starting another, and
+ * the status bar says a restart is running until it finishes.
  */
+const restartDaemonOnce = makeSingleFlight(async () => {
+  daemonRestarting = true;
+
+  renderOverlay();
+
+  try {
+    await restartDaemon();
+  } finally {
+    daemonRestarting = false;
+
+    scheduleStatus();
+  }
+});
+
 async function restartDaemon() {
   try {
     await client.sendRequest('daemon.quit');
