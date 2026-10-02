@@ -24,7 +24,8 @@ interface RawConfig {
  * the real parse. Every target runs harnesses on a real pseudo-terminal
  * through a provider that counts its spawns. `client` is the daemon owner's
  * connection; `openClientAs` opens a connection whose handshake gives a
- * principal.
+ * principal. `restart` stops the daemon and starts it again on the same
+ * state with another config.
  */
 async function setupTest(raw: RawConfig) {
   const tmp = setupTempDir('atc-daemon-principals-');
@@ -33,47 +34,6 @@ async function setupTest(raw: RawConfig) {
   const local = new LocalPTYProvider();
 
   const harnesses: string[] = [];
-  const targets = collectTargets(raw.targets, undefined);
-
-  const daemon = await startDaemon({
-    socketPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: {
-      id: 'claude',
-      screenDetector: null,
-      takesMessages: true,
-      headlessRunner: null,
-      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-      normalizeHook: () => ({ kind: 'prompt-submitted' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => 'claude --resume',
-    },
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    targets: targets.targets.map((target) => ({
-      id: target.id,
-      kind: target.provider,
-      options: target.options,
-      identity: buildTargetIdentity(target.provider, target.options),
-      provider: {
-        kind: target.provider,
-        capabilities: local.capabilities,
-        spawnHarness: (spec) => {
-          harnesses.push(target.id);
-
-          return local.spawnHarness(spec);
-        },
-        transferArchive: local.transferArchive,
-        runCommand: local.runCommand,
-      },
-    })),
-    defaultTarget: targets.defaultTarget,
-    targetErrors: targets.errors,
-    principals: collectPrincipals(raw.principals).principals,
-  });
-
   const clients: DaemonClient[] = [];
 
   const openClient = async (hello: Readonly<Record<string, unknown>>) => {
@@ -86,12 +46,72 @@ async function setupTest(raw: RawConfig) {
     return client;
   };
 
-  const client = await openClient({ client: 'atc/test-build' });
+  const startTestDaemon = (config: RawConfig) => {
+    const targets = collectTargets(config.targets, undefined);
+
+    return startDaemon({
+      socketPath,
+      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+      build: 'atc/test-build',
+      adapter: {
+        id: 'claude',
+        screenDetector: null,
+        takesMessages: true,
+        headlessRunner: null,
+        planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
+        normalizeHook: () => ({ kind: 'prompt-submitted' }),
+        loadName: () => Promise.resolve(null),
+        canResume: () => true,
+        buildResumeCommand: () => 'claude --resume',
+      },
+      dbPath: join(tmp.dir, 'state.db'),
+      statusPath: join(tmp.dir, 'status.json'),
+      targets: targets.targets.map((target) => ({
+        id: target.id,
+        kind: target.provider,
+        options: target.options,
+        identity: buildTargetIdentity(target.provider, target.options),
+        provider: {
+          kind: target.provider,
+          capabilities: local.capabilities,
+          spawnHarness: (spec) => {
+            harnesses.push(target.id);
+
+            return local.spawnHarness(spec);
+          },
+          transferArchive: local.transferArchive,
+          runCommand: local.runCommand,
+        },
+      })),
+      defaultTarget: targets.defaultTarget,
+      targetErrors: targets.errors,
+      principals: collectPrincipals(config.principals).principals,
+    });
+  };
+
+  const stopClients = () => {
+    for (const opened of clients.splice(0)) {
+      opened.stop();
+    }
+  };
+
+  let daemon = await startTestDaemon(raw);
+  let client = await openClient({ client: 'atc/test-build' });
 
   return {
-    client,
+    get client() {
+      return client;
+    },
     harnesses,
     openClientAs: (principal: unknown) => openClient({ client: 'atc/test-build', principal }),
+    async restart(config: RawConfig): Promise<void> {
+      stopClients();
+
+      await daemon.stop();
+
+      daemon = await startTestDaemon(config);
+      client = await openClient({ client: 'atc/test-build' });
+    },
 
     // Reports one hook event for the session, which the daemon records in
     // its trail.
@@ -116,15 +136,18 @@ async function setupTest(raw: RawConfig) {
 
       await closed.promise;
     },
-    async spawnOn(target: string): Promise<string> {
-      const spawned = await client.sendRequest('session.spawn', { cwd: '/tmp', target });
+    async spawnOn(target: string, parent?: string): Promise<string> {
+      const spawned = await client.sendRequest('session.spawn', {
+        cwd: '/tmp',
+        target,
+        resume: `a-${randomUUID()}`,
+        ...(parent === undefined ? {} : { parent }),
+      });
 
       return String(getRecord(spawned, 'session')['id']);
     },
     async [Symbol.asyncDispose]() {
-      for (const opened of clients) {
-        opened.stop();
-      }
+      stopClients();
 
       await daemon.stop();
 
@@ -467,4 +490,218 @@ test("it keeps a principal connection out of another principal's idempotency key
 
   expect(getRecord(reached, 'session')['id']).not.toBe(getRecord(owned, 'session')['id']);
   expect(daemon.harnesses).toStrictEqual(['local', 'local']);
+});
+
+// The local-only principal, a `box` target it may not use, and an owner
+// that may use both.
+const SPLIT_CONFIG: RawConfig = {
+  targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+  principals: { narrow: { targets: ['local'] }, wide: { targets: ['local', 'box'] } },
+};
+
+test('it refuses a principal a kill of a session with a sub-session out of reach, killing nothing', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const parent = await daemon.spawnOn('local');
+  const child = await daemon.spawnOn('box', parent);
+
+  const refused = await readAnswer(
+    () => daemon.client.sendRequest('session.kill', { session: parent }, 'narrow'),
+    parent,
+  );
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(refused).toStrictEqual({
+    error: {
+      code: 'target_forbidden',
+      message:
+        "this client may not kill session '<session>': it has a sub-session on a target this client may not use",
+      data: { session: '<session>' },
+    },
+  });
+
+  expect(JSON.stringify(refused)).not.toContain(child);
+
+  expect(listed).toMatchObject({
+    sessions: [
+      { id: parent, alive: true },
+      { id: child, alive: true },
+    ],
+  });
+});
+
+test.each([
+  ['the owner', undefined],
+  ['a principal that may use every target in it', 'wide'],
+])('it lets %s kill a session together with its sub-sessions', async (_label, principal) => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const parent = await daemon.spawnOn('local');
+  const child = await daemon.spawnOn('box', parent);
+
+  await daemon.client.sendRequest('session.kill', { session: parent }, principal);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toMatchObject({
+    sessions: [
+      { id: parent, alive: false },
+      { id: child, alive: false },
+    ],
+  });
+});
+
+test('it refuses a principal a forget of a dead session with a dead sub-session out of reach, removing nothing', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const parent = await daemon.spawnOn('local');
+  const child = await daemon.spawnOn('box', parent);
+
+  await daemon.client.sendRequest('session.kill', { session: parent });
+
+  expect(
+    daemon.client.sendRequest('session.kill', { session: parent }, 'narrow'),
+  ).rejects.toMatchObject({ code: 'target_forbidden', data: { session: parent } });
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toMatchObject({
+    sessions: [
+      { id: parent, alive: false },
+      { id: child, alive: false },
+    ],
+  });
+});
+
+test('it refuses a principal a forget that would move a live sub-session out of reach, moving nothing', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const parent = await daemon.spawnOn('local');
+  const child = await daemon.spawnOn('box', parent);
+
+  await daemon.client.sendRequest('session.kill', { session: parent });
+  await daemon.client.sendRequest('session.adopt', { session: child, cols: 80, rows: 24 });
+
+  expect(
+    daemon.client.sendRequest('session.kill', { session: parent }, 'narrow'),
+  ).rejects.toMatchObject({ code: 'target_forbidden', data: { session: parent } });
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toMatchObject({
+    sessions: [
+      { id: parent, alive: false },
+      { id: child, alive: true, parent },
+    ],
+  });
+});
+
+test('it refuses a principal a pin of a session with a sub-session out of reach, pinning nothing', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const parent = await daemon.spawnOn('local');
+
+  await daemon.spawnOn('box', parent);
+
+  expect(
+    daemon.client.sendRequest('session.update', { session: parent, pinned: true }, 'narrow'),
+  ).rejects.toMatchObject({ code: 'target_forbidden', data: { session: parent } });
+
+  await daemon.client.sendRequest('session.update', { session: parent, name: 'renamed' }, 'narrow');
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toMatchObject({ sessions: [{ id: parent, name: 'renamed', pinned: false }, {}] });
+});
+
+test('it refuses the replay of a held spawn key once the grant no longer reaches its target', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const spawn = () =>
+    daemon.client.sendRequest(
+      'session.spawn',
+      { cwd: '/tmp', target: 'box', idempotencyKey: 'k-1' },
+      'narrow',
+    );
+
+  await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp', target: 'box', idempotencyKey: 'k-1' },
+    'wide',
+  );
+
+  await daemon.restart({
+    targets: SPLIT_CONFIG.targets,
+    principals: { narrow: { targets: ['local'] }, wide: { targets: ['local'] } },
+  });
+
+  const replayed = await readAnswer(
+    () =>
+      daemon.client.sendRequest(
+        'session.spawn',
+        { cwd: '/tmp', target: 'box', idempotencyKey: 'k-1' },
+        'wide',
+      ),
+    'k-1',
+  );
+
+  const fresh = await readAnswer(spawn, 'k-1');
+
+  expect(replayed).toStrictEqual(fresh);
+  expect(replayed).toMatchObject({ error: { code: 'target_forbidden' } });
+  expect(daemon.harnesses).toStrictEqual(['box']);
+});
+
+test('it answers the replay of a held spawn key with its session while the grant still reaches it', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const spawn = () =>
+    daemon.client.sendRequest(
+      'session.spawn',
+      { cwd: '/tmp', target: 'box', idempotencyKey: 'k-1' },
+      'wide',
+    );
+
+  const first = await spawn();
+
+  await daemon.restart(SPLIT_CONFIG);
+
+  const replayed = await spawn();
+
+  expect(getRecord(replayed, 'session')['id']).toBe(getRecord(first, 'session')['id']);
+  expect(daemon.harnesses).toStrictEqual(['box']);
+});
+
+test("it refuses a narrow connection a spawn on a wider principal's target, with no session and no replay", async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp', target: 'box', idempotencyKey: 'k-1' },
+    'wide',
+  );
+
+  const client = await daemon.openClientAs('narrow');
+
+  const refused = await readAnswer(
+    () =>
+      client.sendRequest(
+        'session.spawn',
+        { cwd: '/tmp', target: 'box', idempotencyKey: 'k-1' },
+        'wide',
+      ),
+    'k-1',
+  );
+
+  expect(refused).toStrictEqual({
+    error: {
+      code: 'target_forbidden',
+      message:
+        "this client may not use execution target 'box'. Grant it to the client under principals in config.json and restart the daemon",
+      data: { target: 'box' },
+    },
+  });
+
+  expect(daemon.harnesses).toStrictEqual(['box']);
 });

@@ -963,6 +963,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return s === undefined ? null : { target: s.target, targetIdentity: s.targetIdentity };
     },
     findTargetIdentity: (target) => targets.find((x) => x.id === target)?.identity ?? null,
+    collectChildIDs: (id) => mgr.collectChildren(id).map((child) => child.id),
     findPermissionSession: (request) => registry.findSessionID(request),
     resolveSpawnTarget: (requested) => {
       const target = requested ?? defaultTarget;

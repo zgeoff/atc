@@ -388,9 +388,13 @@ reach does not exist:
   permission request's resolution only when it was pushed the request.
 
 A spawn to a target the principal may not use, named or the default, fails with `target_forbidden`,
-with the target as `data.target`. `daemon.quit` and `fleet.restore` act on the whole daemon, and a
-principal gets `unauthorized` for them. The [events socket](#events-socket) has no handshake and
-streams every event: it is a local socket for the daemon's owner alone.
+with the target as `data.target`. So does the replay of a held spawn key whose session the principal
+no longer reaches, without the session. A kill, a forget, or a pin of a session whose sub-sessions
+the change would reach too fails with `target_forbidden` and the session as `data.session` when any
+of those sub-sessions is out of reach, and changes nothing; the error holds no sub-session's id or
+count. `daemon.quit` and `fleet.restore` act on the whole daemon, and a principal gets
+`unauthorized` for them. The [events socket](#events-socket) has no handshake and streams every
+event: it is a local socket for the daemon's owner alone.
 
 ## Idempotent requests
 
@@ -401,8 +405,8 @@ message's id instead of a second message. The key holds 1 to 200 characters, and
 per principal and method. A request that acts as a [principal](#principals) holds its keys apart
 from every other principal's, and the daemon's owner acts as the principal `local`. The owner's
 connection may act as any principal, keys included, which is how `atc mcp --http` holds each remote
-client's keys under its client ID. On a connection that acts as a principal, a request that acts as
-another holds its keys apart from both principals' own.
+client's keys under its client ID. On a connection that acts as a principal, every request holds its
+keys under that principal, whatever principal it acts as.
 
 The daemon records the key before it checks any param. A refused request drops the key again, so a
 retry runs fresh. A spawn that fails after its process starts kills that process and drops its

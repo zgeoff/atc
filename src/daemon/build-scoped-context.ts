@@ -1,17 +1,23 @@
 import { DaemonError } from '../protocol/daemon-error';
+import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
+import { toSessionID } from '../shared/to-session-id';
+import { buildTargetIdentity } from './build-target-identity';
 import type { DaemonContext } from './daemon-connection';
 import type { KeyedRequest } from './idempotency-ledger';
-import type { TargetAccess } from './target-access';
+import type { TargetAccess, TargetGrant } from './target-access';
 
 /**
  * The daemon as a principal with the given access sees it. Its keyed
  * spawns and messages hold their keys in the given namespace, apart from
- * every other namespace's. A session on a target outside the access does not exist here: every lookup of it answers
- * as a lookup of an unknown session does, so the request's own handling
- * refuses it with the words and data it gives a session that never
- * existed. Lists leave such sessions out, and a spawn may use only a target
- * the access holds.
+ * every other namespace's. A session on a target outside the access does
+ * not exist here: every lookup of it answers as a lookup of an unknown
+ * session does, so the request's own handling refuses it with the words
+ * and data it gives a session that never existed. Lists leave such
+ * sessions out, and a spawn may use only a target the access holds, a
+ * spawn's replayed answer included. A kill, or a pin, of a session whose
+ * sub-sessions reach past the access is refused whole, before anything
+ * changes.
  */
 export function buildScopedContext(
   ctx: DaemonContext,
@@ -32,6 +38,68 @@ export function buildScopedContext(
     const targetIdentity = ctx.findTargetIdentity(target);
 
     return targetIdentity !== null && access.canUse({ target, targetIdentity });
+  };
+
+  // The target a session is bound to: the live session's, else its fleet
+  // row's, else null for a session the daemon holds nowhere.
+  const findGrant = async (id: SessionID): Promise<TargetGrant | null> => {
+    const live = ctx.findSessionGrant(id);
+
+    if (live !== null) {
+      return live;
+    }
+
+    const fleet = await ctx.collectFleet();
+
+    const entry = fleet.find((row) => row.sessionID === id);
+
+    if (entry === undefined) {
+      return null;
+    }
+
+    return {
+      target: entry.target ?? 'local',
+      targetIdentity: entry.targetIdentity ?? buildTargetIdentity('local-pty', {}),
+    };
+  };
+
+  // Throws the refusal a fresh spawn to the session's target gets when the
+  // session a held key answers with is out of reach, so a replay never
+  // returns what the access no longer reaches. A session the daemon holds
+  // nowhere is checked by the target its answer holds, when it holds one.
+  const requireSessionInReach = async (
+    id: SessionID,
+    answeredTarget: string | null,
+  ): Promise<void> => {
+    const grant = await findGrant(id);
+
+    if (grant !== null) {
+      if (!access.canUse(grant)) {
+        throw buildForbiddenTarget(grant.target);
+      }
+
+      return;
+    }
+
+    if (answeredTarget !== null && !canUseTarget(answeredTarget)) {
+      throw buildForbiddenTarget(answeredTarget);
+    }
+  };
+
+  // Throws the refusal of a change to a session whose sub-sessions the
+  // change would reach too when any of them is out of reach. The refusal
+  // holds only the session the caller sent, never a sub-session's id or
+  // how many there are.
+  const requireTreeInReach = (id: SessionID, action: string): void => {
+    if (ctx.collectChildIDs(id).every((child) => canSee(child))) {
+      return;
+    }
+
+    throw new DaemonError(
+      'target_forbidden',
+      `this client may not ${action} session '${id}': it has a sub-session on a target this client may not use`,
+      { session: id },
+    );
   };
 
   return {
@@ -69,9 +137,48 @@ export function buildScopedContext(
 
       return target;
     },
-    spawnSession: (plan, keyed) => ctx.spawnSession(plan, buildPrincipalKey(keyed)),
-    killSession: (id) => (canSee(id) ? ctx.killSession(id) : Promise.resolve(false)),
-    updateSession: (id, name, pinned) => (canSee(id) ? ctx.updateSession(id, name, pinned) : false),
+    spawnSession: async (plan, keyed) => {
+      let answer: Readonly<Record<string, unknown>>;
+
+      try {
+        answer = await ctx.spawnSession(plan, buildPrincipalKey(keyed));
+      } catch (error) {
+        // A held key's refusal may carry the session its spawn made.
+        if (error instanceof DaemonError && typeof error.data?.['effectRef'] === 'string') {
+          await requireSessionInReach(toSessionID(error.data['effectRef']), null);
+        }
+
+        throw error;
+      }
+
+      const session = answer['session'];
+
+      if (isRecord(session) && typeof session['id'] === 'string') {
+        await requireSessionInReach(toSessionID(session['id']), findLocatorTarget(session));
+      }
+
+      return answer;
+    },
+    killSession: (id) => {
+      if (!canSee(id)) {
+        return Promise.resolve(false);
+      }
+
+      requireTreeInReach(id, 'kill');
+
+      return ctx.killSession(id);
+    },
+    updateSession: (id, name, pinned) => {
+      if (!canSee(id)) {
+        return false;
+      }
+
+      if (pinned !== undefined) {
+        requireTreeInReach(id, 'pin');
+      }
+
+      return ctx.updateSession(id, name, pinned);
+    },
     ackSession: (id) => canSee(id) && ctx.ackSession(id),
     buildResumeCommand: (id) => (canSee(id) ? ctx.buildResumeCommand(id) : null),
     readSessionScreen: (id) =>
@@ -130,10 +237,21 @@ export function buildScopedContext(
 // Throws the refusal of a spawn to a target the access leaves out.
 function requireTarget(canUseTarget: (target: string) => boolean, target: string): void {
   if (!canUseTarget(target)) {
-    throw new DaemonError(
-      'target_forbidden',
-      `this client may not use execution target '${target}'. Grant it to the client under principals in config.json and restart the daemon`,
-      { target },
-    );
+    throw buildForbiddenTarget(target);
   }
+}
+
+function buildForbiddenTarget(target: string): DaemonError {
+  return new DaemonError(
+    'target_forbidden',
+    `this client may not use execution target '${target}'. Grant it to the client under principals in config.json and restart the daemon`,
+    { target },
+  );
+}
+
+// The target a session descriptor's locator holds, or null.
+function findLocatorTarget(session: Readonly<Record<string, unknown>>): string | null {
+  const locator = session['locator'];
+
+  return isRecord(locator) && typeof locator['targetID'] === 'string' ? locator['targetID'] : null;
 }

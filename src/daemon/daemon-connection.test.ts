@@ -53,6 +53,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     loadLastUsedAgent: () => Promise.resolve('claude'),
     findAdapter: assertUnreachable,
     buildTargetAccess: assertUnreachable,
+    collectChildIDs: assertUnreachable,
     findSessionGrant: assertUnreachable,
     findTargetIdentity: assertUnreachable,
     findPermissionSession: assertUnreachable,

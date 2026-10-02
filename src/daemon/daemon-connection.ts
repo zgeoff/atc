@@ -87,6 +87,9 @@ export interface DaemonContext {
   // target.
   readonly findTargetIdentity: (target: string) => string | null;
 
+  // The ids of a session's sub-sessions.
+  readonly collectChildIDs: (id: SessionID) => SessionID[];
+
   // The session a permission request belongs to, answered or not, or null
   // for an unknown request.
   readonly findPermissionSession: (request: string) => SessionID | null;
@@ -400,9 +403,9 @@ export class DaemonConnection {
   // The targets a request may use and the namespace its idempotency keys
   // live in: the request's own principal, limited to what the connection's
   // may use, else the connection's. Null is the daemon's owner. The owner
-  // may act as any principal, keys included; a connection that acts as a
-  // principal keeps the keys of a request that acts as another apart from
-  // that principal's own.
+  // may act as any principal, that principal's keys included; a connection
+  // that acts as a principal always keeps its own keys, whatever principal
+  // a request acts as.
   private findRequestScope(req: RequestMsg): RequestScope | null {
     if (req.as === undefined) {
       return this.principal === null || this.access === null
@@ -416,13 +419,7 @@ export class DaemonConnection {
       return { access, keyNamespace: `client:${req.as}` };
     }
 
-    return {
-      access: this.access.merge(access),
-      keyNamespace:
-        req.as === this.principal
-          ? `client:${req.as}`
-          : `client:${JSON.stringify([this.principal, req.as])}`,
-    };
+    return { access: this.access.merge(access), keyNamespace: `client:${this.principal}` };
   }
 
   // Whether this connection may see an event: always for the daemon's
