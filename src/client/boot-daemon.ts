@@ -1,9 +1,10 @@
 import { spawn as spawnChild } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentID } from '../agents/agent-adapter';
 import type { AgentID } from '../agents/agent-adapter';
-import { daemonRecordFile, daemonSocketPath } from '../shared/config';
+import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '../shared/config';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import { getBuild } from '../shared/get-build';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
@@ -84,7 +85,7 @@ async function openOrBootDaemon(): Promise<OpenedDaemon> {
   const booted = await tryOpenKnownDaemon();
 
   if (booted === null) {
-    throw new Error('the atc daemon did not come up; try `atc daemon` for its output');
+    throw new Error(formatBootFailure());
   }
 
   return booted;
@@ -146,14 +147,35 @@ const bootDaemonOnce = makeSingleFlight(async () => {
   }
 });
 
-async function stopStaleDaemon(): Promise<void> {
+// A live daemon this process cannot reach, such as one whose runtime
+// directory a sandbox hides, needs a different fix than one that never
+// started, so the message tells them apart.
+function formatBootFailure(): string {
   const record = findDaemonRecord(daemonRecordFile);
 
-  if (record === null || record.pid <= 1) {
-    return;
+  if (record !== null && isProcessAlive(record.pid)) {
+    return `the atc daemon (pid ${record.pid}) is running, but its socket ${record.socketPath} is unreachable from here`;
   }
 
-  const pid = record.pid;
+  return 'the atc daemon did not come up; try `atc daemon` for its output';
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function stopStaleDaemon(): Promise<void> {
+  const pid = findDaemonPID();
+
+  if (pid === null) {
+    return;
+  }
 
   try {
     process.kill(pid, 'SIGTERM');
@@ -171,6 +193,24 @@ async function stopStaleDaemon(): Promise<void> {
     }
 
     await Bun.sleep(50);
+  }
+}
+
+// The record in the state directory, or the pid file beside the sockets
+// for a daemon that keeps no record.
+function findDaemonPID(): number | null {
+  const record = findDaemonRecord(daemonRecordFile);
+
+  if (record !== null) {
+    return record.pid;
+  }
+
+  try {
+    const pid = Number(readFileSync(daemonPidFile, 'utf8'));
+
+    return Number.isInteger(pid) && pid > 1 ? pid : null;
+  } catch {
+    return null;
   }
 }
 
