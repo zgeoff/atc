@@ -44,7 +44,6 @@ export function startHeadlessTurn(
       cwd: s.cwd,
       prompt,
       ...(s.agentSessionID === undefined ? {} : { resume: s.agentSessionID }),
-      permissionMode: 'auto',
       sessionID,
       ...(s.model === undefined ? {} : { model: s.model }),
       ...(s.effort === undefined ? {} : { effort: s.effort }),

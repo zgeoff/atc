@@ -19,6 +19,8 @@ import { buildClaudeOverrideArgs } from './build-claude-override-args';
 import { ClaudeAdapter } from './claude-adapter';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import { findFlagValue } from './find-flag-value';
+import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
+import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
@@ -62,7 +64,7 @@ export class GatewayAdapter implements AgentAdapter {
   constructor(
     gateway: GatewayConfig,
     config: Config,
-    headlessRunner: HeadlessRunner | null = null,
+    headlessRun: ClaudeHeadlessRun | null = null,
     bridgeTarget?: string,
   ) {
     this.bridgeTarget = bridgeTarget;
@@ -82,13 +84,13 @@ export class GatewayAdapter implements AgentAdapter {
     this.claude = new ClaudeAdapter(config);
 
     this.headlessRunner =
-      headlessRunner === null
+      headlessRun === null
         ? null
-        : (opts, hooks) =>
-            headlessRunner(
-              { ...opts, settings: this.writeSettings(), pluginDir: this.writeBridge() },
-              hooks,
-            );
+        : makeClaudeHeadlessRunner(headlessRun, {
+            claudeBin: gateway.bin,
+            pluginDir: () => this.writeBridge(),
+            settings: () => this.writeSettings(),
+          });
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {

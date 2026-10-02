@@ -1,8 +1,8 @@
+import { truncateSummary } from '../daemon/truncate-summary';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
 import { isRecord } from '../shared/report';
-import { buildHeadlessQueryOptions } from './build-headless-query-options';
-import type { HeadlessRunOptions } from './build-headless-query-options';
-import { truncateSummary } from './truncate-summary';
+import { buildClaudeQueryOptions } from './build-claude-query-options';
+import type { ClaudeHeadlessRunRequest } from './build-claude-query-options';
 
 interface HeadlessRunHooks {
   readonly onOutput: (text: string) => void;
@@ -20,8 +20,8 @@ interface HeadlessRunHandle {
  * done (with the turn's whole result) or needs_you (errors, turn limits,
  * anything a human must look at).
  */
-export function startHeadlessRun(
-  opts: HeadlessRunOptions,
+export function startClaudeHeadlessRun(
+  opts: ClaudeHeadlessRunRequest,
   hooks: HeadlessRunHooks,
 ): HeadlessRunHandle {
   const controller = new AbortController();
@@ -38,7 +38,7 @@ export function startHeadlessRun(
       const stream = sdk.query({
         prompt: opts.prompt,
         options: {
-          ...buildHeadlessQueryOptions(opts, isCompiledBinary()),
+          ...buildClaudeQueryOptions(opts, isCompiledBinary()),
           abortController: controller,
           stderr: (data: string) => {
             stderrTail = `${stderrTail}${data}`.slice(-2000);

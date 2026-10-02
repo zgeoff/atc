@@ -90,7 +90,7 @@ test('it takes inbox messages', () => {
   expect(adapter.takesMessages).toBe(true);
 });
 
-test('it hands a headless run the folder of the atc-bridge mod', () => {
+test('it runs a headless turn through the configured claude binary under the auto permission mode with the atc-bridge mod', () => {
   using tmp = setupTempDir('atc-claude-bridge-');
 
   let received: Readonly<Record<string, unknown>> = {};
@@ -106,11 +106,19 @@ test('it hands a headless run the folder of the atc-bridge mod', () => {
   );
 
   adapter.headlessRunner?.(
-    { cwd: '/tmp', prompt: 'go' },
+    { cwd: '/tmp', prompt: 'go', model: 'opus', effort: 'high' },
     { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
   );
 
-  expect(received).toMatchObject({ cwd: '/tmp', pluginDir: expect.toEndWith('atc-bridge') });
+  expect(received).toStrictEqual({
+    cwd: '/tmp',
+    prompt: 'go',
+    model: 'opus',
+    effort: 'high',
+    claudeBin: 'claude',
+    permissionMode: 'auto',
+    pluginDir: join(tmp.dir, 'atc-bridge'),
+  });
 });
 
 test('it advertises the documented model aliases and effort levels with the configured defaults', () => {

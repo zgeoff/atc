@@ -2,10 +2,10 @@ import { expect, test } from 'bun:test';
 import { socketPath } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
-import { buildHeadlessQueryOptions } from './build-headless-query-options';
+import { buildClaudeQueryOptions } from './build-claude-query-options';
 
 test('it runs a session turn in its directory, resumed, under the auto permission mode, with its model, effort, and mod', () => {
-  const options = buildHeadlessQueryOptions(
+  const options = buildClaudeQueryOptions(
     {
       claudeBin: 'claude',
       cwd: '/work/repo',
@@ -40,7 +40,7 @@ test('it runs a session turn in its directory, resumed, under the auto permissio
 test.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto', 'dontAsk'])(
   'it passes the %s permission mode to the SDK as given',
   (mode) => {
-    const options = buildHeadlessQueryOptions(
+    const options = buildClaudeQueryOptions(
       { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', permissionMode: mode },
       false,
     );
@@ -50,7 +50,7 @@ test.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto', 'dontA
 );
 
 test('it leaves out a permission mode the SDK does not accept', () => {
-  const options = buildHeadlessQueryOptions(
+  const options = buildClaudeQueryOptions(
     { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', permissionMode: 'yolo' },
     false,
   );
@@ -59,7 +59,7 @@ test('it leaves out a permission mode the SDK does not accept', () => {
 });
 
 test('it leaves the permission mode to the SDK when the turn names none', () => {
-  const options = buildHeadlessQueryOptions(
+  const options = buildClaudeQueryOptions(
     { claudeBin: 'claude', cwd: '/tmp', prompt: 'go' },
     false,
   );
@@ -68,7 +68,7 @@ test('it leaves the permission mode to the SDK when the turn names none', () => 
 });
 
 test('it leaves out an effort the SDK does not accept', () => {
-  const options = buildHeadlessQueryOptions(
+  const options = buildClaudeQueryOptions(
     { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', effort: 'turbo' },
     false,
   );
@@ -77,7 +77,7 @@ test('it leaves out an effort the SDK does not accept', () => {
 });
 
 test('it starts the CLI with the settings file a turn carries', () => {
-  const options = buildHeadlessQueryOptions(
+  const options = buildClaudeQueryOptions(
     { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', settings: '/state/settings-zai.json' },
     false,
   );
@@ -86,7 +86,7 @@ test('it starts the CLI with the settings file a turn carries', () => {
 });
 
 test('it passes no extra CLI arguments for a turn without a settings file', () => {
-  const options = buildHeadlessQueryOptions(
+  const options = buildClaudeQueryOptions(
     { claudeBin: 'claude', cwd: '/tmp', prompt: 'go' },
     false,
   );
@@ -95,7 +95,7 @@ test('it passes no extra CLI arguments for a turn without a settings file', () =
 });
 
 test('it runs a compiled binary turn under the claude binary it is given', () => {
-  const options = buildHeadlessQueryOptions(
+  const options = buildClaudeQueryOptions(
     { claudeBin: '/opt/claude/bin/claude', cwd: '/tmp', prompt: 'go' },
     true,
   );

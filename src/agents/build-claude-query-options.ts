@@ -1,21 +1,27 @@
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentSessionID } from '../shared/agent-session-id';
 import { socketPath } from '../shared/config';
-import type { SessionID } from '../shared/session-id';
+import type { HeadlessRunRequest } from './agent-adapter';
 import { buildHeadlessEnv } from './build-headless-env';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
-export interface HeadlessRunOptions {
+/**
+ * One headless turn as the Claude CLI runs it: the neutral turn request plus
+ * the binary, permission mode, mod folder, and settings file the Claude and
+ * gateway adapters supply.
+ */
+export interface ClaudeHeadlessRunRequest extends HeadlessRunRequest {
+  // The Claude Code binary a compiled atc hands the Agent SDK.
   readonly claudeBin: string;
-  readonly cwd: string;
-  readonly prompt: string;
-  readonly resume?: AgentSessionID;
+
+  // An SDK permission mode; any other value leaves the SDK's default.
   readonly permissionMode?: string;
+
+  // Settings file the run's CLI is started with, so a headless turn reaches
+  // the same backend the session's terminal did.
   readonly settings?: string;
-  readonly sessionID?: SessionID;
+
+  // Folder of the atc-bridge mod the run's CLI loads.
   readonly pluginDir?: string;
-  readonly model?: string;
-  readonly effort?: string;
 }
 
 const PERMISSION_MODES = [
@@ -35,7 +41,10 @@ const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
  * controller and stderr sink the live run owns. A permission mode or effort
  * the SDK does not accept is left out, so the SDK applies its own default.
  */
-export function buildHeadlessQueryOptions(opts: HeadlessRunOptions, compiled: boolean): Options {
+export function buildClaudeQueryOptions(
+  opts: ClaudeHeadlessRunRequest,
+  compiled: boolean,
+): Options {
   const mode = PERMISSION_MODES.find((m) => m === opts.permissionMode);
   const effort = EFFORT_LEVELS.find((level) => level === opts.effort);
 

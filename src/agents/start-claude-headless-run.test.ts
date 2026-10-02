@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { renderSdkMessage } from './start-headless-run';
+import { renderSdkMessage } from './start-claude-headless-run';
 
 test('it renders assistant text verbatim with pty line endings', () => {
   const rendered = renderSdkMessage({

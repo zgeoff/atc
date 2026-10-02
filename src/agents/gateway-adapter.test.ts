@@ -90,7 +90,7 @@ test('it takes inbox messages', () => {
   expect(adapter.takesMessages).toBe(true);
 });
 
-test('it hands a headless run the settings file and the folder of the atc-bridge mod', () => {
+test("it runs a headless turn through the gateway's binary and settings file under the auto permission mode with the atc-bridge mod", () => {
   using tmp = setupTempDir('atc-gateway-bridge-');
 
   let received: Readonly<Record<string, unknown>> = {};
@@ -100,7 +100,7 @@ test('it hands a headless run the settings file and the folder of the atc-bridge
       id: 'zai',
       label: 'GLM (z.ai)',
       mark: 'z',
-      bin: 'claude',
+      bin: '/opt/zai/bin/claude',
       args: [],
       baseURL: 'https://api.z.ai/api/anthropic',
       env: {},
@@ -135,9 +135,13 @@ test('it hands a headless run the settings file and the folder of the atc-bridge
     { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
   );
 
-  expect(received).toMatchObject({
+  expect(received).toStrictEqual({
+    cwd: '/tmp',
+    prompt: 'go',
+    claudeBin: '/opt/zai/bin/claude',
+    permissionMode: 'auto',
+    pluginDir: join(tmp.dir, 'atc-bridge'),
     settings: expect.toEndWith('.json'),
-    pluginDir: expect.toEndWith('atc-bridge'),
   });
 });
 
