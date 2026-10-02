@@ -46,7 +46,22 @@ async function setupTest() {
   };
 }
 
-test('it verifies, refreshes, and revokes a grant over the socket', async () => {
+test('it creates a grant that lasts an hour', async () => {
+  await using ctx = await setupTest();
+
+  const created = await ctx.client.sendRequest('grant.create', {
+    clientID: 'c1',
+    clientName: 'dots',
+    scopes: ['read', 'message'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+  });
+
+  expect(created).toStrictEqual({ grant: expect.stringMatching(/^g-/), expiresIn: 3600 });
+});
+
+test('it verifies an access token as its grant with the scopes granted', async () => {
   await using ctx = await setupTest();
 
   const created = await ctx.client.sendRequest('grant.create', {
@@ -63,6 +78,25 @@ test('it verifies, refreshes, and revokes a grant over the socket', async () => 
     resource: 'https://atc.example/mcp',
   });
 
+  expect(verified).toStrictEqual({
+    grant: created['grant'],
+    clientName: 'dots',
+    scopes: ['read', 'message'],
+  });
+});
+
+test('it refreshes a grant for the client it was issued to', async () => {
+  await using ctx = await setupTest();
+
+  const created = await ctx.client.sendRequest('grant.create', {
+    clientID: 'c1',
+    clientName: 'dots',
+    scopes: ['read', 'message'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+  });
+
   const refreshed = await ctx.client.sendRequest('grant.refresh', {
     refreshHash: 'r1',
     accessHash: 'a2',
@@ -71,27 +105,32 @@ test('it verifies, refreshes, and revokes a grant over the socket', async () => 
     resource: 'https://atc.example/mcp',
   });
 
-  const revoked = await ctx.client.sendRequest('grant.revoke', { grant: created['grant'] });
-
-  expect(created).toStrictEqual({ grant: expect.stringMatching(/^g-/), expiresIn: 3600 });
-
-  expect(verified).toStrictEqual({
-    grant: created['grant'],
-    clientName: 'dots',
-    scopes: ['read', 'message'],
-  });
-
   expect(refreshed).toStrictEqual({
     grant: created['grant'],
     scopes: ['read', 'message'],
     expiresIn: 3600,
   });
+});
+
+test('it stops verifying an access token once its grant is revoked', async () => {
+  await using ctx = await setupTest();
+
+  const created = await ctx.client.sendRequest('grant.create', {
+    clientID: 'c1',
+    clientName: 'dots',
+    scopes: ['read', 'message'],
+    resource: 'https://atc.example/mcp',
+    accessHash: 'a1',
+    refreshHash: 'r1',
+  });
+
+  const revoked = await ctx.client.sendRequest('grant.revoke', { grant: created['grant'] });
 
   expect(revoked).toStrictEqual({});
 
   expect(
     ctx.client.sendRequest('grant.verify', {
-      accessHash: 'a2',
+      accessHash: 'a1',
       resource: 'https://atc.example/mcp',
     }),
   ).rejects.toMatchObject({ code: 'unauthorized' });
