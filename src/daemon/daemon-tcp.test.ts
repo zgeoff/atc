@@ -18,6 +18,7 @@ interface TCPDaemonOptions {
   readonly tokens: string;
   readonly principals: ReadonlyMap<string, readonly string[]> | null;
   readonly failureDelayMs?: number;
+  readonly maxDelayedHandshakes?: number;
 }
 
 /**
@@ -58,6 +59,9 @@ async function setupTest(options: TCPDaemonOptions) {
       port: 0,
       tokenFile,
       ...(options.failureDelayMs === undefined ? {} : { failureDelayMs: options.failureDelayMs }),
+      ...(options.maxDelayedHandshakes === undefined
+        ? {}
+        : { maxDelayedHandshakes: options.maxDelayedHandshakes }),
     },
     log: (line) => {
       logged.push(line);
@@ -705,3 +709,120 @@ test('it keeps answering local pings while a TCP peer floods handshakes during t
 
   expect(Math.max(...latencies)).toBeLessThan(500);
 });
+
+test('it refuses at once a handshake that would wait while the cap of delayed handshakes is full', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map(),
+    failureDelayMs: 1500,
+    maxDelayedHandshakes: 3,
+  });
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const failing = await daemon.openTCP();
+
+    expect(failing.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
+      code: 'unauthorized',
+    });
+  }
+
+  const waiting = await Promise.all([daemon.openTCP(), daemon.openTCP(), daemon.openTCP()]);
+
+  const held = waiting.map((client) => client.sendHello('atc/test-gateway', TOKEN_A));
+
+  const over = await daemon.openTCP();
+
+  const started = Date.now();
+  const refused = over.sendHello('atc/test-gateway', TOKEN_A);
+
+  expect(refused).rejects.toMatchObject({ code: 'unauthorized' });
+
+  await Promise.allSettled([refused]);
+
+  expect(Date.now() - started).toBeLessThan(500);
+
+  const answers = await Promise.all(held);
+
+  expect(answers).toHaveLength(3);
+});
+
+test('it ends a delayed handshake once its socket closes and frees its place in the cap', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map(),
+    failureDelayMs: 1500,
+    maxDelayedHandshakes: 2,
+  });
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const failing = await daemon.openTCP();
+
+    expect(failing.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
+      code: 'unauthorized',
+    });
+  }
+
+  const abandoned = await Promise.all([daemon.openTCP(), daemon.openTCP()]);
+
+  const abandonedHellos = Promise.allSettled(
+    abandoned.map((client) => client.sendHello('atc/test-gateway', TOKEN_A)),
+  );
+
+  // Lets the daemon read both handshakes before the sockets close.
+  await Bun.sleep(100);
+
+  for (const client of abandoned) {
+    client.stop();
+  }
+
+  await Bun.sleep(100);
+
+  const client = await daemon.openTCP();
+
+  const started = Date.now();
+
+  await client.sendHello('atc/test-gateway', TOKEN_A);
+
+  expect(Date.now() - started).toBeWithin(1400, 5000);
+
+  await abandonedHellos;
+});
+
+test('it keeps answering local pings while many TCP sockets each send a handshake during the delay', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map(),
+    failureDelayMs: 1500,
+  });
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const failing = await daemon.openTCP();
+
+    expect(failing.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
+      code: 'unauthorized',
+    });
+  }
+
+  const flood = await Promise.all(Array.from({ length: 300 }, () => daemon.openTCP()));
+
+  const floodHellos = Promise.allSettled(
+    flood.map((client) => client.sendHello('atc/test-gateway', TOKEN_B)),
+  );
+
+  const latencies: number[] = [];
+  const until = Date.now() + 2000;
+
+  while (Date.now() < until) {
+    const sent = Date.now();
+
+    await daemon.owner.sendRequest('daemon.ping', {});
+
+    latencies.push(Date.now() - sent);
+
+    await Bun.sleep(50);
+  }
+
+  await floodHellos;
+
+  expect(Math.max(...latencies)).toBeLessThan(500);
+}, 20_000);

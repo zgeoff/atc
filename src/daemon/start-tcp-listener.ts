@@ -17,6 +17,9 @@ interface TCPListenerOptions {
   // How long a handshake waits once its address has failed too often.
   readonly failureDelayMs: number;
 
+  // How many delayed handshakes may wait at once across every address.
+  readonly maxDelayedHandshakes: number;
+
   // Builds the protocol connection for a newly accepted socket, and
   // releases it once the socket closes.
   readonly openConnection: (socket: ListenerSocket, peer: TCPPeer) => DaemonConnection;
@@ -41,7 +44,10 @@ export interface TCPListener {
  * Starts the TCP listener for the client protocol. Every connection must
  * open with a `daemon.hello` that carries a bearer token from the token
  * file, and acts only as the principals its requests give, never as the
- * daemon's owner.
+ * daemon's owner. A delayed handshake ends early, refused, once its socket
+ * closes, and a handshake that would wait while the cap of delayed
+ * handshakes is full is refused at once and counted as a failure, so a
+ * flood across many sockets holds at most the cap of waits.
  */
 export function startTCPListener(opts: TCPListenerOptions): TCPListener {
   let tokens: readonly string[] | null = opts.tokens;
@@ -49,19 +55,49 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
   const throttle = new HandshakeThrottle(opts.failureDelayMs);
   const connections = new Set<DaemonConnection>();
 
+  let delayed = 0;
+
+  // Ends the delayed handshake of each open socket once it closes.
+  const closedSockets = new WeakMap<object, (value: 'closed') => void>();
+
   const server = Bun.listen<DaemonConnection>({
     hostname: opts.host,
     port: opts.port,
     socket: {
       open(socket) {
         const address = socket.remoteAddress;
+        const closed = Promise.withResolvers<'closed'>();
+
+        closedSockets.set(socket, closed.resolve);
 
         const peer: TCPPeer = {
           verifyHandshake: async (presented) => {
             const delay = throttle.getDelay(address, Date.now());
 
+            if (delay > 0 && delayed >= opts.maxDelayedHandshakes) {
+              throttle.recordFailure(address, Date.now());
+
+              return null;
+            }
+
             if (delay > 0) {
-              await Bun.sleep(delay);
+              delayed++;
+
+              const elapsed = Promise.withResolvers<'elapsed'>();
+
+              const timer = setTimeout(() => {
+                elapsed.resolve('elapsed');
+              }, delay);
+
+              const waited = await Promise.race([elapsed.promise, closed.promise]);
+
+              clearTimeout(timer);
+
+              delayed--;
+
+              if (waited === 'closed') {
+                return null;
+              }
             }
 
             const fingerprint =
@@ -91,6 +127,8 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
         socket.data.drain();
       },
       close(socket) {
+        closedSockets.get(socket)?.('closed');
+        closedSockets.delete(socket);
         connections.delete(socket.data);
         opts.closeConnection(socket.data);
       },
