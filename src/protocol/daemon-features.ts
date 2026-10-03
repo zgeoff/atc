@@ -53,6 +53,9 @@ export const DAEMON_FEATURES = [
 
   // `session.submit` exists.
   'session.submit',
+
+  // `report.get` exists.
+  'report.get',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

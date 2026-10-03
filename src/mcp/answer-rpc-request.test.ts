@@ -130,7 +130,7 @@ test('it lists every tool to a caller with one scope', async () => {
 
   expect(outcome).toMatchObject({
     kind: 'reply',
-    body: { result: { tools: expect.toBeArrayOfSize(15) } },
+    body: { result: { tools: expect.toBeArrayOfSize(16) } },
   });
 });
 

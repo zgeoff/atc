@@ -216,6 +216,12 @@ export const REQUEST_PARAM_SCHEMAS = {
       waitMs: buildDefaultedWait(),
     })
     .refine((v) => v.message !== '', { message: 'message.get requires a message' }),
+  'report.get': z
+    .object({
+      // The cursor events.read returned with the report's event.
+      report: buildDefaultedString(''),
+    })
+    .refine((v) => v.report !== '', { message: 'report.get requires a report' }),
   'message.ack': SESSION_DEFAULTED.extend({
     message: buildDefaultedString('').transform(toMessageID),
   }).refine((v) => v.message !== '', { message: 'message.ack requires a message' }),

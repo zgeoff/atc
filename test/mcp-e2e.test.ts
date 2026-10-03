@@ -55,6 +55,7 @@ function setupMCP(options: MCPOptions = {}): MCPContext {
 echo "FAKE_CLAUDE_UP args: $@"
 if [ -f "$HOME/fake-claude-hold-start" ]; then sleep 30; exit 0; fi
 printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | ${hookReport}
+if [ -f "$HOME/fake-claude-note" ]; then "${process.execPath}" "${join(repo, 'src', 'cli.ts')}" report note --label decision < "$HOME/fake-claude-note"; fi
 sleep 30
 `,
     { mode: 0o755 },
@@ -235,6 +236,7 @@ test('it initializes and lists the fleet tools', async () => {
     'atc_session_get',
     'atc_session_read',
     'atc_events_read',
+    'atc_report_get',
     'atc_session_message',
     'atc_message_get',
   ]);
@@ -784,6 +786,84 @@ test('it reads fleet events through a tool call', async () => {
     }
 
     expect(parsed['events']).toPartiallyContain({ kind: 'started', session });
+  });
+});
+
+test('it reads the whole text of a report its event previews through a tool call', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'atc-mcp-'));
+
+  writeFileSync(join(home, 'fake-claude-note'), `${'option '.repeat(150)}end`);
+
+  const ctx = setupMCP({ home });
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home } },
+  });
+
+  await ctx.waitForResponse(2);
+
+  let rpcID = 3;
+
+  const event = await waitFor(async () => {
+    const id = rpcID++;
+
+    ctx.sendRPC({
+      jsonrpc: '2.0',
+      id,
+      method: 'tools/call',
+      params: { name: 'atc_events_read', arguments: {} },
+    });
+
+    const response = await ctx.waitForResponse(id);
+
+    const parsed: unknown = JSON.parse(getText(getResult(response)));
+
+    if (!isRecord(parsed) || !Array.isArray(parsed['events'])) {
+      throw new TypeError('events answer has no events');
+    }
+
+    const found: unknown = parsed['events'].find(
+      (candidate: unknown) => isRecord(candidate) && candidate['kind'] === 'report',
+    );
+
+    if (!isRecord(found)) {
+      throw new TypeError('no report event yet');
+    }
+
+    return found;
+  });
+
+  const readID = rpcID++;
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: readID,
+    method: 'tools/call',
+    params: { name: 'atc_report_get', arguments: { report: event['cursor'] } },
+  });
+
+  const readResponse = await ctx.waitForResponse(readID);
+
+  const read = getResult(readResponse);
+
+  expect({ preview: event['detail'], report: read['structuredContent'] }).toStrictEqual({
+    preview: `${'option '.repeat(150).slice(0, 599)}…`,
+    report: {
+      report: event['cursor'],
+      at: event['at'],
+      session: event['session'],
+      name: event['name'],
+      label: 'decision',
+      text: `${'option '.repeat(150)}end`,
+      complete: true,
+    },
   });
 });
 

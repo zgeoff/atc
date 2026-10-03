@@ -48,6 +48,10 @@ interface EventsTable {
   // The id a remote session's reporter gave a report row, unique so a
   // resent report lands once; null on every other row.
   report_id: string | null;
+
+  // A report row's whole text, which detail previews; null on every other
+  // row, and on a report row written before the column existed.
+  report_text: string | null;
 }
 
 interface SpawnHistoryTable {
@@ -435,6 +439,11 @@ const MIGRATIONS: Record<string, Migration> = {
         .on('events')
         .column('report_id')
         .execute();
+    },
+  },
+  '023_add_events_report_text': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('events').addColumn('report_text', 'text').execute();
     },
   },
 };

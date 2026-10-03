@@ -221,6 +221,12 @@ id and `answeredWith`. Pass `waitMs` to `atc_message_get` and `atc_events_read` 
 in a tight loop: each holds the request for up to 30 seconds, under the server's 60-second idle
 limit.
 
+A report event from `atc_events_read` holds a 600-character preview of the report's text.
+`atc_report_get` takes the cursor of that event and returns the whole text, up to 64 KiB, without
+messaging the session that sent it. It needs only `read`, and it reaches only the sessions
+`atc_events_read` does. Against a daemon that does not announce `report.get`, the server leaves the
+tool out of `tools/list` and refuses a call with `daemon_outdated`, sending the daemon nothing.
+
 ## Request checks
 
 - Host. Every request must carry a `Host` header of the public origin's host, `127.0.0.1:<port>`,

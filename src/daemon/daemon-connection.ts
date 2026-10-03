@@ -28,6 +28,7 @@ import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
 import { buildPayloadHash } from './build-payload-hash';
+import type { ReportView } from './build-report-view';
 import { buildScopedContext } from './build-scoped-context';
 import type { TargetEntry } from './build-target-list';
 import type { KeyedRequest } from './idempotency-ledger';
@@ -188,6 +189,11 @@ export interface DaemonContext {
     sessionID: SessionID | null,
     access: TargetAccess | null,
   ) => Promise<EventsPage>;
+
+  // One report by the trail id of its event, or null for a trail id that
+  // holds no report, or whose report's session is outside the access when
+  // there is one.
+  readonly readReport: (id: number, access: TargetAccess | null) => Promise<ReportView | null>;
 
   // Answers with the `session.message` ok payload, which a keyed retry
   // replays with the message's current status, or with the refusal.
@@ -799,6 +805,11 @@ export class DaemonConnection {
 
         return;
       }
+      case 'report.get': {
+        await this.applyReportGet(req, ctx);
+
+        return;
+      }
       default: {
         this.sendErr(req.id, 'unknown_method', `unknown method '${req.m}'`);
       }
@@ -1148,6 +1159,32 @@ export class DaemonConnection {
       cursor: last === undefined ? encodeCursor({ kind: 'events', id: afterID ?? 0 }) : last.cursor,
       more: page.more,
     });
+  }
+
+  // A cursor that is not an events cursor, one at a row that holds no
+  // report, and one at a report outside the access all get one refusal, so
+  // the refusal never tells a report out of reach from a missing one.
+  private async applyReportGet(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('report.get', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const decoded = decodeCursor(parsed.data.report);
+
+    const view =
+      decoded === null || decoded.kind !== 'events' ? null : await ctx.readReport(decoded.id, null);
+
+    if (view === null) {
+      this.sendErr(req.id, 'bad_args', `no report '${parsed.data.report}'`);
+
+      return;
+    }
+
+    this.sendOk(req.id, { ...view });
   }
 
   private async applySessionMessage(req: RequestMsg, ctx: DaemonContext): Promise<void> {

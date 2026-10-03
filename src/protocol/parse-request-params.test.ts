@@ -31,6 +31,7 @@ test.each([
   ['session.detach', { session: 's1' }, { session: toSessionID('s1') }],
   ['session.input', { session: 's1', d: 'x' }, { session: toSessionID('s1'), d: 'x' }],
   ['session.submit', { session: 's1', text: 'x' }, { session: toSessionID('s1'), text: 'x' }],
+  ['report.get', { report: 'r1' }, { report: 'r1' }],
   [
     'session.resize',
     { session: 's1', cols: 100, rows: 30 },
@@ -282,6 +283,12 @@ test('it rejects message.get without a message', () => {
   const parsed = parseRequestParams('message.get', {});
 
   expect(parsed).toStrictEqual({ ok: false, message: 'message.get requires a message' });
+});
+
+test('it rejects report.get without a report', () => {
+  const parsed = parseRequestParams('report.get', {});
+
+  expect(parsed).toStrictEqual({ ok: false, message: 'report.get requires a report' });
 });
 
 test('it parses message.get with a message id', () => {

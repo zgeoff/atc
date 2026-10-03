@@ -56,8 +56,8 @@ beside its schema:
   the scopes a client's grant holds, as [Remote MCP](./remote-mcp.md) describes.
 
 Every tool result holds its output as text. A result that is data also holds it as
-`structuredContent`, an object, and the message and event tools declare an `outputSchema` for it. A
-tool whose data is a list keeps the bare list as its text and wraps it in an object for
+`structuredContent`, an object, and the message, event, and report tools declare an `outputSchema`
+for it. A tool whose data is a list keeps the bare list as its text and wraps it in an object for
 `structuredContent`, so older clients read the same text.
 
 The server returns the client's requested protocol version from `initialize` when it supports it

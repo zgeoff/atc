@@ -64,6 +64,23 @@ export interface StoredEvent {
 }
 
 /**
+ * One report as the trail holds it. A report recorded before the trail kept
+ * whole texts has only its preview, so its text is that preview and
+ * `complete` is false.
+ */
+export interface StoredReport {
+  readonly id: number;
+
+  // Epoch ms the report arrived.
+  readonly at: number;
+  readonly atcID: SessionID;
+  readonly agentSessionID: AgentSessionID | null;
+  readonly label: string;
+  readonly text: string;
+  readonly complete: boolean;
+}
+
+/**
  * Daemon state in one SQLite store: the restorable fleet, the event trail
  * (hook events, message status changes, and reports) that events.read and
  * lastActivityAt read, the spawn-directory
@@ -347,6 +364,7 @@ export class StateStore {
         kind: entry.kind,
         detail: entry.detail,
         report_id: entry.kind === 'report' ? (entry.reportID ?? null) : null,
+        report_text: entry.kind === 'report' ? entry.text : null,
       })
       .onConflict((oc) => oc.column('report_id').doNothing())
       .executeTakeFirst();
@@ -370,6 +388,32 @@ export class StateStore {
       .execute();
 
     return buildStoredEvents(rows);
+  }
+
+  // A row that is not a report, or that lies outside the scope, misses as a
+  // row the trail never held does.
+  async findReport(id: number, scope: EventScope | null = null): Promise<StoredReport | null> {
+    const row = await this.db
+      .selectFrom('events')
+      .select(['id', 'ts', 'atc_id', 'session_id', 'message', 'detail', 'report_text'])
+      .where('id', '=', id)
+      .where('kind', '=', 'report')
+      .where((eb) => buildScopeMatch(eb, scope))
+      .executeTakeFirst();
+
+    if (row === undefined) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      at: Date.parse(row.ts),
+      atcID: toSessionID(row.atc_id),
+      agentSessionID: row.session_id === null ? null : toAgentSessionID(row.session_id),
+      label: row.message ?? '',
+      text: row.report_text ?? row.detail ?? '',
+      complete: row.report_text !== null,
+    };
   }
 
   async collectLatestEvents(
