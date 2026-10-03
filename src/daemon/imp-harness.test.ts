@@ -814,3 +814,88 @@ test('it refuses a harness that requires the broker once its feature reads keep 
     exits: [{ exitCode: 1, reason: 'ended', detail: 'imp unreachable' }],
   });
 });
+
+test('it refuses a harness whose admission check throws as its connection opens, sending no exec', async () => {
+  using fixture = await setupTest();
+
+  await fixture.port.createImp({ name: 'imp-b' });
+
+  const harness = new ImpHarness(
+    fixture.port,
+    {
+      kind: 'start',
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+      admit: (_kind, send) => {
+        send({
+          check: () => {
+            throw new Error('the binder broke');
+          },
+          release: () => {},
+        });
+
+        return Promise.resolve();
+      },
+    },
+  );
+
+  const started = harness.waitForStart();
+
+  expect(started).rejects.toMatchObject({ code: 'internal' });
+
+  await started.catch(() => null);
+
+  expect(fixture.port.sessionRequests.filter((request) => request.name === 'imp-b')).toStrictEqual(
+    [],
+  );
+});
+
+test('it sends the start of a harness whose admission check passes as its connection opens', async () => {
+  using fixture = await setupTest();
+
+  await fixture.port.createImp({ name: 'imp-b' });
+
+  const harness = new ImpHarness(
+    fixture.port,
+    {
+      kind: 'start',
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+      admit: (_kind, send) => {
+        send({ check: () => null, release: () => {} });
+
+        return Promise.resolve();
+      },
+    },
+  );
+
+  await harness.waitForStart().catch(() => null);
+
+  expect(fixture.port.sessionRequests.filter((request) => request.name === 'imp-b')).toMatchObject([
+    { kind: 'start', name: 'imp-b' },
+  ]);
+});

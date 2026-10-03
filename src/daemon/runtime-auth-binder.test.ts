@@ -2,8 +2,10 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { waitFor } from '../../test/wait-for';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { ImpHarness } from './imp-harness';
 import { ImpProvider } from './imp-provider';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 
@@ -1593,4 +1595,143 @@ test('it refuses a start planned under another binding hash than the ready one',
   await admitted.catch(() => null);
 
   expect(sent).toStrictEqual([]);
+});
+
+test('it holds a launch admission while its connection opens and returns it once the request goes out', async () => {
+  await using auth = await setupTest();
+
+  const attemptID = await auth.binder.createBinding(auth.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: {
+      agent: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      placeholderEnv: {},
+      hash: 'h1',
+    },
+  });
+
+  await auth.binder.updateReady(toSessionID('s1'), attemptID);
+  await auth.port.createImp({ name: 'imp-x' });
+
+  auth.port.startUpgradeHold();
+
+  const harness = new ImpHarness(
+    auth.port,
+    {
+      kind: 'start',
+      name: 'imp-x',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [],
+      isSuspending: () => false,
+      onDone: () => {},
+      admit: (kind, send) =>
+        auth.binder.withLaunchAdmission(
+          toSessionID('s1'),
+          { revision: 1, hash: 'h1', attemptID: null },
+          kind,
+          send,
+        ),
+    },
+  );
+
+  await waitFor(() => {
+    expect(auth.port.countHeldUpgrades()).toBe(1);
+  });
+
+  const held = auth.binder.countPendingAdmissions(toSessionID('s1'));
+
+  auth.port.stopUpgradeHold();
+
+  await harness.waitForStart().catch(() => null);
+
+  expect([held, auth.binder.countPendingAdmissions(toSessionID('s1'))]).toStrictEqual([1, 0]);
+});
+
+test('it returns the launch admission of each connection that fails before it opens', async () => {
+  await using auth = await setupTest();
+
+  const attemptID = await auth.binder.createBinding(auth.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: {
+      agent: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      placeholderEnv: {},
+      hash: 'h1',
+    },
+  });
+
+  await auth.binder.updateReady(toSessionID('s1'), attemptID);
+  await auth.port.createImp({ name: 'imp-x' });
+
+  auth.port.setUpgradeFailures(6);
+
+  const pending: number[] = [];
+
+  for (const session of ['s2', 's3', 's4']) {
+    const harness = new ImpHarness(
+      auth.port,
+      {
+        kind: 'start',
+        name: 'imp-x',
+        session,
+        argv: ['sleep', '30'],
+        env: {},
+        cwd: '/tmp',
+        cols: 80,
+        rows: 24,
+        require: ['broker'],
+      },
+      {
+        offsets: true,
+        reconnectDelaysMs: [0],
+        isSuspending: () => false,
+        onDone: () => {},
+        admit: (kind, send) =>
+          auth.binder.withLaunchAdmission(
+            toSessionID('s1'),
+            { revision: 1, hash: 'h1', attemptID: null },
+            kind,
+            send,
+          ),
+      },
+    );
+
+    await harness.waitForStart().catch(() => null);
+
+    pending.push(auth.binder.countPendingAdmissions(toSessionID('s1')));
+  }
+
+  expect({ pending, requests: auth.port.sessionRequests }).toStrictEqual({
+    pending: [0, 0, 0],
+    requests: [],
+  });
 });

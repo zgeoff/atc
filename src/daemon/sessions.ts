@@ -278,6 +278,11 @@ export class SessionManager {
   // of the same session does not start a second harness.
   private readonly adopting = new Set<SessionID>();
 
+  // The launches readying each host, by host key. A launch counts from its
+  // setup until its harness spawns, which follows the setup with no wait,
+  // so a host with a launch in flight is never idle.
+  private readonly readying = new Map<SessionID, number>();
+
   // Sessions dropped from the list on purpose whose rows the next fleet
   // write deletes; each stays here until a write carrying it lands.
   private readonly removedIDs = new Set<SessionID>();
@@ -1036,21 +1041,31 @@ export class SessionManager {
     try {
       await pty.waitForStart?.();
     } catch (error) {
-      const isHostIdle = !this.sessions.some(
-        (other) => other.hostKey === s.hostKey && other.target === s.target && other.pty !== null,
-      );
-
-      if (isHostIdle && provider.capabilities.suspend) {
-        await this.trySuspendIdleHost(provider, s.hostKey);
+      if (this.isHostIdle(s.hostKey, s.target) && provider.capabilities.suspend) {
+        await this.trySuspendIdleHost(provider, s.hostKey, s.target);
       }
 
       throw error;
     }
   }
 
-  private async trySuspendIdleHost(provider: ExecutionProvider, hostKey: SessionID): Promise<void> {
+  // Whether no harness runs on a host and no launch is readying it.
+  private isHostIdle(hostKey: SessionID, target: string): boolean {
+    return (
+      !this.readying.has(hostKey) &&
+      !this.sessions.some(
+        (other) => other.hostKey === hostKey && other.target === target && other.pty !== null,
+      )
+    );
+  }
+
+  private async trySuspendIdleHost(
+    provider: ExecutionProvider,
+    hostKey: SessionID,
+    target: string,
+  ): Promise<void> {
     try {
-      await provider.suspendHost(hostKey);
+      await provider.suspendHost(hostKey, () => this.isHostIdle(hostKey, target));
     } catch (error) {
       this.log(
         `atc could not put the host of session ${hostKey} back to sleep after a refused start (${error instanceof Error ? error.message : String(error)})`,
@@ -1099,6 +1114,30 @@ export class SessionManager {
     options: SpawnOptions,
     auth: HarnessAuthSetup | null,
   ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
+    this.readying.set(hostKey, (this.readying.get(hostKey) ?? 0) + 1);
+
+    try {
+      return await this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth);
+    } finally {
+      const left = (this.readying.get(hostKey) ?? 1) - 1;
+
+      if (left === 0) {
+        this.readying.delete(hostKey);
+      } else {
+        this.readying.set(hostKey, left);
+      }
+    }
+  }
+
+  private async setupHarnessOnHost(
+    adapter: AgentAdapter,
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    options: SpawnOptions,
+    auth: HarnessAuthSetup | null,
+  ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
     const refusal = adapter.findSpawnRefusal?.() ?? null;
 
     if (refusal !== null) {
@@ -1110,7 +1149,11 @@ export class SessionManager {
     }
 
     if (!provider.remote) {
-      await provider.prepareHost({ host: hostKey, daemonID: this.store.daemonID });
+      await provider.prepareHost({
+        host: hostKey,
+        daemonID: this.store.daemonID,
+        isIdle: () => this.isHostIdle(hostKey, target),
+      });
 
       return {
         plan: { ...adapter.planSpawn(options), env: {}, admission: null },
@@ -1256,6 +1299,7 @@ export class SessionManager {
       host: hostKey,
       daemonID: this.store.daemonID,
       installATC: adapter.planGuestSpawn !== undefined,
+      isIdle: () => this.isHostIdle(hostKey, target),
     });
 
     const check = adapter.planAuthCheck?.();

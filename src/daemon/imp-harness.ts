@@ -1,6 +1,11 @@
 import { DaemonError } from '../protocol/daemon-error';
 import { isRecord } from '../shared/report';
-import type { HarnessAttachment, HarnessExit, HarnessHandle } from './execution-provider';
+import type {
+  HarnessAttachment,
+  HarnessExit,
+  HarnessHandle,
+  LaunchTicket,
+} from './execution-provider';
 import type {
   ImpExecRequirement,
   ImpPort,
@@ -32,12 +37,12 @@ interface ImpHarnessHost {
   readonly ready?: Promise<void>;
 
   // Admits each request that has requirements by calling send, or rejects
-  // with the refusal that ends the harness, sending nothing. The gate send
-  // gets runs just before the request goes out, and a refusal from it
-  // ends the harness with nothing sent.
+  // with the refusal that ends the harness, sending nothing. The ticket
+  // send gets is checked just before the request goes out, and a refusal
+  // from it ends the harness with nothing sent.
   readonly admit?: (
     kind: 'start' | 'attach',
-    send: (gate: () => DaemonError | null) => void,
+    send: (ticket: LaunchTicket) => void,
   ) => Promise<void>;
 }
 
@@ -76,6 +81,9 @@ export class ImpHarness implements HarnessHandle {
   private readonly start: ImpSessionRequest;
 
   private startSent = false;
+
+  // The admission of the open connection's request, while it has one.
+  private connectionTicket: LaunchTicket | null = null;
 
   private readonly dataListeners = new Set<(data: string) => void>();
 
@@ -347,9 +355,11 @@ export class ImpHarness implements HarnessHandle {
     }
 
     try {
-      await admit(request.kind, (gate) => {
-        if (!this.done && !this.host.isSuspending()) {
-          this.openConnection(request, () => this.checkGate(gate));
+      await admit(request.kind, (ticket) => {
+        if (this.done || this.host.isSuspending()) {
+          ticket.release();
+        } else {
+          this.openConnection(request, ticket);
         }
       });
     } catch (error) {
@@ -360,12 +370,26 @@ export class ImpHarness implements HarnessHandle {
   }
 
   // Whether an admitted request may still go out as its connection opens.
-  // A refusal there closes the connection unsent and ends the harness
-  // with it, once the port has returned to the caller.
-  private checkGate(gate: () => DaemonError | null): boolean {
-    const refusal = gate();
+  // A refusal there, or a check that throws, closes the connection unsent
+  // and ends the harness with it, once the port has returned to the
+  // caller. Only a start that passes counts as sent.
+  private checkTicket(ticket: LaunchTicket, kind: ImpSessionRequest['kind']): boolean {
+    let refusal: DaemonError | null;
+
+    try {
+      refusal = ticket.check();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+
+      refusal = new DaemonError(
+        'internal',
+        `imp ${this.name}'s harness could not check its admission: ${detail}`,
+      );
+    }
 
     if (refusal === null) {
+      this.startSent ||= kind === 'start';
+
       return true;
     }
 
@@ -393,7 +417,12 @@ export class ImpHarness implements HarnessHandle {
     this.emitExit({ exitCode: 1, reason: 'ended', detail: `launch refused (${detail})` });
   }
 
-  private openConnection(request: ImpSessionRequest, gate?: () => boolean): void {
+  // A request without a ticket counts as sent once the port has it; one
+  // with a ticket only once its check passes, and the ticket goes back
+  // whenever the connection ends or the harness lets go of it.
+  private openConnection(request: ImpSessionRequest, ticket?: LaunchTicket): void {
+    const gate = ticket === undefined ? undefined : () => this.checkTicket(ticket, request.kind);
+
     const connection = this.port.openSession(
       request,
       {
@@ -412,10 +441,11 @@ export class ImpHarness implements HarnessHandle {
     );
 
     this.connection = connection;
+    this.connectionTicket = ticket ?? null;
     this.started = false;
-    this.startSent ||= request.kind === 'start';
+    this.startSent ||= ticket === undefined && request.kind === 'start';
     this.requestedSize = { cols: request.cols, rows: request.rows };
-    void this.waitForOutcome(connection);
+    void this.waitForOutcome(connection, ticket ?? null);
   }
 
   private applyStarted(connection: ImpSessionConnection, started: ImpSessionStarted): void {
@@ -505,8 +535,13 @@ export class ImpHarness implements HarnessHandle {
     }
   }
 
-  private async waitForOutcome(connection: ImpSessionConnection): Promise<void> {
+  private async waitForOutcome(
+    connection: ImpSessionConnection,
+    ticket: LaunchTicket | null,
+  ): Promise<void> {
     const outcome = await connection.outcome;
+
+    ticket?.release();
 
     if (this.connection !== connection || this.done || this.host.isSuspending()) {
       return;
@@ -792,6 +827,8 @@ export class ImpHarness implements HarnessHandle {
 
     this.done = true;
     this.connection = null;
+    this.connectionTicket?.release();
+    this.connectionTicket = null;
     this.exitConfirmed ??= false;
 
     this.updateStartOutcome(

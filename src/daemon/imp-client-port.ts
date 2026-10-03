@@ -489,8 +489,8 @@ function openRelay(accept: RelayAccept): ImpRelayConnection {
 }
 
 // The client sends its request from the socket's open listener. The gate
-// listens first, so a closed gate stops that listener and closes the
-// socket before anything goes out.
+// listens first, so a closed gate, or one that throws, stops that
+// listener and closes the socket before anything goes out.
 function openGatedSocket(
   url: string,
   headers: Readonly<Record<string, string>>,
@@ -500,7 +500,7 @@ function openGatedSocket(
 
   if (gate !== undefined) {
     socket.addEventListener('open', (event) => {
-      if (!gate()) {
+      if (!tryPassGate(gate)) {
         event.stopImmediatePropagation();
         socket.close(1000, 'closed before sending');
       }
@@ -508,4 +508,12 @@ function openGatedSocket(
   }
 
   return socket;
+}
+
+function tryPassGate(gate: () => boolean): boolean {
+  try {
+    return gate();
+  } catch {
+    return false;
+  }
 }

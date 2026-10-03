@@ -593,6 +593,37 @@ test('it closes a session connection whose gate shuts as it opens, sending impd 
   expect({ gates, opens: impd.execOpens }).toStrictEqual({ gates: ['checked'], opens: [] });
 });
 
+test('it closes a session connection whose gate throws as it opens, sending impd nothing', async () => {
+  await using impd = setupTest();
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const connection = port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+    () => {
+      throw new Error('the gate broke');
+    },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect({ outcome, opens: impd.execOpens }).toMatchObject({
+    outcome: { kind: 'closed' },
+    opens: [],
+  });
+});
+
 test('it sends the request of a session connection whose gate stays open as it opens', async () => {
   await using impd = setupTest();
 

@@ -117,9 +117,16 @@ export class FixtureImpPort implements ImpPort {
   // Feature reads still to fail as an unreachable impd before they answer.
   private featureFailures = 0;
 
+  // Session connections still to fail their upgrade, ending unreachable
+  // before they open and before any gate runs.
+  private upgradeFailures = 0;
+
   // The connections still opening while upgrades are held, each sending
   // its request once it opens; null while connections open at once.
   private upgrades: (() => void)[] | null = null;
+
+  // The lease releases wait for this hold to end, while one is held.
+  private releaseHold: PromiseWithResolvers<void> | null = null;
 
   // The lease acquisitions wait for this hold to end, while one is held.
   private leaseHold: PromiseWithResolvers<void> | null = null;
@@ -349,6 +356,18 @@ export class FixtureImpPort implements ImpPort {
   releaseLease(name: string, label: string): Promise<boolean> {
     this.calls.push(`leases.release ${name} ${label}`);
 
+    return this.releaseHold === null
+      ? this.applyRelease(name, label)
+      : this.waitForRelease(name, label);
+  }
+
+  private async waitForRelease(name: string, label: string): Promise<boolean> {
+    await this.releaseHold?.promise;
+
+    return this.applyRelease(name, label);
+  }
+
+  private applyRelease(name: string, label: string): Promise<boolean> {
     const imp = this.imps.get(name);
 
     if (imp === undefined) {
@@ -440,7 +459,7 @@ export class FixtureImpPort implements ImpPort {
     // The request reaches impd once the connection opens, after the gate
     // lets it go; a closed gate sends nothing.
     const sendToImpd = () => {
-      if (gate !== undefined && !gate()) {
+      if (gate !== undefined && !tryPassGate(gate)) {
         connection.finish({ kind: 'closed', reason: 'closed before sending', closeCode: 1000 });
 
         return;
@@ -462,7 +481,13 @@ export class FixtureImpPort implements ImpPort {
       }, 0);
     };
 
-    if (this.upgrades === null) {
+    if (this.upgradeFailures > 0) {
+      this.upgradeFailures -= 1;
+
+      setTimeout(() => {
+        connection.finish({ kind: 'unreachable', detail: 'the upgrade failed' });
+      }, 0);
+    } else if (this.upgrades === null) {
       sendToImpd();
     } else {
       this.upgrades.push(sendToImpd);
@@ -823,6 +848,14 @@ export class FixtureImpPort implements ImpPort {
   }
 
   /**
+   * Fails the upgrade of the next session connections, so each ends
+   * unreachable without opening.
+   */
+  setUpgradeFailures(count: number): void {
+    this.upgradeFailures = count;
+  }
+
+  /**
    * Holds every session connection open, as a slow WebSocket upgrade does,
    * so its request reaches impd only once the hold stops.
    */
@@ -862,6 +895,21 @@ export class FixtureImpPort implements ImpPort {
   stopLeaseHold(): void {
     this.leaseHold?.resolve();
     this.leaseHold = null;
+  }
+
+  /**
+   * Holds every lease release until the hold stops.
+   */
+  startReleaseHold(): void {
+    this.releaseHold ??= Promise.withResolvers<void>();
+  }
+
+  /**
+   * Lets every held lease release go through, and the next at once.
+   */
+  stopReleaseHold(): void {
+    this.releaseHold?.resolve();
+    this.releaseHold = null;
   }
 
   /**
@@ -1475,4 +1523,13 @@ function tryKill(pty: IPty, signal: NodeJS.Signals): void {
   try {
     process.kill(pty.pid, signal);
   } catch {}
+}
+
+// A gate that throws keeps the request from going out, as a closed one does.
+function tryPassGate(gate: () => boolean): boolean {
+  try {
+    return gate();
+  } catch {
+    return false;
+  }
 }

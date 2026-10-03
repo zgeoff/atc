@@ -8,6 +8,7 @@ import { BrokerAuthorityError } from './broker-authority-error';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
 import { EffectRemainsError } from './effect-remains-error';
+import type { LaunchTicket } from './execution-provider';
 import type { ImpView } from './imp-port';
 import { ImpPortError } from './imp-port-error';
 import { verifyBrokerAuthority } from './verify-broker-authority';
@@ -231,10 +232,11 @@ export class RuntimeAuthBinder {
    * which hands the request to impd's client, under the host's lock and
    * only while the binding is still launchable: ready, or still being
    * provisioned by the attempt that launches. A start also needs the
-   * revision and hash its launch was planned under. send gets a gate that
-   * the client calls once its connection to impd opens, just before the
-   * request goes out: null lets it go, and the refusal of a revoke, a
-   * rebind or a forget that came first stops it unsent. A revoke, a rebind
+   * revision and hash its launch was planned under. send gets a ticket
+   * whose check the client runs once its connection to impd opens, just
+   * before the request goes out: null lets it go, and the refusal of a
+   * revoke, a rebind or a forget that came first stops it unsent. A
+   * connection that ends before it opens releases the ticket. A revoke, a rebind
    * or a forget therefore either refuses the admission or cancels it, or
    * comes after the request went out. The lock is held only for one read
    * and the handoff, never across the network.
@@ -243,7 +245,7 @@ export class RuntimeAuthBinder {
     hostKey: SessionID,
     admission: LaunchAdmission,
     kind: 'start' | 'attach',
-    send: (gate: () => DaemonError | null) => void,
+    send: (ticket: LaunchTicket) => void,
   ): Promise<void> {
     return this.withHostLock(hostKey, async () => {
       const row = await this.store.findAuthBinding(hostKey);
@@ -279,12 +281,28 @@ export class RuntimeAuthBinder {
       tickets.add(ticket);
       this.pending.set(hostKey, tickets);
 
-      send(() => {
+      const release = () => {
         tickets.delete(ticket);
 
-        return ticket.refusal;
+        if (tickets.size === 0 && this.pending.get(hostKey) === tickets) {
+          this.pending.delete(hostKey);
+        }
+      };
+
+      send({
+        check: () => {
+          release();
+
+          return ticket.refusal;
+        },
+        release,
       });
     });
+  }
+
+  // How many admitted requests on a host have not gone out or ended yet.
+  countPendingAdmissions(hostKey: SessionID): number {
+    return this.pending.get(hostKey)?.size ?? 0;
   }
 
   // Stops every admitted request on a host that has not gone out yet,

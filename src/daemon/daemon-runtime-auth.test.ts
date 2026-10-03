@@ -860,6 +860,117 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
   }).toStrictEqual({ state: 'running', sleeps: [] });
 });
 
+test('it keeps a host awake for a sub-session that readies it while a refused revive puts it to sleep', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+  const imp = `atc-${parentID.replaceAll('-', '').slice(0, 20)}`;
+
+  await daemon.client.sendRequest('session.kill', { session: parentID });
+
+  daemon.port.startBrokerFailure();
+  daemon.port.startReleaseHold();
+
+  daemon.port.calls.length = 0;
+
+  const revive = daemon.client.sendRequest('session.adopt', {
+    session: parentID,
+    cols: 80,
+    rows: 24,
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls.filter((call) => call.startsWith('leases.release'))).toHaveLength(1);
+  });
+
+  daemon.port.stopBrokerFailure();
+
+  const child = daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls.filter((call) => call.startsWith(`grants.list ${imp}`))).toHaveLength(
+      2,
+    );
+  });
+
+  daemon.port.stopReleaseHold();
+
+  expect(revive).rejects.toMatchObject({ code: 'broker_not_ready' });
+
+  await revive.catch(() => null);
+
+  const spawnedChild = await child;
+
+  const childID = String(getRecord(spawnedChild, 'session')['id']);
+
+  const got = await daemon.client.sendRequest('session.get', { session: childID });
+
+  expect<Record<string, unknown>>({
+    sleeps: daemon.port.calls.filter((call) => call.startsWith('imps.sleep')),
+    state: daemon.port.findState(imp),
+    child: getRecord(got, 'session'),
+  }).toStrictEqual({
+    sleeps: [],
+    state: 'running',
+    child: expect.objectContaining({ kind: 'pty', alive: true }),
+  });
+});
+
+test('it puts a host to sleep after a refused revive when no other launch readies it', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+  const imp = `atc-${parentID.replaceAll('-', '').slice(0, 20)}`;
+
+  await daemon.client.sendRequest('session.kill', { session: parentID });
+
+  daemon.port.startBrokerFailure();
+  daemon.port.startReleaseHold();
+
+  daemon.port.calls.length = 0;
+
+  const revive = daemon.client.sendRequest('session.adopt', {
+    session: parentID,
+    cols: 80,
+    rows: 24,
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls.filter((call) => call.startsWith('leases.release'))).toHaveLength(1);
+  });
+
+  daemon.port.stopReleaseHold();
+
+  expect(revive).rejects.toMatchObject({ code: 'broker_not_ready' });
+
+  await revive.catch(() => null);
+
+  await waitFor(() => {
+    expect(daemon.port.findState(imp)).toBe('sleeping');
+  });
+
+  expect(daemon.port.calls.filter((call) => call.startsWith('imps.sleep'))).toHaveLength(1);
+});
+
 test('it spawns a sub-session on the shared host while it readies when no revoke comes between', async () => {
   await using daemon = await setupTest();
 

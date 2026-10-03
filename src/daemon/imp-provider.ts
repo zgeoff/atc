@@ -109,6 +109,14 @@ export class ImpProvider implements ExecutionProvider {
 
   private readonly hosts = new Map<string, ImpHost>();
 
+  // Each imp's readyings, sleeps, and lease returns run one after another,
+  // in the order they were asked for, so none of them gives back the lease
+  // a readying just took.
+  private readonly turns = new Map<string, Promise<void>>();
+
+  // The readyings of each imp still waiting for their turn.
+  private readonly waitingPrepares = new Map<string, number>();
+
   private readonly atcBinary: string | null;
 
   // Whether impd carries output offsets, once a prepare has read its
@@ -157,7 +165,25 @@ export class ImpProvider implements ExecutionProvider {
 
   // Creates the host's imp when impd holds none, then takes the daemon's
   // lease, which boots or wakes the imp.
-  readonly prepareHost = async (request: HostRequest): Promise<void> => {
+  readonly prepareHost = (request: HostRequest): Promise<void> => {
+    const name = this.getImpName(request.host);
+
+    this.waitingPrepares.set(name, (this.waitingPrepares.get(name) ?? 0) + 1);
+
+    return this.withHostTurn(name, () => {
+      const left = (this.waitingPrepares.get(name) ?? 1) - 1;
+
+      if (left === 0) {
+        this.waitingPrepares.delete(name);
+      } else {
+        this.waitingPrepares.set(name, left);
+      }
+
+      return this.prepareHostInTurn(request);
+    });
+  };
+
+  private readonly prepareHostInTurn = async (request: HostRequest): Promise<void> => {
     const name = this.getImpName(request.host);
     const label = `atc-${request.daemonID}`;
 
@@ -203,9 +229,11 @@ export class ImpProvider implements ExecutionProvider {
       harnesses: 0,
       renewTimer: null,
       suspending: false,
+      isIdle: null,
     };
 
     host.suspending = false;
+    host.isIdle = request.isIdle ?? null;
 
     this.hosts.set(request.host, host);
     this.startRenewal(host, label);
@@ -217,6 +245,7 @@ export class ImpProvider implements ExecutionProvider {
       harnesses: 0,
       renewTimer: null,
       suspending: false,
+      isIdle: null,
     };
 
     this.hosts.set(spec.host, host);
@@ -289,37 +318,57 @@ export class ImpProvider implements ExecutionProvider {
   // then asks impd to sleep the imp without force. Another owner's lease
   // refuses the sleep: the daemon takes its lease back and the refusal
   // carries what impd showed of the other leases.
-  readonly suspendHost = async (hostKey: string): Promise<void> => {
-    const host = this.hosts.get(hostKey) ?? {
-      name: this.getImpName(hostKey),
-      harnesses: 0,
-      renewTimer: null,
-      suspending: false,
-    };
+  readonly suspendHost = (hostKey: string, isIdle?: () => boolean): Promise<void> =>
+    this.withHostTurn(this.getImpName(hostKey), async () => {
+      const host = this.hosts.get(hostKey) ?? {
+        name: this.getImpName(hostKey),
+        harnesses: 0,
+        renewTimer: null,
+        suspending: false,
+        isIdle: null,
+      };
 
-    this.hosts.set(hostKey, host);
-    this.stopRenewal(host);
+      this.hosts.set(hostKey, host);
 
-    host.suspending = true;
+      // A host a harness runs on, or that a readying waits for, is busy.
+      const isBusy = () =>
+        isIdle !== undefined &&
+        (!isIdle() || host.harnesses > 0 || (this.waitingPrepares.get(host.name) ?? 0) > 0);
 
-    try {
-      if (this.label !== null) {
-        await this.port.releaseLease(host.name, this.label);
+      if (isBusy()) {
+        throw buildBusyRefusal(host.name);
       }
 
-      await this.port.suspendImp(host.name);
-    } catch (error) {
-      host.suspending = false;
+      this.stopRenewal(host);
 
-      if (error instanceof ImpPortError && error.code === 'LEASED') {
-        await this.restoreLease(host);
+      host.suspending = true;
 
-        throw buildLeasedRefusal(host.name, error.data);
+      try {
+        if (this.label !== null) {
+          await this.port.releaseLease(host.name, this.label);
+        }
+
+        if (isBusy()) {
+          host.suspending = false;
+
+          await this.restoreLease(host);
+
+          throw buildBusyRefusal(host.name);
+        }
+
+        await this.port.suspendImp(host.name);
+      } catch (error) {
+        host.suspending = false;
+
+        if (error instanceof ImpPortError && error.code === 'LEASED') {
+          await this.restoreLease(host);
+
+          throw buildLeasedRefusal(host.name, error.data);
+        }
+
+        throw toHostRefusal(error, host.name);
       }
-
-      throw toHostRefusal(error, host.name);
-    }
-  };
+    });
 
   // A destroy ends every lease on the imp with it.
   readonly destroyHost = async (hostKey: string): Promise<void> => {
@@ -455,13 +504,7 @@ export class ImpProvider implements ExecutionProvider {
 
     host.renewTimer = setInterval(
       () => {
-        if (host.harnesses === 0) {
-          void this.tryReleaseLease(host);
-
-          return;
-        }
-
-        void this.tryRenewLease(host, label);
+        void this.refreshLease(host, label);
       },
       (this.leaseSeconds * 1000) / 3,
     );
@@ -491,6 +534,28 @@ export class ImpProvider implements ExecutionProvider {
     }
   }
 
+  // Runs a readying, a sleep, or a lease return of an imp after the one
+  // before it there. A turn never starts in its caller's tick, so a harness
+  // end the daemon still applies counts before the turn checks the host.
+  private async withHostTurn<T>(name: string, run: () => Promise<T>): Promise<T> {
+    const before = this.turns.get(name) ?? Promise.resolve();
+    const turn = Promise.withResolvers<void>();
+
+    this.turns.set(name, turn.promise);
+
+    try {
+      await before;
+
+      return await run();
+    } finally {
+      turn.resolve();
+
+      if (this.turns.get(name) === turn.promise) {
+        this.turns.delete(name);
+      }
+    }
+  }
+
   private async restoreLease(host: ImpHost): Promise<void> {
     if (this.label === null) {
       return;
@@ -505,18 +570,44 @@ export class ImpProvider implements ExecutionProvider {
     this.startRenewal(host, this.label);
   }
 
-  private async tryReleaseLease(host: ImpHost): Promise<boolean> {
-    this.stopRenewal(host);
+  // A host with no harness gives its lease back, unless a launch readies it,
+  // which keeps the lease renewed.
+  private async refreshLease(host: ImpHost, label: string): Promise<void> {
+    if (host.harnesses === 0) {
+      const released = await this.tryReleaseLease(host);
 
-    if (this.label === null) {
-      return false;
+      if (released) {
+        return;
+      }
     }
 
-    try {
-      return await this.port.releaseLease(host.name, this.label);
-    } catch {
-      return false;
+    if (host.renewTimer !== null) {
+      await this.tryRenewLease(host, label);
     }
+  }
+
+  // Gives an imp's lease back once nothing runs or starts there, in the
+  // imp's turn, so it never drops a lease a readying took for a launch.
+  private tryReleaseLease(host: ImpHost): Promise<boolean> {
+    return this.withHostTurn(host.name, async () => {
+      const isBusy =
+        host.harnesses > 0 ||
+        host.suspending ||
+        (this.waitingPrepares.get(host.name) ?? 0) > 0 ||
+        host.isIdle?.() === false;
+
+      if (isBusy || this.label === null) {
+        return false;
+      }
+
+      this.stopRenewal(host);
+
+      try {
+        return await this.port.releaseLease(host.name, this.label);
+      } catch {
+        return false;
+      }
+    });
   }
 }
 
@@ -528,6 +619,10 @@ interface ImpHost {
   harnesses: number;
   renewTimer: ReturnType<typeof setInterval> | null;
   suspending: boolean;
+
+  // The daemon's check that nothing runs or starts on the host, from its
+  // latest readying; null until one gives it.
+  isIdle: (() => boolean) | null;
 }
 
 function buildImpSessionName(sessionID: string): string {
@@ -587,6 +682,14 @@ function buildGuestEnv(env: Readonly<Record<string, string>>): Record<string, st
   const own = Object.fromEntries(Object.entries(env).filter(([key]) => key !== 'ATC_SOCKET'));
 
   return { TERM: 'xterm-256color', LANG: 'C.UTF-8', PATH: GUEST_PATH, ...own };
+}
+
+function buildBusyRefusal(name: string): DaemonError {
+  return new DaemonError(
+    'host_unavailable',
+    `imp ${name} stays awake: a session runs there or is starting there`,
+    { provider: 'imp', problem: 'busy' },
+  );
 }
 
 function buildLeasedRefusal(name: string, data: unknown): DaemonError {

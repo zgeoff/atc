@@ -49,8 +49,12 @@ export interface ExecutionProvider {
 
   // Puts a host to sleep with every harness on it kept inside, so a revive
   // finds each one as it was. Rejects with `host_leased` when another owner
-  // keeps the host awake, and leaves the host as it was then.
-  readonly suspendHost: (host: string) => Promise<void>;
+  // keeps the host awake, and leaves the host as it was then. A sleep runs
+  // after any readying of the host before it, and a readying waits for it.
+  // isIdle makes it a sleep of an idle host only: it is checked when the
+  // sleep starts and again just before the host sleeps, and a host that a
+  // harness or a readying keeps busy stays awake with `host_unavailable`.
+  readonly suspendHost: (host: string, isIdle?: () => boolean) => Promise<void>;
 
   // Deletes a host and everything on it, harnesses included. Nothing brings
   // a destroyed host back.
@@ -73,6 +77,10 @@ export interface HostRequest {
   // Whether the harness about to start needs atc inside the host, which a
   // provider that ships its own binary installs when missing.
   readonly installATC?: boolean;
+
+  // Whether the daemon has nothing running or starting on the host, which
+  // the provider checks before it gives the host's lease back on its own.
+  readonly isIdle?: () => boolean;
 }
 
 export interface GuestLayout {
@@ -147,12 +155,11 @@ export interface HarnessSpec {
 
   // Admits each start or attach of a harness that requires the broker by
   // calling send, which hands the request to the host, or rejects with the
-  // refusal that ends the harness instead, sending nothing. send gets a
-  // gate to check just before the request goes out: a refusal from it
-  // stops the request unsent.
+  // refusal that ends the harness instead, sending nothing. send gets the
+  // admission's ticket.
   readonly admit?: (
     kind: 'start' | 'attach',
-    send: (gate: () => DaemonError | null) => void,
+    send: (ticket: LaunchTicket) => void,
   ) => Promise<void>;
 
   // Takes each connection a process of the harness opens to the daemon. A
@@ -166,6 +173,18 @@ export interface HarnessSpec {
  * lines: each line the process writes arrives whole, and each line the
  * daemon writes reaches the process in order.
  */
+/**
+ * One admitted request of a harness behind the broker. check runs just
+ * before the request goes out and returns the refusal that stops it
+ * unsent, or null to let it go; release gives the admission up once its
+ * connection ends without the request going out. Each runs at most once
+ * to any effect.
+ */
+export interface LaunchTicket {
+  readonly check: () => DaemonError | null;
+  readonly release: () => void;
+}
+
 export interface HarnessRelay {
   readonly onLine: (listener: (line: string) => void) => void;
   readonly onClose: (listener: () => void) => void;
