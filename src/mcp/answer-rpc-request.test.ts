@@ -287,7 +287,18 @@ test.each([
 test('it reads a message from an older daemon when the call asks for no wait', async () => {
   using tmp = setupTempDir('atc-legacy-rpc-');
 
-  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
+  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    replies: {
+      'message.get': {
+        message: 'm-legacy',
+        session: 's-legacy',
+        from: 'tester',
+        text: 'hello',
+        status: 'accepted',
+        sentAt: 1_700_000_000_000,
+      },
+    },
+  });
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
 
@@ -354,7 +365,36 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
 test('it advertises an agents output schema that agrees with what a daemon without spawn options returns', async () => {
   using tmp = setupTempDir('atc-legacy-rpc-');
 
-  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), 'pre-spawn-options');
+  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
+    replies: {
+      'agents.list': {
+        daemon: {
+          hostname: 'legacy-host',
+          platform: 'linux',
+          arch: 'x64',
+          build: 'atc/legacy-build',
+        },
+        agents: [
+          {
+            id: 'claude',
+            label: 'Claude',
+            kind: 'claude',
+            installed: true,
+            capabilities: {
+              spawn: true,
+              readTranscript: true,
+              message: true,
+              attach: true,
+              screen: true,
+              input: true,
+            },
+            models: null,
+          },
+        ],
+      },
+    },
+  });
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
 
