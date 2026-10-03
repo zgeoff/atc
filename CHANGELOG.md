@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.11.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.10.4...@zgeoff/atc@2.11.0) (2026-10-03)
+
+### Features
+
+- **mcp:** add message waits, structured results, and agents list
+  ([#143](https://github.com/zgeoff/atc/issues/143))
+  ([f40b4a6](https://github.com/zgeoff/atc/commit/f40b4a61f5a45054480d29239de24d596f411d6b))
+
 ## [2.10.4](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.10.3...@zgeoff/atc@2.10.4) (2026-10-03)
 
 ### Bug Fixes
