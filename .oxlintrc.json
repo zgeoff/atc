@@ -14,6 +14,7 @@
       {
         "verbs": [
           "ack",
+          "acquire",
           "adopt",
           "answer",
           "attach",
@@ -34,6 +35,8 @@
           "reconcile",
           "record",
           "refresh",
+          "release",
+          "renew",
           "restart",
           "restore",
           "revoke",
@@ -82,6 +85,11 @@
           // the daemon's per-session bookkeeping: screen, timers, and
           // headless-run handle, mutated in place by the daemon
           { "from": "file", "name": "SessionRuntime" },
+          // the fixture imp port's own records of each imp, process, and
+          // connection, mutated in place as the fixture runs them
+          { "from": "file", "name": "FixtureImp" },
+          { "from": "file", "name": "FixtureProcess" },
+          { "from": "file", "name": "FixtureConnection" },
           // a configured execution target: it holds its live provider
           { "from": "file", "name": "ExecutionTarget" },
           // a principal's grants, held privately and never mutated
