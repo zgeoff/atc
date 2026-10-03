@@ -117,6 +117,7 @@ export class DaemonConnection {
     // it. The detach runs once the view is settled, since it emits an event
     // of its own.
     for (const id of view.withdrawn) {
+      this.desynced.delete(id);
       this.ctx.detachSession(this, id);
       this.ctx.detachTap(this, id);
     }
@@ -127,7 +128,7 @@ export class DaemonConnection {
   // intermediate chunk is never dropped without that resync, because a byte
   // stream cut mid-escape corrupts the client's terminal state.
   sendOutput(sessionID: SessionID, event: EventMsg, byteLength: number): void {
-    if (!this.helloed) {
+    if (!this.helloed || !this.canSeeOutput(sessionID)) {
       return;
     }
 
@@ -177,9 +178,19 @@ export class DaemonConnection {
 
     for (const [sessionID, dropped] of this.desynced) {
       this.desynced.delete(sessionID);
-      this.sendEvent({ v: PROTOCOL_V, ev: 'SessionDesync', s: sessionID, dropped });
-      void this.ctx.resyncClient(sessionID, this);
+
+      if (this.canSeeOutput(sessionID)) {
+        this.sendEvent({ v: PROTOCOL_V, ev: 'SessionDesync', s: sessionID, dropped });
+        void this.ctx.resyncClient(sessionID, this);
+      }
     }
+  }
+
+  // Whether this connection may receive the session's output: always for
+  // the daemon's owner, and otherwise only while its view holds the
+  // session's whole tree.
+  private canSeeOutput(sessionID: SessionID): boolean {
+    return this.access === null || this.ctx.canSeeSession(sessionID, this.access);
   }
 
   // false: the connection is beyond recovery and gets closed.

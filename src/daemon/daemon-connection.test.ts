@@ -6,6 +6,7 @@ import { toDaemonID } from '../shared/to-daemon-id';
 import { toSessionID } from '../shared/to-session-id';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext } from './daemon-context';
+import { TargetAccess } from './target-access';
 
 function assertUnreachable(): never {
   throw new Error('unreachable in this test');
@@ -16,14 +17,18 @@ interface ConnectionHarness {
   readonly resyncs: SessionID[];
   readonly collectWrittenLines: () => string[];
   readonly setAccepting: (accepting: boolean) => void;
+  readonly setVisible: (visible: boolean) => void;
 }
 
 /**
  * A connection whose peer socket accepts bytes only while `accepting` is
- * true, so backpressure is a switch instead of a kernel-buffer race.
+ * true, so backpressure is a switch instead of a kernel-buffer race. With
+ * `principal`, the connection acts as a principal whose view holds every
+ * session while `visible` is true and none while it is false.
  */
-function setupConnection(queueBytes: number): ConnectionHarness {
+function setupConnection(queueBytes: number, principal = false): ConnectionHarness {
   let accepting = true;
+  let visible = true;
   let written = '';
   const resyncs: SessionID[] = [];
 
@@ -52,10 +57,10 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     collectFleet: assertUnreachable,
     loadLastUsedAgent: () => Promise.resolve('claude'),
     findAdapter: assertUnreachable,
-    buildTargetAccess: assertUnreachable,
-    findSessionGrant: assertUnreachable,
+    buildTargetAccess: () => new TargetAccess([]),
+    findSessionGrant: () => ({ target: 'local', targetIdentity: 'local-pty' }),
     findTargetIdentity: assertUnreachable,
-    canSeeSession: assertUnreachable,
+    canSeeSession: () => visible,
     findPermissionSession: assertUnreachable,
     resolveSpawnParent: assertUnreachable,
     resolveSpawnTarget: assertUnreachable,
@@ -75,7 +80,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     answerPermission: assertUnreachable,
     restoreFleet: assertUnreachable,
     attachSession: assertUnreachable,
-    detachSession: assertUnreachable,
+    detachSession: () => {},
     detachClient: assertUnreachable,
     writeSessionInput: assertUnreachable,
     writeSessionLine: assertUnreachable,
@@ -92,13 +97,15 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     writeSessionMessage: assertUnreachable,
     readMessage: assertUnreachable,
     attachTap: assertUnreachable,
-    detachTap: assertUnreachable,
+    detachTap: () => {},
     ackMessage: assertUnreachable,
   };
 
   const conn = new DaemonConnection(peer, ctx);
 
-  conn.applyChunk('{"v":4,"id":1,"m":"daemon.hello","p":{"client":"atc/test"}}\n');
+  const hello = principal ? { client: 'atc/test', principal: 'narrow' } : { client: 'atc/test' };
+
+  conn.applyChunk(`${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: hello })}\n`);
 
   return {
     conn,
@@ -106,6 +113,9 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     collectWrittenLines: () => written.split('\n').filter((line) => line !== ''),
     setAccepting: (value: boolean) => {
       accepting = value;
+    },
+    setVisible: (value: boolean) => {
+      visible = value;
     },
   };
 }
@@ -174,5 +184,29 @@ test('it reports no desync while the queue still holds a backlog', () => {
     harness.collectWrittenLines().find((line) => line.includes('SessionDesync')),
   ).toBeUndefined();
 
+  expect(harness.resyncs).toStrictEqual([]);
+});
+
+test('it sends a principal no output of a session whose tree left its view, a resync included', () => {
+  const harness = setupConnection(150, true);
+
+  harness.conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionState', s: 's1' });
+  harness.setAccepting(false);
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('a'), 40);
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('b'), 40);
+  harness.setVisible(false);
+  harness.conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionState', s: 's1' });
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('secret'), 240);
+  harness.setAccepting(true);
+  harness.conn.drain();
+  harness.conn.sendOutput(toSessionID('s1'), buildOutputEvent('secret'), 240);
+  harness.conn.drain();
+
+  const lines = harness.collectWrittenLines();
+  const removedAt = lines.findIndex((line) => line.includes('"SessionRemoved"'));
+
+  expect(removedAt).toBeGreaterThan(-1);
+  expect(lines.slice(removedAt + 1)).toStrictEqual([]);
+  expect(lines.join('\n')).not.toInclude('secret');
   expect(harness.resyncs).toStrictEqual([]);
 });
