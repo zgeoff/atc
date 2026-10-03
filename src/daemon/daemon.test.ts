@@ -157,7 +157,9 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'report.get',
       'sources',
       'git.probe',
+      'transport.tcp',
     ],
+    idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
   });
 });

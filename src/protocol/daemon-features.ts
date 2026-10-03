@@ -64,6 +64,10 @@ export const DAEMON_FEATURES = [
   // `git.probe` exists, and `session.spawn` takes a git workspace with both
   // `ref` and `sha`.
   'git.probe',
+
+  // The daemon can serve the client protocol on a TCP listener whose
+  // handshake takes a bearer token.
+  'transport.tcp',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

@@ -122,6 +122,10 @@ export interface TapClient {
 export interface DaemonContext {
   readonly build: string;
   readonly daemonID: DaemonID;
+
+  // How long the daemon keeps a completed idempotency key, which the
+  // handshake announces so a caller knows how long a retry stays deduplicated.
+  readonly idempotencyRetentionMs: number;
   readonly collectSessions: () => SessionDescriptor[];
 
   // The directories spawns ran in, most recent first, leaving out each one
@@ -134,6 +138,10 @@ export interface DaemonContext {
 
   // The targets a principal may use.
   readonly buildTargetAccess: (principal: string) => TargetAccess;
+
+  // Whether the config's principals key lists the principal, which a
+  // request over TCP must act as.
+  readonly hasListedPrincipal: (principal: string) => boolean;
 
   // The target and identity a session is bound to, or null when no
   // session holds the id.

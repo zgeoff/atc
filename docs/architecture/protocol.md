@@ -1,8 +1,8 @@
 # Wire protocol
 
-The daemon/client protocol: newline-delimited JSON (NDJSON) over a unix socket, one JSON object per
-line, UTF-8. No binary frame class. This was decided against a hybrid JSON-control / binary-data
-design on measured evidence:
+The daemon/client protocol: newline-delimited JSON (NDJSON) over a unix socket, or over the daemon's
+[TCP listener](./daemon.md#the-tcp-listener), one JSON object per line, UTF-8. No binary frame
+class. This was decided against a hybrid JSON-control / binary-data design on measured evidence:
 
 - `bun-pty` delivers PTY output as decoded JS strings (streaming TextDecoder inside the library), so
   byte-level transparency is already gone before the protocol sees the data — binary framing would
@@ -78,7 +78,8 @@ says to restart the daemon. The client never restarts the daemon on its own; the
                                         "message.idempotency", "spawn.target",
                                         "request.principal", "spawn.workspace", "session.forget",
                                         "session.submit", "report.get", "sources",
-                                        "git.probe"],
+                                        "git.probe", "transport.tcp"],
+                           "idempotency": { "completedRetentionMs": 86400000 },
                            "lastUsedAgent": "claude" } }
 ```
 
@@ -89,8 +90,9 @@ returns `spawnOptions`, `daemon.hello` returns `daemonID`, every session descrip
 `locator`, `session.spawn` and `session.message` each take `idempotencyKey`, `session.spawn` takes
 `target` while `agents.list` returns `targets`, a request takes `as` while `daemon.hello` takes
 `principal`, `session.spawn` takes `workspace`, `session.forget`, `session.submit`, and `report.get`
-exist, `sources.list` and `sources.interpret` exist while `agents.list` returns `sources`, and
-`git.probe` exists while a git `workspace` takes both `ref` and `sha`. A daemon from before the list
+exist, `sources.list` and `sources.interpret` exist while `agents.list` returns `sources`,
+`git.probe` exists while a git `workspace` takes both `ref` and `sha`, and the daemon can serve a TCP
+listener (`transport.tcp`). A daemon from before the list
 existed sends none, and it ignores the parameters it does not know. A client that outlives a daemon
 upgrade, such as `atc mcp`, reads the list rather than the build string to learn what the running
 daemon honours.
@@ -106,10 +108,45 @@ built-in ids are `claude`, `grok`, and `codex`. A spawn that never reports Sessi
 change it. A fleet restore SessionStart does not change it. MCP spawn ignores the value and defaults
 to Claude.
 
-`auth` is present from day one (`{"scheme": "none"}` on the unix socket) so a TCP or SSH transport
-later adds a scheme, not a handshake redesign. The transport is assumed to be an ordered, reliable
-byte stream and nothing more — no unix-socket peer credentials or filesystem paths in message
-semantics.
+`idempotency.completedRetentionMs` holds how long the daemon keeps a completed
+[idempotency key](#idempotent-requests), so a caller that routes retries knows how long the daemon
+still deduplicates a key.
+
+`auth` holds the handshake's credential. On the unix socket it is `{"scheme": "none"}`, and the
+socket's file permissions admit only the daemon's owner. The transport is assumed to be an ordered,
+reliable byte stream and nothing more — no unix-socket peer credentials or filesystem paths in
+message semantics.
+
+### TCP handshake
+
+A handshake on the TCP listener must carry a bearer token from the daemon's token file:
+
+```jsonc
+{
+  "v": 4,
+  "id": 1,
+  "m": "daemon.hello",
+  "p": {
+    "client": "atc-gateway/2.14.0",
+    "auth": { "scheme": "bearer", "token": "<listener_token>" },
+  },
+}
+```
+
+The daemon checks the token before anything else in the handshake, comparing SHA-256 digests in
+constant time against each token in the file. A missing or wrong token gets `unauthorized` and the
+daemon closes the connection, so a peer without a token learns neither the build nor the protocol
+version. Once one source address has failed five handshakes within a minute, the daemon waits 10 s
+before it checks that address's next handshake. A request sent before the handshake passes waits
+behind it and is never answered when the handshake fails.
+
+A TCP connection never acts as the daemon's owner. Every request on it must carry `as`, and the
+daemon answers `unauthorized` for a request without it, for an `as` that the config's `principals`
+key does not list, and for `daemon.quit` and `fleet.restore`. A handshake `principal` the key does
+not list gets `unauthorized` too, and the connection closes. Each request runs as its `as` principal
+with the reach and key namespace [principals](#principals) describes. The daemon pushes a TCP
+connection no event of a session outside the reach of its handshake `principal`, and none at all
+when the handshake gives no principal.
 
 ## Methods
 
@@ -446,8 +483,10 @@ the `request.principal` feature ignores both fields, so a client that acts for a
 nothing to such a daemon. An `as` that is not a non-empty string is a malformed line, and the daemon
 refuses a handshake whose `principal` is not one with `bad_args`.
 
-The [configuration guide](../guides/configuration.md#principals) sets which targets each principal
-may use. Each target grant matches a target name and its identity now. A session is within the
+On the TCP listener the `principals` key is also the list of principals a request may act as, and a
+config without the key admits none; the [TCP handshake](#tcp-handshake) covers the rules. The
+[configuration guide](../guides/configuration.md#principals) sets which targets each principal may
+use. Each target grant matches a target name and its identity now. A session is within the
 principal's reach when the target and bound identity of every session in its tree match a grant: its
 top-level session and each sub-session of that one. To a principal, a session out of reach does not
 exist:
@@ -751,7 +790,8 @@ as `outcome_unknown`, then completes each `outcome_unknown` spawn key whose sess
 table and each `outcome_unknown` message key whose message row exists. A spawn key completed this
 way has no stored answer, so a retry is `no_such_session` with `err.data.effectRef` until a fleet
 restore lists the session; after that, the daemon returns its descriptor. The daemon keeps a
-completed key for 24 hours and an `outcome_unknown` key indefinitely.
+completed key for 24 hours, which `daemon.hello` returns as `idempotency.completedRetentionMs`, and
+an `outcome_unknown` key indefinitely.
 
 A failed spawn whose cleanup the daemon could not confirm, and whose session row is gone from the
 fleet table at the next start, keeps its key as `outcome_unknown` for good: the hourly sweep expires
