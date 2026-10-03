@@ -242,13 +242,18 @@ answer to the reconnect decides how the harness ended:
 
 The daemon builds a spawn's [workspace](./protocol.md#workspaces) on the session's target through
 two provider operations, `transfer` and `run`, and nothing specific to one provider. Each provider
-call passes the execution check against the target identity the session binds to when its
-materialization starts. The `workspace_materialization` table holds one row per materialization,
-keyed by the session id, and the daemon records each phase in it before the phase starts:
+call passes the execution check against the target identity the session binds to when its spawn
+starts, and runs on the session's host. Materialization starts only after every refusal of the spawn
+has passed, its runtime auth checks included. The daemon resolves the source first, then readies the
+host the workspace lands on: the session's own host, or its parent's when the two share one. A
+materialization that fails once the host is ready takes back a host of the session's own, with the
+imp and binding its spawn provisioned, and leaves a parent's host running. The
+`workspace_materialization` table holds one row per materialization, keyed by the session id, and
+the daemon records each phase in it before the phase starts:
 
 | Phase          | What the daemon does                                                                                                                   |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolving`    | resolves the source to a URL and commit, checks the URL, and creates `cwd` with `mkdir`                                                |
+| `resolving`    | resolves the source to a URL and commit, checks the URL, readies the host, and creates `cwd` with `mkdir`                              |
 | `cloning`      | clones the commit into a staging directory on its own host, sanitizes it, and tars it                                                  |
 | `transferring` | unpacks the archive into `cwd` through `transfer`                                                                                      |
 | `verifying`    | runs `git rev-parse` and `git status` in `cwd` through `run`, and checks HEAD is the pinned commit with every tracked file matching it |

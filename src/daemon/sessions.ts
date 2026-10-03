@@ -185,6 +185,21 @@ interface MaterializedSpawn {
   readonly withheldEnv: readonly string[];
 }
 
+// Builds a spawn's workspace on a target bound to an identity, calling
+// readyHost for the host it lands on once its source resolves, or resolves
+// to null for a directory that runs as it stands.
+type SpawnMaterializer = (
+  readyHost: () => Promise<SessionID>,
+  targetIdentity: string,
+) => Promise<MaterializedSpawn | null>;
+
+// A readied host's harness plan, and the auth attempt that provisioned the
+// host, if one did.
+interface HarnessSetup {
+  readonly plan: HarnessPlan;
+  readonly attemptID: string | null;
+}
+
 // The identity of the implicit `local` target, which a fleet row without a
 // stored identity ran on.
 const LOCAL_TARGET_IDENTITY = buildTargetIdentity('local-pty', {});
@@ -805,9 +820,11 @@ export class SessionManager {
   // the new process runs with, and the session keeps them for every revive.
   // id is minted here unless the caller minted it ahead of the spawn. target
   // is the execution target the harness runs on; one this daemon cannot use
-  // refuses the spawn before anything starts. materialized holds what cwd
-  // was materialized from, when it was, and the variables the session's
-  // harnesses go without.
+  // refuses the spawn before anything starts. materialize builds cwd on the
+  // host once every refusal has passed and the host is ready, and returns
+  // what cwd was materialized from, when it was, and the variables the
+  // session's harnesses go without; a failure there takes back the host the
+  // spawn readied, unless it is a parent's.
   async spawn(
     cwd: string,
     name: string,
@@ -821,7 +838,7 @@ export class SessionManager {
     overrides: SpawnOverrides = {},
     id: SessionID = mintSessionID(),
     target = 'local',
-    materialized: MaterializedSpawn | null = null,
+    materialize: SpawnMaterializer | null = null,
     requireInReach: () => void = () => {},
   ): Promise<Session> {
     const adapter = this.findAdapter(agent);
@@ -853,16 +870,42 @@ export class SessionManager {
             targetIdentity: execution.identity,
           };
 
-    const setup = await this.setupHarness(
-      adapter,
-      provider,
-      id,
-      hostKey,
-      target,
-      { prompt, resume, ...overrides },
-      authSetup,
-    );
+    const refusal = adapter.findSpawnRefusal?.() ?? null;
 
+    if (refusal !== null) {
+      throw refusal;
+    }
+
+    const setupHost = () =>
+      this.setupHarnessOnHost(
+        adapter,
+        provider,
+        id,
+        hostKey,
+        target,
+        { prompt, resume, ...overrides },
+        authSetup,
+      );
+
+    // The host stays readying until its workspace is in place, so nothing
+    // gives its lease back or puts it to sleep in between.
+    const prepared = await this.withHostReadying(hostKey, async () => {
+      if (materialize === null) {
+        return { setup: await setupHost(), materialized: null };
+      }
+
+      return this.materializeOnSpawnHost(
+        provider,
+        id,
+        hostKey,
+        execution.identity,
+        materialize,
+        setupHost,
+      );
+    });
+
+    const setup = prepared.setup;
+    const materialized = prepared.materialized;
     const plan = setup.plan;
 
     // The caller's check runs again once the host is ready, before the
@@ -990,7 +1033,8 @@ export class SessionManager {
   }
 
   // A sub-session joins its parent's host only under the binding that host
-  // holds: both without runtime auth, or both bound to the same hash.
+  // holds: both without runtime auth, or both bound to the same hash, and
+  // then only while that binding is ready.
   private async requireSharedBinding(
     hostKey: SessionID,
     binding: AuthBinding | null,
@@ -1004,6 +1048,14 @@ export class SessionManager {
     }
 
     if (held !== null && binding !== null && held.bindingHash === binding.hash) {
+      if (held.state !== 'ready') {
+        throw new DaemonError(
+          'auth_blocked',
+          `the runtime auth of host ${hostKey} is ${held.state}; rebind it to launch again`,
+          { host: hostKey, state: held.state },
+        );
+      }
+
       return;
     }
 
@@ -1012,6 +1064,59 @@ export class SessionManager {
       `a sub-session joins the host of session ${hostKey} only under the runtime auth binding that host holds`,
       { host: hostKey, hostBound: held !== null, bound: binding !== null },
     );
+  }
+
+  // Materializes a spawn's workspace, readying its host once the source
+  // resolves, or after the workspace for a directory that runs as it
+  // stands. A failure once the host is ready takes it back.
+  private async materializeOnSpawnHost(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    targetIdentity: string,
+    materialize: SpawnMaterializer,
+    setupHost: () => Promise<HarnessSetup>,
+  ): Promise<{ readonly setup: HarnessSetup; readonly materialized: MaterializedSpawn | null }> {
+    const readied: { setup: HarnessSetup | null } = { setup: null };
+
+    try {
+      const materialized = await materialize(async () => {
+        readied.setup = await setupHost();
+
+        return hostKey;
+      }, targetIdentity);
+
+      readied.setup ??= await setupHost();
+
+      return { setup: readied.setup, materialized };
+    } catch (error) {
+      if (readied.setup !== null) {
+        await this.destroyFailedSpawnHost(provider, id, hostKey, readied.setup.attemptID);
+      }
+
+      throw error;
+    }
+  }
+
+  // Takes back the host a spawn readied when the spawn fails before its
+  // session lists: an attempt that provisioned the host takes back its imp
+  // and binding, and a host of the spawn's own without one is destroyed. A
+  // parent's host stays as it is. A take-back that fails throws.
+  private async destroyFailedSpawnHost(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    attemptID: string | null,
+  ): Promise<void> {
+    if (attemptID !== null) {
+      await this.tryRemoveAuthAttempt(provider, hostKey, attemptID);
+
+      return;
+    }
+
+    if (hostKey === id && provider.capabilities.destroy) {
+      await provider.destroyHost(hostKey);
+    }
   }
 
   // Takes back what a spawn attempt bound when the spawn fails before its
@@ -1105,7 +1210,7 @@ export class SessionManager {
   // behind the broker has its binding created or verified before the host
   // is readied, and a binding this call created is taken back when a later
   // step fails; the attempt that created it comes back with the plan.
-  private async setupHarness(
+  private setupHarness(
     adapter: AgentAdapter,
     provider: ExecutionProvider,
     id: SessionID,
@@ -1114,10 +1219,17 @@ export class SessionManager {
     options: SpawnOptions,
     auth: HarnessAuthSetup | null,
   ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
+    return this.withHostReadying(hostKey, () =>
+      this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth),
+    );
+  }
+
+  // Counts a host as readying while run runs, so it is not idle then.
+  private async withHostReadying<T>(hostKey: SessionID, run: () => Promise<T>): Promise<T> {
     this.readying.set(hostKey, (this.readying.get(hostKey) ?? 0) + 1);
 
     try {
-      return await this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth);
+      return await run();
     } finally {
       const left = (this.readying.get(hostKey) ?? 1) - 1;
 

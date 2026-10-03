@@ -916,9 +916,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     });
   };
 
-  // A spawn with a workspace source materializes it first, and the session
-  // registers only once its workspace is ready, so no session ever lists
-  // over a half-built checkout. A spawn that throws once its process has
+  // A spawn with a workspace source materializes it once every refusal has
+  // passed and its host is ready, and the session registers only once its
+  // workspace is ready, so no session ever lists over a half-built checkout. A spawn that throws once its process has
   // started takes the session back before it throws, so a failed start
   // leaves nothing running and a keyed retry spawns once. When taking it
   // back fails too, the session may still stand, and the throw says so.
@@ -927,14 +927,32 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     id: SessionID,
     requireInReach: () => void = () => {},
   ): Promise<Readonly<Record<string, unknown>>> => {
-    const prepared =
-      p.workspace === null ? null : await materializeSpawnWorkspace(p, id, p.workspace);
+    const source = p.workspace;
+    let warnings: readonly string[] = [];
 
-    const materialized = prepared?.kind === 'ready' ? prepared : null;
-    const warnings = materialized === null ? [] : materialized.warnings;
+    const materialize =
+      source === null
+        ? null
+        : async (readyHost: () => Promise<SessionID>, targetIdentity: string) => {
+            const prepared = await materializeSpawnWorkspace(
+              p,
+              id,
+              source,
+              readyHost,
+              targetIdentity,
+            );
+
+            if (prepared.kind !== 'ready') {
+              return null;
+            }
+
+            warnings = prepared.warnings;
+
+            return prepared;
+          };
 
     try {
-      const session = await startSpawnedSession(p, id, materialized, requireInReach);
+      const session = await startSpawnedSession(p, id, materialize, requireInReach);
 
       return warnings.length === 0 ? { session } : { session, warnings };
     } catch (error) {
@@ -953,16 +971,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
-  // Materializes a spawn's workspace on its target. The target's identity
-  // binds when the materialization starts, and every provider call after
-  // passes the execution gate against that binding.
+  // Materializes a spawn's workspace on the host its spawn readies once the
+  // source resolves, under the target identity the spawn bound, and every
+  // provider call passes the execution gate against that binding.
   const materializeSpawnWorkspace = (
     p: SpawnParams,
     id: SessionID,
     source: SpawnWorkspaceSource,
+    readyHost: () => Promise<SessionID>,
+    targetIdentity: string,
   ) => {
-    const bound = mgr.requireExecution({ target: p.target, targetIdentity: null }, 'run');
-    const binding = { target: p.target, targetIdentity: bound.identity };
+    const binding = { target: p.target, targetIdentity };
+    const bound = mgr.requireExecution(binding, 'run');
 
     return materializeWorkspace(
       {
@@ -978,6 +998,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         log: (line) => {
           mgr.log(line);
         },
+        readyHost,
         stagingRoot: tmpdir(),
         gitTransports,
       },
@@ -987,10 +1008,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const startSpawnedSession = async (
     p: SpawnParams,
     id: SessionID,
-    materialized: Readonly<{
-      workspace: SessionWorkspace;
-      withheldEnv: readonly string[];
-    }> | null,
+    materialize:
+      | ((
+          readyHost: () => Promise<SessionID>,
+          targetIdentity: string,
+        ) => Promise<Readonly<{
+          workspace: SessionWorkspace;
+          withheldEnv: readonly string[];
+        }> | null>)
+      | null,
     requireInReach: () => void,
   ): Promise<SessionDescriptor> => {
     const s = await mgr.spawn(
@@ -1006,7 +1032,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       p.overrides,
       id,
       p.target,
-      materialized,
+      materialize,
       requireInReach,
     );
 

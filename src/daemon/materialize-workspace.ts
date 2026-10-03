@@ -40,6 +40,10 @@ interface MaterializeDeps {
   readonly store: Pick<StateStore, 'createMaterialization' | 'updateMaterialization'>;
   readonly log: (line: string) => void;
 
+  // Readies the host on the target the workspace lands on and resolves to
+  // it, once the source has resolved.
+  readonly readyHost: () => Promise<string>;
+
   // The directory on the daemon's host that holds each clone's staging
   // directory while the workspace is built.
   readonly stagingRoot: string;
@@ -62,6 +66,9 @@ interface ReadyWorkspace {
 
 interface MaterializationProgress {
   phase: MaterializationPhase;
+
+  // The host the workspace lands on, once it is ready.
+  host: string | null;
 
   // Whether this call created the target directory, so a failure removes
   // only a directory it made.
@@ -113,7 +120,7 @@ export async function materializeWorkspace(
 
   const secret = findCredentialSecret(source);
   const withheldEnv = buildWithheldEnv(source);
-  const progress: MaterializationProgress = { phase: 'resolving', claimed: false };
+  const progress: MaterializationProgress = { phase: 'resolving', host: null, claimed: false };
 
   const updateProgress = (update: Readonly<Partial<MaterializationProgress>>) => {
     Object.assign(progress, update);
@@ -220,7 +227,11 @@ async function runMaterialization(
   const repoURL = secret === null ? pinned.repoURL : toRedacted(pinned.repoURL, secret);
   const ref = secret === null || pinned.ref === null ? pinned.ref : toRedacted(pinned.ref, secret);
 
-  await claimTargetDir(request, deps, updateProgress);
+  const host = await deps.readyHost();
+
+  updateProgress({ host });
+
+  await claimTargetDir(request, deps, host, updateProgress);
   await recordPhase(request, deps, updateProgress, 'cloning', { repoURL, ref });
 
   const clone = await createCleanClone(pinned, join(staging, 'clone'), transports);
@@ -231,13 +242,13 @@ async function runMaterialization(
   await recordPhase(request, deps, updateProgress, 'transferring', { sha: clone.sha });
 
   try {
-    await deps.requireProvider('transfer').transferArchive(clone.archive, request.dir);
+    await deps.requireProvider('transfer').transferArchive(clone.archive, request.dir, host);
   } catch (error) {
     throw toDaemonError(error, 'transfer_failed', 'transferring');
   }
 
   await recordPhase(request, deps, updateProgress, 'verifying', {});
-  await verifyTargetHead(request, deps, clone.sha);
+  await verifyTargetHead(request, deps, host, clone.sha);
 
   const materializedAt = Date.now();
 
@@ -359,11 +370,14 @@ async function requireNoURLCredentials(url: string, cwd: string): Promise<void> 
 async function claimTargetDir(
   request: MaterializeRequest,
   deps: MaterializeDeps,
+  host: string,
   updateProgress: ProgressTracker,
 ): Promise<void> {
-  const parent = await deps
-    .requireProvider('run')
-    .runCommand({ argv: ['mkdir', '-p', '--', dirname(request.dir)], cwd: '/' });
+  const parent = await deps.requireProvider('run').runCommand({
+    argv: ['mkdir', '-p', '--', dirname(request.dir)],
+    cwd: '/',
+    host,
+  });
 
   if (parent.exitCode !== 0) {
     throw new DaemonError(
@@ -375,7 +389,7 @@ async function claimTargetDir(
 
   const claim = await deps
     .requireProvider('run')
-    .runCommand({ argv: ['mkdir', '--', request.dir], cwd: '/' });
+    .runCommand({ argv: ['mkdir', '--', request.dir], cwd: '/', host });
 
   if (claim.exitCode !== 0) {
     throw new DaemonError(
@@ -487,11 +501,12 @@ const STATUS_ARGV = [
 async function verifyTargetHead(
   request: MaterializeRequest,
   deps: MaterializeDeps,
+  host: string,
   sha: string,
 ): Promise<void> {
   const head = await deps
     .requireProvider('run')
-    .runCommand({ argv: [...VERIFY_ENV, ...VERIFY_ARGV], cwd: request.dir });
+    .runCommand({ argv: [...VERIFY_ENV, ...VERIFY_ARGV], cwd: request.dir, host });
 
   const actual = head.exitCode === 0 ? head.stdout.trim() : null;
 
@@ -505,7 +520,7 @@ async function verifyTargetHead(
 
   const status = await deps
     .requireProvider('run')
-    .runCommand({ argv: [...VERIFY_ENV, ...STATUS_ARGV], cwd: request.dir });
+    .runCommand({ argv: [...VERIFY_ENV, ...STATUS_ARGV], cwd: request.dir, host });
 
   const changed = status.stdout.split('\n').filter((line) => line !== '');
 
@@ -560,14 +575,16 @@ async function tryRemoveClaimedDir(
   progress: Readonly<MaterializationProgress>,
   secret: string | null,
 ): Promise<void> {
-  if (!progress.claimed) {
+  if (!progress.claimed || progress.host === null) {
     return;
   }
+
+  const host = progress.host;
 
   try {
     const removed = await deps
       .requireProvider('run')
-      .runCommand({ argv: ['rm', '-rf', '--', request.dir], cwd: '/' });
+      .runCommand({ argv: ['rm', '-rf', '--', request.dir], cwd: '/', host });
 
     if (removed.exitCode !== 0) {
       throw new Error(removed.stderr.trim());
