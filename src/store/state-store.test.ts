@@ -252,6 +252,65 @@ test('it drops a stored row whose agent session id a written entry holds', async
   ]);
 });
 
+test('it relinks a stored sub-session to the session that replaced its parent', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    {
+      sessionID: toSessionID('s-old'),
+      name: 'parent',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      exited: true,
+    },
+    {
+      sessionID: toSessionID('s-child'),
+      name: 'child',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c2'),
+      agent: 'claude',
+      exited: true,
+      parent: toSessionID('s-old'),
+    },
+  ]);
+
+  await store.writeFleet([
+    {
+      sessionID: toSessionID('s-new'),
+      name: 'resumed',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+    },
+  ]);
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    {
+      sessionID: toSessionID('s-child'),
+      name: 'child',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c2'),
+      agent: 'claude',
+      exited: true,
+      parent: toSessionID('s-new'),
+    },
+    {
+      sessionID: toSessionID('s-new'),
+      name: 'resumed',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+    },
+  ]);
+});
+
 test('it never lets two overlapping writes leave a mixed or half-written fleet', async () => {
   const store = await StateStore.open(join(setupDir(), 'state.db'));
 

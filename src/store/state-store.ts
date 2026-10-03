@@ -253,7 +253,7 @@ export class StateStore {
           ? []
           : await trx
               .selectFrom('fleet')
-              .select('session_id')
+              .select(['session_id', 'agent_session_id'])
               .where('agent_session_id', 'in', agentSessionIDs)
               .execute();
 
@@ -313,6 +313,38 @@ export class StateStore {
             owner_epoch: OWNER_EPOCH,
             updated_at: updatedAt,
           })
+          .execute();
+      }
+
+      // A stored row this write leaves in place follows its replaced parent
+      // to the session that replaced it, or to that session's own parent
+      // when the replacement is itself a sub-session.
+      const survivors = new Map(
+        kept.flatMap((entry) =>
+          entry.agentSessionID === undefined ? [] : [[entry.agentSessionID, entry] as const],
+        ),
+      );
+
+      for (const row of replaced) {
+        const survivor =
+          row.agent_session_id === null
+            ? undefined
+            : survivors.get(toAgentSessionID(row.agent_session_id));
+
+        if (survivor === undefined || survivor.sessionID === row.session_id) {
+          continue;
+        }
+
+        await trx
+          .updateTable('fleet')
+          .set({ parent_session_id: survivor.parent ?? survivor.sessionID })
+          .where('parent_session_id', '=', row.session_id)
+          .where('session_id', 'in', (eb) =>
+            eb
+              .selectFrom('session_owner')
+              .select('session_id')
+              .where('daemon_id', '=', this.daemonID),
+          )
           .execute();
       }
     });
