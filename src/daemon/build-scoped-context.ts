@@ -15,9 +15,9 @@ import type { TargetAccess, TargetGrant } from './target-access';
  * session does, so the request's own handling refuses it with the words
  * and data it gives a session that never existed. Lists leave such
  * sessions out, and a spawn may use only a target the access holds, a
- * spawn's replayed answer included. A kill, or a pin, of a session whose
- * sub-sessions reach past the access is refused whole, before anything
- * changes.
+ * spawn's replayed answer included. A kill, a forget, or a pin of a
+ * session whose sub-sessions reach past the access is refused whole,
+ * before anything changes.
  */
 export function buildScopedContext(
   ctx: DaemonContext,
@@ -157,6 +157,18 @@ export function buildScopedContext(
       requireTreeInReach(id, 'kill');
 
       return ctx.killSession(id);
+    },
+
+    // A session out of reach answers before any confirm token is handed
+    // out or taken, so its host is never touched.
+    forgetSession: (id, confirmToken) => {
+      if (!canSee(id)) {
+        return Promise.resolve('missing' as const);
+      }
+
+      requireTreeInReach(id, 'forget');
+
+      return ctx.forgetSession(id, confirmToken);
     },
     updateSession: (id, name, pinned) => {
       if (!canSee(id)) {

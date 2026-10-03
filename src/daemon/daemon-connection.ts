@@ -356,7 +356,7 @@ export class DaemonConnection {
 
         const id = parsed.data.session;
 
-        const forgotten = await this.ctx.forgetSession(id, parsed.data.confirmToken);
+        const forgotten = await ctx.forgetSession(id, parsed.data.confirmToken);
 
         if (forgotten === 'missing') {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
@@ -616,7 +616,7 @@ export class DaemonConnection {
       // Checked before the spawn starts, so a target that cannot take a
       // workspace refuses it before any git command runs.
       if (data.workspace !== undefined) {
-        this.ctx.requireWorkspaceTarget(target);
+        ctx.requireWorkspaceTarget(target);
       }
 
       // A workspace is materialized at cwd on the target, which only an
