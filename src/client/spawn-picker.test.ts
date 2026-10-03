@@ -287,6 +287,44 @@ test('it adopts in place on the one local target it offers', async () => {
   expect(spawned?.['workspace']).toBeUndefined();
 });
 
+test('it offers an agent that takes the broker credential only the targets that reach the broker', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+
+  await ctx.answer('agents.list', {
+    agents: [{ id: 'claude', brokerAuth: true }],
+    targets: [LOCAL, { ...BOX, brokerAuth: true }],
+    sources: [DIR_SOURCE],
+  });
+
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+
+  expect(ctx.collectSent('session.spawn')).toMatchObject([{ target: 'box' }]);
+});
+
+test('it offers an agent that takes no broker credential every target', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+
+  await ctx.answer('agents.list', {
+    agents: [{ id: 'claude', brokerAuth: false }],
+    targets: [LOCAL, { ...BOX, brokerAuth: true }],
+    sources: [DIR_SOURCE],
+  });
+
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER, ENTER);
+
+  expect(ctx.collectSent('session.spawn')).toMatchObject([{ target: 'local' }]);
+});
+
 test('it lists a scope read from typed text once, on the target chosen after it', async () => {
   const ctx = setupTest();
 

@@ -758,3 +758,27 @@ test('it sends no resend of a keyed spawn to a daemon that does not announce rep
   expect(legacy.requests.map((request) => request.m)).toStrictEqual(['daemon.hello']);
   expect(listed['sessions']).toHaveLength(1);
 });
+
+test("it passes each daemon's agent and target broker fields through agents.list unchanged", async () => {
+  await using daemons = await setupTest();
+
+  const router = daemons.startRouter();
+
+  const direct = await daemons.owner('cloud').sendRequest('agents.list');
+  const fanned = await router.sendRequest('agents.list', {}, ['agents.list'], 'gw');
+
+  const cloud = getRecord(getRecord(fanned, 'daemons'), 'cloud');
+
+  expect<Record<string, unknown>>({
+    agents: cloud['agents'],
+    targets: cloud['targets'],
+  }).toStrictEqual({
+    agents: [expect.objectContaining({ id: 'claude', brokerAuth: false })],
+    targets: [expect.objectContaining({ id: 'local', brokerAuth: false })],
+  });
+
+  expect<Record<string, unknown>>({
+    agents: cloud['agents'],
+    targets: cloud['targets'],
+  }).toStrictEqual({ agents: direct['agents'], targets: direct['targets'] });
+});

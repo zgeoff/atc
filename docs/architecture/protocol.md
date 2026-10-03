@@ -354,17 +354,20 @@ spawn prompt and latest result, so both survive a restore.
 
 `agents.list` returns a `daemon` object with the host's name, platform, and architecture and the
 daemon build, plus one entry per registered agent id. An entry holds the id, label, kind,
-`installed`, `capabilities`, and `models`:
+`installed`, `brokerAuth`, `capabilities`, and `models`:
 
 - `kind` is the agent CLI family, which the agent's adapter declares. It is an open string, so a
   client must accept a kind it has not seen. An adapter without a profile is listed with its id as
   its label and kind.
 - `installed` is true when the agent's binary resolves on the daemon's `PATH` or at its configured
   path. A registered agent whose binary is missing stays in the list with `installed` false.
+- `brokerAuth` is true when the agent takes its credential from impd's broker, so it runs only on a
+  target whose entry has `brokerAuth`. A daemon from before the field sends none, which reads as
+  false.
 - `capabilities` holds one boolean each for `spawn`, `readTranscript`, `message`, `attach`,
-  `screen`, and `input`. `spawn` is true only for an installed agent, `message` follows the agent's
-  message tap, and every agent takes `attach`, `screen`, and `input`, since each session runs in a
-  PTY.
+  `screen`, and `input`. `spawn` is true only for an installed agent, and for an agent with
+  `brokerAuth` only while some target has `brokerAuth`. `message` follows the agent's message tap,
+  and every agent takes `attach`, `screen`, and `input`, since each session runs in a PTY.
 - `models` holds the model names the config sets explicitly, keyed by role, and is null otherwise.
   For a gateway, `ANTHROPIC_MODEL` is the `default` role and each `ANTHROPIC_DEFAULT_<TIER>_MODEL`
   is the tier in lower case.
@@ -377,8 +380,10 @@ and no field describes which plans an agent's account holds.
 The answer also holds the execution targets:
 
 - `targets` holds one entry per well-formed target, in config order: its `id`, its `provider` kind,
-  `identity`, `available`, `default`, and `capabilities`. `available` is false when this daemon has
-  no provider of that kind, and such a target's capabilities are all false. An entry never holds the
+  `identity`, `available`, `default`, `capabilities`, and `brokerAuth`. `available` is false when
+  this daemon has no provider of that kind, and such a target's capabilities are all false.
+  `brokerAuth` is true when the target's provider reaches impd's broker, which every imp target
+  does; a daemon from before the field sends none, which reads as false. An entry never holds the
   target's options, which can hold a host's address or an account.
 - `spawnDefaults` holds the `agent` and `target` a spawn without either runs with. `target` is null
   when the config gives no default, and such a spawn fails with `target_config_invalid`.

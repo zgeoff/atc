@@ -62,6 +62,30 @@ async function setupTest() {
   const brokered: AgentAdapter = {
     ...shared,
     id: 'glm',
+    profile: {
+      label: 'GLM',
+      kind: 'claude',
+      bin: 'sh',
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+        effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+      },
+    },
     planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
     planGuestSpawn: (_opts, guest) =>
       guest.auth === undefined
@@ -228,6 +252,27 @@ test('it provisions the host of a spawn before readying it and starts the harnes
     require: [['broker']],
     grants: ['glm'],
     binding: expect.objectContaining({ state: 'ready', revision: 1, impName: imp }),
+  });
+});
+
+test('it lists the imp target as reaching the broker and the local target as reaching none', async () => {
+  await using daemon = await setupTest();
+
+  const listed = await daemon.client.sendRequest('agents.list');
+
+  expect(listed['targets']).toMatchObject([
+    { id: 'local', brokerAuth: false },
+    { id: 'box', brokerAuth: true },
+  ]);
+});
+
+test('it lists an agent that takes the broker credential as spawnable on a daemon with a broker target', async () => {
+  await using daemon = await setupTest();
+
+  const listed = await daemon.client.sendRequest('agents.list');
+
+  expect(listed).toMatchObject({
+    agents: [{ id: 'glm', brokerAuth: true, capabilities: { spawn: true } }, { id: 'plain' }, {}],
   });
 });
 

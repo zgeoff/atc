@@ -25,6 +25,7 @@ test('it accepts every model and effort value agents.list advertises as availabl
       ...config.gateways.map((gateway) => new GatewayAdapter(gateway, config)),
     ],
     () => true,
+    false,
   );
 
   const advertised = agents.flatMap((agent) =>
@@ -51,6 +52,7 @@ test('it refuses as unsupported every option agents.list does not advertise as a
   const agents = buildAgentList(
     [new ClaudeAdapter(config), new GrokAdapter(config), new CodexAdapter(config)],
     () => true,
+    false,
   );
 
   const refused = agents.flatMap((agent) =>
@@ -76,7 +78,7 @@ test('it refuses as unsupported every option agents.list does not advertise as a
 });
 
 test('it refuses a model for a registered agent that is not installed', () => {
-  const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => false);
+  const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => false, false);
 
   if (claude === undefined) {
     throw new Error('the agent list holds no claude entry');
@@ -90,7 +92,7 @@ test('it refuses a model for a registered agent that is not installed', () => {
 });
 
 test('it passes a full model name through as given', () => {
-  const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => true);
+  const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => true, false);
 
   if (claude === undefined) {
     throw new Error('the agent list holds no claude entry');
@@ -112,7 +114,7 @@ test.each([
   ['', 'model must be 1 to 200 characters'],
   ['m'.repeat(201), 'model must be 1 to 200 characters'],
 ])('it refuses the model %p as bad_args', (model, message) => {
-  const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => true);
+  const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => true, false);
 
   if (claude === undefined) {
     throw new Error('the agent list holds no claude entry');
@@ -128,7 +130,7 @@ test.each([
 test.each(['ultra', 'minimal', 'HIGH', '--max'])(
   'it refuses the effort %p that Claude Code does not accept',
   (effort) => {
-    const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => true);
+    const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => true, false);
 
     if (claude === undefined) {
       throw new Error('the agent list holds no claude entry');
@@ -147,6 +149,7 @@ test("it accepts a gateway effort and marks the provider's response to it unveri
   const [zai] = buildAgentList(
     config.gateways.map((gateway) => new GatewayAdapter(gateway, config)),
     () => true,
+    false,
   );
 
   if (zai === undefined) {
@@ -167,6 +170,7 @@ test('it refuses a gateway effort outside the levels Claude Code accepts', () =>
   const [zai] = buildAgentList(
     config.gateways.map((gateway) => new GatewayAdapter(gateway, config)),
     () => true,
+    false,
   );
 
   if (zai === undefined) {
@@ -181,7 +185,7 @@ test('it refuses a gateway effort outside the levels Claude Code accepts', () =>
 });
 
 test('it refuses a codex effort and accepts a codex model', () => {
-  const [codex] = buildAgentList([new CodexAdapter(parseConfig({}))], () => true);
+  const [codex] = buildAgentList([new CodexAdapter(parseConfig({}))], () => true, false);
 
   if (codex === undefined) {
     throw new Error('the agent list holds no codex entry');

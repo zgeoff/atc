@@ -95,6 +95,7 @@ test('it lists an agent atc has no code for with the kind and label its adapter 
     label: 'Acme Agent',
     kind: 'acme-cli',
     installed: true,
+    brokerAuth: false,
     capabilities: {
       spawn: true,
       readTranscript: false,

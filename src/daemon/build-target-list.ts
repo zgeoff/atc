@@ -14,6 +14,10 @@ export interface TargetEntry {
   readonly available: boolean;
   readonly default: boolean;
   readonly capabilities: ExecutionCapabilities;
+
+  // Whether the target's provider reaches impd's credential broker, so an
+  // agent that takes its credential from the broker can run there.
+  readonly brokerAuth: boolean;
 }
 
 // What a target without a provider can do: nothing.
@@ -46,5 +50,6 @@ export function buildTargetList(
     available: target.provider !== null,
     default: target.id === defaultTarget,
     capabilities: target.provider?.capabilities ?? NO_CAPABILITIES,
+    brokerAuth: target.provider?.brokerAuth !== undefined,
   }));
 }

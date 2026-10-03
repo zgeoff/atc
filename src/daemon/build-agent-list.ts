@@ -2,7 +2,8 @@ import type { AgentAdapter, SpawnOptionSpec } from '../agents/agent-adapter';
 
 interface AgentCapabilities {
   // Only an installed agent whose starts are not all refused can start a
-  // session.
+  // session, and one that takes its credential from impd's broker only
+  // where some target reaches the broker.
   readonly spawn: boolean;
   readonly readTranscript: boolean;
 
@@ -20,6 +21,10 @@ export interface AgentEntry {
 
   // Whether the agent's binary resolves, on PATH or at its configured path.
   readonly installed: boolean;
+
+  // Whether the agent takes its credential from impd's broker, so it runs
+  // only on a target whose entry has `brokerAuth`.
+  readonly brokerAuth: boolean;
   readonly capabilities: AgentCapabilities;
   readonly models: Readonly<Record<string, string>> | null;
   readonly spawnOptions: SpawnOptionEntries;
@@ -43,22 +48,30 @@ interface SpawnOptionEntries {
  * so no environment value, credential, helper command, or base URL reaches
  * it. Every session runs in a PTY, so each agent can be attached, read as a
  * screen, and typed into. A stand-in adapter without a profile is listed
- * under its id as both label and kind.
+ * under its id as both label and kind. hasBrokerTarget holds whether any
+ * target reaches impd's credential broker.
  */
 export function buildAgentList(
   adapters: readonly AgentAdapter[],
   isInstalled: (bin: string) => boolean,
+  hasBrokerTarget: boolean,
 ): AgentEntry[] {
   return adapters.map((adapter) => {
     const profile = adapter.profile;
     const installed = profile === undefined ? false : isInstalled(profile.bin);
-    const spawnable = installed && (adapter.findSpawnRefusal?.() ?? null) === null;
+    const brokerAuth = (adapter.findAuthSelection?.() ?? null) !== null;
+
+    const spawnable =
+      installed &&
+      (adapter.findSpawnRefusal?.() ?? null) === null &&
+      (!brokerAuth || hasBrokerTarget);
 
     return {
       id: adapter.id,
       label: profile?.label ?? adapter.id,
       kind: profile?.kind ?? adapter.id,
       installed,
+      brokerAuth,
       capabilities: {
         spawn: spawnable,
         readTranscript: adapter.parseTranscriptLine !== undefined,

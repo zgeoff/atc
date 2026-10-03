@@ -1616,7 +1616,10 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    const picks = collectTargetPicks(listed);
+    // An agent that takes its credential from impd's broker runs only on a
+    // target that reaches the broker.
+    const brokered = isBrokerAgent(listed['agents'], this.agent);
+    const picks = collectTargetPicks(listed).filter((t) => !brokered || t.brokerAuth);
 
     // An adopt resumes a session from its history on this host, which a
     // fresh checkout elsewhere does not hold, so it is offered only the
@@ -1868,6 +1871,17 @@ function buildProbedRepo(
     head: typeof answer['head'] === 'string' ? answer['head'] : null,
     refs: parseProbedRefs(answer['refs']),
   };
+}
+
+// Whether the daemon lists an agent as taking its credential from impd's
+// broker; a daemon that does not say lists none.
+function isBrokerAgent(raw: unknown, agent: AgentID): boolean {
+  return (
+    Array.isArray(raw) &&
+    raw.some(
+      (entry: unknown) => isRecord(entry) && entry['id'] === agent && entry['brokerAuth'] === true,
+    )
+  );
 }
 
 function parseAnnouncedSources(raw: unknown): AnnouncedSource[] {

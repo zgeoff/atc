@@ -87,6 +87,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         label: 'Claude',
         kind: 'claude',
         installed: true,
+        brokerAuth: false,
         capabilities: {
           spawn: true,
           readTranscript: true,
@@ -122,6 +123,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         label: 'Grok',
         kind: 'grok',
         installed: true,
+        brokerAuth: false,
         capabilities: {
           spawn: true,
           readTranscript: false,
@@ -157,6 +159,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         label: 'Codex',
         kind: 'codex',
         installed: false,
+        brokerAuth: false,
         capabilities: {
           spawn: false,
           readTranscript: false,
@@ -192,6 +195,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         label: 'GLM (z.ai)',
         kind: 'gateway',
         installed: true,
+        brokerAuth: false,
         capabilities: {
           spawn: true,
           readTranscript: true,
@@ -242,6 +246,7 @@ test('it lists each registered agent with what it can do and the host it runs on
           suspend: false,
           destroy: false,
         },
+        brokerAuth: false,
       },
     ],
     spawnDefaults: { agent: 'claude', target: 'local' },

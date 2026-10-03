@@ -1282,7 +1282,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         arch: process.arch,
         build: opts.build,
       },
-      agents: buildAgentList(mgr.collectAdapters(), (bin) => Bun.which(bin) !== null),
+      agents: buildAgentList(
+        mgr.collectAdapters(),
+        (bin) => Bun.which(bin) !== null,
+        targets.some((target) => target.provider?.brokerAuth !== undefined),
+      ),
       targets: buildTargetList(targets, defaultTarget),
       spawnDefaults: { agent: 'claude', target: defaultTarget },
       configRevision,
