@@ -87,6 +87,8 @@ function setupTest() {
                 },
                 transferArchive: local.transferArchive,
                 runCommand: local.runCommand,
+                suspendHost: local.suspendHost,
+                destroyHost: local.destroyHost,
               }
             : null,
       })),

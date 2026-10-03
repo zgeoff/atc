@@ -42,13 +42,13 @@ Claude Code's hook events. The MCP tools map onto both mechanically (`session.sp
 `atc_session_spawn`, `SessionAdded` → a notification). Error codes are human-readable strings from a
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
 `no_such_session`, `session_dead`, `unsupported`, `unsupported_operation`, `unknown_target`,
-`target_unavailable`, `target_changed`, `target_config_invalid`, `target_forbidden`,
-`already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`, `outcome_unknown`,
-`internal`, plus the workspace refusals that [workspaces](#workspaces) lists. An unknown method is
-an `unknown_method` error, never a disconnect; unknown fields in any message are ignored. A peer
-decodes an error code it does not know as `internal` and keeps its `msg`. These rules exist so
-additive evolution never breaks a peer. An error may also carry `data`, an object whose fields its
-code defines.
+`target_unavailable`, `target_changed`, `target_config_invalid`, `target_forbidden`, `host_leased`,
+`confirmation_required`, `already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`,
+`outcome_unknown`, `internal`, plus the workspace refusals that [workspaces](#workspaces) lists. An
+unknown method is an `unknown_method` error, never a disconnect; unknown fields in any message are
+ignored. A peer decodes an error code it does not know as `internal` and keeps its `msg`. These
+rules exist so additive evolution never breaks a peer. An error may also carry `data`, an object
+whose fields its code defines.
 
 `unsupported_operation` refuses a request that the session's execution host cannot serve, such as
 input to a host that takes none. Its `data` holds the provider kind as `provider` and the missing
@@ -117,7 +117,7 @@ semantics.
 | `fleet.list`            | the persisted fleet rows, independent of which sessions are currently live. Each row holds its `sessionID`, the `agentSessionID` once the agent reports one, and `parent` as an atc session id.                                                                                                                                                                                                                                                                                                                                                |
 | `session.spawn`         | spawn (cwd, name, prompt, resume, dims, optional `agent` id, optional `parent` id, optional `model` and `effort`, optional `idempotencyKey`, optional `target`, optional `workspace`). Omitted agent is Claude, an empty id is `bad_args`, an unregistered one `unsupported`. An unknown parent is `no_such_session`. [Spawn options](#spawn-options) covers `model` and `effort`, [idempotent requests](#idempotent-requests) covers `idempotencyKey`, [targets](#targets) covers `target`, and [workspaces](#workspaces) covers `workspace`. |
 | `session.update`        | rename and/or pin a session (`{ session, name?, pinned? }`). Pinning a sub-session is `bad_args`: it pins with its parent.                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `session.kill`          | kill process; explicit, never implied by disconnect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `session.kill`          | end a session or put its host to sleep; explicit, never implied by disconnect. [Kill and sleep](#kill-and-sleep) covers the cases                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `session.ack`           | clear unread without attaching                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `session.attach`        | subscribe to a session's output; returns replay + current dims                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `session.detach`        | unsubscribe; session keeps running                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -475,6 +475,28 @@ Every workspace refusal holds the phase it failed in as `data.phase`, and its me
 | `tar_failed`         | cloning                   | tar cannot archive the clone                                                                    |
 | `transfer_failed`    | resolving or transferring | the provider cannot create `cwd`'s parent or unpack the archive                                 |
 | `workspace_mismatch` | verifying                 | the target's HEAD is not the pinned commit, in `data.actual`, or a tracked file differs from it |
+
+## Kill and sleep
+
+`session.kill` on a live session ends its harness and the harnesses of its live sub-sessions, and
+the session lists as exited. A second kill of a dead session forgets it: the daemon drops the
+session and its dead sub-sessions from the list and the fleet.
+
+A session whose target can put its host to sleep owns a host of its own, and a sub-session on the
+same target runs on its parent's host. A kill of the session that owns such a host puts the host to
+sleep instead of ending anything: every harness on the host stays inside it, each of those sessions
+lists as exited with `lastMsg` `asleep`, and its `lifecycle` reads `desired` `sleep`, `vm` `asleep`,
+and `harness` `suspended`. A revive wakes the host and finds the harness as it was. A kill of a
+sub-session on its parent's host ends that harness alone.
+
+A host that another owner keeps awake refuses to sleep. The kill then fails whole with
+`host_leased`, the session keeps running, and `data` holds `leases`, the other owners' leases the
+host shows this daemon, and `otherCount`, the number of owners it does not show. The daemon never
+forces a host to sleep.
+
+A target that can destroy its host never forgets a session on a second kill, since forgetting the
+session destroys the host and everything on it. The second kill fails with `confirmation_required`,
+with the session id in `data.session`.
 
 ## Idempotent requests
 

@@ -932,7 +932,12 @@ export class SessionManager {
   // archived, so the write it depends on must land before that response
   // goes out. A kill acts on the whole set: killing a session kills its
   // live sub-sessions with it, and forgetting a dead one forgets its dead
-  // sub-sessions and promotes any live ones to top level.
+  // sub-sessions and promotes any live ones to top level. A live session
+  // that owns a host that can sleep puts the host to sleep instead, with
+  // every harness on it kept inside, and fails whole when the host stays
+  // awake. A dead session on a target that can destroy its host is not
+  // forgotten by a kill: forgetting it destroys the host, which takes a
+  // confirmed forget.
   async kill(id: SessionID): Promise<void> {
     const s = this.sessions.find((x) => x.id === id);
 
@@ -941,12 +946,20 @@ export class SessionManager {
     }
 
     if (s.pty) {
+      await this.stopHarness(s);
+
       for (const child of this.collectChildren(id)) {
-        this.killTerminal(child);
+        await this.tryStopHarness(child);
+      }
+    } else {
+      if (this.findProvider(s)?.capabilities.destroy === true) {
+        throw new DaemonError(
+          'confirmation_required',
+          `forgetting session ${id} destroys its host on target '${s.target}'; confirm it with session.forget`,
+          { session: id },
+        );
       }
 
-      this.killTerminal(s);
-    } else {
       for (const child of this.collectChildren(id)) {
         if (child.pty === null && !(child.kind === 'headless' && child.state !== 'exited')) {
           this.remove(child);
@@ -963,6 +976,81 @@ export class SessionManager {
     await this.writeFleet();
 
     this.emitChange();
+  }
+
+  /**
+   * The capability a kill of a live session needs on its target: `suspend`
+   * for a session that owns a host that can sleep, `kill` for any other.
+   */
+  pickKillCapability(s: Session): ExecutionCapability {
+    return this.canSuspendHost(s) ? 'suspend' : 'kill';
+  }
+
+  private canSuspendHost(s: Session): boolean {
+    return s.hostKey === s.id && this.findProvider(s)?.capabilities.suspend === true;
+  }
+
+  // Puts the session's host to sleep when it owns one that can sleep, and
+  // ends its harness otherwise. A refused sleep throws before anything
+  // changes.
+  private async stopHarness(s: Session): Promise<void> {
+    const provider = this.findProvider(s);
+
+    if (provider === null || !this.canSuspendHost(s)) {
+      this.killTerminal(s);
+
+      return;
+    }
+
+    await provider.suspendHost(s.hostKey);
+
+    for (const onHost of this.sessions) {
+      if (onHost.hostKey === s.hostKey && onHost.target === s.target) {
+        this.updateSuspended(onHost);
+      }
+    }
+  }
+
+  // A sub-session whose host stays awake is ended instead, so a kill
+  // never leaves part of its set running.
+  private async tryStopHarness(s: Session): Promise<void> {
+    if (s.pty === null) {
+      this.killTerminal(s);
+
+      return;
+    }
+
+    try {
+      await this.stopHarness(s);
+    } catch (error) {
+      this.log(
+        `atc could not put the host of session ${s.id} to sleep (${error instanceof Error ? error.message : String(error)}); ending its harness instead`,
+      );
+
+      this.killTerminal(s);
+    }
+  }
+
+  // A harness inside a host that went to sleep: the daemon lets go of it,
+  // and the process stays inside the host for a revive to find.
+  private updateSuspended(s: Session): void {
+    s.vm = 'asleep';
+
+    if (s.pty === null) {
+      this.onEvent('state', s);
+
+      return;
+    }
+
+    s.pty.detach();
+
+    s.pty = null;
+    s.state = 'exited';
+    s.lastMsg = 'asleep';
+    s.desired = 'sleep';
+    s.attachment = 'detached';
+
+    this.onEvent('state', s);
   }
 
   // Ends a live session, terminal or headless, leaving a dead entry; a

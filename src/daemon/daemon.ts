@@ -1111,7 +1111,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       for (const live of [s, ...mgr.collectChildren(id)]) {
         if (live.pty !== null) {
-          mgr.requireExecution(live, 'kill');
+          mgr.requireExecution(live, mgr.pickKillCapability(live));
         }
       }
 

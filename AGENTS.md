@@ -241,14 +241,19 @@ not app code.
   `atc clients`, and `atc grants` open it, never the daemon. `daemon.lock` admits one daemon per
   state directory, and `daemon.json` holds its pid and socket paths for clients whose environment
   computes other socket paths. The fleet is rewritten on deliberate kills only, so crashes leave a
-  restorable fleet; killed sessions persist as exited entries until a second kill removes them.
+  restorable fleet; killed sessions persist as exited entries until a second kill removes them,
+  except on a target that can destroy its host, where only a confirmed `session.forget` removes one.
 
 ## Function naming — project verbs
 
 Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
-`.oxlintrc.json`): `ack`, `adopt`, `answer`, `attach`, `boot`, `copy`, `detach`, `dispose`, `draw`,
-`jiggle`, `kill`, `log`, `materialize`, `mint`, `open`, `quit`, `reconcile`, `record`, `refresh`,
-`restart`, `restore`, `revoke`, `sanitize`, `schedule`, `spawn`, `transfer`, `truncate`, `yank`.
+`.oxlintrc.json`): `ack`, `adopt`, `answer`, `attach`, `boot`, `copy`, `destroy`, `detach`,
+`dispose`, `draw`, `jiggle`, `kill`, `log`, `materialize`, `mint`, `open`, `quit`, `reconcile`,
+`record`, `refresh`, `restart`, `restore`, `revoke`, `sanitize`, `schedule`, `spawn`, `suspend`,
+`transfer`, `truncate`, `yank`.
+
+`destroy` deletes an execution host and everything on it, which nothing brings back (`destroyHost`),
+as opposed to `remove`, which deletes one record or file.
 
 `dispose` releases every resource an object holds in one call (`SessionRuntime.dispose`), and is
 safe to call more than once.
@@ -270,15 +275,18 @@ opposed to `remove`, which deletes a resource outright.
 none remain (`sanitizeWorkspaceClone`), as opposed to `update`, which makes no promise about what is
 left.
 
+`suspend` puts an execution host to sleep with its processes kept inside it, so a later wake finds
+them as they were (`suspendHost`), as opposed to `kill`, which ends a process.
+
 `transfer` moves content into an execution provider's host (`transferArchive`), as opposed to
 `write`, which persists to the daemon's own filesystem.
 
 Exempt names (tiny geometry/row helpers and script entrypoints): `cols`, `rows`, `ptyRows`, `out`,
 `main`, `boxTop`, `boxDivider`, `boxBottom`, `boxRow`, `dimRow`.
 
-`init`, `acquireConnection`, `beginTransaction`, `commitTransaction`, `rollbackTransaction`,
-`releaseConnection`, and `destroy` are also exempt: kysely's `Driver` interface fixes these method
-names, so the state store's driver implements them under the names the library requires.
+`init`, `acquireConnection`, `beginTransaction`, `commitTransaction`, `rollbackTransaction`, and
+`releaseConnection` are also exempt: kysely's `Driver` interface fixes these method names, so the
+state store's driver implements them under the names the library requires.
 
 ## Comments
 

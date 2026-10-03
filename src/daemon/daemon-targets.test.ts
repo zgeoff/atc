@@ -96,6 +96,8 @@ async function setupTest(fleet: readonly FleetEntry[] = []) {
                 },
                 transferArchive: local.transferArchive,
                 runCommand: local.runCommand,
+                suspendHost: local.suspendHost,
+                destroyHost: local.destroyHost,
               }
             : null,
       })),

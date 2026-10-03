@@ -114,4 +114,12 @@ export class FixtureDirProvider implements ExecutionProvider {
 
     return { exitCode, stdout, stderr };
   };
+
+  // The host is the test's own directory tree, which neither sleeps nor
+  // goes away.
+  readonly suspendHost = (host: string): Promise<void> =>
+    Promise.reject(new Error(`the fixture-dir provider cannot suspend host ${host}`));
+
+  readonly destroyHost = (host: string): Promise<void> =>
+    Promise.reject(new Error(`the fixture-dir provider cannot destroy host ${host}`));
 }

@@ -83,6 +83,8 @@ async function setupTest(raw: RawConfig) {
           },
           transferArchive: local.transferArchive,
           runCommand: local.runCommand,
+          suspendHost: local.suspendHost,
+          destroyHost: local.destroyHost,
         },
       })),
       defaultTarget: targets.defaultTarget,

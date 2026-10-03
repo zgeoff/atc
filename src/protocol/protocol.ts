@@ -44,6 +44,8 @@ const ERROR_CODES = [
   'workspace_exists',
   'transfer_failed',
   'workspace_mismatch',
+  'host_leased',
+  'confirmation_required',
   'already_answered',
   'too_slow',
   'stale_epoch',
