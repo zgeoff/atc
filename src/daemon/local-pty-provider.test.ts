@@ -251,3 +251,21 @@ test('it runs a command in a directory and returns its exit code and output', as
 
   expect(result).toStrictEqual({ exitCode: 3, stdout: `${local.dir}\n`, stderr: 'oops\n' });
 });
+
+test('it refuses to start a harness that requires a credential broker, which it has none of', () => {
+  using local = setupTest();
+
+  expect(() =>
+    local.provider.spawnHarness({
+      session: 's1',
+      host: 's1',
+      bin: 'true',
+      args: [],
+      cwd: local.dir,
+      env: {},
+      cols: 80,
+      rows: 24,
+      requireBroker: true,
+    }),
+  ).toThrow(expect.objectContaining({ code: 'auth_target_unsupported' }));
+});

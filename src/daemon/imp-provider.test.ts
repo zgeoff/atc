@@ -120,3 +120,61 @@ test("it refuses a token scoped beyond the target's configured prefix", () => {
 
   expect(verified).rejects.toMatchObject({ code: 'auth_token_too_broad' });
 });
+
+test('it asks impd to require the broker on a harness start that requires one', async () => {
+  using imp = setupTest();
+
+  await imp.port.createImp({ name: 'atc-s1' });
+
+  const harness = imp.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: '/tmp',
+    env: {},
+    cols: 80,
+    rows: 24,
+    requireBroker: true,
+  });
+
+  await harness.waitForStart?.().catch(() => null);
+
+  expect<readonly unknown[]>(imp.port.sessionRequests).toStrictEqual([
+    expect.objectContaining({ kind: 'start', name: 'atc-s1', require: ['broker'] }),
+  ]);
+});
+
+test('it asks impd to require nothing on a harness start that requires no broker', async () => {
+  using imp = setupTest();
+
+  await imp.port.createImp({ name: 'atc-s1' });
+
+  const harness = imp.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: '/tmp',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  await harness.waitForStart?.();
+
+  harness.kill();
+
+  expect(imp.port.sessionRequests[0]).not.toContainKey('require');
+});
+
+test("it creates a host's imp for the broker with the target's image and memory", async () => {
+  using imp = setupTest({ image: 'base', memoryMib: 512 });
+
+  const created = await imp.provider.brokerAuth.createImp('s1');
+
+  expect<Record<string, unknown>>({ created, calls: imp.port.calls }).toStrictEqual({
+    created: expect.objectContaining({ name: 'atc-s1', state: 'running' }),
+    calls: ['imps.create atc-s1'],
+  });
+});

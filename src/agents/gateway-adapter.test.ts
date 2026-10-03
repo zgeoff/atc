@@ -543,3 +543,57 @@ test('it refuses no spawn of a gateway without auth', () => {
 
   expect(adapter.findSpawnRefusal()).toBeNull();
 });
+
+test('it selects the credential a gateway with auth takes from the broker, with the auth profiles it resolves against', () => {
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+  });
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    config,
+  );
+
+  expect(adapter.findAuthSelection()).toStrictEqual({
+    gateway: {
+      id: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    profiles: config.authProfiles,
+  });
+});
+
+test('it selects no broker credential for a gateway without auth', () => {
+  const adapter = new GatewayAdapter(
+    {
+      id: 'zai',
+      label: 'zai',
+      mark: 'z',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+    },
+    parseConfig({}),
+  );
+
+  expect(adapter.findAuthSelection()).toBeNull();
+});

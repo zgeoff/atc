@@ -512,3 +512,57 @@ test('it applies a resize that arrived before impd answered the start', async ()
 
   harness.kill();
 });
+
+test('it settles its start once impd starts the process', async () => {
+  using fixture = await setupTest();
+
+  await fixture.harness.waitForStart();
+
+  expect(fixture.exits).toStrictEqual([]);
+});
+
+test('it rejects its start as broker_not_ready and ends without running when impd finds the broker not ready', async () => {
+  using fixture = await setupTest();
+
+  await fixture.port.createImp({ name: 'imp-b' });
+
+  const harness = new ImpHarness(
+    fixture.port,
+    {
+      kind: 'start',
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
+
+  const started = harness.waitForStart();
+
+  expect(started).rejects.toMatchObject({
+    code: 'broker_not_ready',
+    data: { imp: 'imp-b', detail: 'the imp holds no grant' },
+  });
+
+  await started.catch(() => null);
+
+  expect(exits).toStrictEqual([
+    { exitCode: 1, reason: 'ended', detail: 'imp broker not ready (the imp holds no grant)' },
+  ]);
+});
