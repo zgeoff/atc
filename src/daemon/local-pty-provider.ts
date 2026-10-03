@@ -75,6 +75,17 @@ export class LocalPTYProvider implements ExecutionProvider {
         pty.kill();
       },
 
+      // A process already gone has nothing left to end.
+      killForced: () => {
+        try {
+          process.kill(pty.pid, 'SIGKILL');
+        } catch (error) {
+          if (!isMissingProcessError(error)) {
+            throw error;
+          }
+        }
+      },
+
       // bun-pty's kill sends one SIGHUP and reports an exit at once, whether
       // the process ended or not, so the exit is read from the process id
       // instead: the library reaps its child, so the id stops answering a
@@ -167,6 +178,10 @@ function isProcessRunning(pid: number): boolean {
 
     return true;
   } catch (error) {
-    return !(error instanceof Error && 'code' in error && error.code === 'ESRCH');
+    return !isMissingProcessError(error);
   }
+}
+
+function isMissingProcessError(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'ESRCH';
 }
