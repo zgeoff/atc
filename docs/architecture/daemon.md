@@ -97,13 +97,16 @@ atc tcp event=principal_refused peer=100.64.0.7 principal=ops count=1
 ```
 
 The `reason` is one of `missing_token`, `unauthorized`, `delay_cap_full`, `closed_during_delay`,
-`unexpected_line`, and `line_too_long`. A line never holds a token or any part of one. Each field
-from the network is cut to 64 characters, and every control character, space, `=`, `"`, `\`, and
-non-ASCII character in it is written as a `\u{hex}` escape. The first refusal of one kind from one
-peer logs at once with `count=1`: a handshake refusal per reason, and a principal refusal whatever
-principal it gave, so its line holds the first principal. Later ones within a minute are counted,
-and a line with their count follows once the minute ends, so the counts of every line sum to every
-refusal. The daemon tracks at most 1024 such windows, and a new one past that ends the oldest early.
+`unexpected_line`, and `line_too_long`. A principal refusal covers a handshake and a request alike.
+A line never holds a token or any part of one: a principal that shares 8 or more characters in a row
+with a token from the file is logged as `[redacted]`. Each field from the network is cut to 64
+characters, and every control character, space, `=`, `"`, `\`, and non-ASCII character in it is
+written as a `\u{hex}` escape. The first refusal of one kind from one peer logs at once with
+`count=1`: a handshake refusal per reason, and a principal refusal whatever principal it gave, so
+its line holds the first principal. Later ones within a minute are counted, and a line with their
+count follows at the first refusal from any peer after the minute ends, or when the daemon stops, so
+the counts of every line sum to every refusal. The daemon tracks at most 1024 such windows, and a
+new one past that ends the oldest early.
 
 `atc daemon id` prints the running daemon's `daemonID` over the owner's unix socket, for a client
 that pins the daemon's identity. It exits with status 1 when no daemon answers.

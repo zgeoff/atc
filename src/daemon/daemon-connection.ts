@@ -73,7 +73,8 @@ export interface TCPPeer {
   // address.
   readonly recordFailure: (reason: 'unexpected_line' | 'line_too_long') => void;
 
-  // Records a handshake refused for a principal the config does not list.
+  // Records a handshake or a request refused for a principal the config
+  // does not list.
   readonly recordRefusedPrincipal: (principal: string) => void;
 }
 
@@ -384,6 +385,7 @@ export class DaemonConnection {
     }
 
     if (!this.ctx.hasListedPrincipal(req.as)) {
+      this.tcp?.recordRefusedPrincipal(req.as);
       this.sendErr(req.id, 'unauthorized', `principal '${req.as}' is not listed in principals`);
 
       return;

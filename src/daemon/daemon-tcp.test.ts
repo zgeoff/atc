@@ -711,6 +711,46 @@ test('it logs a refused principal with the principal and the peer', async () => 
   ]);
 });
 
+test('it logs a principal refused on a request after the handshake', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map([['gw', ['local']]]),
+  });
+
+  const client = await daemon.openTCPAs(TOKEN_A);
+
+  expect(client.sendRequest('session.list', {}, 'other')).rejects.toMatchObject({
+    code: 'unauthorized',
+  });
+
+  expect(daemon.logged.slice(1)).toStrictEqual([
+    'atc tcp event=principal_refused peer=127.0.0.1 principal=other count=1',
+  ]);
+});
+
+test('it withholds a refused principal that holds part of a token from the token file', async () => {
+  const held = randomBytes(24).toString('hex');
+
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n${held}\n`,
+    principals: new Map([['gw', ['local']]]),
+  });
+
+  const client = await daemon.openTCP();
+
+  expect(
+    client.sendRequest('daemon.hello', {
+      client: 'atc/test-gateway',
+      principal: `ops-${held.slice(10, 22)}`,
+      auth: { scheme: 'bearer', token: TOKEN_A },
+    }),
+  ).rejects.toMatchObject({ code: 'unauthorized' });
+
+  expect(daemon.logged.slice(1)).toStrictEqual([
+    'atc tcp event=principal_refused peer=127.0.0.1 principal=[redacted] count=1',
+  ]);
+});
+
 test('it escapes the control characters of a refused principal in its log line', async () => {
   await using daemon = await setupTest({
     tokens: `${TOKEN_A}\n`,
