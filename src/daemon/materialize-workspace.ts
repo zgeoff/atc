@@ -102,9 +102,6 @@ export async function materializeWorkspace(
 
   const secret = findCredentialSecret(source);
   const withheldEnv = buildWithheldEnv(source);
-
-  const staging = await mkdtemp(join(tmpdir(), 'atc-workspace-'));
-
   const progress: MaterializationProgress = { phase: 'resolving', claimed: false };
 
   const updateProgress = (update: Readonly<Partial<MaterializationProgress>>) => {
@@ -122,10 +119,18 @@ export async function materializeWorkspace(
     Date.now(),
   );
 
+  // The staging directory exists only once the row does, and only inside
+  // the block that removes it, so neither can outlive a failure of the other.
   try {
-    const ready = await runMaterialization(request, deps, staging, updateProgress, secret);
+    const staging = await mkdtemp(join(tmpdir(), 'atc-workspace-'));
 
-    return { ...ready, withheldEnv };
+    try {
+      const ready = await runMaterialization(request, deps, staging, updateProgress, secret);
+
+      return { ...ready, withheldEnv };
+    } finally {
+      await rm(staging, { recursive: true, force: true });
+    }
   } catch (error) {
     const refusal = toScrubbedRefusal(error, progress.phase, secret);
 
@@ -137,8 +142,6 @@ export async function materializeWorkspace(
     );
 
     throw refusal;
-  } finally {
-    await rm(staging, { recursive: true, force: true });
   }
 }
 
