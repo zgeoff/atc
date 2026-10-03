@@ -321,8 +321,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // A live session's scope also matches the rows it wrote under an earlier
   // atc id, through the agent session id a restore carries on. Under an
-  // access, the scope holds only the sessions on targets the access holds,
-  // so a session outside it matches nothing, as a session never seen does.
+  // access, the scope holds only the atc ids of the sessions on targets the
+  // access holds, so a session outside it matches nothing, as a session
+  // never seen does. It holds no agent session id there: a session on
+  // another target can resume the same agent session, and its rows would
+  // match.
   const buildEventScope = (
     sessionID: SessionID | null,
     access: TargetAccess | null,
@@ -344,16 +347,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       (x) => access.canUse(x) && (sessionID === null || x.id === sessionID),
     );
 
-    return {
-      atcIDs: visible.map((x) => x.id),
-      agentSessionIDs: visible.flatMap((x) =>
-        x.agentSessionID === undefined ? [] : [x.agentSessionID],
-      ),
-    };
+    return { atcIDs: visible.map((x) => x.id), agentSessionIDs: [] };
   };
 
-  // A message belongs to the live session holding its atc id or its agent
-  // session id, else to the atc id it was sent to.
+  // A message belongs to the live session holding its atc id, else to the
+  // one holding its agent session id, else to the atc id it was sent to.
   const readMessageView = async (messageID: MessageID) => {
     const record = await store.findMessageByID(messageID);
 
@@ -361,11 +359,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return null;
     }
 
-    const owner = mgr.sessions.find(
-      (x) =>
-        x.id === record.atcID ||
-        (record.agentSessionID !== undefined && x.agentSessionID === record.agentSessionID),
-    );
+    const owner =
+      mgr.sessions.find((x) => x.id === record.atcID) ??
+      mgr.sessions.find(
+        (x) => record.agentSessionID !== undefined && x.agentSessionID === record.agentSessionID,
+      );
 
     return {
       session: owner?.id ?? record.atcID,
@@ -1180,6 +1178,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     findTargetIdentity: (target) => targets.find((x) => x.id === target)?.identity ?? null,
     collectChildIDs: (id) => mgr.collectChildren(id).map((child) => child.id),
     findPermissionSession: (request) => registry.findSessionID(request),
+    resolveSpawnParent: (id) => {
+      const owner = mgr.sessions.find((x) => x.id === id);
+
+      if (owner === undefined) {
+        return 'missing';
+      }
+
+      return owner.parent ?? owner.id;
+    },
     resolveSpawnTarget: (requested) => {
       const target = requested ?? defaultTarget;
       const refusal = mgr.findExecutionRefusal({ target, targetIdentity: null }, 'spawn');
@@ -1517,7 +1524,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       const result = s.result ?? null;
       const createdAt = s.createdAt;
 
-      const lastEventAt = await store.loadLastActivityAt(s.id, s.agentSessionID);
+      // The agent session id links rows from before atc ids stayed stable,
+      // unless a session on another target resumed the same agent session,
+      // whose rows it would match too.
+      const shared = mgr.sessions.some(
+        (x) =>
+          x.agentSessionID === s.agentSessionID &&
+          (x.target !== s.target || x.targetIdentity !== s.targetIdentity),
+      );
+
+      const linked = shared ? undefined : s.agentSessionID;
+
+      const lastEventAt = await store.loadLastActivityAt(s.id, linked);
 
       return {
         session,
@@ -1571,8 +1589,16 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         const remaining = deadline - Date.now();
 
         if (rows.length > 0 || remaining <= 0 || eventSignal.disposed) {
+          // Under an access, an event is named only by a session the
+          // access reaches.
+          const reached = new Set(
+            mgr.sessions.filter((x) => access === null || access.canUse(x)).map((x) => x.id),
+          );
+
+          const named = mgr.collectDescriptors().filter((d) => reached.has(d.id));
+
           return {
-            events: buildFleetEvents(rows.slice(0, limit), mgr.collectDescriptors()),
+            events: buildFleetEvents(rows.slice(0, limit), named),
             more: rows.length > limit,
           };
         }

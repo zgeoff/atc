@@ -24,12 +24,13 @@ export function buildFleetEvents(
 ): FleetEvent[] {
   return rows.map((row) => {
     // Rows written before atc session ids stayed stable across restores
-    // carry an earlier atc id, so the agent session id links them.
+    // carry an earlier atc id, so the agent session id links them when no
+    // session holds the atc id.
     const live =
+      sessions.find((s) => s.id === row.atcID) ??
       (row.agentSessionID === null
         ? undefined
-        : sessions.find((s) => s.agentSessionID === row.agentSessionID)) ??
-      sessions.find((s) => s.id === row.atcID);
+        : sessions.find((s) => s.agentSessionID === row.agentSessionID));
 
     return {
       cursor: encodeCursor({ kind: 'events', id: row.id }),

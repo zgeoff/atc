@@ -1,4 +1,5 @@
 import { DaemonError } from '../protocol/daemon-error';
+import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
@@ -33,6 +34,20 @@ export function buildScopedContext(
     const grant = ctx.findSessionGrant(id);
 
     return grant !== null && access.canUse(grant);
+  };
+
+  // A session as the access sees it: a parent out of reach is left out, so
+  // a sub-session of a hidden session lists as top-level.
+  const toVisibleParent = <T extends { readonly parent?: SessionID }>(
+    session: T,
+  ): T | Omit<T, 'parent'> => {
+    if (session.parent === undefined || canSee(session.parent)) {
+      return session;
+    }
+
+    const { parent: _hidden, ...visible } = session;
+
+    return visible;
   };
 
   const canUseTarget = (target: string): boolean => {
@@ -92,7 +107,11 @@ export function buildScopedContext(
 
   return {
     ...ctx,
-    collectSessions: () => ctx.collectSessions().filter((session) => canSee(session.id)),
+    collectSessions: () =>
+      ctx
+        .collectSessions()
+        .filter((session) => canSee(session.id))
+        .map((session) => toVisibleParent(session)),
     collectAgents: () => {
       const list = ctx.collectAgents();
       const defaultTarget = list.spawnDefaults.target;
@@ -124,7 +143,20 @@ export function buildScopedContext(
     collectFleet: async () => {
       const fleet = await ctx.collectFleet();
 
-      return fleet.filter((entry) => canSee(entry.sessionID));
+      return fleet
+        .filter((entry) => canSee(entry.sessionID))
+        .map((entry) => toVisibleParent(entry));
+    },
+    resolveSpawnParent: (id) => {
+      if (!canSee(id)) {
+        return 'missing';
+      }
+
+      const parent = ctx.resolveSpawnParent(id);
+
+      // A spawn under a sub-session of a hidden session lands top-level, so
+      // nothing it answers holds the hidden session.
+      return parent === 'missing' || parent === null || canSee(parent) ? parent : null;
     },
     resolveSpawnTarget: (requested) => {
       if (requested !== undefined) {
@@ -153,7 +185,16 @@ export function buildScopedContext(
         throw error;
       }
 
-      return answer;
+      const session = answer['session'];
+
+      if (!isRecord(session) || typeof session['parent'] !== 'string') {
+        return answer;
+      }
+
+      return {
+        ...answer,
+        session: toVisibleParent({ ...session, parent: toSessionID(session['parent']) }),
+      };
     },
     killSession: (id) => {
       if (!canSee(id)) {
@@ -212,8 +253,17 @@ export function buildScopedContext(
       canSee(id) ? ctx.adoptSession(id, cols, rows) : Promise.resolve('missing' as const),
     resizeSession: (client, sessionID, dims) =>
       canSee(sessionID) && ctx.resizeSession(client, sessionID, dims),
-    readSessionRecord: (id) =>
-      canSee(id) ? ctx.readSessionRecord(id) : Promise.resolve('missing' as const),
+    readSessionRecord: async (id) => {
+      if (!canSee(id)) {
+        return 'missing';
+      }
+
+      const record = await ctx.readSessionRecord(id);
+
+      return record === 'missing'
+        ? record
+        : { ...record, session: toVisibleParent(record.session) };
+    },
     loadSessionTranscript: (id, from, limit) =>
       canSee(id) ? ctx.loadSessionTranscript(id, from, limit) : Promise.resolve('missing' as const),
     readEvents: (afterID, limit, waitMs, sessionID, outer) => {
@@ -235,7 +285,9 @@ export function buildScopedContext(
       // access answers at once, as an unknown message does.
       const view = await ctx.readMessage(messageID, 0);
 
-      if (view === null || !canSee(view.session)) {
+      // Only the session the message was sent to owns it here, never one
+      // that shares its agent session id.
+      if (view === null || view.session !== view.record.atcID || !canSee(view.session)) {
         return null;
       }
 

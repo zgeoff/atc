@@ -128,10 +128,15 @@ async function setupTest(raw: RawConfig) {
     },
 
     // Reports one hook event for the session, which the daemon records in
-    // its trail: a prompt submit, unless the test names another event.
-    async sendHookEvent(sessionID: string, event = 'UserPromptSubmit'): Promise<void> {
+    // its trail: a prompt submit with no payload, unless the test gives
+    // another event or a payload.
+    async sendHookEvent(
+      sessionID: string,
+      event = 'UserPromptSubmit',
+      payload: Readonly<Record<string, unknown>> = {},
+    ): Promise<void> {
       const closed = Promise.withResolvers<void>();
-      const line = { atcId: sessionID, event, payload: {} };
+      const line = { atcId: sessionID, event, payload };
 
       await Bun.connect({
         unix: join(tmp.dir, 'reporter.sock'),
@@ -482,6 +487,213 @@ test('it lists a principal only the fleet entries of sessions on targets it may 
   const listed = await daemon.client.sendRequest('fleet.list', {}, 'narrow');
 
   expect(listed).toStrictEqual({ fleet: [expect.objectContaining({ sessionID: shown })] });
+});
+
+test('it keeps the events and messages of a hidden session from a principal whose exited session holds the same agent session id', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const agentSessionID = `a-${randomUUID()}`;
+
+  const earlier = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'local',
+    resume: agentSessionID,
+  });
+
+  await daemon.client.sendRequest('session.kill', {
+    session: getRecord(earlier, 'session')['id'],
+  });
+
+  const moved = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'box',
+    resume: agentSessionID,
+  });
+
+  const hidden = String(getRecord(moved, 'session')['id']);
+
+  await daemon.sendHookEvent(hidden, 'Notification', {
+    session_id: agentSessionID,
+    message: 'box-only detail',
+  });
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: hidden,
+    from: 'owner',
+    text: 'box secret message',
+  });
+
+  await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
+
+    expect(JSON.stringify(owner)).toContain('box secret message');
+  });
+
+  const read = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'narrow');
+
+  const answered = await readAnswer(
+    () => daemon.client.sendRequest('message.get', { message: sent['message'] }, 'narrow'),
+    String(sent['message']),
+  );
+
+  const unknown = await readAnswer(
+    () => daemon.client.sendRequest('message.get', { message: 'no-such-message' }, 'narrow'),
+    'no-such-message',
+  );
+
+  expect(read).toStrictEqual({ events: [], more: false, cursor: expect.anything() });
+  expect(answered).toStrictEqual(unknown);
+});
+
+test('it keeps the events and messages of a hidden session from a principal whose live session resumes the same agent session', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const agentSessionID = `a-${randomUUID()}`;
+
+  const moved = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'box',
+    resume: agentSessionID,
+  });
+
+  const hidden = String(getRecord(moved, 'session')['id']);
+
+  const own = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp', target: 'local', resume: agentSessionID },
+    'narrow',
+  );
+
+  const shown = String(getRecord(own, 'session')['id']);
+
+  await daemon.sendHookEvent(hidden, 'Notification', {
+    session_id: agentSessionID,
+    message: 'box-only detail',
+  });
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: hidden,
+    from: 'owner',
+    text: 'box secret message',
+  });
+
+  await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
+
+    expect(JSON.stringify(owner)).toContain('box secret message');
+  });
+
+  const all = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'narrow');
+
+  const filtered = await daemon.client.sendRequest(
+    'events.read',
+    { session: shown, waitMs: 0 },
+    'narrow',
+  );
+
+  const answered = await readAnswer(
+    () => daemon.client.sendRequest('message.get', { message: sent['message'] }, 'narrow'),
+    String(sent['message']),
+  );
+
+  const unknown = await readAnswer(
+    () => daemon.client.sendRequest('message.get', { message: 'no-such-message' }, 'narrow'),
+    'no-such-message',
+  );
+
+  const got = await daemon.client.sendRequest('session.get', { session: shown }, 'narrow');
+
+  expect(JSON.stringify(all)).not.toInclude('box');
+  expect(JSON.stringify(all)).not.toInclude(hidden);
+  expect(JSON.stringify(filtered)).not.toInclude('box');
+  expect(answered).toStrictEqual(unknown);
+  expect(got['lastActivityAt']).toBe(getRecord(own, 'session')['createdAt']);
+});
+
+test('it lists a principal a sub-session of a hidden parent as a top-level session', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const hiddenParent = await daemon.spawnOn('box');
+  const shownChild = await daemon.spawnOn('local', hiddenParent);
+
+  await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('fleet.list');
+
+    expect(owner).toMatchObject({
+      fleet: expect.toPartiallyContain({ sessionID: shownChild, parent: hiddenParent }),
+    });
+  });
+
+  const listed = await daemon.client.sendRequest('session.list', {}, 'narrow');
+  const fleet = await daemon.client.sendRequest('fleet.list', {}, 'narrow');
+  const got = await daemon.client.sendRequest('session.get', { session: shownChild }, 'narrow');
+
+  expect(listed).toMatchObject({ sessions: [{ id: shownChild }] });
+  expect(fleet).toMatchObject({ fleet: [{ sessionID: shownChild }] });
+  expect(getRecord(got, 'session')).toContainEntry(['id', shownChild]);
+  expect(getRecord(got, 'session')).not.toContainKey('parent');
+  expect(JSON.stringify([listed, fleet, got])).not.toInclude(hiddenParent);
+});
+
+test('it pushes a principal connection a sub-session of a hidden parent as a top-level session', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const client = await daemon.openClientAs('narrow');
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  const hiddenParent = await daemon.spawnOn('box');
+  const shownChild = await daemon.spawnOn('local', hiddenParent);
+
+  await daemon.client.sendRequest('session.kill', { session: shownChild });
+
+  await waitFor(() => {
+    expect(JSON.stringify(events)).toInclude('"lastMsg":"killed"');
+  });
+
+  expect(events.map((event) => event.ev)).toContain('SessionAdded');
+  expect(JSON.stringify(events)).toInclude(shownChild);
+  expect(JSON.stringify(events)).not.toInclude(hiddenParent);
+});
+
+test('it spawns a principal top-level when the parent it asks for sits under a hidden parent', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const hiddenParent = await daemon.spawnOn('box');
+  const shownChild = await daemon.spawnOn('local', hiddenParent);
+
+  const spawned = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp', target: 'local', parent: shownChild, resume: `a-${randomUUID()}` },
+    'narrow',
+  );
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const owner = await daemon.client.sendRequest('session.get', { session: id });
+
+  expect(JSON.stringify(spawned)).not.toInclude(hiddenParent);
+  expect(getRecord(spawned, 'session')).not.toContainKey('parent');
+  expect(getRecord(owner, 'session')).not.toContainKey('parent');
+});
+
+test('it spawns a principal that may see the parent beside the sub-session it asks for', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const parent = await daemon.spawnOn('box');
+  const child = await daemon.spawnOn('local', parent);
+
+  const spawned = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp', target: 'local', parent: child, resume: `a-${randomUUID()}` },
+    'wide',
+  );
+
+  expect(getRecord(spawned, 'session')['parent']).toBe(parent);
 });
 
 test('it lets a principal forget a session on a target it may use', async () => {

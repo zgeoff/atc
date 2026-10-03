@@ -57,6 +57,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     findSessionGrant: assertUnreachable,
     findTargetIdentity: assertUnreachable,
     findPermissionSession: assertUnreachable,
+    resolveSpawnParent: assertUnreachable,
     resolveSpawnTarget: assertUnreachable,
     requireWorkspaceTarget: assertUnreachable,
     spawnSession: assertUnreachable,

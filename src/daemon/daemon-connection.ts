@@ -87,7 +87,7 @@ export class DaemonConnection {
       return;
     }
 
-    if (!this.queue.send(encodeMessage(event))) {
+    if (!this.queue.send(encodeMessage(this.buildVisibleEvent(event)))) {
       this.peer.end();
     }
   }
@@ -246,6 +246,27 @@ export class DaemonConnection {
     }
 
     return true;
+  }
+
+  // The event as this connection may see it: a session's parent out of
+  // reach is left out, so a sub-session of a hidden session shows as
+  // top-level.
+  private buildVisibleEvent(event: EventMsg): EventMsg {
+    const session = event['session'];
+
+    if (this.access === null || !isRecord(session) || typeof session['parent'] !== 'string') {
+      return event;
+    }
+
+    const grant = this.ctx.findSessionGrant(toSessionID(session['parent']));
+
+    if (grant !== null && this.access.canUse(grant)) {
+      return event;
+    }
+
+    const { parent: _hidden, ...visible } = session;
+
+    return { ...event, session: visible };
   }
 
   // A store query that rejects must end one request, never the daemon: a
@@ -628,15 +649,13 @@ export class DaemonConnection {
       let parent: SessionID | null = null;
 
       if (data.parent !== undefined) {
-        const owner = ctx.collectSessions().find((s) => s.id === data.parent);
+        const resolved = ctx.resolveSpawnParent(data.parent);
 
-        if (owner === undefined) {
+        if (resolved === 'missing') {
           throw new DaemonError('no_such_session', `no session '${data.parent}'`);
         }
 
-        // A sub-session spawning a sub-session of its own lands beside it,
-        // so a set stays one level deep.
-        parent = owner.parent ?? owner.id;
+        parent = resolved;
       }
 
       return {

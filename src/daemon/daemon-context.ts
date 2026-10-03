@@ -139,6 +139,11 @@ export interface DaemonContext {
   // for an unknown request.
   readonly findPermissionSession: (request: string) => SessionID | null;
 
+  // The session a spawn under the given session lands under: that session,
+  // or its own parent for a sub-session, so a set stays one level deep.
+  // Null spawns the session top-level; 'missing' for an unknown session.
+  readonly resolveSpawnParent: (id: SessionID) => SessionID | null | 'missing';
+
   // The target a spawn runs on: the one it names, else the default. Throws
   // the refusal for a target the spawn cannot run on, and for a spawn
   // without a target when the config gives no default.
