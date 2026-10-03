@@ -92,10 +92,10 @@ test.each([
     "the events cursor holds a stale position for daemon 'cloud'",
   ],
   [
-    'a part without a position',
-    Buffer.from(
-      JSON.stringify({ v: 1, filter: 'f', daemons: { 'cloud.0f6c2a8e': null } }),
-    ).toString('base64url'),
+    'a part whose position is not a cursor',
+    Buffer.from(JSON.stringify({ v: 1, filter: 'f', daemons: { 'cloud.0f6c2a8e': 7 } })).toString(
+      'base64url',
+    ),
     "the events cursor holds a stale position for daemon 'cloud'",
   ],
   [
