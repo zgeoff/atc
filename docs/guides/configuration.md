@@ -81,9 +81,17 @@ The list accepts `https` and `ssh`, plus two opt-ins, `http` and `file`. This is
 configuration, and it comes only from this file: no request, source, or environment variable widens
 it. Each opt-in widens what the daemon fetches on behalf of any client that can spawn a session.
 `http` sends repository contents and any credentials unencrypted. `file` lets a git source read any
-repository on the daemon's host that the daemon's user can read. Any other name is a config error,
-`git`, `ext`, `fd`, and remote-helper names among them, as is a value that is not a list: the daemon
-prints the error at startup and fetches over `https` and `ssh` until you fix it.
+repository on the daemon's host that the daemon's user can read. An empty list is valid and allows
+no transport, so every git source fails.
+
+Any other name is a config error, `git`, `ext`, `fd`, and remote-helper names among them, as is a
+value that is not a list. The daemon prints the error at startup and runs no git until you fix it:
+probing a repository, and spawning a workspace from a repository or from a checkout, fail as
+`git_transports_invalid` with the same error. Sessions that need no git, such as one in a local
+directory, start as usual.
+
+A first run writes the default list into config.json. A config that lists the transports keeps its
+list, so a later change to atc's default does not reach it.
 
 ## Targets
 

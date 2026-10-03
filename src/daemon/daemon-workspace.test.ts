@@ -33,15 +33,19 @@ const idleAdapter: AgentAdapter = {
   buildResumeCommand: () => null,
 };
 
+// The transports the fixture upstreams are reached over: a local path, and
+// smart HTTP on the loopback.
+const FIXTURE_TRANSPORTS = ['https', 'ssh', 'http', 'file'];
+
+// The config error of a transport list the daemon cannot use.
+const INVALID_TRANSPORTS =
+  "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed";
+
 // A temp tree holding a bare upstream and a clone of it with one pushed
 // commit, and daemons booted on one state directory with a `local` target
 // and a `box` target on the provider a test hands in. Fixture git commands
 // read neither the host's system nor its global git config. Every line a
 // daemon logs is kept.
-// The transports the fixture upstream on the local filesystem is reached
-// over.
-const FIXTURE_TRANSPORTS = ['https', 'ssh', 'http', 'file'];
-
 async function setupTest() {
   const dir = await mkdtemp(join(tmpdir(), 'atc-workspace-'));
 
@@ -82,9 +86,10 @@ async function setupTest() {
 
     // A daemon on the default transports takes no transports option, as
     // one with no `workspaces.gitTransports` in its config does.
-    async boot(box: ExecutionProvider, transports: 'fixture' | 'default' = 'fixture') {
+    async boot(box: ExecutionProvider, transports: 'fixture' | 'default' | 'invalid' = 'fixture') {
       const daemon = await startDaemon({
         ...(transports === 'fixture' ? { gitTransports: FIXTURE_TRANSPORTS } : {}),
+        ...(transports === 'invalid' ? { gitTransports: { invalid: INVALID_TRANSPORTS } } : {}),
         socketPath,
         reporterSocketPath: join(dir, 'reporter.sock'),
         build: 'atc/test-build',
@@ -1185,4 +1190,77 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
   expect(spawned).toMatchObject({
     session: { workspace: { repoURL: 'https://github.com/acme/upstream.git', ref: 'main' } },
   });
+});
+
+test('it refuses a probe, a git spawn, and a checkout spawn under an invalid transport list before any git runs', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box, 'invalid');
+
+  // A git first on the PATH records each run, so a refusal that runs git
+  // leaves the record behind.
+  writeFileSync(
+    join(ctx.dir, 'git'),
+    `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`,
+    { mode: 0o755 },
+  );
+
+  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+
+  const probe = await booted.client
+    .sendRequest('git.probe', { url: 'https://example.com/app.git', target: 'box' })
+    .catch((error: unknown) => error);
+
+  const spawn = await booted.client
+    .sendRequest('session.spawn', {
+      cwd: join(ctx.dir, 'box', 'ws'),
+      target: 'box',
+      workspace: { kind: 'git', url: 'https://example.com/app.git', ref: 'main' },
+    })
+    .catch((error: unknown) => error);
+
+  const pathSpawn = await booted.client
+    .sendRequest('session.spawn', {
+      cwd: join(ctx.dir, 'box', 'ws-path'),
+      target: 'box',
+      workspace: { kind: 'path', path: ctx.work },
+    })
+    .catch((error: unknown) => error);
+
+  const refusal = {
+    code: 'git_transports_invalid',
+    message: `workspaces.gitTransports in config.json is invalid, so the daemon runs no git: ${INVALID_TRANSPORTS}`,
+  };
+
+  expect(probe).toMatchObject(refusal);
+  expect(spawn).toMatchObject(refusal);
+  expect(pathSpawn).toMatchObject(refusal);
+  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeFalse();
+  expect(box.calls).toStrictEqual([]);
+});
+
+test('it spawns a local session and a directory outside git under an invalid transport list', async () => {
+  await using ctx = await setupTest();
+
+  const loose = join(ctx.dir, 'loose');
+
+  mkdirSync(loose);
+
+  const booted = await ctx.boot(new FixtureDirProvider(), 'invalid');
+
+  const local = await booted.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    target: 'local',
+  });
+
+  const inPlace = await booted.client.sendRequest('session.spawn', {
+    cwd: loose,
+    target: 'local',
+    workspace: { kind: 'path', path: loose },
+  });
+
+  expect(local).toMatchObject({ session: { cwd: ctx.dir } });
+  expect(inPlace).toMatchObject({ session: { cwd: loose } });
 });

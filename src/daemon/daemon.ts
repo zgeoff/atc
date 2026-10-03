@@ -13,6 +13,7 @@ import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
 import type { SessionState } from '../protocol/session-state';
 import type { HooksConfig } from '../shared/collect-hooks';
 import type { TargetConfigError } from '../shared/collect-targets';
+import type { InvalidGitTransports } from '../shared/collect-workspaces-config';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import type { MessageID } from '../shared/message-id';
@@ -70,6 +71,7 @@ import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
 import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
+import { requireGitTransports } from './require-git-transports';
 import { restoreFleet } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
 import { ScreenModel } from './screen-model';
@@ -160,9 +162,10 @@ export interface DaemonOptions {
   // services it uses; none when unset.
   readonly sources?: readonly SourceProvider[];
 
-  // The transports a git workspace source may use and git may fetch over;
-  // https and ssh when unset.
-  readonly gitTransports?: readonly string[];
+  // The transports a git workspace source may use and git may fetch over,
+  // or the invalid list the config holds, which refuses every git
+  // operation; https and ssh when unset.
+  readonly gitTransports?: readonly string[] | InvalidGitTransports;
 }
 
 export interface DaemonHandle {
@@ -1265,7 +1268,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       ...new Set(sources.flatMap((source) => source.findAlternateURLs?.(url) ?? [])),
     ],
     checkRepositoryAccess: (request) =>
-      checkRepositoryAccess({ ...request, transports: gitTransports }),
+      checkRepositoryAccess({ ...request, transports: requireGitTransports(gitTransports) }),
     spawnSession: (plan, keyed, access) => {
       // Under an access, a spawn under a parent whose tree leaves the access
       // before the harness starts is refused as a spawn under an unknown

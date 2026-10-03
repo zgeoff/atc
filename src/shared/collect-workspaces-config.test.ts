@@ -43,17 +43,14 @@ test.each([[{ sources: 'dirs' }], [{ sources: ['dirs', 7] }], [{ sources: ['dirs
 test.each([
   ['ext', 'runs a command or reads a descriptor on the daemon host'],
   ['fd', 'runs a command or reads a descriptor on the daemon host'],
-])(
-  'it refuses the %p transport with a config error and keeps the default transports',
-  (name, why) => {
-    expect(collectWorkspacesConfig({ gitTransports: ['https', name] })).toStrictEqual({
-      workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
-      errors: [
-        `workspaces.gitTransports holds '${name}', which atc never allows because it ${why}; the daemon fetches over https and ssh until it is fixed`,
-      ],
-    });
-  },
-);
+])('it reads a list holding %p as invalid, with a config error', (name, why) => {
+  const error = `workspaces.gitTransports holds '${name}', which atc never allows because it ${why}; the daemon runs no git until it is fixed`;
+
+  expect(collectWorkspacesConfig({ gitTransports: ['https', name] })).toStrictEqual({
+    workspaces: { githubOwner: null, sources: null, gitTransports: { invalid: error } },
+    errors: [error],
+  });
+});
 
 test.each([
   [
@@ -66,9 +63,19 @@ test.each([
   ],
   [['https', 7], 'workspaces.gitTransports holds 7, which is not a git transport atc allows'],
   ['https', 'workspaces.gitTransports is not a list of git transports'],
-])('it refuses the transports %p with a config error', (gitTransports, error) => {
+  [null, 'workspaces.gitTransports is not a list of git transports'],
+])('it reads the transports %p as invalid, with a config error', (gitTransports, problem) => {
+  const error = `${problem}; the daemon runs no git until it is fixed`;
+
   expect(collectWorkspacesConfig({ gitTransports })).toStrictEqual({
-    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
-    errors: [`${error}; the daemon fetches over https and ssh until it is fixed`],
+    workspaces: { githubOwner: null, sources: null, gitTransports: { invalid: error } },
+    errors: [error],
+  });
+});
+
+test('it reads an empty transport list as one that allows no transport', () => {
+  expect(collectWorkspacesConfig({ gitTransports: [] })).toStrictEqual({
+    workspaces: { githubOwner: null, sources: null, gitTransports: [] },
+    errors: [],
   });
 });

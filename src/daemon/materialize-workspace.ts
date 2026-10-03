@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { DaemonError } from '../protocol/daemon-error';
 import type { ErrorCode } from '../protocol/protocol';
 import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
+import type { InvalidGitTransports } from '../shared/collect-workspaces-config';
 import type { SessionID } from '../shared/session-id';
 import type { StateStore } from '../store/state-store';
 import type { MaterializationPhase, SessionWorkspace } from '../store/workspace-materialization';
@@ -17,6 +18,7 @@ import { resolvePathSource } from '../workspace/resolve-path-source';
 import { runGit } from '../workspace/run-git';
 import { sanitizeWorkspaceClone } from '../workspace/sanitize-workspace-clone';
 import type { ExecutionProvider } from './execution-provider';
+import { requireGitTransports } from './require-git-transports';
 
 interface MaterializeRequest {
   readonly sessionID: SessionID;
@@ -42,8 +44,9 @@ interface MaterializeDeps {
   // directory while the workspace is built.
   readonly stagingRoot: string;
 
-  // The transports a source may use and git may fetch over.
-  readonly gitTransports: readonly string[];
+  // The transports a source may use and git may fetch over, or the invalid
+  // list the config holds, which refuses every source that needs git.
+  readonly gitTransports: readonly string[] | InvalidGitTransports;
 }
 
 type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
@@ -208,7 +211,9 @@ async function runMaterialization(
   updateProgress: ProgressTracker,
   secret: string | null,
 ): Promise<Omit<ReadyWorkspace, 'withheldEnv'>> {
-  const pinned = await resolveSource(request.source, staging, deps.gitTransports);
+  const transports = requireGitTransports(deps.gitTransports, { phase: 'resolving' });
+
+  const pinned = await resolveSource(request.source, staging, transports);
 
   // What is recorded and returned is scrubbed of the credential, even
   // where a caller's own ref happens to spell it.
@@ -218,7 +223,7 @@ async function runMaterialization(
   await claimTargetDir(request, deps, updateProgress);
   await recordPhase(request, deps, updateProgress, 'cloning', { repoURL, ref });
 
-  const clone = await createCleanClone(pinned, join(staging, 'clone'), deps.gitTransports);
+  const clone = await createCleanClone(pinned, join(staging, 'clone'), transports);
 
   // The archive is in memory, so the clone leaves the daemon's host before
   // the target is touched.

@@ -10,7 +10,15 @@ import { isRecord } from './report';
 export interface WorkspacesConfig {
   readonly githubOwner: string | null;
   readonly sources: readonly string[] | null;
-  readonly gitTransports: readonly string[];
+  readonly gitTransports: readonly string[] | InvalidGitTransports;
+}
+
+/**
+ * A transport list the config holds that atc cannot use, with the config
+ * errors it raised. The daemon runs no git while the list is invalid.
+ */
+export interface InvalidGitTransports {
+  readonly invalid: string;
 }
 
 interface CollectedWorkspacesConfig {
@@ -28,8 +36,9 @@ const GITHUB_OWNER_PATTERN = /^[A-Za-z\d][A-Za-z\d-]{0,38}$/u;
  * GitHub login is dropped, so a typo lists the gh account's own
  * repositories instead of failing, and a source order that is not a list
  * of ids falls back to the default order. A transport list that is not a
- * list of known transports is a config error, and the daemon then fetches
- * over the default transports alone.
+ * list of transports atc allows is a config error, and the list is then
+ * invalid, never the default, so the daemon runs no git until it is fixed.
+ * An empty list is valid and allows no transport.
  */
 export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig {
   const owner = isRecord(raw) ? raw['githubOwner'] : undefined;
@@ -59,20 +68,19 @@ const KNOWN_TRANSPORTS: ReadonlySet<string> = new Set(['https', 'ssh', 'http', '
 const REFUSED_TRANSPORTS: ReadonlySet<string> = new Set(['ext', 'fd']);
 
 function collectGitTransports(raw: unknown): {
-  readonly transports: readonly string[];
+  readonly transports: readonly string[] | InvalidGitTransports;
   readonly errors: readonly string[];
 } {
   if (raw === undefined) {
     return { transports: DEFAULT_GIT_TRANSPORTS, errors: [] };
   }
 
-  const fallback = `the daemon fetches over ${DEFAULT_GIT_TRANSPORTS.join(' and ')} until it is fixed`;
+  const fallback = 'the daemon runs no git until it is fixed';
 
   if (!Array.isArray(raw)) {
-    return {
-      transports: DEFAULT_GIT_TRANSPORTS,
-      errors: [`workspaces.gitTransports is not a list of git transports; ${fallback}`],
-    };
+    const error = `workspaces.gitTransports is not a list of git transports; ${fallback}`;
+
+    return { transports: { invalid: error }, errors: [error] };
   }
 
   const errors = raw.flatMap((name: unknown) => {
@@ -93,5 +101,5 @@ function collectGitTransports(raw: unknown): {
 
   return errors.length === 0
     ? { transports: raw.filter((name): name is string => typeof name === 'string'), errors }
-    : { transports: DEFAULT_GIT_TRANSPORTS, errors };
+    : { transports: { invalid: errors.join('; ') }, errors };
 }

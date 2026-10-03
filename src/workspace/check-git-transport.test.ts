@@ -45,3 +45,11 @@ test('it refuses a URL git could read as an option', () => {
     message: 'a git URL must not start with -',
   });
 });
+
+test('it refuses every URL when no transports are allowed', () => {
+  expect(checkGitTransport('https://github.com/acme/app.git', [])).toStrictEqual({
+    ok: false,
+    code: 'invalid_git_url',
+    message: "git transport 'https' is not allowed; workspaces.gitTransports allows no transports",
+  });
+});

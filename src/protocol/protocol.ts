@@ -34,6 +34,7 @@ const ERROR_CODES = [
   'workspace_dirty',
   'no_origin',
   'invalid_git_url',
+  'git_transports_invalid',
   'unpushed_head',
   'credential_in_url',
   'credential_missing',

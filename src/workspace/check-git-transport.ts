@@ -32,10 +32,15 @@ export function checkGitTransport(url: string, transports: readonly string[]): T
     return { ok: true };
   }
 
+  const allowed =
+    transports.length === 0
+      ? 'workspaces.gitTransports allows no transports'
+      : `the daemon fetches over ${transports.join(' and ')}`;
+
   return {
     ok: false,
     code: 'invalid_git_url',
-    message: `git transport '${transport}' is not allowed; the daemon fetches over ${transports.join(' and ')}`,
+    message: `git transport '${transport}' is not allowed; ${allowed}`,
   };
 }
 
