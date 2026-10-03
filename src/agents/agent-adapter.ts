@@ -101,28 +101,20 @@ export interface ResumeCheck {
   readonly transcriptSource?: string;
 }
 
-interface HeadlessRunRequest {
+export interface HeadlessRunRequest {
   readonly cwd: string;
   readonly prompt: string;
   readonly resume?: AgentSessionID;
-  readonly permissionMode?: string;
 
-  // Settings file the run's CLI is started with, so a headless turn reaches
-  // the same backend the session's terminal did.
-  readonly settings?: string;
-
-  // The atc session the run belongs to; the mod reads it to tap the inbox.
+  // The atc session the run belongs to.
   readonly sessionID?: SessionID;
-
-  // Folder of the atc-bridge mod the run's CLI loads, supplied by the adapter.
-  readonly pluginDir?: string;
 
   // The session's own model and effort, so a headless turn keeps them.
   readonly model?: string;
   readonly effort?: string;
 }
 
-interface HeadlessRunEvents {
+export interface HeadlessRunEvents {
   readonly onOutput: (text: string) => void;
 
   // The turn's whole final message.

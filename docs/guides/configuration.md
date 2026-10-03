@@ -235,6 +235,12 @@ Claude Code sends `PermissionRequest` only when it is about to ask you, so a hoo
 prompts and sees nothing the CLI already allows. Your own Claude sessions never see it: the block
 belongs to this gateway id alone.
 
+A gateway's permission mode carries into every way atc runs its sessions. A `--permission-mode` in
+its `args` wins over the `permissions.defaultMode` in its `settings`. A headless turn runs in that
+mode. With neither set, a headless turn runs in auto mode. A resumed session takes back the mode it
+was saved in unless an explicit `--permission-mode` overrides it, so atc passes a settings-only mode
+as that flag when it restores a session, and in the resume command it builds.
+
 ## Attention hooks (Grok and Codex)
 
 Claude needs no install step: atc instruments each spawned Claude session through a generated

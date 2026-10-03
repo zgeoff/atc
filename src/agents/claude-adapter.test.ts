@@ -3,7 +3,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { parseConfig } from '../shared/config';
 import type { Config } from '../shared/config';
+import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { ClaudeAdapter } from './claude-adapter';
 
@@ -90,7 +92,7 @@ test('it takes inbox messages', () => {
   expect(adapter.takesMessages).toBe(true);
 });
 
-test('it hands a headless run the folder of the atc-bridge mod', () => {
+test('it runs a headless turn through the configured claude binary under the auto permission mode with the atc-bridge mod', () => {
   using tmp = setupTempDir('atc-claude-bridge-');
 
   let received: Readonly<Record<string, unknown>> = {};
@@ -106,11 +108,19 @@ test('it hands a headless run the folder of the atc-bridge mod', () => {
   );
 
   adapter.headlessRunner?.(
-    { cwd: '/tmp', prompt: 'go' },
+    { cwd: '/tmp', prompt: 'go', model: 'opus', effort: 'high' },
     { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
   );
 
-  expect(received).toMatchObject({ cwd: '/tmp', pluginDir: expect.toEndWith('atc-bridge') });
+  expect(received).toStrictEqual({
+    cwd: '/tmp',
+    prompt: 'go',
+    model: 'opus',
+    effort: 'high',
+    claudeBin: 'claude',
+    permissionMode: 'auto',
+    pluginDir: join(tmp.dir, 'atc-bridge'),
+  });
 });
 
 test('it advertises the documented model aliases and effort levels with the configured defaults', () => {
@@ -152,4 +162,49 @@ test('it advertises no default model or effort when the configured arguments set
   const options = new ClaudeAdapter(buildClaudeConfig()).profile.spawnOptions;
 
   expect([options.model.default, options.effort.default]).toStrictEqual([null, null]);
+});
+
+test('it runs a headless turn under the permission mode its configured arguments set', () => {
+  using tmp = setupTempDir('atc-claude-mode-');
+
+  let received: Readonly<Record<string, unknown>> = {};
+
+  const adapter = new ClaudeAdapter(
+    parseConfig({ claudeArgs: ['--permission-mode', 'plan'] }),
+    (opts) => {
+      received = { ...opts };
+
+      return { stop: () => {} };
+    },
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go' },
+    { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
+  );
+
+  expect(received).toMatchObject({ permissionMode: 'plan' });
+});
+
+test('it keeps the permission mode its configured arguments set in the command that resumes it outside atc', () => {
+  const adapter = new ClaudeAdapter(parseConfig({ claudeArgs: ['--permission-mode', 'plan'] }));
+
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+    "cd '/work/repo' && claude --permission-mode 'plan' --resume sess-1",
+  );
+});
+
+test('it restores a stock session without a permission-mode argument', () => {
+  using tmp = setupTempDir('atc-claude-stock-restore-');
+
+  const adapter = new ClaudeAdapter(parseConfig({}), null, join(tmp.dir, 'atc-bridge'));
+
+  const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
+
+  expect(plan.args).not.toContain('--permission-mode');
+
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+    "cd '/work/repo' && claude --resume sess-1",
+  );
 });

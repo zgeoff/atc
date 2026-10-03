@@ -159,7 +159,7 @@ const main = defineCommand({
           const grok = await import('./agents/grok-adapter');
           const codex = await import('./agents/codex-adapter');
           const gateway = await import('./agents/gateway-adapter');
-          const headless = await import('./daemon/start-headless-run');
+          const headless = await import('./agents/start-claude-headless-run');
           const targets = await import('./daemon/build-execution-targets');
 
           // Test harnesses shrink the outbound queue to force overflow
@@ -192,18 +192,12 @@ const main = defineCommand({
           // to it is refused. Tests pin it to 0 to reach the refusal at once.
           const graceOverride = Number(process.env['ATC_TAP_GRACE_MS']);
 
-          const claudeAdapter = new claude.ClaudeAdapter(cfg, (runOpts, hooks) =>
-            headless.startHeadlessRun({ ...runOpts, claudeBin: cfg.claudeBin }, hooks),
-          );
-
+          const claudeAdapter = new claude.ClaudeAdapter(cfg, headless.startClaudeHeadlessRun);
           const grokAdapter = new grok.GrokAdapter(cfg);
           const codexAdapter = new codex.CodexAdapter(cfg);
 
           const gatewayAdapters = cfg.gateways.map(
-            (entry) =>
-              new gateway.GatewayAdapter(entry, cfg, (runOpts, hooks) =>
-                headless.startHeadlessRun({ ...runOpts, claudeBin: entry.bin }, hooks),
-              ),
+            (entry) => new gateway.GatewayAdapter(entry, cfg, headless.startClaudeHeadlessRun),
           );
 
           let handle: Awaited<ReturnType<typeof daemon.startDaemon>>;

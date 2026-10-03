@@ -156,7 +156,6 @@ test('it ejects a terminal session into a headless run with its agent id', async
     cwd: '/tmp',
     prompt: 'keep going',
     resume: 'sess-123',
-    permissionMode: 'auto',
     sessionID: id,
   });
 

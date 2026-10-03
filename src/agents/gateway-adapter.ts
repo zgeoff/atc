@@ -16,10 +16,14 @@ import type {
   SpawnPlan,
 } from './agent-adapter';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
+import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { ClaudeAdapter } from './claude-adapter';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import { findFlagValue } from './find-flag-value';
+import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
+import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
+import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
 import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
 
@@ -62,7 +66,7 @@ export class GatewayAdapter implements AgentAdapter {
   constructor(
     gateway: GatewayConfig,
     config: Config,
-    headlessRunner: HeadlessRunner | null = null,
+    headlessRun: ClaudeHeadlessRun | null = null,
     bridgeTarget?: string,
   ) {
     this.bridgeTarget = bridgeTarget;
@@ -82,13 +86,14 @@ export class GatewayAdapter implements AgentAdapter {
     this.claude = new ClaudeAdapter(config);
 
     this.headlessRunner =
-      headlessRunner === null
+      headlessRun === null
         ? null
-        : (opts, hooks) =>
-            headlessRunner(
-              { ...opts, settings: this.writeSettings(), pluginDir: this.writeBridge() },
-              hooks,
-            );
+        : makeClaudeHeadlessRunner(headlessRun, {
+            claudeBin: gateway.bin,
+            permissionMode: resolveClaudePermissionMode(gateway.args, gateway.settings),
+            pluginDir: () => this.writeBridge(),
+            settings: () => this.writeSettings(),
+          });
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
@@ -96,6 +101,9 @@ export class GatewayAdapter implements AgentAdapter {
       bin: this.gateway.bin,
       args: [
         ...buildClaudeOverrideArgs(this.gateway.args, opts),
+        ...(opts.resume === false
+          ? []
+          : buildRestoreModeArgs(this.gateway.args, this.gateway.settings)),
         '--settings',
         this.writeSettings(),
         '--plugin-dir',
@@ -119,14 +127,23 @@ export class GatewayAdapter implements AgentAdapter {
     return this.claude.canResume(session);
   }
 
-  // Shell command that re-opens this session outside atc. It names the
-  // generated settings file, because without it the CLI would resume the
-  // session against the default backend.
+  // Shell command that re-opens this session outside atc. It carries the
+  // gateway's configured arguments and its configured permission mode as an
+  // explicit flag, so that mode overrides the one the CLI would restore, and
+  // the generated settings file, because
+  // without it the CLI would resume the session against the default backend.
   buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
+    const args = [
+      ...this.gateway.args,
+      ...buildRestoreModeArgs(this.gateway.args, this.gateway.settings),
+    ]
+      .map((arg) => ` ${toShellArg(arg)}`)
+      .join('');
+
     const settings = toShellArg(this.writeSettings());
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
 
-    return `cd ${toShellArg(cwd)} && ${this.gateway.bin} --settings ${settings} --resume${resume}`;
+    return `cd ${toShellArg(cwd)} && ${this.gateway.bin}${args} --settings ${settings} --resume${resume}`;
   }
 
   private writeSettings(): string {
