@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
@@ -811,6 +812,83 @@ test('it answers a failed spawn only once its killed process has exited, so a re
 
   expect(planned).toBe(2);
   expect(list['sessions']).toStrictEqual([getRecord(retried, 'session')]);
+});
+
+test('it refuses to revive a failed spawn while its rollback waits for the killed process', async () => {
+  await using ctx = await setupTest();
+
+  const pidPath = join(ctx.dir, 'child.pid');
+  let armed = false;
+  let planned = 0;
+
+  // The first child takes 300ms to exit after SIGHUP, and the start fails
+  // only once it has set that trap and written its pid.
+  const failing: AgentAdapter = {
+    ...idleAdapter,
+    planSpawn: () => {
+      planned++;
+      armed = planned === 1;
+
+      return planned === 1
+        ? {
+            bin: 'bash',
+            args: [
+              '-c',
+              `trap 'sleep 0.3; exit 0' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; while :; do sleep 0.05; done`,
+            ],
+          }
+        : { bin: 'sleep', args: ['30'] };
+    },
+    get headlessRunner() {
+      if (armed) {
+        armed = false;
+
+        while (!existsSync(pidPath)) {
+          Bun.sleepSync(10);
+        }
+
+        throw new Error('adapter failed after the process started');
+      }
+
+      return null;
+    },
+  };
+
+  const client = await ctx.boot(failing);
+
+  const params = {
+    cwd: '/tmp',
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+    idempotencyKey: 'k-1',
+  };
+
+  const first = client.sendRequest('session.spawn', params);
+
+  const listed = await waitFor(async () => {
+    const list = await client.sendRequest('session.list');
+
+    expect(list['sessions']).toHaveLength(1);
+
+    return list;
+  });
+
+  const id = getRecord(getRecord(listed, 'sessions'), '0')['id'];
+  const adopted = client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  expect(adopted).rejects.toMatchObject({ code: 'no_such_session' });
+
+  await adopted.catch(() => null);
+
+  expect(first).rejects.toMatchObject({ code: 'internal' });
+
+  await first.catch(() => null);
+
+  const list = await client.sendRequest('session.list');
+
+  expect(planned).toBe(1);
+  expect(list['sessions']).toStrictEqual([]);
 });
 
 test('it answers a retried keyed message with the first message and sends once', async () => {
