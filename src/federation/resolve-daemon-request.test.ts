@@ -100,3 +100,46 @@ test('it refuses a request whose ids point at two daemons', () => {
     resolveDaemonRequest({ session: 'cloud.0f6c2a8e.s1', message: 'pc.9a1b2c3d.m-1' }, registry),
   ).toThrow(expect.objectContaining({ code: 'bad_args', message: "no message 'pc.9a1b2c3d.m-1'" }));
 });
+
+test('it routes report.get by its report handle and hands the daemon its own cursor', () => {
+  const pc = {
+    name: 'pc',
+    address: { host: '100.64.0.3', port: 8415 },
+    daemonID: '9a1b2c3d-0000-4000-8000-000000000000',
+    incarnation: '9a1b2c3d',
+    token: 't',
+  };
+
+  const resolved = resolveDaemonRequest(
+    { report: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ' },
+    { daemons: new Map([['pc', pc]]), defaultDaemon: 'pc' },
+  );
+
+  expect(resolved).toStrictEqual({
+    daemon: pc,
+    params: { report: 'eyJrIjoiZXYiLCJpIjo3fQ' },
+    requestIDs: new Map([['eyJrIjoiZXYiLCJpIjo3fQ', 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ']]),
+  });
+});
+
+test('it refuses a report handle with a stale incarnation as an unknown report', () => {
+  const pc = {
+    name: 'pc',
+    address: { host: '100.64.0.3', port: 8415 },
+    daemonID: '9a1b2c3d-0000-4000-8000-000000000000',
+    incarnation: '9a1b2c3d',
+    token: 't',
+  };
+
+  expect(() =>
+    resolveDaemonRequest(
+      { report: 'pc.11111111.eyJrIjoiZXYiLCJpIjo3fQ' },
+      { daemons: new Map([['pc', pc]]), defaultDaemon: 'pc' },
+    ),
+  ).toThrow(
+    expect.objectContaining({
+      code: 'bad_args',
+      message: "no report 'pc.11111111.eyJrIjoiZXYiLCJpIjo3fQ'",
+    }),
+  );
+});
