@@ -478,7 +478,7 @@ test('it restores and resumes a gateway in its explicit permission-mode argument
   expect(command).not.toInclude("'default'");
 });
 
-test('it refuses every spawn of a gateway with auth, since brokered credentials are not wired', () => {
+test('it refuses every spawn of a gateway with auth, since it plans no guest settings for one', () => {
   const adapter = new GatewayAdapter(
     {
       id: 'glm',
@@ -501,7 +501,7 @@ test('it refuses every spawn of a gateway with auth, since brokered credentials 
   expect(refusal).toMatchObject({
     code: 'auth_target_unsupported',
     message:
-      "gateway 'glm' takes its credential from impd's broker, and brokered credentials are not wired yet",
+      "gateway 'glm' takes its credential from impd's broker, and atc plans no guest settings for it on any target",
   });
 });
 
@@ -542,4 +542,58 @@ test('it refuses no spawn of a gateway without auth', () => {
   );
 
   expect(adapter.findSpawnRefusal()).toBeNull();
+});
+
+test('it selects the credential a gateway with auth takes from the broker, with the auth profiles it resolves against', () => {
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+  });
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    config,
+  );
+
+  expect(adapter.findAuthSelection()).toStrictEqual({
+    gateway: {
+      id: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    profiles: config.authProfiles,
+  });
+});
+
+test('it selects no broker credential for a gateway without auth', () => {
+  const adapter = new GatewayAdapter(
+    {
+      id: 'zai',
+      label: 'zai',
+      mark: 'z',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+    },
+    parseConfig({}),
+  );
+
+  expect(adapter.findAuthSelection()).toBeNull();
 });

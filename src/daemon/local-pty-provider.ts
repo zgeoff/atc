@@ -1,5 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { spawn } from 'bun-pty';
+import { DaemonError } from '../protocol/daemon-error';
 import { collectCleanEnv } from '../shared/collect-clean-env';
 import type {
   CommandResult,
@@ -39,7 +40,17 @@ export class LocalPTYProvider implements ExecutionProvider {
 
   // The daemon's machine keeps no process the daemon lets go of, so a
   // detach ends the harness as a kill does, after dropping every listener.
+  // It has no credential broker, so a harness that requires one never
+  // starts here.
   readonly spawnHarness = (spec: HarnessSpec): HarnessHandle => {
+    if (spec.requireBroker === true) {
+      throw new DaemonError(
+        'auth_target_unsupported',
+        "the daemon's own machine has no credential broker to start the harness behind",
+        { provider: 'local-pty' },
+      );
+    }
+
     const pty = spawn(spec.bin, [...spec.args], {
       name: 'xterm-256color',
       cols: spec.cols,

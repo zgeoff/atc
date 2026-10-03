@@ -1054,6 +1054,17 @@ export class StateStore {
     return row === undefined ? null : toRuntimeAuthBinding(row);
   }
 
+  // Every host's binding, by host key.
+  async collectAuthBindings(): Promise<RuntimeAuthBinding[]> {
+    const rows = await this.db
+      .selectFrom('runtime_auth_binding')
+      .selectAll()
+      .orderBy('host_key')
+      .execute();
+
+    return rows.map((row) => toRuntimeAuthBinding(row));
+  }
+
   // Writes one secret's grant row for a host, or moves the existing one to
   // the given phase, revision and attempt.
   async upsertAuthGrant(grant: Omit<RuntimeAuthGrant, 'updatedAt'>, at: number): Promise<void> {

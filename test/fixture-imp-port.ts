@@ -27,6 +27,7 @@ import type {
 } from '../src/daemon/imp-port';
 import { ImpPortError } from '../src/daemon/imp-port-error';
 import { isImpNameAllowed } from '../src/daemon/is-imp-name-allowed';
+import { isBrokerVariable } from '../src/shared/is-broker-variable';
 
 // impd keeps exactly this many bytes of each generation's output.
 const RING_BYTES = 262_144;
@@ -51,7 +52,12 @@ const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
  * dropped sockets through the controls. Grants follow impd 0.27: the
  * caller's identity must reach the imp and, under imp patterns, list the
  * secret as grantable; a grant is idempotent, one secret per host, and a
- * destroyed imp or a rebound or removed secret takes its grants with it.
+ * destroyed imp or a rebound or removed secret takes its grants with it. A
+ * start or an attach that requires the broker is refused with
+ * `PRECONDITION_FAILED` and reason `broker_not_ready`, and runs nothing,
+ * while the broker fails or the imp holds no grant, when the start sets a
+ * broker variable, and when it would join a process that started without
+ * the broker required.
  */
 export class FixtureImpPort implements ImpPort {
   // Every port call, in order, as `<call> <imp> [<detail>]`.
@@ -65,6 +71,7 @@ export class FixtureImpPort implements ImpPort {
     leases: true,
     grantableTokens: true,
     secretRebind: true,
+    execRequire: true,
   };
 
   // Who the port calls impd as.
@@ -107,8 +114,32 @@ export class FixtureImpPort implements ImpPort {
   // A refusal the next session request gets instead of an answer.
   private nextFailure: { readonly code: string; readonly data: unknown } | null = null;
 
+  // Feature reads still to fail as an unreachable impd before they answer.
+  private featureFailures = 0;
+
+  // Session connections still to fail their upgrade, ending unreachable
+  // before they open and before any gate runs.
+  private upgradeFailures = 0;
+
+  // The connections still opening while upgrades are held, each sending
+  // its request once it opens; null while connections open at once.
+  private upgrades: (() => void)[] | null = null;
+
+  // The lease releases wait for this hold to end, while one is held.
+  private releaseHold: PromiseWithResolvers<void> | null = null;
+
+  // The lease acquisitions wait for this hold to end, while one is held.
+  private leaseHold: PromiseWithResolvers<void> | null = null;
+
+  // impd's code for every grant removal while removals fail, or null.
+  private grantRemovalFailure: string | null = null;
+
   // Whether every reverse forward closes each new guest connection at once.
   private refusingRelays = false;
+
+  // Whether the broker fails in every imp, as a CA that did not install
+  // leaves it.
+  private brokerFailing = false;
 
   // Whether every relayed connection drops what the guest writes, while
   // what the daemon writes still reaches the guest.
@@ -126,6 +157,12 @@ export class FixtureImpPort implements ImpPort {
 
   readFeatures(): Promise<ImpFeatures> {
     this.calls.push('system.info');
+
+    if (this.featureFailures > 0) {
+      this.featureFailures -= 1;
+
+      return Promise.reject(new ImpPortError('UNREACHABLE', 'impd did not answer'));
+    }
 
     return Promise.resolve(this.features);
   }
@@ -199,6 +236,12 @@ export class FixtureImpPort implements ImpPort {
   removeGrant(name: string, secret: string): Promise<boolean> {
     this.calls.push(`grants.delete ${name} ${secret}`);
 
+    if (this.grantRemovalFailure !== null) {
+      return Promise.reject(
+        new ImpPortError(this.grantRemovalFailure, 'impd did not remove the grant'),
+      );
+    }
+
     const refusal = this.findGrantRefusal(name, secret);
 
     if (refusal !== null) {
@@ -247,6 +290,18 @@ export class FixtureImpPort implements ImpPort {
   acquireLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
     this.calls.push(`leases.acquire ${name} ${label}`);
 
+    return this.leaseHold === null
+      ? this.applyLease(name, label, ttlSeconds)
+      : this.waitForLease(name, label, ttlSeconds);
+  }
+
+  private async waitForLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
+    await this.leaseHold?.promise;
+
+    return this.applyLease(name, label, ttlSeconds);
+  }
+
+  private applyLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
     const failure = this.acquireFailure;
 
     if (failure !== null) {
@@ -301,6 +356,18 @@ export class FixtureImpPort implements ImpPort {
   releaseLease(name: string, label: string): Promise<boolean> {
     this.calls.push(`leases.release ${name} ${label}`);
 
+    return this.releaseHold === null
+      ? this.applyRelease(name, label)
+      : this.waitForRelease(name, label);
+  }
+
+  private async waitForRelease(name: string, label: string): Promise<boolean> {
+    await this.releaseHold?.promise;
+
+    return this.applyRelease(name, label);
+  }
+
+  private applyRelease(name: string, label: string): Promise<boolean> {
     const imp = this.imps.get(name);
 
     if (imp === undefined) {
@@ -362,10 +429,11 @@ export class FixtureImpPort implements ImpPort {
     return Promise.resolve();
   }
 
-  openSession(request: ImpSessionRequest, handlers: ImpSessionHandlers): ImpSessionConnection {
-    this.calls.push(`exec.${request.kind} ${request.name} ${request.session}`);
-    this.sessionRequests.push(request);
-
+  openSession(
+    request: ImpSessionRequest,
+    handlers: ImpSessionHandlers,
+    gate?: () => boolean,
+  ): ImpSessionConnection {
     const outcome = Promise.withResolvers<ImpSessionOutcome>();
 
     const connection: FixtureConnection = {
@@ -388,17 +456,42 @@ export class FixtureImpPort implements ImpPort {
       },
     };
 
-    // impd answers over the network: nothing reaches the caller before
-    // openSession returns.
-    setTimeout(() => {
-      if (this.held === null) {
-        this.answerSession(request, connection);
-      } else {
-        this.held.push(() => {
-          this.answerSession(request, connection);
-        });
+    // The request reaches impd once the connection opens, after the gate
+    // lets it go; a closed gate sends nothing.
+    const sendToImpd = () => {
+      if (gate !== undefined && !tryPassGate(gate)) {
+        connection.finish({ kind: 'closed', reason: 'closed before sending', closeCode: 1000 });
+
+        return;
       }
-    }, 0);
+
+      this.calls.push(`exec.${request.kind} ${request.name} ${request.session}`);
+      this.sessionRequests.push(request);
+
+      // impd answers over the network: nothing reaches the caller before
+      // openSession returns.
+      setTimeout(() => {
+        if (this.held === null) {
+          this.answerSession(request, connection);
+        } else {
+          this.held.push(() => {
+            this.answerSession(request, connection);
+          });
+        }
+      }, 0);
+    };
+
+    if (this.upgradeFailures > 0) {
+      this.upgradeFailures -= 1;
+
+      setTimeout(() => {
+        connection.finish({ kind: 'unreachable', detail: 'the upgrade failed' });
+      }, 0);
+    } else if (this.upgrades === null) {
+      sendToImpd();
+    } else {
+      this.upgrades.push(sendToImpd);
+    }
 
     return {
       outcome: outcome.promise,
@@ -571,8 +664,8 @@ export class FixtureImpPort implements ImpPort {
   }
 
   /**
-   * Gives impd the features of a daemon from before grantable tokens and
-   * secret rebinds, which has neither flag.
+   * Gives impd the features of a daemon from before grantable tokens,
+   * secret rebinds and exec requirements, which has none of those flags.
    */
   setOldDaemonFeatures(): void {
     this.features = {
@@ -580,6 +673,7 @@ export class FixtureImpPort implements ImpPort {
       leases: true,
       grantableTokens: false,
       secretRebind: false,
+      execRequire: false,
     };
   }
 
@@ -691,6 +785,19 @@ export class FixtureImpPort implements ImpPort {
   }
 
   /**
+   * Fails the broker in every imp, as a CA install that failed on boot
+   * does, so every start that requires it is refused, until the failure
+   * stops.
+   */
+  startBrokerFailure(): void {
+    this.brokerFailing = true;
+  }
+
+  stopBrokerFailure(): void {
+    this.brokerFailing = false;
+  }
+
+  /**
    * Drops every byte a guest writes on a relayed connection, as a network
    * that loses one direction does, until the drop stops; what the daemon
    * writes still reaches the guest.
@@ -738,6 +845,85 @@ export class FixtureImpPort implements ImpPort {
    */
   setSessionDrops(count: number, closeCode: number): void {
     this.drops = { count, closeCode };
+  }
+
+  /**
+   * Fails the upgrade of the next session connections, so each ends
+   * unreachable without opening.
+   */
+  setUpgradeFailures(count: number): void {
+    this.upgradeFailures = count;
+  }
+
+  /**
+   * Holds every session connection open, as a slow WebSocket upgrade does,
+   * so its request reaches impd only once the hold stops.
+   */
+  startUpgradeHold(): void {
+    this.upgrades ??= [];
+  }
+
+  // How many connections wait for the upgrade hold to stop.
+  countHeldUpgrades(): number {
+    return this.upgrades?.length ?? 0;
+  }
+
+  /**
+   * Opens every held connection, in order, and the next at once.
+   */
+  stopUpgradeHold(): void {
+    const upgrades = this.upgrades ?? [];
+
+    this.upgrades = null;
+
+    for (const send of upgrades) {
+      send();
+    }
+  }
+
+  /**
+   * Holds every lease acquisition, as an imp that takes long to wake does,
+   * until the hold stops.
+   */
+  startLeaseHold(): void {
+    this.leaseHold ??= Promise.withResolvers<void>();
+  }
+
+  /**
+   * Lets every held lease acquisition go through, and the next at once.
+   */
+  stopLeaseHold(): void {
+    this.leaseHold?.resolve();
+    this.leaseHold = null;
+  }
+
+  /**
+   * Holds every lease release until the hold stops.
+   */
+  startReleaseHold(): void {
+    this.releaseHold ??= Promise.withResolvers<void>();
+  }
+
+  /**
+   * Lets every held lease release go through, and the next at once.
+   */
+  stopReleaseHold(): void {
+    this.releaseHold?.resolve();
+    this.releaseHold = null;
+  }
+
+  /**
+   * Fails every grant removal with an impd code until called with null.
+   */
+  setGrantRemovalFailure(code: string | null): void {
+    this.grantRemovalFailure = code;
+  }
+
+  /**
+   * Fails the next feature reads as an unreachable impd.
+   */
+  setFeatureFailures(count: number): void {
+    this.featureFailures = count;
   }
 
   /**
@@ -976,6 +1162,18 @@ export class FixtureImpPort implements ImpPort {
     this.updateAwake(imp);
 
     const running = imp.sessions.get(request.session);
+    const brokerProblem = this.findBrokerProblem(imp, request, running);
+
+    if (brokerProblem !== null) {
+      connection.finish({
+        kind: 'failed',
+        code: 'PRECONDITION_FAILED',
+        message: `the broker is not ready in imp ${imp.name}`,
+        data: { reason: 'broker_not_ready', detail: brokerProblem },
+      });
+
+      return;
+    }
 
     if (running === undefined && request.kind === 'attach') {
       const previous = imp.previous.get(request.session);
@@ -1003,6 +1201,41 @@ export class FixtureImpPort implements ImpPort {
     this.attachProcess(imp, proc, request, connection, running === undefined);
   }
 
+  // Why the broker a start or an attach requires is not ready, or null
+  // when it is or the request requires nothing. A broker variable the
+  // start sets, or a running process that started without the broker
+  // required, fails the requirement as impd's would.
+  private findBrokerProblem(
+    imp: FixtureImp,
+    request: ImpSessionRequest,
+    running: FixtureProcess | undefined,
+  ): string | null {
+    if (request.require?.includes('broker') !== true) {
+      return null;
+    }
+
+    if (this.brokerFailing) {
+      return 'the broker CA did not install';
+    }
+
+    if (imp.grants.size === 0) {
+      return 'the imp holds no grant';
+    }
+
+    const overridden =
+      request.kind === 'start'
+        ? Object.keys(request.env).find((key) => isBrokerVariable(key))
+        : undefined;
+
+    if (overridden !== undefined) {
+      return overridden;
+    }
+
+    return running !== undefined && !running.requireBroker
+      ? 'the session did not start with the broker required'
+      : null;
+  }
+
   private startProcess(imp: FixtureImp, request: ImpSessionRequest): FixtureProcess | null {
     if (request.kind !== 'start') {
       return null;
@@ -1024,6 +1257,7 @@ export class FixtureImpPort implements ImpPort {
       exited: null,
       ended: false,
       connection: null,
+      requireBroker: request.require?.includes('broker') === true,
     };
 
     imp.sessions.set(request.session, proc);
@@ -1211,6 +1445,10 @@ interface FixtureProcess {
   // Ended by a cold boot: its exit is never delivered.
   ended: boolean;
   connection: FixtureConnection | null;
+
+  // Whether its start required the broker, which an attach that requires
+  // it needs.
+  readonly requireBroker: boolean;
 }
 
 interface FixtureConnection {
@@ -1285,4 +1523,13 @@ function tryKill(pty: IPty, signal: NodeJS.Signals): void {
   try {
     process.kill(pty.pid, signal);
   } catch {}
+}
+
+// A gate that throws keeps the request from going out, as a closed one does.
+function tryPassGate(gate: () => boolean): boolean {
+  try {
+    return gate();
+  } catch {
+    return false;
+  }
 }

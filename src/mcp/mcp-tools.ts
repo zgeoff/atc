@@ -213,6 +213,7 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
           label: { type: 'string' },
           kind: { type: 'string' },
           installed: { type: 'boolean' },
+          brokerAuth: { type: 'boolean' },
           capabilities: {
             type: 'object',
             properties: {
@@ -249,6 +250,7 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
             type: 'object',
             additionalProperties: { type: 'boolean' },
           },
+          brokerAuth: { type: 'boolean' },
         },
         required: ['id', 'provider', 'identity', 'available', 'default', 'capabilities'],
       },

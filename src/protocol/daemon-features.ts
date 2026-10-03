@@ -73,6 +73,10 @@ export const DAEMON_FEATURES = [
   // replays a key the daemon holds and refuses one it does not hold with
   // `idempotency_key_unknown`, running nothing.
   'idempotency.replayOnly',
+
+  // `session.auth.revoke` and `session.auth.rebind` exist, open to the
+  // daemon's owner only.
+  'session.auth',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

@@ -1,10 +1,11 @@
 import { createImpClient, openExecSession, openReverseForward } from '@zgeoff/imp-client';
-import type { ExecOutcome, ImpClient } from '@zgeoff/imp-client';
+import type { ExecOutcome, ExecSessionOptions, ImpClient } from '@zgeoff/imp-client';
 import { isRecord } from '../shared/report';
 import type {
   ImpCommand,
   ImpCommandResult,
   ImpCreateSpec,
+  ImpExecRequirement,
   ImpFeatures,
   ImpIdentity,
   ImpLease,
@@ -63,6 +64,7 @@ export class ImpClientPort implements ImpPort {
       leases: features?.['leases'] === true,
       grantableTokens: features?.['grantableTokens'] === true,
       secretRebind: features?.['secretRebind'] === true,
+      execRequire: features?.['execRequire'] === true,
     };
   };
 
@@ -199,6 +201,7 @@ export class ImpClientPort implements ImpPort {
   readonly openSession = (
     request: ImpSessionRequest,
     handlers: ImpSessionHandlers,
+    gate?: () => boolean,
   ): ImpSessionConnection => {
     const token = this.tryReadToken();
 
@@ -217,34 +220,14 @@ export class ImpClientPort implements ImpPort {
     const session = openExecSession({
       baseUrl: this.url,
       token,
-      start:
-        request.kind === 'start'
-          ? {
-              name: request.name,
-              session: request.session,
-              argv: request.argv,
-              tty: true,
-              env: request.env,
-              cwd: request.cwd,
-              cols: request.cols,
-              rows: request.rows,
-              ...(request.resumeFrom === undefined ? {} : { resumeFrom: request.resumeFrom }),
-            }
-          : {
-              name: request.name,
-              session: request.session,
-              cols: request.cols,
-              rows: request.rows,
-              wake: request.wake,
-              ...(request.resumeFrom === undefined ? {} : { resumeFrom: request.resumeFrom }),
-            },
+      start: buildExecStart(request),
       onStarted: (started) => {
         handlers.onStarted({ created: started.created, output: started.output });
       },
       onOutput: (_channel, data) => {
         handlers.onOutput(data);
       },
-      connect: (url, headers) => new WebSocket(url, { headers }),
+      connect: (url, headers) => openGatedSocket(url, headers, gate),
     });
 
     return {
@@ -389,6 +372,41 @@ function toPortError(error: unknown): ImpPortError {
   return new ImpPortError('UNREACHABLE', message);
 }
 
+// A start or an attach as the client takes it, with the requirements impd
+// checks before the command runs or the attach joins it.
+type ExecStartWithRequire = ExecSessionOptions['start'] & {
+  readonly require?: readonly ImpExecRequirement[];
+};
+
+// The client sends every field of a start or an attach as it is, so a list
+// of requirements reaches impd though the client's types lack it.
+function buildExecStart(request: ImpSessionRequest): ExecStartWithRequire {
+  if (request.kind === 'attach') {
+    return {
+      name: request.name,
+      session: request.session,
+      cols: request.cols,
+      rows: request.rows,
+      wake: request.wake,
+      ...(request.resumeFrom === undefined ? {} : { resumeFrom: request.resumeFrom }),
+      ...(request.require === undefined ? {} : { require: request.require }),
+    };
+  }
+
+  return {
+    name: request.name,
+    session: request.session,
+    argv: request.argv,
+    tty: true,
+    env: request.env,
+    cwd: request.cwd,
+    cols: request.cols,
+    rows: request.rows,
+    ...(request.resumeFrom === undefined ? {} : { resumeFrom: request.resumeFrom }),
+    ...(request.require === undefined ? {} : { require: request.require }),
+  };
+}
+
 // oxlint-disable-next-line prefer-readonly-parameter-types -- a promise is a live handle
 async function waitForSessionOutcome(outcome: Promise<ExecOutcome>): Promise<ImpSessionOutcome> {
   const ended = await outcome;
@@ -468,4 +486,34 @@ function openRelay(accept: RelayAccept): ImpRelayConnection {
       relay.close();
     },
   };
+}
+
+// The client sends its request from the socket's open listener. The gate
+// listens first, so a closed gate, or one that throws, stops that
+// listener and closes the socket before anything goes out.
+function openGatedSocket(
+  url: string,
+  headers: Readonly<Record<string, string>>,
+  gate: (() => boolean) | undefined,
+): WebSocket {
+  const socket = new WebSocket(url, { headers });
+
+  if (gate !== undefined) {
+    socket.addEventListener('open', (event) => {
+      if (!tryPassGate(gate)) {
+        event.stopImmediatePropagation();
+        socket.close(1000, 'closed before sending');
+      }
+    });
+  }
+
+  return socket;
+}
+
+function tryPassGate(gate: () => boolean): boolean {
+  try {
+    return gate();
+  } catch {
+    return false;
+  }
 }

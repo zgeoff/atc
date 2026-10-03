@@ -39,6 +39,7 @@ test('it reads each target with whether it takes a workspace and runs in place',
       isDefault: true,
       takesWorkspace: true,
       inPlace: true,
+      brokerAuth: false,
     },
     {
       id: 'box',
@@ -47,6 +48,7 @@ test('it reads each target with whether it takes a workspace and runs in place',
       isDefault: false,
       takesWorkspace: false,
       inPlace: false,
+      brokerAuth: false,
     },
     {
       id: 'gone',
@@ -55,8 +57,27 @@ test('it reads each target with whether it takes a workspace and runs in place',
       isDefault: false,
       takesWorkspace: false,
       inPlace: false,
+      brokerAuth: false,
     },
   ]);
+});
+
+test('it reads a target that reaches the broker as one', () => {
+  const picks = collectTargetPicks({
+    targets: [
+      {
+        id: 'box',
+        provider: 'imp',
+        identity: 'imp:0d1f',
+        available: true,
+        default: false,
+        capabilities: { spawn: true, transfer: true, run: true },
+        brokerAuth: true,
+      },
+    ],
+  });
+
+  expect(picks).toMatchObject([{ id: 'box', brokerAuth: true }]);
 });
 
 test.each([

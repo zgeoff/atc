@@ -185,7 +185,8 @@ function isSameSession(s: Session, entry: FleetEntry): boolean {
 
 // The refusals that leave one session without a terminal: its target is
 // misconfigured, gone from the config, changed, has no provider here, or
-// cannot start a terminal, or its agent refuses every start.
+// cannot start a terminal, or its agent refuses every start, or its
+// host's runtime auth binding refuses the launch, its broker included.
 const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'unsupported_operation',
   'unknown_target',
@@ -195,6 +196,19 @@ const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'host_unavailable',
   'auth_not_configured',
   'auth_target_unsupported',
+  'auth_impd_too_old',
+  'auth_token_scope',
+  'auth_token_too_broad',
+  'auth_imp_out_of_scope',
+  'auth_secret_not_grantable',
+  'auth_secret_mismatch',
+  'auth_runtime_mismatch',
+  'auth_grant_missing',
+  'auth_grants_mismatch',
+  'auth_rebind_required',
+  'auth_blocked',
+  'auth_binding_invalid',
+  'broker_not_ready',
 ]);
 
 async function tryAdoptTerminal(

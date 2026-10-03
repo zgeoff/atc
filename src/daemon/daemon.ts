@@ -77,6 +77,7 @@ import { PermissionRegistry } from './permission-registry';
 import { requireGitTransports } from './require-git-transports';
 import { restoreFleet } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
+import { RuntimeAuthBinder } from './runtime-auth-binder';
 import { ScreenModel } from './screen-model';
 import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
@@ -278,6 +279,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // that stopped mid-effect is settled, so no retry can race either.
   await store.reconcileMaterializations(Date.now());
   await store.reconcileIdempotencyKeys(Date.now());
+  await store.reconcileAuthBindings(Date.now());
 
   await tryRemoveExpiredIdempotencyKeys(store);
 
@@ -316,6 +318,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   if (opts.log !== undefined) {
     mgr.log = opts.log;
   }
+
+  const authBinder = new RuntimeAuthBinder(store);
+
+  mgr.authBinder = authBinder;
+
+  // Settled in the background, since it reaches impd: each binding a
+  // stopped daemon left mid-change stays blocked until it is settled.
+  void tryReconcileAuthBindings(authBinder, store, targetsByID, mgr.log);
 
   const clients = new Set<DaemonConnection>();
 
@@ -1272,7 +1282,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         arch: process.arch,
         build: opts.build,
       },
-      agents: buildAgentList(mgr.collectAdapters(), (bin) => Bun.which(bin) !== null),
+      agents: buildAgentList(
+        mgr.collectAdapters(),
+        (bin) => Bun.which(bin) !== null,
+        targets.some((target) => target.provider?.brokerAuth !== undefined),
+      ),
       targets: buildTargetList(targets, defaultTarget),
       spawnDefaults: { agent: 'claude', target: defaultTarget },
       configRevision,
@@ -1323,6 +1337,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     requireWorkspaceTarget: (target) => {
       mgr.requireExecution({ target, targetIdentity: null }, 'transfer');
       mgr.requireExecution({ target, targetIdentity: null }, 'run');
+    },
+    requireAgentTarget: (agent, target) => {
+      mgr.requireAgentTarget(agent, target);
     },
     findSource: (id) => sources.find((source) => source.id === id) ?? null,
     collectAlternateGitURLs: (url) => [
@@ -1446,6 +1463,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return { forgotten: true, destroyed };
     },
+    revokeSessionAuth: (id) => mgr.revokeAuth(id),
+    updateSessionAuth: (id) => mgr.updateAuth(id),
     ejectSession: (id, prompt) => {
       const s = mgr.sessions.find((x) => x.id === id);
 
@@ -1492,6 +1511,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     adoptSession: async (id, cols, rows, access) => {
       if (!hasResumableTranscript(mgr, id)) {
         return 'no_transcript';
+      }
+
+      const listed = mgr.sessions.find((s) => s.id === id);
+
+      // Refused before the headless run stops, so a refusal leaves it as
+      // it was.
+      if (listed !== undefined) {
+        mgr.requireAgentTarget(listed.agent, listed.target);
       }
 
       const runtime = runtimes.get(id);
@@ -2191,6 +2218,36 @@ async function tryRemoveExpiredIdempotencyKeys(store: StateStore): Promise<boole
   try {
     await store.removeExpiredIdempotencyKeys(Date.now() - IDEMPOTENCY_TTL_MS);
   } catch {
+    return false;
+  }
+
+  return true;
+}
+
+// Settles the runtime auth bindings a stopped daemon left mid-change, each
+// through its target's broker; a host with a fleet entry is listed, and a
+// failure is logged and leaves its binding blocked.
+async function tryReconcileAuthBindings(
+  binder: RuntimeAuthBinder,
+  store: StateStore,
+  targets: ReadonlyMap<string, ExecutionTarget>,
+  log: (line: string) => void,
+): Promise<boolean> {
+  try {
+    const fleet = await store.loadFleet();
+
+    const listed = new Set(fleet.map((entry) => entry.hostKey ?? entry.sessionID));
+
+    await binder.reconcileBindings(
+      (target) => targets.get(target)?.provider?.brokerAuth ?? null,
+      listed,
+      log,
+    );
+  } catch (error) {
+    log(
+      `atc could not settle runtime auth bindings (${error instanceof Error ? error.message : String(error)})`,
+    );
+
     return false;
   }
 

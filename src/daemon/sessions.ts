@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import type {
   AgentAdapter,
+  GuestPaths,
   SpawnOptions,
   SpawnOverrides,
   SpawnPlan,
@@ -17,12 +18,16 @@ import type { AgentSessionID } from '../shared/agent-session-id';
 import type { TargetConfigError } from '../shared/collect-targets';
 import { socketPath, statusFile } from '../shared/config';
 import type { DaemonID } from '../shared/daemon-id';
+import { isBrokerVariable } from '../shared/is-broker-variable';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { SessionID } from '../shared/session-id';
 import { truncateDetail } from '../shared/truncate-detail';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
 import type { SessionWorkspace } from '../store/workspace-materialization';
+import type { BrokerAuthHost } from './broker-auth-host';
+import { buildAuthBinding } from './build-auth-binding';
+import type { AuthBinding } from './build-auth-binding';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionLifecycle } from './build-session-lifecycle';
 import type { SessionLifecycle } from './build-session-lifecycle';
@@ -33,12 +38,14 @@ import type {
   ExecutionProvider,
   HarnessHandle,
   HarnessRelay,
+  HarnessSpec,
 } from './execution-provider';
 import { findExecutionRefusal } from './find-execution-refusal';
 import type { BridgeBinding } from './is-binding-current';
 import { LocalPTYProvider } from './local-pty-provider';
 import { mintSessionID } from './mint-session-id';
 import { pickSessionState } from './pick-session-state';
+import type { RuntimeAuthBinder } from './runtime-auth-binder';
 
 export type SessionEventKind = 'added' | 'state' | 'renamed' | 'removed';
 
@@ -186,6 +193,36 @@ const LOCAL_TARGET_IDENTITY = buildTargetIdentity('local-pty', {});
 // once after its kill and once more after a forced kill.
 const FAILED_SPAWN_EXIT_WAIT_MS = 2000;
 
+// How a harness takes its credential from impd's broker: the broker the
+// provider reaches, and the binding the agent's selection resolves to now.
+interface HarnessAuth {
+  readonly host: BrokerAuthHost;
+  readonly binding: AuthBinding;
+}
+
+// A harness's auth as its setup applies it: a spawn's own new host creates
+// the binding, and every other launch verifies the one its host holds.
+interface HarnessAuthSetup extends HarnessAuth {
+  readonly mode: 'create' | 'verify';
+  readonly targetIdentity: string;
+}
+
+// A harness as its setup plans it: the agent's spawn, and the variables
+// the agent's guest plan starts the harness with, which no variable atc
+// adds overrides.
+interface HarnessPlan extends SpawnPlan {
+  readonly env: Readonly<Record<string, string>>;
+
+  // What a launch behind the broker was planned under, which its host's
+  // binding must still admit when each request goes out; null without
+  // runtime auth.
+  readonly admission: {
+    readonly revision: number;
+    readonly hash: string;
+    readonly attemptID: string | null;
+  } | null;
+}
+
 // The target a session runs on and the identity it is bound to there; null
 // binds a new session to the target as it stands now.
 interface TargetBinding {
@@ -218,6 +255,10 @@ export class SessionManager {
     console.error(line);
   };
 
+  // Binds the runtime auth of each host whose agent takes its credential
+  // from impd's broker; with none, every such start is refused.
+  authBinder: RuntimeAuthBinder | null = null;
+
   // Whether any registered adapter has a screen detector, decided once at
   // construction since the registry never changes afterward. Lets a hot path
   // that only cares about this answer skip walking live sessions to find it.
@@ -236,6 +277,11 @@ export class SessionManager {
   // Sessions whose revive waits on their host waking, so a second revive
   // of the same session does not start a second harness.
   private readonly adopting = new Set<SessionID>();
+
+  // The launches readying each host, by host key. A launch counts from its
+  // setup until its harness spawns, which follows the setup with no wait,
+  // so a host with a launch in flight is never idle.
+  private readonly readying = new Map<SessionID, number>();
 
   // Sessions dropped from the list on purpose whose rows the next fleet
   // write deletes; each stays here until a write carrying it lands.
@@ -476,6 +522,25 @@ export class SessionManager {
     return desired === 'sleep' ? 'asleep' : 'unknown';
   }
 
+  /**
+   * Throws the refusal for an agent that takes its credential from impd's
+   * broker on a target whose provider reaches no broker, before a spawn
+   * or an adopt does any work.
+   */
+  requireAgentTarget(agent: AgentID, target: string): void {
+    const adapter = this.findAdapter(agent);
+
+    if (adapter === null || (adapter.findAuthSelection?.() ?? null) === null) {
+      return;
+    }
+
+    const provider = this.targets.get(target)?.provider ?? null;
+
+    if (provider?.brokerAuth === undefined || this.authBinder === null) {
+      throw buildBrokerTargetRefusal(agent, target);
+    }
+  }
+
   // Adopts a headless session back into a terminal: a fresh PTY resumes the
   // same agent session id. On a remote host the host wakes first, and a
   // harness still running inside it is attached rather than started again;
@@ -507,18 +572,32 @@ export class SessionManager {
     }
 
     const provider = this.requireExecution(s, 'spawn').provider;
+    const auth = this.resolveHarnessAuth(adapter, provider, s.target);
+
+    const authSetup: HarnessAuthSetup | null =
+      auth === null ? null : { ...auth, mode: 'verify', targetIdentity: s.targetIdentity };
 
     this.adopting.add(id);
 
-    let plan: SpawnPlan;
+    let plan: HarnessPlan;
 
     try {
-      plan = await this.setupHarness(adapter, provider, s.id, s.hostKey, s.target, {
-        prompt: '',
-        resume: s.agentSessionID,
-        ...(s.model === undefined ? {} : { model: s.model }),
-        ...(s.effort === undefined ? {} : { effort: s.effort }),
-      });
+      const setup = await this.setupHarness(
+        adapter,
+        provider,
+        s.id,
+        s.hostKey,
+        s.target,
+        {
+          prompt: '',
+          resume: s.agentSessionID,
+          ...(s.model === undefined ? {} : { model: s.model }),
+          ...(s.effort === undefined ? {} : { effort: s.effort }),
+        },
+        authSetup,
+      );
+
+      plan = setup.plan;
     } finally {
       this.adopting.delete(id);
     }
@@ -544,10 +623,11 @@ export class SessionManager {
       bin: plan.bin,
       args: plan.args,
       cwd: s.cwd,
-      env: { ATC_SESSION_ID: s.id, ATC_SOCKET: socketPath },
+      env: { ...plan.env, ATC_SESSION_ID: s.id, ATC_SOCKET: socketPath },
       withheldEnv: s.withheldEnv,
       cols,
       rows,
+      ...this.buildBrokerSpec(s.hostKey, plan.admission),
       onRelay: (relay) => {
         this.onRelay(binding, relay);
       },
@@ -566,6 +646,10 @@ export class SessionManager {
     void this.tryWriteFleet(s.id);
     this.onEvent('state', s);
     this.emitChange();
+
+    if (auth !== null) {
+      await this.waitForAuthStart(s, provider, pty);
+    }
 
     for (const asleep of this.sessions) {
       if (asleep.hostKey === s.hostKey && asleep.target === s.target && asleep.suspended) {
@@ -754,16 +838,42 @@ export class SessionManager {
     // remote directory is not on the daemon's machine, so it is its own root.
     const repoRoot = provider.remote ? cwd : resolveRepoRoot(cwd);
     const hostKey = this.pickHostKey(id, parent, target, execution.identity);
+    const auth = this.resolveHarnessAuth(adapter, provider, target);
 
-    const plan = await this.setupHarness(adapter, provider, id, hostKey, target, {
-      prompt,
-      resume,
-      ...overrides,
-    });
+    if (hostKey !== id) {
+      await this.requireSharedBinding(hostKey, auth?.binding ?? null);
+    }
+
+    const authSetup: HarnessAuthSetup | null =
+      auth === null
+        ? null
+        : {
+            ...auth,
+            mode: hostKey === id ? 'create' : 'verify',
+            targetIdentity: execution.identity,
+          };
+
+    const setup = await this.setupHarness(
+      adapter,
+      provider,
+      id,
+      hostKey,
+      target,
+      { prompt, resume, ...overrides },
+      authSetup,
+    );
+
+    const plan = setup.plan;
 
     // The caller's check runs again once the host is ready, before the
     // harness starts.
-    requireInReach();
+    try {
+      requireInReach();
+    } catch (error) {
+      await this.tryRemoveAuthAttempt(provider, hostKey, setup.attemptID);
+
+      throw error;
+    }
 
     const binding = this.mintBridgeBinding(id, target, execution.identity, hostKey);
 
@@ -773,10 +883,11 @@ export class SessionManager {
       bin: plan.bin,
       args: plan.args,
       cwd,
-      env: { ATC_SESSION_ID: id, ATC_SOCKET: socketPath },
+      env: { ...plan.env, ATC_SESSION_ID: id, ATC_SOCKET: socketPath },
       withheldEnv: materialized?.withheldEnv ?? [],
       cols,
       rows,
+      ...this.buildBrokerSpec(hostKey, plan.admission),
       onRelay: (relay) => {
         this.onRelay(binding, relay);
       },
@@ -827,7 +938,149 @@ export class SessionManager {
     this.onEvent('added', session);
     this.onBoot(session, cols, rows);
 
+    // A start impd refuses throws here, after the session listed, so the
+    // caller takes the failed spawn back with its binding. A shared host
+    // that nothing else runs on goes back to sleep first; a host of its
+    // own goes with the take-back.
+    if (auth !== null && hostKey === id) {
+      await pty.waitForStart?.();
+    } else if (auth !== null) {
+      await this.waitForAuthStart(session, provider, pty);
+    }
+
+    if (setup.attemptID !== null) {
+      await this.requireAuthBinder().updateReady(hostKey, setup.attemptID);
+    }
+
     return session;
+  }
+
+  // What a harness of this agent needs to take its credential from impd's
+  // broker on a provider, or null when the agent takes none. Throws the
+  // refusal for a target whose provider has no broker, so no credential
+  // ever falls back to a local start, and for a selection the current auth
+  // profiles cannot bind.
+  private resolveHarnessAuth(
+    adapter: AgentAdapter,
+    provider: ExecutionProvider,
+    target: string,
+  ): HarnessAuth | null {
+    const selection = adapter.findAuthSelection?.() ?? null;
+
+    if (selection === null) {
+      return null;
+    }
+
+    const host = provider.brokerAuth;
+
+    if (host === undefined || this.authBinder === null) {
+      throw buildBrokerTargetRefusal(adapter.id, target);
+    }
+
+    const planned = buildAuthBinding(selection.gateway, selection.profiles);
+
+    if ('problem' in planned) {
+      throw new DaemonError('auth_binding_invalid', planned.problem.message, {
+        agent: adapter.id,
+        problem: planned.problem.code,
+      });
+    }
+
+    return { host, binding: planned.binding };
+  }
+
+  // A sub-session joins its parent's host only under the binding that host
+  // holds: both without runtime auth, or both bound to the same hash.
+  private async requireSharedBinding(
+    hostKey: SessionID,
+    binding: AuthBinding | null,
+  ): Promise<void> {
+    const found = await this.authBinder?.findBinding(hostKey);
+
+    const held = found ?? null;
+
+    if (held === null && binding === null) {
+      return;
+    }
+
+    if (held !== null && binding !== null && held.bindingHash === binding.hash) {
+      return;
+    }
+
+    throw new DaemonError(
+      'auth_binding_mismatch',
+      `a sub-session joins the host of session ${hostKey} only under the runtime auth binding that host holds`,
+      { host: hostKey, hostBound: held !== null, bound: binding !== null },
+    );
+  }
+
+  // Takes back what a spawn attempt bound when the spawn fails before its
+  // session lists; a take-back that cannot be confirmed throws.
+  private async tryRemoveAuthAttempt(
+    provider: ExecutionProvider,
+    hostKey: SessionID,
+    attemptID: string | null,
+  ): Promise<void> {
+    const host = provider.brokerAuth;
+
+    if (attemptID === null || host === undefined || this.authBinder === null) {
+      return;
+    }
+
+    await this.authBinder.removeAttempt(host, hostKey, attemptID);
+  }
+
+  // Waits for a revived harness behind the broker to start. A refused start
+  // already ended the harness; the host goes back to sleep when no other
+  // harness runs there, and the refusal is thrown.
+  private async waitForAuthStart(
+    s: Session,
+    provider: ExecutionProvider,
+    pty: HarnessHandle,
+  ): Promise<void> {
+    try {
+      await pty.waitForStart?.();
+    } catch (error) {
+      if (this.isHostIdle(s.hostKey, s.target) && provider.capabilities.suspend) {
+        await this.trySuspendIdleHost(provider, s.hostKey, s.target);
+      }
+
+      throw error;
+    }
+  }
+
+  // Whether no harness runs on a host and no launch is readying it.
+  private isHostIdle(hostKey: SessionID, target: string): boolean {
+    return (
+      !this.readying.has(hostKey) &&
+      !this.sessions.some(
+        (other) => other.hostKey === hostKey && other.target === target && other.pty !== null,
+      )
+    );
+  }
+
+  private async trySuspendIdleHost(
+    provider: ExecutionProvider,
+    hostKey: SessionID,
+    target: string,
+  ): Promise<void> {
+    try {
+      await provider.suspendHost(hostKey, () => this.isHostIdle(hostKey, target));
+    } catch (error) {
+      this.log(
+        `atc could not put the host of session ${hostKey} back to sleep after a refused start (${error instanceof Error ? error.message : String(error)})`,
+      );
+
+      return;
+    }
+
+    for (const onHost of this.sessions) {
+      if (onHost.hostKey === hostKey && this.findProvider(onHost) === provider) {
+        this.updateSuspended(onHost);
+      }
+    }
+
+    this.emitChange();
   }
 
   // The binding a harness start or attach opens its bridge under, at a
@@ -848,7 +1101,10 @@ export class SessionManager {
   // Readies the host a harness is about to start on and plans the harness.
   // On a remote host the agent plans a guest spawn, whose files unpack into
   // the session's own guest folder, and the agent's sign-in check runs
-  // there first. Every refusal comes before the harness starts.
+  // there first. Every refusal comes before the harness starts. A harness
+  // behind the broker has its binding created or verified before the host
+  // is readied, and a binding this call created is taken back when a later
+  // step fails; the attempt that created it comes back with the plan.
   private async setupHarness(
     adapter: AgentAdapter,
     provider: ExecutionProvider,
@@ -856,35 +1112,194 @@ export class SessionManager {
     hostKey: SessionID,
     target: string,
     options: SpawnOptions,
-  ): Promise<SpawnPlan> {
+    auth: HarnessAuthSetup | null,
+  ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
+    this.readying.set(hostKey, (this.readying.get(hostKey) ?? 0) + 1);
+
+    try {
+      return await this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth);
+    } finally {
+      const left = (this.readying.get(hostKey) ?? 1) - 1;
+
+      if (left === 0) {
+        this.readying.delete(hostKey);
+      } else {
+        this.readying.set(hostKey, left);
+      }
+    }
+  }
+
+  private async setupHarnessOnHost(
+    adapter: AgentAdapter,
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    options: SpawnOptions,
+    auth: HarnessAuthSetup | null,
+  ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
     const refusal = adapter.findSpawnRefusal?.() ?? null;
 
     if (refusal !== null) {
       throw refusal;
     }
 
-    if (!provider.remote) {
-      await provider.prepareHost({ host: hostKey, daemonID: this.store.daemonID });
+    if (auth === null) {
+      await this.requireUnboundHost(adapter.id, hostKey);
+    }
 
-      return adapter.planSpawn(options);
+    if (!provider.remote) {
+      await provider.prepareHost({
+        host: hostKey,
+        daemonID: this.store.daemonID,
+        isIdle: () => this.isHostIdle(hostKey, target),
+      });
+
+      return {
+        plan: { ...adapter.planSpawn(options), env: {}, admission: null },
+        attemptID: null,
+      };
     }
 
     const guest = provider.guest ?? { dir: '/tmp/atc', atc: null };
     const dir = `${guest.dir}/sessions/${id}`;
 
+    const paths: GuestPaths =
+      auth === null
+        ? { atc: guest.atc, dir }
+        : {
+            atc: guest.atc,
+            dir,
+            auth: await this.planGuestAuth(hostKey, auth.mode, auth.binding.placeholderEnv),
+          };
+
     const plan =
       adapter.planGuestSpawn === undefined
         ? { ...adapter.planSpawn(options), files: {} }
-        : adapter.planGuestSpawn(options, { atc: guest.atc, dir });
+        : adapter.planGuestSpawn(options, paths);
 
     if (plan === null) {
-      throw buildGuestRefusal(provider.kind, adapter.id, target, guest.atc === null);
+      throw auth === null
+        ? buildGuestRefusal(provider.kind, adapter.id, target, guest.atc === null)
+        : new DaemonError(
+            'auth_target_unsupported',
+            `agent '${adapter.id}' plans no guest settings to take its credential from impd's broker on target '${target}'`,
+            { agent: adapter.id, target, problem: 'no_guest_plan' },
+          );
     }
 
+    const env = plan.env ?? {};
+
+    requireGuestEnv(adapter.id, target, env, auth !== null);
+
+    const attemptID = await this.applyHarnessAuth(hostKey, target, auth);
+
+    try {
+      await this.setupGuest(adapter, provider, hostKey, target, dir, plan.files);
+    } catch (error) {
+      await this.tryRemoveAuthAttempt(provider, hostKey, attemptID);
+
+      throw error;
+    }
+
+    const admission =
+      auth === null || paths.auth === undefined
+        ? null
+        : { revision: paths.auth.revision, hash: auth.binding.hash, attemptID };
+
+    return { plan: { bin: plan.bin, args: plan.args, env, admission }, attemptID };
+  }
+
+  // The part of a harness spec that keeps a launch behind the broker: the
+  // requirement impd checks, and the admission each request needs from
+  // the host's binding when it goes out.
+  private buildBrokerSpec(
+    hostKey: SessionID,
+    admission: HarnessPlan['admission'],
+  ): Pick<HarnessSpec, 'requireBroker' | 'admit'> {
+    if (admission === null) {
+      return {};
+    }
+
+    const binder = this.requireAuthBinder();
+
+    return {
+      requireBroker: true,
+      admit: (kind, send) => binder.withLaunchAdmission(hostKey, admission, kind, send),
+    };
+  }
+
+  // A launch without runtime auth never starts on a host that holds a
+  // binding, whatever its state: the imp may hold grants atc could not
+  // confirm gone, and only a rebind or a forget of the host clears it.
+  private async requireUnboundHost(agent: string, hostKey: SessionID): Promise<void> {
+    const held = this.authBinder === null ? null : await this.authBinder.findBinding(hostKey);
+
+    if (held !== null) {
+      throw new DaemonError(
+        'auth_rebind_required',
+        `agent '${agent}' takes no credential from impd's broker, but its host holds a runtime auth binding; rebind the session or forget it`,
+        { agent, state: held.state },
+      );
+    }
+  }
+
+  // The binding revision and placeholders a guest plan behind the broker
+  // launches under: the next host's first revision, or the revision the
+  // shared host holds.
+  private async planGuestAuth(
+    hostKey: SessionID,
+    mode: HarnessAuthSetup['mode'],
+    placeholderEnv: Readonly<Record<string, string>>,
+  ): Promise<NonNullable<GuestPaths['auth']>> {
+    const held = mode === 'create' ? null : await this.requireAuthBinder().findBinding(hostKey);
+
+    return { revision: held?.revision ?? 1, env: placeholderEnv };
+  }
+
+  // Creates the binding of a host a spawn provisions, or verifies the one
+  // a revive or a sub-session launches under, and returns the attempt
+  // that created it, null for a verify or no auth.
+  private async applyHarnessAuth(
+    hostKey: SessionID,
+    target: string,
+    auth: HarnessAuthSetup | null,
+  ): Promise<string | null> {
+    if (auth === null) {
+      return null;
+    }
+
+    const binder = this.requireAuthBinder();
+
+    if (auth.mode === 'verify') {
+      await binder.verifyBinding(auth.host, hostKey, auth.binding);
+
+      return null;
+    }
+
+    return binder.createBinding(auth.host, {
+      hostKey,
+      target,
+      targetIdentity: auth.targetIdentity,
+      binding: auth.binding,
+    });
+  }
+
+  // Readies a remote host and the files a guest plan reads there, after
+  // the agent's sign-in check.
+  private async setupGuest(
+    adapter: AgentAdapter,
+    provider: ExecutionProvider,
+    hostKey: SessionID,
+    target: string,
+    dir: string,
+    planned: Readonly<Record<string, string>>,
+  ): Promise<void> {
     await provider.prepareHost({
       host: hostKey,
       daemonID: this.store.daemonID,
       installATC: adapter.planGuestSpawn !== undefined,
+      isIdle: () => this.isHostIdle(hostKey, target),
     });
 
     const check = adapter.planAuthCheck?.();
@@ -901,13 +1316,11 @@ export class SessionManager {
       }
     }
 
-    const files = Object.entries(plan.files).map(([path, content]) => ({ path, content }));
+    const files = Object.entries(planned).map(([path, content]) => ({ path, content }));
 
     if (files.length > 0) {
       await provider.transferArchive(buildTarArchive(files), dir, hostKey);
     }
-
-    return plan;
   }
 
   // A sub-session runs on its parent's host when its resolved target, name
@@ -970,9 +1383,23 @@ export class SessionManager {
       this.emitChange();
 
       await this.writeFleet();
+      await this.removeSpawnBinding(s);
     } finally {
       this.rollingBack.delete(id);
     }
+  }
+
+  // Takes back the binding a failed spawn provisioned for its own host,
+  // while it is still the spawn's attempt.
+  private async removeSpawnBinding(s: Session): Promise<void> {
+    const provider = this.findProvider(s);
+    const held = s.hostKey === s.id ? await this.authBinder?.findBinding(s.id) : null;
+
+    if (provider === null || held === null || held === undefined || held.state !== 'provisioning') {
+      return;
+    }
+
+    await this.tryRemoveAuthAttempt(provider, s.id, held.attemptID);
   }
 
   // Kills a failed spawn's harness and waits for its exit. A kill that
@@ -1340,7 +1767,14 @@ export class SessionManager {
     }
 
     if (destroys) {
-      await provider.destroyHost(s.hostKey);
+      const bound =
+        this.authBinder === null
+          ? false
+          : await this.authBinder.forgetBinding(provider.brokerAuth ?? null, s.hostKey);
+
+      if (!bound) {
+        await provider.destroyHost(s.hostKey);
+      }
 
       for (const onHost of this.sessions) {
         if (onHost.hostKey === s.hostKey && onHost.target === s.target && onHost.id !== s.id) {
@@ -1364,6 +1798,76 @@ export class SessionManager {
     this.emitChange();
 
     return destroys;
+  }
+
+  /**
+   * Withdraws every grant of the runtime auth binding on a session's host.
+   * Launches on the host stay blocked until a rebind, and a harness that
+   * runs keeps running while impd fails its later requests. Returns false
+   * for no such session.
+   */
+  async revokeAuth(id: SessionID): Promise<boolean> {
+    const s = this.sessions.find((x) => x.id === id);
+
+    if (s === undefined) {
+      return false;
+    }
+
+    await this.requireAuthBinder().revokeBinding(
+      this.findProvider(s)?.brokerAuth ?? null,
+      s.hostKey,
+    );
+
+    return true;
+  }
+
+  /**
+   * Binds a session's host to its agent's current auth selection at the
+   * next revision, and returns that revision, or null for no such session.
+   */
+  async updateAuth(id: SessionID): Promise<number | null> {
+    const s = this.sessions.find((x) => x.id === id);
+
+    if (s === undefined) {
+      return null;
+    }
+
+    const adapter = this.findAdapter(s.agent);
+
+    if (adapter === null) {
+      throw new DaemonError('unsupported_operation', `no adapter for agent '${s.agent}'`, {
+        agent: s.agent,
+      });
+    }
+
+    const provider = this.requireExecution(s, 'spawn').provider;
+    const auth = this.resolveHarnessAuth(adapter, provider, s.target);
+
+    if (auth === null) {
+      throw new DaemonError(
+        'unsupported_operation',
+        `agent '${s.agent}' takes no credential from impd's broker`,
+        { agent: s.agent, problem: 'no_auth_selection' },
+      );
+    }
+
+    const revision = await this.requireAuthBinder().updateBinding(
+      auth.host,
+      s.hostKey,
+      auth.binding,
+    );
+
+    return revision;
+  }
+
+  private requireAuthBinder(): RuntimeAuthBinder {
+    if (this.authBinder === null) {
+      throw new DaemonError('unsupported_operation', 'this daemon binds no runtime auth', {
+        problem: 'no_auth_binder',
+      });
+    }
+
+    return this.authBinder;
   }
 
   // Removes a forgotten session and its dead sub-sessions, except one whose
@@ -1641,6 +2145,16 @@ function buildLifecycle(s: Session): SessionLifecycle {
   });
 }
 
+// An agent that takes its credential from impd's broker on a target that
+// reaches none.
+function buildBrokerTargetRefusal(agent: string, target: string): DaemonError {
+  return new DaemonError(
+    'auth_target_unsupported',
+    `agent '${agent}' takes its credential from impd's broker, which target '${target}' does not reach`,
+    { agent, target },
+  );
+}
+
 // An agent that plans no remote spawn: for want of an atc inside the host
 // when the host has none, or because the agent never runs remotely.
 function buildGuestRefusal(
@@ -1660,6 +2174,32 @@ function buildGuestRefusal(
         `agent '${agent}' cannot run on a remote target such as '${target}'`,
         { provider, agent, problem: 'remote_unsupported' },
       );
+}
+
+// A guest plan's variables start the harness as they are, so none may be
+// one atc sets for its own reporting, and behind the broker none may be a
+// proxy or CA variable that would route around the broker.
+function requireGuestEnv(
+  agent: string,
+  target: string,
+  env: Readonly<Record<string, string>>,
+  behindBroker: boolean,
+): void {
+  const own = Object.keys(env).find((key) => key.startsWith('ATC_'));
+
+  if (own !== undefined) {
+    throw new Error(`agent '${agent}' plans ${own}, which atc sets for the harness itself`);
+  }
+
+  const broker = behindBroker ? Object.keys(env).find((key) => isBrokerVariable(key)) : undefined;
+
+  if (broker !== undefined) {
+    throw new DaemonError(
+      'auth_target_unsupported',
+      `agent '${agent}' plans ${broker} on target '${target}', which would route around impd's broker`,
+      { agent, target, problem: 'guest_env_conflict', variable: broker },
+    );
+  }
 }
 
 // Why a harness stopped, as a session's last message.

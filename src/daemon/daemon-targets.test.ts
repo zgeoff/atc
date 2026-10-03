@@ -308,6 +308,7 @@ test('it lists each target and each config error', async () => {
           suspend: false,
           destroy: false,
         },
+        brokerAuth: false,
       },
       {
         id: 'box',
@@ -327,6 +328,7 @@ test('it lists each target and each config error', async () => {
           suspend: false,
           destroy: false,
         },
+        brokerAuth: false,
       },
     ],
     spawnDefaults: { agent: 'claude', target: 'box' },

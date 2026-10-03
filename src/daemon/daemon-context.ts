@@ -180,6 +180,10 @@ export interface DaemonContext {
   // one whose provider cannot both transfer an archive and run a command.
   readonly requireWorkspaceTarget: (target: string) => void;
 
+  // Throws the refusal for an agent that takes its credential from impd's
+  // broker on a target whose provider reaches no broker.
+  readonly requireAgentTarget: (agent: AgentID, target: string) => void;
+
   // The source the daemon offers the spawn picker under an id, or null when
   // it offers none under it.
   readonly findSource: (id: string) => SourceProvider | null;
@@ -211,6 +215,14 @@ export interface DaemonContext {
     id: SessionID,
     confirmToken: string | undefined,
   ) => Promise<ForgetResult | 'missing'>;
+
+  // Withdraws the grants of the runtime auth binding on a session's host,
+  // and answers false for no such session.
+  readonly revokeSessionAuth: (id: SessionID) => Promise<boolean>;
+
+  // Binds a session's host to its agent's current auth selection, and
+  // answers the new revision, or null for no such session.
+  readonly updateSessionAuth: (id: SessionID) => Promise<number | null>;
   readonly updateSession: (id: SessionID, name?: string, pinned?: boolean) => boolean | 'child_pin';
   readonly quitDaemon: () => void;
   readonly ackSession: (id: SessionID) => boolean;

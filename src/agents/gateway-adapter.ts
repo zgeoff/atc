@@ -9,6 +9,7 @@ import { toShellArg } from '../shared/to-shell-arg';
 import type {
   AgentAdapter,
   AgentProfile,
+  AuthSelection,
   HeadlessRunner,
   NameUpdate,
   ResumeCheck,
@@ -59,6 +60,8 @@ export class GatewayAdapter implements AgentAdapter {
 
   private readonly gateway: GatewayConfig;
 
+  private readonly config: Config;
+
   private readonly claude: ClaudeAdapter;
 
   // Written on first spawn so constructing the adapter touches no state.
@@ -77,6 +80,7 @@ export class GatewayAdapter implements AgentAdapter {
   ) {
     this.bridgeTarget = bridgeTarget;
     this.gateway = gateway;
+    this.config = config;
     this.id = gateway.id;
 
     const models = pickModels(gateway.env);
@@ -102,8 +106,9 @@ export class GatewayAdapter implements AgentAdapter {
           });
   }
 
-  // A gateway whose credential comes through impd's broker never starts
-  // until the broker path exists: started without it, the CLI would send
+  // A gateway whose credential comes through impd's broker starts only in a
+  // guest that reaches the broker, with guest settings the adapter plans
+  // for it, and it plans none: started without them, the CLI would send
   // whatever credential it holds to the gateway's host.
   findSpawnRefusal(): DaemonError | null {
     if (this.gateway.auth === undefined) {
@@ -112,9 +117,22 @@ export class GatewayAdapter implements AgentAdapter {
 
     return new DaemonError(
       'auth_target_unsupported',
-      `gateway '${this.id}' takes its credential from impd's broker, and brokered credentials are not wired yet`,
+      `gateway '${this.id}' takes its credential from impd's broker, and atc plans no guest settings for it on any target`,
       { agent: this.id },
     );
+  }
+
+  findAuthSelection(): AuthSelection | null {
+    const auth = this.gateway.auth;
+
+    if (auth === undefined) {
+      return null;
+    }
+
+    return {
+      gateway: { id: this.gateway.id, baseURL: this.gateway.baseURL, auth },
+      profiles: this.config.authProfiles,
+    };
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {

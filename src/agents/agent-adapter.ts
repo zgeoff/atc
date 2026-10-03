@@ -3,6 +3,8 @@ import type { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
 import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
+import type { AuthProfile } from '../shared/collect-auth-profiles';
+import type { GatewayAuth, GatewayConfig } from '../shared/collect-gateways';
 import type { SessionID } from '../shared/session-id';
 
 export interface SpawnOptions {
@@ -35,19 +37,36 @@ export interface SpawnPlan {
 /**
  * Where a session on a remote host finds atc: the atc binary inside the
  * host, null when the host has none, and the folder the session's own
- * files unpack into.
+ * files unpack into. `auth` is given when the harness takes its credential
+ * from impd's broker: the revision of the host's runtime auth binding it
+ * launches under, which keys any settings the agent writes for it, and the
+ * placeholder variables the harness holds in place of a credential.
  */
 export interface GuestPaths {
   readonly atc: string | null;
   readonly dir: string;
+  readonly auth?: { readonly revision: number; readonly env: Readonly<Record<string, string>> };
+}
+
+/**
+ * The credential an agent takes from impd's broker instead of holding it:
+ * its gateway's endpoint and auth selection, and the auth profiles that
+ * selection resolves against.
+ */
+export interface AuthSelection {
+  readonly gateway: Pick<GatewayConfig, 'id' | 'baseURL'> & { readonly auth: GatewayAuth };
+  readonly profiles: ReadonlyMap<string, AuthProfile>;
 }
 
 /**
  * A spawn on a remote host, with the files the harness reads there, keyed
- * by their path inside the session's guest folder.
+ * by their path inside the session's guest folder, and the variables the
+ * harness process starts with, which no variable the harness inherits
+ * overrides.
  */
 export interface GuestSpawnPlan extends SpawnPlan {
   readonly files: Readonly<Record<string, string>>;
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface TranscriptToolUse {
@@ -204,7 +223,13 @@ export interface AgentAdapter {
   // Plans a spawn on a remote host; null when this agent cannot run there,
   // such as one whose instrumentation needs atc on a host without it.
   // Absent: the agent runs there as a local spawn plans it, with no files.
+  // A plan for a guest whose `auth` is given that cannot launch behind the
+  // broker is null.
   readonly planGuestSpawn?: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
+
+  // The credential this agent takes from impd's broker, or null when it
+  // takes none. Absent: it takes none.
+  readonly findAuthSelection?: () => AuthSelection | null;
 
   // The refusal every start of this agent's harness gets, on any target,
   // or null when it may start. Absent: no start is refused.

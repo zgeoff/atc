@@ -1,6 +1,13 @@
+import { DaemonError } from '../protocol/daemon-error';
 import { isRecord } from '../shared/report';
-import type { HarnessAttachment, HarnessExit, HarnessHandle } from './execution-provider';
 import type {
+  HarnessAttachment,
+  HarnessExit,
+  HarnessHandle,
+  LaunchTicket,
+} from './execution-provider';
+import type {
+  ImpExecRequirement,
   ImpPort,
   ImpSessionConnection,
   ImpSessionOutcome,
@@ -28,6 +35,15 @@ interface ImpHarnessHost {
   // Settles once the harness may start, such as when its report socket
   // listens; a rejection ends the harness before it starts.
   readonly ready?: Promise<void>;
+
+  // Admits each request that has requirements by calling send, or rejects
+  // with the refusal that ends the harness, sending nothing. The ticket
+  // send gets is checked just before the request goes out, and a refusal
+  // from it ends the harness with nothing sent.
+  readonly admit?: (
+    kind: 'start' | 'attach',
+    send: (ticket: LaunchTicket) => void,
+  ) => Promise<void>;
 }
 
 // The bytes a fresh attach sends listeners ahead of its replay: reset the
@@ -54,6 +70,20 @@ export class ImpHarness implements HarnessHandle {
   private readonly name: string;
 
   private readonly session: string;
+
+  // What impd must have ready before the start and every reattach, so an
+  // attach never joins the process past a requirement the start had.
+  private readonly require: readonly ImpExecRequirement[] | undefined;
+
+  // The request that starts the process, and whether it went out to impd.
+  // Until it has, a retry sends it again, since there is no process to
+  // attach to.
+  private readonly start: ImpSessionRequest;
+
+  private startSent = false;
+
+  // The admission of the open connection's request, while it has one.
+  private connectionTicket: LaunchTicket | null = null;
 
   private readonly dataListeners = new Set<(data: string) => void>();
 
@@ -110,6 +140,16 @@ export class ImpHarness implements HarnessHandle {
 
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // How the harness's start settled: started once a connection first
+  // starts the process or attaches to it, or the refusal it ended with
+  // before that; null until then. The waits on that answer meanwhile.
+  private startOutcome: 'started' | Readonly<DaemonError> | null = null;
+
+  private readonly startWaiters = new Set<PromiseWithResolvers<void>>();
+
+  // Why impd refused to start the harness, once it has given a reason.
+  private startRefusal: DaemonError | null = null;
+
   // The terminal size the open connection's request asked for.
   private requestedSize: { cols: number; rows: number } = { cols: 0, rows: 0 };
 
@@ -119,11 +159,13 @@ export class ImpHarness implements HarnessHandle {
     this.host = host;
     this.name = start.name;
     this.session = start.session;
+    this.require = start.require;
+    this.start = start;
     this.cols = start.cols;
     this.rows = start.rows;
 
     if (host.ready === undefined) {
-      this.openConnection(start);
+      this.openCheckedConnection(start);
     } else {
       void this.startWhenReady(host.ready, start);
     }
@@ -206,6 +248,22 @@ export class ImpHarness implements HarnessHandle {
     return waited.promise;
   };
 
+  readonly waitForStart = (): Promise<void> => {
+    if (this.startOutcome === 'started') {
+      return Promise.resolve();
+    }
+
+    if (this.startOutcome !== null) {
+      return Promise.reject(this.startOutcome);
+    }
+
+    const waited = Promise.withResolvers<void>();
+
+    this.startWaiters.add(waited);
+
+    return waited.promise;
+  };
+
   readonly detach = (): void => {
     if (this.done) {
       return;
@@ -235,28 +293,159 @@ export class ImpHarness implements HarnessHandle {
 
     // A resize while the host readied changed the size the start asks for.
     if (!this.done) {
-      this.openConnection({ ...start, cols: this.cols, rows: this.rows });
+      this.openCheckedConnection({ ...start, cols: this.cols, rows: this.rows });
     }
   }
 
-  private openConnection(request: ImpSessionRequest): void {
-    const connection = this.port.openSession(request, {
-      onStarted: (started) => {
-        if (this.connection === connection) {
-          this.applyStarted(connection, started);
+  // An impd from before exec requirements ignores them and runs the
+  // command anyway, so a request that has any goes out only after impd
+  // shows it honours them; otherwise the harness ends as impd's own
+  // client refuses an outdated impd, and nothing runs.
+  private openCheckedConnection(request: ImpSessionRequest): void {
+    if (request.require === undefined || request.require.length === 0) {
+      this.openConnection(request);
+
+      return;
+    }
+
+    void this.openRequiredConnection(request);
+  }
+
+  private async openRequiredConnection(request: ImpSessionRequest): Promise<void> {
+    let execRequire: boolean;
+
+    try {
+      const features = await this.port.readFeatures();
+
+      execRequire = features.execRequire;
+    } catch (error) {
+      if (!this.done && !this.host.isSuspending()) {
+        const detail = error instanceof Error ? error.message : String(error);
+
+        this.applyOutcome({ kind: 'unreachable', detail }, false);
+      }
+
+      return;
+    }
+
+    if (this.done || this.host.isSuspending()) {
+      return;
+    }
+
+    if (!execRequire) {
+      this.applyOutcome(
+        {
+          kind: 'failed',
+          code: 'PRECONDITION_FAILED',
+          message: `impd for imp ${this.name} does not honour exec requirements`,
+          data: { reason: 'impd_outdated' },
+        },
+        false,
+      );
+
+      return;
+    }
+
+    const admit = this.host.admit;
+
+    if (admit === undefined) {
+      this.openConnection(request);
+
+      return;
+    }
+
+    try {
+      await admit(request.kind, (ticket) => {
+        if (this.done || this.host.isSuspending()) {
+          ticket.release();
+        } else {
+          this.openConnection(request, ticket);
         }
-      },
-      onOutput: (data) => {
-        if (this.connection === connection) {
-          this.applyOutput(data);
-        }
-      },
+      });
+    } catch (error) {
+      if (!this.done) {
+        this.applyAdmissionRefusal(error);
+      }
+    }
+  }
+
+  // Whether an admitted request may still go out as its connection opens.
+  // A refusal there, or a check that throws, closes the connection unsent
+  // and ends the harness with it, once the port has returned to the
+  // caller. Only a start that passes counts as sent.
+  private checkTicket(ticket: LaunchTicket, kind: ImpSessionRequest['kind']): boolean {
+    let refusal: DaemonError | null;
+
+    try {
+      refusal = ticket.check();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+
+      refusal = new DaemonError(
+        'internal',
+        `imp ${this.name}'s harness could not check its admission: ${detail}`,
+      );
+    }
+
+    if (refusal === null) {
+      this.startSent ||= kind === 'start';
+
+      return true;
+    }
+
+    queueMicrotask(() => {
+      if (!this.done) {
+        this.connection = null;
+
+        this.applyAdmissionRefusal(refusal);
+      }
     });
 
+    return false;
+  }
+
+  // A launch the host's binding no longer admits ends the harness with
+  // that refusal; nothing went out to impd.
+  private applyAdmissionRefusal(error: unknown): void {
+    const detail = error instanceof Error ? error.message : String(error);
+
+    this.startRefusal =
+      error instanceof DaemonError
+        ? error
+        : new DaemonError('internal', `imp ${this.name} could not admit the harness: ${detail}`);
+
+    this.emitExit({ exitCode: 1, reason: 'ended', detail: `launch refused (${detail})` });
+  }
+
+  // A request without a ticket counts as sent once the port has it; one
+  // with a ticket only once its check passes, and the ticket goes back
+  // whenever the connection ends or the harness lets go of it.
+  private openConnection(request: ImpSessionRequest, ticket?: LaunchTicket): void {
+    const gate = ticket === undefined ? undefined : () => this.checkTicket(ticket, request.kind);
+
+    const connection = this.port.openSession(
+      request,
+      {
+        onStarted: (started) => {
+          if (this.connection === connection) {
+            this.applyStarted(connection, started);
+          }
+        },
+        onOutput: (data) => {
+          if (this.connection === connection) {
+            this.applyOutput(data);
+          }
+        },
+      },
+      gate,
+    );
+
     this.connection = connection;
+    this.connectionTicket = ticket ?? null;
     this.started = false;
+    this.startSent ||= ticket === undefined && request.kind === 'start';
     this.requestedSize = { cols: request.cols, rows: request.rows };
-    void this.waitForOutcome(connection);
+    void this.waitForOutcome(connection, ticket ?? null);
   }
 
   private applyStarted(connection: ImpSessionConnection, started: ImpSessionStarted): void {
@@ -294,6 +483,7 @@ export class ImpHarness implements HarnessHandle {
     this.failures = 0;
     this.started = true;
 
+    this.updateStartOutcome('started');
     this.emitAttachment('attached');
 
     // impd drops a resize that reaches it before the session starts, so the
@@ -345,8 +535,13 @@ export class ImpHarness implements HarnessHandle {
     }
   }
 
-  private async waitForOutcome(connection: ImpSessionConnection): Promise<void> {
+  private async waitForOutcome(
+    connection: ImpSessionConnection,
+    ticket: LaunchTicket | null,
+  ): Promise<void> {
     const outcome = await connection.outcome;
+
+    ticket?.release();
 
     if (this.connection !== connection || this.done || this.host.isSuspending()) {
       return;
@@ -450,6 +645,35 @@ export class ImpHarness implements HarnessHandle {
       return;
     }
 
+    if (outcome.code === 'PRECONDITION_FAILED' && isImpdOutdated(outcome.data)) {
+      this.startRefusal = new DaemonError(
+        'auth_impd_too_old',
+        `impd for imp ${this.name} does not honour exec requirements; upgrade it to 0.30.0 or later`,
+        { imp: this.name, execRequire: false },
+      );
+
+      this.emitExit({ exitCode: 1, reason: 'ended', detail: 'impd too old to require the broker' });
+
+      return;
+    }
+
+    if (outcome.code === 'PRECONDITION_FAILED' && isBrokerNotReady(outcome.data)) {
+      const detail =
+        isRecord(outcome.data) && typeof outcome.data['detail'] === 'string'
+          ? outcome.data['detail']
+          : 'no detail';
+
+      this.startRefusal = new DaemonError(
+        'broker_not_ready',
+        `imp ${this.name} refused to start the harness: its credential broker is not ready (${detail})`,
+        { imp: this.name, detail },
+      );
+
+      this.emitExit({ exitCode: 1, reason: 'ended', detail: `imp broker not ready (${detail})` });
+
+      return;
+    }
+
     this.emitExit({ exitCode: 1, reason: 'ended', detail: formatOutcome(outcome) });
   }
 
@@ -477,7 +701,11 @@ export class ImpHarness implements HarnessHandle {
       this.reconnectTimer = null;
 
       if (!this.done) {
-        this.openConnection(this.buildAttach());
+        const next = this.startSent
+          ? this.buildAttach()
+          : { ...this.start, cols: this.cols, rows: this.rows };
+
+        this.openCheckedConnection(next);
       }
     }, wait);
 
@@ -500,6 +728,7 @@ export class ImpHarness implements HarnessHandle {
       cols: this.cols,
       rows: this.rows,
       wake: false,
+      ...(this.require === undefined ? {} : { require: this.require }),
       ...(cursor === null
         ? {}
         : { resumeFrom: { executionGeneration: cursor.generation, offset: this.highWater } }),
@@ -516,7 +745,7 @@ export class ImpHarness implements HarnessHandle {
 
     this.fresh = true;
 
-    this.openConnection(this.buildAttach());
+    this.openCheckedConnection(this.buildAttach());
   }
 
   // A generation under the session's name other than its own is not the
@@ -552,6 +781,15 @@ export class ImpHarness implements HarnessHandle {
   private emitExit(exit: HarnessExit): void {
     const listeners = [...this.exitListeners];
 
+    this.updateStartOutcome(
+      this.startRefusal ??
+        new DaemonError(
+          'host_unavailable',
+          `imp ${this.name} ended the harness before it started (${exit.detail ?? 'process exited'})`,
+          { provider: 'imp', problem: 'not_started' },
+        ),
+    );
+
     this.exitConfirmed = exit.reason === undefined || exit.reason === 'exited';
 
     this.stopFollowing();
@@ -559,6 +797,25 @@ export class ImpHarness implements HarnessHandle {
     for (const listener of listeners) {
       listener(exit);
     }
+  }
+
+  // The first outcome counts; each wait settles with it.
+  private updateStartOutcome(outcome: 'started' | Readonly<DaemonError>): void {
+    if (this.startOutcome !== null) {
+      return;
+    }
+
+    this.startOutcome = outcome;
+
+    for (const waited of this.startWaiters) {
+      if (outcome === 'started') {
+        waited.resolve();
+      } else {
+        waited.reject(outcome);
+      }
+    }
+
+    this.startWaiters.clear();
   }
 
   private stopFollowing(): void {
@@ -570,7 +827,20 @@ export class ImpHarness implements HarnessHandle {
 
     this.done = true;
     this.connection = null;
+    this.connectionTicket?.release();
+    this.connectionTicket = null;
     this.exitConfirmed ??= false;
+
+    this.updateStartOutcome(
+      new DaemonError(
+        'host_unavailable',
+        `the daemon let go of imp ${this.name}'s harness before it started`,
+        {
+          provider: 'imp',
+          problem: 'not_started',
+        },
+      ),
+    );
 
     for (const waiter of this.exitWaiters) {
       clearTimeout(waiter.timer);
@@ -584,6 +854,17 @@ export class ImpHarness implements HarnessHandle {
     this.attachmentListeners.clear();
     this.host.onDone();
   }
+}
+
+// impd's refusal of a start whose broker is not ready.
+function isBrokerNotReady(data: unknown): boolean {
+  return isRecord(data) && data['reason'] === 'broker_not_ready';
+}
+
+// The refusal of an exec with requirements against an impd that would
+// ignore them, which impd's client and the harness both give.
+function isImpdOutdated(data: unknown): boolean {
+  return isRecord(data) && data['reason'] === 'impd_outdated';
 }
 
 // What ended a process impd no longer holds. In the same boot, the kept

@@ -34,8 +34,14 @@ interface RequestScope {
   readonly keyNamespace: string;
 }
 
-// The requests that act on the whole daemon, which only its owner may make.
-const OWNER_METHODS: ReadonlySet<string> = new Set(['daemon.quit', 'fleet.restore']);
+// The requests that act on the whole daemon, or on the credentials a
+// session's host may use, which only its owner may make.
+const OWNER_METHODS: ReadonlySet<string> = new Set([
+  'daemon.quit',
+  'fleet.restore',
+  'session.auth.revoke',
+  'session.auth.rebind',
+]);
 
 // What a limited connection is sent for one event, and the sessions that
 // event moved out of its view.
@@ -648,6 +654,48 @@ export class DaemonConnection {
 
         return;
       }
+      case 'session.auth.revoke': {
+        const parsed = parseRequestParams('session.auth.revoke', req.p);
+
+        if (!parsed.ok) {
+          this.sendErr(req.id, 'bad_args', parsed.message);
+
+          return;
+        }
+
+        const id = parsed.data.session;
+
+        const revoked = await ctx.revokeSessionAuth(id);
+
+        if (revoked) {
+          this.sendOk(req.id, { revoked: true });
+        } else {
+          this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
+        }
+
+        return;
+      }
+      case 'session.auth.rebind': {
+        const parsed = parseRequestParams('session.auth.rebind', req.p);
+
+        if (!parsed.ok) {
+          this.sendErr(req.id, 'bad_args', parsed.message);
+
+          return;
+        }
+
+        const id = parsed.data.session;
+
+        const revision = await ctx.updateSessionAuth(id);
+
+        if (revision === null) {
+          this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
+        } else {
+          this.sendOk(req.id, { revision });
+        }
+
+        return;
+      }
       case 'session.resumeCommand': {
         const parsed = parseRequestParams('session.resumeCommand', req.p);
 
@@ -900,6 +948,8 @@ export class DaemonConnection {
       if (refusal !== null) {
         throw refusal;
       }
+
+      ctx.requireAgentTarget(agent, target);
 
       const overrides = parseSpawnOverrides(entry, { model: data.model, effort: data.effort });
 

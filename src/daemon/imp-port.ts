@@ -48,10 +48,13 @@ export interface ImpPort {
 
   // Opens one connection to a session's terminal, as impd's single
   // attacher: a start runs the command under the session name, or attaches
-  // when it already runs; an attach only attaches.
+  // when it already runs; an attach only attaches. gate runs once the
+  // connection to impd is open, just before the request goes out; false
+  // closes the connection with nothing sent.
   readonly openSession: (
     request: ImpSessionRequest,
     handlers: ImpSessionHandlers,
+    gate?: () => boolean,
   ) => ImpSessionConnection;
 
   // Runs a command in the imp to its exit, without a terminal.
@@ -77,7 +80,18 @@ export interface ImpFeatures {
   // A rebound or recreated secret drops its grants and leaves a token's
   // list of grantable secrets behind.
   readonly secretRebind: boolean;
+
+  // A start may list what must be ready before the command runs, and impd
+  // refuses the start without running it when one is not.
+  readonly execRequire: boolean;
 }
+
+/**
+ * What a start can ask impd to have ready before its command runs:
+ * `broker` is the credential broker, with its CA installed in the imp and
+ * a grant behind its variables.
+ */
+export type ImpExecRequirement = 'broker';
 
 type ImpScope = 'read' | 'exec' | 'manage';
 
@@ -207,6 +221,10 @@ export type ImpSessionRequest =
       readonly cols: number;
       readonly rows: number;
       readonly resumeFrom?: ResumeFrom;
+
+      // impd refuses the start with `PRECONDITION_FAILED` and runs nothing
+      // when any of these is not ready.
+      readonly require?: readonly ImpExecRequirement[];
     }
   | {
       readonly kind: 'attach';
@@ -218,6 +236,10 @@ export type ImpSessionRequest =
 
       // false fails with `INVALID_STATE` instead of booting or waking the imp.
       readonly wake: boolean;
+
+      // impd refuses the attach with `PRECONDITION_FAILED` when any of these
+      // is not ready, or when the process did not start with it required.
+      readonly require?: readonly ImpExecRequirement[];
     };
 
 export interface ImpSessionHandlers {

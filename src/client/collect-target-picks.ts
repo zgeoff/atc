@@ -13,6 +13,10 @@ export interface TargetPick {
   // Whether a session there runs on the daemon's own machine, where a
   // local directory runs in place.
   readonly inPlace: boolean;
+
+  // Whether the target reaches impd's credential broker; false from a
+  // daemon that does not say.
+  readonly brokerAuth: boolean;
 }
 
 /**
@@ -47,6 +51,7 @@ export function collectTargetPicks(answer: Readonly<Record<string, unknown>>): T
         takesWorkspace:
           available && capabilities['transfer'] === true && capabilities['run'] === true,
         inPlace: entry['provider'] === 'local-pty',
+        brokerAuth: entry['brokerAuth'] === true,
       },
     ];
   });

@@ -4281,3 +4281,33 @@ test('it reconciles a grant a stopped daemon left granting as uncertain and leav
     },
   ]);
 });
+
+test('it collects every host binding by host key', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  for (const hostKey of ['s2', 's1']) {
+    await store.createAuthBinding(
+      {
+        hostKey: toSessionID(hostKey),
+        target: 'box',
+        targetIdentity: 'imp:0123456789abcdef',
+        impName: `harness-${hostKey}`,
+        bindingHash: 'a'.repeat(64),
+        bindingJSON: '{"secrets":[]}',
+        attemptID: `attempt-${hostKey}`,
+      },
+      1000,
+    );
+  }
+
+  const bindings = await store.collectAuthBindings();
+
+  expect(bindings.map((binding) => [binding.hostKey, binding.impName])).toStrictEqual([
+    ['s1', 'harness-s1'],
+    ['s2', 'harness-s2'],
+  ]);
+});
