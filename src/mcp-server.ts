@@ -2,6 +2,7 @@ import { bootDaemonClient } from './client/boot-daemon';
 import { answerRPCRequest } from './mcp/answer-rpc-request';
 import { requireDaemonFeatures } from './mcp/require-daemon-features';
 import type { FleetCaller, ToolContext } from './mcp/types';
+import { LineDecoder } from './protocol/line-decoder';
 
 /**
  * An MCP server over stdio bridging to the atc daemon: any MCP client —
@@ -34,26 +35,14 @@ export async function runMCPServer(build: string): Promise<void> {
     sender: { kind: 'default', name: callerSessionID ?? 'mcp' },
   };
 
-  const decoder = new TextDecoder('utf-8');
-
-  let buffer = '';
+  const decoder = new LineDecoder();
 
   // Each request runs on its own, so a long poll never holds up the others;
   // responses carry their request's id.
   const inFlight = new Set<Promise<void>>();
 
   for await (const chunk of Bun.stdin.stream()) {
-    buffer += decoder.decode(chunk, { stream: true });
-
-    const lines = buffer.split('\n');
-
-    buffer = lines.pop() ?? '';
-
-    for (const line of lines) {
-      if (line.trim() === '') {
-        continue;
-      }
-
+    for (const line of decoder.splitChunk(chunk)) {
       const finished = Promise.withResolvers<void>();
 
       inFlight.add(finished.promise);

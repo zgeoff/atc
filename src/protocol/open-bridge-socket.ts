@@ -1,3 +1,5 @@
+import { LineDecoder } from './line-decoder';
+
 /**
  * One line-framed connection to a session bridge, from inside a remote
  * session: each line the bridge writes arrives whole, and each line written
@@ -20,10 +22,9 @@ export async function openBridgeSocket(
   onLine: (line: Readonly<Record<string, unknown>>) => void,
 ): Promise<BridgeSocket> {
   const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
+  const decoder = new LineDecoder();
 
   const closed = Promise.withResolvers<void>();
-  let pending = '';
 
   let unsent = new Uint8Array(0);
 
@@ -31,11 +32,7 @@ export async function openBridgeSocket(
     unix: path,
     socket: {
       data(_socket, buf) {
-        const lines = `${pending}${decoder.decode(buf, { stream: true })}`.split('\n');
-
-        pending = lines.pop() ?? '';
-
-        for (const line of lines) {
+        for (const line of decoder.splitChunk(buf)) {
           const parsed = parseLine(line);
 
           if (parsed !== null) {

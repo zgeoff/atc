@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { sendBridgeRequest } from './protocol/send-bridge-request';
 import { statusFile } from './shared/config';
 import { isRecord, sendReport } from './shared/report';
-import { sendBridgeRequest } from './shared/send-bridge-request';
 
 /**
  * Runs as the statusLine command injected into wrangled sessions. Chains the

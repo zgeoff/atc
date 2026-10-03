@@ -1,4 +1,5 @@
 import { DaemonError } from '../protocol/daemon-error';
+import { LineDecoder } from '../protocol/line-decoder';
 import { OutboundQueue } from '../protocol/outbound-queue';
 import { PROTOCOL_V, decodeMessage, encodeMessage } from '../protocol/protocol';
 import type { EventMsg, ResponseMsg } from '../protocol/protocol';
@@ -20,9 +21,7 @@ export class DaemonClient {
 
   private queue: OutboundQueue | null = null;
 
-  private buffer = '';
-
-  private readonly decoder = new TextDecoder();
+  private readonly lines = new LineDecoder();
 
   private nextID = 1;
 
@@ -41,7 +40,7 @@ export class DaemonClient {
       unix: socketPath,
       socket: {
         data(_s, buf) {
-          client.applyChunk(client.decodeChunk(buf));
+          client.applyChunk(buf);
         },
         drain() {
           client.queue?.drain();
@@ -99,25 +98,9 @@ export class DaemonClient {
     this.drainPending('client closed');
   }
 
-  // Decodes with state kept across reads, so a multi-byte character split
-  // between two reads decodes whole.
   // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket read buffer has no readonly form
-  private decodeChunk(buf: Uint8Array): string {
-    return this.decoder.decode(buf, { stream: true });
-  }
-
-  private applyChunk(chunk: string): void {
-    this.buffer += chunk;
-
-    const lines = this.buffer.split('\n');
-
-    this.buffer = lines.pop() ?? '';
-
-    for (const line of lines) {
-      if (line.trim() === '') {
-        continue;
-      }
-
+  private applyChunk(buf: Uint8Array): void {
+    for (const line of this.lines.splitChunk(buf)) {
       this.applyLine(line);
     }
   }
