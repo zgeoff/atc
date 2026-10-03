@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { sendBridgeRequest } from './protocol/send-bridge-request';
 import { sendReport } from './shared/report';
 import { REPORT_KINDS } from './shared/report-kinds';
-import { sendBridgeRequest } from './shared/send-bridge-request';
 
 interface ReportOptions {
   readonly message: string;

@@ -4,6 +4,7 @@ import { DaemonError } from '../protocol/daemon-error';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { decodeCursor } from '../protocol/decode-cursor';
 import { encodeCursor } from '../protocol/encode-cursor';
+import { LineDecoder } from '../protocol/line-decoder';
 import { OutboundQueue } from '../protocol/outbound-queue';
 import type { SocketWriter } from '../protocol/outbound-queue';
 import { parseRequestParams } from '../protocol/parse-request-params';
@@ -278,9 +279,7 @@ export class DaemonConnection {
 
   private readonly queue: OutboundQueue;
 
-  private buffer = '';
-
-  private readonly decoder = new TextDecoder();
+  private readonly lines = new LineDecoder();
 
   private helloed = false;
 
@@ -352,28 +351,18 @@ export class DaemonConnection {
   // between two reads decodes whole.
   // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket read buffer has no readonly form
   decodeChunk(buf: Uint8Array): string {
-    return this.decoder.decode(buf, { stream: true });
+    return this.lines.decodeText(buf);
   }
 
   applyChunk(chunk: string): void {
-    const buffered = this.buffer + chunk;
-
-    if (buffered.length > MAX_LINE) {
+    if (this.lines.pendingLength + chunk.length > MAX_LINE) {
       this.sendErr(0, 'bad_args', `line exceeds ${MAX_LINE} bytes`);
       this.peer.end();
 
       return;
     }
 
-    const lines = buffered.split('\n');
-
-    this.buffer = lines.pop() ?? '';
-
-    for (const line of lines) {
-      if (line.trim() === '') {
-        continue;
-      }
-
+    for (const line of this.lines.splitText(chunk)) {
       if (!this.applyLine(line)) {
         this.peer.end();
 
