@@ -1691,6 +1691,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return 'ok';
     },
+    detachTap: (client, sessionID) => {
+      if (taps.isTap(sessionID, client)) {
+        taps.removeSession(sessionID);
+      }
+    },
     readMessage: async (messageID, waitMs) => {
       const deadline = Date.now() + waitMs;
       let initialStatus: MessageStatus | null = null;

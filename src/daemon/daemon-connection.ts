@@ -113,10 +113,12 @@ export class DaemonConnection {
       }
     }
 
-    // Output of a session that left the view stops with it. The detach runs
-    // once the view is settled, since it emits an event of its own.
+    // Output and inbox messages of a session that left the view stop with
+    // it. The detach runs once the view is settled, since it emits an event
+    // of its own.
     for (const id of view.withdrawn) {
       this.ctx.detachSession(this, id);
+      this.ctx.detachTap(this, id);
     }
   }
 

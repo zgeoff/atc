@@ -847,6 +847,52 @@ test('it pushes a principal that sees the whole tree only the removal of a forgo
   expect(JSON.stringify(listed)).not.toInclude(parent);
 });
 
+test('it takes the inbox tap from a principal connection whose tapped session leaves its view', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const parent = await daemon.spawnOn('local');
+  const client = await daemon.openClientAs('narrow');
+
+  const events: EventMsg[] = [];
+  const ownerEvents: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  daemon.client.onEvent = (event) => {
+    ownerEvents.push(event);
+  };
+
+  await client.sendRequest('session.tap', { session: parent });
+
+  const child = await daemon.spawnOn('box', parent);
+
+  await waitFor(() => {
+    expect(events).toPartiallyContain({ ev: 'SessionRemoved', s: parent });
+  });
+
+  await daemon.client.sendRequest('session.forget', { session: child });
+
+  await waitFor(() => {
+    expect(events).toPartiallyContain({ ev: 'SessionAdded' });
+  });
+
+  await daemon.client.sendRequest('session.message', {
+    session: parent,
+    from: 'owner',
+    text: 'for the tap',
+  });
+
+  await daemon.client.sendRequest('session.tap', { session: parent });
+
+  await waitFor(() => {
+    expect(ownerEvents).toPartiallyContain({ ev: 'InboxMessage', text: 'for the tap' });
+  });
+
+  expect(events).not.toPartiallyContain({ ev: 'InboxMessage' });
+});
+
 test('it hides from a principal a restored sub-session of a hidden parent', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 

@@ -248,6 +248,10 @@ export interface DaemonContext {
   ) => Promise<Readonly<Record<string, unknown>> | MessageRefusal>;
   readonly readMessage: (messageID: MessageID, waitMs: number) => Promise<MessageView | null>;
   readonly attachTap: (client: TapClient, sessionID: SessionID) => 'ok' | 'missing' | 'unsupported';
+
+  // Lets go of the session's inbox tap when the client holds it, so its
+  // messages wait for another tap.
+  readonly detachTap: (client: TapClient, sessionID: SessionID) => void;
   readonly ackMessage: (
     client: TapClient,
     sessionID: SessionID,
