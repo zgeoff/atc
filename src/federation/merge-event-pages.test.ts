@@ -768,3 +768,43 @@ test('it lists a daemon whose latest page after a gap left older events unread a
   expect(merged.started).toStrictEqual(['pc']);
   expect(merged.truncated).toStrictEqual(['pc']);
 });
+
+test("it gives a report event its daemon's own cursor as a qualified report handle beside the merged cursor", () => {
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [
+            {
+              cursor: 'eyJrIjoiZXYiLCJpIjo3fQ',
+              at: 1,
+              session: 's1',
+              kind: 'report',
+              label: 'decision',
+              detail: 'done',
+            },
+          ],
+          cursor: 'eyJrIjoiZXYiLCJpIjo3fQ',
+          more: false,
+        },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.events).toStrictEqual([
+    {
+      cursor: expect.toBeString(),
+      at: 1,
+      session: 'pc.9a1b2c3d.s1',
+      kind: 'report',
+      label: 'decision',
+      detail: 'done',
+      report: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ',
+    },
+  ]);
+});

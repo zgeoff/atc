@@ -11,6 +11,7 @@ import { startDaemon } from '../daemon/daemon';
 import { DaemonError } from '../protocol/daemon-error';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import { getRecord } from '../shared/get-record';
+import { isRecord, sendReport } from '../shared/report';
 import { StateStore } from '../store/state-store';
 import { collectUnruledIDPaths } from './collect-unruled-id-paths';
 import { ERROR_DATA_RULES, ID_RULES } from './id-rules';
@@ -19,7 +20,8 @@ import { ERROR_DATA_RULES, ID_RULES } from './id-rules';
  * A real daemon whose sessions run `sleep`, on state at `dbPath`. `boot`
  * starts it and returns its owner's connection, so a test can seed the
  * state first. `reportStart` reports a session's SessionStart with a
- * transcript at `transcriptPath`, which `session.read` then reads. Every answer these tests check comes from it, so a field
+ * transcript at `transcriptPath`, which `session.read` then reads, and
+ * `reporterPath` takes the lines a session's reporter sends. Every answer these tests check comes from it, so a field
  * the daemon starts sending with an id in it fails the check below until
  * a rule covers it.
  */
@@ -30,6 +32,7 @@ function setupTest() {
   return {
     dbPath: join(tmp.dir, 'state.db'),
     transcriptPath: join(tmp.dir, 'transcript.jsonl'),
+    reporterPath: join(tmp.dir, 'reporter.sock'),
     async reportStart(sessionID: string): Promise<void> {
       const closed = Promise.withResolvers<void>();
       const line = { atcId: sessionID, event: 'SessionStart', payload: {} };
@@ -320,4 +323,39 @@ test('it has a rule for every id in agents.list and dirs.list answers', async ()
 
   expect(collectUnruledIDPaths(agents, ID_RULES['agents.list'] ?? new Map())).toStrictEqual([]);
   expect(collectUnruledIDPaths(dirs, ID_RULES['dirs.list'] ?? new Map())).toStrictEqual([]);
+});
+
+test('it has a rule for every id in a report.get answer', async () => {
+  await using daemon = setupTest();
+
+  const owner = await daemon.boot();
+
+  const spawned = await owner.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    resume: `a-${randomUUID()}`,
+  });
+
+  const session = getRecord(spawned, 'session')['id'];
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: session, event: 'Report', payload: { kind: 'note', label: 'decision', text: 'done' } })}\n`,
+    2000,
+  );
+
+  const event = await waitFor(async () => {
+    const page = await owner.sendRequest('events.read', {});
+
+    const found = [page['events']].flat().find((e) => isRecord(e) && e['kind'] === 'report');
+
+    if (!isRecord(found)) {
+      throw new TypeError('no report event yet');
+    }
+
+    return found;
+  });
+
+  const report = await owner.sendRequest('report.get', { report: event['cursor'] });
+
+  expect(collectUnruledIDPaths(report, ID_RULES['report.get'] ?? new Map())).toStrictEqual([]);
 });
