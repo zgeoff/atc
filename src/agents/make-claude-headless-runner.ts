@@ -11,20 +11,22 @@ export type ClaudeHeadlessRun = (
 ) => { readonly stop: () => void };
 
 /**
- * Where a Claude CLI headless turn runs: the binary, the mod folder, and,
- * for a gateway, the settings file that carries its backend. The folder and
- * file are written on first use.
+ * Where and how a Claude CLI headless turn runs: the binary, the permission
+ * mode its adapter resolved, the mod folder, and, for a gateway, the
+ * settings file that carries its backend. The folder and file are written
+ * on first use.
  */
 interface ClaudeHeadlessTarget {
   readonly claudeBin: string;
+  readonly permissionMode: string;
   readonly pluginDir: () => string;
   readonly settings?: () => string;
 }
 
 /**
  * Turns the Claude CLI's headless run into the neutral runner the daemon
- * calls. Every headless turn runs under the auto permission mode, since no
- * human is at the terminal to answer a permission prompt.
+ * calls. Every headless turn runs under the permission mode its adapter
+ * resolved for the agent's sessions.
  */
 export function makeClaudeHeadlessRunner(
   run: ClaudeHeadlessRun,
@@ -35,7 +37,7 @@ export function makeClaudeHeadlessRunner(
       {
         ...opts,
         claudeBin: target.claudeBin,
-        permissionMode: 'auto',
+        permissionMode: target.permissionMode,
         pluginDir: target.pluginDir(),
         ...(target.settings === undefined ? {} : { settings: target.settings() }),
       },

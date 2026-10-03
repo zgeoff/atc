@@ -1,8 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { parseConfig } from '../shared/config';
 import type { Config } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -213,4 +214,151 @@ test('it profiles a gateway with only the model names its env sets', () => {
 
 test('it profiles a gateway whose env sets no model with no models', () => {
   expect(buildGatewayAdapter().profile.models).toBeNull();
+});
+
+test("it runs a headless turn under the permission mode the gateway's settings default to", () => {
+  using tmp = setupTempDir('atc-gateway-mode-');
+
+  let received: Readonly<Record<string, unknown>> = {};
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'manual-settings',
+      label: 'Manual by settings',
+      mark: 'm',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://gateway.example/anthropic',
+      env: {},
+      settings: { permissions: { defaultMode: 'default' } },
+    },
+    parseConfig({}),
+    (opts) => {
+      received = { ...opts };
+
+      return { stop: () => {} };
+    },
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go' },
+    { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
+  );
+
+  expect(received).toMatchObject({ permissionMode: 'default' });
+});
+
+test("it gives a gateway's explicit permission-mode argument the same meaning in its terminal and headless runs", () => {
+  using tmp = setupTempDir('atc-gateway-flag-');
+
+  let received: Readonly<Record<string, unknown>> = {};
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'manual-flag',
+      label: 'Manual by flag',
+      mark: 'm',
+      bin: 'claude',
+      args: ['--permission-mode', 'default'],
+      baseURL: 'https://gateway.example/anthropic',
+      env: {},
+      settings: { permissions: { defaultMode: 'acceptEdits' } },
+    },
+    parseConfig({}),
+    (opts) => {
+      received = { ...opts };
+
+      return { stop: () => {} };
+    },
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  const plan = adapter.planSpawn({ prompt: '', resume: false });
+
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go' },
+    { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
+  );
+
+  expect(plan.args.slice(0, 2)).toStrictEqual(['--permission-mode', 'default']);
+  expect(received).toMatchObject({ permissionMode: 'default' });
+});
+
+test("it keeps the gateway's arguments, its permission mode included, in the command that resumes it outside atc", () => {
+  using tmp = setupTempDir('atc-gateway-resume-');
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'manual-resume',
+      label: 'Manual on resume',
+      mark: 'm',
+      bin: '/opt/gw/bin/claude',
+      args: ['--permission-mode', 'default'],
+      baseURL: 'https://gateway.example/anthropic',
+      env: {},
+    },
+    parseConfig({}),
+    null,
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
+
+  expect(command).toMatch(
+    /^cd '\/work\/repo' && \/opt\/gw\/bin\/claude '--permission-mode' 'default' --settings '[^']+hook-settings-manual-resume\.json' --resume sess-1$/u,
+  );
+});
+
+test("it runs a headless turn with the gateway's settings file, its permission hook and mode included", () => {
+  using tmp = setupTempDir('atc-gateway-hook-');
+
+  let received: Readonly<Record<string, unknown>> = {};
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'manual-hook',
+      label: 'Manual with hook',
+      mark: 'm',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://gateway.example/anthropic',
+      env: {},
+      settings: {
+        permissions: { defaultMode: 'default' },
+        hooks: {
+          PermissionRequest: [{ hooks: [{ type: 'command', command: 'decide-permission' }] }],
+        },
+      },
+    },
+    parseConfig({}),
+    (opts) => {
+      received = { ...opts };
+
+      return { stop: () => {} };
+    },
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go' },
+    { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
+  );
+
+  const settingsPath = received['settings'];
+
+  if (typeof settingsPath !== 'string') {
+    throw new TypeError('the headless turn carried no settings file');
+  }
+
+  const settings: unknown = JSON.parse(readFileSync(settingsPath, 'utf8'));
+
+  expect(received).toMatchObject({ permissionMode: 'default' });
+
+  expect(settings).toMatchObject({
+    permissions: { defaultMode: 'default' },
+    hooks: {
+      PermissionRequest: [{ hooks: [{ type: 'command', command: 'decide-permission' }] }],
+    },
+  });
 });

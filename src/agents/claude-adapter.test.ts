@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { parseConfig } from '../shared/config';
 import type { Config } from '../shared/config';
 import { toSessionID } from '../shared/to-session-id';
 import { ClaudeAdapter } from './claude-adapter';
@@ -160,4 +161,27 @@ test('it advertises no default model or effort when the configured arguments set
   const options = new ClaudeAdapter(buildClaudeConfig()).profile.spawnOptions;
 
   expect([options.model.default, options.effort.default]).toStrictEqual([null, null]);
+});
+
+test('it runs a headless turn under the permission mode its configured arguments set', () => {
+  using tmp = setupTempDir('atc-claude-mode-');
+
+  let received: Readonly<Record<string, unknown>> = {};
+
+  const adapter = new ClaudeAdapter(
+    parseConfig({ claudeArgs: ['--permission-mode', 'plan'] }),
+    (opts) => {
+      received = { ...opts };
+
+      return { stop: () => {} };
+    },
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go' },
+    { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
+  );
+
+  expect(received).toMatchObject({ permissionMode: 'plan' });
 });

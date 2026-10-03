@@ -24,6 +24,7 @@ import { findFlagValue } from './find-flag-value';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
+import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
 import { truncateDetail } from './truncate-detail';
 import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
@@ -86,6 +87,7 @@ export class ClaudeAdapter implements AgentAdapter {
         ? null
         : makeClaudeHeadlessRunner(headlessRun, {
             claudeBin: config.claudeBin,
+            permissionMode: resolveClaudePermissionMode(config.claudeArgs, undefined),
             pluginDir: () => this.writeBridge(),
           });
   }
