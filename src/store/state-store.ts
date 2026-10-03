@@ -331,8 +331,10 @@ export class StateStore {
       .execute();
   }
 
-  async recordTrailEntry(entry: TrailEntry): Promise<void> {
-    await this.db
+  // Returns whether the entry was written: a report whose id the trail
+  // already holds is left out.
+  async recordTrailEntry(entry: TrailEntry): Promise<boolean> {
+    const result = await this.db
       .insertInto('events')
       .values({
         ts: new Date(entry.at).toISOString(),
@@ -344,8 +346,12 @@ export class StateStore {
         session_id: entry.agentSessionID,
         kind: entry.kind,
         detail: entry.detail,
+        report_id: entry.kind === 'report' ? (entry.reportID ?? null) : null,
       })
-      .execute();
+      .onConflict((oc) => oc.column('report_id').doNothing())
+      .executeTakeFirst();
+
+    return result.numInsertedOrUpdatedRows !== 0n;
   }
 
   async collectEventsAfter(
