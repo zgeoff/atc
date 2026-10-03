@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { toAgentID } from '../agents/agent-adapter';
-import type { AgentID } from '../agents/agent-adapter';
+import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalBoolean } from '../shared/build-optional-boolean';
 import { buildOptionalString } from '../shared/build-optional-string';
 import type { DaemonID } from '../shared/daemon-id';
 import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
+import { toAgentID } from '../shared/to-agent-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import type { SessionWorkspace } from './workspace-materialization';
 

@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
-import type { AgentID } from '../agents/agent-adapter';
 import { DaemonError } from '../protocol/daemon-error';
+import type { AgentID } from '../shared/agent-id';
 import { loadConfig } from '../shared/config';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';

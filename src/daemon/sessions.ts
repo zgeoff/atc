@@ -1,21 +1,25 @@
 import { writeFileSync } from 'node:fs';
 import type {
-  AdapterEvent,
   AgentAdapter,
-  AgentID,
   SpawnOptions,
   SpawnOverrides,
   SpawnPlan,
 } from '../agents/agent-adapter';
-import { truncateDetail } from '../agents/truncate-detail';
+import type { AdapterEvent } from '../protocol/adapter-event';
+import { countSessionStates } from '../protocol/count-session-states';
 import { DaemonError } from '../protocol/daemon-error';
+import type { HookEvent } from '../protocol/hook-event';
 import type { ErrorCode } from '../protocol/protocol';
+import type { SessionState } from '../protocol/session-state';
+import { sortSessionViews } from '../protocol/sort-session-views';
+import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import type { TargetConfigError } from '../shared/collect-targets';
 import { socketPath, statusFile } from '../shared/config';
 import type { DaemonID } from '../shared/daemon-id';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { SessionID } from '../shared/session-id';
+import { truncateDetail } from '../shared/truncate-detail';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
 import type { SessionWorkspace } from '../store/workspace-materialization';
@@ -31,13 +35,10 @@ import type {
   HarnessRelay,
 } from './execution-provider';
 import { findExecutionRefusal } from './find-execution-refusal';
-import type { HookEvent } from './hooks';
 import type { BridgeBinding } from './is-binding-current';
 import { LocalPTYProvider } from './local-pty-provider';
 import { mintSessionID } from './mint-session-id';
 import { pickSessionState } from './pick-session-state';
-
-export type SessionState = 'running' | 'needs_you' | 'done' | 'exited';
 
 export type SessionEventKind = 'added' | 'state' | 'renamed' | 'removed';
 
@@ -1580,95 +1581,6 @@ export class SessionManager {
   sortSessions(): Session[] {
     return sortSessionViews(this.sessions);
   }
-}
-
-export function countSessionStates(
-  list: readonly { readonly state: SessionState }[],
-): Record<SessionState, number> {
-  const c = { needs_you: 0, running: 0, done: 0, exited: 0 };
-
-  for (const s of list) {
-    c[s.state]++;
-  }
-
-  return c;
-}
-
-interface SortableSessionView {
-  readonly id: string;
-  readonly parent: string | null;
-  readonly state: SessionState;
-  readonly pinned: boolean;
-  readonly lastAttachedAt: number;
-  readonly createdAt: number;
-}
-
-// Overlay order: pinned sessions first in most-recently-attached order, then
-// everyone else by urgency — who needs you, finished turns, busy, dead —
-// with most-recently-attached breaking ties inside each state. A
-// sub-session sits directly under its parent, ranked among its siblings
-// alone, so its attention never moves the parent's row; a sub-session whose
-// parent is not listed ranks as a top-level row.
-export function sortSessionViews<T extends SortableSessionView>(list: readonly T[]): T[] {
-  const rank: Record<SessionState, number> = {
-    needs_you: 0,
-    done: 1,
-    running: 2,
-    exited: 3,
-  };
-
-  const ranked = [...list].toSorted((a, b) => {
-    if (a.pinned !== b.pinned) {
-      return a.pinned ? -1 : 1;
-    }
-
-    const recency = b.lastAttachedAt - a.lastAttachedAt || b.createdAt - a.createdAt;
-
-    return a.pinned ? recency : rank[a.state] - rank[b.state] || recency;
-  });
-
-  const listed = new Set(ranked.map((s) => s.id));
-
-  const sorted: T[] = [];
-
-  for (const s of ranked) {
-    if (s.parent !== null && listed.has(s.parent)) {
-      continue;
-    }
-
-    sorted.push(s, ...ranked.filter((child) => child.parent === s.id));
-  }
-
-  return sorted;
-}
-
-// Never a filesystem path, so a repository can't collide with it.
-export const PINNED_GROUP_KEY = ' pinned';
-
-// Overlay display order for the grouped view: the flat sort with each
-// repository's sessions pulled together at the position of its best-ranked
-// member, so the renderer's adjacency-based headers appear once per group.
-// Pinned sessions form their own leading group. A sub-session keys by its
-// parent, so a set never splits across groups.
-export function sortGroupedSessionViews<
-  T extends SortableSessionView & { readonly repoRoot: string },
->(list: readonly T[]): T[] {
-  const byID = new Map(list.map((s) => [s.id, s]));
-  const buckets = new Map<string, T[]>();
-
-  for (const s of sortSessionViews(list)) {
-    const owner = (s.parent === null ? undefined : byID.get(s.parent)) ?? s;
-    const key = owner.pinned ? PINNED_GROUP_KEY : owner.repoRoot;
-    const bucket = buckets.get(key);
-
-    if (bucket === undefined) {
-      buckets.set(key, [s]);
-    } else {
-      bucket.push(s);
-    }
-  }
-
-  return [...buckets.values()].flat();
 }
 
 function buildLifecycle(s: Session): SessionLifecycle {

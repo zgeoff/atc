@@ -50,6 +50,9 @@ jobs:
       - name: Dead Code
         run: bun run deadcode
 
+      - name: Import Direction
+        run: bun run check:imports
+
       - name: Format
         run: bun run format:check
 

@@ -1,4 +1,4 @@
-import type { AgentID } from '../agents/agent-adapter';
+import type { AgentID } from '../shared/agent-id';
 import type { Config } from '../shared/config';
 
 export interface AgentPick {

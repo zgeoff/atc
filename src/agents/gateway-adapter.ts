@@ -1,12 +1,12 @@
-import type { HookEvent } from '../daemon/hooks';
+import type { AdapterEvent } from '../protocol/adapter-event';
+import type { HookEvent } from '../protocol/hook-event';
+import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import type { GatewayConfig } from '../shared/collect-gateways';
 import type { Config } from '../shared/config';
 import { toShellArg } from '../shared/to-shell-arg';
 import type {
-  AdapterEvent,
   AgentAdapter,
-  AgentID,
   AgentProfile,
   HeadlessRunner,
   NameUpdate,

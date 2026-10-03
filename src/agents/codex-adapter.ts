@@ -1,15 +1,16 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { HookEvent } from '../daemon/hooks';
+import type { AdapterEvent } from '../protocol/adapter-event';
+import type { HookEvent } from '../protocol/hook-event';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalString } from '../shared/build-optional-string';
 import type { Config } from '../shared/config';
 import { isRecord } from '../shared/report';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toShellArg } from '../shared/to-shell-arg';
+import { truncateDetail } from '../shared/truncate-detail';
 import type {
-  AdapterEvent,
   AgentAdapter,
   AgentProfile,
   NameUpdate,
@@ -22,7 +23,6 @@ import { buildArgsWithoutFlags } from './build-args-without-flags';
 import { findFlagValue } from './find-flag-value';
 import { planPastedLineInput } from './plan-pasted-line-input';
 import { resolveAgentHome } from './resolve-agent-home';
-import { truncateDetail } from './truncate-detail';
 
 // Codex's hook payload keys, snake_case. An absent or wrong-typed field
 // parses to undefined rather than failing the payload, so a broken reporter

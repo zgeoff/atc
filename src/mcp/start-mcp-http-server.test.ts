@@ -5,6 +5,7 @@ import { readJSONRecord } from '../../test/read-json-record';
 import { runMCPAuthorization } from '../../test/run-mcp-authorization';
 import { setupMCPHTTP } from '../../test/setup-mcp-http';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { DaemonClient } from '../client/daemon-client';
 import { collectGrants } from './collect-grants';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { removeClient } from './remove-client';
@@ -1375,7 +1376,11 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
 
   const tokens = await readJSONRecord(exchanged);
 
-  const caller = new ReconnectingCaller(join(server.home, 'daemon.sock'), 'atc/test-build');
+  const caller = new ReconnectingCaller(
+    join(server.home, 'daemon.sock'),
+    'atc/test-build',
+    (path) => DaemonClient.open(path),
+  );
 
   const moved = await startMCPHTTPServer({
     caller,
@@ -1410,7 +1415,9 @@ test.each([
 ])('it refuses to listen on %p with the public URL %p', (host, publicURL) => {
   using tmp = setupTempDir('atc-mcp-http-');
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();
@@ -1434,7 +1441,9 @@ test.each([
 test('it listens beyond loopback behind an https public URL', async () => {
   using tmp = setupTempDir('atc-mcp-http-');
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   const server = await startMCPHTTPServer({
     caller,

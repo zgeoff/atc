@@ -1,6 +1,6 @@
+import type { HookEvent } from '../protocol/hook-event';
 import { isRecord } from '../shared/report';
 import { toSessionID } from '../shared/to-session-id';
-import type { HookEvent } from './hooks';
 
 /**
  * One reporter line as a hook event, or null for a line that is not one.

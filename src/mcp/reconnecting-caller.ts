@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { DaemonClient } from '../client/daemon-client';
+import type { DaemonChannel } from '../protocol/daemon-channel';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
 import { requireDaemonFeatures } from './require-daemon-features';
@@ -30,7 +30,7 @@ const KEYED_METHODS: ReadonlyMap<string, DaemonFeature> = new Map<string, Daemon
 
 // One handshaken connection and the features its daemon announced.
 interface DaemonConnection {
-  readonly client: DaemonClient;
+  readonly client: DaemonChannel;
   readonly features: ReadonlySet<DaemonFeature>;
 }
 
@@ -48,13 +48,22 @@ export class ReconnectingCaller implements FleetCaller {
 
   private readonly build: string;
 
+  private readonly openChannel: (socketPath: string) => Promise<DaemonChannel>;
+
   private client: Promise<DaemonConnection> | null = null;
 
-  private readonly closed = new WeakSet<DaemonClient>();
+  private readonly closed = new WeakSet<DaemonChannel>();
 
-  constructor(socketPath: string, build: string) {
+  // The last argument connects to the daemon at a socket path; each channel
+  // it returns is handshaken here before a request rides it.
+  constructor(
+    socketPath: string,
+    build: string,
+    openChannel: (socketPath: string) => Promise<DaemonChannel>,
+  ) {
     this.socketPath = socketPath;
     this.build = build;
+    this.openChannel = openChannel;
   }
 
   // The required features are checked against each connection right before
@@ -141,10 +150,10 @@ export class ReconnectingCaller implements FleetCaller {
       }
     };
 
-    let client: DaemonClient;
+    let client: DaemonChannel;
 
     try {
-      client = await DaemonClient.open(this.socketPath);
+      client = await this.openChannel(this.socketPath);
     } catch (error) {
       resetClient();
       throw error;

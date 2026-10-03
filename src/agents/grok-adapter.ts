@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { HookEvent } from '../daemon/hooks';
+import type { AdapterEvent } from '../protocol/adapter-event';
+import type { HookEvent } from '../protocol/hook-event';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalString } from '../shared/build-optional-string';
 import type { Config } from '../shared/config';
@@ -9,8 +10,8 @@ import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toShellArg } from '../shared/to-shell-arg';
+import { truncateDetail } from '../shared/truncate-detail';
 import type {
-  AdapterEvent,
   AgentAdapter,
   AgentProfile,
   NameUpdate,
@@ -22,7 +23,6 @@ import type {
 import { normalizeHookEventName } from './normalize-hook-event';
 import { planPastedLineInput } from './plan-pasted-line-input';
 import { resolveAgentHome } from './resolve-agent-home';
-import { truncateDetail } from './truncate-detail';
 
 interface GrokSessionHookState {
   latestPromptID?: string;

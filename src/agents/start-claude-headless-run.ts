@@ -1,6 +1,6 @@
-import { truncateSummary } from '../daemon/truncate-summary';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
 import { isRecord } from '../shared/report';
+import { truncateSummary } from '../shared/truncate-summary';
 import { buildClaudeQueryOptions } from './build-claude-query-options';
 import type { ClaudeHeadlessRunRequest } from './build-claude-query-options';
 

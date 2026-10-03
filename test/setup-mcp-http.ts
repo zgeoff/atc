@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentAdapter } from '../src/agents/agent-adapter';
+import { DaemonClient } from '../src/client/daemon-client';
 import { startDaemon } from '../src/daemon/daemon';
 import type { DaemonHandle } from '../src/daemon/daemon';
 import { openMCPAuth } from '../src/mcp/open-mcp-auth';
@@ -64,7 +65,9 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   let daemon: DaemonHandle = await startTestDaemon();
 
-  const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   const server = await startMCPHTTPServer({
     caller,

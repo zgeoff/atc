@@ -24,6 +24,7 @@
     "build:atc-bridge": "bun scripts/build-atc-bridge.ts && oxfmt src/agents/atc-bridge-files.ts && format-codemod --quiet src/agents/atc-bridge-files.ts",
     "build:binaries": "bash scripts/build-binaries.sh",
     "audit": "bun audit",
+    "check:imports": "bun scripts/check-imports.ts",
     "deadcode": "knip",
     "lint": "oxlint --type-aware --type-check --report-unused-disable-directives-severity error",
     "lint:fix": "oxlint --type-aware --type-check --report-unused-disable-directives-severity error --fix",

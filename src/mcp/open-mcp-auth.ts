@@ -8,11 +8,11 @@ import { betterAuth } from 'better-auth';
 import type { BetterAuthPlugin } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
 import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
+import { BunSqliteDriver } from '../shared/bun-sqlite-driver';
 import { GRANT_SCOPES } from '../shared/grant-scope';
-import { BunSqliteDriver } from '../store/bun-sqlite-driver';
 import { buildOwnerPlugin } from './build-owner-plugin';
 import { deriveTokenHash } from './derive-token-hash';
-import type { MCPAuthSchema } from './types';
+import type { MCPAuthSchema } from './mcp-auth-schema';
 
 interface MCPAuthOptions {
   readonly dbPath: string;
