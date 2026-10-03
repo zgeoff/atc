@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.22.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.21.0...@zgeoff/atc@2.22.0) (2026-10-03)
+
+### Features
+
+- **#210:** route gateway calls across named daemons
+  ([#230](https://github.com/zgeoff/atc/issues/230))
+  ([e3c732a](https://github.com/zgeoff/atc/commit/e3c732ac195b591f22412cd10493126484a7ab61))
+
 ## [2.21.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.20.0...@zgeoff/atc@2.21.0) (2026-10-03)
 
 ### Features
