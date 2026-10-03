@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.23.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.22.0...@zgeoff/atc@2.23.0) (2026-10-03)
+
+### Features
+
+- **#210:** route mcp tool calls through the gateway caller
+  ([#231](https://github.com/zgeoff/atc/issues/231))
+  ([6cce297](https://github.com/zgeoff/atc/commit/6cce297905fc139fb3677534b0de825cb11adbb1))
+
 ## [2.22.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.21.0...@zgeoff/atc@2.22.0) (2026-10-03)
 
 ### Features
