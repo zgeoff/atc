@@ -71,3 +71,25 @@ test('it refuses a client that does not authenticate', async () => {
   expect(clone.exitCode).not.toBe(0);
   expect(ctx.server.authorizations).toStrictEqual([]);
 });
+
+test('it holds each authenticated request for the delay it is given', async () => {
+  using ctx = await setupTest();
+
+  const slow = startGitHTTPServer(ctx.dir, ctx.env, { delayMs: 400 });
+
+  onTestFinished(async () => {
+    await slow.stop();
+  });
+
+  const url = new URL('upstream.git', slow.url);
+
+  url.username = 'x-access-token';
+  url.password = 'fixture-not-a-secret';
+
+  const started = Date.now();
+
+  const listed = await $`git ls-remote ${url.href}`.env(ctx.env).nothrow().quiet();
+
+  expect(listed.exitCode).toBe(0);
+  expect(Date.now() - started).toBeGreaterThanOrEqual(400);
+});

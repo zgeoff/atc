@@ -11,11 +11,14 @@ interface GitHTTPServer {
  * Serves the bare repositories under a directory over smart HTTP through
  * `git http-backend` on a loopback port, and refuses every request that
  * carries no basic auth, so a client only clones by authenticating. The
- * backend runs with the environment it is given.
+ * backend runs with the environment it is given. With a delay, each
+ * authenticated request waits that long before it is served, which makes a
+ * clone through it slow.
  */
 export function startGitHTTPServer(
   root: string,
   env: Readonly<Record<string, string | undefined>>,
+  options: { readonly delayMs?: number } = {},
 ): GitHTTPServer {
   const authorizations: string[] = [];
 
@@ -33,6 +36,10 @@ export function startGitHTTPServer(
       }
 
       authorizations.push(authorization);
+
+      if (options.delayMs !== undefined) {
+        await Bun.sleep(options.delayMs);
+      }
 
       const url = new URL(request.url);
 

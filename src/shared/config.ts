@@ -70,7 +70,13 @@ const DEFAULTS: Config = {
   codexBin: 'codex',
   codexArgs: [],
   dirs: { roots: [] },
-  workspaces: { githubOwner: null, sources: null, gitTransports: DEFAULT_GIT_TRANSPORTS },
+  workspaces: {
+    githubOwner: null,
+    sources: null,
+    gitTransports: DEFAULT_GIT_TRANSPORTS,
+    root: null,
+    targetRoots: new Map(),
+  },
   gateways: [],
   hooks: {},
   leader: { code: 0, label: '^Space' },
@@ -211,10 +217,19 @@ export function renderDefaultConfig(): string {
     principals: _principals,
     principalErrors: _principalErrors,
     workspaceErrors: _workspaceErrors,
+    workspaces,
     ...written
   } = DEFAULTS;
 
-  return `${JSON.stringify(written, null, 2)}\n`;
+  // The target roots are a map in memory and an object of target ids in
+  // the file.
+  const { targetRoots, ...rest } = workspaces;
+
+  return `${JSON.stringify(
+    { ...written, workspaces: { ...rest, targets: Object.fromEntries(targetRoots) } },
+    null,
+    2,
+  )}\n`;
 }
 
 /**
