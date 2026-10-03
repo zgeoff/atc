@@ -36,14 +36,14 @@ test('it decodes each registry daemon position an encoded cursor holds', () => {
     filter,
     new Map([
       ['cloud.0f6c2a8e', 'eyJrIjoiZXYiLCJpIjo0fQ'],
-      ['pc.9a1b2c3d', null],
+      ['pc.9a1b2c3d', 'eyJrIjoiZXYiLCJpIjowfQ'],
     ]),
   );
 
   expect(decodeGatewayCursor(cursor, filter, registry)).toStrictEqual(
     new Map([
       ['cloud', 'eyJrIjoiZXYiLCJpIjo0fQ'],
-      ['pc', null],
+      ['pc', 'eyJrIjoiZXYiLCJpIjowfQ'],
     ]),
   );
 });
@@ -89,6 +89,13 @@ test.each([
     Buffer.from(JSON.stringify({ v: 1, filter: 'f', daemons: { 'cloud.11111111': 'c' } })).toString(
       'base64url',
     ),
+    "the events cursor holds a stale position for daemon 'cloud'",
+  ],
+  [
+    'a part without a position',
+    Buffer.from(
+      JSON.stringify({ v: 1, filter: 'f', daemons: { 'cloud.0f6c2a8e': null } }),
+    ).toString('base64url'),
     "the events cursor holds a stale position for daemon 'cloud'",
   ],
   [

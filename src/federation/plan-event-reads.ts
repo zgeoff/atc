@@ -3,9 +3,12 @@ import type { GatewayRegistry } from './types';
 
 /**
  * Where one daemon's part of an events read starts: after its own cursor,
- * or at the start of its trail for null; or at its newest event, for a
- * daemon a given gateway cursor leaves out, such as one added to the
- * registry since, which the read then reports under `started`.
+ * or at its latest events for null, which only a read without a gateway
+ * cursor gets; or at its newest event, for a daemon a given gateway cursor
+ * leaves out, such as one added to the registry since. The caller reads
+ * such a daemon once with `events.read` at limit 1 and no cursor, and
+ * pins it at the cursor that answer returns, which is its newest event,
+ * or event 0 for an empty trail; the read then reports it under `started`.
  */
 export type EventReadStart =
   | { readonly kind: 'after'; readonly cursor: string | null }
