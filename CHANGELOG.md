@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.16.0...@zgeoff/atc@2.17.0) (2026-10-03)
+
+
+### Features
+
+* **#192:** list github repositories and probe git sources on the daemon ([#223](https://github.com/zgeoff/atc/issues/223)) ([8c2a932](https://github.com/zgeoff/atc/commit/8c2a9325f68e8d0cdaa090f3bcb80aa187ce685b))
+
 ## [2.16.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.15.2...@zgeoff/atc@2.16.0) (2026-10-03)
 
 ### Features
