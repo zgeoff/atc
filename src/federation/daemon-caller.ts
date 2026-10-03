@@ -1,6 +1,7 @@
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
+import { buildDaemonOutdatedError } from './build-daemon-outdated-error';
 import { GatewayError } from './gateway-error';
 import type { RegistryDaemon } from './types';
 
@@ -50,6 +51,14 @@ interface OpenConnection {
   readonly hello: DaemonHello;
 }
 
+/**
+ * Turns a request's params into the params one write of it sends, right
+ * before that write.
+ */
+export type ParamsPreparer = (
+  params: Readonly<Record<string, unknown>>,
+) => Readonly<Record<string, unknown>>;
+
 // The requests that only read, so a second run is harmless.
 const READ_ONLY_METHODS: ReadonlySet<string> = new Set([
   'agents.list',
@@ -80,15 +89,19 @@ const RESPONSE_TIMEOUT_MS = 30_000;
  * than the registry pins. A failure before the request leaves is
  * `daemon_unavailable`, or `daemon_unauthorized` for a refused token. A
  * request sent whose response never arrives, because the connection ended
- * or 30 s passed, is never a failure: a keyed or read-only request is sent
- * once more on a fresh connection to the same daemon. A keyed retry goes
- * out replay-only, under the same key, and only while that connection
- * announces both the key's feature and replay-only requests; a daemon that
- * holds no such key answers it `idempotency_key_unknown`, which ends as
- * `outcome_unknown`.
+ * or 30 s passed beyond the request's own `waitMs`, is never a failure: a
+ * keyed or read-only request is sent once more on a fresh connection to
+ * the same daemon. A keyed retry goes out replay-only, under the same key,
+ * and only while that connection announces both the key's feature and
+ * replay-only requests; a daemon that holds no such key answers it
+ * `idempotency_key_unknown`, which ends as `outcome_unknown`.
  * Any other request, a reconnect without that feature, or a second loss is
  * `outcome_unknown`. A daemon's
- * own error passes through as it came.
+ * own error passes through as it came. `prepareParams` runs right before
+ * each write of the request, first send and retry alike, and returns the
+ * params that go out; params it marks `replayOnly` never reach a connection
+ * that does not announce replay-only requests, which ends as
+ * `outcome_unknown` with nothing sent.
  */
 export class DaemonCaller {
   private readonly opts: DaemonCallerOptions;
@@ -108,9 +121,29 @@ export class DaemonCaller {
     m: string,
     p: Readonly<Record<string, unknown>> = {},
     as?: string,
+    required: readonly DaemonFeature[] = [],
+    prepareParams: ParamsPreparer = (params) => params,
   ): Promise<Readonly<Record<string, unknown>>> {
+    // A request that acts as a principal relies on the daemon honouring it.
+    const needed: readonly DaemonFeature[] =
+      as === undefined ? required : [...required, 'request.principal'];
+
     const opened = await this.openConnection();
-    const first = await this.trySend(opened.channel, m, p, as);
+
+    const unserved = needed.find((feature) => !opened.hello.features.has(feature));
+
+    if (unserved !== undefined) {
+      throw buildDaemonOutdatedError(this.opts.daemon.name, unserved);
+    }
+
+    const first = await this.trySend(
+      opened.channel,
+      opened.hello.features,
+      m,
+      p,
+      as,
+      prepareParams,
+    );
 
     if (first.kind === 'answered') {
       return first.ok;
@@ -144,18 +177,15 @@ export class DaemonCaller {
       throw this.buildOutcomeUnknown(m);
     }
 
-    const retryParams = replays ? { ...p, replayOnly: true } : p;
-    let second: Awaited<ReturnType<DaemonCaller['trySend']>>;
-
-    try {
-      second = await this.trySend(fresh.channel, m, retryParams, as);
-    } catch (error) {
-      if (error instanceof DaemonError && error.code === 'idempotency_key_unknown') {
-        throw this.buildOutcomeUnknown(m);
-      }
-
-      throw error;
+    // Nor does a retry reach a connection whose daemon would ignore what
+    // the request relies on, such as the principal it acts as.
+    if (needed.some((feature) => !fresh.hello.features.has(feature))) {
+      throw this.buildOutcomeUnknown(m);
     }
+
+    const second = await this.trySend(fresh.channel, fresh.hello.features, m, p, as, (params) =>
+      replays ? { ...prepareParams(params), replayOnly: true } : prepareParams(params),
+    );
 
     if (second.kind === 'answered') {
       return second.ok;
@@ -193,27 +223,48 @@ export class DaemonCaller {
   }
 
   // Sends one request, answering with the daemon's answer, or with `lost`
-  // when no response arrived. A daemon's error rejects as it came.
+  // when no response arrived. A daemon's error rejects as it came, except
+  // `idempotency_key_unknown`, which a replay-only request gets for a key
+  // the daemon never held or has dropped, and which ends as
+  // `outcome_unknown`.
   private async trySend(
     channel: Readonly<GatewayChannel>,
+    features: DaemonHello['features'],
     m: string,
     p: Readonly<Record<string, unknown>>,
     as: string | undefined,
+    prepareParams: ParamsPreparer,
   ): Promise<
     | { readonly kind: 'answered'; readonly ok: Readonly<Record<string, unknown>> }
     | { readonly kind: 'lost' }
   > {
+    // Runs in the same synchronous step as the write below, after the
+    // connection's handshake, so whatever it decides still holds when the
+    // request leaves.
+    const sent = prepareParams(p);
+
+    if (sent['replayOnly'] === true && !features.has('idempotency.replayOnly')) {
+      throw this.buildOutcomeUnknown(m);
+    }
+
     const timeout = Promise.withResolvers<'timeout'>();
 
-    const timer = setTimeout(() => {
-      timeout.resolve('timeout');
-    }, this.opts.responseTimeoutMs ?? RESPONSE_TIMEOUT_MS);
+    // A request that waits for a change on the daemon, such as a long poll,
+    // gets its own wait on top of the response time.
+    const waitMs = typeof sent['waitMs'] === 'number' && sent['waitMs'] > 0 ? sent['waitMs'] : 0;
+
+    const timer = setTimeout(
+      () => {
+        timeout.resolve('timeout');
+      },
+      (this.opts.responseTimeoutMs ?? RESPONSE_TIMEOUT_MS) + waitMs,
+    );
 
     // Settles as a value either way, so a response that rejects after the
     // timeout won never goes unhandled.
     const settled = (async () => {
       try {
-        return { kind: 'ok' as const, ok: await channel.sendRequest(m, p, as) };
+        return { kind: 'ok' as const, ok: await channel.sendRequest(m, sent, as) };
       } catch (error) {
         return { kind: 'error' as const, error };
       }
@@ -237,6 +288,10 @@ export class DaemonCaller {
 
     if (this.closed.has(channel)) {
       return { kind: 'lost' };
+    }
+
+    if (raced.error instanceof DaemonError && raced.error.code === 'idempotency_key_unknown') {
+      throw this.buildOutcomeUnknown(m);
     }
 
     throw raced.error;

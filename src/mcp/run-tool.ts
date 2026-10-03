@@ -25,6 +25,12 @@ export function runTool(
     .with('atc_session_list', async () => {
       const ok = await caller.sendRequest('session.list');
 
+      // A caller that routes across named daemons adds each daemon's state,
+      // so a daemon that is down never reads as one with no sessions.
+      if (ok['daemons'] !== undefined) {
+        return buildObjectResult({ sessions: ok['sessions'], daemons: ok['daemons'] });
+      }
+
       // The text stays the bare list older clients read; structured content
       // has to be an object.
       return {
@@ -38,6 +44,7 @@ export function runTool(
       const key = parseIdempotencyKey(args['idempotencyKey']);
 
       const params = {
+        ...(typeof args['daemon'] === 'string' ? { daemon: args['daemon'] } : {}),
         cwd: args['cwd'],
         ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
         ...(typeof args['prompt'] === 'string' ? { prompt: args['prompt'] } : {}),
@@ -132,9 +139,16 @@ export function runTool(
       };
     })
     .with('atc_dirs_list', async () => {
-      const ok = await caller.sendRequest('dirs.list');
+      const params = typeof args['daemon'] === 'string' ? { daemon: args['daemon'] } : {};
+
+      const ok = await caller.sendRequest('dirs.list', params);
 
       return { text: JSON.stringify(ok['dirs'], null, 2), structured: { dirs: ok['dirs'] } };
+    })
+    .with('atc_daemons_list', async () => {
+      const ok = await caller.sendRequest('daemons.list');
+
+      return buildObjectResult(ok);
     })
     .with('atc_agents_list', async () => {
       const ok = await caller.sendRequest('agents.list', {}, ['agents.list']);

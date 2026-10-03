@@ -536,3 +536,66 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
   expect(proxy.countRequests()).toBe(2);
   expect(listed['sessions']).toHaveLength(1);
 });
+
+test('it holds concurrent first requests until the handshake answers, so the daemon never sees a pipelined line', async () => {
+  await using daemon = await setupTest();
+
+  const caller = new DaemonCaller({
+    daemon: {
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: daemon.port },
+      daemonID: daemon.daemonID,
+      incarnation: daemon.daemonID.slice(0, 8),
+      token: TOKEN,
+    },
+    build: 'atc-gateway/test',
+    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+  });
+
+  onTestFinished(() => caller.stop());
+
+  const answers = await Promise.all(
+    Array.from({ length: 5 }, () => caller.sendRequest('session.list', {}, 'gw')),
+  );
+
+  expect(answers).toStrictEqual(Array.from({ length: 5 }, () => ({ sessions: [] })));
+});
+
+test('it lets a long poll wait out its own waitMs beyond the response time on the same connection', async () => {
+  await using daemon = await setupTest();
+
+  let opened = 0;
+
+  const caller = new DaemonCaller({
+    daemon: {
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: daemon.port },
+      daemonID: daemon.daemonID,
+      incarnation: daemon.daemonID.slice(0, 8),
+      token: TOKEN,
+    },
+    build: 'atc-gateway/test',
+    openChannel: (address) => {
+      opened++;
+
+      return DaemonClient.open({ hostname: address.host, port: address.port });
+    },
+    responseTimeoutMs: 500,
+  });
+
+  onTestFinished(() => caller.stop());
+
+  const caughtUp = await caller.sendRequest('events.read', {}, 'gw');
+
+  const started = Date.now();
+
+  const waited = await caller.sendRequest(
+    'events.read',
+    { cursor: caughtUp['cursor'], waitMs: 1500 },
+    'gw',
+  );
+
+  expect(waited['events']).toStrictEqual([]);
+  expect(Date.now() - started).toBeWithin(1400, 5000);
+  expect(opened).toBe(1);
+});

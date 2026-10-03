@@ -35,6 +35,9 @@ interface MCPHTTPServerOptions {
 
   // How long a rotated refresh token still answers with its successor.
   readonly refreshReuseSeconds?: number;
+
+  // Serves `/healthz` and `/readyz` for an orchestrator's probes.
+  readonly probes?: boolean;
 }
 
 /**
@@ -60,7 +63,11 @@ export interface MCPHTTPServer {
  * method, path, JSON-RPC method and tool, status, duration, and MCP protocol
  * version, and never a body, query, credential, or address. A request whose Host header is not the server's own is
  * refused, so a DNS rebinding page cannot reach it through a browser, and a
- * browser form post from any other origin is refused too.
+ * browser form post from any other origin is refused too. With `probes`,
+ * `/healthz` answers 200 while the server serves and `/readyz` answers 200
+ * once the authorization server's database is open, else 503; both pass
+ * the Host check first and answer with an empty body, so they disclose
+ * nothing about the fleet.
  */
 export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise<MCPHTTPServer> {
   // Normalized before binding, so an invalid public URL throws with no port
@@ -79,7 +86,10 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     );
   }
 
-  const holder: { ready: ServerState | null } = { ready: null };
+  const holder: { ready: ServerState | null; hosts: ReadonlySet<string> } = {
+    ready: null,
+    hosts: new Set(),
+  };
 
   const server = Bun.serve({
     hostname: options.host,
@@ -94,7 +104,11 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
       let rpc: RPCLabel | null = null;
       let response: Response;
 
-      if (state === null) {
+      const path = new URL(request.url).pathname;
+
+      if (options.probes === true && PROBE_PATHS.has(path)) {
+        response = answerProbeRequest(request, path, holder.hosts, state !== null);
+      } else if (state === null) {
         response = new Response(null, { status: 503 });
       } else {
         try {
@@ -122,6 +136,16 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
   const port = server.port ?? options.port;
   const local = `http://127.0.0.1:${port}`;
   const origin = publicOrigin ?? local;
+
+  const hosts = new Set([
+    new URL(origin).host,
+    `127.0.0.1:${port}`,
+    `localhost:${port}`,
+    ...options.allowedHosts,
+  ]);
+
+  holder.hosts = hosts;
+
   let store: HTTPServerContext['store'];
 
   try {
@@ -139,12 +163,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
   }
 
   holder.ready = {
-    hosts: new Set([
-      new URL(origin).host,
-      `127.0.0.1:${port}`,
-      `localhost:${port}`,
-      ...options.allowedHosts,
-    ]),
+    hosts,
     origins: new Set([origin, local, `http://localhost:${port}`]),
     ctx: {
       caller: options.caller,
@@ -166,6 +185,31 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
       await store.close();
     },
   };
+}
+
+const PROBE_PATHS: ReadonlySet<string> = new Set(['/healthz', '/readyz']);
+
+// A probe from a Host other than the server's own is refused like any other
+// request; `ready` is whether the authorization server's database is open.
+function answerProbeRequest(
+  request: Request,
+  path: string,
+  hosts: ReadonlySet<string>,
+  ready: boolean,
+): Response {
+  const host = request.headers.get('host');
+
+  if (host === null || !hosts.has(host)) {
+    return new Response(null, { status: 403 });
+  }
+
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return new Response(null, { status: 405, headers: { allow: 'GET, HEAD' } });
+  }
+
+  const isReady = path === '/healthz' || ready;
+
+  return new Response(null, { status: isReady ? 200 : 503 });
 }
 
 // An IPv6 address takes the brackets a URL puts around it.

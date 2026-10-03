@@ -4,9 +4,29 @@ import { buildToolList } from './build-tool-list';
 import { MCP_TOOLS } from './mcp-tools';
 
 test('it lists one entry per defined tool in definition order', () => {
-  expect(buildToolList(new Set(DAEMON_FEATURES), null).map((tool) => tool.name)).toStrictEqual(
-    MCP_TOOLS.map((tool) => tool.name),
+  expect(
+    buildToolList(new Set([...DAEMON_FEATURES, 'fleet.daemons']), null).map((tool) => tool.name),
+  ).toStrictEqual(MCP_TOOLS.map((tool) => tool.name));
+});
+
+test('it leaves out the daemons tool and every daemon input for a caller of one daemon', () => {
+  const tools = buildToolList(new Set(DAEMON_FEATURES), null);
+  const spawn = tools.find((tool) => tool.name === 'atc_session_spawn') ?? null;
+  const dirs = tools.find((tool) => tool.name === 'atc_dirs_list') ?? null;
+  const spawnProperties = spawn === null ? null : spawn.inputSchema['properties'];
+  const dirsProperties = dirs === null ? null : dirs.inputSchema['properties'];
+
+  expect(tools.map((tool) => tool.name)).not.toContain('atc_daemons_list');
+  expect(spawnProperties).not.toContainKey('daemon');
+  expect(dirsProperties).toStrictEqual({});
+});
+
+test('it lists the agents tool without its output schema for a caller across named daemons', () => {
+  const agents = buildToolList(new Set([...DAEMON_FEATURES, 'fleet.daemons']), null).find(
+    (tool) => tool.name === 'atc_agents_list',
   );
+
+  expect(agents).not.toContainKey('outputSchema');
 });
 
 test('it lists each tool with only its name, description, schemas, and annotations', () => {
