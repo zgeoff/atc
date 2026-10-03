@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.20.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.19.0...@zgeoff/atc@2.20.0) (2026-10-03)
+
+
+### Features
+
+* **#178:** parse auth profiles and add the runtime auth store ([#242](https://github.com/zgeoff/atc/issues/242)) ([e6c92af](https://github.com/zgeoff/atc/commit/e6c92afafd21be2c1b0c6582fb1da775c3fce87e))
+
 ## [2.19.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.18.0...@zgeoff/atc@2.19.0) (2026-10-03)
 
 ### Features
