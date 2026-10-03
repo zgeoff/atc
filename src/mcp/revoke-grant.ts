@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import type { MCPAuthSchema } from './types';
+import type { MCPAuthSchema } from './mcp-auth-schema';
 
 /**
  * Revokes a grant: its access and refresh tokens go, along with the

@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import { collectJSONStrings } from './collect-json-strings';
-import type { MCPAuthSchema } from './types';
+import type { MCPAuthSchema } from './mcp-auth-schema';
 
 /**
  * A client added with `atc clients add`.

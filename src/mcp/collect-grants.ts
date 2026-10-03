@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely';
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import type { GrantScope } from '../shared/grant-scope';
 import { collectJSONStrings } from './collect-json-strings';
-import type { MCPAuthSchema } from './types';
+import type { MCPAuthSchema } from './mcp-auth-schema';
 
 /**
  * One authorization a client holds: every refresh token rotated from one

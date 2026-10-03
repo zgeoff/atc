@@ -5,7 +5,7 @@ import type { SessionID } from '../shared/session-id';
 import { toDaemonID } from '../shared/to-daemon-id';
 import { toSessionID } from '../shared/to-session-id';
 import { DaemonConnection } from './daemon-connection';
-import type { DaemonContext } from './daemon-connection';
+import type { DaemonContext } from './daemon-context';
 
 function assertUnreachable(): never {
   throw new Error('unreachable in this test');

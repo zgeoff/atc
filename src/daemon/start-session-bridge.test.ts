@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { waitFor } from '../../test/wait-for';
+import type { HookEvent } from '../protocol/hook-event';
 import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
-import type { HookEvent } from './hooks';
 import { startSessionBridge } from './start-session-bridge';
 import type { BridgeSession } from './start-session-bridge';
 

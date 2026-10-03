@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AgentID } from '../agents/agent-adapter';
+import type { AgentID } from './agent-id';
 import { buildOptionalStringArray } from './build-optional-string-array';
 import { isRecord } from './report';
 

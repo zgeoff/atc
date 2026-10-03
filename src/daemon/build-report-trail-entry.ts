@@ -1,6 +1,6 @@
-import { truncateDetail } from '../agents/truncate-detail';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import type { SessionID } from '../shared/session-id';
+import { truncateDetail } from '../shared/truncate-detail';
 import type { TrailEntry } from '../store/trail-entry';
 import type { NoteReport } from './parse-report';
 

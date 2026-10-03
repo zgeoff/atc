@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AgentID } from './agent-adapter';
+import type { AgentID } from '../shared/agent-id';
 import { buildCLICommand } from './build-cli-command';
 
 /**

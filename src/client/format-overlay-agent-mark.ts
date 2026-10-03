@@ -1,4 +1,4 @@
-import type { AgentID } from '../agents/agent-adapter';
+import type { AgentID } from '../shared/agent-id';
 
 const BUILT_IN_MARKS: Readonly<Record<AgentID, string>> = { grok: 'g', codex: 'x' };
 
