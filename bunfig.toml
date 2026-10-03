@@ -8,11 +8,10 @@ exact = true
 # supply-chain guard: only install versions published >= 7 days ago
 minimumReleaseAge = 604800
 
-# qs 6.16.0 fixes GHSA-x5fp-wj9c-mxmx and GHSA-4mjr-xmp4-gh2g and is younger than the gate.
-# @zgeoff/imp-client is pinned to a release younger than the gate; each pinned
-# version's provenance and registry signatures are checked before the pin, and its
-# own dependencies stay behind the gate.
-minimumReleaseAgeExcludes = ["qs", "@zgeoff/imp-client"]
+# @zgeoff/imp-client, a first-party package, is pinned to a release younger than
+# the gate; each pinned version's provenance and registry signatures are checked
+# before the pin, and its own dependencies stay behind the gate.
+minimumReleaseAgeExcludes = ["@zgeoff/imp-client"]
 
 [test]
 # isolates every test run from the real home and runtime directories, then
