@@ -15,6 +15,9 @@ interface AccessRequest {
   readonly ref?: string | undefined;
   readonly sha?: string | undefined;
   readonly credential?: GitCredential | undefined;
+
+  // How long the listing may take; 20 s when unset.
+  readonly timeoutMs?: number | undefined;
 }
 
 interface RepositoryAccess {
@@ -66,7 +69,7 @@ export async function checkRepositoryAccess(
       return resolved;
     }
 
-    const listing = await collectRemoteRefs(resolved.url, request.credential);
+    const listing = await collectRemoteRefs(resolved.url, request.credential, request.timeoutMs);
 
     if (!listing.ok) {
       return listing;

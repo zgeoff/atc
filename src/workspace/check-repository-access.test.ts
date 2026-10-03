@@ -193,3 +193,30 @@ test('it authenticates with an env credential through the askpass helper', async
       header === `Basic ${Buffer.from('x-access-token:tok-77a1').toString('base64')}`,
   );
 });
+
+test('it refuses an upstream that does not answer within its time limit', async () => {
+  const server = Bun.serve({
+    port: 0,
+    hostname: '127.0.0.1',
+    fetch: () => new Promise<Response>(() => {}),
+  });
+
+  onTestFinished(async () => {
+    await server.stop(true);
+  });
+
+  const started = Date.now();
+
+  const access = await checkRepositoryAccess({
+    url: `http://127.0.0.1:${server.port}/silent.git`,
+    timeoutMs: 300,
+  });
+
+  expect(access).toStrictEqual({
+    ok: false,
+    code: 'clone_failed',
+    message: 'git ls-remote did not answer within 0.3 s',
+  });
+
+  expect(Date.now() - started).toBeLessThan(5000);
+});

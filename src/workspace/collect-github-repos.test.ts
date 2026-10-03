@@ -143,3 +143,22 @@ test('it refuses a gh listing that prints no repository list', async () => {
     message: 'gh repo list printed no repository list',
   });
 });
+
+test('it refuses a gh listing that does not answer within its time limit', async () => {
+  await using project = setupTest();
+
+  await writeFile(project.gh, '#!/bin/sh\nexec sleep 30\n', { mode: 0o755 });
+
+  const started = Date.now();
+
+  const listed = await collectGitHubRepos({ bin: project.gh, owner: null, timeoutMs: 300 });
+
+  expect(listed).toStrictEqual({
+    ok: false,
+    code: 'github_unavailable',
+    problem: 'failed',
+    message: 'gh did not answer within 0.3 s',
+  });
+
+  expect(Date.now() - started).toBeLessThan(5000);
+});

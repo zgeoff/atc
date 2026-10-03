@@ -17,5 +17,14 @@ test('it drops git config that the host environment injects', async () => {
 test('it reads no system attributes file in an isolated command', async () => {
   const located = await runGit(['var', 'GIT_ATTR_SYSTEM'], { isolated: true });
 
-  expect(located).toStrictEqual({ exitCode: 1, stdout: '', stderr: '' });
+  expect(located).toStrictEqual({ exitCode: 1, stdout: '', stderr: '', timedOut: false });
+});
+
+test('it stops a command that runs past its time limit and reports it timed out', async () => {
+  const started = Date.now();
+
+  const run = await runGit(['-c', 'alias.wait=!sleep 30', 'wait'], { timeoutMs: 200 });
+
+  expect(run).toStrictEqual({ exitCode: -1, stdout: '', stderr: '', timedOut: true });
+  expect(Date.now() - started).toBeLessThan(5000);
 });

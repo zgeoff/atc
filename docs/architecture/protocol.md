@@ -557,7 +557,8 @@ signed in to sees them:
   `repos.probe` proves which URL form the daemon's host can read.
 - A daemon host without `gh` fails the request with `github_unavailable` and `data.problem`
   `not_installed`, a signed-out `gh` with `not_authenticated`, and any other `gh` failure with
-  `failed` and the message `gh` printed.
+  `failed` and the message `gh` printed. A `gh` command that runs longer than 20 s fails the request
+  the same way, with `failed`.
 
 `repos.probe` checks that the daemon's host can read a git source and lists its refs. It resolves
 the URL exactly as a workspace spawn does and runs one `git ls-remote` that authenticates as the
@@ -580,7 +581,8 @@ ref listing never shows whether the upstream holds a commit; the clone checks th
 `resolved` is null. A client that spawns with both the resolved `sha` and its `ref` gets the commit
 it showed, whatever lands on the branch in between. A refusal takes the code the same failure gets
 in a spawn: `invalid_git_url`, `credential_in_url`, `credential_missing`, `clone_failed` with git's
-own message for an upstream the host cannot read, and `ref_not_found`.
+own message for an upstream the host cannot read, and `ref_not_found`. A `git ls-remote` that runs
+longer than 20 s is stopped and fails the request with `clone_failed`.
 
 ## Kill and sleep
 

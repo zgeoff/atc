@@ -5,17 +5,23 @@ interface GitRunOptions {
   readonly env?: Readonly<Record<string, string>>;
   readonly input?: string;
   readonly isolated?: boolean;
+
+  // How long the command may run before it is stopped and reported as
+  // timed out; unset waits as long as git takes.
+  readonly timeoutMs?: number;
 }
 
 interface GitRun {
   readonly exitCode: number;
   readonly stdout: string;
   readonly stderr: string;
+  readonly timedOut: boolean;
 }
 
 /**
  * Runs one git command to completion, feeding it any given input, and
- * returns its exit code and output.
+ * returns its exit code and output. A command given a time limit is
+ * stopped once it passes it, and reported as timed out.
  * git never prompts on a terminal here, since the daemon has none to answer
  * with, and its messages stay in the C locale so callers can read them.
  * Variables that pin git to some other repository, such as the `GIT_DIR` a
@@ -66,13 +72,39 @@ export async function runGit(
     stderr: 'pipe',
   });
 
-  const [stdout, stderr, exitCode] = await Promise.all([
+  const finished = Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ]);
 
-  return { exitCode, stdout, stderr };
+  if (options.timeoutMs === undefined) {
+    const [stdout, stderr, exitCode] = await finished;
+
+    return { exitCode, stdout, stderr, timedOut: false };
+  }
+
+  // A stopped git can leave a helper holding its pipes open, so a timeout
+  // answers without waiting for them to close.
+  const limit = Promise.withResolvers<null>();
+
+  const timer = setTimeout(() => {
+    limit.resolve(null);
+  }, options.timeoutMs);
+
+  const settled = await Promise.race([finished, limit.promise]);
+
+  clearTimeout(timer);
+
+  if (settled === null) {
+    proc.kill();
+
+    return { exitCode: -1, stdout: '', stderr: '', timedOut: true };
+  }
+
+  const [stdout, stderr, exitCode] = settled;
+
+  return { exitCode, stdout, stderr, timedOut: false };
 }
 
 function collectHostEnv(): Record<string, string | undefined> {

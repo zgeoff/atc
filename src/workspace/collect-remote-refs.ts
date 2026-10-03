@@ -30,16 +30,22 @@ interface RemoteRefRefusal {
   readonly message: string;
 }
 
+// How long a listing may take: a host that never answers holds a client
+// waiting on it no longer than this.
+const REMOTE_TIMEOUT_MS = 20_000;
+
 /**
  * Lists an upstream's branches and tags and the branch its HEAD points at,
  * through one `git ls-remote` that authenticates exactly as a clone of the
  * same URL does: through the host's git config, or through a private
  * askpass helper for an env credential. git never prompts. A listing git
- * cannot read is refused as `clone_failed` with git's own message.
+ * cannot read is refused as `clone_failed` with git's own message, and so
+ * is one that takes longer than the time limit, 20 s unless given.
  */
 export async function collectRemoteRefs(
   url: string,
   credential: GitCredential | undefined,
+  timeoutMs: number = REMOTE_TIMEOUT_MS,
 ): Promise<RemoteRefListing | RemoteRefRefusal> {
   const askpass = await createGitAskpass(credential);
 
@@ -52,10 +58,18 @@ export async function collectRemoteRefs(
   try {
     listed = await runGit(
       [...askpass.args, 'ls-remote', '--symref', '--', url, 'HEAD', 'refs/heads/*', 'refs/tags/*'],
-      { env: askpass.env },
+      { env: askpass.env, timeoutMs },
     );
   } finally {
     await askpass[Symbol.asyncDispose]();
+  }
+
+  if (listed.timedOut) {
+    return {
+      ok: false,
+      code: 'clone_failed',
+      message: `git ls-remote did not answer within ${timeoutMs / 1000} s`,
+    };
   }
 
   if (listed.exitCode !== 0) {

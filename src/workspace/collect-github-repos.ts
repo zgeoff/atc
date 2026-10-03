@@ -36,7 +36,13 @@ interface GitHubListRequest {
 
   // The account or organization to list; null lists the gh account's own.
   readonly owner: string | null;
+
+  // How long each gh command may take; 20 s when unset.
+  readonly timeoutMs?: number;
 }
+
+// How long a gh command may take before the listing is refused.
+const GH_TIMEOUT_MS = 20_000;
 
 // How many repositories one listing holds at most.
 const REPO_LIMIT = 500;
@@ -60,8 +66,9 @@ const REPO_LIST_SCHEMA = z.array(
  * Lists one owner's GitHub repositories through the gh CLI on this host,
  * as the gh account signed in there sees them. gh is optional: a host
  * without it, or with gh signed out, is refused as `github_unavailable`
- * with the problem, and any other gh failure carries gh's own message. gh
- * never prompts here.
+ * with the problem, and any other gh failure carries gh's own message. A gh
+ * that takes longer than the time limit, 20 s unless given, is refused as
+ * failed. gh never prompts here.
  */
 export async function collectGitHubRepos(
   request: GitHubListRequest,
@@ -77,7 +84,9 @@ export async function collectGitHubRepos(
     };
   }
 
-  const listed = await runGH(bin, [
+  const timeoutMs = request.timeoutMs ?? GH_TIMEOUT_MS;
+
+  const listed = await runGH(bin, timeoutMs, [
     'repo',
     'list',
     ...(request.owner === null ? [] : [request.owner]),
@@ -86,6 +95,15 @@ export async function collectGitHubRepos(
     '--json',
     'nameWithOwner,description,isPrivate,url,sshUrl',
   ]);
+
+  if (listed.timedOut) {
+    return {
+      ok: false,
+      code: 'github_unavailable',
+      problem: 'failed',
+      message: `gh did not answer within ${timeoutMs / 1000} s`,
+    };
+  }
 
   if (listed.exitCode !== 0) {
     return buildUnavailable(listed);
@@ -104,7 +122,7 @@ export async function collectGitHubRepos(
 
   const repos = parsed.data;
 
-  const protocol = await runGH(bin, ['config', 'get', 'git_protocol']);
+  const protocol = await runGH(bin, timeoutMs, ['config', 'get', 'git_protocol']);
 
   return {
     ok: true,
@@ -118,11 +136,12 @@ interface GHRun {
   readonly exitCode: number;
   readonly stdout: string;
   readonly stderr: string;
+  readonly timedOut: boolean;
 }
 
 // gh reads its own config and the host's environment for its token, and
 // is kept from prompting, colouring, or checking for updates.
-async function runGH(bin: string, args: readonly string[]): Promise<GHRun> {
+async function runGH(bin: string, timeoutMs: number, args: readonly string[]): Promise<GHRun> {
   const proc = Bun.spawn([bin, ...args], {
     env: {
       ...process.env,
@@ -137,13 +156,31 @@ async function runGH(bin: string, args: readonly string[]): Promise<GHRun> {
     stderr: 'pipe',
   });
 
-  const [stdout, stderr, exitCode] = await Promise.all([
+  const finished = Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ]);
 
-  return { exitCode, stdout, stderr };
+  const limit = Promise.withResolvers<null>();
+
+  const timer = setTimeout(() => {
+    limit.resolve(null);
+  }, timeoutMs);
+
+  const settled = await Promise.race([finished, limit.promise]);
+
+  clearTimeout(timer);
+
+  if (settled === null) {
+    proc.kill();
+
+    return { exitCode: -1, stdout: '', stderr: '', timedOut: true };
+  }
+
+  const [stdout, stderr, exitCode] = settled;
+
+  return { exitCode, stdout, stderr, timedOut: false };
 }
 
 // gh exits 4 when it needs a sign-in it does not have.
