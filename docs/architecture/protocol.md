@@ -43,14 +43,14 @@ Claude Code's hook events. The MCP tools map onto both mechanically (`session.sp
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
 `no_such_session`, `session_dead`, `unsupported`, `unsupported_operation`, `unknown_target`,
 `target_unavailable`, `target_changed`, `target_config_invalid`, `target_forbidden`,
-`host_unavailable`, `auth_not_configured`, `auth_target_unsupported`, `host_leased`,
-`confirmation_required`, `confirm_token_invalid`, `already_answered`, `too_slow`, `stale_epoch`,
-`idempotency_conflict`, `outcome_unknown`, `idempotency_key_unknown`, `github_unavailable`,
-`internal`, plus the workspace refusals that [workspaces](#workspaces) lists. An unknown method is
-an `unknown_method` error, never a disconnect; unknown fields in any message are ignored. A peer
-decodes an error code it does not know as `internal` and keeps its `msg`. These rules exist so
-additive evolution never breaks a peer. An error may also carry `data`, an object whose fields its
-code defines.
+`host_unavailable`, `auth_not_configured`, `auth_target_unsupported`, the
+[runtime auth](#runtime-auth) refusals, `host_leased`, `confirmation_required`,
+`confirm_token_invalid`, `already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`,
+`outcome_unknown`, `idempotency_key_unknown`, `github_unavailable`, `internal`, plus the workspace
+refusals that [workspaces](#workspaces) lists. An unknown method is an `unknown_method` error, never
+a disconnect; unknown fields in any message are ignored. A peer decodes an error code it does not
+know as `internal` and keeps its `msg`. These rules exist so additive evolution never breaks a peer.
+An error may also carry `data`, an object whose fields its code defines.
 
 `unsupported_operation` refuses a request that the session's execution host cannot serve, such as
 input to a host that takes none. Its `data` holds the provider kind as `provider` and the missing
@@ -79,7 +79,8 @@ says to restart the daemon. The client never restarts the daemon on its own; the
                                         "message.idempotency", "spawn.target",
                                         "request.principal", "spawn.workspace", "session.forget",
                                         "session.submit", "report.get", "sources",
-                                        "git.probe", "transport.tcp", "idempotency.replayOnly"],
+                                        "git.probe", "transport.tcp", "idempotency.replayOnly",
+                                        "session.auth"],
                            "idempotency": { "completedRetentionMs": 86400000 },
                            "lastUsedAgent": "claude" } }
 ```
@@ -93,10 +94,11 @@ returns `spawnOptions`, `daemon.hello` returns `daemonID`, every session descrip
 `principal`, `session.spawn` takes `workspace`, `session.forget`, `session.submit`, and `report.get`
 exist, `sources.list` and `sources.interpret` exist while `agents.list` returns `sources`,
 `git.probe` exists while a git `workspace` takes both `ref` and `sha`, the daemon can serve a TCP
-listener (`transport.tcp`), and a keyed `session.spawn` or `session.message` takes `replayOnly`
-(`idempotency.replayOnly`). A daemon from before the list existed sends none, and it ignores the
-parameters it does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the
-list rather than the build string to learn what the running daemon honours.
+listener (`transport.tcp`), a keyed `session.spawn` or `session.message` takes `replayOnly`
+(`idempotency.replayOnly`), and `session.auth.revoke` and `session.auth.rebind` exist
+(`session.auth`). A daemon from before the list existed sends none, and it ignores the parameters it
+does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the list rather
+than the build string to learn what the running daemon honours.
 
 `daemonID` is the id the daemon minted into its state store the first time it opened it, so it stays
 the same across daemon restarts. Every session descriptor holds a `locator` of
@@ -175,6 +177,8 @@ when the handshake gives no principal.
 | `session.kill`          | end a session or put its host to sleep; explicit, never implied by disconnect. [Kill and sleep](#kill-and-sleep) covers the cases                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `session.ack`           | clear unread without attaching                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `session.forget`        | forget a session for good, destroying its host on a target that can. [Kill and sleep](#kill-and-sleep) covers the confirm token                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `session.auth.revoke`   | owner only: withdraw the grants of a session's host. [Runtime auth](#runtime-auth) covers it                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `session.auth.rebind`   | owner only: bind a session's host to its agent's current auth selection. [Runtime auth](#runtime-auth) covers it                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `session.attach`        | subscribe to a session's output; returns replay + current dims                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `session.detach`        | unsubscribe; session keeps running                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `session.input`         | keyboard input to a session (`{ session, d }`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -476,6 +480,10 @@ refuses the request before anything starts:
   `data.agent` and `data.target`. No harness starts.
 - A gateway configured with `auth` is `auth_target_unsupported` on every target, with the agent id
   as `data.agent`. No harness starts and no host is prepared.
+- An agent that takes its credential from impd's broker is `auth_target_unsupported` on a target
+  whose provider has no broker, with `data.agent` and `data.target`, and on one where the agent
+  plans no guest settings for the broker, with `no_guest_plan` as `data.problem`.
+  [Runtime auth](#runtime-auth) covers the refusals on a target that has one.
 
 A refused spawn under an idempotency key leaves the key free for a retry. A restore lists a session
 whose target the daemon cannot use as exited, and input or `session.adopt` on it answers with the
@@ -540,9 +548,44 @@ tree its fleet rows hold once it no longer does, such as after a restart. A key 
 target, which only a key from before atc recorded them holds, refuses every principal's replay; the
 daemon's owner still gets the session. A kill, a forget, or a pin checks the tree in the same step
 that starts it, and a kill or a forget acts only on the sub-sessions the tree held then.
-`daemon.quit` and `fleet.restore` act on the whole daemon, and a principal gets `unauthorized` for
-them. The [events socket](#events-socket) has no handshake and streams every event: it is a local
-socket for the daemon's owner alone.
+`daemon.quit` and `fleet.restore` act on the whole daemon, and `session.auth.revoke` and
+`session.auth.rebind` act on the credentials a session's host may use, so a principal gets
+`unauthorized` for all four. The [events socket](#events-socket) has no handshake and streams every
+event: it is a local socket for the daemon's owner alone.
+
+## Runtime auth
+
+A session whose agent takes its credential from impd's credential broker runs on an imp whose grants
+atc binds. The daemon records each host's binding in its state store: the imp's name and id, the
+secrets and rules the binding grants, a revision, and a state. Every start of such a session's
+harness asks impd to require the broker, so impd refuses the start and runs nothing when the broker
+CA failed to install or the imp holds no grant. That refusal is `broker_not_ready`, with impd's
+cause as `data.detail`.
+
+- A spawn checks impd and its token first and writes nothing on a refusal: impd must have grantable
+  tokens, secret rebinds, and exec requirements (`auth_impd_too_old`), the token must manage imps
+  only inside the target's imp name prefix (`auth_token_scope`, `auth_token_too_broad`,
+  `auth_imp_out_of_scope`) and grant every bound secret (`auth_secret_not_grantable`), and each
+  secret's kind and rules must match the binding exactly (`auth_secret_mismatch`). It then records
+  the binding, creates a new imp, and adds each grant. An imp already under the name is
+  `auth_runtime_exists`. A spawn that fails after that takes back the imp it created; a take-back it
+  cannot confirm answers `outcome_unknown` under an idempotency key.
+- A revive, a restore, and a sub-session joining its parent's imp check the same, and that the
+  binding is `ready` (`auth_blocked`, with the state as `data.state`), that the used profiles hash
+  as recorded (`auth_rebind_required`), that the imp is the one recorded (`auth_runtime_mismatch`),
+  and that impd holds exactly the bound grants (`auth_grant_missing`, `auth_grants_mismatch`). atc
+  never adds a missing grant back. A sub-session joins only a host bound to the same binding as its
+  own: `auth_binding_mismatch` otherwise. A selection the auth profiles cannot bind is
+  `auth_binding_invalid`.
+- `session.auth.revoke` (`{ session }`) blocks every launch on the session's host first, then
+  removes each grant and answers `{ revoked: true }`. A running harness keeps running, and impd
+  fails its later requests. A grant atc cannot confirm gone leaves the launch block in place and
+  answers `auth_revocation_pending`.
+- `session.auth.rebind` (`{ session }`) binds the host to its agent's current selection at the next
+  revision and answers `{ revision }`. A rebind that fails removes only the grants it added, keeps
+  the old revision, and blocks launches until a rebind succeeds.
+- A forget of the host's owner blocks launches, destroys the imp it recorded, and drops the binding.
+  An imp with another id under the name stays, and the forget answers `auth_revocation_pending`.
 
 ## Workspaces
 

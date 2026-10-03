@@ -159,6 +159,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'git.probe',
       'transport.tcp',
       'idempotency.replayOnly',
+      'session.auth',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
