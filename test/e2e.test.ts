@@ -933,6 +933,98 @@ test('it restores the fleet from disk after a crash', async () => {
   await ctx.waitFor('--resume fake-1');
 });
 
+test('it restarts a daemon on another protocol after the user confirms and restores the fleet', async () => {
+  await using ctx = setupTest();
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await spawnSession(ctx, pty, 'fleettest');
+
+  const stateDir = join(ctx.home, '.local', 'state', 'atc');
+  const start = Date.now();
+  let fleet: unknown[] = [];
+
+  while (Date.now() - start < 3000) {
+    try {
+      const db = new Database(join(stateDir, 'atc.db'), { readonly: true });
+
+      fleet = db.query('SELECT agent_session_id AS agentSessionID FROM fleet').all();
+
+      db.close();
+    } catch {}
+
+    // The row lands at spawn, before the agent reports its session id, so
+    // the wait runs until the row holds that id.
+    if (fleet.some((row) => isRecord(row) && row['agentSessionID'] !== null)) {
+      break;
+    }
+
+    await Bun.sleep(50);
+  }
+
+  pty.kill();
+
+  const daemonPID = Number(readFileSync(join(ctx.home, 'atc-daemon.pid'), 'utf8'));
+
+  process.kill(daemonPID, 'SIGKILL');
+
+  await Bun.sleep(300); // let the killed processes release their sockets before the next daemon binds
+
+  // A daemon on protocol v3 takes the socket and records its pid, as a
+  // daemon from another release would.
+  const sockPath = join(ctx.home, 'atc-daemon.sock');
+  const daemonPath = join(ctx.home, 'legacy-daemon.ts');
+
+  rmSync(sockPath, { force: true });
+
+  writeFileSync(
+    daemonPath,
+    `import { writeFileSync } from 'node:fs';
+import { startLegacyDaemon } from '${join(import.meta.dir, 'start-legacy-daemon.ts')}';
+startLegacyDaemon('${sockPath}', { protocol: 3 });
+writeFileSync('${join(stateDir, 'daemon.json')}', JSON.stringify({ pid: process.pid, socketPath: '${sockPath}', reporterSocketPath: '${join(ctx.home, 'atc.sock')}', eventsSocketPath: null }));
+process.stdout.write('up\\n');
+`,
+  );
+
+  const legacy = Bun.spawn([process.execPath, daemonPath], {
+    env: collectEnv({ HOME: ctx.home, XDG_RUNTIME_DIR: ctx.home }),
+    stdout: 'pipe',
+    stderr: 'inherit',
+  });
+
+  onTestFinished(() => {
+    legacy.kill('SIGKILL');
+  });
+
+  const reader = legacy.stdout.getReader();
+
+  await reader.read();
+
+  reader.releaseLock();
+
+  expect(fleet).toStrictEqual([{ agentSessionID: 'fake-1' }]);
+
+  ctx.reset();
+
+  const rebooted = ctx.boot();
+
+  await ctx.waitFor('Restart it now?');
+
+  expect(ctx.read()).toInclude('daemon atc/legacy-build speaks v3');
+
+  ctx.reset();
+  rebooted.write('y');
+
+  await ctx.waitFor('fleettest');
+
+  await legacy.exited;
+
+  expect(legacy.signalCode).toBe('SIGTERM');
+});
+
 test('it revives a killed session in place with a fresh terminal', async () => {
   await using ctx = setupTest();
 

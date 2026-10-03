@@ -21,10 +21,17 @@ export interface ProtocolMismatch {
 export function formatProtocolMismatch(mismatch: ProtocolMismatch): string {
   const pid = mismatch.daemonPID === null ? 'pid unknown' : `pid ${mismatch.daemonPID}`;
 
+  // Without a pid the TUI cannot stop the daemon either, so the restart is
+  // left to the user.
+  const restart =
+    mismatch.daemonPID === null
+      ? `To restart it, find its pid with \`ss -xlp | grep ${mismatch.socketPath}\` on Linux or \`lsof -U | grep ${mismatch.socketPath}\` on macOS, stop that process, and run \`atc\` again: every hosted session ends, and \`R\` respawns them from their transcripts.`
+      : 'To restart it, run `atc` from the build you want and confirm its restart prompt: every hosted session ends, and the fleet is restored on the new daemon.';
+
   return [
     `the atc daemon (${pid}, socket ${mismatch.socketPath}) speaks another protocol than this client, ${mismatch.clientBuild} on protocol v${mismatch.clientProtocol}.`,
     `The daemon answered: ${mismatch.daemonMessage}`,
     'It was left running, so the sessions it hosts keep running.',
-    'To restart it, run `atc` from the build you want and confirm its restart prompt: every hosted session ends, and the fleet is restored on the new daemon.',
+    restart,
   ].join('\n');
 }

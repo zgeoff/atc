@@ -19,6 +19,95 @@ const idleAdapter: AgentAdapter = {
   buildResumeCommand: () => null,
 };
 
+interface FakeDaemonOptions {
+  // Whether the daemon writes its record, the only place a client finds
+  // its pid in this home.
+  readonly record: boolean;
+}
+
+/**
+ * Starts a daemon on protocol v3 in its own process, under a fresh home
+ * whose computed socket path is the daemon's, hosting a session process.
+ */
+async function setupTest(options: FakeDaemonOptions) {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-boot-daemon-'));
+  const stateDir = join(dir, '.local', 'state', 'atc');
+  const sockPath = join(dir, 'atc-daemon.sock');
+  const daemonPath = join(dir, 'daemon.ts');
+
+  mkdirSync(stateDir, { recursive: true });
+
+  const record = JSON.stringify({
+    pid: '<pid>',
+    socketPath: sockPath,
+    reporterSocketPath: join(dir, 'atc.sock'),
+    eventsSocketPath: null,
+  });
+
+  writeFileSync(
+    daemonPath,
+    `import { writeFileSync } from 'node:fs';
+import { startLegacyDaemon } from '${join(import.meta.dir, '..', '..', 'test', 'start-legacy-daemon.ts')}';
+startLegacyDaemon('${sockPath}', { protocol: 3 });
+const session = Bun.spawn(['sleep', '60']);
+if (${options.record}) {
+  writeFileSync('${join(stateDir, 'daemon.json')}', '${record}'.replace('"<pid>"', String(process.pid)));
+}
+process.stdout.write(JSON.stringify({ sessionPID: session.pid }) + '\\n');
+`,
+  );
+
+  const env: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+
+  env['HOME'] = dir;
+  env['XDG_RUNTIME_DIR'] = dir;
+
+  const daemon = Bun.spawn([process.execPath, daemonPath], {
+    env,
+    stdout: 'pipe',
+    stderr: 'inherit',
+  });
+
+  const reader = daemon.stdout.getReader();
+
+  const firstChunk = await reader.read();
+
+  reader.releaseLock();
+
+  const started: unknown = JSON.parse(new TextDecoder().decode(firstChunk.value));
+
+  if (!isRecord(started) || typeof started['sessionPID'] !== 'number') {
+    throw new TypeError('the daemon did not report its session');
+  }
+
+  const sessionPID = started['sessionPID'];
+
+  return {
+    dir,
+    sockPath,
+    env,
+    daemon,
+    sessionPID,
+    async [Symbol.asyncDispose]() {
+      try {
+        process.kill(sessionPID, 'SIGKILL');
+      } catch {}
+
+      daemon.kill('SIGKILL');
+
+      await daemon.exited;
+
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
 test('it surfaces a codex hello as the last-used agent instead of coercing it to claude', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'atc-boot-daemon-'));
 
@@ -141,28 +230,9 @@ boot.client.stop();
 });
 
 test('it leaves a daemon on another protocol running with its session and rejects with both builds and versions', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-boot-daemon-'));
-  const stateDir = join(dir, '.local', 'state', 'atc');
-  const sockPath = join(dir, 'atc-daemon.sock');
+  await using fake = await setupTest({ record: true });
 
-  mkdirSync(stateDir, { recursive: true });
-
-  // The daemon runs in its own process with its own pid, recorded where a
-  // client looks for the daemon to stop, and hosts a session process.
-  const daemonPath = join(dir, 'daemon.ts');
-
-  writeFileSync(
-    daemonPath,
-    `import { writeFileSync } from 'node:fs';
-import { startLegacyDaemon } from '${join(import.meta.dir, '..', '..', 'test', 'start-legacy-daemon.ts')}';
-startLegacyDaemon('${sockPath}', { protocol: 3 });
-const session = Bun.spawn(['sleep', '60']);
-writeFileSync('${join(stateDir, 'daemon.json')}', JSON.stringify({ pid: process.pid, socketPath: '${sockPath}', reporterSocketPath: '${join(dir, 'atc.sock')}', eventsSocketPath: null }));
-process.stdout.write(JSON.stringify({ sessionPID: session.pid }) + '\\n');
-`,
-  );
-
-  const probePath = join(dir, 'probe.ts');
+  const probePath = join(fake.dir, 'probe.ts');
 
   writeFileSync(
     probePath,
@@ -177,45 +247,11 @@ process.exit(0);
 `,
   );
 
-  const env: Record<string, string> = {};
-
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined) {
-      env[key] = value;
-    }
-  }
-
-  env['HOME'] = dir;
-  env['XDG_RUNTIME_DIR'] = dir;
-
-  const daemon = Bun.spawn([process.execPath, daemonPath], {
-    env,
+  const proc = Bun.spawn([process.execPath, probePath], {
+    env: fake.env,
     stdout: 'pipe',
-    stderr: 'inherit',
+    stderr: 'pipe',
   });
-
-  const reader = daemon.stdout.getReader();
-
-  const firstChunk = await reader.read();
-
-  reader.releaseLock();
-
-  const started: unknown = JSON.parse(new TextDecoder().decode(firstChunk.value));
-
-  if (!isRecord(started) || typeof started['sessionPID'] !== 'number') {
-    throw new TypeError('the daemon did not report its session');
-  }
-
-  const sessionPID = started['sessionPID'];
-
-  onTestFinished(() => {
-    process.kill(sessionPID, 'SIGKILL');
-    daemon.kill('SIGKILL');
-
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  const proc = Bun.spawn([process.execPath, probePath], { env, stdout: 'pipe', stderr: 'pipe' });
 
   const stdout = await new Response(proc.stdout).text();
 
@@ -227,18 +263,130 @@ process.exit(0);
     throw new TypeError('probe did not print its build');
   }
 
-  expect(daemon.exitCode).toBeNull();
-  expect(daemon.signalCode).toBeNull();
-  expect(() => process.kill(daemon.pid, 0)).not.toThrow();
-  expect(() => process.kill(sessionPID, 0)).not.toThrow();
+  expect(fake.daemon.exitCode).toBeNull();
+  expect(fake.daemon.signalCode).toBeNull();
+  expect(() => process.kill(fake.daemon.pid, 0)).not.toThrow();
+  expect(() => process.kill(fake.sessionPID, 0)).not.toThrow();
 
   expect(probed['outcome']).toStrictEqual({
     code: 'protocol_mismatch',
     message: [
-      `the atc daemon (pid ${daemon.pid}, socket ${sockPath}) speaks another protocol than this client, ${probed['build']} on protocol v4.`,
+      `the atc daemon (pid ${fake.daemon.pid}, socket ${fake.sockPath}) speaks another protocol than this client, ${probed['build']} on protocol v4.`,
       `The daemon answered: ${probed['build']} speaks protocol v4, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build`,
       'It was left running, so the sessions it hosts keep running.',
       'To restart it, run `atc` from the build you want and confirm its restart prompt: every hosted session ends, and the fleet is restored on the new daemon.',
     ].join('\n'),
   });
+});
+
+test('it stops a daemon on another protocol and boots its own build when the caller confirms the restart', async () => {
+  await using fake = await setupTest({ record: true });
+
+  const probePath = join(fake.dir, 'probe.ts');
+
+  // The probe quits the daemon it booted, so nothing outlives the test.
+  writeFileSync(
+    probePath,
+    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
+const asked = [];
+const boot = await bootDaemonClient({
+  onProtocolMismatch: (mismatch) => { asked.push(mismatch.daemonPID); return Promise.resolve(true); },
+});
+await boot.client.sendRequest('daemon.quit');
+boot.client.stop();
+process.stdout.write(JSON.stringify({ asked, stale: boot.stale }));
+process.exit(0);
+`,
+  );
+
+  const proc = Bun.spawn([process.execPath, probePath], {
+    env: fake.env,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  const stdout = await new Response(proc.stdout).text();
+
+  await proc.exited;
+
+  expect(JSON.parse(stdout)).toStrictEqual({ asked: [fake.daemon.pid], stale: false });
+
+  await fake.daemon.exited;
+
+  expect(fake.daemon.signalCode).toBe('SIGTERM');
+});
+
+test('it leaves a daemon on another protocol running and rejects when the caller declines the restart', async () => {
+  await using fake = await setupTest({ record: true });
+
+  const probePath = join(fake.dir, 'probe.ts');
+
+  writeFileSync(
+    probePath,
+    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
+const asked = [];
+const outcome = await bootDaemonClient({
+  onProtocolMismatch: (mismatch) => { asked.push(mismatch.daemonPID); return Promise.resolve(false); },
+}).then(
+  (boot) => { boot.client.stop(); return { booted: true }; },
+  (error) => ({ code: error.code }),
+);
+process.stdout.write(JSON.stringify({ asked, outcome }));
+process.exit(0);
+`,
+  );
+
+  const proc = Bun.spawn([process.execPath, probePath], {
+    env: fake.env,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  const stdout = await new Response(proc.stdout).text();
+
+  await proc.exited;
+
+  expect(fake.daemon.signalCode).toBeNull();
+  expect(() => process.kill(fake.daemon.pid, 0)).not.toThrow();
+  expect(() => process.kill(fake.sessionPID, 0)).not.toThrow();
+
+  expect(JSON.parse(stdout)).toStrictEqual({
+    asked: [fake.daemon.pid],
+    outcome: { code: 'protocol_mismatch' },
+  });
+});
+
+test('it never asks to restart a daemon on another protocol whose pid it cannot find', async () => {
+  await using fake = await setupTest({ record: false });
+
+  const probePath = join(fake.dir, 'probe.ts');
+
+  writeFileSync(
+    probePath,
+    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
+const asked = [];
+const outcome = await bootDaemonClient({
+  onProtocolMismatch: (mismatch) => { asked.push(mismatch.daemonPID); return Promise.resolve(true); },
+}).then(
+  (boot) => { boot.client.stop(); return { booted: true }; },
+  (error) => ({ code: error.code }),
+);
+process.stdout.write(JSON.stringify({ asked, outcome }));
+process.exit(0);
+`,
+  );
+
+  const proc = Bun.spawn([process.execPath, probePath], {
+    env: fake.env,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  const stdout = await new Response(proc.stdout).text();
+
+  await proc.exited;
+
+  expect(fake.daemon.signalCode).toBeNull();
+  expect(() => process.kill(fake.daemon.pid, 0)).not.toThrow();
+  expect(JSON.parse(stdout)).toStrictEqual({ asked: [], outcome: { code: 'protocol_mismatch' } });
 });

@@ -19,7 +19,7 @@ test('it holds both builds, both versions, the pid, and the deliberate restart',
   `);
 });
 
-test('it says the pid is unknown when no record or pid file belongs to the socket', () => {
+test('it tells the user to find and stop the daemon when its pid is unknown', () => {
   const message = formatProtocolMismatch({
     socketPath: '/run/user/1000/atc-daemon.sock',
     daemonPID: null,
@@ -28,7 +28,10 @@ test('it says the pid is unknown when no record or pid file belongs to the socke
     daemonMessage: 'refused',
   });
 
-  expect(message).toStartWith(
-    'the atc daemon (pid unknown, socket /run/user/1000/atc-daemon.sock)',
-  );
+  expect(message).toMatchInlineSnapshot(`
+    "the atc daemon (pid unknown, socket /run/user/1000/atc-daemon.sock) speaks another protocol than this client, atc/2.13.0+abc on protocol v4.
+    The daemon answered: refused
+    It was left running, so the sessions it hosts keep running.
+    To restart it, find its pid with \`ss -xlp | grep /run/user/1000/atc-daemon.sock\` on Linux or \`lsof -U | grep /run/user/1000/atc-daemon.sock\` on macOS, stop that process, and run \`atc\` again: every hosted session ends, and \`R\` respawns them from their transcripts."
+  `);
 });
