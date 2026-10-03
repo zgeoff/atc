@@ -156,7 +156,8 @@ revokes every refresh token the client holds, so each of that client's grants ha
 again.
 
 `atc grants` lists the live grants with their client, scopes, and last use.
-`atc grants --revoke <id>` deletes a grant's tokens and the consent its client holds.
+`atc grants --revoke=<id>` deletes a grant's tokens and the consent its client holds. A grant ID can
+start with a dash, which the `=` form always passes as the value.
 
 ## Scopes
 

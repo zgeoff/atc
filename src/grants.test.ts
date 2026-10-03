@@ -4,57 +4,75 @@ import { readJSONRecord } from '../test/read-json-record';
 import { runMCPAuthorization } from '../test/run-mcp-authorization';
 import { setupMCPHTTP } from '../test/setup-mcp-http';
 
-test('it lists a grant and revokes it so its access token stops working', async () => {
-  await using server = await setupMCPHTTP();
+// A grant id is random base64url, so one in 64 starts with a dash; this one
+// does, with an underscore after it, the shape an argument parser reads as a
+// group of short flags.
+const DASH_GRANT_ID = '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc';
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+test.each([
+  ['--revoke <id>', ['--revoke', DASH_GRANT_ID]],
+  ['--revoke=<id>', [`--revoke=${DASH_GRANT_ID}`]],
+])(
+  'it lists a grant whose id starts with a dash and revokes it with %s so its access token stops working',
+  async (_form, revokeArgs) => {
+    await using server = await setupMCPHTTP();
 
-  const authorized = await runMCPAuthorization(server, {
-    clientID,
-    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
-    scope: 'read message',
-    ticked: ['read'],
-  });
+    const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
-    method: 'POST',
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code: authorized.code,
-      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-      client_id: clientID,
-      code_verifier: authorized.verifier,
-    }),
-  });
+    const authorized = await runMCPAuthorization(server, {
+      clientID,
+      redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+      scope: 'read message',
+      ticked: ['read'],
+    });
 
-  const tokens = await readJSONRecord(exchanged);
+    const exchanged = await fetch(`${server.url}/oauth2/token`, {
+      method: 'POST',
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: authorized.code,
+        redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+        client_id: clientID,
+        code_verifier: authorized.verifier,
+      }),
+    });
 
-  const env = { PATH: process.env['PATH'] ?? '', HOME: server.home };
-  const cli = join(import.meta.dir, 'cli.ts');
-  const listed = Bun.spawnSync([process.execPath, cli, 'grants'], { env });
+    const tokens = await readJSONRecord(exchanged);
 
-  const grantID = /^(?<id>\S+) {2}Claude {2}read {2}last used never\n$/.exec(
-    listed.stdout.toString(),
-  )?.groups?.['id'];
+    const grantID = DASH_GRANT_ID;
 
-  if (grantID === undefined) {
-    throw new Error(`no grant in: ${listed.stdout.toString()}`);
-  }
+    await server.store.db
+      .updateTable('oauthAccessToken')
+      .set({ authorizationCodeId: grantID })
+      .where('clientId', '=', clientID)
+      .execute();
 
-  const revoked = Bun.spawnSync([process.execPath, cli, 'grants', '--revoke', grantID], { env });
+    await server.store.db
+      .updateTable('oauthRefreshToken')
+      .set({ authorizationCodeId: grantID })
+      .where('clientId', '=', clientID)
+      .execute();
 
-  const pinged = await fetch(`${server.url}/mcp`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
-  });
+    const env = { PATH: process.env['PATH'] ?? '', HOME: server.home };
+    const cli = join(import.meta.dir, 'cli.ts');
+    const listed = Bun.spawnSync([process.execPath, cli, 'grants'], { env });
+    const revoked = Bun.spawnSync([process.execPath, cli, 'grants', ...revokeArgs], { env });
 
-  const emptied = Bun.spawnSync([process.execPath, cli, 'grants'], { env });
+    const pinged = await fetch(`${server.url}/mcp`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+    });
 
-  expect(revoked.stdout.toString()).toBe(`Revoked grant ${grantID}\n`);
-  expect(pinged.status).toBe(401);
-  expect(emptied.stdout.toString()).toBe('No grants.\n');
-});
+    const emptied = Bun.spawnSync([process.execPath, cli, 'grants'], { env });
+
+    expect(listed.stdout.toString()).toBe(`${grantID}  Claude  read  last used never\n`);
+    expect(revoked.stderr.toString()).toBe('');
+    expect(revoked.stdout.toString()).toBe(`Revoked grant ${grantID}\n`);
+    expect(pinged.status).toBe(401);
+    expect(emptied.stdout.toString()).toBe('No grants.\n');
+  },
+);
 
 test('it refuses to revoke an unknown grant', async () => {
   await using server = await setupMCPHTTP();

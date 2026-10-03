@@ -51,13 +51,17 @@ function setupTest(): TestContext {
   const hookReport = `"${process.execPath}" "${join(repo, 'src', 'cli.ts')}" hook-report`;
 
   // Like real Claude Code, the fake repaints its screen on SIGWINCH — the
-  // attach jiggle depends on exactly that behavior for replay.
+  // attach jiggle depends on exactly that behavior for replay. Drop
+  // fake-claude-delay-resume to make a resumed run paint a second late.
   writeFileSync(
     fakeClaude,
     `#!/usr/bin/env bash
 ARGS="$*"
 paint() { echo "FAKE_CLAUDE_UP args: $ARGS"; }
 trap paint WINCH
+if [ -f "$HOME/fake-claude-delay-resume" ]; then
+  case "$ARGS" in *--resume*) sleep 1 ;; esac
+fi
 paint
 printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | ${hookReport}
 sleep 0.3
@@ -916,6 +920,10 @@ test('it revives a killed session in place with a fresh terminal', async () => {
 
   writeFileSync(join(ctx.home, 'fake-transcript.jsonl'), '{"type":"user"}\n');
 
+  // The revived process paints a second late, after the attach has replayed
+  // the killed process's screen.
+  writeFileSync(join(ctx.home, 'fake-claude-delay-resume'), '');
+
   const pty = ctx.boot();
 
   await ctx.waitFor('atc — control tower');
@@ -938,9 +946,9 @@ test('it revives a killed session in place with a fresh terminal', async () => {
   ctx.reset();
   pty.write('P');
 
-  await ctx.waitFor('FAKE_CLAUDE_UP');
-
-  expect(ctx.read()).toInclude('--resume fake-1');
+  // The replayed screen of the killed process already holds FAKE_CLAUDE_UP,
+  // so only the resume argument shows the revived process started.
+  await ctx.waitFor('--resume fake-1');
 });
 
 test('it explains a revive that has no saved transcript instead of failing silently', async () => {
