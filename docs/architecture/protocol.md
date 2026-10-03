@@ -585,7 +585,9 @@ retry runs fresh. A spawn that fails after its process starts kills that process
 session first. The daemon drops the key only once the process has exited and the fleet without that
 session is written. When the process outlives a 2 s wait after the kill, or the fleet write fails,
 the session may still stand, so the daemon keeps the key as `outcome_unknown` and answers the spawn
-with that error. A session whose process outlived the wait stays listed.
+with that error. A session whose process outlived the wait stays listed. While the daemon waits for
+the exit, it refuses a `session.adopt` of that session as `no_such_session`, so no revived process
+outlives the rollback.
 
 A spawn whose process started but whose fleet write fails gets `outcome_unknown` too, and its
 session stays listed and running. A request whose key the daemon cannot mark completed gets

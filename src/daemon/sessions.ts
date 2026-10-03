@@ -240,6 +240,10 @@ export class SessionManager {
   // write deletes; each stays here until a write carrying it lands.
   private readonly removedIDs = new Set<SessionID>();
 
+  // Failed spawns whose rollback is still waiting on the killed process, so
+  // no revive starts a harness the rollback would then drop untracked.
+  private readonly rollingBack = new Set<SessionID>();
+
   // The epoch the next harness start or attach takes, unique across every
   // session this manager holds.
   private nextBridgeEpoch = 1;
@@ -475,7 +479,13 @@ export class SessionManager {
   async adoptTerminal(id: SessionID, cols: number, rows: number): Promise<Session | null> {
     const s = this.sessions.find((x) => x.id === id);
 
-    if (!s || s.pty !== null || s.agentSessionID === undefined || this.adopting.has(id)) {
+    if (
+      !s ||
+      s.pty !== null ||
+      s.agentSessionID === undefined ||
+      this.adopting.has(id) ||
+      this.rollingBack.has(id)
+    ) {
       return null;
     }
 
@@ -502,8 +512,9 @@ export class SessionManager {
       this.adopting.delete(id);
     }
 
-    // A kill or a second adopt can land while the host wakes.
-    if (s.pty !== null || !this.sessions.includes(s)) {
+    // A kill, a second adopt, or a failed spawn's rollback can land while
+    // the host wakes.
+    if (s.pty !== null || !this.sessions.includes(s) || this.rollingBack.has(id)) {
       return null;
     }
 
@@ -909,24 +920,35 @@ export class SessionManager {
       return;
     }
 
-    const pty = s.pty;
+    this.rollingBack.add(id);
 
-    if (pty !== null) {
-      pty.kill();
+    try {
+      const pty = s.pty;
 
-      if (!(await pty.waitForExit(FAILED_SPAWN_EXIT_WAIT_MS))) {
-        throw new Error(
-          `session ${id} did not exit within ${FAILED_SPAWN_EXIT_WAIT_MS}ms of its kill`,
-        );
+      if (pty !== null) {
+        pty.kill();
+
+        if (!(await pty.waitForExit(FAILED_SPAWN_EXIT_WAIT_MS))) {
+          throw new Error(
+            `session ${id} did not exit within ${FAILED_SPAWN_EXIT_WAIT_MS}ms of its kill`,
+          );
+        }
       }
+
+      // A harness other than the killed one would outlive the rollback.
+      if (s.pty !== null && s.pty !== pty) {
+        throw new Error(`session ${id} started another harness while its spawn rolled back`);
+      }
+
+      s.pty = null;
+
+      this.remove(s);
+      this.emitChange();
+
+      await this.writeFleet();
+    } finally {
+      this.rollingBack.delete(id);
     }
-
-    s.pty = null;
-
-    this.remove(s);
-    this.emitChange();
-
-    await this.writeFleet();
   }
 
   collectDescriptors(): SessionDescriptor[] {
