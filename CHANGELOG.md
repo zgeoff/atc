@@ -2,10 +2,11 @@
 
 ## [2.21.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.20.0...@zgeoff/atc@2.21.0) (2026-10-03)
 
-
 ### Features
 
-* **#210:** serve the client protocol over an authenticated tcp listener ([#229](https://github.com/zgeoff/atc/issues/229)) ([3b136a6](https://github.com/zgeoff/atc/commit/3b136a62ab2f2202dff9be7336e78c6496c30030))
+- **#210:** serve the client protocol over an authenticated tcp listener
+  ([#229](https://github.com/zgeoff/atc/issues/229))
+  ([3b136a6](https://github.com/zgeoff/atc/commit/3b136a62ab2f2202dff9be7336e78c6496c30030))
 
 ## [2.20.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.19.0...@zgeoff/atc@2.20.0) (2026-10-03)
 
