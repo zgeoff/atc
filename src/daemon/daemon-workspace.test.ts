@@ -121,6 +121,46 @@ async function setupTest() {
   };
 }
 
+// The verify unsets every variable that could point git at another
+// repository before it reads the checkout's HEAD.
+const VERIFY_ARGV = [
+  'env',
+  '-u',
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  '-u',
+  'GIT_COMMON_DIR',
+  '-u',
+  'GIT_CONFIG',
+  '-u',
+  'GIT_CONFIG_COUNT',
+  '-u',
+  'GIT_CONFIG_PARAMETERS',
+  '-u',
+  'GIT_DIR',
+  '-u',
+  'GIT_GRAFT_FILE',
+  '-u',
+  'GIT_IMPLICIT_WORK_TREE',
+  '-u',
+  'GIT_INDEX_FILE',
+  '-u',
+  'GIT_NO_REPLACE_OBJECTS',
+  '-u',
+  'GIT_OBJECT_DIRECTORY',
+  '-u',
+  'GIT_PREFIX',
+  '-u',
+  'GIT_REPLACE_REF_BASE',
+  '-u',
+  'GIT_SHALLOW_FILE',
+  '-u',
+  'GIT_WORK_TREE',
+  'git',
+  'rev-parse',
+  '--verify',
+  'HEAD^{commit}',
+];
+
 test('it materializes a path source at its pushed HEAD on the target and verifies it there', async () => {
   await using ctx = await setupTest();
 
@@ -156,8 +196,47 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
     { op: 'run', argv: ['mkdir', '-p', '--', join(ctx.dir, 'box')], cwd: '/' },
     { op: 'run', argv: ['mkdir', '--', dest], cwd: '/' },
     { op: 'transfer', dir: dest },
-    { op: 'run', argv: ['git', 'rev-parse', '--verify', 'HEAD^{commit}'], cwd: dest },
+    { op: 'run', argv: VERIFY_ARGV, cwd: dest },
   ]);
+});
+
+test('it verifies the target checkout itself when the daemon env points git at another repository', async () => {
+  await using ctx = await setupTest();
+
+  // A git hook in a linked worktree exports GIT_DIR, and a daemon started
+  // from one inherits it.
+  const decoy = join(ctx.dir, 'decoy');
+
+  await $`git init --quiet --template= --initial-branch=main ${decoy}`.env(ctx.env).quiet();
+
+  await $`git -c user.name=atc -c user.email=atc@example.com commit --quiet --allow-empty -m decoy`
+    .env(ctx.env)
+    .cwd(decoy)
+    .quiet();
+
+  const previous = process.env['GIT_DIR'];
+
+  process.env['GIT_DIR'] = join(decoy, '.git');
+
+  onTestFinished(() => {
+    const restored = previous === undefined ? {} : { GIT_DIR: previous };
+
+    delete process.env['GIT_DIR'];
+    Object.assign(process.env, restored);
+  });
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+  const sha = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
+
+  const spawned = await booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(getRecord(getRecord(spawned, 'session'), 'workspace')).toMatchObject({
+    sha: sha.trim(),
+  });
 });
 
 test('it records a ready workspace and lists it again on the session after a restart', async () => {

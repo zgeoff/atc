@@ -11,6 +11,7 @@ import { checkURLCredentials } from '../workspace/check-url-credentials';
 import { createWorkspaceClone } from '../workspace/create-workspace-clone';
 import { normalizeGitURL } from '../workspace/normalize-git-url';
 import { readWorkspaceTar } from '../workspace/read-workspace-tar';
+import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
 import { resolvePathSource } from '../workspace/resolve-path-source';
 import { runGit } from '../workspace/run-git';
 import { sanitizeWorkspaceClone } from '../workspace/sanitize-workspace-clone';
@@ -422,6 +423,11 @@ function toDaemonError(error: unknown, code: ErrorCode, phase: MaterializationPh
   return new DaemonError(code, reason, { phase });
 }
 
+// The provider runs commands in its own environment, so the verify unsets
+// every variable that could point git at another repository first.
+const VERIFY_ENV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
+const VERIFY_ARGV = ['git', 'rev-parse', '--verify', 'HEAD^{commit}'];
+
 async function verifyTargetHead(
   request: MaterializeRequest,
   deps: MaterializeDeps,
@@ -429,7 +435,7 @@ async function verifyTargetHead(
 ): Promise<void> {
   const head = await deps
     .requireProvider('run')
-    .runCommand({ argv: ['git', 'rev-parse', '--verify', 'HEAD^{commit}'], cwd: request.dir });
+    .runCommand({ argv: [...VERIFY_ENV, ...VERIFY_ARGV], cwd: request.dir });
 
   const actual = head.exitCode === 0 ? head.stdout.trim() : null;
 

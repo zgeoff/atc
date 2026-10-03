@@ -96,8 +96,11 @@ export class FixtureDirProvider implements ExecutionProvider {
   readonly runCommand = async (spec: CommandSpec): Promise<CommandResult> => {
     this.calls.push({ op: 'run', argv: spec.argv, cwd: spec.cwd });
 
+    // The command inherits the daemon's environment as it stands now, which
+    // a spawn without an env option would take only from process start.
     const proc = Bun.spawn([...spec.argv], {
       cwd: spec.cwd,
+      env: process.env,
       stdin: 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',
