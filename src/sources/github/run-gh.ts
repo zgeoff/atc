@@ -6,8 +6,9 @@ export interface GHRun {
 }
 
 /**
- * Runs gh with arguments and a time limit, killing it once the limit
- * passes. gh reads its own config and the host's environment for its
+ * Runs gh with arguments and a time limit, killing its whole process group
+ * once the limit passes, so a wrapper or extension leaves no process
+ * behind. gh reads its own config and the host's environment for its
  * token, and is kept from prompting, colouring, or checking for updates.
  */
 export async function runGH(
@@ -27,6 +28,10 @@ export async function runGH(
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
+
+    // gh leads its own process group, so stopping it stops what it
+    // started too.
+    detached: true,
   });
 
   const finished = Promise.all([
@@ -46,7 +51,11 @@ export async function runGH(
   clearTimeout(timer);
 
   if (settled === null) {
-    proc.kill();
+    try {
+      process.kill(-proc.pid, 'SIGKILL');
+    } catch {
+      // The group already exited.
+    }
 
     return { exitCode: -1, stdout: '', stderr: '', timedOut: true };
   }

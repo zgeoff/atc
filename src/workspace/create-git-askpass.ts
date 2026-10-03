@@ -64,7 +64,14 @@ export async function createGitAskpass(
 
   const helper = join(dir, 'askpass');
 
-  await writeFile(helper, ASKPASS_SCRIPT, { mode: 0o700 });
+  // A helper that cannot be written leaves no directory behind.
+  try {
+    await writeFile(helper, ASKPASS_SCRIPT, { mode: 0o700 });
+  } catch (error) {
+    await rm(dir, { recursive: true, force: true });
+
+    throw error;
+  }
 
   return {
     ok: true,
