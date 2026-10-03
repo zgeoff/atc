@@ -82,3 +82,13 @@ test('it answers a ping without being given a reply', async () => {
 
   expect(pong).toStrictEqual({});
 });
+
+test('it refuses a hello on another protocol version with protocol_mismatch', async () => {
+  using legacy = await setupTest({ protocol: 3 });
+
+  expect(legacy.client.sendHello('atc/test-build')).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message:
+      'atc/test-build speaks protocol v4, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
+  });
+});

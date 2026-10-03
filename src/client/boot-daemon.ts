@@ -4,15 +4,18 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentID } from '../agents/agent-adapter';
 import type { AgentID } from '../agents/agent-adapter';
+import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
+import { PROTOCOL_V } from '../protocol/protocol';
 import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '../shared/config';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import { getBuild } from '../shared/get-build';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
 import { makeSingleFlight } from '../shared/make-single-flight';
-import { isRecord } from '../shared/report';
 import { DaemonClient } from './daemon-client';
+import { formatProtocolMismatch } from './format-protocol-mismatch';
+import type { ProtocolMismatch } from './format-protocol-mismatch';
 import { pickStaleDaemonPID } from './pick-stale-daemon-pid';
 
 export interface DaemonBoot {
@@ -28,18 +31,28 @@ export interface DaemonBoot {
   readonly socketPath: string;
 }
 
+export interface DaemonBootOptions {
+  // Called when the daemon speaks another protocol version. Resolving true
+  // stops that daemon and boots one from this build, which ends every
+  // session it hosts; without the callback, or resolving false, the boot
+  // rejects and the daemon keeps running.
+  readonly onProtocolMismatch?: (mismatch: ProtocolMismatch) => Promise<boolean>;
+}
+
 /**
  * Opens a handshaken client to the daemon, booting the daemon first when
  * neither the computed socket nor the one in the daemon's record answers.
- * Overlapping calls in one process share a single boot. A daemon from an older build stays in service — killing
- * it would kill every hosted session — and is reported as stale so the
- * caller can offer a deliberate restart. Only a protocol mismatch, where
- * talking would misbehave, forces the restart immediately. The expected
- * build is read from disk on every attempt: a long-lived caller holding a
- * build string from its own boot would otherwise flag daemons that are
- * already current.
+ * Overlapping calls in one process share a single boot. A daemon from an
+ * older build stays in service, since stopping it would end every hosted
+ * session, and is reported as stale so the caller can offer a deliberate
+ * restart. A daemon on another protocol version stays in service too: the
+ * boot rejects with `protocol_mismatch` and a message holding both builds,
+ * both versions, and the way to restart it, unless the caller's
+ * `onProtocolMismatch` confirms a restart. The expected build is read from
+ * disk on every attempt: a long-lived caller holding a build string from
+ * its own boot would otherwise flag daemons that are already current.
  */
-export async function bootDaemonClient(): Promise<DaemonBoot> {
+export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise<DaemonBoot> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const build = getBuild();
 
@@ -60,19 +73,33 @@ export async function bootDaemonClient(): Promise<DaemonBoot> {
     } catch (error) {
       client.stop();
 
-      if (attempt > 0 || !isProtocolMismatch(error)) {
+      if (attempt > 0 || !(error instanceof DaemonError) || error.code !== 'protocol_mismatch') {
         throw error;
       }
 
-      await stopStaleDaemon(opened.socketPath);
+      const mismatch: ProtocolMismatch = {
+        socketPath: opened.socketPath,
+        daemonPID: findDaemonPID(opened.socketPath),
+        clientBuild: build,
+        clientProtocol: PROTOCOL_V,
+        daemonMessage: error.message,
+      };
+
+      // Without a pid there is no daemon this client could stop, so the
+      // caller is not asked.
+      if (
+        mismatch.daemonPID === null ||
+        options.onProtocolMismatch === undefined ||
+        !(await options.onProtocolMismatch(mismatch))
+      ) {
+        throw new DaemonError('protocol_mismatch', formatProtocolMismatch(mismatch));
+      }
+
+      await stopDaemon(mismatch.daemonPID);
     }
   }
 
   throw new Error('the atc daemon could not be restarted');
-}
-
-function isProtocolMismatch(error: unknown): boolean {
-  return isRecord(error) && error['code'] === 'protocol_mismatch';
 }
 
 interface OpenedDaemon {
@@ -177,18 +204,17 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-async function stopStaleDaemon(socketPath: string): Promise<void> {
-  const pid = pickStaleDaemonPID({
+// The pid of the daemon behind the socket that refused the handshake.
+function findDaemonPID(socketPath: string): number | null {
+  return pickStaleDaemonPID({
     socketPath,
     record: findDaemonRecord(daemonRecordFile),
     pidFileSocketPath: daemonSocketPath,
     pidFilePID: findPidFilePID(),
   });
+}
 
-  if (pid === null) {
-    return;
-  }
-
+async function stopDaemon(pid: number): Promise<void> {
   try {
     process.kill(pid, 'SIGTERM');
   } catch {

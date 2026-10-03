@@ -22,6 +22,18 @@ socket path reads that record and connects to the socket it holds before it boot
 Overlapping boots in one process share one spawn, and the TUI's `u` restart joins a restart that is
 already running, with `⟳ restarting daemon` in the status bar until it finishes.
 
+A client never stops a running daemon on its own, because stopping it ends every session it hosts. A
+daemon from an older build stays in service, and the TUI marks it `⟳ update ready` until the user
+presses `u`.
+
+A daemon on another protocol version refuses the handshake, so a client cannot ask it to quit. A
+non-interactive client, such as `atc mcp` or `atc mcp --http`, then exits with an error holding both
+builds, both protocol versions, the daemon's pid, and how to restart it. The TUI shows the same
+facts and asks before it restarts the daemon. On `y`, the TUI sends the daemon SIGTERM, boots one
+from its own build, and restores the fleet; any other key exits and leaves the daemon running.
+Without a handshake a client cannot learn whether the daemon hosts live sessions, so the TUI asks
+even when it hosts none.
+
 Clients are disposable. A client crash or terminal close costs nothing; the daemon detaches its
 subscriptions and the fleet runs on. Each client has its own focused session, and a session streams
 to every attached client. Per-client focus is a subscription (`session.attach`/`detach`) — an
