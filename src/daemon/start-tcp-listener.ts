@@ -1,6 +1,8 @@
 import type { DaemonConnection, TCPPeer } from './daemon-connection';
 import { findTokenFingerprint } from './find-token-fingerprint';
+import { formatLogField } from './format-log-field';
 import { HandshakeThrottle } from './handshake-throttle';
+import { RefusalLog } from './refusal-log';
 
 // The slice of an accepted socket a protocol connection writes to and ends.
 interface ListenerSocket {
@@ -26,6 +28,16 @@ interface TCPListenerOptions {
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- a connection is a live object the daemon releases
   readonly closeConnection: (connection: DaemonConnection) => void;
+
+  // Where the listener start and each refusal are logged, one line at a
+  // time, with the clock and the window that summarize repeated refusals
+  // from one peer.
+  readonly log: (line: string) => void;
+  readonly now: () => number;
+  readonly refusalLogIntervalMs: number;
+
+  // How many peers and kinds of refusal the refusal log tracks at once.
+  readonly maxRefusalWindows: number;
 }
 
 export interface TCPListener {
@@ -55,6 +67,13 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
   const throttle = new HandshakeThrottle(opts.failureDelayMs);
   const connections = new Set<DaemonConnection>();
 
+  const refusals = new RefusalLog({
+    log: opts.log,
+    now: opts.now,
+    intervalMs: opts.refusalLogIntervalMs,
+    maxWindows: opts.maxRefusalWindows,
+  });
+
   let delayed = 0;
 
   // Ends the delayed handshake of each open socket once it closes.
@@ -77,6 +96,12 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
             if (delay > 0 && delayed >= opts.maxDelayedHandshakes) {
               throttle.recordFailure(address, Date.now());
 
+              refusals.record({
+                event: 'handshake_refused',
+                peer: address,
+                reason: 'delay_cap_full',
+              });
+
               return null;
             }
 
@@ -96,6 +121,12 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
               delayed--;
 
               if (waited === 'closed') {
+                refusals.record({
+                  event: 'handshake_refused',
+                  peer: address,
+                  reason: 'closed_during_delay',
+                });
+
                 return null;
               }
             }
@@ -107,12 +138,22 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
 
             if (fingerprint === null) {
               throttle.recordFailure(address, Date.now());
+
+              refusals.record({
+                event: 'handshake_refused',
+                peer: address,
+                reason: presented === null ? 'missing_token' : 'unauthorized',
+              });
             }
 
             return fingerprint;
           },
-          recordFailure: () => {
+          recordFailure: (reason) => {
             throttle.recordFailure(address, Date.now());
+            refusals.record({ event: 'handshake_refused', peer: address, reason });
+          },
+          recordRefusedPrincipal: () => {
+            refusals.record({ event: 'principal_refused', peer: address });
           },
         };
 
@@ -135,6 +176,10 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
       error() {},
     },
   });
+
+  opts.log(
+    `atc tcp event=listening host=${formatLogField(server.hostname)} port=${String(server.port)}`,
+  );
 
   return {
     port: server.port,
@@ -160,6 +205,7 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
       }
 
       server.stop(true);
+      refusals.drain();
     },
   };
 }

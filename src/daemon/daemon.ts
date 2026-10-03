@@ -69,6 +69,7 @@ import { loadListenerTokens } from './load-listener-tokens';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
+import { makeNonBlockingLog } from './make-non-blocking-log';
 import { materializeWorkspace } from './materialize-workspace';
 import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
@@ -192,6 +193,16 @@ interface ListenOptions {
   // How many delayed handshakes may wait at once across every address; 64
   // when unset.
   readonly maxDelayedHandshakes?: number;
+
+  // The clock the refusal log reads, Date.now when unset, and how long it
+  // folds repeated refusals from one peer into one line; a minute when
+  // unset.
+  readonly now?: () => number;
+  readonly refusalLogIntervalMs?: number;
+
+  // How many peers and kinds of refusal the refusal log tracks at once;
+  // 1024 when unset.
+  readonly maxRefusalWindows?: number;
 }
 
 export interface DaemonHandle {
@@ -230,6 +241,17 @@ const HANDSHAKE_FAILURE_DELAY_MS = 10_000;
 // How many delayed handshakes may wait at once; a handshake over the cap is
 // refused at once.
 const MAX_DELAYED_HANDSHAKES = 64;
+
+// How long the TCP listener folds repeated refusals from one peer into one
+// log line.
+const REFUSAL_LOG_INTERVAL_MS = 60_000;
+
+// How many peers and kinds of refusal the TCP listener's refusal log tracks
+// at once.
+const MAX_REFUSAL_WINDOWS = 1024;
+
+// Where the TCP listener logs when the daemon is given no log.
+const STDERR_FD = 2;
 
 // How long startup waits for a daemon that is shutting down to release the
 // state lock before refusing to start.
@@ -2037,6 +2059,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           return connection;
         },
         closeConnection: detachConnection,
+        log: opts.log ?? makeNonBlockingLog(STDERR_FD),
+        now: opts.listen.now ?? Date.now,
+        refusalLogIntervalMs: opts.listen.refusalLogIntervalMs ?? REFUSAL_LOG_INTERVAL_MS,
+        maxRefusalWindows: opts.listen.maxRefusalWindows ?? MAX_REFUSAL_WINDOWS,
       });
     } catch (error) {
       await releaseResources();

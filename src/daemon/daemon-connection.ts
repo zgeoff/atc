@@ -74,9 +74,15 @@ interface PeerSocket extends SocketWriter {
 export interface TCPPeer {
   readonly verifyHandshake: (presented: string | null) => Promise<string | null>;
 
-  // Counts a line other than a handshake, sent before one passed, as a
-  // failed handshake from the peer's address.
-  readonly recordFailure: () => void;
+  // Counts a line other than a handshake, or one over the size cap, sent
+  // before a handshake passed, as a failed handshake from the peer's
+  // address.
+  readonly recordFailure: (reason: 'unexpected_line' | 'line_too_long') => void;
+
+  // Records a handshake or a request refused for a principal the config
+  // does not list. The principal itself is never logged: an unlisted one
+  // is whatever the peer sent, a credential included.
+  readonly recordRefusedPrincipal: () => void;
 }
 
 export class DaemonConnection {
@@ -220,7 +226,7 @@ export class DaemonConnection {
     const oversized = this.lines.pendingLength + chunk.length > MAX_LINE;
 
     if (oversized && this.isUnauthenticatedTCP()) {
-      this.tcp?.recordFailure();
+      this.tcp?.recordFailure('line_too_long');
       this.peer.end();
 
       return;
@@ -337,7 +343,7 @@ export class DaemonConnection {
       const isHello = decoded.kind === 'request' && decoded.msg.m === 'daemon.hello';
 
       if (this.tcpHelloSent || !isHello) {
-        this.tcp?.recordFailure();
+        this.tcp?.recordFailure('unexpected_line');
 
         return 'close';
       }
@@ -386,6 +392,7 @@ export class DaemonConnection {
     }
 
     if (!this.ctx.hasListedPrincipal(req.as)) {
+      this.tcp?.recordRefusedPrincipal();
       this.sendErr(req.id, 'unauthorized', `principal '${req.as}' is not listed in principals`);
 
       return;
@@ -1669,6 +1676,8 @@ export class DaemonConnection {
       const principal = parsedHello.data.principal ?? null;
 
       if (principal !== null && !this.ctx.hasListedPrincipal(principal)) {
+        tcp.recordRefusedPrincipal();
+
         this.sendErr(
           req.id,
           'unauthorized',
