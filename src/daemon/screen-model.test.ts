@@ -207,18 +207,23 @@ test('it reports bracketed paste on once the tui turns it on', async () => {
 
   ctx.model.record('\u001B[?2004h');
 
-  const bracketed = await ctx.model.hasBracketedPaste();
-
-  expect(bracketed).toBeTrue();
+  await waitFor(() => {
+    expect(ctx.model.hasBracketedPaste()).toBeTrue();
+  });
 });
 
 test('it reports bracketed paste off once the tui turns it off', async () => {
   const ctx = setupModel();
 
   ctx.model.record('\u001B[?2004h');
+
+  await waitFor(() => {
+    expect(ctx.model.hasBracketedPaste()).toBeTrue();
+  });
+
   ctx.model.record('\u001B[?2004l');
 
-  const bracketed = await ctx.model.hasBracketedPaste();
-
-  expect(bracketed).toBeFalse();
+  await waitFor(() => {
+    expect(ctx.model.hasBracketedPaste()).toBeFalse();
+  });
 });

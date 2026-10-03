@@ -158,7 +158,7 @@ export interface DaemonContext {
   readonly writeSessionLine: (
     sessionID: SessionID,
     text: string,
-  ) => Promise<'busy' | 'ok' | 'missing' | 'dead'>;
+  ) => 'busy' | 'ok' | 'missing' | 'dead';
   readonly ejectSession: (
     id: SessionID,
     prompt: string,
@@ -735,7 +735,7 @@ export class DaemonConnection {
         return;
       }
       case 'session.submit': {
-        await this.applySubmit(req, ctx);
+        this.applySubmit(req, ctx);
 
         return;
       }
@@ -945,7 +945,7 @@ export class DaemonConnection {
     this.sendInputResult(req, sessionID, ctx.writeSessionInput(sessionID, parsed.data.d));
   }
 
-  private async applySubmit(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+  private applySubmit(req: RequestMsg, ctx: DaemonContext): void {
     const parsed = parseRequestParams('session.submit', req.p);
 
     if (!parsed.ok) {
@@ -956,9 +956,7 @@ export class DaemonConnection {
 
     const sessionID = parsed.data.session;
 
-    const result = await ctx.writeSessionLine(sessionID, parsed.data.text);
-
-    this.sendInputResult(req, sessionID, result);
+    this.sendInputResult(req, sessionID, ctx.writeSessionLine(sessionID, parsed.data.text));
   }
 
   private sendInputResult(

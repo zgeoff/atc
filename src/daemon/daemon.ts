@@ -1450,7 +1450,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return 'ok';
     },
-    writeSessionLine: async (sessionID, text) => {
+    writeSessionLine: (sessionID, text) => {
       const s = mgr.sessions.find((x) => x.id === sessionID);
 
       // A headless turn takes the line as its prompt, and a missing or dead
@@ -1461,18 +1461,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       mgr.requireExecution(s, 'input');
 
-      const screen = runtimes.get(sessionID)?.screen ?? null;
-      const bracketedPaste = screen === null ? false : await screen.hasBracketedPaste();
+      const bracketedPaste = runtimes.get(sessionID)?.screen?.hasBracketedPaste() ?? false;
       const adapter = mgr.findAdapter(s.agent);
       const writes = adapter?.planLineInput?.(text, { bracketedPaste }) ?? planTypedLineInput(text);
 
-      // The session can die while the screen model drains.
-      if (s.pty === null) {
-        return 'dead';
-      }
-
-      // Every write goes out in one tick, so no other client's input lands
-      // between the text and its submit key.
+      // Every write goes out in the tick the request arrives in, so no input
+      // overtakes the line and none lands between the text and its submit
+      // key.
       for (const data of writes) {
         s.pty.write(data);
       }

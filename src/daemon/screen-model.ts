@@ -99,11 +99,10 @@ export class ScreenModel {
     return RESET_INPUT_MODES + this.renderVisibleScreen() + this.renderInputModes();
   }
 
-  // Whether the TUI has turned bracketed paste on, as of every byte recorded
-  // before the call.
-  async hasBracketedPaste(): Promise<boolean> {
-    await this.waitForFlush();
-
+  // Whether the TUI has turned bracketed paste on, as of the output parsed
+  // so far. It reads the mode without waiting, so output still queued for
+  // parsing never delays the caller; a TUI turns the mode on once, at start.
+  hasBracketedPaste(): boolean {
     return this.term.modes.bracketedPasteMode;
   }
 

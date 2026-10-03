@@ -188,9 +188,7 @@ export function buildScopedContext(
     writeSessionInput: (sessionID, data) =>
       canSee(sessionID) ? ctx.writeSessionInput(sessionID, data) : 'missing',
     writeSessionLine: (sessionID, text) =>
-      canSee(sessionID)
-        ? ctx.writeSessionLine(sessionID, text)
-        : Promise.resolve('missing' as const),
+      canSee(sessionID) ? ctx.writeSessionLine(sessionID, text) : 'missing',
     ejectSession: (id, prompt) => (canSee(id) ? ctx.ejectSession(id, prompt) : 'missing'),
     adoptSession: (id, cols, rows) =>
       canSee(id) ? ctx.adoptSession(id, cols, rows) : Promise.resolve('missing' as const),
