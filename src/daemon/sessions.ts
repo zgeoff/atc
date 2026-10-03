@@ -979,6 +979,64 @@ export class SessionManager {
   }
 
   /**
+   * Forgets a session for good, whether it runs or not, and returns whether
+   * its host was destroyed. A session that owns a host its target can
+   * destroy destroys the host, and every session on that host goes with it;
+   * a session on its parent's host ends its own harness alone. Its dead
+   * sub-sessions on other hosts go with it, unless their own target can
+   * destroy their host, and its live ones become top-level. A failed destroy
+   * throws before anything is forgotten.
+   */
+  async forget(id: SessionID): Promise<boolean> {
+    const s = this.sessions.find((x) => x.id === id);
+
+    if (s === undefined) {
+      return false;
+    }
+
+    const provider = this.findProvider(s);
+    const destroys = provider !== null && provider.capabilities.destroy && s.hostKey === s.id;
+
+    if (destroys) {
+      await provider.destroyHost(s.hostKey);
+
+      for (const onHost of this.sessions) {
+        if (onHost.hostKey === s.hostKey && onHost.target === s.target && onHost.id !== s.id) {
+          onHost.pty?.detach();
+          onHost.pty = null;
+
+          this.remove(onHost);
+        }
+      }
+
+      s.pty?.detach();
+      s.pty = null;
+    } else {
+      this.killTerminal(s);
+    }
+
+    for (const child of this.collectChildren(id)) {
+      const live = child.pty !== null || (child.kind === 'headless' && child.state !== 'exited');
+
+      if (live || this.findProvider(child)?.capabilities.destroy === true) {
+        child.parent = null;
+
+        this.onEvent('state', child);
+      } else {
+        this.remove(child);
+      }
+    }
+
+    this.remove(s);
+
+    await this.writeFleet();
+
+    this.emitChange();
+
+    return destroys;
+  }
+
+  /**
    * The capability a kill of a live session needs on its target: `suspend`
    * for a session that owns a host that can sleep, `kill` for any other.
    */

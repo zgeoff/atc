@@ -74,16 +74,16 @@ mark:
 
 Sessions that need you sort to the top, so the one you want is nearly always first.
 
-| Key          | Action                                       |
-| ------------ | -------------------------------------------- |
-| `Ctrl-Space` | open or close the list                       |
-| `Tab`        | attach the session that needs you most       |
-| `Enter`      | attach the selected session                  |
-| `/`          | filter by name or directory                  |
-| `a`          | acknowledge a notification without attaching |
-| `K`          | kill the selected session                    |
-| `q`          | quit the client; sessions keep running       |
-| `?`          | every other key                              |
+| Key          | Action                                                                                                                  |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `Ctrl-Space` | open or close the list                                                                                                  |
+| `Tab`        | attach the session that needs you most                                                                                  |
+| `Enter`      | attach the selected session                                                                                             |
+| `/`          | filter by name or directory                                                                                             |
+| `a`          | acknowledge a notification without attaching                                                                            |
+| `K`          | kill the selected session; on a host atc can destroy, a dead session asks once more before forgetting destroys the host |
+| `q`          | quit the client; sessions keep running                                                                                  |
+| `?`          | every other key                                                                                                         |
 
 The directory picker lists the directory you ran `atc` from, atc's own spawn history, every project
 under the roots in `config.json`, and your [zoxide](https://github.com/ajeetdsouza/zoxide) list when

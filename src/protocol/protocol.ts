@@ -46,6 +46,7 @@ const ERROR_CODES = [
   'workspace_mismatch',
   'host_leased',
   'confirmation_required',
+  'confirm_token_invalid',
   'already_answered',
   'too_slow',
   'stale_epoch',

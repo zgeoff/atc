@@ -76,9 +76,9 @@ not app code.
 
 Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
 `.oxlintrc.json`): `ack`, `adopt`, `answer`, `attach`, `boot`, `copy`, `destroy`, `detach`,
-`dispose`, `draw`, `jiggle`, `kill`, `log`, `materialize`, `mint`, `open`, `quit`, `reconcile`,
-`record`, `refresh`, `restart`, `restore`, `revoke`, `sanitize`, `schedule`, `spawn`, `suspend`,
-`transfer`, `truncate`, `yank`.
+`dispose`, `draw`, `forget`, `jiggle`, `kill`, `log`, `materialize`, `mint`, `open`, `quit`,
+`reconcile`, `record`, `refresh`, `restart`, `restore`, `revoke`, `sanitize`, `schedule`, `spawn`,
+`suspend`, `transfer`, `truncate`, `yank`.
 
 `destroy` deletes an execution host and everything on it, which nothing brings back (`destroyHost`),
 as opposed to `remove`, which deletes one record or file.
@@ -89,6 +89,9 @@ safe to call more than once.
 `materialize` builds a resource on an execution target from a source held elsewhere, through the
 target's provider operations, and checks the result before it counts as ready
 (`materializeWorkspace`).
+
+`forget` drops a session from the fleet for good (`forgetSession`), destroying its host where its
+target can, as opposed to `remove`, which deletes one record without touching what it describes.
 
 `mint` generates a new id that atc itself is the sole authority for (`mintSessionID`), as opposed to
 `to<Brand>`, which trusts an id that arrived from outside atc.

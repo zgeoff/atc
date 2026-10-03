@@ -151,6 +151,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'spawn.target',
       'request.principal',
       'spawn.workspace',
+      'session.forget',
     ],
     lastUsedAgent: 'claude',
   });

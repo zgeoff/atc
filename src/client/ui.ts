@@ -196,6 +196,10 @@ export interface OverlayView {
   agentMarks: Readonly<Record<AgentID, string>>;
   selected: number;
   confirmKill: boolean;
+
+  // A kill the daemon refused because forgetting the session destroys its
+  // host waits on a second confirm.
+  confirmDestroy: boolean;
   filter: string | null;
   stale: boolean;
   grouped: boolean;
@@ -269,6 +273,10 @@ export function drawOverlay(view: OverlayView) {
 
   if (view.confirmKill) {
     hint = formatKillConfirm(selected, view.sessions);
+  }
+
+  if (view.confirmDestroy) {
+    hint = 'forget destroys its host and everything on it? y / n';
   }
 
   rowsList.push(dimRow(width, hint), boxBottom(width));

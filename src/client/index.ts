@@ -2,6 +2,7 @@ import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import type { AgentID } from '../agents/agent-adapter';
 import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from '../daemon/sessions';
+import { DaemonError } from '../protocol/daemon-error';
 import type { EventMsg } from '../protocol/protocol';
 import { loadConfig } from '../shared/config';
 import { makeSingleFlight } from '../shared/make-single-flight';
@@ -19,6 +20,10 @@ import { ansi, cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar,
 
 let overlaySelected = 0;
 let confirmKill = false;
+
+// The session whose forget waits on a confirm because it destroys the
+// session's host, or null.
+let confirmDestroyID: string | null = null;
 
 // The client's mirror of the daemon's fleet, kept fresh by events.
 let fleet: MirrorSession[] = [];
@@ -92,6 +97,36 @@ function scheduleStatus() {
 async function sendQuiet(m: string, p?: Readonly<Record<string, unknown>>) {
   try {
     await client.sendRequest(m, p);
+  } catch {}
+}
+
+// A kill the daemon refuses because forgetting the session destroys its
+// host asks once more before the forget.
+async function sendKill(sessionID: string) {
+  try {
+    await client.sendRequest('session.kill', { session: sessionID });
+  } catch (error) {
+    if (error instanceof DaemonError && error.code === 'confirmation_required') {
+      confirmDestroyID = sessionID;
+
+      if (service.getSnapshot().value === 'overlay') {
+        renderOverlay();
+      }
+    }
+  }
+}
+
+// Takes the confirm token the daemon offers and hands it straight back:
+// the operator already confirmed in the overlay.
+async function sendForget(sessionID: string) {
+  try {
+    const offered = await client.sendRequest('session.forget', { session: sessionID });
+
+    const confirmToken = offered['confirmToken'];
+
+    if (typeof confirmToken === 'string') {
+      await client.sendRequest('session.forget', { session: sessionID, confirmToken });
+    }
   } catch {}
 }
 
@@ -215,6 +250,7 @@ function renderOverlay() {
     agentMarks,
     selected: overlaySelected,
     confirmKill,
+    confirmDestroy: confirmDestroyID !== null,
     filter: overlayFilter,
     stale: daemonStale && !daemonRestarting,
     grouped: overlayGrouped,
@@ -225,6 +261,7 @@ function renderOverlay() {
 
 function openOverlay() {
   confirmKill = false;
+  confirmDestroyID = null;
   overlayFilter = null;
 
   const focusedIndex = pickOverlaySessions().findIndex((s) => s.id === focusedID);
@@ -510,10 +547,22 @@ function applyOverlayKey(buf: Buffer) {
 
   if (confirmKill) {
     if (buf[0] === 0x79 /* y */ && sel !== undefined) {
-      void sendQuiet('session.kill', { session: sel.id });
+      void sendKill(sel.id);
     }
 
     confirmKill = false;
+
+    renderOverlay();
+
+    return;
+  }
+
+  if (confirmDestroyID !== null) {
+    if (buf[0] === 0x79 /* y */) {
+      void sendForget(confirmDestroyID);
+    }
+
+    confirmDestroyID = null;
 
     renderOverlay();
 

@@ -339,10 +339,14 @@ test('it refuses a second kill with confirmation_required on a provider that can
 
   await daemon.client.sendRequest('session.kill', { session: id });
 
-  expect(daemon.client.sendRequest('session.kill', { session: id })).rejects.toMatchObject({
+  const killedAgain = daemon.client.sendRequest('session.kill', { session: id });
+
+  expect(killedAgain).rejects.toMatchObject({
     code: 'confirmation_required',
     data: { session: id },
   });
+
+  await killedAgain.catch(() => null);
 
   expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, lastMsg: 'asleep' })],
@@ -375,11 +379,14 @@ test('it keeps a session running when its host refuses to sleep', async () => {
   });
 
   const id = getRecord(spawned, 'session')['id'];
+  const killed = daemon.client.sendRequest('session.kill', { session: id });
 
-  expect(daemon.client.sendRequest('session.kill', { session: id })).rejects.toMatchObject({
+  expect(killed).rejects.toMatchObject({
     code: 'host_leased',
     data: { leases: [], otherCount: 1 },
   });
+
+  await killed.catch(() => null);
 
   expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [

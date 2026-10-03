@@ -23,6 +23,7 @@
           "detach",
           "dispose",
           "draw",
+          "forget",
           "jiggle",
           "kill",
           "log",

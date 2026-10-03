@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -132,6 +133,9 @@ export interface DaemonOptions {
   readonly restoreBootTimeoutMs?: number;
   readonly tapGraceMs?: number;
 
+  // How long a confirm token from `session.forget` stays usable.
+  readonly forgetConfirmMs?: number;
+
   // Called after a client-requested quit has stopped the daemon; the real
   // entrypoint exits the process, tests leave it unset.
   readonly onQuit?: () => void;
@@ -151,6 +155,9 @@ export interface DaemonHandle {
 // How long a started Claude session may go without a tap before a message to
 // it is refused.
 const TAP_GRACE_MS = 15_000;
+
+// How long a confirm token from a forget that destroys a host stays usable.
+const FORGET_CONFIRM_MS = 60_000;
 
 // The principal every request on the local socket acts as.
 const LOCAL_PRINCIPAL = 'local';
@@ -920,6 +927,49 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
+  // Each confirm token a forget handed out, by token: the session it
+  // forgets, when it stops being taken, and whether a forget took it. A
+  // token stays known for one more lifetime after it expires, so a late
+  // forget learns it expired rather than that it never existed.
+  const confirmTokens = new Map<string, ConfirmToken>();
+
+  const forgetConfirmMs = opts.forgetConfirmMs ?? FORGET_CONFIRM_MS;
+
+  const claimConfirmToken = (sessionID: SessionID, token: string) => {
+    const now = Date.now();
+
+    for (const [held, entry] of confirmTokens) {
+      if (entry.expiresAt + forgetConfirmMs < now) {
+        confirmTokens.delete(held);
+      }
+    }
+
+    const entry = confirmTokens.get(token);
+    let reason: 'unknown' | 'used' | 'expired' | null = null;
+
+    if (entry === undefined || entry.session !== sessionID) {
+      reason = 'unknown';
+    } else if (entry.used) {
+      reason = 'used';
+    } else if (entry.expiresAt <= now) {
+      reason = 'expired';
+    }
+
+    if (reason !== null) {
+      throw new DaemonError(
+        'confirm_token_invalid',
+        `confirm token for session ${sessionID} is ${reason}; call session.forget without a token for a new one`,
+        { reason },
+      );
+    }
+
+    confirmTokens.set(token, {
+      session: sessionID,
+      expiresAt: entry?.expiresAt ?? now,
+      used: true,
+    });
+  };
+
   // Why the session refuses a message right now, or null when it takes one.
   const findMessageRefusal = (sessionID: SessionID): MessageRefusal | null => {
     const s = mgr.sessions.find((x) => x.id === sessionID);
@@ -1124,6 +1174,40 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       await mgr.kill(id);
 
       return true;
+    },
+
+    // A forget on a target that cannot destroy its host forgets at once. On
+    // one that can, a forget without a token checks the target and answers
+    // with a token, and the forget that carries the token destroys the host.
+    forgetSession: async (id, confirmToken) => {
+      const s = mgr.sessions.find((x) => x.id === id);
+
+      if (s === undefined) {
+        return 'missing';
+      }
+
+      if (mgr.findProvider(s)?.capabilities.destroy === true) {
+        mgr.requireExecution(s, 'destroy');
+
+        if (confirmToken === undefined) {
+          const token = randomUUID();
+          const expiresAt = Date.now() + forgetConfirmMs;
+
+          confirmTokens.set(token, { session: id, expiresAt, used: false });
+
+          return { confirmToken: token, expiresAt };
+        }
+
+        claimConfirmToken(id, confirmToken);
+      }
+
+      for (const forgotten of [s, ...mgr.collectChildren(id)]) {
+        runtimes.get(forgotten.id)?.stopHeadlessRun();
+      }
+
+      const destroyed = await mgr.forget(id);
+
+      return { forgotten: true, destroyed };
     },
     ejectSession: (id, prompt) => {
       const s = mgr.sessions.find((x) => x.id === id);
@@ -1649,6 +1733,12 @@ async function tryRemoveExpiredIdempotencyKeys(store: StateStore): Promise<boole
   }
 
   return true;
+}
+
+interface ConfirmToken {
+  readonly session: SessionID;
+  readonly expiresAt: number;
+  readonly used: boolean;
 }
 
 // Carries a message refusal out of a keyed send's start, so the claim drops

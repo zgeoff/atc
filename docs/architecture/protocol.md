@@ -43,12 +43,12 @@ Claude Code's hook events. The MCP tools map onto both mechanically (`session.sp
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
 `no_such_session`, `session_dead`, `unsupported`, `unsupported_operation`, `unknown_target`,
 `target_unavailable`, `target_changed`, `target_config_invalid`, `target_forbidden`, `host_leased`,
-`confirmation_required`, `already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`,
-`outcome_unknown`, `internal`, plus the workspace refusals that [workspaces](#workspaces) lists. An
-unknown method is an `unknown_method` error, never a disconnect; unknown fields in any message are
-ignored. A peer decodes an error code it does not know as `internal` and keeps its `msg`. These
-rules exist so additive evolution never breaks a peer. An error may also carry `data`, an object
-whose fields its code defines.
+`confirmation_required`, `confirm_token_invalid`, `already_answered`, `too_slow`, `stale_epoch`,
+`idempotency_conflict`, `outcome_unknown`, `internal`, plus the workspace refusals that
+[workspaces](#workspaces) lists. An unknown method is an `unknown_method` error, never a disconnect;
+unknown fields in any message are ignored. A peer decodes an error code it does not know as
+`internal` and keeps its `msg`. These rules exist so additive evolution never breaks a peer. An
+error may also carry `data`, an object whose fields its code defines.
 
 `unsupported_operation` refuses a request that the session's execution host cannot serve, such as
 input to a host that takes none. Its `data` holds the provider kind as `provider` and the missing
@@ -74,7 +74,7 @@ says to restart the daemon.
                                         "message.turn", "message.wait", "spawn.options",
                                         "daemon.id", "session.locator", "spawn.idempotency",
                                         "message.idempotency", "spawn.target",
-                                        "request.principal", "spawn.workspace"],
+                                        "request.principal", "spawn.workspace", "session.forget"],
                            "lastUsedAgent": "claude" } }
 ```
 
@@ -84,9 +84,10 @@ exists, `events.read` returns `more` and takes `session`, and `message.get` retu
 returns `spawnOptions`, `daemon.hello` returns `daemonID`, every session descriptor holds a
 `locator`, `session.spawn` and `session.message` each take `idempotencyKey`, `session.spawn` takes
 `target` while `agents.list` returns `targets`, a request takes `as` while `daemon.hello` takes
-`principal`, and `session.spawn` takes `workspace`. A daemon from before the list existed sends
-none, and it ignores the parameters it does not know. A client that outlives a daemon upgrade, such
-as `atc mcp`, reads the list rather than the build string to learn what the running daemon honours.
+`principal`, `session.spawn` takes `workspace`, and `session.forget` exists. A daemon from before
+the list existed sends none, and it ignores the parameters it does not know. A client that outlives
+a daemon upgrade, such as `atc mcp`, reads the list rather than the build string to learn what the
+running daemon honours.
 
 `daemonID` is the id the daemon minted into its state store the first time it opened it, so it stays
 the same across daemon restarts. Every session descriptor holds a `locator` of
@@ -119,6 +120,7 @@ semantics.
 | `session.update`        | rename and/or pin a session (`{ session, name?, pinned? }`). Pinning a sub-session is `bad_args`: it pins with its parent.                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `session.kill`          | end a session or put its host to sleep; explicit, never implied by disconnect. [Kill and sleep](#kill-and-sleep) covers the cases                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `session.ack`           | clear unread without attaching                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `session.forget`        | forget a session for good, destroying its host on a target that can. [Kill and sleep](#kill-and-sleep) covers the confirm token                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `session.attach`        | subscribe to a session's output; returns replay + current dims                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `session.detach`        | unsubscribe; session keeps running                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `session.input`         | keyboard input to a session (`{ session, d }`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -497,6 +499,22 @@ forces a host to sleep.
 A target that can destroy its host never forgets a session on a second kill, since forgetting the
 session destroys the host and everything on it. The second kill fails with `confirmation_required`,
 with the session id in `data.session`.
+
+`session.forget` (`{ session, confirmToken? }`) forgets a session for good, live or dead. On a
+target that cannot destroy its host, it forgets at once, the way a kill followed by a second kill
+does, and answers `{ forgotten: true, destroyed: false }`. On a target that can, it takes two calls:
+
+1. A forget without `confirmToken` checks the target and answers `{ confirmToken, expiresAt }`. It
+   changes nothing.
+2. A forget with that token destroys the host and answers `{ forgotten: true, destroyed: true }`.
+   Every session on the host is forgotten with it.
+
+The token belongs to one session and works once, until `expiresAt`, 60 seconds after the daemon
+issued it. A forget whose token the daemon does not take fails with `confirm_token_invalid`, and
+`data.reason` is `unknown` for a token issued for another session or never issued, `used` for a
+token a forget already took, and `expired` for one past `expiresAt`. A forget that took a token and
+then failed to destroy the host still used the token up. A sub-session on its parent's host is
+forgotten alone: its harness ends, and the host stays.
 
 ## Idempotent requests
 
