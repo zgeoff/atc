@@ -23,6 +23,8 @@ import { StateStore } from '../store/state-store';
 import type { EventScope } from '../store/state-store';
 import type { TrailEntry } from '../store/trail-entry';
 import type { SessionWorkspace } from '../store/workspace-materialization';
+import { checkRepositoryAccess } from '../workspace/check-repository-access';
+import { collectGitHubRepos } from '../workspace/collect-github-repos';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
@@ -146,6 +148,14 @@ export interface DaemonOptions {
   // Where background failures are reported, one line at a time; stderr
   // when unset.
   readonly log?: (line: string) => void;
+
+  // The gh executable `repos.list` runs, a name looked up on PATH or a
+  // path; `gh` when unset.
+  readonly ghBin?: string;
+
+  // The GitHub owner `repos.list` lists without one; unset or null lists
+  // the gh account's own repositories.
+  readonly githubOwner?: string | null;
 }
 
 export interface DaemonHandle {
@@ -1188,6 +1198,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       mgr.requireExecution({ target, targetIdentity: null }, 'transfer');
       mgr.requireExecution({ target, targetIdentity: null }, 'run');
     },
+    collectGitHubRepos: (owner) =>
+      collectGitHubRepos({ bin: opts.ghBin ?? 'gh', owner: owner ?? opts.githubOwner ?? null }),
+    checkRepositoryAccess,
     spawnSession: (plan, keyed, access) => {
       if (keyed === null) {
         return startSpawn(plan(), mintSessionID());

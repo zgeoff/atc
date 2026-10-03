@@ -24,6 +24,8 @@ import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { MessageRecord } from '../store/message-record';
+import type { checkRepositoryAccess } from '../workspace/check-repository-access';
+import type { collectGitHubRepos } from '../workspace/collect-github-repos';
 import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
@@ -117,6 +119,14 @@ export interface DaemonContext {
   // Throws the refusal for a target that cannot materialize a workspace:
   // one whose provider cannot both transfer an archive and run a command.
   readonly requireWorkspaceTarget: (target: string) => void;
+
+  // Lists a GitHub owner's repositories through gh on the daemon's host;
+  // null lists the configured owner, else the gh account's own.
+  readonly collectGitHubRepos: (owner: string | null) => ReturnType<typeof collectGitHubRepos>;
+
+  // Checks that the daemon's host can read a git workspace source, and
+  // resolves its ref, the way a workspace spawn from it would.
+  readonly checkRepositoryAccess: typeof checkRepositoryAccess;
 
   // Runs the plan, which throws the refusal for a spawn it refuses, then
   // spawns. Answers with the `session.spawn` ok payload, which a keyed
@@ -542,6 +552,16 @@ export class DaemonConnection {
 
         return;
       }
+      case 'repos.list': {
+        await this.applyReposList(req, ctx);
+
+        return;
+      }
+      case 'repos.probe': {
+        await this.applyReposProbe(req, ctx);
+
+        return;
+      }
       case 'session.spawn': {
         await this.applySpawn(req, ctx);
 
@@ -907,6 +927,66 @@ export class DaemonConnection {
     const spawned = await ctx.spawnSession(plan, keyed, null);
 
     this.sendOk(req.id, spawned);
+  }
+
+  // Lists repositories for a workspace spawn to the request's target, so
+  // a principal lists only for a target it may spawn a workspace on.
+  private async applyReposList(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('repos.list', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    this.ctx.requireWorkspaceTarget(ctx.resolveSpawnTarget(parsed.data.target));
+
+    const listed = await ctx.collectGitHubRepos(parsed.data.owner ?? null);
+
+    if (!listed.ok) {
+      throw new DaemonError(listed.code, listed.message, { problem: listed.problem });
+    }
+
+    this.sendOk(req.id, {
+      owner: listed.owner,
+      repos: listed.repos,
+      gitProtocol: listed.gitProtocol,
+    });
+  }
+
+  // Probes a git workspace source for a spawn to the request's target, so
+  // a principal probes only for a target it may spawn a workspace on.
+  private async applyReposProbe(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('repos.probe', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const data = parsed.data;
+
+    this.ctx.requireWorkspaceTarget(ctx.resolveSpawnTarget(data.target));
+
+    const access = await ctx.checkRepositoryAccess({
+      url: data.url,
+      ref: data.ref,
+      sha: data.sha,
+      credential: data.credentialRef,
+    });
+
+    if (!access.ok) {
+      throw new DaemonError(access.code, access.message);
+    }
+
+    this.sendOk(req.id, {
+      url: access.url,
+      head: access.head,
+      refs: access.refs,
+      resolved: access.resolved,
+    });
   }
 
   private applyAttach(req: RequestMsg, ctx: DaemonContext): void {

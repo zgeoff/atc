@@ -11,6 +11,7 @@ import { createWorkspaceClone } from '../workspace/create-workspace-clone';
 import { normalizeGitURL } from '../workspace/normalize-git-url';
 import { readWorkspaceTar } from '../workspace/read-workspace-tar';
 import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
+import { resolveGitURL } from '../workspace/resolve-git-url';
 import { resolvePathSource } from '../workspace/resolve-path-source';
 import { runGit } from '../workspace/run-git';
 import { sanitizeWorkspaceClone } from '../workspace/sanitize-workspace-clone';
@@ -289,21 +290,17 @@ async function resolveSource(source: SpawnWorkspaceSource, staging: string): Pro
     };
   }
 
-  await requireNoURLCredentials(source.url, staging);
-
   // The clone fetches the URL it records, so an `owner/repo` shorthand
   // reaches the repository it expands to.
-  const normalized = normalizeGitURL(source.url);
+  const resolved = await resolveGitURL(source.url, staging);
 
-  if (!normalized.ok) {
-    throw new DaemonError(normalized.code, normalized.message, { phase: 'resolving' });
+  if (!resolved.ok) {
+    throw new DaemonError(resolved.code, resolved.message, { phase: 'resolving' });
   }
 
-  await requireNoURLCredentials(normalized.url, staging);
-
   return {
-    cloneURL: normalized.url,
-    repoURL: normalized.url,
+    cloneURL: resolved.url,
+    repoURL: resolved.url,
     checkout: source.sha ?? source.ref ?? '',
     ref: source.ref ?? null,
     credential: source.credentialRef,

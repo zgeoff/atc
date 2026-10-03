@@ -1,14 +1,10 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { rm } from 'node:fs/promises';
 import { checkWorkspaceCompleteness } from './check-workspace-completeness';
+import { createGitAskpass } from './create-git-askpass';
+import type { GitCredential } from './create-git-askpass';
+import { findRemoteRef } from './find-remote-ref';
 import { runGit } from './run-git';
 import type { WorkspaceSource } from './workspace-source';
-
-interface GitCredential {
-  readonly kind: 'env';
-  readonly name: string;
-}
 
 interface CloneRequest {
   readonly source: Extract<WorkspaceSource, { readonly kind: 'git' }>;
@@ -59,7 +55,7 @@ type IncompleteCheckout = Exclude<
 export async function createWorkspaceClone(
   request: CloneRequest,
 ): Promise<CloneRefusal | CreatedClone | IncompleteCheckout> {
-  const askpass = await createAskpass(request.credential);
+  const askpass = await createGitAskpass(request.credential);
 
   if (!askpass.ok) {
     return askpass;
@@ -70,57 +66,6 @@ export async function createWorkspaceClone(
   } finally {
     await askpass[Symbol.asyncDispose]();
   }
-}
-
-interface Askpass {
-  readonly ok: true;
-  readonly env: Readonly<Record<string, string>>;
-  readonly args: readonly string[];
-  [Symbol.asyncDispose]: () => Promise<void>;
-}
-
-const ASKPASS_SECRET_VAR = 'ATC_GIT_ASKPASS_SECRET';
-
-// Username prompts get a fixed name that GitHub and GitLab both accept
-// alongside a token; password prompts get the token.
-const ASKPASS_SCRIPT = `#!/bin/sh
-case "$1" in
-  Username*) printf '%s\\n' x-access-token ;;
-  *) printf '%s\\n' "$${ASKPASS_SECRET_VAR}" ;;
-esac
-`;
-
-async function createAskpass(
-  credential: GitCredential | undefined,
-): Promise<Askpass | CloneRefusal> {
-  if (credential === undefined) {
-    return { ok: true, env: {}, args: [], [Symbol.asyncDispose]: async () => {} };
-  }
-
-  const secret = process.env[credential.name];
-
-  if (secret === undefined || secret === '') {
-    return {
-      ok: false,
-      code: 'credential_missing',
-      message: 'the credential environment variable is unset or empty',
-    };
-  }
-
-  const dir = await mkdtemp(join(tmpdir(), 'atc-askpass-'));
-
-  const helper = join(dir, 'askpass');
-
-  await writeFile(helper, ASKPASS_SCRIPT, { mode: 0o700 });
-
-  return {
-    ok: true,
-    env: { GIT_ASKPASS: helper, [ASKPASS_SECRET_VAR]: secret },
-    args: ['-c', 'credential.helper='],
-    [Symbol.asyncDispose]: async () => {
-      await rm(dir, { recursive: true, force: true });
-    },
-  };
 }
 
 async function createCloneAtRef(
@@ -234,18 +179,13 @@ async function resolveRef(
       }),
   );
 
+  const match = findRemoteRef(refs, source.ref);
+
+  if (match !== null) {
+    return { ok: true, ...match };
+  }
+
   const name = source.ref.replace(/^refs\/(?:heads|tags)\//u, '');
-  const branchSHA = refs.get(`refs/heads/${name}`);
-
-  if (branchSHA !== undefined && !source.ref.startsWith('refs/tags/')) {
-    return { ok: true, sha: branchSHA, branch: name };
-  }
-
-  const tagSHA = refs.get(`refs/tags/${name}^{}`) ?? refs.get(`refs/tags/${name}`);
-
-  if (tagSHA !== undefined && !source.ref.startsWith('refs/heads/')) {
-    return { ok: true, sha: tagSHA, branch: null };
-  }
 
   return { ok: false, code: 'ref_not_found', message: `origin has no branch or tag '${name}'` };
 }

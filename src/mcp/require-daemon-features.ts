@@ -19,6 +19,8 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'report.get': 'atc_report_get',
   'request.principal': 'the target limits of a remote MCP client',
   'spawn.workspace': "atc_session_spawn's workspace",
+  'repos.list': 'repos.list',
+  'repos.probe': 'repos.probe',
 };
 
 /**

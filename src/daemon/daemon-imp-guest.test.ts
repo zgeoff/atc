@@ -71,6 +71,7 @@ done
       codexBin: 'codex',
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },

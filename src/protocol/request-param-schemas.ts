@@ -32,15 +32,30 @@ const CREDENTIAL_REF = z.strictObject({
   name: z.string().regex(/^[A-Za-z_]\w*$/u, 'a credentialRef names an environment variable'),
 });
 
+// A git workspace's repository URL, which git must never read as an option.
+const GIT_URL = z
+  .string({ error: 'a git workspace requires a url' })
+  .min(1, 'a git workspace requires a url')
+  .refine((url) => !url.startsWith('-'), 'a git workspace url must not start with -');
+
+// A git workspace's branch or tag, which git must never read as an option.
+const GIT_REF = z
+  .string()
+  .min(1, 'a git workspace ref must not be empty')
+  .refine((ref) => !ref.startsWith('-'), 'a git workspace ref must not start with -');
+
+const GIT_SHA = z.string().regex(COMMIT_ID, 'a git workspace sha is a full commit id');
+
 /**
  * Where a spawn's working directory comes from, materialized as a clean
  * checkout into the spawn's `cwd` on its execution target. A `path` source
  * is a directory on the daemon's host, resolved to its origin URL and
  * pushed HEAD; `allowDirty: 'warn'` resolves a tree with uncommitted
  * changes to HEAD and leaves the changes behind with a warning. A `git`
- * source is a repository URL with exactly one of a branch or tag `ref` or
- * a full commit `sha`, and an optional `credentialRef` naming the daemon
- * environment variable that holds its token.
+ * source is a repository URL with a branch or tag `ref`, a full commit
+ * `sha`, or both, and an optional `credentialRef` naming the daemon
+ * environment variable that holds its token. With both, the sha is the
+ * commit checked out and the ref is recorded as what it was resolved from.
  */
 const WORKSPACE_SOURCE = z.discriminatedUnion('kind', [
   z.strictObject({
@@ -53,22 +68,29 @@ const WORKSPACE_SOURCE = z.discriminatedUnion('kind', [
   z
     .strictObject({
       kind: z.literal('git'),
-      url: z
-        .string({ error: 'a git workspace requires a url' })
-        .min(1, 'a git workspace requires a url')
-        .refine((url) => !url.startsWith('-'), 'a git workspace url must not start with -'),
-      ref: z
-        .string()
-        .min(1, 'a git workspace ref must not be empty')
-        .refine((ref) => !ref.startsWith('-'), 'a git workspace ref must not start with -')
-        .optional(),
-      sha: z.string().regex(COMMIT_ID, 'a git workspace sha is a full commit id').optional(),
+      url: GIT_URL,
+      ref: GIT_REF.optional(),
+      sha: GIT_SHA.optional(),
       credentialRef: CREDENTIAL_REF.optional(),
     })
-    .refine((source) => (source.ref === undefined) !== (source.sha === undefined), {
-      message: 'a git workspace takes exactly one of ref or sha',
+    .refine((source) => source.ref !== undefined || source.sha !== undefined, {
+      message: 'a git workspace takes a ref, a sha, or both',
     }),
 ]);
+
+// The execution target a request acts for; absent is the default target.
+const TARGET = z
+  .string({ error: 'target must be a non-empty target id' })
+  .min(1, 'target must be a non-empty target id')
+  .optional();
+
+// A GitHub account or organization login, which gh must never read as an
+// option.
+const GITHUB_OWNER = z
+  .string({ error: 'owner must be a GitHub account or organization' })
+  .regex(/^[A-Za-z\d][A-Za-z\d-]*$/u, 'owner must be a GitHub account or organization')
+  .max(39, 'owner must be a GitHub account or organization')
+  .optional();
 
 export type SpawnWorkspaceSource = z.infer<typeof WORKSPACE_SOURCE>;
 
@@ -88,6 +110,26 @@ export const REQUEST_PARAM_SCHEMAS = {
   'session.list': z.object({}),
   'dirs.list': z.object({}),
   'agents.list': z.object({}),
+
+  // The repositories of one GitHub owner, the configured one when absent,
+  // as gh on the daemon's host lists them for a workspace spawn to the
+  // target.
+  'repos.list': z.object({ owner: GITHUB_OWNER, target: TARGET }),
+
+  // Whether the daemon's host can read a git workspace source the way a
+  // spawn to the target would, with its refs and the commit a ref or sha
+  // selects; at most one of the two.
+  'repos.probe': z
+    .object({
+      url: GIT_URL,
+      ref: GIT_REF.optional(),
+      sha: GIT_SHA.optional(),
+      credentialRef: CREDENTIAL_REF.optional(),
+      target: TARGET,
+    })
+    .refine((probe) => probe.ref === undefined || probe.sha === undefined, {
+      message: 'repos.probe takes at most one of ref or sha',
+    }),
   'fleet.list': z.object({}),
   'fleet.restore': z.object({
     cols: buildTerminalSize(80),

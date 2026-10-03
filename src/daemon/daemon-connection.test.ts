@@ -59,6 +59,8 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     findPermissionSession: assertUnreachable,
     resolveSpawnTarget: assertUnreachable,
     requireWorkspaceTarget: assertUnreachable,
+    collectGitHubRepos: assertUnreachable,
+    checkRepositoryAccess: assertUnreachable,
     spawnSession: assertUnreachable,
     killSession: assertUnreachable,
     forgetSession: assertUnreachable,

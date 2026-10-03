@@ -220,6 +220,7 @@ const main = defineCommand({
               defaultTarget: cfg.defaultTarget,
               targetErrors,
               principals: cfg.principals,
+              githubOwner: cfg.workspaces.githubOwner,
               restoreBootTimeoutMs,
               ...(Number.isFinite(graceOverride) && graceOverride >= 0
                 ? { tapGraceMs: graceOverride }
