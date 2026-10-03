@@ -5,6 +5,7 @@ import { DEFAULT_MIGRATION_TABLE, Migrator } from 'kysely/migration';
 import type { Migration, MigrationProvider, MigrationResultSet } from 'kysely/migration';
 import type { IdempotencyState } from './idempotency-record';
 import type { MessageStatus } from './message-record';
+import type { RuntimeAuthBindingState, RuntimeAuthGrantPhase } from './runtime-auth-binding';
 import type { MaterializationPhase } from './workspace-materialization';
 
 interface FleetTable {
@@ -118,6 +119,41 @@ interface WorkspaceMaterializationTable {
   withheld_env: string | null;
 }
 
+// One host's runtime auth binding, keyed by the session that owns the imp.
+// The rebind columns hold a rebind in flight or the one that failed, all
+// null otherwise.
+interface RuntimeAuthBindingTable {
+  host_key: string;
+  target: string;
+  target_identity: string;
+  imp_name: string;
+  imp_id: string | null;
+  revision: number;
+  binding_hash: string;
+  binding_json: string;
+  state: RuntimeAuthBindingState;
+  attempt_id: string;
+  imp_created_by_attempt: number;
+  rebind_revision: number | null;
+  rebind_binding_hash: string | null;
+  rebind_binding_json: string | null;
+  rebind_attempt_id: string | null;
+  created_at: number;
+  updated_at: number;
+  revoked_at: number | null;
+}
+
+// One secret's grant to a host's imp, keyed by the host and the secret.
+interface RuntimeAuthGrantTable {
+  host_key: string;
+  secret: string;
+  revision: number;
+  attempt_id: string;
+  preexisting: number;
+  phase: RuntimeAuthGrantPhase;
+  updated_at: number;
+}
+
 interface MessagesTable {
   id: string;
   atc_id: string;
@@ -148,6 +184,8 @@ export interface StateStoreSchema {
   session_owner: SessionOwnerTable;
   idempotency: IdempotencyTable;
   workspace_materialization: WorkspaceMaterializationTable;
+  runtime_auth_binding: RuntimeAuthBindingTable;
+  runtime_auth_grant: RuntimeAuthGrantTable;
 }
 
 // Every shape the fleet table has shipped with: the oldest carries only
@@ -470,6 +508,45 @@ const MIGRATIONS: Record<string, Migration> = {
 
         throw error;
       }
+    },
+  },
+  '025_create_runtime_auth': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('runtime_auth_binding')
+        .ifNotExists()
+        .addColumn('host_key', 'text', (c) => c.primaryKey())
+        .addColumn('target', 'text', (c) => c.notNull())
+        .addColumn('target_identity', 'text', (c) => c.notNull())
+        .addColumn('imp_name', 'text', (c) => c.notNull())
+        .addColumn('imp_id', 'text')
+        .addColumn('revision', 'integer', (c) => c.notNull())
+        .addColumn('binding_hash', 'text', (c) => c.notNull())
+        .addColumn('binding_json', 'text', (c) => c.notNull())
+        .addColumn('state', 'text', (c) => c.notNull())
+        .addColumn('attempt_id', 'text', (c) => c.notNull())
+        .addColumn('imp_created_by_attempt', 'integer', (c) => c.notNull().defaultTo(0))
+        .addColumn('rebind_revision', 'integer')
+        .addColumn('rebind_binding_hash', 'text')
+        .addColumn('rebind_binding_json', 'text')
+        .addColumn('rebind_attempt_id', 'text')
+        .addColumn('created_at', 'integer', (c) => c.notNull())
+        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addColumn('revoked_at', 'integer')
+        .execute();
+
+      await db.schema
+        .createTable('runtime_auth_grant')
+        .ifNotExists()
+        .addColumn('host_key', 'text', (c) => c.notNull())
+        .addColumn('secret', 'text', (c) => c.notNull())
+        .addColumn('revision', 'integer', (c) => c.notNull())
+        .addColumn('attempt_id', 'text', (c) => c.notNull())
+        .addColumn('preexisting', 'integer', (c) => c.notNull())
+        .addColumn('phase', 'text', (c) => c.notNull())
+        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addPrimaryKeyConstraint('runtime_auth_grant_pk', ['host_key', 'secret'])
+        .execute();
     },
   },
 };

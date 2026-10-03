@@ -24,21 +24,22 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 }
 ```
 
-| Field           | Default         | Meaning                                                                                                                |
-| --------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `claudeBin`     | `"claude"`      | The binary spawned for Claude sessions.                                                                                |
-| `claudeArgs`    | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`. A spawn's own model or effort replaces the matching flag. |
-| `grokBin`       | `"grok"`        | The binary spawned for Grok sessions.                                                                                  |
-| `grokArgs`      | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`.            |
-| `codexBin`      | `"codex"`       | The binary spawned for Codex sessions.                                                                                 |
-| `codexArgs`     | `[]`            | Prepended to every Codex spawn. A spawn's own model replaces a `-m` or `--model` here.                                 |
-| `dirs`          | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.            |
-| `gateways`      | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                           |
-| `hooks`         | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                    |
-| `leader`        | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                  |
-| `targets`       | unset           | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                     |
-| `defaultTarget` | unset           | The target a spawn without a target runs on.                                                                           |
-| `workspaces`    | see above       | Where workspaces come from. The [git transports](#git-transports) section covers `gitTransports`.                      |
+| Field           | Default         | Meaning                                                                                                                       |
+| --------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `claudeBin`     | `"claude"`      | The binary spawned for Claude sessions.                                                                                       |
+| `claudeArgs`    | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`. A spawn's own model or effort replaces the matching flag.        |
+| `grokBin`       | `"grok"`        | The binary spawned for Grok sessions.                                                                                         |
+| `grokArgs`      | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`.                   |
+| `codexBin`      | `"codex"`       | The binary spawned for Codex sessions.                                                                                        |
+| `codexArgs`     | `[]`            | Prepended to every Codex spawn. A spawn's own model replaces a `-m` or `--model` here.                                        |
+| `dirs`          | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.                   |
+| `gateways`      | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                                  |
+| `authProfiles`  | unset           | Credential references a gateway's `auth` selects from. The [brokered credentials](#brokered-credentials) section covers them. |
+| `hooks`         | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                           |
+| `leader`        | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                         |
+| `targets`       | unset           | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                            |
+| `defaultTarget` | unset           | The target a spawn without a target runs on.                                                                                  |
+| `workspaces`    | see above       | Where workspaces come from. The [git transports](#git-transports) section covers `gitTransports`.                             |
 
 ## Leader
 
@@ -145,6 +146,7 @@ covers the lifecycle. Its options:
 | Key         | Default    | What it does                                                               |
 | ----------- | ---------- | -------------------------------------------------------------------------- |
 | `url`       | required   | Where impd listens. Without it the target lists as unavailable.            |
+| `impPrefix` | `atc-`     | The start of every imp name the target builds.                             |
 | `tokenEnv`  | unset      | The environment variable of the daemon that holds the impd token.          |
 | `tokenFile` | unset      | The file that holds the impd token.                                        |
 | `image`     | impd's     | The image a new imp boots.                                                 |
@@ -184,6 +186,14 @@ systemd mounts `/run/credentials` read-only, so to rotate a credential it passes
 file and restart the unit. A file that turns empty or unreadable while the daemon runs fails each
 call and connection to impd as unauthorized until it holds a token again, and a spawn in that time
 fails with `host_unavailable`.
+
+Each imp name is `impPrefix` followed by the first 20 letters and digits of the id of the session
+that owns the imp. Give atc a namespace of its own on a shared impd by setting `impPrefix`, such as
+`harness-`, and scope the impd token's imp patterns to it (`harness-*`). The checks before atc
+grants a brokered credential refuse a token whose patterns reach any imp outside that prefix. The
+prefix is a lowercase letter followed by up to 10 lowercase letters, digits or hyphens, so every
+name it builds is one impd accepts. Any other value is a config error the daemon handles like an
+unset `tokenEnv` variable.
 
 A Claude session on an imp target reports through an atc inside the imp. A compiled atc daemon on
 Linux copies itself in; a daemon run from source needs `guestATC`, and refuses the spawn without it.
@@ -284,15 +294,16 @@ and GLM sessions then sit side by side in one fleet:
 }
 ```
 
-| Field          | Default     | Meaning                                                                                                        |
-| -------------- | ----------- | -------------------------------------------------------------------------------------------------------------- |
-| `baseURL`      | required    | The backend's Anthropic-format endpoint. An entry without one is left out of the picker.                       |
-| `label`        | the id      | The row shown in the agent picker.                                                                             |
-| `mark`         | the id      | The overlay column letter; the first character is used.                                                        |
-| `bin`, `args`  | `claudeBin` | The binary and leading arguments, when the backend needs a different build of the CLI.                         |
-| `apiKeyHelper` | none        | Command the CLI runs to read the credential, so no token is written into atc's state directory.                |
-| `env`          | `{}`        | Extra environment for the session, such as the model each Claude tier maps to.                                 |
-| `settings`     | none        | More Claude Code settings for this gateway's sessions. The [section below](#extra-session-settings) covers it. |
+| Field          | Default     | Meaning                                                                                                                              |
+| -------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `baseURL`      | required    | The backend's Anthropic-format endpoint. An entry without one is left out of the picker.                                             |
+| `label`        | the id      | The row shown in the agent picker.                                                                                                   |
+| `mark`         | the id      | The overlay column letter; the first character is used.                                                                              |
+| `bin`, `args`  | `claudeBin` | The binary and leading arguments, when the backend needs a different build of the CLI.                                               |
+| `apiKeyHelper` | none        | Command the CLI runs to read the credential, so no token is written into atc's state directory.                                      |
+| `env`          | `{}`        | Extra environment for the session, such as the model each Claude tier maps to.                                                       |
+| `settings`     | none        | More Claude Code settings for this gateway's sessions. The [section below](#extra-session-settings) covers it.                       |
+| `auth`         | none        | The credential profiles impd's broker applies for this gateway. The [brokered credentials](#brokered-credentials) section covers it. |
 
 A spawn through `atc_session_spawn` or `session.spawn` can pick a model and an effort per session;
 the [protocol](../architecture/protocol.md#spawn-options) lists what each agent takes. A gateway
@@ -344,6 +355,73 @@ its `args` wins over the `permissions.defaultMode` in its `settings`. A headless
 mode. With neither set, a headless turn runs in auto mode. A resumed session takes back the mode it
 was saved in unless an explicit `--permission-mode` overrides it, so atc passes a settings-only mode
 as that flag when it restores a session, and in the resume command it builds.
+
+### Brokered credentials
+
+A gateway with `auth` gets its credential from impd's credential broker, which adds it on the host's
+side to each request the imp sends to the backend. The session itself holds only a placeholder, and
+atc stores secret names, never a value:
+
+```json
+{
+  "authProfiles": {
+    "glm": {
+      "secret": "glm",
+      "host": "api.z.ai",
+      "header": "authorization",
+      "scheme": "bearer",
+      "dependencies": []
+    }
+  },
+  "gateways": {
+    "glm": {
+      "baseURL": "https://api.z.ai/api/anthropic",
+      "auth": {
+        "profiles": ["glm"],
+        "placeholderEnv": { "ANTHROPIC_AUTH_TOKEN": "imp-broker-placeholder" }
+      },
+      "env": { "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.6" }
+    }
+  }
+}
+```
+
+Each profile in `authProfiles` holds a reference to a secret impd holds and the rule impd applies
+with it:
+
+| Key            | What it holds                                                                             |
+| -------------- | ----------------------------------------------------------------------------------------- |
+| `secret`       | The name of the secret in impd, under impd's secret name rule.                            |
+| `host`         | The exact host impd adds the credential for: lowercase, no port, no wildcard, no IP.      |
+| `header`       | The lowercase header impd sets, such as `authorization`.                                  |
+| `scheme`       | How impd renders the value. atc binds `bearer` only.                                      |
+| `kind`         | The kind of secret impd holds. atc binds `custom` only, the default.                      |
+| `dependencies` | Profiles a session selecting this one needs beside it, such as a permission classifier's. |
+
+A gateway's `auth.profiles` selects profiles, and atc adds each one's dependencies. Every value in
+`auth.placeholderEnv` is `imp-broker-placeholder`, and the session gets those variables where a
+credential would go. atc refuses a gateway, leaves it out of the picker, and prints the reason when
+the daemon starts, when any of these holds:
+
+- A selected profile or one of its dependencies is missing or refused, or the dependencies form a
+  cycle.
+- Two profiles in the expanded set send different secrets or rules to one host. atc never picks
+  between them by order.
+- `baseURL` is not https, has a port or user info, or its host is not one of the expanded profiles'
+  hosts.
+- The gateway sets `apiKeyHelper`, or its `settings` set `apiKeyHelper`.
+- `env`, `settings.env`, or `placeholderEnv` sets a proxy or CA variable: `HTTPS_PROXY`,
+  `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY`, `NODE_USE_ENV_PROXY`, `SSL_CERT_FILE`, `SSL_CERT_DIR`,
+  `NODE_EXTRA_CA_CERTS`, `GIT_SSL_CAINFO`, `REQUESTS_CA_BUNDLE`, or `CURL_CA_BUNDLE`, in either
+  case. impd sets these to route requests through the broker, and a value the session sets wins over
+  impd's.
+- `env`, `settings.env`, or `placeholderEnv` sets `ANTHROPIC_BASE_URL`, which would replace the
+  checked `baseURL`.
+- `env` or `settings.env` sets `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_API_KEY`, or a variable that
+  `placeholderEnv` sets, since the gateway's value would replace the placeholder.
+
+atc leaves out a profile that breaks impd's rules for secret names, hosts, or headers, and prints an
+error for it, so a gateway selecting it is refused as well.
 
 ## Attention hooks (Grok and Codex)
 

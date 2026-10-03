@@ -17,8 +17,12 @@ export interface ImpProviderBuild {
  * so no credential sits in the config. `tokenEnv` holds the name of the
  * daemon's environment variable that carries the token, read once here.
  * `tokenFile` holds the path of a file that carries it, read here and again
- * before each impd call and connection. `image`, `memoryMib`, `guestDir`,
- * and `guestATC` pass through. No provider when `url` is missing, so the
+ * before each impd call and connection. `impPrefix` starts every imp name
+ * the target builds, `atc-` when absent, and must be a lowercase letter
+ * followed by up to 10 lowercase letters, digits or hyphens, so the name
+ * it builds with a host key's 20 characters stays within impd's 31. `image`,
+ * `memoryMib`, `guestDir`, and `guestATC` pass through. No provider when
+ * `url` is missing, so the
  * target lists and refuses every spawn. Both token options, either one not
  * a non-empty string, an unset or empty variable, or an empty or unreadable
  * file is a problem and leaves no provider; a target without either calls
@@ -41,7 +45,17 @@ export function buildImpProvider(
     return { provider: null, problem: source };
   }
 
+  const impPrefix = options['impPrefix'];
+
+  if (impPrefix !== undefined && !isImpPrefix(impPrefix)) {
+    return {
+      provider: null,
+      problem: `target ${JSON.stringify(id)} must give impPrefix as a lowercase letter followed by up to 10 lowercase letters, digits or hyphens, so every imp name it builds is one impd accepts`,
+    };
+  }
+
   const provider = new ImpProvider(new ImpClientPort({ url, readToken: source.readToken }), {
+    ...(impPrefix === undefined ? {} : { impPrefix }),
     ...pickString(options, 'image'),
     ...pickString(options, 'guestDir'),
     ...pickString(options, 'guestATC'),
@@ -103,6 +117,15 @@ function loadTokenSource(
   }
 
   return { readToken: () => token };
+}
+
+// impd's imp name rule, a lowercase letter then up to 30 lowercase letters,
+// digits or hyphens, with room left for the 20 characters of a host key.
+// It holds no `*`, so the prefix never reads as an imp pattern.
+const IMP_PREFIX = /^[a-z][a-z0-9-]{0,10}$/;
+
+function isImpPrefix(value: unknown): value is string {
+  return typeof value === 'string' && IMP_PREFIX.test(value);
 }
 
 function pickString(

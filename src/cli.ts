@@ -182,7 +182,12 @@ const main = defineCommand({
             console.error(`atc daemon: config: ${line}`);
           }
 
-          for (const problem of [...cfg.principalErrors, ...cfg.workspaceErrors]) {
+          for (const problem of [
+            ...cfg.principalErrors,
+            ...cfg.workspaceErrors,
+            ...cfg.authProfileErrors,
+            ...cfg.gatewayErrors,
+          ]) {
             console.error(`atc daemon: config: ${problem}`);
           }
 

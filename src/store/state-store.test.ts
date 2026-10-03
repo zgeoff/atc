@@ -1310,6 +1310,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '022_add_events_report_id',
     '023_add_events_report_text',
     '024_rebuild_spawn_history_keyed_by_target',
+    '025_create_runtime_auth',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -3852,5 +3853,431 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
     },
     { sessionID: toSessionID('s-verifying'), name: 'mid', cwd: '/w/s-verifying', agent: 'claude' },
     { sessionID: toSessionID('s-plain'), name: 'plain', cwd: '/x', agent: 'claude' },
+  ]);
+});
+
+test('it upgrades a database from before runtime auth and keeps every existing row', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const first = await StateStore.open(dbPath);
+
+  await first.writeFleet([
+    {
+      sessionID: toSessionID('s1'),
+      name: 'auth-bug',
+      cwd: '/x',
+      agent: 'claude',
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+    },
+  ]);
+
+  await first.recordSpawnDir('/x', { target: 'box', targetIdentity: 'imp:0123456789abcdef' });
+  await first.stop();
+
+  const older = new Database(dbPath);
+
+  older.run('DROP TABLE runtime_auth_grant');
+  older.run('DROP TABLE runtime_auth_binding');
+  older.run("DELETE FROM kysely_migration WHERE name = '025_create_runtime_auth'");
+  older.close();
+
+  const upgraded = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await upgraded.stop();
+  });
+
+  expect({
+    fleet: await upgraded.loadFleet(),
+    dirs: await upgraded.collectSpawnDirs(),
+    binding: await upgraded.findAuthBinding(toSessionID('s1')),
+    ledger: collectMigrationLedger(dbPath)
+      .map((row) => row.name)
+      .slice(-2),
+  }).toStrictEqual({
+    fleet: [
+      {
+        sessionID: toSessionID('s1'),
+        name: 'auth-bug',
+        cwd: '/x',
+        agent: 'claude',
+        target: 'box',
+        targetIdentity: 'imp:0123456789abcdef',
+      },
+    ],
+    dirs: [{ cwd: '/x', grant: { target: 'box', targetIdentity: 'imp:0123456789abcdef' } }],
+    binding: null,
+    ledger: ['024_rebuild_spawn_history_keyed_by_target', '025_create_runtime_auth'],
+  });
+});
+
+test('it records a runtime auth binding as provisioning at its first revision', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.createAuthBinding(
+    {
+      hostKey: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      impName: 'harness-s1',
+      bindingHash: 'a'.repeat(64),
+      bindingJSON: '{"secrets":[]}',
+      attemptID: 'attempt-1',
+    },
+    1000,
+  );
+
+  const binding = await store.findAuthBinding(toSessionID('s1'));
+
+  expect(binding).toStrictEqual({
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:0123456789abcdef',
+    impName: 'harness-s1',
+    impID: null,
+    revision: 1,
+    bindingHash: 'a'.repeat(64),
+    bindingJSON: '{"secrets":[]}',
+    state: 'provisioning',
+    attemptID: 'attempt-1',
+    impCreatedByAttempt: false,
+    rebind: null,
+    createdAt: 1000,
+    updatedAt: 1000,
+    revokedAt: null,
+  });
+});
+
+test('it keeps the old revision of a binding whose rebind failed beside the failed attempt', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.createAuthBinding(
+    {
+      hostKey: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      impName: 'atc-s1',
+      bindingHash: 'a'.repeat(64),
+      bindingJSON: '{"secrets":[]}',
+      attemptID: 'attempt-1',
+    },
+    1000,
+  );
+
+  await store.updateAuthBinding(
+    toSessionID('s1'),
+    { state: 'ready', impID: 'imp-id-1', impCreatedByAttempt: true },
+    2000,
+  );
+
+  await store.updateAuthBinding(
+    toSessionID('s1'),
+    {
+      state: 'rebind_failed',
+      rebind: {
+        revision: 2,
+        bindingHash: 'b'.repeat(64),
+        bindingJSON: '{"secrets":["judge"]}',
+        attemptID: 'attempt-2',
+      },
+    },
+    3000,
+  );
+
+  const binding = await store.findAuthBinding(toSessionID('s1'));
+
+  expect(binding).toStrictEqual({
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:0123456789abcdef',
+    impName: 'atc-s1',
+    impID: 'imp-id-1',
+    revision: 1,
+    bindingHash: 'a'.repeat(64),
+    bindingJSON: '{"secrets":[]}',
+    state: 'rebind_failed',
+    attemptID: 'attempt-1',
+    impCreatedByAttempt: true,
+    rebind: {
+      revision: 2,
+      bindingHash: 'b'.repeat(64),
+      bindingJSON: '{"secrets":["judge"]}',
+      attemptID: 'attempt-2',
+    },
+    createdAt: 1000,
+    updatedAt: 3000,
+    revokedAt: null,
+  });
+});
+
+test('it marks a binding revoked with the time of the revocation', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.createAuthBinding(
+    {
+      hostKey: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      impName: 'atc-s1',
+      bindingHash: 'a'.repeat(64),
+      bindingJSON: '{"secrets":[]}',
+      attemptID: 'attempt-1',
+    },
+    1000,
+  );
+
+  await store.updateAuthBinding(
+    toSessionID('s1'),
+    { state: 'revocation_pending', revokedAt: 2000 },
+    2000,
+  );
+
+  const binding = await store.findAuthBinding(toSessionID('s1'));
+
+  expect(binding).toMatchObject({
+    state: 'revocation_pending',
+    revokedAt: 2000,
+    updatedAt: 2000,
+  });
+});
+
+test('it writes a grant row per secret and moves it through its phases in place', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.upsertAuthGrant(
+    {
+      hostKey: toSessionID('s1'),
+      secret: 'judge',
+      revision: 1,
+      attemptID: 'attempt-1',
+      preexisting: false,
+      phase: 'granting',
+    },
+    1000,
+  );
+
+  await store.upsertAuthGrant(
+    {
+      hostKey: toSessionID('s1'),
+      secret: 'glm',
+      revision: 1,
+      attemptID: 'attempt-1',
+      preexisting: true,
+      phase: 'granting',
+    },
+    1000,
+  );
+
+  await store.upsertAuthGrant(
+    {
+      hostKey: toSessionID('s1'),
+      secret: 'judge',
+      revision: 1,
+      attemptID: 'attempt-1',
+      preexisting: false,
+      phase: 'granted',
+    },
+    2000,
+  );
+
+  const grants = await store.collectAuthGrants(toSessionID('s1'));
+
+  expect(grants).toStrictEqual([
+    {
+      hostKey: toSessionID('s1'),
+      secret: 'glm',
+      revision: 1,
+      attemptID: 'attempt-1',
+      preexisting: true,
+      phase: 'granting',
+      updatedAt: 1000,
+    },
+    {
+      hostKey: toSessionID('s1'),
+      secret: 'judge',
+      revision: 1,
+      attemptID: 'attempt-1',
+      preexisting: false,
+      phase: 'granted',
+      updatedAt: 2000,
+    },
+  ]);
+});
+
+test('it removes a binding and its grants and leaves another host untouched', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.createAuthBinding(
+    {
+      hostKey: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      impName: 'atc-s1',
+      bindingHash: 'a'.repeat(64),
+      bindingJSON: '{"secrets":[]}',
+      attemptID: 'attempt-1',
+    },
+    1000,
+  );
+
+  await store.createAuthBinding(
+    {
+      hostKey: toSessionID('s2'),
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      impName: 'atc-s2',
+      bindingHash: 'a'.repeat(64),
+      bindingJSON: '{"secrets":[]}',
+      attemptID: 'attempt-2',
+    },
+    1000,
+  );
+
+  await store.upsertAuthGrant(
+    {
+      hostKey: toSessionID('s1'),
+      secret: 'glm',
+      revision: 1,
+      attemptID: 'attempt-1',
+      preexisting: false,
+      phase: 'granted',
+    },
+    1000,
+  );
+
+  await store.upsertAuthGrant(
+    {
+      hostKey: toSessionID('s2'),
+      secret: 'glm',
+      revision: 1,
+      attemptID: 'attempt-2',
+      preexisting: false,
+      phase: 'granted',
+    },
+    1000,
+  );
+
+  await store.removeAuthBinding(toSessionID('s1'));
+
+  expect({
+    removed: await store.findAuthBinding(toSessionID('s1')),
+    removedGrants: await store.collectAuthGrants(toSessionID('s1')),
+    kept: await store.findAuthBinding(toSessionID('s2')),
+    keptGrants: await store.collectAuthGrants(toSessionID('s2')),
+  }).toStrictEqual({
+    removed: null,
+    removedGrants: [],
+    kept: {
+      hostKey: toSessionID('s2'),
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      impName: 'atc-s2',
+      impID: null,
+      revision: 1,
+      bindingHash: 'a'.repeat(64),
+      bindingJSON: '{"secrets":[]}',
+      state: 'provisioning',
+      attemptID: 'attempt-2',
+      impCreatedByAttempt: false,
+      rebind: null,
+      createdAt: 1000,
+      updatedAt: 1000,
+      revokedAt: null,
+    },
+    keptGrants: [
+      {
+        hostKey: toSessionID('s2'),
+        secret: 'glm',
+        revision: 1,
+        attemptID: 'attempt-2',
+        preexisting: false,
+        phase: 'granted',
+        updatedAt: 1000,
+      },
+    ],
+  });
+});
+
+test('it reconciles a grant a stopped daemon left granting as uncertain and leaves settled grants alone', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const first = await StateStore.open(dbPath);
+
+  await first.upsertAuthGrant(
+    {
+      hostKey: toSessionID('s1'),
+      secret: 'glm',
+      revision: 1,
+      attemptID: 'attempt-1',
+      preexisting: false,
+      phase: 'granting',
+    },
+    1000,
+  );
+
+  await first.upsertAuthGrant(
+    {
+      hostKey: toSessionID('s1'),
+      secret: 'judge',
+      revision: 1,
+      attemptID: 'attempt-1',
+      preexisting: false,
+      phase: 'granted',
+    },
+    1000,
+  );
+
+  await first.stop();
+
+  const second = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await second.stop();
+  });
+
+  await second.reconcileAuthBindings(5000);
+
+  const grants = await second.collectAuthGrants(toSessionID('s1'));
+
+  expect(grants).toStrictEqual([
+    {
+      hostKey: toSessionID('s1'),
+      secret: 'glm',
+      revision: 1,
+      attemptID: 'attempt-1',
+      preexisting: false,
+      phase: 'uncertain',
+      updatedAt: 5000,
+    },
+    {
+      hostKey: toSessionID('s1'),
+      secret: 'judge',
+      revision: 1,
+      attemptID: 'attempt-1',
+      preexisting: false,
+      phase: 'granted',
+      updatedAt: 1000,
+    },
   ]);
 });
