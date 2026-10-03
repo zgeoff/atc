@@ -17,10 +17,11 @@ removed one.
 The lock follows the state directory, not the sockets. Socket paths come from `$XDG_RUNTIME_DIR`,
 and a process whose environment lacks it, such as `atc mcp` under the Codex sandbox, computes socket
 paths under the state directory instead. Once it holds the lock, the daemon writes `daemon.json`
-beside it: its pid and the paths of its three sockets. A client that finds no daemon at its own
-socket path reads that record and connects to the socket it holds before it boots a daemon.
-Overlapping boots in one process share one spawn, and the TUI's `u` restart joins a restart that is
-already running, with `⟳ restarting daemon` in the status bar until it finishes.
+beside it: its pid, the paths of its three sockets, and the port of its TCP listener when it has
+one. A client that finds no daemon at its own socket path reads that record and connects to the
+socket it holds before it boots a daemon. Overlapping boots in one process share one spawn, and the
+TUI's `u` restart joins a restart that is already running, with `⟳ restarting daemon` in the status
+bar until it finishes.
 
 A client never stops a running daemon on its own, because stopping it ends every session it hosts. A
 daemon from an older build stays in service, and the TUI marks it `⟳ update ready` until the user
@@ -64,7 +65,8 @@ daemons. The protocol carries no TLS, so the listener relies on the tailnet's Wi
 `--listen` takes only a loopback address (`127.0.0.0/8`, `::1`) or one in the tailnet ranges
 `100.64.0.0/10` and `fd7a:115c:a1e4::/48`, written as an IP literal. `0.0.0.0`, `::`, other
 addresses, and host names refuse the start, and so does `--listen` without `--token-file`. Write an
-IPv6 host in brackets (`[fd7a:115c:a1e4::7]:8415`).
+IPv6 host in brackets (`[fd7a:115c:a1e4::7]:8415`). Port `0` lets the kernel pick a free port, and
+`daemon.json` holds the port the listener bound once the daemon answers a handshake.
 
 The listener applies no source-address allow-list: the bearer token is the gate. The token file
 holds one or two tokens, one per line, each at least 32 bytes once whitespace around it is trimmed.

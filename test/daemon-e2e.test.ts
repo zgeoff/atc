@@ -15,6 +15,7 @@ import { $ } from 'bun';
 import type { Subprocess } from 'bun';
 import { DaemonClient } from '../src/client/daemon-client';
 import type { EventMsg } from '../src/protocol/protocol';
+import { findDaemonRecord } from '../src/shared/find-daemon-record';
 import { getRecord } from '../src/shared/get-record';
 import { isRecord } from '../src/shared/report';
 import { toAgentSessionID } from '../src/shared/to-agent-session-id';
@@ -3347,10 +3348,6 @@ test.each([
 test('it closes a TCP connection whose token a SIGHUP reload removed', async () => {
   const tokens = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-tokens-'));
   const tokenFile = join(tokens, 'gateway-token');
-  const probe = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
-  const port = probe.port;
-
-  probe.stop(true);
 
   writeFileSync(tokenFile, `${'a'.repeat(32)}\n${'b'.repeat(32)}\n`);
 
@@ -3358,14 +3355,29 @@ test('it closes a TCP connection whose token a SIGHUP reload removed', async () 
     rmSync(tokens, { recursive: true, force: true });
   });
 
+  // Port 0 leaves the pick to the kernel, which holds the port from the
+  // bind on; a port the test picked and freed could be taken by another
+  // socket before the daemon binds it. A hello answered over the unix
+  // socket means startup has returned: the TCP listener is bound, the
+  // record holds its port, and the SIGHUP handler is in place.
   const ctx = setupDaemonProc(undefined, {}, [
     '--listen',
-    `127.0.0.1:${port}`,
+    '127.0.0.1:0',
     '--token-file',
     tokenFile,
   ]);
 
-  await ctx.openClient();
+  const local = await ctx.openClient();
+
+  await local.sendHello('atc/test');
+
+  const record = findDaemonRecord(join(ctx.home, '.local', 'state', 'atc', 'daemon.json'));
+
+  if (record === null || record.listenPort === null) {
+    throw new Error('daemon.json holds no listen port');
+  }
+
+  const port = record.listenPort;
 
   const tcp = await DaemonClient.open({ hostname: '127.0.0.1', port });
 

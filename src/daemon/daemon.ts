@@ -2064,6 +2064,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     socketPath: opts.socketPath,
     reporterSocketPath: opts.reporterSocketPath,
     eventsSocketPath: opts.eventsSocketPath ?? null,
+    listenPort: tcpListener?.port ?? null,
   });
 
   return {
