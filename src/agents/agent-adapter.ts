@@ -112,6 +112,10 @@ export interface HeadlessRunRequest {
   // The session's own model and effort, so a headless turn keeps them.
   readonly model?: string;
   readonly effort?: string;
+
+  // Environment variable names the run's process goes without, such as the
+  // credential a session's workspace was cloned with.
+  readonly withheldEnv?: readonly string[];
 }
 
 export interface HeadlessRunEvents {

@@ -42,6 +42,9 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
     target: SPAWN_SCHEMA.shape.target.describe(
       'Execution target for the new session, one of the target ids in atc_agents_list. Omit it to run on the default target (spawnDefaults.target). An unknown or unavailable target is refused; atc never runs the session on another target instead.',
     ),
+    workspace: SPAWN_SCHEMA.shape.workspace.describe(
+      "Where the session's working directory comes from. Omit it to run the session in cwd as it stands. With it, atc materializes a clean checkout into cwd on the target, which must not exist yet: {kind:'path', path, allowDirty?} checks out the pushed HEAD of a git checkout on the atc host, refusing uncommitted changes unless allowDirty is 'warn'; {kind:'git', url, ref or sha, credentialRef?} checks out a branch, tag, or full commit of a repository, with credentialRef {kind:'env', name} naming the atc daemon's environment variable that holds its token. A directory outside git runs in place only on a target on the atc host itself (provider local-pty), with cwd equal to its path. Submodules and Git LFS are refused, and so is a URL that carries a credential.",
+    ),
     detached: z
       .boolean()
       .optional()
@@ -353,6 +356,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
         effort: 'spawn.options',
         idempotencyKey: 'spawn.idempotency',
         target: 'spawn.target',
+        workspace: 'spawn.workspace',
       },
     },
   },

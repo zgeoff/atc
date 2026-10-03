@@ -40,14 +40,19 @@ export class LocalPTYProvider implements ExecutionProvider {
       env: { ...spec.env },
     });
 
+  // Options the host passes to GNU tar through `TAR_OPTIONS` are ignored,
+  // since one could leave tracked files out of the unpacked checkout.
   // oxlint-disable-next-line prefer-readonly-parameter-types -- archive bytes have no readonly form
   readonly transferArchive = async (archive: Uint8Array, dir: string): Promise<void> => {
     await mkdir(dir, { recursive: true });
+
+    const { TAR_OPTIONS: _ignored, ...env } = process.env;
 
     const result = await this.runCommandWithInput(
       ['tar', '-x', '-f', '-', '-C', dir],
       dir,
       archive,
+      env,
     );
 
     if (result.exitCode !== 0) {
@@ -64,9 +69,11 @@ export class LocalPTYProvider implements ExecutionProvider {
 
     // oxlint-disable-next-line prefer-readonly-parameter-types -- input bytes have no readonly form
     input: Uint8Array | null,
+    env?: Readonly<Record<string, string | undefined>>,
   ): Promise<CommandResult> {
     const proc = Bun.spawn([...argv], {
       cwd,
+      ...(env === undefined ? {} : { env: { ...env } }),
       stdin: input ?? 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',

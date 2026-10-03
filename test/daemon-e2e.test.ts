@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { $ } from 'bun';
 import type { Subprocess } from 'bun';
 import { DaemonClient } from '../src/client/daemon-client';
 import type { EventMsg } from '../src/protocol/protocol';
@@ -2732,4 +2733,46 @@ test("it runs and stores a resume request's own model and effort", async () => {
       effort: 'medium',
     });
   });
+});
+
+// TAR_OPTIONS reaches tar only through the environment a process starts
+// with, so the daemon here starts with it set.
+test('it unpacks every tracked file of a local workspace when the daemon env asks tar to exclude some', async () => {
+  const ctx = setupDaemonProc(undefined, { TAR_OPTIONS: '--exclude=*.txt' });
+
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+  };
+
+  const upstream = join(ctx.home, 'upstream.git');
+  const work = join(ctx.home, 'work');
+
+  await $`git init --quiet --bare --template= --initial-branch=main ${upstream}`.env(env).quiet();
+  await $`git clone --quiet --template= ${upstream} ${work}`.env(env).quiet();
+
+  writeFileSync(join(work, 'notes.txt'), 'kept\n');
+
+  await $`git add notes.txt`.env(env).cwd(work).quiet();
+
+  await $`git -c user.name=atc -c user.email=atc@example.com commit --quiet -m notes`
+    .env(env)
+    .cwd(work)
+    .quiet();
+
+  await $`git push --quiet origin main`.env(env).cwd(work).quiet();
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const dest = join(ctx.home, 'ws');
+
+  await client.sendRequest('session.spawn', {
+    cwd: dest,
+    workspace: { kind: 'git', url: upstream, ref: 'main' },
+  });
+
+  expect(readFileSync(join(dest, 'notes.txt'), 'utf8')).toBe('kept\n');
 });

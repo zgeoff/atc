@@ -42,6 +42,10 @@ export const DAEMON_FEATURES = [
   // A request takes `as`, the principal it acts as, and `daemon.hello`
   // takes `principal`, the principal the whole connection acts as.
   'request.principal',
+
+  // `session.spawn` takes `workspace`, and a session descriptor holds the
+  // `workspace` its checkout was materialized from.
+  'spawn.workspace',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

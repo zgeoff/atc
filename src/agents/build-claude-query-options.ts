@@ -54,6 +54,7 @@ export function buildClaudeQueryOptions(
       socketPath,
       ...(opts.pluginDir === undefined ? {} : { pluginDir: opts.pluginDir }),
       ...(opts.sessionID === undefined ? {} : { sessionID: opts.sessionID }),
+      ...(opts.withheldEnv === undefined ? {} : { withheldEnv: opts.withheldEnv }),
     }),
     ...(opts.resume === undefined ? {} : { resume: opts.resume }),
     ...(mode === undefined ? {} : { permissionMode: mode }),

@@ -340,3 +340,73 @@ test('it refuses a spawn on a target unsent when the daemon predates targets', a
 
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
+
+test('it spawns with the workspace the call gives and needs a daemon that takes workspaces', async () => {
+  const sent: unknown[] = [];
+  const workspace = { kind: 'git', url: 'https://example.com/r.git', ref: 'main' };
+
+  await runTool(
+    {
+      sendRequest: (m, p, required) => {
+        sent.push({ m, p, required });
+
+        return Promise.resolve({ session: { id: 's-1' } });
+      },
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
+    },
+    'atc_session_spawn',
+    { cwd: '/tmp/ws', workspace },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(sent).toStrictEqual([
+    {
+      m: 'session.spawn',
+      p: { cwd: '/tmp/ws', workspace, cols: 100, rows: 30 },
+      required: ['spawn.workspace'],
+    },
+  ]);
+});
+
+test('it returns the warnings a workspace spawn left with the session', async () => {
+  const result = await runTool(
+    {
+      sendRequest: () =>
+        Promise.resolve({ session: { id: 's-1' }, warnings: ['changes stay behind'] }),
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
+    },
+    'atc_session_spawn',
+    { cwd: '/tmp/ws', workspace: { kind: 'path', path: '/src/repo', allowDirty: 'warn' } },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(result.structured).toStrictEqual({ id: 's-1', warnings: ['changes stay behind'] });
+});
+
+test('it refuses a spawn with a workspace unsent when the daemon predates workspaces', async () => {
+  using tmp = setupTempDir('atc-run-tool-');
+
+  const socketPath = join(tmp.dir, 'daemon.sock');
+  const legacy = startLegacyDaemon(socketPath, 'pre-spawn-options');
+
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
+
+  onTestFinished(async () => {
+    await caller.stop();
+
+    legacy.stop();
+  });
+
+  const spawn = runTool(
+    caller,
+    'atc_session_spawn',
+    { cwd: '/tmp/ws', workspace: { kind: 'path', path: '/src/repo' } },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's workspace/);
+
+  await spawn.catch(() => null);
+
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});

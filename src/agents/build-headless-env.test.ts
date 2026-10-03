@@ -39,3 +39,25 @@ test('it drops an enclosing session mod folder when none is supplied', () => {
 
   expect(env['CLAUDE_CODE_PLUGIN_DIRS']).toBeUndefined();
 });
+
+test('it leaves the variables a run withholds out of its environment', () => {
+  const prior = process.env['ATC_TEST_WORKSPACE_CRED'];
+
+  process.env['ATC_TEST_WORKSPACE_CRED'] = 'fixture-not-a-secret';
+
+  onTestFinished(() => {
+    const restored = prior === undefined ? {} : { ATC_TEST_WORKSPACE_CRED: prior };
+
+    delete process.env['ATC_TEST_WORKSPACE_CRED'];
+    Object.assign(process.env, restored);
+  });
+
+  const env = buildHeadlessEnv({
+    sessionID: toSessionID('s-1'),
+    socketPath: '/state/r.sock',
+    withheldEnv: ['ATC_TEST_WORKSPACE_CRED'],
+  });
+
+  expect(env).not.toContainKey('ATC_TEST_WORKSPACE_CRED');
+  expect(env['ATC_SESSION_ID']).toBe('s-1');
+});

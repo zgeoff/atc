@@ -5,6 +5,7 @@ import type { AdapterEvent, AgentAdapter } from '../agents/agent-adapter';
 import { DaemonError } from '../protocol/daemon-error';
 import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
+import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
 import type { HooksConfig } from '../shared/collect-hooks';
 import type { TargetConfigError } from '../shared/collect-targets';
 import { findDaemonRecord } from '../shared/find-daemon-record';
@@ -19,6 +20,7 @@ import type { MessageRecord, MessageStatus } from '../store/message-record';
 import { StateStore } from '../store/state-store';
 import type { EventScope } from '../store/state-store';
 import type { TrailEntry } from '../store/trail-entry';
+import type { SessionWorkspace } from '../store/workspace-materialization';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
@@ -51,6 +53,7 @@ import { IdempotencyLedger } from './idempotency-ledger';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
+import { materializeWorkspace } from './materialize-workspace';
 import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
 import { parseReport } from './parse-report';
@@ -132,6 +135,10 @@ export interface DaemonOptions {
   // Called after a client-requested quit has stopped the daemon; the real
   // entrypoint exits the process, tests leave it unset.
   readonly onQuit?: () => void;
+
+  // Where background failures are reported, one line at a time; stderr
+  // when unset.
+  readonly log?: (line: string) => void;
 }
 
 export interface DaemonHandle {
@@ -192,8 +199,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const store = await StateStore.open(opts.dbPath, opts.legacyFleetPath);
 
-  // Before any request is served: a key left in progress by a daemon that
-  // stopped mid-effect is settled first, so no retry can race it.
+  // Before any request is served: a workspace a stopped daemon left short
+  // of ready fails as interrupted, and a key left in progress by a daemon
+  // that stopped mid-effect is settled, so no retry can race either.
+  await store.reconcileMaterializations(Date.now());
   await store.reconcileIdempotencyKeys(Date.now());
 
   await tryRemoveExpiredIdempotencyKeys(store);
@@ -227,6 +236,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     targets,
     targetErrors,
   );
+
+  if (opts.log !== undefined) {
+    mgr.log = opts.log;
+  }
 
   const clients = new Set<DaemonConnection>();
 
@@ -762,13 +775,26 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   }, opts.reporterSocketPath);
 
-  // A spawn that throws once its process has started takes the session back
-  // before it throws, so a failed start leaves nothing running and a keyed
-  // retry spawns once. When taking it back fails too, the session may still
-  // stand, and the throw says so.
-  const startSpawn = async (p: SpawnParams, id: SessionID): Promise<SessionDescriptor> => {
+  // A spawn with a workspace source materializes it first, and the session
+  // registers only once its workspace is ready, so no session ever lists
+  // over a half-built checkout. A spawn that throws once its process has
+  // started takes the session back before it throws, so a failed start
+  // leaves nothing running and a keyed retry spawns once. When taking it
+  // back fails too, the session may still stand, and the throw says so.
+  const startSpawn = async (
+    p: SpawnParams,
+    id: SessionID,
+  ): Promise<Readonly<Record<string, unknown>>> => {
+    const prepared =
+      p.workspace === null ? null : await materializeSpawnWorkspace(p, id, p.workspace);
+
+    const materialized = prepared?.kind === 'ready' ? prepared : null;
+    const warnings = materialized === null ? [] : materialized.warnings;
+
     try {
-      return startSpawnedSession(p, id);
+      const session = startSpawnedSession(p, id, materialized);
+
+      return warnings.length === 0 ? { session } : { session, warnings };
     } catch (error) {
       try {
         await mgr.removeFailedSpawn(id);
@@ -785,7 +811,43 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
-  const startSpawnedSession = (p: SpawnParams, id: SessionID): SessionDescriptor => {
+  // Materializes a spawn's workspace on its target. The target's identity
+  // binds when the materialization starts, and every provider call after
+  // passes the execution gate against that binding.
+  const materializeSpawnWorkspace = (
+    p: SpawnParams,
+    id: SessionID,
+    source: SpawnWorkspaceSource,
+  ) => {
+    const bound = mgr.requireExecution({ target: p.target, targetIdentity: null }, 'run');
+    const binding = { target: p.target, targetIdentity: bound.identity };
+
+    return materializeWorkspace(
+      {
+        sessionID: id,
+        target: p.target,
+        dir: p.cwd,
+        source,
+        inPlace: bound.provider.kind === 'local-pty',
+      },
+      {
+        requireProvider: (capability) => mgr.requireExecution(binding, capability).provider,
+        store,
+        log: (line) => {
+          mgr.log(line);
+        },
+      },
+    );
+  };
+
+  const startSpawnedSession = (
+    p: SpawnParams,
+    id: SessionID,
+    materialized: Readonly<{
+      workspace: SessionWorkspace;
+      withheldEnv: readonly string[];
+    }> | null,
+  ): SessionDescriptor => {
     const s = mgr.spawn(
       p.cwd,
       p.name,
@@ -799,6 +861,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       p.overrides,
       id,
       p.target,
+      materialized,
     );
 
     const runtime = runtimes.get(s.id);
@@ -996,9 +1059,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return target;
     },
+    requireWorkspaceTarget: (target) => {
+      mgr.requireExecution({ target, targetIdentity: null }, 'transfer');
+      mgr.requireExecution({ target, targetIdentity: null }, 'run');
+    },
     spawnSession: (plan, keyed, access) => {
       if (keyed === null) {
-        return startSpawn(plan(), mintSessionID()).then((session) => ({ session }));
+        return startSpawn(plan(), mintSessionID());
       }
 
       const effectRef = mintSessionID();
@@ -1007,7 +1074,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         operation: 'session.spawn',
         keyed,
         effectRef,
-        start: async () => ({ session: await startSpawn(plan(), effectRef) }),
+        start: () => startSpawn(plan(), effectRef),
         settle: () => mgr.writeFleet(),
         replay: (record) => {
           if (access !== null) {

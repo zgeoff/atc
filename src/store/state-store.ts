@@ -24,6 +24,11 @@ import type { MessageRecord } from './message-record';
 import { runMigrations } from './run-migrations';
 import type { StateStoreSchema } from './run-migrations';
 import type { TrailEntry } from './trail-entry';
+import type {
+  MaterializationUpdate,
+  SessionWorkspace,
+  WorkspaceMaterialization,
+} from './workspace-materialization';
 
 // Spelled as the partial index's predicate so SQLite can match them.
 const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;
@@ -124,29 +129,41 @@ export class StateStore {
   async loadFleet(): Promise<FleetEntry[]> {
     const rows = await this.db
       .selectFrom('fleet')
-      .where('session_id', 'in', (eb) =>
+
+      // A session's ready workspace comes back with its row.
+      .leftJoin('workspace_materialization as workspace', (join) =>
+        join
+          .onRef('workspace.session_id', '=', 'fleet.session_id')
+          .on('workspace.phase', '=', 'ready'),
+      )
+      .where('fleet.session_id', 'in', (eb) =>
         eb.selectFrom('session_owner').select('session_id').where('daemon_id', '=', this.daemonID),
       )
 
       // Stored order, which a restore keeps for sessions with no recency.
-      .orderBy(sql`rowid`)
+      .orderBy(sql`fleet.rowid`)
       .select([
-        'session_id',
-        'agent_session_id',
-        'name',
-        'cwd',
-        'pinned',
-        'last_attached',
-        'agent',
-        'exited',
-        'parent_session_id',
-        'prompt',
-        'result',
-        'transcript_path',
-        'model',
-        'effort',
-        'target',
-        'target_identity',
+        'fleet.session_id',
+        'fleet.agent_session_id',
+        'fleet.name',
+        'fleet.cwd',
+        'fleet.pinned',
+        'fleet.last_attached',
+        'fleet.agent',
+        'fleet.exited',
+        'fleet.parent_session_id',
+        'fleet.prompt',
+        'fleet.result',
+        'fleet.transcript_path',
+        'fleet.model',
+        'fleet.effort',
+        'fleet.target',
+        'fleet.target_identity',
+        'workspace.repo_url',
+        'workspace.sha',
+        'workspace.ref',
+        'workspace.materialized_at',
+        'workspace.withheld_env',
       ])
       .execute();
 
@@ -172,6 +189,8 @@ export class StateStore {
         ...(row.effort === null ? {} : { effort: row.effort }),
         ...(row.target === null ? {} : { target: row.target }),
         ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
+        ...buildWorkspaceField(row),
+        ...buildWithheldEnvField(row.withheld_env),
       });
     }
 
@@ -710,6 +729,76 @@ export class StateStore {
       .execute();
   }
 
+  // Records a materialization as it starts, in the resolving phase.
+  async createMaterialization(
+    row: Pick<
+      WorkspaceMaterialization,
+      'sessionID' | 'target' | 'dir' | 'sourceKind' | 'withheldEnv'
+    >,
+    at: number,
+  ): Promise<void> {
+    await this.db
+      .insertInto('workspace_materialization')
+      .values({
+        session_id: row.sessionID,
+        target: row.target,
+        dir: row.dir,
+        source_kind: row.sourceKind,
+        phase: 'resolving',
+        repo_url: null,
+        sha: null,
+        ref: null,
+        error_code: null,
+        started_at: at,
+        updated_at: at,
+        materialized_at: null,
+        withheld_env: JSON.stringify(row.withheldEnv),
+      })
+      .execute();
+  }
+
+  async updateMaterialization(
+    sessionID: SessionID,
+    fields: MaterializationUpdate,
+    at: number,
+  ): Promise<void> {
+    await this.db
+      .updateTable('workspace_materialization')
+      .set({
+        phase: fields.phase,
+        ...(fields.repoURL === undefined ? {} : { repo_url: fields.repoURL }),
+        ...(fields.sha === undefined ? {} : { sha: fields.sha }),
+        ...(fields.ref === undefined ? {} : { ref: fields.ref }),
+        ...(fields.errorCode === undefined ? {} : { error_code: fields.errorCode }),
+        ...(fields.materializedAt === undefined ? {} : { materialized_at: fields.materializedAt }),
+        updated_at: at,
+      })
+      .where('session_id', '=', sessionID)
+      .execute();
+  }
+
+  async findMaterialization(sessionID: SessionID): Promise<WorkspaceMaterialization | null> {
+    const row = await this.db
+      .selectFrom('workspace_materialization')
+      .selectAll()
+      .where('session_id', '=', sessionID)
+      .executeTakeFirst();
+
+    return row === undefined ? null : toWorkspaceMaterialization(row);
+  }
+
+  // Runs once as a daemon starts, before it serves a request: a
+  // materialization still short of ready or failed belonged to a daemon that
+  // stopped partway through it, and its workspace was never verified, so it
+  // fails as interrupted.
+  async reconcileMaterializations(at: number): Promise<void> {
+    await this.db
+      .updateTable('workspace_materialization')
+      .set({ phase: 'failed', error_code: 'workspace_interrupted', updated_at: at })
+      .where('phase', 'not in', ['ready', 'failed'])
+      .execute();
+  }
+
   async stop(): Promise<void> {
     await this.db.destroy();
 
@@ -748,6 +837,30 @@ export class StateStore {
   }
 }
 
+// A fleet row's ready workspace as its entry field, or nothing for a row
+// that ran without one.
+function buildWorkspaceField(
+  row: Readonly<{
+    repo_url: string | null;
+    sha: string | null;
+    ref: string | null;
+    materialized_at: number | null;
+  }>,
+): { readonly workspace?: SessionWorkspace } {
+  if (row.repo_url === null || row.sha === null || row.materialized_at === null) {
+    return {};
+  }
+
+  return {
+    workspace: {
+      repoURL: row.repo_url,
+      sha: row.sha,
+      ...(row.ref === null ? {} : { ref: row.ref }),
+      materializedAt: row.materialized_at,
+    },
+  };
+}
+
 // Two sessions share an agent session id when one resumes the other's agent
 // session. The fleet keeps one row per agent session id, the entry written
 // last, and relinks the survivors as a one-level hierarchy of rows it holds:
@@ -761,6 +874,22 @@ export class StateStore {
 //    row above it.
 //
 // Every walk takes at most one step per entry, so it ends on any input.
+// A ready workspace's withheld variable names as their entry field, or
+// nothing for a row that withholds none.
+function buildWithheldEnvField(stored: string | null): { readonly withheldEnv?: string[] } {
+  const names = parseWithheldEnv(stored);
+
+  return names.length === 0 ? {} : { withheldEnv: names };
+}
+
+function parseWithheldEnv(stored: string | null): string[] {
+  const parsed: unknown = stored === null ? [] : JSON.parse(stored);
+
+  return Array.isArray(parsed)
+    ? parsed.filter((name): name is string => typeof name === 'string')
+    : [];
+}
+
 function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEntry[] {
   const survivors = new Map<AgentSessionID, SessionID>();
 
@@ -1031,5 +1160,25 @@ function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRe
     ...(row.answered_at === null ? {} : { answeredAt: row.answered_at }),
     ...(row.answer === null ? {} : { answer: row.answer }),
     ...(row.turn_id === null ? {} : { turn: row.turn_id }),
+  };
+}
+
+function toWorkspaceMaterialization(
+  row: Readonly<StateStoreSchema['workspace_materialization']>,
+): WorkspaceMaterialization {
+  return {
+    sessionID: toSessionID(row.session_id),
+    target: row.target,
+    dir: row.dir,
+    sourceKind: row.source_kind,
+    phase: row.phase,
+    repoURL: row.repo_url,
+    sha: row.sha,
+    ref: row.ref,
+    errorCode: row.error_code,
+    startedAt: row.started_at,
+    updatedAt: row.updated_at,
+    materializedAt: row.materialized_at,
+    withheldEnv: parseWithheldEnv(row.withheld_env),
   };
 }

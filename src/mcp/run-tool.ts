@@ -46,12 +46,13 @@ export function runTool(
         ...(args['effort'] === undefined ? {} : { effort: args['effort'] }),
         ...(key === undefined ? {} : { idempotencyKey: key }),
         ...(args['target'] === undefined ? {} : { target: args['target'] }),
+        ...(args['workspace'] === undefined ? {} : { workspace: args['workspace'] }),
         cols: 100,
         rows: 30,
       };
 
-      // A model, effort, key, or target needs a daemon that takes them; the check
-      // runs on every connection the spawn rides.
+      // A model, effort, key, target, or workspace needs a daemon that takes
+      // them; the check runs on every connection the spawn rides.
       const optionFeatures: readonly DaemonFeature[] =
         args['model'] === undefined && args['effort'] === undefined ? [] : ['spawn.options'];
 
@@ -60,14 +61,26 @@ export function runTool(
       const targetFeatures: readonly DaemonFeature[] =
         args['target'] === undefined ? [] : ['spawn.target'];
 
-      const required = [...optionFeatures, ...keyFeatures, ...targetFeatures];
+      const workspaceFeatures: readonly DaemonFeature[] =
+        args['workspace'] === undefined ? [] : ['spawn.workspace'];
+
+      const required = [...optionFeatures, ...keyFeatures, ...targetFeatures, ...workspaceFeatures];
 
       const ok =
         nested && ctx.callerSessionID !== null
           ? await sendNestedSpawn(caller, params, ctx.callerSessionID, required)
           : await caller.sendRequest('session.spawn', params, required);
 
-      return buildObjectResult(ok['session']);
+      // A spawn whose workspace left changes behind returns its warnings
+      // beside the session's own fields.
+      const warnings = ok['warnings'];
+
+      const session =
+        warnings === undefined || !isRecord(ok['session'])
+          ? ok['session']
+          : { ...ok['session'], warnings };
+
+      return buildObjectResult(session);
     })
     .with('atc_session_input', async () => {
       await caller.sendRequest('session.input', {

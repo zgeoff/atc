@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { basename, isAbsolute } from 'node:path';
 import type { AgentAdapter, AgentID, SpawnOptions, SpawnOverrides } from '../agents/agent-adapter';
 import { DaemonError } from '../protocol/daemon-error';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
@@ -15,6 +15,7 @@ import {
   encodeMessage,
 } from '../protocol/protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from '../protocol/protocol';
+import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
 import type { TargetConfigError } from '../shared/collect-targets';
 import type { DaemonID } from '../shared/daemon-id';
 import type { MessageID } from '../shared/message-id';
@@ -49,6 +50,10 @@ export interface SpawnParams {
   readonly parent: SessionID | null;
   readonly overrides: SpawnOverrides;
   readonly target: string;
+
+  // Where the session's working directory comes from; null runs the
+  // session in cwd as it stands.
+  readonly workspace: SpawnWorkspaceSource | null;
 }
 
 interface SessionRecord {
@@ -98,6 +103,10 @@ export interface DaemonContext {
   // the refusal for a target the spawn cannot run on, and for a spawn
   // without a target when the config gives no default.
   readonly resolveSpawnTarget: (requested: string | undefined) => string;
+
+  // Throws the refusal for a target that cannot materialize a workspace:
+  // one whose provider cannot both transfer an archive and run a command.
+  readonly requireWorkspaceTarget: (target: string) => void;
 
   // Runs the plan, which throws the refusal for a spawn it refuses, then
   // spawns. Answers with the `session.spawn` ok payload, which a keyed
@@ -787,6 +796,18 @@ export class DaemonConnection {
         throw new DaemonError(overrides.code, overrides.message);
       }
 
+      // Checked before the spawn starts, so a target that cannot take a
+      // workspace refuses it before any git command runs.
+      if (data.workspace !== undefined) {
+        this.ctx.requireWorkspaceTarget(target);
+      }
+
+      // A workspace is materialized at cwd on the target, which only an
+      // absolute path names.
+      if (data.workspace !== undefined && !isAbsolute(data.cwd)) {
+        throw new DaemonError('bad_args', 'a spawn with a workspace requires an absolute cwd');
+      }
+
       let parent: SessionID | null = null;
 
       if (data.parent !== undefined) {
@@ -813,6 +834,7 @@ export class DaemonConnection {
         parent,
         overrides: overrides.overrides,
         target,
+        workspace: data.workspace ?? null,
       };
     };
 

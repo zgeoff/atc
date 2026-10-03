@@ -8,6 +8,7 @@ import type { DaemonID } from '../shared/daemon-id';
 import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import type { SessionWorkspace } from './workspace-materialization';
 
 // One fleet row. The atc session id keys it and stays the same for the
 // session's whole life, across daemon restarts and fleet restores.
@@ -48,6 +49,15 @@ export interface FleetEntry {
   // The identity the target had when the session started on it; a row
   // without one is bound to the implicit `local` target's identity.
   readonly targetIdentity?: string;
+
+  // What the session's workspace was materialized from, for a session
+  // spawned with a workspace source; a fleet write leaves it to the
+  // materialization record that holds it.
+  readonly workspace?: SessionWorkspace;
+
+  // The environment variable names every harness the session starts goes
+  // without, held with its ready workspace; never their values.
+  readonly withheldEnv?: readonly string[];
 }
 
 export interface FleetStore {

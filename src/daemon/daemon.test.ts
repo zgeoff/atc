@@ -150,6 +150,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'message.idempotency',
       'spawn.target',
       'request.principal',
+      'spawn.workspace',
     ],
     lastUsedAgent: 'claude',
   });

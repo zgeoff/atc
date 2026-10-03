@@ -12,6 +12,7 @@ import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { SessionID } from '../shared/session-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
+import type { SessionWorkspace } from '../store/workspace-materialization';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildTargetIdentity } from './build-target-identity';
 import type { ExecutionCapability, ExecutionProvider, HarnessHandle } from './execution-provider';
@@ -55,6 +56,10 @@ export interface SessionDescriptor {
   // Where the session runs: the daemon hosting it, and the execution target
   // on that daemon's host.
   readonly locator: SessionLocator;
+
+  // What the session's working directory was materialized from, for a
+  // session spawned with a workspace source.
+  readonly workspace?: SessionWorkspace;
 }
 
 interface SessionLocator {
@@ -117,6 +122,20 @@ export interface Session {
   // while the target keeps that identity.
   target: string;
   targetIdentity: string;
+
+  // what the working directory was materialized from, when the spawn
+  // carried a workspace source
+  workspace?: SessionWorkspace;
+
+  // the environment variable names every harness the session starts goes
+  // without: the materialization's credential and askpass context
+  withheldEnv: readonly string[];
+}
+
+// A session's ready workspace and the variables its harnesses go without.
+interface MaterializedSpawn {
+  readonly workspace: SessionWorkspace;
+  readonly withheldEnv: readonly string[];
 }
 
 // The identity of the implicit `local` target, which a fleet row without a
@@ -326,6 +345,8 @@ export class SessionManager {
       ...(entry.effort === undefined ? {} : { effort: entry.effort }),
       target,
       targetIdentity,
+      ...(entry.workspace === undefined ? {} : { workspace: entry.workspace }),
+      withheldEnv: entry.withheldEnv ?? [],
     };
 
     this.sessions.push(session);
@@ -363,7 +384,7 @@ export class SessionManager {
       bin: plan.bin,
       args: plan.args,
       cwd: s.cwd,
-      env: collectCleanEnv({ ATC_SESSION_ID: s.id, ATC_SOCKET: socketPath }),
+      env: collectCleanEnv({ ATC_SESSION_ID: s.id, ATC_SOCKET: socketPath }, s.withheldEnv),
       cols,
       rows,
     });
@@ -491,7 +512,9 @@ export class SessionManager {
   // the new process runs with, and the session keeps them for every revive.
   // id is minted here unless the caller minted it ahead of the spawn. target
   // is the execution target the harness runs on; one this daemon cannot use
-  // refuses the spawn before anything starts.
+  // refuses the spawn before anything starts. materialized holds what cwd
+  // was materialized from, when it was, and the variables the session's
+  // harnesses go without.
   spawn(
     cwd: string,
     name: string,
@@ -505,6 +528,7 @@ export class SessionManager {
     overrides: SpawnOverrides = {},
     id: SessionID = mintSessionID(),
     target = 'local',
+    materialized: MaterializedSpawn | null = null,
   ): Session {
     const adapter = this.findAdapter(agent);
 
@@ -524,7 +548,10 @@ export class SessionManager {
       bin: plan.bin,
       args: plan.args,
       cwd,
-      env: collectCleanEnv({ ATC_SESSION_ID: id, ATC_SOCKET: socketPath }),
+      env: collectCleanEnv(
+        { ATC_SESSION_ID: id, ATC_SOCKET: socketPath },
+        materialized?.withheldEnv ?? [],
+      ),
       cols,
       rows,
     });
@@ -557,6 +584,8 @@ export class SessionManager {
       ...(overrides.effort === undefined ? {} : { effort: overrides.effort }),
       target,
       targetIdentity: execution.identity,
+      ...(materialized === null ? {} : { workspace: materialized.workspace }),
+      withheldEnv: materialized?.withheldEnv ?? [],
     };
 
     pty.onData((d) => {
@@ -628,6 +657,7 @@ export class SessionManager {
       canEject: (this.findAdapter(s.agent)?.headlessRunner ?? null) !== null,
       ...(s.parent === null ? {} : { parent: s.parent }),
       locator: { daemonID: this.store.daemonID, targetID: s.target },
+      ...(s.workspace === undefined ? {} : { workspace: s.workspace }),
     }));
   }
 

@@ -3,14 +3,22 @@
  * scrubbed out. A child that inherits those variables behaves as part of
  * the parent session — Claude transcripts nest, and Grok joins the
  * parent's in-process dashboard — which breaks resume and isolation.
+ *
+ * Variables named in `withheld` are left out of what the child inherits,
+ * such as a workspace credential that only the daemon's own git commands
+ * may see. The extras the caller sets explicitly are added after, so one
+ * of them is kept even when it shares a withheld name.
  */
 export function collectCleanEnv(
   extra: Readonly<Record<string, string>> = {},
+  withheld: readonly string[] = [],
 ): Record<string, string> {
   const env: Record<string, string> = {};
 
+  const skipped = new Set(withheld);
+
   for (const [key, value] of Object.entries(process.env)) {
-    if (value === undefined || isParentSessionKey(key)) {
+    if (value === undefined || isParentSessionKey(key) || skipped.has(key)) {
       continue;
     }
 

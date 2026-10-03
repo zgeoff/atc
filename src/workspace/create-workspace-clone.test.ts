@@ -252,6 +252,24 @@ test('it refuses a ref the upstream does not have', async () => {
   expect(clone).toMatchObject({ ok: false, code: 'ref_not_found' });
 });
 
+test('it refuses a full commit id the upstream does not have and leaves no directory', async () => {
+  await using project = await setupTest();
+
+  await writeFile(join(project.work, 'README.md'), 'unpushed\n');
+
+  await $`git commit --quiet -am unpushed`.env(project.env).cwd(project.work).quiet();
+
+  const unpushed = await $`git rev-parse HEAD`.env(project.env).cwd(project.work).text();
+
+  const clone = await createWorkspaceClone({
+    source: { kind: 'git', url: project.upstream, ref: unpushed.trim() },
+    dir: join(project.dir, 'clone'),
+  });
+
+  expect(clone).toMatchObject({ ok: false, code: 'ref_not_found' });
+  expect(existsSync(join(project.dir, 'clone'))).toBeFalse();
+});
+
 test('it refuses an upstream it cannot reach', async () => {
   await using project = await setupTest();
 

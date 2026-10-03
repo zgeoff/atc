@@ -329,3 +329,54 @@ test('it rejects session.resize with fractional rows as bad_args', () => {
     message: 'cols and rows must be whole numbers from 1 to 4096',
   });
 });
+
+test.each([
+  ['a path source', { kind: 'path', path: '/src/repo', allowDirty: 'warn' }],
+  ['a git source at a ref', { kind: 'git', url: 'https://example.com/r.git', ref: 'main' }],
+  [
+    'a git source at a commit with a credentialRef',
+    {
+      kind: 'git',
+      url: 'git@example.com:o/r.git',
+      sha: 'a'.repeat(40),
+      credentialRef: { kind: 'env', name: 'GIT_TOKEN' },
+    },
+  ],
+] as const)('it carries %s through as the session.spawn workspace', (_, workspace) => {
+  const parsed = parseRequestParams('session.spawn', { cwd: '/w', workspace });
+
+  expect(parsed).toMatchObject({ ok: true, data: { workspace } });
+});
+
+test.each([
+  ['a relative path', { kind: 'path', path: 'repo' }, 'a path workspace requires an absolute path'],
+  [
+    'a git source with both ref and sha',
+    { kind: 'git', url: '/r.git', ref: 'main', sha: 'a'.repeat(40) },
+    'a git workspace takes exactly one of ref or sha',
+  ],
+  [
+    'a git source with neither ref nor sha',
+    { kind: 'git', url: '/r.git' },
+    'a git workspace takes exactly one of ref or sha',
+  ],
+  [
+    'an abbreviated sha',
+    { kind: 'git', url: '/r.git', sha: 'abc1234' },
+    'a git workspace sha is a full commit id',
+  ],
+  [
+    'a url that reads as an option',
+    { kind: 'git', url: '--upload-pack=x', ref: 'main' },
+    'a git workspace url must not start with -',
+  ],
+  [
+    'a credentialRef that is not a variable name',
+    { kind: 'git', url: '/r.git', ref: 'main', credentialRef: { kind: 'env', name: 'A B' } },
+    'a credentialRef names an environment variable',
+  ],
+])('it rejects %s as the session.spawn workspace', (_, workspace, message) => {
+  const parsed = parseRequestParams('session.spawn', { cwd: '/w', workspace });
+
+  expect(parsed).toStrictEqual({ ok: false, message });
+});

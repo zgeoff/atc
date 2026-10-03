@@ -135,3 +135,28 @@ test('it lists the spawn tool without a target for a daemon that predates target
 
   expect(spawn.inputSchema['properties']).not.toContainKey('target');
 });
+
+test('it lists the spawn tool with a workspace for a daemon that takes workspaces', () => {
+  const spawn = buildToolList(new Set(DAEMON_FEATURES), null).find(
+    (tool) => tool.name === 'atc_session_spawn',
+  );
+
+  if (spawn === undefined) {
+    throw new Error('spawn tool missing');
+  }
+
+  expect(spawn.inputSchema['properties']).toContainKey('workspace');
+});
+
+test('it lists the spawn tool without a workspace for a daemon that predates workspaces', () => {
+  const spawn = buildToolList(
+    new Set(DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace')),
+    null,
+  ).find((tool) => tool.name === 'atc_session_spawn');
+
+  if (spawn === undefined) {
+    throw new Error('spawn tool missing');
+  }
+
+  expect(spawn.inputSchema['properties']).not.toContainKey('workspace');
+});
