@@ -137,7 +137,9 @@ The daemon checks the token before anything else in the handshake, comparing SHA
 constant time against each token in the file. A missing or wrong token gets `unauthorized` and the
 daemon closes the connection, so a peer without a token learns neither the build nor the protocol
 version. Once one source address has failed five handshakes within a minute, the daemon waits 10 s
-before it checks that address's next handshake.
+before it checks that address's next handshake. At most 64 such waits run at once across all
+addresses: a handshake that would wait while 64 already do gets `unauthorized` at once and counts as
+a failure, and a wait ends, refused, as soon as its connection closes.
 
 Until its handshake passes, a TCP connection gets nothing but the answer to that one handshake. Any
 other line, a malformed or oversized one, or a second line sent while the handshake is still being

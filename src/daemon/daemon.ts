@@ -187,6 +187,10 @@ interface ListenOptions {
   // How long a handshake waits once its source address has failed five
   // times within a minute; 10 s when unset.
   readonly failureDelayMs?: number;
+
+  // How many delayed handshakes may wait at once across every address; 64
+  // when unset.
+  readonly maxDelayedHandshakes?: number;
 }
 
 export interface DaemonHandle {
@@ -221,6 +225,10 @@ const IDEMPOTENCY_SWEEP_MS = 60 * 60 * 1000;
 
 // How long a TCP handshake waits once its address has failed too often.
 const HANDSHAKE_FAILURE_DELAY_MS = 10_000;
+
+// How many delayed handshakes may wait at once; a handshake over the cap is
+// refused at once.
+const MAX_DELAYED_HANDSHAKES = 64;
 
 // How long startup waits for a daemon that is shutting down to release the
 // state lock before refusing to start.
@@ -1980,6 +1988,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           port: opts.listen.port,
           tokens: listenTokens,
           failureDelayMs: opts.listen.failureDelayMs ?? HANDSHAKE_FAILURE_DELAY_MS,
+          maxDelayedHandshakes: opts.listen.maxDelayedHandshakes ?? MAX_DELAYED_HANDSHAKES,
           openConnection: (socket, peer) => {
             const connection = new DaemonConnection(socket, ctx, peer);
 
