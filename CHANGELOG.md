@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.12.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.11.0...@zgeoff/atc@2.12.0) (2026-10-03)
+
+
+### Features
+
+* **#105:** take a model and effort on session spawns ([#146](https://github.com/zgeoff/atc/issues/146)) ([cbba345](https://github.com/zgeoff/atc/commit/cbba34591de5d1cb75261fad2aed64b314d15e1b))
+* **daemon:** give the daemon a persisted identity and own its rows ([#154](https://github.com/zgeoff/atc/issues/154)) ([c6eb172](https://github.com/zgeoff/atc/commit/c6eb172aed21908d2651864eda1e78f13f18fc16))
+* **daemon:** keep session ids stable across restore ([#148](https://github.com/zgeoff/atc/issues/148)) ([1bfd3cc](https://github.com/zgeoff/atc/commit/1bfd3ccd62270aadf1e9c26f9a1da0c8ffecff86))
+* **daemon:** limit each principal to the targets it may use ([#162](https://github.com/zgeoff/atc/issues/162)) ([9aaad43](https://github.com/zgeoff/atc/commit/9aaad438218be5de052d0a5b9fe34e908b6277e2))
+* **daemon:** make session.message idempotent under a key ([#158](https://github.com/zgeoff/atc/issues/158)) ([8f38190](https://github.com/zgeoff/atc/commit/8f38190ab9aed7ddb45247b3cbd3794a41d8d2c9))
+* **daemon:** make session.spawn idempotent under a key ([#157](https://github.com/zgeoff/atc/issues/157)) ([92f8642](https://github.com/zgeoff/atc/commit/92f8642f8f80988e92b49b8f7f8e0e0ee218d065))
+* **daemon:** run each session on an explicit execution target ([#160](https://github.com/zgeoff/atc/issues/160)) ([147b3f6](https://github.com/zgeoff/atc/commit/147b3f6ed9d1f874d29a87e551783de57c4af31b))
+* **daemon:** run session harnesses through an execution provider ([#159](https://github.com/zgeoff/atc/issues/159)) ([9f8844a](https://github.com/zgeoff/atc/commit/9f8844a09ecbd3980ec0f43a68aa511515953110))
+* **workspace:** add clean-checkout resolution, clone, and sanitize ([#150](https://github.com/zgeoff/atc/issues/150)) ([ff97162](https://github.com/zgeoff/atc/commit/ff97162b3ca22606355b0140b40c661f5fa18a48))
+
 ## [2.11.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.10.4...@zgeoff/atc@2.11.0) (2026-10-03)
 
 ### Features
