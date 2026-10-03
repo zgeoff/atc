@@ -4,6 +4,7 @@ import type { AgentID } from '../shared/agent-id';
 import type { WorkspacesConfig } from '../shared/collect-workspaces-config';
 import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
 import { loadConfig } from '../shared/config';
+import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { isGitURL } from '../shared/is-git-url';
 import { isRecord } from '../shared/report';
 import { resolveHomeDir } from '../shared/resolve-home-dir';
@@ -154,6 +155,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private workspaces: WorkspacesConfig = {
     githubOwner: null,
     sources: null,
+    gitTransports: DEFAULT_GIT_TRANSPORTS,
     root: null,
     targetRoots: new Map(),
   };

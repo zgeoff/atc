@@ -43,6 +43,10 @@ interface TestContext {
   [Symbol.asyncDispose]: () => Promise<void>;
 }
 
+// The transports the fixture upstreams are reached over: local paths, and
+// smart HTTP on the loopback.
+const FIXTURE_GIT_TRANSPORTS = ['https', 'ssh', 'http', 'file'];
+
 function setupTest(): TestContext {
   // The client boots with this home as its cwd and lists it first in the
   // picker, so the path is resolved the way the client reports it.
@@ -133,6 +137,7 @@ idle
       codexBin: join(home, 'fake-codex'),
       codexArgs: [],
       gateways: [],
+      workspaces: { gitTransports: FIXTURE_GIT_TRANSPORTS },
     }),
   );
 
@@ -2349,7 +2354,10 @@ test("it builds each target's own default destination when the target changes", 
       ...(isRecord(config) ? config : {}),
       targets: { local: { provider: 'local-pty' }, alt: { provider: 'local-pty', tag: 'alt' } },
       defaultTarget: 'local',
-      workspaces: { targets: { alt: join(ctx.home, 'alt-ws') } },
+      workspaces: {
+        gitTransports: FIXTURE_GIT_TRANSPORTS,
+        targets: { alt: join(ctx.home, 'alt-ws') },
+      },
     }),
   );
 
@@ -2444,7 +2452,7 @@ test('it refuses a remote target workspace root and destination that rely on ~',
         box: { provider: 'imp', url: 'http://127.0.0.1:9' },
       },
       defaultTarget: 'local',
-      workspaces: { targets: { box: '~/ws' } },
+      workspaces: { gitTransports: FIXTURE_GIT_TRANSPORTS, targets: { box: '~/ws' } },
     }),
   );
 
@@ -3018,7 +3026,7 @@ test('it opens the sources in the order the config gives', async () => {
     configPath,
     JSON.stringify({
       ...(isRecord(config) ? config : {}),
-      workspaces: { sources: ['git', 'dirs'] },
+      workspaces: { gitTransports: FIXTURE_GIT_TRANSPORTS, sources: ['git', 'dirs'] },
     }),
   );
 

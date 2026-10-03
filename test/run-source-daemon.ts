@@ -72,6 +72,7 @@ async function main() {
     targets: buildExecutionTargets(config.targets).targets,
     defaultTarget: config.defaultTarget,
     sources: process.env['ATC_TEST_SOURCES'] === 'none' ? [] : [...builtin, fixture],
+    gitTransports: config.workspaces.gitTransports,
   });
 
   process.stdout.write('up\n');

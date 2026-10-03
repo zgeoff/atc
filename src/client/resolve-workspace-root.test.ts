@@ -4,7 +4,13 @@ import { resolveWorkspaceRoot } from './resolve-workspace-root';
 
 test('it lands checkouts on the daemon machine under the default root in the home directory', () => {
   const root = resolveWorkspaceRoot(
-    { githubOwner: null, sources: null, root: null, targetRoots: new Map() },
+    {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
     { id: 'local', inPlace: true },
   );
 
@@ -16,6 +22,7 @@ test("it takes a target's own root over the global root", () => {
     {
       githubOwner: null,
       sources: null,
+      gitTransports: ['https', 'ssh'],
       root: '/srv/ws',
       targetRoots: new Map([['box', '/home/dev/ws']]),
     },
@@ -27,7 +34,13 @@ test("it takes a target's own root over the global root", () => {
 
 test('it takes the global root on a remote target without its own', () => {
   const root = resolveWorkspaceRoot(
-    { githubOwner: null, sources: null, root: '/srv/ws', targetRoots: new Map() },
+    {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: '/srv/ws',
+      targetRoots: new Map(),
+    },
     { id: 'box', inPlace: false },
   );
 
@@ -38,7 +51,13 @@ test.each([[null], ['~/ws'], ['ws']])(
   'it refuses a remote target whose root is %p',
   (configured) => {
     const root = resolveWorkspaceRoot(
-      { githubOwner: null, sources: null, root: configured, targetRoots: new Map() },
+      {
+        githubOwner: null,
+        sources: null,
+        gitTransports: ['https', 'ssh'],
+        root: configured,
+        targetRoots: new Map(),
+      },
       { id: 'box', inPlace: false },
     );
 
@@ -51,7 +70,13 @@ test.each([[null], ['~/ws'], ['ws']])(
 
 test('it refuses a relative root on the daemon machine', () => {
   const root = resolveWorkspaceRoot(
-    { githubOwner: null, sources: null, root: 'ws', targetRoots: new Map() },
+    {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: 'ws',
+      targetRoots: new Map(),
+    },
     { id: 'local', inPlace: true },
   );
 
