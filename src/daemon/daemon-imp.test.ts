@@ -261,6 +261,8 @@ test('it starts a remote harness with only the variables atc sets, never the dae
   const id = String(getRecord(spawned, 'session')['id']);
 
   expect<Readonly<Record<string, unknown>>>(request.env).toStrictEqual({
+    ATC_BRIDGE: '1',
+    ATC_OUTBOX: join(daemon.dir, 'g', 'run', `${id.replaceAll('-', '').slice(0, 16)}.outbox`),
     ATC_SESSION_ID: id,
     ATC_SOCKET: join(daemon.dir, 'g', 'run', `${id.replaceAll('-', '').slice(0, 16)}.sock`),
     LANG: 'C.UTF-8',

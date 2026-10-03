@@ -1,5 +1,9 @@
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { sendReport } from './shared/report';
 import { REPORT_KINDS } from './shared/report-kinds';
+import { sendBridgeRequest } from './shared/send-bridge-request';
 
 interface ReportOptions {
   readonly message: string;
@@ -19,7 +23,8 @@ interface ReportOptions {
  * message, or every given message at once, plus that turn's id when one is
  * given; a `note` carries
  * it as text for the user under the given label, `progress` when none is
- * given. Always exits 0 so it never blocks the session it reports on.
+ * given. Inside a remote host it goes to the session bridge instead. Always
+ * exits 0 so it never blocks the session it reports on.
  */
 export async function runReport(kind: string, options: ReportOptions): Promise<void> {
   try {
@@ -37,7 +42,9 @@ export async function runReport(kind: string, options: ReportOptions): Promise<v
 
       const payload = buildReportPayload(kind, options, stdin);
 
-      if (payload !== null) {
+      if (payload !== null && process.env['ATC_BRIDGE'] === '1') {
+        await sendBridgeReport(sock, process.env['ATC_OUTBOX'] ?? '', payload);
+      } else if (payload !== null) {
         const line = `${JSON.stringify({ atcId, event: 'Report', payload })}\n`;
 
         await sendReport(sock, line, 2000);
@@ -46,6 +53,32 @@ export async function runReport(kind: string, options: ReportOptions): Promise<v
   } catch {}
 
   process.exit(0);
+}
+
+// Inside a remote host, a report goes to the session bridge under an id of
+// its own, and waits in the outbox until the bridge answers it, so the
+// session's tap sends it again after a dropped connection. A resent report
+// lands once.
+async function sendBridgeReport(
+  sock: string,
+  outbox: string,
+  payload: Readonly<Record<string, string | readonly string[]>>,
+): Promise<void> {
+  const reportID = randomUUID();
+  const file = outbox === '' ? null : join(outbox, `${reportID}.json`);
+
+  if (file !== null) {
+    try {
+      mkdirSync(outbox, { recursive: true });
+      writeFileSync(file, JSON.stringify({ reportID, payload }));
+    } catch {}
+  }
+
+  const answer = await sendBridgeRequest(sock, 'report', { reportID, payload }, 2000);
+
+  if (answer?.['ok'] === true && file !== null) {
+    rmSync(file, { force: true });
+  }
 }
 
 function buildReportPayload(

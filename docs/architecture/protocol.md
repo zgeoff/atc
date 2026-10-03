@@ -631,6 +631,29 @@ whose wait ended, or whose connection dropped, calls again with the same id.
 Otherwise the message queues, including while a session restores and while a dropped tap reconnects.
 A message to a session with no live process fails with `session_dead`.
 
+### Session bridge
+
+A session on a remote host reaches the daemon through its session bridge: one socket inside the host
+per harness, which the host forwards to the daemon. It is a closed NDJSON dialect of its own. A line
+without an `op` is a hook line, `{ atcId, event, payload }`, as the reporter socket takes it. A
+request line is `{ v: 1, id, op, ... }` and gets one answer, `{ id, ok: true, ... }` or
+`{ id, ok: false, code }`. The bridge writes `InboxMessage` and `InboxClosed` events to a tap as
+protocol event lines.
+
+| Op            | Does                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| `report`      | apply `{ reportID, payload }`, a note or an answer; a resent note under the same `reportID` lands once |
+| `tap.open`    | make this connection the session's tap                                                                 |
+| `tap.ack`     | mark `{ message }` delivered, and return its `status`                                                  |
+| `status.read` | the session's own `state` and `lastMsg`                                                                |
+
+Every op acts on the session the bridge serves, and no request line holds a session id. The bridge
+answers an unknown op, a malformed line, or a hook line for another session with `forbidden`, and
+closes the connection. It answers `stale_binding` and closes the connection once the session is
+gone, has moved to another target, identity, or host, or has started or attached a newer harness. It
+answers an ack for a message the session does not hold with `unknown_message`, and an ack from a
+connection that is not the tap with `not_tapping`.
+
 ## Events socket
 
 A second listener, `atc-events.sock`, streams the broadcast events to anything that connects — no

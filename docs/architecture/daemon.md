@@ -147,15 +147,32 @@ Claude session there reports through an atc inside the imp: the one the target's
 or a copy of the daemon's own binary at `bin/atc`, which a compiled daemon on Linux installs when
 the imp lacks it. A daemon run from source has no binary to copy, so without `guestATC` it refuses a
 remote Claude spawn with `unsupported_operation`. The session's settings and its copy of the
-`atc-bridge` mod unpack into `sessions/<id>/`, and the settings hold no statusline, since the fleet
-status lives on the daemon's machine. A gateway session never runs remotely: its credential helper
-runs on the daemon's machine.
+`atc-bridge` mod unpack into `sessions/<id>/`. Their statusline shows the session's own state alone,
+never the rest of the fleet. A gateway session never runs remotely: its credential helper runs on
+the daemon's machine.
 
-A harness's hooks report to a socket inside the imp under `run/`, named for its session, which
-`ATC_SOCKET` points at. impd forwards each connection there to the daemon, and the daemon takes only
-lines for that harness's own session; it never exposes its own sockets to the imp. An agent with a
-sign-in check runs it inside the imp before its harness starts, and a failed check refuses the spawn
-with `auth_not_configured`.
+Each harness gets a socket inside the imp under `run/`, named for its session, which `ATC_SOCKET`
+points at, with `ATC_BRIDGE=1` beside it. impd forwards each connection there to the daemon, which
+serves it as the [session bridge](./protocol.md#session-bridge); the daemon never exposes its own
+sockets to the imp. Through the bridge, the session's hooks report, `atc report` sends notes and
+answers, `atc tap` takes the session's messages, and the statusline reads the session's state. An
+agent with a sign-in check runs it inside the imp before its harness starts, and a failed check
+refuses the spawn with `auth_not_configured`.
+
+Each harness start or attach binds its bridge to the session, the target and target identity, the
+host, and a new epoch. Every line on the bridge checks that binding against the live session first,
+and fails closed with `stale_binding` once the session is gone, has moved, or has started or
+attached again. The binding holds no secret: reaching the socket inside the imp is the proof. One
+imp is one trust domain, so a sub-session in its parent's imp can reach the parent's socket too. The
+per-session socket and binding stop accidental crossings between sessions, never a hostile process
+inside the same imp.
+
+The guest tap reconnects after every dropped connection, as a sleep or a daemon restart leaves it,
+with a wait that grows to 5 seconds and never ends. Each new connection replays the messages not yet
+acked; the tap prints each message once and acks a repeat again. `atc report` keeps each report in
+an outbox beside the socket until the bridge answers it, and the tap sends the outbox again on every
+connection. A resent note lands once, under the id the reporter gave it, and a resent answer changes
+nothing. A harness restart leaves delivered messages delivered, as a local session does.
 
 A connection that ends without an exit reconnects without waking the imp, and the session lists as
 `reattaching` until it does. Where impd carries offsets, the daemon resumes after the last byte it

@@ -8,6 +8,7 @@ import type {
   ExecutionProvider,
   GuestLayout,
   HarnessHandle,
+  HarnessRelay,
   HarnessSpec,
   HostRequest,
 } from './execution-provider';
@@ -189,7 +190,7 @@ export class ImpProvider implements ExecutionProvider {
 
     host.harnesses += 1;
 
-    const reporter = spec.onReport === undefined ? null : this.openReporter(host, spec);
+    const reporter = spec.onRelay === undefined ? null : this.openReporter(host, spec);
 
     return new ImpHarness(
       this.port,
@@ -200,7 +201,9 @@ export class ImpProvider implements ExecutionProvider {
         argv: [spec.bin, ...spec.args],
         env: {
           ...buildGuestEnv(spec.env),
-          ...(reporter === null ? {} : { ATC_SOCKET: reporter.path }),
+          ...(reporter === null
+            ? {}
+            : { ATC_SOCKET: reporter.path, ATC_BRIDGE: '1', ATC_OUTBOX: reporter.outbox }),
         },
         cwd: spec.cwd,
         cols: spec.cols,
@@ -373,20 +376,21 @@ export class ImpProvider implements ExecutionProvider {
     }
   }
 
-  // A socket inside the imp that serves one harness's hooks: each line a
-  // connection writes there goes to that harness's report sink, and nothing
-  // else reaches the daemon through it.
+  // A socket inside the imp that serves one harness: each connection a
+  // process opens there reaches the daemon as that harness's relay, and
+  // nothing else reaches the daemon through it.
   private openReporter(host: ImpHost, spec: HarnessSpec) {
-    const path = `${this.guest.dir}/run/${buildSocketName(spec.session)}.sock`;
-    const onReport = spec.onReport;
+    const base = `${this.guest.dir}/run/${buildSocketName(spec.session)}`;
+    const path = `${base}.sock`;
+    const onRelay = spec.onRelay;
 
     const forward = this.port.openReverseForward(host.name, path, (connection) => {
-      if (onReport !== undefined) {
-        subscribeToReportLines(connection, onReport);
-      }
+      onRelay?.(toHarnessRelay(connection));
     });
 
-    return { path, forward };
+    // Reports the guest has not seen answered wait in the outbox beside
+    // the socket, for the next connection to send again.
+    return { path, outbox: `${base}.outbox`, forward };
   }
 
   private async runOnHost(
@@ -517,12 +521,12 @@ function buildSocketName(sessionID: string): string {
     .slice(0, 16);
 }
 
-function subscribeToReportLines(
-  connection: ImpRelayConnection,
-  onReport: (line: string) => void,
-): void {
+// Frames a guest connection's bytes into lines, both ways.
+function toHarnessRelay(connection: ImpRelayConnection): HarnessRelay {
   const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
 
+  const lineListeners: ((line: string) => void)[] = [];
   let pending = '';
 
   connection.onData((data) => {
@@ -532,10 +536,25 @@ function subscribeToReportLines(
 
     for (const line of lines) {
       if (line.trim() !== '') {
-        onReport(line);
+        for (const listener of lineListeners) {
+          listener(line);
+        }
       }
     }
   });
+
+  return {
+    onLine: (listener) => {
+      lineListeners.push(listener);
+    },
+    onClose: (listener) => {
+      connection.onClose(listener);
+    },
+    writeLine: (line) => connection.write(encoder.encode(`${line}\n`)),
+    close: () => {
+      connection.close();
+    },
+  };
 }
 
 // The binary the provider copies into an imp: the running daemon itself

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { DaemonClient } from './client/daemon-client';
 import { DaemonError } from './protocol/daemon-error';
+import { runBridgeTap } from './run-bridge-tap';
 import { daemonSocketPath } from './shared/config';
 import { getBuild } from './shared/get-build';
 
@@ -28,6 +29,16 @@ interface InboxMessage {
  * another tap replaced it or the session was removed.
  */
 export async function runTap(session: string): Promise<void> {
+  const bridge = process.env['ATC_SOCKET'];
+
+  // Inside a remote host the daemon's own socket is out of reach, and the
+  // session bridge serves the tap instead.
+  if (process.env['ATC_BRIDGE'] === '1' && bridge !== undefined && bridge !== '') {
+    await runBridgeTap(bridge, process.env['ATC_OUTBOX'] ?? '');
+
+    return;
+  }
+
   let client: DaemonClient;
 
   try {

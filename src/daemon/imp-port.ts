@@ -231,6 +231,11 @@ export interface ImpRelayConnection {
   // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
   readonly onData: (listener: (data: Uint8Array) => void) => void;
   readonly onClose: (listener: () => void) => void;
+
+  // Sends bytes to the guest's end of the connection, and settles once the
+  // relay has room for more.
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
+  readonly write: (data: Uint8Array) => Promise<void>;
   readonly close: () => void;
 }
 

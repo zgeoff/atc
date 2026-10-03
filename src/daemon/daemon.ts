@@ -57,7 +57,6 @@ import type { HookScope } from './make-hook-runner';
 import { materializeWorkspace } from './materialize-workspace';
 import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
-import { parseHookLine } from './parse-hook-line';
 import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
 import { restoreFleet } from './restore-fleet';
@@ -68,6 +67,7 @@ import { SessionManager } from './sessions';
 import type { Session, SessionDescriptor, SessionState } from './sessions';
 import { startEventsServer } from './start-events-server';
 import { startHeadlessTurn } from './start-headless-turn';
+import { startSessionBridge } from './start-session-bridge';
 import { TapRegistry } from './tap-registry';
 import type { TargetAccess } from './target-access';
 import { writeDaemonRecord } from './write-daemon-record';
@@ -287,14 +287,22 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const eventSignal = new EventSignal();
 
   // A trail write that fails never fails the message request or report behind it.
-  const recordTrailEntry = async (entry: TrailEntry) => {
+  // Returns false when the entry was not written: a failed write, or a
+  // report the trail already holds.
+  const recordTrailEntry = async (entry: TrailEntry): Promise<boolean> => {
+    let written: boolean;
+
     try {
-      await store.recordTrailEntry(entry);
+      written = await store.recordTrailEntry(entry);
     } catch {
-      return;
+      return false;
     }
 
-    eventSignal.emit();
+    if (written) {
+      eventSignal.emit();
+    }
+
+    return written;
   };
 
   // Notes a message status change in the trail before broadcasting it, so a
@@ -441,7 +449,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     } catch {}
   };
 
-  const applyReport = async (e: HookEvent) => {
+  // A report id, which a remote session's reporter gives each report,
+  // makes a resent note land once; a resent answer changes nothing, since
+  // only an unanswered message takes one.
+  const applyReport = async (e: HookEvent, reportID?: string) => {
     const report = parseReport(e.payload);
 
     if (report === null) {
@@ -455,11 +466,22 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         const capped = { ...report, text: truncateToBytes(report.text, ANSWER_BYTE_CAP) };
         const reportedAt = Date.now();
 
-        await recordTrailEntry(
-          buildReportTrailEntry(sender.id, sender.agentSessionID, capped, reportedAt),
+        const entry = buildReportTrailEntry(
+          sender.id,
+          sender.agentSessionID,
+          capped,
+          reportedAt,
+          reportID,
         );
 
-        emitEvent(buildSessionReportEvent(sender.id, capped, reportedAt), findHookScope(sender.id));
+        const written = await recordTrailEntry(entry);
+
+        if (written) {
+          emitEvent(
+            buildSessionReportEvent(sender.id, capped, reportedAt),
+            findHookScope(sender.id),
+          );
+        }
       }
 
       return;
@@ -802,12 +824,25 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // A remote harness reports through a socket that serves it alone, so a
   // line that names any other session is dropped.
-  mgr.onReport = (sessionID, line) => {
-    const e = parseHookLine(line);
+  mgr.onRelay = (binding, relay) => {
+    startSessionBridge(relay, binding, {
+      findSession: (sessionID) => mgr.sessions.find((x) => x.id === sessionID),
+      applyHookEvent,
+      applyReport: async (sessionID, payload, reportID) => {
+        if (parseReport(payload) === null) {
+          return false;
+        }
 
-    if (e !== null && e.atcId === sessionID) {
-      applyHookEvent(e);
-    }
+        await applyReport({ atcId: sessionID, event: 'Report', payload: { ...payload } }, reportID);
+
+        return true;
+      },
+      attachTap: (client, sessionID) => ctx.attachTap(client, sessionID),
+      ackMessage: (client, sessionID, messageID) => ctx.ackMessage(client, sessionID, messageID),
+      detachTap: (client) => {
+        taps.detachAll(client);
+      },
+    });
   };
 
   // A spawn with a workspace source materializes it first, and the session
