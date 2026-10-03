@@ -204,7 +204,17 @@ export function buildScopedContext(
         return null;
       }
 
-      return waitMs === 0 ? view : ctx.readMessage(messageID, waitMs);
+      if (waitMs === 0) {
+        return view;
+      }
+
+      // The wait may outlast the session's reach, so the reach is checked
+      // again before the answer goes out.
+      const waited = await ctx.readMessage(messageID, waitMs);
+
+      return waited !== null && waited.session === waited.record.atcID && canSee(waited.session)
+        ? waited
+        : null;
     },
     attachTap: (client, sessionID) =>
       canSee(sessionID) ? ctx.attachTap(client, sessionID) : 'missing',

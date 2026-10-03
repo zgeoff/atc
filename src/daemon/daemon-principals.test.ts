@@ -1560,6 +1560,48 @@ test("it answers a principal's long poll on a session whose tree leaves its reac
   expect(JSON.stringify(answered)).not.toInclude('hidden message');
 });
 
+test("it answers a principal's long poll on a message whose session's tree leaves its reach as a poll on an unknown message", async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const parent = await daemon.spawnOn('local');
+
+  await daemon.client.sendRequest('session.tap', { session: parent });
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: parent,
+    from: 'owner',
+    text: 'hidden message',
+  });
+
+  const message = String(sent['message']);
+
+  const poll = readAnswer(
+    () => daemon.client.sendRequest('message.get', { message, waitMs: 1000 }, 'narrow'),
+    message,
+  );
+
+  // No signal shows the poll waiting on the message; this waits out its
+  // first read so the poll blocks before the sub-session joins.
+  await Bun.sleep(100);
+
+  const pending = Bun.peek.status(poll);
+
+  await daemon.spawnOn('box', parent);
+  await daemon.client.sendRequest('message.ack', { session: parent, message });
+
+  const answered = await poll;
+
+  const unknown = await readAnswer(
+    () =>
+      daemon.client.sendRequest('message.get', { message: 'no-such-message', waitMs: 0 }, 'narrow'),
+    'no-such-message',
+  );
+
+  expect(pending).toBe('pending');
+  expect(answered).toStrictEqual(unknown);
+  expect(JSON.stringify(answered)).not.toInclude('hidden message');
+});
+
 test('it answers the replay of a held spawn key with its session while the grant still reaches it', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
