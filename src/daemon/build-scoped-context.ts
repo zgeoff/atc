@@ -152,9 +152,8 @@ export function buildScopedContext(
 
       const screen = await ctx.readSessionScreen(id);
 
-      // The tree may leave the access during the read. That window is one
-      // render, which no test can hold open, so this check is a second line
-      // behind the one above.
+      // The tree may leave the access during the read, so the reach is
+      // checked again before the answer goes out.
       return canSee(id) ? screen : 'missing';
     },
     answerPermission: (request, decision) => {
@@ -187,9 +186,8 @@ export function buildScopedContext(
 
       const record = await ctx.readSessionRecord(id, merged);
 
-      // The tree may leave the access during the read. That window is one
-      // store read, which no test can hold open, so this check is a second
-      // line behind the one above.
+      // The tree may leave the access during the read, so the reach is
+      // checked again before the answer goes out.
       return canSee(id) ? record : 'missing';
     },
     loadSessionTranscript: async (id, from, limit) => {
@@ -199,9 +197,8 @@ export function buildScopedContext(
 
       const page = await ctx.loadSessionTranscript(id, from, limit);
 
-      // The tree may leave the access during the read. That window is one
-      // file read, which no test can hold open, so this check is a second
-      // line behind the one above.
+      // The tree may leave the access during the read, so the reach is
+      // checked again before the answer goes out.
       return canSee(id) ? page : 'missing';
     },
     readEvents: (afterID, limit, waitMs, sessionID, outer) => {
