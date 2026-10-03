@@ -237,8 +237,9 @@ belongs to this gateway id alone.
 
 A gateway's permission mode carries into every way atc runs its sessions. A `--permission-mode` in
 its `args` wins over the `permissions.defaultMode` in its `settings`. A headless turn runs in that
-mode. With neither set, a headless turn runs in auto mode. The resume command atc builds for a
-gateway session carries its `args`, so an explicit mode overrides the one Claude Code would restore.
+mode. With neither set, a headless turn runs in auto mode. A resumed session takes back the mode it
+was saved in unless an explicit `--permission-mode` overrides it, so atc passes a settings-only mode
+as that flag when it restores a session, and in the resume command it builds.
 
 ## Attention hooks (Grok and Codex)
 

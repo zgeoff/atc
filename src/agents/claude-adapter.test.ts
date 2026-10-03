@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { parseConfig } from '../shared/config';
 import type { Config } from '../shared/config';
+import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { ClaudeAdapter } from './claude-adapter';
 
@@ -184,4 +185,26 @@ test('it runs a headless turn under the permission mode its configured arguments
   );
 
   expect(received).toMatchObject({ permissionMode: 'plan' });
+});
+
+test('it keeps the permission mode its configured arguments set in the command that resumes it outside atc', () => {
+  const adapter = new ClaudeAdapter(parseConfig({ claudeArgs: ['--permission-mode', 'plan'] }));
+
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+    "cd '/work/repo' && claude --permission-mode 'plan' --resume sess-1",
+  );
+});
+
+test('it restores a stock session without a permission-mode argument', () => {
+  using tmp = setupTempDir('atc-claude-stock-restore-');
+
+  const adapter = new ClaudeAdapter(parseConfig({}), null, join(tmp.dir, 'atc-bridge'));
+
+  const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
+
+  expect(plan.args).not.toContain('--permission-mode');
+
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+    "cd '/work/repo' && claude --resume sess-1",
+  );
 });

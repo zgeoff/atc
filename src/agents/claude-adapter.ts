@@ -20,6 +20,7 @@ import type {
 } from './agent-adapter';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
+import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { findFlagValue } from './find-flag-value';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
@@ -240,12 +241,15 @@ export class ClaudeAdapter implements AgentAdapter {
     return existsSync(session.transcriptSource);
   }
 
-  // Shell command that re-opens this session outside atc (or anywhere).
+  // Shell command that re-opens this session outside atc (or anywhere). A
+  // permission mode the configured arguments set travels as an explicit
+  // flag, so it overrides the mode the CLI would restore.
   buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
-    const resume =
-      agentSessionID === undefined ? 'claude --resume' : `claude --resume ${agentSessionID}`;
+    const configured = findClaudePermissionMode(this.config.claudeArgs, undefined);
+    const mode = configured === null ? '' : ` --permission-mode ${toShellArg(configured)}`;
+    const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
 
-    return `cd ${toShellArg(cwd)} && ${resume}`;
+    return `cd ${toShellArg(cwd)} && claude${mode} --resume${resume}`;
   }
 }
 

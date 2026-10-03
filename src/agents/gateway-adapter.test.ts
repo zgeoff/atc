@@ -362,3 +362,85 @@ test("it runs a headless turn with the gateway's settings file, its permission h
     },
   });
 });
+
+test("it restores a session in the permission mode the gateway's settings default to", () => {
+  using tmp = setupTempDir('atc-gateway-restore-');
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'restore-settings',
+      label: 'Restore by settings',
+      mark: 'r',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://gateway.example/anthropic',
+      env: {},
+      settings: { permissions: { defaultMode: 'default' } },
+    },
+    parseConfig({}),
+    null,
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
+
+  expect(plan.args).toIncludeAllMembers(['--permission-mode', 'default']);
+  expect(plan.args.indexOf('--permission-mode') + 1).toBe(plan.args.indexOf('default'));
+});
+
+test("it keeps the gateway's settings default mode in the command that resumes it outside atc", () => {
+  using tmp = setupTempDir('atc-gateway-resume-settings-');
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'resume-settings',
+      label: 'Resume by settings',
+      mark: 'r',
+      bin: '/opt/gw/bin/claude',
+      args: [],
+      baseURL: 'https://gateway.example/anthropic',
+      env: {},
+      settings: { permissions: { defaultMode: 'default' } },
+    },
+    parseConfig({}),
+    null,
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
+
+  expect(command).toMatch(
+    /^cd '\/work\/repo' && \/opt\/gw\/bin\/claude '--permission-mode' 'default' --settings '[^']+hook-settings-resume-settings\.json' --resume sess-1$/u,
+  );
+});
+
+test('it restores and resumes a gateway in its explicit permission-mode argument over its settings default', () => {
+  using tmp = setupTempDir('atc-gateway-restore-flag-');
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'restore-flag',
+      label: 'Restore by flag',
+      mark: 'r',
+      bin: 'claude',
+      args: ['--permission-mode', 'plan'],
+      baseURL: 'https://gateway.example/anthropic',
+      env: {},
+      settings: { permissions: { defaultMode: 'default' } },
+    },
+    parseConfig({}),
+    null,
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
+  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
+
+  expect(plan.args.filter((arg) => arg === '--permission-mode')).toStrictEqual([
+    '--permission-mode',
+  ]);
+
+  expect(plan.args).not.toContain('default');
+  expect(command).toInclude("'--permission-mode' 'plan'");
+  expect(command).not.toInclude("'default'");
+});

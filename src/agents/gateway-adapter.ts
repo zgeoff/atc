@@ -16,6 +16,7 @@ import type {
   SpawnPlan,
 } from './agent-adapter';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
+import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { ClaudeAdapter } from './claude-adapter';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import { findFlagValue } from './find-flag-value';
@@ -100,6 +101,9 @@ export class GatewayAdapter implements AgentAdapter {
       bin: this.gateway.bin,
       args: [
         ...buildClaudeOverrideArgs(this.gateway.args, opts),
+        ...(opts.resume === false
+          ? []
+          : buildRestoreModeArgs(this.gateway.args, this.gateway.settings)),
         '--settings',
         this.writeSettings(),
         '--plugin-dir',
@@ -124,11 +128,18 @@ export class GatewayAdapter implements AgentAdapter {
   }
 
   // Shell command that re-opens this session outside atc. It carries the
-  // gateway's configured arguments, so an explicit permission mode overrides
-  // the one the CLI would restore, and the generated settings file, because
+  // gateway's configured arguments and its configured permission mode as an
+  // explicit flag, so that mode overrides the one the CLI would restore, and
+  // the generated settings file, because
   // without it the CLI would resume the session against the default backend.
   buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
-    const args = this.gateway.args.map((arg) => ` ${toShellArg(arg)}`).join('');
+    const args = [
+      ...this.gateway.args,
+      ...buildRestoreModeArgs(this.gateway.args, this.gateway.settings),
+    ]
+      .map((arg) => ` ${toShellArg(arg)}`)
+      .join('');
+
     const settings = toShellArg(this.writeSettings());
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
 
