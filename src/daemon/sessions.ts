@@ -960,16 +960,7 @@ export class SessionManager {
         );
       }
 
-      for (const child of this.collectChildren(id)) {
-        if (child.pty === null && !(child.kind === 'headless' && child.state !== 'exited')) {
-          this.remove(child);
-        } else {
-          child.parent = null;
-
-          this.onEvent('state', child);
-        }
-      }
-
+      this.updateForgottenChildren(id);
       this.remove(s);
     }
 
@@ -982,7 +973,8 @@ export class SessionManager {
    * Forgets a session for good, whether it runs or not, and returns whether
    * its host was destroyed. A session that owns a host its target can
    * destroy destroys the host, and every session on that host goes with it;
-   * a session on its parent's host ends its own harness alone. Its dead
+   * a session on its parent's host ends its own harness alone, and one
+   * kept asleep in that host is refused until the host wakes. Its dead
    * sub-sessions on other hosts go with it, unless their own target can
    * destroy their host, and its live ones become top-level. A failed destroy
    * throws before anything is forgotten.
@@ -996,6 +988,18 @@ export class SessionManager {
 
     const provider = this.findProvider(s);
     const destroys = provider !== null && provider.capabilities.destroy && s.hostKey === s.id;
+
+    // A harness kept inside a sleeping host it does not own still has a
+    // process there, which the daemon can neither reach nor end while the
+    // host sleeps. Its record keeps that process owned until the host wakes
+    // or its owner's forget destroys the host.
+    if (!destroys && s.pty === null && s.vm === 'asleep') {
+      throw new DaemonError(
+        'unsupported_operation',
+        `session ${id} sleeps inside the host of session ${s.hostKey}; revive it or forget session ${s.hostKey} first`,
+        { provider: provider?.kind ?? null, problem: 'host_asleep', host: s.hostKey },
+      );
+    }
 
     if (destroys) {
       await provider.destroyHost(s.hostKey);
@@ -1015,6 +1019,21 @@ export class SessionManager {
       this.killTerminal(s);
     }
 
+    this.updateForgottenChildren(id);
+    this.remove(s);
+
+    await this.writeFleet();
+
+    this.emitChange();
+
+    return destroys;
+  }
+
+  // A forgotten parent's dead sub-sessions go with it, except one whose own
+  // target can destroy its host: forgetting that one destroys the host, which
+  // takes its own confirmed forget. Every sub-session that stays becomes
+  // top-level.
+  private updateForgottenChildren(id: SessionID): void {
     for (const child of this.collectChildren(id)) {
       const live = child.pty !== null || (child.kind === 'headless' && child.state !== 'exited');
 
@@ -1026,14 +1045,6 @@ export class SessionManager {
         this.remove(child);
       }
     }
-
-    this.remove(s);
-
-    await this.writeFleet();
-
-    this.emitChange();
-
-    return destroys;
   }
 
   /**

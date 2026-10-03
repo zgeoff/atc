@@ -482,7 +482,10 @@ Every workspace refusal holds the phase it failed in as `data.phase`, and its me
 
 `session.kill` on a live session ends its harness and the harnesses of its live sub-sessions, and
 the session lists as exited. A second kill of a dead session forgets it: the daemon drops the
-session and its dead sub-sessions from the list and the fleet.
+session and its dead sub-sessions from the list and the fleet. A dead sub-session whose own target
+can destroy its host stays and becomes top-level, since forgetting it takes its own forget. A
+headless run stops only with the session it belongs to: a sub-session that becomes top-level, or a
+session whose kill or forget fails, keeps its run.
 
 A session whose target can put its host to sleep owns a host of its own, and a sub-session on the
 same target runs on its parent's host. A kill of the session that owns such a host puts the host to
@@ -514,7 +517,10 @@ issued it. A forget whose token the daemon does not take fails with `confirm_tok
 `data.reason` is `unknown` for a token issued for another session or never issued, `used` for a
 token a forget already took, and `expired` for one past `expiresAt`. A forget that took a token and
 then failed to destroy the host still used the token up. A sub-session on its parent's host is
-forgotten alone: its harness ends, and the host stays.
+forgotten alone: its harness ends, and the host stays. While that host sleeps, the sub-session's
+process stays inside it, out of the daemon's reach, so its forget fails with
+`unsupported_operation`, `data.problem` `host_asleep`, and the owner's id in `data.host`. Revive the
+session first, or forget the owner, which destroys the host.
 
 ## Idempotent requests
 

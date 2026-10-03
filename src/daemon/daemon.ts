@@ -1065,6 +1065,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
+  // Stops the headless runs a kill or forget ended, once the manager has
+  // acted: a session it removed already lost its run with its runtime, a
+  // session it left exited loses it here, and a sub-session it promoted, or
+  // any session of a kill or forget that failed, keeps working.
+  const stopEndedHeadlessRuns = (set: readonly Session[]) => {
+    for (const s of set) {
+      if (s.state === 'exited') {
+        runtimes.get(s.id)?.stopHeadlessRun();
+      }
+    }
+  };
+
   const ctx: DaemonContext = {
     build: opts.build,
     daemonID: store.daemonID,
@@ -1165,13 +1177,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         }
       }
 
-      for (const child of mgr.collectChildren(id)) {
-        runtimes.get(child.id)?.stopHeadlessRun();
-      }
-
-      runtimes.get(id)?.stopHeadlessRun();
+      const set = [s, ...mgr.collectChildren(id)];
 
       await mgr.kill(id);
+
+      stopEndedHeadlessRuns(set);
 
       return true;
     },
@@ -1201,11 +1211,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         claimConfirmToken(id, confirmToken);
       }
 
-      for (const forgotten of [s, ...mgr.collectChildren(id)]) {
-        runtimes.get(forgotten.id)?.stopHeadlessRun();
-      }
+      const set = [s, ...mgr.collectChildren(id)];
 
       const destroyed = await mgr.forget(id);
+
+      stopEndedHeadlessRuns(set);
 
       return { forgotten: true, destroyed };
     },

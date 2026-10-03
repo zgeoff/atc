@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
+import type { HeadlessRunner } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { getRecord } from '../shared/get-record';
 import { startDaemon } from './daemon';
@@ -10,9 +11,13 @@ import type { ExecutionProvider } from './execution-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
 // A real daemon whose one target runs on the provider the test hands it,
-// with a fake claude that idles, and confirm tokens that live as long as
-// the test asks.
-async function setupTest(provider: ExecutionProvider, forgetConfirmMs?: number) {
+// with a fake claude that idles, confirm tokens that live as long as the
+// test asks, and the headless runner the test hands it, if any.
+async function setupTest(
+  provider: ExecutionProvider,
+  forgetConfirmMs?: number,
+  headlessRunner: HeadlessRunner | null = null,
+) {
   const tmp = setupTempDir('atc-daemon-forget-');
   const sockPath = join(tmp.dir, 'daemon.sock');
   const fakeClaude = join(tmp.dir, 'fake-claude');
@@ -25,7 +30,7 @@ async function setupTest(provider: ExecutionProvider, forgetConfirmMs?: number) 
     build: 'atc/test-build',
     adapter: {
       id: 'claude',
-      headlessRunner: null,
+      headlessRunner,
       screenDetector: null,
       takesMessages: false,
       planSpawn: () => ({ bin: fakeClaude, args: [] }),
@@ -38,6 +43,7 @@ async function setupTest(provider: ExecutionProvider, forgetConfirmMs?: number) 
     statusPath: join(tmp.dir, 'status.json'),
     targets: [{ id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider }],
     ...(forgetConfirmMs === undefined ? {} : { forgetConfirmMs }),
+    ejectSettleMs: 30,
   });
 
   const client = await DaemonClient.open(sockPath);
@@ -306,4 +312,67 @@ test('it refuses a forget of a session the daemon does not hold', async () => {
   expect(
     daemon.client.sendRequest('session.forget', { session: 'no-such-session' }),
   ).rejects.toMatchObject({ code: 'no_such_session' });
+});
+
+test('it keeps a headless run going when the forget of its session fails to destroy the host', async () => {
+  const local = new LocalPTYProvider();
+
+  const runs: { stopped: boolean }[] = [];
+
+  await using daemon = await setupTest(
+    {
+      kind: 'imp-like',
+      capabilities: { ...local.capabilities, suspend: true, destroy: true },
+      spawnHarness: local.spawnHarness,
+      transferArchive: local.transferArchive,
+      runCommand: local.runCommand,
+      suspendHost: () => Promise.resolve(),
+      destroyHost: () => Promise.reject(new Error('impd is unreachable')),
+    },
+    undefined,
+    (_opts, hooks) => {
+      const run = { stopped: false };
+
+      runs.push(run);
+      hooks.onOutput('HEADLESS LINE\r\n');
+
+      return {
+        stop() {
+          run.stopped = true;
+        },
+      };
+    },
+  );
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-1',
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await daemon.client.sendRequest('session.eject', { session: id });
+
+  await waitFor(() => {
+    expect(runs).toHaveLength(1);
+  });
+
+  const offered = await daemon.client.sendRequest('session.forget', { session: id });
+
+  const forgotten = daemon.client.sendRequest('session.forget', {
+    session: id,
+    confirmToken: offered['confirmToken'],
+  });
+
+  expect(forgotten).rejects.toThrow();
+
+  await forgotten.catch(() => null);
+
+  expect(runs).toStrictEqual([{ stopped: false }]);
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [{ id, kind: 'headless' }],
+  });
 });
