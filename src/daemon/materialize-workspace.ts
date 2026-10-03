@@ -17,6 +17,7 @@ import { resolveGitURL } from '../workspace/resolve-git-url';
 import { resolvePathSource } from '../workspace/resolve-path-source';
 import { runGit } from '../workspace/run-git';
 import { sanitizeWorkspaceClone } from '../workspace/sanitize-workspace-clone';
+import { EffectRemainsError } from './effect-remains-error';
 import type { ExecutionProvider } from './execution-provider';
 import { requireGitTransports } from './require-git-transports';
 
@@ -152,14 +153,20 @@ export async function materializeWorkspace(
   } catch (error) {
     const refusal = toScrubbedRefusal(error, progress.phase, secret);
 
+    // A failure that may have left an effect standing, such as a host the
+    // spawn could not take back, reaches the caller as it is, so a keyed
+    // spawn keeps its key as outcome_unknown.
+    const remains = error instanceof EffectRemainsError;
+    const code = remains ? 'outcome_unknown' : refusal.code;
+
     await tryRemoveClaimedDir(request, deps, progress, secret);
-    await tryUpdateFailed(request, deps, refusal.code);
+    await tryUpdateFailed(request, deps, code);
 
     deps.log(
-      `atc: workspace for session ${request.sessionID} failed while ${progress.phase}: ${refusal.code}: ${refusal.message}`,
+      `atc: workspace for session ${request.sessionID} failed while ${progress.phase}: ${code}: ${refusal.message}`,
     );
 
-    throw refusal;
+    throw remains ? error : refusal;
   }
 }
 
@@ -315,6 +322,16 @@ async function resolveSource(
       credential: undefined,
       warnings: resolved.warnings,
     };
+  }
+
+  // A credential the clone would refuse is refused here, before any host
+  // is readied for it.
+  if (source.credentialRef !== undefined && findCredentialSecret(source) === null) {
+    throw new DaemonError(
+      'credential_missing',
+      'the credential environment variable is unset or empty',
+      { phase: 'resolving' },
+    );
   }
 
   // The clone fetches the URL it records, so the spawn API's `owner/repo`

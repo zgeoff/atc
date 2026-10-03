@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { $ } from 'bun';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { updateEnv } from '../../test/update-env';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { getRecord } from '../shared/get-record';
@@ -17,7 +18,8 @@ import { LocalPTYProvider } from './local-pty-provider';
  * fixture imp port, whose imps run their commands on this machine, beside
  * a bare upstream and a clone of it with one pushed commit. impd's token
  * `atc-runtime` manages `atc-*` imps and may grant `glm`, which impd holds
- * for api.z.ai. The agent `glm` takes that credential from the broker;
+ * for api.z.ai. The agent `glm` takes that credential from the broker,
+ * and `unsigned` takes it too but fails its sign-in check in the host;
  * `plain` takes none. Fixture git commands read neither the host's system
  * nor its global git config.
  */
@@ -113,13 +115,19 @@ async function setupTest() {
     }),
   };
 
+  const unsigned: AgentAdapter = {
+    ...brokered,
+    id: 'unsigned',
+    planAuthCheck: () => ['false'],
+  };
+
   const daemon = await startDaemon({
     gitTransports: ['https', 'ssh', 'http', 'file'],
     socketPath: sockPath,
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: plain,
-    adapters: [plain, brokered],
+    adapters: [plain, brokered, unsigned],
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),
     targets: [
@@ -142,6 +150,7 @@ async function setupTest() {
     client,
     port,
     dir: tmp.dir,
+    upstream,
     work,
     dbPath: join(tmp.dir, 'state.db'),
     async [Symbol.asyncDispose]() {
@@ -218,7 +227,7 @@ test('it refuses a workspace sub-session under a revoked parent before resolving
   await using daemon = await setupTest();
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.work,
     agent: 'glm',
     target: 'box',
   });
@@ -266,7 +275,7 @@ test('it materializes a workspace sub-session on the host of a ready parent and 
   await using daemon = await setupTest();
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.work,
     agent: 'glm',
     target: 'box',
   });
@@ -362,7 +371,7 @@ test("it leaves a parent running on its host when a sub-session's workspace fail
   await using daemon = await setupTest();
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.work,
     agent: 'glm',
     target: 'box',
   });
@@ -394,5 +403,176 @@ test("it leaves a parent running on its host when a sub-session's workspace fail
   }).toStrictEqual({
     state: 'running',
     listed: { sessions: [expect.objectContaining({ id: parentID, alive: true })] },
+  });
+});
+
+test('it keeps the key of a workspace spawn whose host it cannot take back as outcome_unknown, so a retry creates no imp', async () => {
+  await using daemon = await setupTest();
+
+  daemon.port.setDestroyFailure('INTERNAL');
+
+  const params = {
+    cwd: join(daemon.dir, 'box', 'ws'),
+    agent: 'unsigned',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+    idempotencyKey: 'k-1',
+  };
+
+  const first = daemon.client.sendRequest('session.spawn', params);
+
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await first.catch(() => null);
+
+  const retried = daemon.client.sendRequest('session.spawn', params);
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await retried.catch(() => null);
+
+  expect(daemon.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([
+    expect.toStartWith('imps.create '),
+  ]);
+});
+
+test('it refuses a workspace spawn whose host fails its sign-in check and takes the host back', async () => {
+  await using daemon = await setupTest();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'box', 'ws'),
+    agent: 'unsigned',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+    idempotencyKey: 'k-1',
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'auth_not_configured' });
+
+  await spawn.catch(() => null);
+
+  const db = new Database(daemon.dbPath, { readonly: true });
+
+  const rows = db.query('select count(*) as n from runtime_auth_binding').get();
+
+  db.close();
+
+  expect<Record<string, unknown>>({ imps: daemon.port.collectImpNames(), rows }).toStrictEqual({
+    imps: [],
+    rows: { n: 0 },
+  });
+});
+
+test("it refuses a sub-session workspace inside its parent's directory before claiming or transferring anything", async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+
+  daemon.port.calls.length = 0;
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.work, 'new'),
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'workspace_overlap',
+    data: { session: parentID, dir: join(daemon.work, 'new') },
+  });
+
+  await spawn.catch(() => null);
+
+  expect(daemon.port.calls.filter((call) => call.startsWith('exec.run'))).toStrictEqual([]);
+});
+
+test("it materializes a sub-session workspace beside its parent's directory on the shared host", async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const dest = join(daemon.dir, 'sibling');
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    agent: 'glm',
+    target: 'box',
+    parent: getRecord(parent, 'session')['id'],
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  expect<Record<string, unknown>>({
+    readme: readFileSync(join(dest, 'README.md'), 'utf8'),
+    session: getRecord(spawned, 'session'),
+  }).toMatchObject({
+    readme: 'hello\n',
+    session: { alive: true, workspace: { sha: expect.toBeString() } },
+  });
+});
+
+test('it refuses a git workspace whose credential variable is unset before touching impd', async () => {
+  await using daemon = await setupTest();
+
+  updateEnv('ATC_TEST_WORKSPACE_TOKEN', undefined);
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'box', 'ws'),
+    agent: 'plain',
+    target: 'box',
+    workspace: {
+      kind: 'git',
+      url: `file://${daemon.upstream}`,
+      ref: 'main',
+      credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_TOKEN' },
+    },
+  });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'credential_missing',
+    data: { phase: 'resolving' },
+  });
+
+  await spawn.catch(() => null);
+
+  expect(daemon.port.calls).toStrictEqual([]);
+});
+
+test('it materializes a git workspace on an imp host when its credential variable is set', async () => {
+  await using daemon = await setupTest();
+
+  updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'workspace-token');
+
+  const dest = join(daemon.dir, 'box', 'ws');
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    agent: 'plain',
+    target: 'box',
+    workspace: {
+      kind: 'git',
+      url: `file://${daemon.upstream}`,
+      ref: 'main',
+      credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_TOKEN' },
+    },
+  });
+
+  expect<Record<string, unknown>>({
+    readme: readFileSync(join(dest, 'README.md'), 'utf8'),
+    session: getRecord(spawned, 'session'),
+  }).toMatchObject({
+    readme: 'hello\n',
+    session: { alive: true, workspace: { sha: expect.toBeString() } },
   });
 });

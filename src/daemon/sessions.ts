@@ -1,4 +1,5 @@
 import { writeFileSync } from 'node:fs';
+import { posix } from 'node:path';
 import type {
   AgentAdapter,
   GuestPaths,
@@ -876,6 +877,10 @@ export class SessionManager {
       throw refusal;
     }
 
+    if (materialize !== null && hostKey !== id) {
+      this.requireSeparateWorkspace(hostKey, target, cwd);
+    }
+
     const setupHost = () =>
       this.setupHarnessOnHost(
         adapter,
@@ -1064,6 +1069,22 @@ export class SessionManager {
       `a sub-session joins the host of session ${hostKey} only under the runtime auth binding that host holds`,
       { host: hostKey, hostBound: held !== null, bound: binding !== null },
     );
+  }
+
+  // A workspace on a shared host lands neither inside nor around the
+  // directory of another session listed on that host.
+  private requireSeparateWorkspace(hostKey: SessionID, target: string, dir: string): void {
+    const other = this.sessions.find(
+      (s) => s.hostKey === hostKey && s.target === target && isPathOverlapping(dir, s.cwd),
+    );
+
+    if (other !== undefined) {
+      throw new DaemonError(
+        'workspace_overlap',
+        `${dir} overlaps ${other.cwd}, the directory of session ${other.id} on the same host; a workspace there lands beside it`,
+        { phase: 'resolving', dir, session: other.id },
+      );
+    }
   }
 
   // Materializes a spawn's workspace, readying its host once the source
@@ -2346,4 +2367,16 @@ function formatTargetRefusal(code: ErrorCode, target: string): string {
   }
 
   return `target '${target}' cannot start a terminal`;
+}
+
+// Whether either of two directories on a host holds the other, or they are
+// the same.
+function isPathOverlapping(a: string, b: string): boolean {
+  return isPathWithin(a, b) || isPathWithin(b, a);
+}
+
+function isPathWithin(child: string, parent: string): boolean {
+  const relative = posix.relative(parent, child);
+
+  return relative !== '..' && !relative.startsWith('../') && !posix.isAbsolute(relative);
 }

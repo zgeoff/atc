@@ -131,6 +131,9 @@ export class FixtureImpPort implements ImpPort {
   // The lease acquisitions wait for this hold to end, while one is held.
   private leaseHold: PromiseWithResolvers<void> | null = null;
 
+  // impd's code for every imp destroy while destroys fail, or null.
+  private destroyFailure: string | null = null;
+
   // impd's code for every grant removal while removals fail, or null.
   private grantRemovalFailure: string | null = null;
 
@@ -409,6 +412,12 @@ export class FixtureImpPort implements ImpPort {
 
   destroyImp(name: string): Promise<void> {
     this.calls.push(`imps.destroy ${name}`);
+
+    if (this.destroyFailure !== null) {
+      return Promise.reject(
+        new ImpPortError(this.destroyFailure, `impd could not destroy ${name}`),
+      );
+    }
 
     const imp = this.imps.get(name);
 
@@ -910,6 +919,14 @@ export class FixtureImpPort implements ImpPort {
   stopReleaseHold(): void {
     this.releaseHold?.resolve();
     this.releaseHold = null;
+  }
+
+  /**
+   * Fails every imp destroy with an impd code, leaving the imp, until
+   * called with null.
+   */
+  setDestroyFailure(code: string | null): void {
+    this.destroyFailure = code;
   }
 
   /**

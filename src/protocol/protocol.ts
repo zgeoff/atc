@@ -43,6 +43,7 @@ const ERROR_CODES = [
   'sanitize_failed',
   'tar_failed',
   'workspace_exists',
+  'workspace_overlap',
   'transfer_failed',
   'workspace_mismatch',
   'github_unavailable',
