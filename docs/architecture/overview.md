@@ -149,9 +149,10 @@ All in `~/.local/state/atc/`:
 | `mcp-auth.db` | SQLite: the OAuth state of `atc mcp --http` (clients, consent, token hashes), owned by that process and by `atc clients` and `atc grants`; the daemon never opens it. [Remote MCP](./remote-mcp.md) covers it.                                                                                                                                                                                                         |
 
 `daemon.lock` is the lock that keeps one daemon per state directory, and `daemon.json` holds the
-running daemon's pid and socket paths, so a client whose environment computes other socket paths
-still finds it; the [daemon architecture](./daemon.md#one-daemon-per-state-directory) covers both.
-The daemon also writes its pid file (`atc-daemon.pid`) beside its sockets in `$XDG_RUNTIME_DIR`.
+running daemon's pid, socket paths, and TCP listener port, so a client whose environment computes
+other socket paths still finds it; the
+[daemon architecture](./daemon.md#one-daemon-per-state-directory) covers both. The daemon also
+writes its pid file (`atc-daemon.pid`) beside its sockets in `$XDG_RUNTIME_DIR`.
 
 ## Recovery model
 
