@@ -2,15 +2,17 @@
 
 ## [2.15.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.14.0...@zgeoff/atc@2.15.0) (2026-10-03)
 
-
 ### Features
 
-* **#213:** read an imp target's token from a file ([#222](https://github.com/zgeoff/atc/issues/222)) ([9e4f224](https://github.com/zgeoff/atc/commit/9e4f22446236c90e0e5f4295abada84ebe146b19))
-
+- **#213:** read an imp target's token from a file
+  ([#222](https://github.com/zgeoff/atc/issues/222))
+  ([9e4f224](https://github.com/zgeoff/atc/commit/9e4f22446236c90e0e5f4295abada84ebe146b19))
 
 ### Bug Fixes
 
-* **#82:** keep unrestored fleet rows on a fleet write ([#218](https://github.com/zgeoff/atc/issues/218)) ([f5490bf](https://github.com/zgeoff/atc/commit/f5490bfdf5307626049c71d7b786fb2ad9806a10))
+- **#82:** keep unrestored fleet rows on a fleet write
+  ([#218](https://github.com/zgeoff/atc/issues/218))
+  ([f5490bf](https://github.com/zgeoff/atc/commit/f5490bfdf5307626049c71d7b786fb2ad9806a10))
 
 ## [2.14.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.13.0...@zgeoff/atc@2.14.0) (2026-10-03)
 
