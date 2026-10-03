@@ -169,11 +169,13 @@ line and submits it the way the session's agent accepts a line, which the agent'
 - Codex and Grok keep a newline that arrives inside a burst of input as part of the text, so a line
   typed with its newline stays unsent in the composer. They get the text between bracketed paste
   markers (`ESC[200~` and `ESC[201~`), then a carriage return as a second write. The markers make
-  the text one paste event, so the carriage return reads as Enter however the two writes arrive. The
-  daemon reads from the session's screen model whether the TUI has turned bracketed paste on (DEC
-  mode 2004); until it has, the text goes unmarked. In that case the text and the carriage return go
-  out in the same tick and can arrive as one burst, so the daemon cannot promise that the line is
-  submitted.
+  the text one paste event, so the carriage return reads as Enter however the two writes arrive.
+  Paste markers inside the text are dropped, so the text cannot end its own paste. The daemon reads
+  from the session's screen model whether the TUI has turned bracketed paste on (DEC mode 2004);
+  until it has, the text goes unmarked. In that case the text and the carriage return go out in the
+  same tick and can arrive as one burst, so the daemon cannot promise that the line is submitted.
+  The daemon reads the mode from the output parsed so far and does not wait for output still queued,
+  so a line sent just as the TUI turns bracketed paste on can go out unmarked too.
 
 A headless session takes the line as the prompt of its next turn, as it takes `session.input`. The
 ok means the daemon wrote the line and its submit key to the PTY, not that the agent answered.
