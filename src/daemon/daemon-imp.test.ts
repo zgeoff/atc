@@ -55,7 +55,7 @@ done
         kind: 'imp',
         options: {},
         identity: 'imp:test',
-        provider: new ImpProvider(port, {}),
+        provider: new ImpProvider(port, {}, { reconnectDelaysMs: [0, 0, 0] }),
       },
     ],
     defaultTarget: 'box',
@@ -346,4 +346,120 @@ test('it leaves a session whose harness exited by itself restorable and gives it
   });
 
   expect(daemon.port.findState(String(imp))).toBe('running');
+});
+
+test('it lists a session as reattaching while its connection is lost and as attached once it resumes', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+  const [imp] = daemon.port.collectImpNames();
+  const [request] = daemon.port.sessionRequests;
+
+  await waitFor(() => {
+    expect(daemon.port.getEnd(String(imp), String(request?.session))).toBeGreaterThan(0);
+  });
+
+  daemon.port.stopConnection(String(imp), String(request?.session), 1011);
+
+  await waitFor(() => {
+    expect(
+      daemon.events
+        .filter((event) => event.ev === 'SessionState')
+        .map((event) => getRecord(getRecord(event, 'session'), 'lifecycle')['attachment']),
+    ).toStrictEqual(['reattaching', 'attached']);
+  });
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [{ id, state: 'running', alive: true }],
+  });
+});
+
+test('it lists a session whose imp another owner put to sleep as asleep, and revives it in the same process', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+  const [imp] = daemon.port.collectImpNames();
+
+  await daemon.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  const pid = await waitFor(() => {
+    const match = /UP:(?<pid>\d+)/.exec(
+      daemon.events
+        .filter((event) => event.ev === 'SessionOutput')
+        .map((event) => String(event['d']))
+        .join(''),
+    );
+
+    if (match?.groups?.['pid'] === undefined) {
+      throw new Error('the harness has not started');
+    }
+
+    return match.groups['pid'];
+  });
+
+  daemon.port.suspendWithForce(String(imp));
+
+  await waitFor(async () => {
+    const listed = await daemon.client.sendRequest('session.list');
+
+    expect(listed).toMatchObject({
+      sessions: [
+        {
+          id,
+          state: 'exited',
+          lastMsg: 'asleep',
+          lifecycle: { vm: 'asleep', harness: 'suspended', attachment: 'detached' },
+        },
+      ],
+    });
+  });
+
+  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.input', { session: id, d: 'again\r' });
+
+  await waitFor(() => {
+    expect(
+      daemon.events
+        .filter((event) => event.ev === 'SessionOutput')
+        .map((event) => String(event['d']))
+        .join(''),
+    ).toInclude(`GOT:again:${pid}`);
+  });
+});
+
+test('it gives its lease back when a session it revived from sleep exits', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+  const [imp] = daemon.port.collectImpNames();
+  const release = `leases.release ${imp} atc-${String(daemon.daemonID)}`;
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.input', { session: id, d: 'quit\r' });
+
+  await waitFor(() => {
+    expect(daemon.port.calls.filter((call) => call === release)).toHaveLength(2);
+  });
 });

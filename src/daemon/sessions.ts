@@ -502,6 +502,17 @@ export class SessionManager {
       this.onOutput(s, d);
     });
 
+    pty.onAttachment?.((attachment) => {
+      if (s.pty !== pty || s.attachment === attachment) {
+        return;
+      }
+
+      s.attachment = attachment;
+
+      this.onEvent('state', s);
+      this.emitChange();
+    });
+
     pty.onExit((exit) => {
       if (s.pty !== pty) {
         return;

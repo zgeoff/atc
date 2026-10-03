@@ -125,8 +125,23 @@ the sleep, the daemon takes its own lease back and the kill fails with `host_lea
 `session.forget` destroys the imp, which ends every lease on it.
 
 Each harness is an imp session named after its atc session, and the daemon is its one attacher. A
-kill of a sub-session sends its process `SIGHUP`. When the daemon stops, it closes its connections
-and leaves every imp session running for the next daemon to attach.
+kill of a sub-session sends its process `SIGHUP`. When the daemon stops, it closes its connections,
+leaves every imp session running, and gives its leases back, so an idle imp sleeps after impd's idle
+timeout. The next daemon's revive wakes the imp from memory and attaches to the session again.
+
+A connection that ends without an exit reconnects without waking the imp, and the session lists as
+`reattaching` until it does. Where impd carries offsets, the daemon resumes after the last byte it
+has, at the generation it last saw, and drops any byte below that offset, since impd may repeat
+bytes across connections. A resume that finds a gap, an offset impd refuses, or an imp without
+offsets gets a fresh attach instead: the daemon clears the screen, then takes impd's replay. impd's
+answer to the reconnect decides how the harness ended:
+
+- A sleeping imp leaves the session asleep, for a revive to find.
+- A process impd no longer holds in the same boot ended with the exit code impd kept for its
+  generation.
+- A process lost to a cold boot ended with the cause of the first boot after the daemon's own, such
+  as `imp rebooted (watchdog)`. Without the daemon's boot among impd's last four cold boots, it
+  ended with the cause unknown.
 
 ## Workspace materialization
 

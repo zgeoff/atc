@@ -24,10 +24,17 @@ export interface ImpTargetOptions {
 interface ImpProviderOptions {
   // How long each lease the daemon takes lasts before a renewal, in seconds.
   readonly leaseSeconds?: number;
+
+  // The wait before each reconnect to a harness whose connection ended
+  // without an exit, in milliseconds.
+  readonly reconnectDelaysMs?: readonly number[];
 }
 
 // impd takes a lease of 10 to 3600 seconds; the daemon renews at a third of it.
 const LEASE_SECONDS = 600;
+
+// About 15 seconds of reconnects before a harness counts as ended.
+const RECONNECT_DELAYS_MS: readonly number[] = [250, 1000, 2000, 4000, 8000];
 
 // The PATH a guest harness runs with: the guest's standard one, never the
 // daemon's.
@@ -65,7 +72,13 @@ export class ImpProvider implements ExecutionProvider {
 
   private readonly leaseSeconds: number;
 
+  private readonly reconnectDelaysMs: readonly number[];
+
   private readonly hosts = new Map<string, ImpHost>();
+
+  // Whether impd carries output offsets, once a prepare has read its
+  // features; an impd without the flag carries none.
+  private offsets = false;
 
   // The lease label of the daemon this provider serves, once a prepare
   // names it.
@@ -75,6 +88,7 @@ export class ImpProvider implements ExecutionProvider {
     this.port = port;
     this.target = target;
     this.leaseSeconds = options.leaseSeconds ?? LEASE_SECONDS;
+    this.reconnectDelaysMs = options.reconnectDelaysMs ?? RECONNECT_DELAYS_MS;
   }
 
   // Creates the host's imp when impd holds none, then takes the daemon's
@@ -86,6 +100,10 @@ export class ImpProvider implements ExecutionProvider {
     this.label = label;
 
     try {
+      const features = await this.port.readFeatures();
+
+      this.offsets = features.sessionOffsets;
+
       const existing = await this.port.readImp(name);
 
       if (existing === null) {
@@ -139,6 +157,8 @@ export class ImpProvider implements ExecutionProvider {
         rows: spec.rows,
       },
       {
+        offsets: this.offsets,
+        reconnectDelaysMs: this.reconnectDelaysMs,
         isSuspending: () => host.suspending,
         onDone: () => {
           host.harnesses -= 1;

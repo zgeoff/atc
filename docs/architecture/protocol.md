@@ -187,9 +187,10 @@ session's attention:
 | `attachment` | `local`, `attached`, `reattaching`, `detached` | the daemon's connection to the output       |
 
 `vm` is `none` and `attachment` is `local` for a session on the daemon's own machine. `suspended` is
-a process kept inside a sleeping host, which a revive brings back as it was. A session whose harness
-is not `running` lists with `state` `exited`; a running harness lists with the attention its hooks
-last reported.
+a process kept inside a sleeping host, which a revive brings back as it was. `reattaching` is a
+remote harness whose connection dropped while the daemon restores it, and a `SessionState` event
+carries each change between it and `attached`. A session whose harness is not `running` lists with
+`state` `exited`; a running harness lists with the attention its hooks last reported.
 
 A sub-session's descriptor carries the id of its parent under `parent`; a top-level session's
 descriptor omits the key. A spawn whose `parent` is itself a sub-session lands beside it, under the

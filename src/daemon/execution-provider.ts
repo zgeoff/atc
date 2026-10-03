@@ -126,6 +126,12 @@ export interface HarnessSpec {
 export interface HarnessHandle {
   readonly onData: (listener: (data: string) => void) => HarnessSubscription;
   readonly onExit: (listener: (exit: HarnessExit) => void) => HarnessSubscription;
+
+  // Follows a remote harness's connection: lost and being restored, or
+  // restored. A harness on the daemon's own machine has no connection.
+  readonly onAttachment?: (
+    listener: (attachment: HarnessAttachment) => void,
+  ) => HarnessSubscription;
   readonly write: (data: string) => void;
   readonly resize: (cols: number, rows: number) => void;
   readonly kill: () => void;
@@ -135,6 +141,8 @@ export interface HarnessHandle {
   // the process ends as a kill ends it. No listener fires after a detach.
   readonly detach: () => void;
 }
+
+export type HarnessAttachment = 'attached' | 'reattaching';
 
 interface HarnessSubscription {
   readonly dispose: () => void;

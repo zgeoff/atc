@@ -58,6 +58,17 @@ export class FixtureImpPort implements ImpPort {
   // ignores resumes.
   continuity: 'offsets' | 'none' = 'offsets';
 
+  // How many bytes before the asked offset an exact resume starts, as
+  // impd's at-least-once delivery allows.
+  resumeOverlap = 0;
+
+  // Session answers held back while a test lets output pile up, or null
+  // when answers go out at once.
+  private held: (() => void)[] | null = null;
+
+  // A refusal the next session request gets instead of an answer.
+  private nextFailure: { readonly code: string; readonly data: unknown } | null = null;
+
   private readonly principal: string;
 
   private readonly imps = new Map<string, FixtureImp>();
@@ -241,7 +252,13 @@ export class FixtureImpPort implements ImpPort {
     // impd answers over the network: nothing reaches the caller before
     // openSession returns.
     setTimeout(() => {
-      this.answerSession(request, connection);
+      if (this.held === null) {
+        this.answerSession(request, connection);
+      } else {
+        this.held.push(() => {
+          this.answerSession(request, connection);
+        });
+      }
     }, 0);
 
     return {
@@ -400,6 +417,34 @@ export class FixtureImpPort implements ImpPort {
     proc?.connection?.finish({ kind: 'closed', reason: `code ${closeCode}`, closeCode });
   }
 
+  /**
+   * Holds every session answer back, as a slow network does, until the
+   * hold stops.
+   */
+  startAnswerHold(): void {
+    this.held ??= [];
+  }
+
+  /**
+   * Sends every held answer, in order, and answers at once again.
+   */
+  stopAnswerHold(): void {
+    const held = this.held ?? [];
+
+    this.held = null;
+
+    for (const answer of held) {
+      answer();
+    }
+  }
+
+  /**
+   * Refuses the next session request with an impd code and its data.
+   */
+  setNextSessionFailure(code: string, data: unknown): void {
+    this.nextFailure = { code, data };
+  }
+
   // The state an imp is in, or null when it does not exist.
   findState(name: string): ImpState | null {
     return this.imps.get(name)?.state ?? null;
@@ -408,6 +453,22 @@ export class FixtureImpPort implements ImpPort {
   // The names of the imps the fixture holds.
   collectImpNames(): string[] {
     return [...this.imps.keys()];
+  }
+
+  // The boot an imp runs in.
+  getBootID(name: string): string {
+    return this.getImp(name).bootId;
+  }
+
+  // The generation running under a session name.
+  getGeneration(name: string, session: string): string {
+    const proc = this.getImp(name).sessions.get(session);
+
+    if (proc === undefined) {
+      throw new Error(`no session ${session} on imp ${name}`);
+    }
+
+    return proc.generation;
   }
 
   // The offset after the last byte a session's running generation wrote.
@@ -509,6 +570,21 @@ export class FixtureImpPort implements ImpPort {
 
   private answerSession(request: ImpSessionRequest, connection: FixtureConnection): void {
     if (connection.finished) {
+      return;
+    }
+
+    const failure = this.nextFailure;
+
+    if (failure !== null) {
+      this.nextFailure = null;
+
+      connection.finish({
+        kind: 'failed',
+        code: failure.code,
+        message: `impd refused the session (${failure.code})`,
+        data: failure.data,
+      });
+
       return;
     }
 
@@ -672,7 +748,7 @@ export class FixtureImpPort implements ImpPort {
         resume = { kind: 'gap', from: resumeFrom.offset, to: bufferStart };
       } else {
         resume = { kind: 'exact' };
-        from = resumeFrom.offset;
+        from = Math.max(bufferStart, resumeFrom.offset - this.resumeOverlap);
       }
     } else if (bufferStart > 0) {
       // A ring that has wrapped can start inside an escape sequence, so a
