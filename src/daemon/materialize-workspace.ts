@@ -252,8 +252,10 @@ interface PinnedSource {
   readonly cloneURL: string;
   readonly repoURL: string;
 
-  // The ref or commit the clone checks out, and the branch or tag recorded.
+  // The ref or commit the clone checks out, the commit it is pinned to when
+  // the ref only names its branch, and the branch or tag recorded.
   readonly checkout: string;
+  readonly sha?: string | undefined;
   readonly ref: string | null;
   readonly credential: { readonly kind: 'env'; readonly name: string } | undefined;
   readonly warnings: readonly string[];
@@ -301,7 +303,8 @@ async function resolveSource(source: SpawnWorkspaceSource, staging: string): Pro
   return {
     cloneURL: resolved.url,
     repoURL: resolved.url,
-    checkout: source.sha ?? source.ref ?? '',
+    checkout: source.ref ?? source.sha ?? '',
+    sha: source.ref === undefined ? undefined : source.sha,
     ref: source.ref ?? null,
     credential: source.credentialRef,
     warnings: [],
@@ -399,7 +402,12 @@ interface CleanClone {
  */
 async function createCleanClone(pinned: PinnedSource, dir: string): Promise<CleanClone> {
   const clone = await createWorkspaceClone({
-    source: { kind: 'git', url: pinned.cloneURL, ref: pinned.checkout },
+    source: {
+      kind: 'git',
+      url: pinned.cloneURL,
+      ref: pinned.checkout,
+      ...(pinned.sha === undefined ? {} : { sha: pinned.sha }),
+    },
     dir,
     ...(pinned.credential === undefined ? {} : { credential: pinned.credential }),
   });

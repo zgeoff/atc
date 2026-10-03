@@ -488,12 +488,12 @@ the checkout is verified:
   refuse the spawn as `workspace_dirty`. With `allowDirty: "warn"`, the checkout is HEAD, the
   changes stay behind, and the spawn answer holds `warnings`.
 - A `git` source is a repository URL with `ref`, a branch or tag, `sha`, a full commit id, or both.
-  With both, the daemon checks out `sha` and records `ref` as the ref it was resolved from, without
-  checking that `ref` still points at it. `credentialRef` holds the name of the daemon environment
-  variable its token is read from. git receives the token through a private askpass helper for the
-  ref lookup and the clone alone, and atc never writes, logs, or stores it. The session's harness
-  starts without that variable and without the askpass context, and the workspace it receives holds
-  no credential.
+  With both, the daemon checks out `sha`, on the branch `ref` names when the upstream has that
+  branch, and records `ref` as the ref it was resolved from without checking that `ref` still points
+  at `sha`. `credentialRef` holds the name of the daemon environment variable its token is read
+  from. git receives the token through a private askpass helper for the ref lookup and the clone
+  alone, and atc never writes, logs, or stores it. The session's harness starts without that
+  variable and without the askpass context, and the workspace it receives holds no credential.
 
 `cwd` must not exist on the target. The daemon creates it before it clones, so a directory that
 already exists refuses the spawn as `workspace_exists` and stays as it was. A refusal after that

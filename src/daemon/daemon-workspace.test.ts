@@ -1006,7 +1006,7 @@ test('it runs a local spawn without a workspace in its directory as it stands', 
   expect(rows).toStrictEqual([]);
 });
 
-test('it checks out the sha of a git source that holds both and records the ref it came from', async () => {
+test('it checks out the sha of a git source that holds both on the branch its ref names', async () => {
   await using ctx = await setupTest();
 
   const booted = await ctx.boot(new FixtureDirProvider());
@@ -1032,6 +1032,7 @@ test('it checks out the sha of a git source that holds both and records the ref 
   });
 
   const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(dest).text();
+  const branch = await $`git symbolic-ref HEAD`.env(ctx.env).cwd(dest).nothrow().text();
 
   expect(getRecord(getRecord(spawned, 'session'), 'workspace')).toMatchObject({
     sha: pinned,
@@ -1039,5 +1040,6 @@ test('it checks out the sha of a git source that holds both and records the ref 
   });
 
   expect(head.trim()).toBe(pinned);
+  expect(branch.trim()).toBe('refs/heads/main');
   expect(existsSync(join(dest, 'later.txt'))).toBeFalse();
 });

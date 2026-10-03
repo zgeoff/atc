@@ -120,9 +120,9 @@ async function createCloneAtRef(
 
     await rm(request.dir, { recursive: true, force: true });
 
-    return target.branch === null && present.exitCode !== 0
-      ? { ok: false, code: 'ref_not_found', message: `origin has no commit ${target.sha}` }
-      : { ok: false, code: 'clone_failed', message: checkout.stderr.trim() };
+    return present.exitCode === 0
+      ? { ok: false, code: 'clone_failed', message: checkout.stderr.trim() }
+      : { ok: false, code: 'ref_not_found', message: `origin has no commit ${target.sha}` };
   }
 
   const complete = await checkWorkspaceCompleteness(request.dir, target.sha);
@@ -148,7 +148,9 @@ const SHA_PATTERN = /^(?:[\da-f]{40}|[\da-f]{64})$/u;
  * Pins a ref to a commit before cloning, so the checkout is exactly the
  * commit the ref pointed at when asked, whatever lands on the branch meanwhile.
  * A branch wins over a same-named tag, and an annotated tag resolves to the
- * commit it points at.
+ * commit it points at. A source already pinned to a commit keeps it, and
+ * its ref only decides whether the checkout is on a branch: a ref that
+ * names a branch upstream checks the commit out as that branch.
  */
 async function resolveRef(
   source: Extract<WorkspaceSource, { readonly kind: 'git' }>,
@@ -158,6 +160,8 @@ async function resolveRef(
   if (SHA_PATTERN.test(source.ref)) {
     return { ok: true, sha: source.ref, branch: null };
   }
+
+  const pinned = source.sha;
 
   const listed = await runGit(
     [...args, 'ls-remote', '--', source.url, source.ref, `${source.ref}^{}`],
@@ -180,6 +184,10 @@ async function resolveRef(
   );
 
   const match = findRemoteRef(refs, source.ref);
+
+  if (pinned !== undefined) {
+    return { ok: true, sha: pinned, branch: match?.branch ?? null };
+  }
 
   if (match !== null) {
     return { ok: true, ...match };

@@ -41,6 +41,21 @@ interface GitHubListRequest {
 // How many repositories one listing holds at most.
 const REPO_LIMIT = 500;
 
+// The fields of each repository gh repo list prints that a listing keeps.
+const REPO_LIST_SCHEMA = z.array(
+  z.object({
+    nameWithOwner: z.string().regex(/^[^/\s]+\/[^/\s]+$/u),
+    description: z
+      .string()
+      .nullable()
+      .optional()
+      .transform((description) => description ?? ''),
+    isPrivate: z.boolean(),
+    url: z.string(),
+    sshUrl: z.string(),
+  }),
+);
+
 /**
  * Lists one owner's GitHub repositories through the gh CLI on this host,
  * as the gh account signed in there sees them. gh is optional: a host
@@ -153,20 +168,6 @@ function buildUnavailable(run: GHRun): GitHubUnavailable {
     message: detail === '' ? `gh exited with ${run.exitCode}` : detail,
   };
 }
-
-const REPO_LIST_SCHEMA = z.array(
-  z.object({
-    nameWithOwner: z.string().regex(/^[^/\s]+\/[^/\s]+$/u),
-    description: z
-      .string()
-      .nullable()
-      .optional()
-      .transform((description) => description ?? ''),
-    isPrivate: z.boolean(),
-    url: z.string(),
-    sshUrl: z.string(),
-  }),
-);
 
 function parseJSON(text: string): unknown {
   try {
