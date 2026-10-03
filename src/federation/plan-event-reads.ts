@@ -1,0 +1,43 @@
+import { decodeGatewayCursor } from './decode-gateway-cursor';
+import type { GatewayRegistry } from './types';
+
+/**
+ * Where one daemon's part of an events read starts: after its own cursor,
+ * or at the start of its trail for null; or at its newest event, for a
+ * daemon a given gateway cursor leaves out, such as one added to the
+ * registry since, which the read then reports under `started`.
+ */
+export type EventReadStart =
+  | { readonly kind: 'after'; readonly cursor: string | null }
+  | { readonly kind: 'newest' };
+
+/**
+ * The daemons an events read asks, each with where its part starts. A read
+ * filtered to a session asks only the daemon that owns the session; any
+ * other read asks every daemon in the registry. Without a gateway cursor
+ * every daemon starts at the start of its trail, as a daemon read without
+ * a cursor does.
+ */
+export function planEventReads(
+  cursor: string | null,
+  filter: string,
+  sessionDaemon: string | null,
+  registry: GatewayRegistry,
+): ReadonlyMap<string, EventReadStart> {
+  const names = sessionDaemon === null ? [...registry.daemons.keys()] : [sessionDaemon];
+  const parts = cursor === null ? null : decodeGatewayCursor(cursor, filter, registry);
+
+  const plan = new Map<string, EventReadStart>();
+
+  for (const name of names) {
+    if (parts === null) {
+      plan.set(name, { kind: 'after', cursor: null });
+    } else if (parts.has(name)) {
+      plan.set(name, { kind: 'after', cursor: parts.get(name) ?? null });
+    } else {
+      plan.set(name, { kind: 'newest' });
+    }
+  }
+
+  return plan;
+}

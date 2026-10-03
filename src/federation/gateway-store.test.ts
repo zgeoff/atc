@@ -1,0 +1,172 @@
+import { expect, test } from 'bun:test';
+import { join } from 'node:path';
+import { setupTempDir } from '../../test/setup-temp-dir';
+import { GatewayStore } from './gateway-store';
+
+/**
+ * A gateway store in a temp directory, reopened by `reopen` on the same
+ * file to stand for a gateway restart.
+ */
+function setupTest() {
+  const tmp = setupTempDir('atc-gateway-store-');
+  const path = join(tmp.dir, 'gateway.db');
+  let store = GatewayStore.open(path);
+
+  return {
+    get store() {
+      return store;
+    },
+    reopen(): void {
+      store.stop();
+
+      store = GatewayStore.open(path);
+    },
+    [Symbol.dispose]() {
+      store.stop();
+      tmp[Symbol.dispose]();
+    },
+  };
+}
+
+test('it keeps the first binding of a key and returns it to a later claim for another daemon', () => {
+  using gateway = setupTest();
+
+  gateway.store.claimBinding(
+    {
+      principal: 'c1',
+      operation: 'session.spawn',
+      key: 'k',
+      daemon: 'cloud',
+      daemonID: 'd1',
+      retentionMs: 1000,
+    },
+    10,
+  );
+
+  const held = gateway.store.claimBinding(
+    {
+      principal: 'c1',
+      operation: 'session.spawn',
+      key: 'k',
+      daemon: 'pc',
+      daemonID: 'd2',
+      retentionMs: 1000,
+    },
+    20,
+  );
+
+  expect(held).toStrictEqual({
+    principal: 'c1',
+    operation: 'session.spawn',
+    key: 'k',
+    daemon: 'cloud',
+    daemonID: 'd1',
+    retentionMs: 1000,
+    outcome: 'pending',
+    outcomeAt: 10,
+  });
+});
+
+test('it keeps a binding across a gateway restart', () => {
+  using gateway = setupTest();
+
+  gateway.store.claimBinding(
+    {
+      principal: 'c1',
+      operation: 'session.spawn',
+      key: 'k',
+      daemon: 'cloud',
+      daemonID: 'd1',
+      retentionMs: null,
+    },
+    10,
+  );
+
+  gateway.reopen();
+
+  expect(gateway.store.findBinding('c1', 'session.spawn', 'k')).toMatchObject({ daemon: 'cloud' });
+});
+
+test('it holds the keys of each principal and operation apart', () => {
+  using gateway = setupTest();
+
+  gateway.store.claimBinding(
+    {
+      principal: 'c1',
+      operation: 'session.spawn',
+      key: 'k',
+      daemon: 'cloud',
+      daemonID: 'd1',
+      retentionMs: null,
+    },
+    10,
+  );
+
+  expect(gateway.store.findBinding('c2', 'session.spawn', 'k')).toBeNull();
+  expect(gateway.store.findBinding('c1', 'session.message', 'k')).toBeNull();
+});
+
+test('it removes a completed binding once twice the daemon retention has passed', () => {
+  using gateway = setupTest();
+
+  gateway.store.claimBinding(
+    {
+      principal: 'c1',
+      operation: 'session.spawn',
+      key: 'k',
+      daemon: 'cloud',
+      daemonID: 'd1',
+      retentionMs: 1000,
+    },
+    0,
+  );
+
+  gateway.store.updateOutcome('c1', 'session.spawn', 'k', 'completed', 100);
+
+  expect(gateway.store.removeExpiredBindings(2100)).toBe(0);
+  expect(gateway.store.removeExpiredBindings(2101)).toBe(1);
+  expect(gateway.store.findBinding('c1', 'session.spawn', 'k')).toBeNull();
+});
+
+test.each([['pending'], ['uncertain']] as const)(
+  'it keeps a %s binding however old it is',
+  (outcome) => {
+    using gateway = setupTest();
+
+    gateway.store.claimBinding(
+      {
+        principal: 'c1',
+        operation: 'session.spawn',
+        key: 'k',
+        daemon: 'cloud',
+        daemonID: 'd1',
+        retentionMs: 1000,
+      },
+      0,
+    );
+
+    gateway.store.updateOutcome('c1', 'session.spawn', 'k', outcome, 0);
+
+    expect(gateway.store.removeExpiredBindings(Number.MAX_SAFE_INTEGER)).toBe(0);
+  },
+);
+
+test('it keeps a completed binding to a daemon that announced no retention', () => {
+  using gateway = setupTest();
+
+  gateway.store.claimBinding(
+    {
+      principal: 'c1',
+      operation: 'session.spawn',
+      key: 'k',
+      daemon: 'cloud',
+      daemonID: 'd1',
+      retentionMs: null,
+    },
+    0,
+  );
+
+  gateway.store.updateOutcome('c1', 'session.spawn', 'k', 'completed', 0);
+
+  expect(gateway.store.removeExpiredBindings(Number.MAX_SAFE_INTEGER)).toBe(0);
+});
