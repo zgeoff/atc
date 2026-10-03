@@ -67,6 +67,10 @@ interface PeerSocket extends SocketWriter {
  */
 export interface TCPPeer {
   readonly verifyHandshake: (presented: string | null) => Promise<string | null>;
+
+  // Counts a line other than a handshake, sent before one passed, as a
+  // failed handshake from the peer's address.
+  readonly recordFailure: () => void;
 }
 
 export class DaemonConnection {
@@ -111,6 +115,9 @@ export class DaemonConnection {
   // The fingerprint of the token a TCP handshake presented, set once the
   // handshake passes; null before then and on the local socket.
   private fingerprint: string | null = null;
+
+  // Whether this TCP connection has sent its one handshake.
+  private tcpHelloSent = false;
 
   constructor(peer: PeerSocket, ctx: DaemonContext, tcp: TCPPeer | null = null) {
     this.peer = peer;
@@ -204,7 +211,16 @@ export class DaemonConnection {
   }
 
   applyChunk(chunk: string): void {
-    if (this.lines.pendingLength + chunk.length > MAX_LINE) {
+    const oversized = this.lines.pendingLength + chunk.length > MAX_LINE;
+
+    if (oversized && this.isUnauthenticatedTCP()) {
+      this.tcp?.recordFailure();
+      this.peer.end();
+
+      return;
+    }
+
+    if (oversized) {
       this.sendErr(0, 'bad_args', `line exceeds ${MAX_LINE} bytes`);
       this.peer.end();
 
@@ -246,6 +262,14 @@ export class DaemonConnection {
 
   // false: the connection is beyond recovery and gets closed.
   private applyLine(line: string): boolean {
+    if (this.tcp !== null) {
+      const refused = this.findTCPLineRefusal(line);
+
+      if (refused === 'close') {
+        return false;
+      }
+    }
+
     const decoded = decodeMessage(line);
 
     if (decoded.kind === 'malformed') {
@@ -292,6 +316,45 @@ export class DaemonConnection {
     this.answerAsync(req.id, () => this.applyRequest(req, ctx));
 
     return true;
+  }
+
+  // Whether a line ends this TCP connection before any answer to it. Until
+  // its token checks out, a connection gets nothing but the answer to one
+  // handshake: any other line, or a line while that handshake is still
+  // checked, counts as a failed handshake and closes it without a reply,
+  // so a peer learns nothing and floods nothing past the delay. Once in,
+  // a second handshake, which could change the principal under kept
+  // attachments, gets `unauthorized` and closes it.
+  private findTCPLineRefusal(line: string): 'close' | null {
+    if (this.isUnauthenticatedTCP()) {
+      const decoded = decodeMessage(line);
+      const isHello = decoded.kind === 'request' && decoded.msg.m === 'daemon.hello';
+
+      if (this.tcpHelloSent || !isHello) {
+        this.tcp?.recordFailure();
+
+        return 'close';
+      }
+
+      this.tcpHelloSent = true;
+
+      return null;
+    }
+
+    const decoded = decodeMessage(line);
+
+    if (decoded.kind === 'request' && decoded.msg.m === 'daemon.hello') {
+      this.sendErr(decoded.msg.id, 'unauthorized', 'a TCP connection takes one handshake');
+
+      return 'close';
+    }
+
+    return null;
+  }
+
+  // Whether this is a TCP connection whose handshake has not passed.
+  private isUnauthenticatedTCP(): boolean {
+    return this.tcp !== null && this.fingerprint === null;
   }
 
   // A request over TCP runs only once the handshake has passed, only as a

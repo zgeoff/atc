@@ -137,8 +137,13 @@ The daemon checks the token before anything else in the handshake, comparing SHA
 constant time against each token in the file. A missing or wrong token gets `unauthorized` and the
 daemon closes the connection, so a peer without a token learns neither the build nor the protocol
 version. Once one source address has failed five handshakes within a minute, the daemon waits 10 s
-before it checks that address's next handshake. A request sent before the handshake passes waits
-behind it and is never answered when the handshake fails.
+before it checks that address's next handshake.
+
+Until its handshake passes, a TCP connection gets nothing but the answer to that one handshake. Any
+other line, a malformed or oversized one, or a second line sent while the handshake is still being
+checked closes the connection with no reply and counts as a failed handshake. Send each request only
+after the handshake answer arrives. Once the handshake has passed, a second `daemon.hello` gets
+`unauthorized` and the daemon closes the connection, so a connection never changes its principal.
 
 A TCP connection never acts as the daemon's owner. Every request on it must carry `as`, and the
 daemon answers `unauthorized` for a request without it, for an `as` that the config's `principals`

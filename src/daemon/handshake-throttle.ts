@@ -19,9 +19,10 @@ export class HandshakeThrottle {
   }
 
   recordFailure(address: string, now: number): void {
-    const recent = this.collectRecent(address, now);
+    // Only the latest failures up to the limit decide a delay, so an
+    // address never holds more than that many, however often it fails.
+    const recent = [...this.collectRecent(address, now), now].slice(-FAILURE_LIMIT);
 
-    recent.push(now);
     this.failures.set(address, recent);
   }
 

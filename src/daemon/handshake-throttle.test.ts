@@ -40,3 +40,13 @@ test('it keeps the failures of one address from delaying another', () => {
 
   expect(throttle.getDelay('10.42.0.8', 5000)).toBe(0);
 });
+
+test('it keeps delaying an address that failed far more than five times', () => {
+  const throttle = new HandshakeThrottle(10_000);
+
+  for (let at = 0; at < 100_000; at++) {
+    throttle.recordFailure('10.42.0.7', at / 10);
+  }
+
+  expect(throttle.getDelay('10.42.0.7', 10_000)).toBe(10_000);
+});

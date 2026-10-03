@@ -168,13 +168,14 @@ test('it refuses a TCP handshake with a wrong token and closes the connection', 
   await closed.promise;
 });
 
-test('it refuses a request sent over TCP before the handshake', async () => {
+test('it closes a TCP connection that sends a request before the handshake without answering it', async () => {
   await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
 
   const client = await daemon.openTCP();
 
   expect(client.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
-    code: 'unauthorized',
+    code: 'internal',
+    message: 'connection closed',
   });
 });
 
@@ -540,4 +541,167 @@ test('it refuses to start a listener whose token file holds a short token', () =
       listen: { host: '127.0.0.1', port: 0, tokenFile },
     }),
   ).rejects.toMatchObject({ code: 'listen_refused' });
+});
+
+test('it closes an unauthenticated TCP connection that sends a malformed line without a reply', async () => {
+  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
+
+  const port = daemon.daemon.listenPort ?? 0;
+  const closed = Promise.withResolvers<void>();
+  const received: string[] = [];
+
+  await Bun.connect({
+    hostname: '127.0.0.1',
+    port,
+    socket: {
+      open(socket) {
+        socket.write('{}\n');
+      },
+      data(_socket, buf) {
+        received.push(buf.toString());
+      },
+      close() {
+        closed.resolve();
+      },
+      error() {},
+    },
+  });
+
+  await closed.promise;
+
+  expect(received).toStrictEqual([]);
+});
+
+test('it counts lines before the handshake as failed handshakes toward the delay', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map(),
+    failureDelayMs: 600,
+  });
+
+  const port = daemon.daemon.listenPort ?? 0;
+
+  for (const line of [
+    '{}',
+    'nope',
+    '{"v":4,"id":1,"m":"session.list"}',
+    '{"v":4,"ev":"X"}',
+    '{}',
+  ]) {
+    const closed = Promise.withResolvers<void>();
+
+    await Bun.connect({
+      hostname: '127.0.0.1',
+      port,
+      socket: {
+        open(socket) {
+          socket.write(`${line}\n`);
+        },
+        data() {},
+        close() {
+          closed.resolve();
+        },
+        error() {},
+      },
+    });
+
+    await closed.promise;
+  }
+
+  const client = await daemon.openTCP();
+
+  const started = Date.now();
+
+  await client.sendHello('atc/test-gateway', TOKEN_A);
+
+  expect(Date.now() - started).toBeWithin(550, 5000);
+});
+
+test('it refuses a second handshake on a TCP connection and closes it', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map([
+      ['gw-a', ['local']],
+      ['gw-b', []],
+    ]),
+  });
+
+  const id = await daemon.spawnSession();
+  const client = await daemon.openTCP();
+
+  const closed = Promise.withResolvers<void>();
+
+  client.onClose = () => {
+    closed.resolve();
+  };
+
+  await client.sendRequest('daemon.hello', {
+    client: 'atc/test-gateway',
+    principal: 'gw-a',
+    auth: { scheme: 'bearer', token: TOKEN_A },
+  });
+
+  await client.sendRequest('session.attach', { session: id }, 'gw-a');
+
+  expect(
+    client.sendRequest('daemon.hello', {
+      client: 'atc/test-gateway',
+      principal: 'gw-b',
+      auth: { scheme: 'bearer', token: TOKEN_A },
+    }),
+  ).rejects.toMatchObject({ code: 'unauthorized' });
+
+  await closed.promise;
+});
+
+test('it keeps answering local pings while a TCP peer floods handshakes during the delay', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map(),
+    failureDelayMs: 1500,
+  });
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const failing = await daemon.openTCP();
+
+    expect(failing.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
+      code: 'unauthorized',
+    });
+  }
+
+  const hello = `${JSON.stringify({ v: 4, id: 1, m: 'daemon.hello', p: { auth: { scheme: 'bearer', token: TOKEN_B } } })}\n`;
+  const flooded = Promise.withResolvers<void>();
+
+  await Bun.connect({
+    hostname: '127.0.0.1',
+    port: daemon.daemon.listenPort ?? 0,
+    socket: {
+      open(socket) {
+        socket.write(hello.repeat(100_000));
+      },
+      data() {},
+      close() {
+        flooded.resolve();
+      },
+      error() {},
+    },
+  });
+
+  const latencies: number[] = [];
+  const until = Date.now() + 4000;
+
+  while (Date.now() < until) {
+    const sent = Date.now();
+
+    await daemon.owner.sendRequest('daemon.ping', {});
+
+    latencies.push(Date.now() - sent);
+
+    // Spaces the pings out across the delay and the moment it ends.
+    await Bun.sleep(50);
+  }
+
+  await flooded.promise;
+
+  expect(Math.max(...latencies)).toBeLessThan(500);
 });
