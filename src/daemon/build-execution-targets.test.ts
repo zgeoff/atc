@@ -43,3 +43,29 @@ test('it reports no target error for an imp target whose token variable is set',
 
   expect(built.errors).toStrictEqual([]);
 });
+
+test('it gives an imp target another identity when its token file path changes', () => {
+  const built = buildExecutionTargets(
+    [
+      {
+        id: 'a',
+        provider: 'imp',
+        options: { url: 'http://127.0.0.1:9', tokenFile: '/run/credentials/one/imp-token' },
+      },
+      {
+        id: 'b',
+        provider: 'imp',
+        options: { url: 'http://127.0.0.1:9', tokenFile: '/run/credentials/two/imp-token' },
+      },
+    ],
+    {},
+  );
+
+  const [first, second] = built.targets;
+
+  if (first === undefined || second === undefined) {
+    throw new Error('expected two targets');
+  }
+
+  expect(first.identity).not.toBe(second.identity);
+});
