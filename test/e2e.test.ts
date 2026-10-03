@@ -1534,3 +1534,136 @@ test('it shows a refused spawn in the picker and keeps the entered prompt', asyn
   expect(screen).toInclude('> hello');
   expect(screen).not.toInclude('FAKE_CLAUDE_UP');
 }, 15_000);
+
+test('it spawns on the target chosen in the target step, keeping the choice across esc', async () => {
+  await using ctx = setupTest();
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: {
+        local: { provider: 'local-pty' },
+        alt: { provider: 'local-pty', tag: 'alt' },
+        far: { provider: 'nowhere' },
+      },
+      defaultTarget: 'local',
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: target');
+
+  const menu = ctx.read();
+
+  expect(menu).toInclude('\u001B[7mlocal  local-pty · default');
+  expect(menu).toInclude('\u001B[90mfar  nowhere · unavailable');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7malt  local-pty');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('\u001B[7malt  local-pty');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('elsewhere\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP');
+
+  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  await daemon.sendHello('atc/test');
+
+  const listed = await daemon.sendRequest('session.list');
+
+  expect(listed['sessions']).toMatchObject([
+    { name: 'elsewhere', cwd: ctx.home, locator: { targetID: 'alt' } },
+  ]);
+}, 20_000);
+
+test('it keeps the target step open on a target the directory cannot run on', async () => {
+  await using ctx = setupTest();
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: { local: { provider: 'local-pty' }, far: { provider: 'nowhere' } },
+      defaultTarget: 'local',
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7mfar  nowhere');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor("target 'far' is unavailable on this daemon");
+
+  expect(ctx.read()).not.toInclude('spawn: name');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: directory');
+}, 15_000);

@@ -387,6 +387,9 @@ export interface PickerView {
   input: string;
   placeholder?: string;
   hint: string;
+
+  // The indexes of items drawn dim: listed, but not a fit for the flow.
+  dimmed?: ReadonlySet<number>;
 }
 
 export function drawPicker(view: PickerView) {
@@ -397,7 +400,9 @@ export function drawPicker(view: PickerView) {
   for (const [i, item] of shown.entries()) {
     const sel = i === view.selected;
     const t = truncate(item, width - 4);
-    const styled = sel ? `${ESC}[7m${t.padEnd(width - 4)}${ESC}[0m` : t;
+    const dim = view.dimmed?.has(i) === true;
+    const inverse = sel ? `${ESC}[7m${t.padEnd(width - 4)}${ESC}[0m` : t;
+    const styled = dim ? `${ESC}[90m${inverse}${ESC}[0m` : inverse;
     const plainLen = sel ? width - 4 : t.length;
 
     rowsList.push(boxRow(width, styled, plainLen));

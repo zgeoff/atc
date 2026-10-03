@@ -5,13 +5,15 @@ import { loadConfig } from '../shared/config';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
 import { collectPathCompletions } from './collect-path-completions';
+import { collectTargetPicks } from './collect-target-picks';
+import type { TargetPick } from './collect-target-picks';
 import { collectZoxideDirs } from './collect-zoxide-dirs';
 import { collectDirs, formatDir, formatDirName, pickMatches } from './dirs';
 import { planTextEdit } from './keys';
 import { resolvePathInput } from './resolve-path-input';
 import { ansi, cols, drawPicker } from './ui';
 
-type PickerStep = 'agent' | 'dir' | 'name' | 'prompt';
+type PickerStep = 'agent' | 'dir' | 'target' | 'name' | 'prompt';
 
 // What the flow borrows from the client that owns the screen, the daemon
 // connection and the fleet mirror.
@@ -31,8 +33,9 @@ export interface SpawnPickerDeps<TMirror> {
 }
 
 /**
- * The modal flow behind n and r: agent, then directory, then name, then an
- * optional first prompt. Every path out of it either attaches the new
+ * The modal flow behind n and r: agent, then directory, then execution
+ * target when the daemon has more than one, then name, then an optional
+ * first prompt. Every path out of it either attaches the new
  * session or returns the client to the screen it came from. A spawn the
  * daemon refuses is no path out: the flow stays open and shows why.
  */
@@ -55,6 +58,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private roots: readonly string[] = [];
 
   private dir = '';
+
+  // The daemon's execution targets, read when the directory step opens,
+  // and the one chosen; null spawns on the daemon's default target.
+  private targets: TargetPick[] = [];
+
+  private target: TargetPick | null = null;
 
   private name = '';
 
@@ -99,7 +108,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     const edit = planTextEdit(buf, this.input, {
       isLeaderKey: this.deps.isLeaderKey,
-      moves: this.step === 'agent' || this.step === 'dir',
+      moves: this.step === 'agent' || this.step === 'dir' || this.step === 'target',
     });
 
     switch (edit.kind) {
@@ -170,6 +179,21 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         input: this.input,
         hint: 'type to filter, or a path (/ ~ .) · ↑↓ move · ⏎ select · esc cancel',
       });
+    } else if (this.step === 'target') {
+      this.selected = Math.min(this.selected, this.targets.length - 1);
+
+      drawPicker({
+        title: `${verb}: target`,
+        items: this.targets.map((t) => formatTargetPick(t)),
+        selected: this.selected,
+        input: '',
+        hint: this.refusal ?? `where ${formatDir(this.dir)} runs · ↑↓ move · ⏎ select · esc back`,
+        dimmed: new Set(
+          this.targets.flatMap((t, i) =>
+            t.takesWorkspace || (t.available && t.inPlace) ? [] : [i],
+          ),
+        ),
+      });
     } else if (this.step === 'name') {
       drawPicker({
         title: `${verb}: name`,
@@ -209,8 +233,10 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       );
 
       this.step = 'agent';
-    } else if (this.step === 'name') {
+    } else if (this.step === 'target') {
       this.step = 'dir';
+    } else if (this.step === 'name') {
+      this.openTargetOrDir('dir');
     } else {
       this.step = 'name';
     }
@@ -246,6 +272,26 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
       this.dir = chosen;
       this.input = '';
+
+      this.openTargetOrDir('name');
+    } else if (this.step === 'target') {
+      const pick = this.targets[this.selected];
+
+      if (pick === undefined) {
+        return;
+      }
+
+      const refusal = findTargetRefusal(pick);
+
+      if (refusal !== null) {
+        this.refusal = refusal;
+
+        this.render();
+
+        return;
+      }
+
+      this.target = pick;
       this.step = 'name';
     } else if (this.step === 'name') {
       this.name = this.input.trim();
@@ -280,8 +326,36 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       : collectPathCompletions(this.input, process.cwd(), homedir());
   }
 
+  // Opens the target step when the daemon has more than one target, with
+  // the chosen or default target selected, and the fallback step otherwise.
+  private openTargetOrDir(fallback: 'dir' | 'name') {
+    if (this.targets.length < 2) {
+      this.target = null;
+      this.step = fallback;
+
+      return;
+    }
+
+    const preferred = this.target?.id;
+
+    this.selected = Math.max(
+      0,
+      this.targets.findIndex((t) => (preferred === undefined ? t.isDefault : t.id === preferred)),
+    );
+
+    this.step = 'target';
+  }
+
   private async openDirStep() {
     let recent: string[] = [];
+
+    try {
+      const listed = await this.deps.sendRequest('agents.list');
+
+      this.targets = collectTargetPicks(listed);
+    } catch {
+      this.targets = [];
+    }
 
     try {
       const answer = await this.deps.sendRequest('dirs.list');
@@ -318,6 +392,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         rows: this.deps.ptyRows(),
         ...(this.resume ? { resume: true } : {}),
         agent: this.agent,
+        ...this.buildTargetParams(),
       });
 
       const spawned = this.deps.toMirrorSession(ok['session']);
@@ -347,4 +422,41 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.deps.toBase();
   }
+
+  // A chosen target goes with the spawn. A local directory runs in place on
+  // a target on the daemon's own machine, and is materialized at the same
+  // path from its pushed HEAD on any other.
+  private buildTargetParams(): Readonly<Record<string, unknown>> {
+    if (this.target === null) {
+      return {};
+    }
+
+    return this.target.inPlace
+      ? { target: this.target.id }
+      : { target: this.target.id, workspace: { kind: 'path', path: this.dir } };
+  }
+}
+
+function formatTargetPick(pick: TargetPick): string {
+  const notes = [
+    pick.provider,
+    ...(pick.isDefault ? ['default'] : []),
+    ...(pick.available ? [] : ['unavailable']),
+    ...(pick.available && !pick.takesWorkspace ? ['no workspace'] : []),
+  ];
+
+  return `${pick.id}  ${notes.join(' · ')}`;
+}
+
+// Why a local directory cannot run on a target, or null when it can.
+function findTargetRefusal(pick: TargetPick): string | null {
+  if (!pick.available) {
+    return `target '${pick.id}' is unavailable on this daemon · esc back`;
+  }
+
+  if (!pick.inPlace && !pick.takesWorkspace) {
+    return `target '${pick.id}' cannot take a workspace · esc back`;
+  }
+
+  return null;
 }
