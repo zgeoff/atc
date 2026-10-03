@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.26.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.0...@zgeoff/atc@2.26.1) (2026-10-03)
+
+### Bug Fixes
+
+- **#178:** return admissions on open throws and end harnesses in order
+  ([#265](https://github.com/zgeoff/atc/issues/265))
+  ([63d5760](https://github.com/zgeoff/atc/commit/63d5760e66d576c366c5d30baf16f4d9c353d828))
+
 ## [2.26.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.25.0...@zgeoff/atc@2.26.0) (2026-10-03)
 
 ### Features
