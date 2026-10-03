@@ -1,3 +1,4 @@
+import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
@@ -15,8 +16,9 @@ const TOKEN = 'g'.repeat(32);
 /**
  * A real daemon with a TCP listener on a loopback port whose token file
  * holds TOKEN and whose principals key lets `gw` use the local target.
- * `owner` is the daemon owner's connection on its local socket, and
- * `daemonID` is the state identity its handshake returns.
+ * `owner` is the daemon owner's connection on its local socket,
+ * `daemonID` is the state identity its handshake returns, and `dbPath` is
+ * its state store.
  */
 async function setupTest() {
   const tmp = setupTempDir('atc-daemon-caller-');
@@ -53,6 +55,7 @@ async function setupTest() {
   }
 
   return {
+    dbPath: join(tmp.dir, 'state.db'),
     port: daemon.listenPort,
     owner,
     daemonID: String(hello['daemonID']),
@@ -466,4 +469,70 @@ test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnec
   ).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
 
   expect(legacy.requests.map((request) => request.m)).toStrictEqual(['daemon.hello']);
+});
+
+test('it resends a keyed spawn replay-only, so a resend after the daemon swept the key spawns nothing and answers outcome_unknown', async () => {
+  await using daemon = await setupTest();
+
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: daemon.port },
+    method: 'session.spawn',
+    cuts: 1,
+    mode: 'close',
+  });
+
+  onTestFinished(() => {
+    proxy.stop();
+  });
+
+  const redialed = Promise.withResolvers<void>();
+  const released = Promise.withResolvers<void>();
+  let opened = 0;
+
+  const caller = new DaemonCaller({
+    daemon: {
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: proxy.port },
+      daemonID: daemon.daemonID,
+      incarnation: daemon.daemonID.slice(0, 8),
+      token: TOKEN,
+    },
+    build: 'atc-gateway/test',
+    openChannel: async (address) => {
+      opened++;
+
+      if (opened === 2) {
+        redialed.resolve();
+
+        await released.promise;
+      }
+
+      return DaemonClient.open({ hostname: address.host, port: address.port });
+    },
+  });
+
+  onTestFinished(() => caller.stop());
+
+  const spawned = caller.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' },
+    'gw',
+  );
+
+  await redialed.promise;
+
+  const ledger = new Database(daemon.dbPath);
+
+  ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
+  ledger.close();
+  released.resolve();
+
+  expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
+
+  await Promise.allSettled([spawned]);
+
+  const listed = await daemon.owner.sendRequest('session.list');
+
+  expect(proxy.countRequests()).toBe(2);
+  expect(listed['sessions']).toHaveLength(1);
 });
