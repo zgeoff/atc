@@ -17,6 +17,7 @@ import {
   stateDir,
   statusFile,
 } from '../src/shared/config';
+import { updateEnv } from './update-env';
 
 test("it resolves every atc config and state path inside this run's own home", () => {
   const root = process.env['ATC_TEST_HOME'];
@@ -226,4 +227,16 @@ test('it stops a bare bun test before any test runs', () => {
   expect(nested.exitCode).toBe(2);
   expect(output).toInclude('run `bun run test` instead');
   expect(output).not.toInclude('(pass)');
+});
+
+// The preload restores overrides once for the whole process, so its effect
+// shows across two tests: the second holds whether or not the first ran.
+test('it overrides an environment variable for the running test', () => {
+  updateEnv('ATC_TEST_PRELOAD_RESTORE_PROBE', 'overridden');
+
+  expect(process.env['ATC_TEST_PRELOAD_RESTORE_PROBE']).toBe('overridden');
+});
+
+test("it starts each test without an earlier test's environment override", () => {
+  expect(process.env).not.toContainKey('ATC_TEST_PRELOAD_RESTORE_PROBE');
 });

@@ -1,4 +1,5 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
+import { updateEnv } from '../../test/update-env';
 import { socketPath } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -104,16 +105,7 @@ test('it runs a compiled binary turn under the claude binary it is given', () =>
 });
 
 test('it starts a turn without the variables its session withholds', () => {
-  const prior = process.env['ATC_TEST_WORKSPACE_CRED'];
-
-  process.env['ATC_TEST_WORKSPACE_CRED'] = 'fixture-not-a-secret';
-
-  onTestFinished(() => {
-    const restored = prior === undefined ? {} : { ATC_TEST_WORKSPACE_CRED: prior };
-
-    delete process.env['ATC_TEST_WORKSPACE_CRED'];
-    Object.assign(process.env, restored);
-  });
+  updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
 
   const options = buildClaudeQueryOptions(
     {

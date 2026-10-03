@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { updateEnv } from '../../test/update-env';
 import type { Config } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -29,19 +30,11 @@ function buildCodexConfig(): Config {
 
 function setupCodexHome(indexLines: readonly string[]): string {
   const dir = mkdtempSync(join(tmpdir(), 'atc-codex-'));
-  const prev = process.env['CODEX_HOME'];
 
-  process.env['CODEX_HOME'] = dir;
-
+  updateEnv('CODEX_HOME', dir);
   writeFileSync(join(dir, 'session_index.jsonl'), indexLines.join('\n'));
 
   onTestFinished(() => {
-    if (prev === undefined) {
-      delete process.env['CODEX_HOME'];
-    } else {
-      process.env['CODEX_HOME'] = prev;
-    }
-
     rmSync(dir, { recursive: true, force: true });
   });
 

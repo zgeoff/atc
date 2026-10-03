@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
-import { hostname } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { AdapterEvent, AgentAdapter } from '../agents/agent-adapter';
 import { planTypedLineInput } from '../agents/plan-typed-line-input';
@@ -907,6 +907,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         log: (line) => {
           mgr.log(line);
         },
+        stagingRoot: tmpdir(),
       },
     );
   };

@@ -7,17 +7,8 @@ import { materializeWorkspace } from './materialize-workspace';
 
 test('it leaves no staging directory behind when the materialization row cannot be written', async () => {
   const scratch = mkdtempSync(join(tmpdir(), 'atc-materialize-'));
-  const previous = process.env['TMPDIR'];
-
-  // Every staging directory the call makes lands in a directory of its own.
-  process.env['TMPDIR'] = scratch;
 
   onTestFinished(() => {
-    const restored = previous === undefined ? {} : { TMPDIR: previous };
-
-    delete process.env['TMPDIR'];
-    Object.assign(process.env, restored);
-
     rmSync(scratch, { recursive: true, force: true });
   });
 
@@ -38,6 +29,7 @@ test('it leaves no staging directory behind when the materialization row cannot 
         updateMaterialization: () => Promise.resolve(),
       },
       log: () => {},
+      stagingRoot: scratch,
     },
   );
 

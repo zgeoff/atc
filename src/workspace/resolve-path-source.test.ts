@@ -1,8 +1,9 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
+import { updateEnv } from '../../test/update-env';
 import { resolvePathSource } from './resolve-path-source';
 
 async function setupTest() {
@@ -236,11 +237,7 @@ test('it resolves the checkout it is given when a git hook exports another GIT_D
 
   await $`git init --quiet --template= ${join(project.dir, 'other')}`.env(project.env).quiet();
 
-  process.env['GIT_DIR'] = join(project.dir, 'other', '.git');
-
-  onTestFinished(() => {
-    delete process.env['GIT_DIR'];
-  });
+  updateEnv('GIT_DIR', join(project.dir, 'other', '.git'));
 
   const resolved = await resolvePathSource(project.work);
 

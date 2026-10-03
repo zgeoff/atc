@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
+import { updateEnv } from '../../test/update-env';
 import type { AgentAdapter, HeadlessRunner } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -182,10 +183,9 @@ test('it starts the headless run of an ejected workspace session without its wor
     GIT_CONFIG_GLOBAL: '/dev/null',
   };
 
-  process.env['ATC_TEST_WORKSPACE_CRED'] = 'fixture-not-a-secret';
+  updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
 
   onTestFinished(() => {
-    delete process.env['ATC_TEST_WORKSPACE_CRED'];
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -470,10 +470,9 @@ test('it reports eject as unsupported without a headless runner', async () => {
 
 test('it refuses to eject a grok session and does not start a headless runner', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'atc-headless-'));
-  const prevHome = process.env['GROK_HOME'];
   const runs: HeadlessContext['runs'] = [];
 
-  process.env['GROK_HOME'] = join(dir, 'grok-home');
+  updateEnv('GROK_HOME', join(dir, 'grok-home'));
 
   const grok = new GrokAdapter({
     claudeBin: 'claude',
@@ -522,12 +521,6 @@ test('it refuses to eject a grok session and does not start a headless runner', 
     client.stop();
 
     await daemon.stop();
-
-    if (prevHome === undefined) {
-      delete process.env['GROK_HOME'];
-    } else {
-      process.env['GROK_HOME'] = prevHome;
-    }
 
     rmSync(dir, { recursive: true, force: true });
   });

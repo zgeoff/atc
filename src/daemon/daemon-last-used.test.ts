@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { updateEnv } from '../../test/update-env';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -25,12 +26,11 @@ const idleAdapter: AgentAdapter = {
 
 test('it does not write last-used when a restored session reports SessionStart', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
-  const prevHome = process.env['GROK_HOME'];
   const dbPath = join(dir, 'state.db');
   const sockPath = join(dir, 'daemon.sock');
   const reporterPath = join(dir, 'reporter.sock');
 
-  process.env['GROK_HOME'] = join(dir, 'grok-home');
+  updateEnv('GROK_HOME', join(dir, 'grok-home'));
 
   const store = await StateStore.open(dbPath);
 
@@ -80,12 +80,6 @@ test('it does not write last-used when a restored session reports SessionStart',
     client.stop();
 
     await daemon.stop();
-
-    if (prevHome === undefined) {
-      delete process.env['GROK_HOME'];
-    } else {
-      process.env['GROK_HOME'] = prevHome;
-    }
 
     rmSync(dir, { recursive: true, force: true });
   });
