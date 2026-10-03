@@ -5,7 +5,7 @@ import { isRecord } from '../shared/report';
  * per line. Three message kinds, distinguished by which fields are present —
  * request (id + m), response (id + ok or err), event (ev).
  */
-export const PROTOCOL_V = 3;
+export const PROTOCOL_V = 4;
 
 // Control lines are capped before buffering; PTY output is split into chunks
 // so a queued response is delayed by at most one chunk.
@@ -22,6 +22,7 @@ const ERROR_CODES = [
   'unsupported',
   'already_answered',
   'too_slow',
+  'stale_epoch',
   'internal',
 ] as const;
 
@@ -30,6 +31,9 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
 interface ProtocolError {
   readonly code: ErrorCode;
   readonly msg: string;
+
+  // Structured detail an error code defines for itself.
+  readonly data?: Readonly<Record<string, unknown>>;
 }
 
 export interface RequestMsg {
@@ -61,7 +65,9 @@ export type DecodedMsg =
 /**
  * Classifies one NDJSON line. Unknown fields pass through untouched so
  * additive evolution never breaks a peer; a line that parses but fits no
- * message kind is malformed, and the caller closes the connection.
+ * message kind is malformed, and the caller closes the connection. An error
+ * code this build does not know decodes as `internal` with its message
+ * kept, so a peer that adds a code never breaks one that predates it.
  */
 export function decodeMessage(line: string): DecodedMsg {
   let parsed: unknown;
@@ -99,16 +105,16 @@ export function decodeMessage(line: string): DecodedMsg {
   }
 
   const ok = parsed['ok'];
-  const err = parsed['err'];
+  const err = parseProtocolError(parsed['err']);
 
-  if (isRecord(ok) || isProtocolError(err)) {
+  if (isRecord(ok) || err !== null) {
     return {
       kind: 'response',
       msg: {
         v: parsed['v'],
         id: parsed['id'],
         ...(isRecord(ok) ? { ok } : {}),
-        ...(isProtocolError(err) ? { err } : {}),
+        ...(err === null ? {} : { err }),
       },
     };
   }
@@ -120,10 +126,17 @@ export function encodeMessage(msg: EventMsg | RequestMsg | ResponseMsg): string 
   return `${JSON.stringify(msg)}\n`;
 }
 
-function isProtocolError(value: unknown): value is ProtocolError {
-  return (
-    isRecord(value) &&
-    typeof value['msg'] === 'string' &&
-    ERROR_CODES.some((code) => code === value['code'])
-  );
+function parseProtocolError(value: unknown): ProtocolError | null {
+  if (!isRecord(value) || typeof value['msg'] !== 'string' || typeof value['code'] !== 'string') {
+    return null;
+  }
+
+  const raw = value['code'];
+  const data = value['data'];
+
+  return {
+    code: ERROR_CODES.find((code) => code === raw) ?? 'internal',
+    msg: value['msg'],
+    ...(isRecord(data) ? { data } : {}),
+  };
 }

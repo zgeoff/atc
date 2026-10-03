@@ -1002,6 +1002,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '013_add_messages_turn_id',
     '014_add_fleet_model_effort',
     '015_rebuild_fleet_keyed_by_session_id',
+    '016_create_session_owner',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -2343,6 +2344,203 @@ test('it keeps the later of two fleet entries that share an agent session id', a
       agent: 'claude',
     },
   ]);
+});
+
+test('it keeps the same daemon id across a reopen', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const first = await StateStore.open(dbPath);
+
+  const firstID = first.daemonID;
+
+  await first.stop();
+
+  const second = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await second.stop();
+  });
+
+  expect(firstID).toSatisfy(isUUID);
+  expect(second.daemonID).toBe(firstID);
+});
+
+test('it records this daemon as the owner of every fleet row it migrates', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const db = new Database(dbPath);
+
+  db.run(`
+    CREATE TABLE fleet (
+      agent_session_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      last_attached INTEGER,
+      agent TEXT NOT NULL DEFAULT 'claude',
+      exited INTEGER NOT NULL DEFAULT 0,
+      parent TEXT
+    );
+  `);
+
+  db.run(
+    "INSERT INTO fleet (agent_session_id, name, cwd) VALUES ('c1', 'one', '/x'), ('c2', 'two', '/y')",
+  );
+
+  db.close();
+
+  const store = await StateStore.open(dbPath);
+
+  const daemonID = store.daemonID;
+
+  const fleet = await store.loadFleet();
+
+  await store.stop();
+
+  const reader = new Database(dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    reader.close();
+  });
+
+  const owners = reader
+    .query<{ session_id: string; daemon_id: string; owner_epoch: number }, []>(
+      'SELECT session_id, daemon_id, owner_epoch FROM session_owner',
+    )
+    .all();
+
+  expect(owners).toIncludeSameMembers(
+    fleet.map((entry) => ({ session_id: entry.sessionID, daemon_id: daemonID, owner_epoch: 1 })),
+  );
+
+  expect(owners).toHaveLength(2);
+});
+
+test("it rewrites only this daemon's fleet rows and leaves another daemon's in place", async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const store = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const other = new Database(dbPath);
+
+  other.run(
+    "INSERT INTO fleet (session_id, agent_session_id, name, cwd) VALUES ('s-theirs', 'c-theirs', 'theirs', '/z')",
+  );
+
+  other.run(
+    "INSERT INTO session_owner (session_id, daemon_id, updated_at) VALUES ('s-theirs', 'd-other', 1)",
+  );
+
+  other.close();
+
+  await store.writeFleet([
+    { sessionID: toSessionID('s-mine'), name: 'mine', cwd: '/x', agent: 'claude' },
+  ]);
+
+  await store.writeFleet([
+    { sessionID: toSessionID('s-next'), name: 'next', cwd: '/y', agent: 'claude' },
+  ]);
+
+  const reader = new Database(dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    reader.close();
+  });
+
+  const stored = reader
+    .query<{ session_id: string }, []>('SELECT session_id FROM fleet ORDER BY session_id')
+    .all()
+    .map((row) => row.session_id);
+
+  const fleet = await store.loadFleet();
+
+  expect(stored).toStrictEqual(['s-next', 's-theirs']);
+
+  expect(fleet).toStrictEqual([
+    { sessionID: toSessionID('s-next'), name: 'next', cwd: '/y', agent: 'claude' },
+  ]);
+});
+
+test('it rejects a fleet write for a session whose ownership epoch moved on as stale_epoch', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const store = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    { sessionID: toSessionID('s-1'), name: 'before', cwd: '/x', agent: 'claude' },
+  ]);
+
+  const other = new Database(dbPath);
+
+  other.run("UPDATE session_owner SET owner_epoch = 2 WHERE session_id = 's-1'");
+  other.close();
+
+  const write = store.writeFleet([
+    { sessionID: toSessionID('s-1'), name: 'after', cwd: '/x', agent: 'claude' },
+  ]);
+
+  expect(write).rejects.toMatchObject({ code: 'stale_epoch' });
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    { sessionID: toSessionID('s-1'), name: 'before', cwd: '/x', agent: 'claude' },
+  ]);
+});
+
+test('it rejects a fleet write for a session another daemon owns as stale_epoch', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const store = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const other = new Database(dbPath);
+
+  other.run(
+    "INSERT INTO session_owner (session_id, daemon_id, updated_at) VALUES ('s-theirs', 'd-other', 1)",
+  );
+
+  other.close();
+
+  const write = store.writeFleet([
+    { sessionID: toSessionID('s-theirs'), name: 'stolen', cwd: '/x', agent: 'claude' },
+  ]);
+
+  expect(write).rejects.toMatchObject({ code: 'stale_epoch' });
+});
+
+test('it rejects a fleet row update for a session whose ownership epoch moved on as stale_epoch', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const store = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    { sessionID: toSessionID('s-1'), name: 'one', cwd: '/x', agent: 'claude' },
+  ]);
+
+  const other = new Database(dbPath);
+
+  other.run("UPDATE session_owner SET owner_epoch = 2 WHERE session_id = 's-1'");
+  other.close();
+
+  expect(store.updateFleetEntry(toSessionID('s-1'), { result: 'late' })).rejects.toMatchObject({
+    code: 'stale_epoch',
+  });
 });
 
 test('it writes no row as its own parent when every row in a chain shares one agent session id', async () => {

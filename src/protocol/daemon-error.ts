@@ -7,10 +7,14 @@ import type { ErrorCode } from './protocol';
 export class DaemonError extends Error {
   readonly code: ErrorCode;
 
-  constructor(code: ErrorCode, msg: string) {
+  // Structured detail the error code defines for itself, sent as `err.data`.
+  readonly data: Readonly<Record<string, unknown>> | undefined;
+
+  constructor(code: ErrorCode, msg: string, data?: Readonly<Record<string, unknown>>) {
     super(msg);
 
     this.code = code;
+    this.data = data;
     this.name = 'DaemonError';
   }
 }

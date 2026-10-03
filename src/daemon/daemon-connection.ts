@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 import type { AgentAdapter, AgentID, SpawnOptions, SpawnOverrides } from '../agents/agent-adapter';
+import { DaemonError } from '../protocol/daemon-error';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { decodeCursor } from '../protocol/decode-cursor';
 import { encodeCursor } from '../protocol/encode-cursor';
@@ -14,6 +15,7 @@ import {
   encodeMessage,
 } from '../protocol/protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from '../protocol/protocol';
+import type { DaemonID } from '../shared/daemon-id';
 import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
@@ -57,6 +59,7 @@ interface SessionTranscriptRead {
 
 export interface DaemonContext {
   readonly build: string;
+  readonly daemonID: DaemonID;
   readonly collectSessions: () => SessionDescriptor[];
   readonly collectSpawnDirs: () => Promise<string[]>;
   readonly collectAgents: () => AgentList;
@@ -306,12 +309,19 @@ export class DaemonConnection {
   }
 
   // A store query that rejects must end one request, never the daemon: a
-  // floating promise here would take the whole process down with it.
+  // floating promise here would take the whole process down with it. A
+  // rejection that carries a protocol error code answers with that code.
   private answerAsync(id: number, answered: () => Promise<void>): void {
     void (async () => {
       try {
         await answered();
       } catch (error) {
+        if (error instanceof DaemonError) {
+          this.sendErr(id, error.code, error.message, error.data);
+
+          return;
+        }
+
         const reason = error instanceof Error ? error.message : String(error);
 
         this.sendErr(id, 'internal', reason);
@@ -1087,6 +1097,7 @@ export class DaemonConnection {
   private async sendHelloOk(id: number): Promise<void> {
     this.sendOk(id, {
       daemon: this.ctx.build,
+      daemonID: this.ctx.daemonID,
       limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
       features: DAEMON_FEATURES,
       lastUsedAgent: await this.ctx.loadLastUsedAgent(),
@@ -1097,7 +1108,18 @@ export class DaemonConnection {
     this.queue.send(encodeMessage({ v: PROTOCOL_V, id, ok }));
   }
 
-  private sendErr(id: number, code: ErrorCode, msg: string): void {
-    this.queue.send(encodeMessage({ v: PROTOCOL_V, id, err: { code, msg } }));
+  private sendErr(
+    id: number,
+    code: ErrorCode,
+    msg: string,
+    data?: Readonly<Record<string, unknown>>,
+  ): void {
+    this.queue.send(
+      encodeMessage({
+        v: PROTOCOL_V,
+        id,
+        err: { code, msg, ...(data === undefined ? {} : { data }) },
+      }),
+    );
   }
 }

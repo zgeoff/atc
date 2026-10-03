@@ -654,6 +654,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const ctx: DaemonContext = {
     build: opts.build,
+    daemonID: store.daemonID,
     collectSessions: () => mgr.collectDescriptors(),
     collectSpawnDirs: () => store.collectSpawnDirs(),
     collectAgents: () => ({

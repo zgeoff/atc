@@ -4,10 +4,12 @@ import type { DaemonFeature } from '../protocol/daemon-features';
 // states it.
 const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'agents.list': 'atc_agents_list',
+  'daemon.id': "the daemon's persisted identity",
   'events.more': "atc_events_read's more flag",
   'events.session': "atc_events_read's session filter",
   'message.turn': "atc_message_get's turn and answeredWith",
   'message.wait': "atc_message_get's waitMs",
+  'session.locator': "a session's locator",
   'spawn.options': "atc_session_spawn's model and effort",
 };
 

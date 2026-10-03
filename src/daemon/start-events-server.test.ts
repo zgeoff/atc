@@ -63,7 +63,7 @@ test('it disconnects a subscriber whose outbound queue overflows and keeps servi
   const big = 'x'.repeat(65_536);
 
   for (let i = 0; i < 100; i++) {
-    setup.server.broadcast({ v: 3, ev: 'SessionRenamed', s: 'sx', name: big });
+    setup.server.broadcast({ v: 4, ev: 'SessionRenamed', s: 'sx', name: big });
   }
 
   // A paused socket never reads the server's FIN; resuming lets the client
@@ -81,11 +81,11 @@ test('it disconnects a subscriber whose outbound queue overflows and keeps servi
 
   await using fresh = await subscribeToSocketLines(setup.socketPath);
 
-  setup.server.broadcast({ v: 3, ev: 'SessionRemoved', s: 'sx' });
+  setup.server.broadcast({ v: 4, ev: 'SessionRemoved', s: 'sx' });
 
   const lines = await fresh.waitForLine(1);
 
   expect(lines.map((line) => JSON.parse(line) as unknown)).toStrictEqual([
-    { v: 3, ev: 'SessionRemoved', s: 'sx' },
+    { v: 4, ev: 'SessionRemoved', s: 'sx' },
   ]);
 });

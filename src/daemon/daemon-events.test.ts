@@ -83,12 +83,12 @@ test('it replays the fleet as SessionAdded lines on connect, then streams live e
 
   expect(snapshot).toMatchObject([
     {
-      v: 3,
+      v: 4,
       ev: 'SessionAdded',
       session: { name: 'one', cwd: '/tmp', agent: 'claude', alive: true },
     },
     {
-      v: 3,
+      v: 4,
       ev: 'SessionAdded',
       session: { name: 'two', cwd: '/tmp', agent: 'claude', alive: true },
     },
@@ -110,7 +110,7 @@ test('it replays the fleet as SessionAdded lines on connect, then streams live e
     })
     .find((e) => e.ev === 'SessionRenamed');
 
-  expect(renamed).toMatchObject({ v: 3, ev: 'SessionRenamed', s: firstID, name: 'renamed-one' });
+  expect(renamed).toMatchObject({ v: 4, ev: 'SessionRenamed', s: firstID, name: 'renamed-one' });
 });
 
 test('it ignores subscriber input and keeps streaming', async () => {
@@ -134,7 +134,7 @@ test('it ignores subscriber input and keeps streaming', async () => {
   });
 
   expect(added[0]).toMatchObject({
-    v: 3,
+    v: 4,
     ev: 'SessionAdded',
     session: { name: 'after-garbage' },
   });

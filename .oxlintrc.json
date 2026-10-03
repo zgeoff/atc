@@ -96,6 +96,7 @@
           { "from": "file", "name": "SessionID" },
           { "from": "file", "name": "AgentSessionID" },
           { "from": "file", "name": "MessageID" },
+          { "from": "file", "name": "DaemonID" },
           // already the readonly form; the rule doesn't recognize it as such
           { "from": "lib", "name": "ReadonlySet" },
           // a kysely connection bound to a live driver; not meaningfully freezable

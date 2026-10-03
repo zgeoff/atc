@@ -138,7 +138,7 @@ export class DaemonClient {
     if (msg.err === undefined) {
       waiter.resolve(msg.ok ?? {});
     } else {
-      waiter.reject(new DaemonError(msg.err.code, msg.err.msg));
+      waiter.reject(new DaemonError(msg.err.code, msg.err.msg, msg.err.data));
     }
   }
 

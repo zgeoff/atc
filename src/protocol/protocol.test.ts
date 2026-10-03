@@ -61,9 +61,29 @@ test.each([
   ['missing v', '{"v":"1","id":1,"m":"daemon.ping"}'],
   ['missing id', '{"v":1,"m":"daemon.ping"}'],
   ['no m, ok, or err', '{"v":1,"id":1}'],
-  ['no m, ok, or err', '{"v":1,"id":1,"err":{"code":"not_a_real_code","msg":"x"}}'],
+  ['no m, ok, or err', '{"v":1,"id":1,"err":{"code":7,"msg":"x"}}'],
 ])('it reports %s as malformed', (reason, line) => {
   expect(decodeMessage(line)).toStrictEqual({ kind: 'malformed', reason });
+});
+
+test('it decodes an unknown error code as internal and keeps its message', () => {
+  const decoded = decodeMessage('{"v":4,"id":1,"err":{"code":"not_a_real_code","msg":"x"}}');
+
+  expect(decoded).toStrictEqual({
+    kind: 'response',
+    msg: { v: 4, id: 1, err: { code: 'internal', msg: 'x' } },
+  });
+});
+
+test('it keeps the data an error carries', () => {
+  const decoded = decodeMessage(
+    '{"v":4,"id":1,"err":{"code":"stale_epoch","msg":"x","data":{"epoch":2}}}',
+  );
+
+  expect(decoded).toStrictEqual({
+    kind: 'response',
+    msg: { v: 4, id: 1, err: { code: 'stale_epoch', msg: 'x', data: { epoch: 2 } } },
+  });
 });
 
 test('it round-trips a message through encode and decode', () => {

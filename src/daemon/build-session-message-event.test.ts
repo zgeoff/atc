@@ -14,7 +14,7 @@ test('it builds an accepted event without delivery or answer fields', () => {
   });
 
   expect(event).toStrictEqual({
-    v: 3,
+    v: 4,
     ev: 'SessionMessage',
     s: 's1',
     message: 'm-1',
@@ -39,7 +39,7 @@ test('it builds an answered event with the answer and both timestamps', () => {
   });
 
   expect(event).toStrictEqual({
-    v: 3,
+    v: 4,
     ev: 'SessionMessage',
     s: 's2',
     message: 'm-1',

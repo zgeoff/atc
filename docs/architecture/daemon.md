@@ -88,3 +88,9 @@ that row's parent instead. A row linked to a row the fleet does not hold becomes
 two crossed resumes leave rows linked in a cycle, the row written first in the cycle becomes
 top-level. A row whose parent is itself a sub-session moves up to the top-level row above it. No row
 is its own parent, and every parent is a top-level row the fleet holds.
+
+The `session_owner` table records which daemon owns each fleet row, by the `daemonID` the store
+holds in `prefs`, and at which ownership epoch. A fleet write deletes and rewrites only the rows
+this daemon owns, and a restore loads only those rows. A write that touches a session another daemon
+owns, or one whose stored epoch is past this daemon's, fails whole with `stale_epoch`. Every row
+this daemon writes holds epoch 1.

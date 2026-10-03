@@ -2,14 +2,17 @@ import { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
-import type { Expression, ExpressionBuilder, SqlBool } from 'kysely';
+import type { Expression, ExpressionBuilder, SqlBool, Transaction } from 'kysely';
 import { toAgentID } from '../agents/agent-adapter';
 import type { AdapterEvent, AgentID } from '../agents/agent-adapter';
 import type { HookEvent } from '../daemon/hooks';
+import { DaemonError } from '../protocol/daemon-error';
 import type { AgentSessionID } from '../shared/agent-session-id';
+import type { DaemonID } from '../shared/daemon-id';
 import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toDaemonID } from '../shared/to-daemon-id';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { BunSqliteDriver } from './bun-sqlite-driver';
@@ -71,9 +74,14 @@ export class StateStore {
 
   private readonly db: Kysely<StateStoreSchema>;
 
-  private constructor(sqlite: Database, db: Kysely<StateStoreSchema>) {
+  // The daemon this store's fleet rows belong to, minted once by the
+  // migration that created session ownership.
+  readonly daemonID: DaemonID;
+
+  private constructor(sqlite: Database, db: Kysely<StateStoreSchema>, daemonID: DaemonID) {
     this.sqlite = sqlite;
     this.db = db;
+    this.daemonID = daemonID;
   }
 
   // Migrations run statements that cannot happen inside a constructor, so
@@ -94,7 +102,13 @@ export class StateStore {
 
     await runMigrations(db);
 
-    const store = new StateStore(sqlite, db);
+    const daemonIDRow = await db
+      .selectFrom('prefs')
+      .select('value')
+      .where('key', '=', 'daemon_id')
+      .executeTakeFirstOrThrow();
+
+    const store = new StateStore(sqlite, db, toDaemonID(daemonIDRow.value));
 
     if (legacyFleetPath !== undefined) {
       await store.adoptLegacyFleet(legacyFleetPath);
@@ -103,9 +117,17 @@ export class StateStore {
     return store;
   }
 
+  // Only the rows this daemon owns: another daemon's sessions are its own
+  // to restore.
   async loadFleet(): Promise<FleetEntry[]> {
     const rows = await this.db
       .selectFrom('fleet')
+      .where('session_id', 'in', (eb) =>
+        eb.selectFrom('session_owner').select('session_id').where('daemon_id', '=', this.daemonID),
+      )
+
+      // Stored order, which a restore keeps for sessions with no recency.
+      .orderBy(sql`rowid`)
       .select([
         'session_id',
         'agent_session_id',
@@ -173,11 +195,33 @@ export class StateStore {
     return recency;
   }
 
+  // Replaces this daemon's rows wholesale and leaves every other daemon's
+  // rows as they stand. A session another daemon owns, or one whose stored
+  // ownership epoch has moved past this daemon's, rejects the whole write
+  // with stale_epoch.
   async writeFleet(entries: readonly FleetEntry[]): Promise<void> {
     const kept = buildFleetWithoutReplacedRows(entries);
 
     await this.db.transaction().execute(async (trx) => {
-      await trx.deleteFrom('fleet').execute();
+      await requireCurrentOwnership(
+        trx,
+        this.daemonID,
+        entries.map((entry) => entry.sessionID),
+      );
+
+      await trx
+        .deleteFrom('fleet')
+        .where('session_id', 'in', (eb) =>
+          eb
+            .selectFrom('session_owner')
+            .select('session_id')
+            .where('daemon_id', '=', this.daemonID),
+        )
+        .execute();
+
+      await trx.deleteFrom('session_owner').where('daemon_id', '=', this.daemonID).execute();
+
+      const updatedAt = Date.now();
 
       for (const entry of kept) {
         await trx
@@ -198,7 +242,16 @@ export class StateStore {
             model: entry.model ?? null,
             effort: entry.effort ?? null,
           })
+          .execute();
 
+        await trx
+          .insertInto('session_owner')
+          .values({
+            session_id: entry.sessionID,
+            daemon_id: this.daemonID,
+            owner_epoch: OWNER_EPOCH,
+            updated_at: updatedAt,
+          })
           .execute();
       }
     });
@@ -217,7 +270,11 @@ export class StateStore {
       return;
     }
 
-    await this.db.updateTable('fleet').set(values).where('session_id', '=', sessionID).execute();
+    await this.db.transaction().execute(async (trx) => {
+      await requireCurrentOwnership(trx, this.daemonID, [sessionID]);
+
+      await trx.updateTable('fleet').set(values).where('session_id', '=', sessionID).execute();
+    });
   }
 
   async recordEvent(e: HookEvent, ev: Readonly<AdapterEvent> | null = null): Promise<void> {
@@ -661,6 +718,36 @@ function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEnt
   }
 
   return relinked;
+}
+
+// The ownership epoch this daemon writes under. Nothing moves a session to
+// a later epoch yet, so every row this daemon owns holds this one.
+const OWNER_EPOCH = 1;
+
+// Rejects a write that touches a session another daemon owns, or one whose
+// stored epoch has moved past this daemon's: the write is stale.
+async function requireCurrentOwnership(
+  trx: Transaction<StateStoreSchema>, // oxlint-disable-line prefer-readonly-parameter-types -- a kysely transaction bound to a live connection; not meaningfully freezable
+  daemonID: DaemonID,
+  sessionIDs: readonly SessionID[],
+): Promise<void> {
+  if (sessionIDs.length === 0) {
+    return;
+  }
+
+  const stale = await trx
+    .selectFrom('session_owner')
+    .select(['session_id', 'daemon_id', 'owner_epoch'])
+    .where('session_id', 'in', sessionIDs)
+    .where((eb) => eb.or([eb('daemon_id', '!=', daemonID), eb('owner_epoch', '!=', OWNER_EPOCH)]))
+    .executeTakeFirst();
+
+  if (stale !== undefined) {
+    throw new DaemonError(
+      'stale_epoch',
+      `session '${stale.session_id}' is owned by daemon '${stale.daemon_id}' at epoch ${stale.owner_epoch}; this daemon writes as '${daemonID}' at epoch ${OWNER_EPOCH}`,
+    );
+  }
 }
 
 // Mints each legacy entry an atc session id, then moves each sub-session
