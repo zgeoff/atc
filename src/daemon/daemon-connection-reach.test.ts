@@ -73,6 +73,7 @@ function setupTest() {
     requireWorkspaceTarget: assertUnreachable,
     findSource: assertUnreachable,
     checkRepositoryAccess: assertUnreachable,
+    collectAlternateGitURLs: assertUnreachable,
     spawnSession: () => waitOnHold(holds.spawn.promise),
     killSession: assertUnreachable,
     forgetSession: assertUnreachable,

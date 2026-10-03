@@ -606,9 +606,9 @@ the way the source defines, and the answer holds the scope it listed under, or n
                                                       "url": "git@github.com:acme/app.git" } }] } }
 ```
 
-- `dirs` lists the spawn history, most recent first, then the directories under the configured
-  `dirs.roots`, then zoxide's list on the daemon's host. It drops a directory that no longer exists.
-  A label starts with `~` for a path under the daemon user's home.
+- `dirs` lists the spawn history on the targets the principal may use, most recent first, then the
+  directories under the configured `dirs.roots`, then zoxide's list on the daemon's host. It drops a
+  directory that no longer exists. A label starts with `~` for a path under the daemon user's home.
 - `github` lists one GitHub owner's repositories through the `gh` CLI, as the account `gh` is signed
   in to sees them, at the clone URL form `gh` is configured to prefer. The scope is the owner.
   Without one, it lists `workspaces.githubOwner`, and without that, the `gh` account's own

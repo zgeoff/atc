@@ -172,6 +172,47 @@ test('it lists the spawn history, then the roots, then zoxide, as directories on
   });
 });
 
+test('it lists a principal only the directories spawned on targets it may use', async () => {
+  await using ctx = await setupTest();
+
+  const boxDir = join(ctx.dir, 'box-dir');
+
+  await mkdir(boxDir);
+
+  await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.work,
+    target: 'local',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.client.sendRequest('session.spawn', { cwd: boxDir, target: 'box', cols: 80, rows: 24 });
+
+  const alice = await ctx.openClientAs('alice');
+  const own = await ctx.client.sendRequest('sources.list', { source: 'dirs', target: 'box' });
+  const scoped = await alice.sendRequest('sources.list', { source: 'dirs', target: 'box' });
+
+  expect(own['candidates']).toContainEqual({
+    label: '~/work',
+    pick: { kind: 'path', dir: ctx.work },
+  });
+
+  expect(own['candidates']).toContainEqual({
+    label: '~/box-dir',
+    pick: { kind: 'path', dir: boxDir },
+  });
+
+  expect(scoped['candidates']).toContainEqual({
+    label: '~/box-dir',
+    pick: { kind: 'path', dir: boxDir },
+  });
+
+  expect(scoped['candidates']).not.toContainEqual({
+    label: '~/work',
+    pick: { kind: 'path', dir: ctx.work },
+  });
+});
+
 test('it lists the configured GitHub owner through gh at the clone URL gh prefers', async () => {
   await using ctx = await setupTest({ githubOwner: 'acme' });
 
