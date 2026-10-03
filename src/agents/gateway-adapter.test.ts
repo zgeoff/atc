@@ -478,7 +478,7 @@ test('it restores and resumes a gateway in its explicit permission-mode argument
   expect(command).not.toInclude("'default'");
 });
 
-test('it refuses every spawn of a gateway with auth, since brokered credentials are not wired', () => {
+test('it refuses every spawn of a gateway with auth, since it plans no guest settings for one', () => {
   const adapter = new GatewayAdapter(
     {
       id: 'glm',
@@ -501,7 +501,7 @@ test('it refuses every spawn of a gateway with auth, since brokered credentials 
   expect(refusal).toMatchObject({
     code: 'auth_target_unsupported',
     message:
-      "gateway 'glm' takes its credential from impd's broker, and brokered credentials are not wired yet",
+      "gateway 'glm' takes its credential from impd's broker, and atc plans no guest settings for it on any target",
   });
 });
 

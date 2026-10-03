@@ -1,6 +1,7 @@
 import { DaemonError } from '../protocol/daemon-error';
 import { LineDecoder } from '../protocol/line-decoder';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
+import type { BrokerAuthHost } from './broker-auth-host';
 import { buildImpName } from './build-imp-name';
 import { buildTarArchive } from './build-tar-archive';
 import type {
@@ -96,6 +97,8 @@ export class ImpProvider implements ExecutionProvider {
   // namespace an impd token's imp patterns are checked against.
   readonly impPrefix: string;
 
+  readonly brokerAuth: BrokerAuthHost;
+
   private readonly port: ImpPort;
 
   private readonly target: ImpTargetOptions;
@@ -131,6 +134,19 @@ export class ImpProvider implements ExecutionProvider {
     this.guest = {
       dir,
       atc: target.guestATC ?? (this.atcBinary === null ? null : `${dir}/bin/atc`),
+    };
+
+    this.brokerAuth = {
+      impPrefix: this.impPrefix,
+      port,
+      getImpName: (hostKey) => this.getImpName(hostKey),
+      createImp: (hostKey) =>
+        port.createImp({
+          name: this.getImpName(hostKey),
+          ...(target.image === undefined ? {} : { image: target.image }),
+          ...(target.memoryMib === undefined ? {} : { memoryMib: target.memoryMib }),
+        }),
+      destroyImp: (hostKey) => this.destroyHost(hostKey),
     };
   }
 
@@ -225,6 +241,7 @@ export class ImpProvider implements ExecutionProvider {
         cwd: spec.cwd,
         cols: spec.cols,
         rows: spec.rows,
+        ...(spec.requireBroker === true ? { require: ['broker'] } : {}),
       },
       {
         offsets: this.offsets,

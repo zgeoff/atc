@@ -139,6 +139,8 @@ export function buildScopedContext(
     // out or taken, so its host is never touched.
     forgetSession: (id, confirmToken) =>
       canSee(id) ? ctx.forgetSession(id, confirmToken) : Promise.resolve('missing' as const),
+    revokeSessionAuth: (id) => (canSee(id) ? ctx.revokeSessionAuth(id) : Promise.resolve(false)),
+    updateSessionAuth: (id) => (canSee(id) ? ctx.updateSessionAuth(id) : Promise.resolve(null)),
     updateSession: (id, name, pinned) => canSee(id) && ctx.updateSession(id, name, pinned),
     ackSession: (id) => canSee(id) && ctx.ackSession(id),
     buildResumeCommand: (id) => (canSee(id) ? ctx.buildResumeCommand(id) : null),

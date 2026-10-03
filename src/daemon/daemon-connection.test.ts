@@ -74,6 +74,8 @@ function setupConnection(queueBytes: number, principal = false): ConnectionHarne
     spawnSession: assertUnreachable,
     killSession: assertUnreachable,
     forgetSession: assertUnreachable,
+    revokeSessionAuth: assertUnreachable,
+    updateSessionAuth: assertUnreachable,
     updateSession: assertUnreachable,
     quitDaemon: assertUnreachable,
     ackSession: assertUnreachable,

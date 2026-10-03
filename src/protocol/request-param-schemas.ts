@@ -204,6 +204,11 @@ export const REQUEST_PARAM_SCHEMAS = {
       .min(1, 'session.forget confirmToken must not be empty')
       .optional(),
   }),
+
+  // Owner-only: withdraw the grants of the runtime auth binding on the
+  // session's host, or bind that host to its agent's current selection.
+  'session.auth.revoke': SESSION_DEFAULTED,
+  'session.auth.rebind': SESSION_DEFAULTED,
   'session.update': SESSION_DEFAULTED.extend({
     name: buildOptionalString(),
     pinned: buildOptionalBoolean(),

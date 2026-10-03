@@ -1,3 +1,4 @@
+import { DaemonError } from '../protocol/daemon-error';
 import { isRecord } from '../shared/report';
 import type { HarnessAttachment, HarnessExit, HarnessHandle } from './execution-provider';
 import type {
@@ -110,6 +111,16 @@ export class ImpHarness implements HarnessHandle {
 
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // How the harness's start settled: started once a connection first
+  // starts the process or attaches to it, or the refusal it ended with
+  // before that; null until then. The waits on that answer meanwhile.
+  private startOutcome: 'started' | Readonly<DaemonError> | null = null;
+
+  private readonly startWaiters = new Set<PromiseWithResolvers<void>>();
+
+  // Why impd refused to start the harness, once it has given a reason.
+  private startRefusal: DaemonError | null = null;
+
   // The terminal size the open connection's request asked for.
   private requestedSize: { cols: number; rows: number } = { cols: 0, rows: 0 };
 
@@ -206,6 +217,22 @@ export class ImpHarness implements HarnessHandle {
     return waited.promise;
   };
 
+  readonly waitForStart = (): Promise<void> => {
+    if (this.startOutcome === 'started') {
+      return Promise.resolve();
+    }
+
+    if (this.startOutcome !== null) {
+      return Promise.reject(this.startOutcome);
+    }
+
+    const waited = Promise.withResolvers<void>();
+
+    this.startWaiters.add(waited);
+
+    return waited.promise;
+  };
+
   readonly detach = (): void => {
     if (this.done) {
       return;
@@ -294,6 +321,7 @@ export class ImpHarness implements HarnessHandle {
     this.failures = 0;
     this.started = true;
 
+    this.updateStartOutcome('started');
     this.emitAttachment('attached');
 
     // impd drops a resize that reaches it before the session starts, so the
@@ -450,6 +478,23 @@ export class ImpHarness implements HarnessHandle {
       return;
     }
 
+    if (outcome.code === 'PRECONDITION_FAILED' && isBrokerNotReady(outcome.data)) {
+      const detail =
+        isRecord(outcome.data) && typeof outcome.data['detail'] === 'string'
+          ? outcome.data['detail']
+          : 'no detail';
+
+      this.startRefusal = new DaemonError(
+        'broker_not_ready',
+        `imp ${this.name} refused to start the harness: its credential broker is not ready (${detail})`,
+        { imp: this.name, detail },
+      );
+
+      this.emitExit({ exitCode: 1, reason: 'ended', detail: `imp broker not ready (${detail})` });
+
+      return;
+    }
+
     this.emitExit({ exitCode: 1, reason: 'ended', detail: formatOutcome(outcome) });
   }
 
@@ -552,6 +597,15 @@ export class ImpHarness implements HarnessHandle {
   private emitExit(exit: HarnessExit): void {
     const listeners = [...this.exitListeners];
 
+    this.updateStartOutcome(
+      this.startRefusal ??
+        new DaemonError(
+          'host_unavailable',
+          `imp ${this.name} ended the harness before it started (${exit.detail ?? 'process exited'})`,
+          { provider: 'imp', problem: 'not_started' },
+        ),
+    );
+
     this.exitConfirmed = exit.reason === undefined || exit.reason === 'exited';
 
     this.stopFollowing();
@@ -559,6 +613,25 @@ export class ImpHarness implements HarnessHandle {
     for (const listener of listeners) {
       listener(exit);
     }
+  }
+
+  // The first outcome counts; each wait settles with it.
+  private updateStartOutcome(outcome: 'started' | Readonly<DaemonError>): void {
+    if (this.startOutcome !== null) {
+      return;
+    }
+
+    this.startOutcome = outcome;
+
+    for (const waited of this.startWaiters) {
+      if (outcome === 'started') {
+        waited.resolve();
+      } else {
+        waited.reject(outcome);
+      }
+    }
+
+    this.startWaiters.clear();
   }
 
   private stopFollowing(): void {
@@ -572,6 +645,17 @@ export class ImpHarness implements HarnessHandle {
     this.connection = null;
     this.exitConfirmed ??= false;
 
+    this.updateStartOutcome(
+      new DaemonError(
+        'host_unavailable',
+        `the daemon let go of imp ${this.name}'s harness before it started`,
+        {
+          provider: 'imp',
+          problem: 'not_started',
+        },
+      ),
+    );
+
     for (const waiter of this.exitWaiters) {
       clearTimeout(waiter.timer);
 
@@ -584,6 +668,11 @@ export class ImpHarness implements HarnessHandle {
     this.attachmentListeners.clear();
     this.host.onDone();
   }
+}
+
+// impd's refusal of a start whose broker is not ready.
+function isBrokerNotReady(data: unknown): boolean {
+  return isRecord(data) && data['reason'] === 'broker_not_ready';
 }
 
 // What ended a process impd no longer holds. In the same boot, the kept

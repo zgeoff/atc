@@ -100,6 +100,9 @@
           { "from": "file", "name": "TargetAccess" },
           // wraps a live db connection; not meaningfully freezable
           { "from": "file", "name": "StateStore" },
+          // the runtime auth binder: its per-host call queue changes as
+          // calls arrive and finish
+          { "from": "file", "name": "RuntimeAuthBinder" },
           // wraps a live db connection; not meaningfully freezable
           { "from": "package", "name": "Database", "package": "bun:sqlite" },
           // a query builder bound to a live connection; not meaningfully

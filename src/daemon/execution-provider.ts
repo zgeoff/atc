@@ -1,3 +1,5 @@
+import type { BrokerAuthHost } from './broker-auth-host';
+
 /**
  * The host a session's harness runs on: it starts a process in a
  * pseudo-terminal and, as its capabilities declare, unpacks files into its
@@ -21,6 +23,11 @@ export interface ExecutionProvider {
   // files unpack under, and the atc binary inside the host, null when the
   // host has none. Absent on the daemon's own machine.
   readonly guest?: GuestLayout;
+
+  // How a harness here can take its credential from impd's broker instead
+  // of holding it. Absent on a host with no broker, which never starts a
+  // session that needs one.
+  readonly brokerAuth?: BrokerAuthHost;
 
   // Readies the host a harness is about to start on: a remote host is
   // created when missing, woken when asleep, and held awake while its
@@ -132,6 +139,11 @@ export interface HarnessSpec {
   readonly cols: number;
   readonly rows: number;
 
+  // Whether the harness must not start unless the host's credential broker
+  // is ready: the host refuses the start and runs nothing otherwise, on
+  // every start, a revive's included.
+  readonly requireBroker?: boolean;
+
   // Takes each connection a process of the harness opens to the daemon. A
   // remote provider relays them from a socket inside the host that serves
   // this harness alone, and points the harness's ATC_SOCKET at it.
@@ -175,6 +187,12 @@ export interface HarnessHandle {
   // Ends the harness's process with a signal it cannot catch or ignore, on
   // a provider that can send one; absent on a provider that cannot.
   readonly killForced?: () => void;
+
+  // Resolves once the harness's process has started, or a running one was
+  // attached, and rejects with the refusal when the host ends the harness
+  // or the daemon lets go of it first. Absent on a provider whose harness
+  // starts at once.
+  readonly waitForStart?: () => Promise<void>;
 
   // Resolves true once the harness's process has exited, and false when the
   // wait runs out first or the harness stops being followed without an

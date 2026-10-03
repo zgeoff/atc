@@ -3,6 +3,8 @@ import type { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
 import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
+import type { AuthProfile } from '../shared/collect-auth-profiles';
+import type { GatewayAuth, GatewayConfig } from '../shared/collect-gateways';
 import type { SessionID } from '../shared/session-id';
 
 export interface SpawnOptions {
@@ -40,6 +42,27 @@ export interface SpawnPlan {
 export interface GuestPaths {
   readonly atc: string | null;
   readonly dir: string;
+}
+
+/**
+ * What a guest spawn behind impd's credential broker gets: the revision of
+ * the host's runtime auth binding it launches under, which keys any
+ * settings the agent writes for it, and the placeholder variables the
+ * harness holds in place of a credential.
+ */
+export interface GuestAuth {
+  readonly revision: number;
+  readonly placeholderEnv: Readonly<Record<string, string>>;
+}
+
+/**
+ * The credential an agent takes from impd's broker instead of holding it:
+ * its gateway's endpoint and auth selection, and the auth profiles that
+ * selection resolves against.
+ */
+export interface AuthSelection {
+  readonly gateway: Pick<GatewayConfig, 'id' | 'baseURL'> & { readonly auth: GatewayAuth };
+  readonly profiles: ReadonlyMap<string, AuthProfile>;
 }
 
 /**
@@ -204,7 +227,17 @@ export interface AgentAdapter {
   // Plans a spawn on a remote host; null when this agent cannot run there,
   // such as one whose instrumentation needs atc on a host without it.
   // Absent: the agent runs there as a local spawn plans it, with no files.
-  readonly planGuestSpawn?: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
+  // `auth` is given when the harness takes its credential from impd's
+  // broker, and a plan that cannot launch that way is null.
+  readonly planGuestSpawn?: (
+    opts: SpawnOptions,
+    guest: GuestPaths,
+    auth?: GuestAuth,
+  ) => GuestSpawnPlan | null;
+
+  // The credential this agent takes from impd's broker, or null when it
+  // takes none. Absent: it takes none.
+  readonly findAuthSelection?: () => AuthSelection | null;
 
   // The refusal every start of this agent's harness gets, on any target,
   // or null when it may start. Absent: no start is refused.
