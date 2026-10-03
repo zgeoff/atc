@@ -1,5 +1,6 @@
 import { bootDaemonClient } from './client/boot-daemon';
 import { answerRPCRequest } from './mcp/answer-rpc-request';
+import { requireDaemonFeatures } from './mcp/require-daemon-features';
 import type { FleetCaller, ToolContext } from './mcp/types';
 
 /**
@@ -11,6 +12,17 @@ export async function runMCPServer(build: string): Promise<void> {
   const boot = await bootDaemonClient();
 
   const client = boot.client;
+
+  // The connection lives as long as the server, so the features its
+  // handshake announced hold for every call.
+  const caller: FleetCaller = {
+    sendRequest: (m, p, required = []) => {
+      requireDaemonFeatures(boot.features, required);
+
+      return client.sendRequest(m, p);
+    },
+    readFeatures: () => Promise.resolve(boot.features),
+  };
 
   // The server inherits the calling session's id from its environment, so a
   // spawn from inside a session nests under it by default.
@@ -48,7 +60,7 @@ export async function runMCPServer(build: string): Promise<void> {
 
       void (async () => {
         try {
-          await answerRPCLine(client, build, toolContext, line);
+          await answerRPCLine(caller, build, toolContext, line);
         } catch {
           // A failed line gets no response, the way a malformed one gets none.
         } finally {

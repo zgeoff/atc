@@ -57,10 +57,14 @@ export async function answerRPCRequest(message: unknown, deps: RPCDeps): Promise
       }),
     }))
     .with('ping', () => ({ kind: 'reply' as const, body: buildRPCResult(id, {}) }))
-    .with('tools/list', () => ({
-      kind: 'reply' as const,
-      body: buildRPCResult(id, { tools: buildToolList() }),
-    }))
+    .with('tools/list', async () => {
+      const features = await deps.caller.readFeatures();
+
+      return {
+        kind: 'reply' as const,
+        body: buildRPCResult(id, { tools: buildToolList(features) }),
+      };
+    })
     .with('tools/call', async () => {
       const result = await answerToolCall(deps, params);
 
@@ -101,9 +105,12 @@ async function answerToolCall(
   const args = isRecord(params['arguments']) ? params['arguments'] : {};
 
   try {
-    const text = await runTool(deps.caller, name, args, deps.toolContext);
+    const result = await runTool(deps.caller, name, args, deps.toolContext);
 
-    return { content: [{ type: 'text', text }] };
+    return {
+      content: [{ type: 'text', text: result.text }],
+      ...(result.structured === null ? {} : { structuredContent: result.structured }),
+    };
   } catch (error) {
     return { content: [{ type: 'text', text: formatToolError(error) }], isError: true };
   }

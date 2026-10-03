@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
 import { isRecord } from '../src/shared/report';
+import { startLegacyDaemon } from './start-legacy-daemon';
 import { waitFor } from './wait-for';
 
 const repo = dirname(import.meta.dir);
@@ -230,6 +231,7 @@ test('it initializes and lists the fleet tools', async () => {
     'atc_session_ack',
     'atc_resume_command',
     'atc_dirs_list',
+    'atc_agents_list',
     'atc_session_get',
     'atc_session_read',
     'atc_events_read',
@@ -975,7 +977,68 @@ test('it reads a sent message back through atc_message_get', async () => {
     text: 'hello',
     status: 'accepted',
     sentAt: expect.toBeNumber() as number,
+    turn: null,
+    answeredWith: [],
   });
+});
+
+test('it holds atc_message_get over stdio until its wait ends', async () => {
+  const ctx = setupMCP();
+
+  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home } },
+  });
+
+  const spawnResponse = await ctx.waitForResponse(2);
+
+  const spawned: unknown = JSON.parse(getText(getResult(spawnResponse)));
+
+  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
+    throw new TypeError('spawn answer has no session id');
+  }
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 3,
+    method: 'tools/call',
+    params: {
+      name: 'atc_session_message',
+      arguments: { session: spawned['id'], text: 'hello', from: 'tester' },
+    },
+  });
+
+  const sentResponse = await ctx.waitForResponse(3);
+
+  const sent: unknown = JSON.parse(getText(getResult(sentResponse)));
+
+  if (!isRecord(sent) || typeof sent['message'] !== 'string') {
+    throw new TypeError('message answer has no message id');
+  }
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 4,
+    method: 'tools/call',
+    params: { name: 'atc_message_get', arguments: { message: sent['message'], waitMs: 500 } },
+  });
+
+  const start = Date.now();
+
+  const getResponse = await ctx.waitForResponse(4);
+
+  const got: unknown = JSON.parse(getText(getResult(getResponse)));
+
+  expect(got).toMatchObject({ message: sent['message'], status: 'accepted' });
+  expect(Date.now()).toBeWithin(start + 450, start + 5000);
 });
 
 test('it lists every tool with its three safety hints over stdio', async () => {
@@ -1032,4 +1095,47 @@ test('it answers an unsupported protocol version with the latest supported one',
   const response = await ctx.waitForResponse(1);
 
   expect(getResult(response)['protocolVersion']).toBe('2025-11-25');
+});
+
+test('it serves an older daemon over stdio with only what that daemon supports', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'atc-mcp-legacy-'));
+  const legacy = startLegacyDaemon(join(home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    legacy.stop();
+  });
+
+  const ctx = setupMCP({ home });
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 3,
+    method: 'tools/call',
+    params: { name: 'atc_message_get', arguments: { message: 'm-legacy', waitMs: 5000 } },
+  });
+
+  const listResponse = await ctx.waitForResponse(2);
+  const callResponse = await ctx.waitForResponse(3);
+
+  const listed = getResult(listResponse);
+  const refused = getResult(callResponse);
+  const tools = listed['tools'];
+
+  if (!Array.isArray(tools)) {
+    throw new TypeError('tools is not an array');
+  }
+
+  expect(tools.map((tool) => (isRecord(tool) ? tool['name'] : null))).not.toContain(
+    'atc_agents_list',
+  );
+
+  expect(refused['isError']).toBe(true);
+  expect(getText(refused)).toStartWith('daemon_outdated: ');
+  expect(legacy.requests.map((req) => req.m)).not.toContain('message.get');
 });

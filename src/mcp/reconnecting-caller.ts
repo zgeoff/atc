@@ -1,9 +1,13 @@
 import { DaemonClient } from '../client/daemon-client';
+import type { DaemonFeature } from '../protocol/daemon-features';
+import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
+import { requireDaemonFeatures } from './require-daemon-features';
 import type { FleetCaller } from './types';
 
 // The daemon requests the read-only tools send. Each only reads, so running
 // one twice is harmless.
 const RETRYABLE_METHODS: ReadonlySet<string> = new Set([
+  'agents.list',
   'dirs.list',
   'events.read',
   'message.get',
@@ -13,6 +17,12 @@ const RETRYABLE_METHODS: ReadonlySet<string> = new Set([
   'session.resumeCommand',
   'session.screen',
 ]);
+
+// One handshaken connection and the features its daemon announced.
+interface DaemonConnection {
+  readonly client: DaemonClient;
+  readonly features: ReadonlySet<DaemonFeature>;
+}
 
 /**
  * A daemon caller that survives a daemon restart: once the connection ends,
@@ -26,7 +36,7 @@ export class ReconnectingCaller implements FleetCaller {
 
   private readonly build: string;
 
-  private client: Promise<DaemonClient> | null = null;
+  private client: Promise<DaemonConnection> | null = null;
 
   private readonly closed = new WeakSet<DaemonClient>();
 
@@ -35,23 +45,39 @@ export class ReconnectingCaller implements FleetCaller {
     this.build = build;
   }
 
+  // The required features are checked against each connection right before
+  // the request goes out on it, the retry's fresh connection included, since
+  // a restart can put an older daemon behind the same socket.
   async sendRequest(
     m: string,
     p?: Readonly<Record<string, unknown>>,
+    required: readonly DaemonFeature[] = [],
   ): Promise<Readonly<Record<string, unknown>>> {
-    const client = await this.openClient();
+    const opened = await this.openClient();
+
+    requireDaemonFeatures(opened.features, required);
 
     try {
-      return await client.sendRequest(m, p);
+      return await opened.client.sendRequest(m, p);
     } catch (error) {
-      if (!this.closed.has(client) || !RETRYABLE_METHODS.has(m)) {
+      if (!this.closed.has(opened.client) || !RETRYABLE_METHODS.has(m)) {
         throw error;
       }
 
       const fresh = await this.openClient();
 
-      return fresh.sendRequest(m, p);
+      requireDaemonFeatures(fresh.features, required);
+
+      return fresh.client.sendRequest(m, p);
     }
+  }
+
+  // The features of the daemon the next request reaches, read from the
+  // handshake of the connection it rides.
+  async readFeatures(): Promise<ReadonlySet<DaemonFeature>> {
+    const opened = await this.openClient();
+
+    return opened.features;
   }
 
   async stop(): Promise<void> {
@@ -64,17 +90,19 @@ export class ReconnectingCaller implements FleetCaller {
     }
 
     try {
-      const client = await current;
+      const opened = await current;
 
-      client.stop();
+      opened.client.stop();
     } catch {
       // A connection that never opened has nothing to close.
     }
   }
 
-  private openClient(): Promise<DaemonClient> {
+  private openClient(): Promise<DaemonConnection> {
     if (this.client === null) {
-      const opening: Promise<DaemonClient> = this.openFreshClient(() => this.client === opening);
+      const opening: Promise<DaemonConnection> = this.openFreshClient(
+        () => this.client === opening,
+      );
 
       this.client = opening;
     }
@@ -85,7 +113,7 @@ export class ReconnectingCaller implements FleetCaller {
   // isCurrent returns true while this connection is still the one later requests
   // reuse: a connection that ends after a newer one replaced it must leave
   // the newer one in place.
-  private async openFreshClient(isCurrent: () => boolean): Promise<DaemonClient> {
+  private async openFreshClient(isCurrent: () => boolean): Promise<DaemonConnection> {
     const resetClient = () => {
       if (isCurrent()) {
         this.client = null;
@@ -107,8 +135,10 @@ export class ReconnectingCaller implements FleetCaller {
       resetClient();
     };
 
+    let hello: Readonly<Record<string, unknown>>;
+
     try {
-      await client.sendHello(this.build);
+      hello = await client.sendHello(this.build);
     } catch (error) {
       client.stop();
 
@@ -116,6 +146,6 @@ export class ReconnectingCaller implements FleetCaller {
       throw error;
     }
 
-    return client;
+    return { client, features: parseDaemonFeatures(hello) };
   }
 }

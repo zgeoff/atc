@@ -130,3 +130,47 @@ test('it hands a headless run the settings file and the folder of the atc-bridge
     pluginDir: expect.toEndWith('atc-bridge'),
   });
 });
+
+test('it profiles a gateway with only the model names its env sets', () => {
+  const adapter = new GatewayAdapter(
+    {
+      id: 'zai',
+      label: 'GLM (z.ai)',
+      mark: 'z',
+      bin: '/opt/claude/bin/claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      apiKeyHelper: 'op read op://vault/zai/key',
+      env: {
+        ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-4.6',
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: 'glm-4.5-air',
+        ANTHROPIC_MODEL: 'glm-4.6',
+        ANTHROPIC_AUTH_TOKEN: 'sk-secret',
+        API_TIMEOUT_MS: '600000',
+      },
+    },
+    {
+      claudeBin: 'claude',
+      claudeArgs: [],
+      grokBin: 'grok',
+      grokArgs: [],
+      codexBin: 'codex',
+      codexArgs: [],
+      dirs: { roots: [] },
+      gateways: [],
+      hooks: {},
+      leader: { code: 0, label: '^Space' },
+    },
+  );
+
+  expect(adapter.profile).toStrictEqual({
+    label: 'GLM (z.ai)',
+    kind: 'gateway',
+    bin: '/opt/claude/bin/claude',
+    models: { opus: 'glm-4.6', haiku: 'glm-4.5-air', default: 'glm-4.6' },
+  });
+});
+
+test('it profiles a gateway whose env sets no model with no models', () => {
+  expect(buildGatewayAdapter().profile.models).toBeNull();
+});

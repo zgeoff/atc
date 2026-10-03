@@ -24,6 +24,7 @@ export const REQUEST_PARAM_SCHEMAS = {
   'daemon.quit': z.object({}),
   'session.list': z.object({}),
   'dirs.list': z.object({}),
+  'agents.list': z.object({}),
   'fleet.list': z.object({}),
   'fleet.restore': z.object({
     cols: buildDefaultedNumber(80),
@@ -96,7 +97,13 @@ export const REQUEST_PARAM_SCHEMAS = {
   'events.read': z.object({
     cursor: buildOptionalCursor(),
     limit: buildDefaultedNumber(50).transform((v) => Math.min(Math.max(Math.trunc(v), 1), 200)),
-    waitMs: buildDefaultedNumber(0).transform((v) => Math.min(Math.max(Math.trunc(v), 0), 30_000)),
+    waitMs: buildDefaultedWait(),
+
+    // Limits the read to one session's events; absent or empty reads the whole fleet.
+    session: z.preprocess(
+      (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+      z.string().transform(toSessionID).optional(),
+    ),
   }),
   'session.message': SESSION_DEFAULTED.extend({
     from: buildDefaultedNonEmptyString('unknown'),
@@ -104,7 +111,10 @@ export const REQUEST_PARAM_SCHEMAS = {
   }).refine((v) => v.text !== '', { message: 'session.message requires text' }),
   'session.tap': SESSION_DEFAULTED,
   'message.get': z
-    .object({ message: buildDefaultedString('').transform(toMessageID) })
+    .object({
+      message: buildDefaultedString('').transform(toMessageID),
+      waitMs: buildDefaultedWait(),
+    })
     .refine((v) => v.message !== '', { message: 'message.get requires a message' }),
   'message.ack': SESSION_DEFAULTED.extend({
     message: buildDefaultedString('').transform(toMessageID),
@@ -117,6 +127,12 @@ function buildDefaultedString(fallback: string) {
 
 function buildDefaultedNumber(fallback: number) {
   return z.preprocess((v) => (typeof v === 'number' ? v : undefined), z.number().default(fallback));
+}
+
+// How long a read may hold its request open, in milliseconds: 0 when absent,
+// clamped to 0–30000.
+function buildDefaultedWait() {
+  return buildDefaultedNumber(0).transform((v) => Math.min(Math.max(Math.trunc(v), 0), 30_000));
 }
 
 function buildDefaultedBooleanOrString(fallback: boolean | string) {

@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentID } from '../agents/agent-adapter';
 import type { AgentID } from '../agents/agent-adapter';
+import type { DaemonFeature } from '../protocol/daemon-features';
+import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
 import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '../shared/config';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import { getBuild } from '../shared/get-build';
@@ -17,6 +19,9 @@ export interface DaemonBoot {
   readonly client: DaemonClient;
   readonly stale: boolean;
   readonly lastUsedAgent: AgentID;
+
+  // What the daemon announced it serves; an older daemon announces less.
+  readonly features: ReadonlySet<DaemonFeature>;
 
   // The socket the client reached, which differs from the computed one when
   // the daemon was found through its record in the state directory.
@@ -49,6 +54,7 @@ export async function bootDaemonClient(): Promise<DaemonBoot> {
         client,
         stale: hello['daemon'] !== build,
         lastUsedAgent: toAgentID(hello['lastUsedAgent']),
+        features: parseDaemonFeatures(hello),
         socketPath: opened.socketPath,
       };
     } catch (error) {

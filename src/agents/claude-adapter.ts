@@ -10,6 +10,7 @@ import { toShellArg } from '../shared/to-shell-arg';
 import type {
   AdapterEvent,
   AgentAdapter,
+  AgentProfile,
   HeadlessRunner,
   NameUpdate,
   ResumeCheck,
@@ -48,6 +49,8 @@ export class ClaudeAdapter implements AgentAdapter {
 
   readonly parseTranscriptLine = parseClaudeTranscriptLine;
 
+  readonly profile: AgentProfile;
+
   readonly takesMessages = true;
 
   private readonly config: Config;
@@ -63,6 +66,7 @@ export class ClaudeAdapter implements AgentAdapter {
   constructor(config: Config, headlessRunner: HeadlessRunner | null = null, bridgeTarget?: string) {
     this.bridgeTarget = bridgeTarget;
     this.config = config;
+    this.profile = { label: 'Claude', kind: 'claude', bin: config.claudeBin, models: null };
 
     this.headlessRunner =
       headlessRunner === null

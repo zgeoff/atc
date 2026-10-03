@@ -134,6 +134,11 @@ export class SessionManager {
     return this.adapters[id] ?? null;
   }
 
+  // Every registered adapter, one per id, in registration order.
+  collectAdapters(): AgentAdapter[] {
+    return Object.values(this.adapters);
+  }
+
   // Hands a live terminal session off to a headless run: the terminal dies,
   // the record lives on as a headless session and keeps its screen history.
   yankHeadless(id: SessionID): Session | null {

@@ -30,6 +30,9 @@ interface MCPHTTPServerOptions {
   readonly dbPath: string;
   readonly printApproval: (line: string) => void;
 
+  // Receives one line per request the server answers.
+  readonly printRequest: (line: string) => void;
+
   // How long a rotated refresh token still answers with its successor.
   readonly refreshReuseSeconds?: number;
 }
@@ -38,8 +41,11 @@ interface MCPHTTPServerOptions {
  * A running MCP HTTP server.
  */
 export interface MCPHTTPServer {
-  // The local address the server listens on.
+  // The loopback address the server answers on, for clients on this machine.
   readonly url: string;
+
+  // The address the server is bound to.
+  readonly listening: string;
 
   // The public origin: the OAuth issuer.
   readonly origin: string;
@@ -47,10 +53,12 @@ export interface MCPHTTPServer {
 }
 
 /**
- * Serves atc's MCP tools over streamable HTTP at `/mcp`, with better-auth as
- * the OAuth 2.1 authorization server in the same process. Only the routes a
- * connector and the operator's browser need reach better-auth; every other
- * path is a 404. A request whose Host header is not the server's own is
+ * Serves atc's MCP tools over streamable HTTP at `/mcp` and `/`, with
+ * better-auth as the OAuth 2.1 authorization server in the same process. Only
+ * the routes a connector and the operator's browser need reach better-auth;
+ * every other path is a 404. Each answered request prints one line with its
+ * method, path, JSON-RPC method and tool, status, duration, and MCP protocol
+ * version, and never a body, query, credential, or address. A request whose Host header is not the server's own is
  * refused, so a DNS rebinding page cannot reach it through a browser, and a
  * browser form post from any other origin is refused too.
  */
@@ -81,23 +89,33 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     idleTimeout: 60,
     maxRequestBodySize: MAX_LINE,
     fetch: async (request, bunServer) => {
+      const startedAt = performance.now();
       const state = holder.ready;
+      let rpc: RPCLabel | null = null;
+      let response: Response;
 
       if (state === null) {
-        return new Response(null, { status: 503 });
+        response = new Response(null, { status: 503 });
+      } else {
+        try {
+          response = await answerHTTPRequest(
+            state,
+            request,
+            bunServer.requestIP(request)?.address ?? null,
+            (label) => {
+              rpc = label;
+            },
+          );
+        } catch {
+          response = new Response(null, { status: 503 });
+        }
       }
 
-      try {
-        const answered = await answerHTTPRequest(
-          state,
-          request,
-          bunServer.requestIP(request)?.address ?? null,
-        );
+      options.printRequest(
+        formatRequestLine(request, rpc, response.status, performance.now() - startedAt),
+      );
 
-        return answered;
-      } catch {
-        return new Response(null, { status: 503 });
-      }
+      return response;
     },
   });
 
@@ -141,6 +159,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
 
   return {
     url: local,
+    listening: formatBindURL(options.host, port),
     origin,
     stop: async () => {
       await server.stop(true);
@@ -149,25 +168,101 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
   };
 }
 
+// An IPv6 address takes the brackets a URL puts around it.
+function formatBindURL(host: string, port: number): string {
+  const bracketed = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+
+  return `http://${bracketed}:${port}`;
+}
+
 interface ServerState {
   readonly hosts: ReadonlySet<string>;
   readonly origins: ReadonlySet<string>;
   readonly ctx: HTTPServerContext;
 }
 
+// MCP answers at `/` as well as at `/mcp`, for a client configured with the
+// bare origin. Both are the one resource `<origin>/mcp`.
+const MCP_PATHS: ReadonlySet<string> = new Set(['/mcp', '/']);
+
+// The JSON-RPC method and tool name of an MCP request, for its request line.
+interface RPCLabel {
+  readonly method: string;
+  readonly tool: string | null;
+}
+
+function findRPCLabel(body: string): RPCLabel | null {
+  let message: unknown;
+
+  try {
+    message = JSON.parse(body);
+  } catch {
+    return null;
+  }
+
+  if (!isRecord(message) || typeof message['method'] !== 'string') {
+    return null;
+  }
+
+  const params = message['params'];
+
+  return {
+    method: message['method'],
+    tool: isRecord(params) && typeof params['name'] === 'string' ? params['name'] : null,
+  };
+}
+
+// Client-sent values in a request line are cut to this many characters.
+const LABEL_LENGTH = 64;
+
+// The line names the path without its query, which carries authorization
+// codes and signed state.
+function formatRequestLine(
+  request: Request,
+  rpc: RPCLabel | null,
+  status: number,
+  durationMs: number,
+): string {
+  const path = new URL(request.url).pathname;
+
+  const version = request.headers.get('mcp-protocol-version');
+
+  const fields = [
+    request.method,
+    toLogText(path, 128),
+    String(status),
+    `${Math.round(durationMs)}ms`,
+    ...(rpc === null ? [] : [`rpc=${toLogText(rpc.method, LABEL_LENGTH)}`]),
+    ...(rpc === null || rpc.tool === null ? [] : [`tool=${toLogText(rpc.tool, LABEL_LENGTH)}`]),
+    ...(version === null ? [] : [`mcp-protocol-version=${toLogText(version, LABEL_LENGTH)}`]),
+  ];
+
+  return fields.join(' ');
+}
+
+// Control and format characters are dropped, so a client cannot write
+// escape sequences into the operator's terminal.
+function toLogText(value: string, length: number): string {
+  return value.replaceAll(/[\p{Cc}\p{Cf}\s]/gu, '').slice(0, length);
+}
+
 // The better-auth routes a connector calls directly.
-const PASSED_THROUGH: ReadonlySet<string> = new Set([
+const PASSED_THROUGH: ReadonlySet<string> = new Set(['POST /oauth2/revoke']);
+
+// Both paths serve the protected resource metadata for `<origin>/mcp`.
+const RESOURCE_METADATA: ReadonlySet<string> = new Set([
   'GET /.well-known/oauth-protected-resource',
   'GET /.well-known/oauth-protected-resource/mcp',
-  'POST /oauth2/revoke',
 ]);
 
 // `socketAddress` is the peer the request arrived from: the requester, or the
-// proxy or tunnel in front of atc.
+// proxy or tunnel in front of atc. `onRPC` receives an accepted MCP request's
+// JSON-RPC method and tool, for its request line.
 async function answerHTTPRequest(
   state: ServerState,
   request: Request,
   socketAddress: string | null,
+  onRPC: (label: RPCLabel | null) => void,
 ): Promise<Response> {
   const host = request.headers.get('host');
 
@@ -187,7 +282,7 @@ async function answerHTTPRequest(
     return ctx.store.auth.handler(toPublicRequest(ctx, request, url));
   }
 
-  if (route === 'GET /.well-known/oauth-authorization-server') {
+  if (route === 'GET /.well-known/oauth-authorization-server' || RESOURCE_METADATA.has(route)) {
     return answerMetadataRequest(ctx, request, url);
   }
 
@@ -226,7 +321,7 @@ async function answerHTTPRequest(
         });
   }
 
-  if (url.pathname === '/mcp') {
+  if (MCP_PATHS.has(url.pathname)) {
     if (isForeignOrigin) {
       return new Response(null, { status: 403 });
     }
@@ -235,10 +330,14 @@ async function answerHTTPRequest(
       return new Response(null, { status: 405, headers: { allow: 'POST' } });
     }
 
+    const body = await request.text();
+
+    onRPC(findRPCLabel(body));
+
     return answerMCPRequest(ctx, {
       authorization: request.headers.get('authorization'),
       protocolVersion: request.headers.get('mcp-protocol-version'),
-      body: await request.text(),
+      body,
     });
   }
 
@@ -253,7 +352,8 @@ function toPublicRequest(ctx: HTTPServerContext, request: Request, url: URL): Re
 }
 
 // The metadata advertises only what atc's clients can use: public clients
-// with no client authentication, and no introspection endpoint.
+// with no client authentication, no introspection endpoint, and Bearer
+// tokens alone, so nothing about DPoP.
 async function answerMetadataRequest(
   ctx: HTTPServerContext,
   request: Request,
@@ -267,8 +367,14 @@ async function answerMetadataRequest(
   }
 
   const advertised = Object.fromEntries(
-    Object.entries(metadata).filter(([key]) => !key.startsWith('introspection_')),
+    Object.entries(metadata).filter(
+      ([key]) => !key.startsWith('introspection_') && !key.startsWith('dpop_'),
+    ),
   );
+
+  if (RESOURCE_METADATA.has(`${request.method} ${url.pathname}`)) {
+    return Response.json(advertised, { status: response.status });
+  }
 
   return Response.json({
     ...advertised,

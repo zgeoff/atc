@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 import type { AgentAdapter, AgentID, SpawnOptions } from '../agents/agent-adapter';
+import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { decodeCursor } from '../protocol/decode-cursor';
 import { encodeCursor } from '../protocol/encode-cursor';
 import { OutboundQueue } from '../protocol/outbound-queue';
@@ -18,6 +19,7 @@ import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { MessageRecord } from '../store/message-record';
 import type { Dims } from './attach-registry';
+import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
 import type { AnswerResult } from './permission-registry';
@@ -55,6 +57,7 @@ export interface DaemonContext {
   readonly build: string;
   readonly collectSessions: () => SessionDescriptor[];
   readonly collectSpawnDirs: () => Promise<string[]>;
+  readonly collectAgents: () => AgentList;
   readonly collectFleet: () => Promise<FleetEntry[]>;
   readonly loadLastUsedAgent: () => Promise<AgentID>;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
@@ -101,13 +104,14 @@ export interface DaemonContext {
     afterID: number | null,
     limit: number,
     waitMs: number,
-  ) => Promise<FleetEvent[]>;
+    sessionID: SessionID | null,
+  ) => Promise<EventsPage>;
   readonly writeSessionMessage: (
     sessionID: SessionID,
     from: string,
     text: string,
   ) => Promise<MessageRecord | 'missing' | 'dead' | 'unsupported' | 'no_tap'>;
-  readonly readMessage: (messageID: MessageID) => Promise<MessageView | null>;
+  readonly readMessage: (messageID: MessageID, waitMs: number) => Promise<MessageView | null>;
   readonly attachTap: (client: TapClient, sessionID: SessionID) => 'ok' | 'missing' | 'unsupported';
   readonly ackMessage: (
     client: TapClient,
@@ -122,11 +126,29 @@ export interface OutputClient {
   readonly sendOutput: (sessionID: SessionID, event: EventMsg, byteLength: number) => void;
 }
 
-// One message as `message.get` reports it: the session it belongs to now and
-// every field of the record.
+// The `agents.list` answer: the host the daemon runs on, and each agent.
+interface AgentList {
+  readonly daemon: {
+    readonly hostname: string;
+    readonly platform: string;
+    readonly arch: string;
+    readonly build: string;
+  };
+  readonly agents: readonly AgentEntry[];
+}
+
+// One `events.read` answer: the events, and whether more follow them.
+interface EventsPage {
+  readonly events: readonly FleetEvent[];
+  readonly more: boolean;
+}
+
+// One message as `message.get` reports it: the session it belongs to now,
+// every field of the record, and the other messages its turn answered.
 interface MessageView {
   readonly session: SessionID;
   readonly record: MessageRecord;
+  readonly answeredWith: readonly MessageID[];
 }
 
 // The slice of a connection a tap subscription needs.
@@ -306,6 +328,11 @@ export class DaemonConnection {
       }
       case 'session.list': {
         this.sendOk(req.id, { sessions: this.ctx.collectSessions() });
+
+        return;
+      }
+      case 'agents.list': {
+        this.sendOk(req.id, { ...this.ctx.collectAgents() });
 
         return;
       }
@@ -826,14 +853,20 @@ export class DaemonConnection {
       afterID = decoded.id;
     }
 
-    const events = await this.ctx.readEvents(afterID, parsed.data.limit, parsed.data.waitMs);
+    const page = await this.ctx.readEvents(
+      afterID,
+      parsed.data.limit,
+      parsed.data.waitMs,
+      parsed.data.session ?? null,
+    );
 
-    const last = events.at(-1);
+    const last = page.events.at(-1);
 
     // A cursor always comes back so a client can long-poll from an empty trail.
     this.sendOk(req.id, {
-      events,
+      events: page.events,
       cursor: last === undefined ? encodeCursor({ kind: 'events', id: afterID ?? 0 }) : last.cursor,
+      more: page.more,
     });
   }
 
@@ -923,7 +956,7 @@ export class DaemonConnection {
 
     const messageID = parsed.data.message;
 
-    const view = await this.ctx.readMessage(messageID);
+    const view = await this.ctx.readMessage(messageID, parsed.data.waitMs);
 
     if (view === null) {
       this.sendErr(req.id, 'bad_args', `no message '${messageID}'`);
@@ -943,6 +976,8 @@ export class DaemonConnection {
       ...(record.deliveredAt === undefined ? {} : { deliveredAt: record.deliveredAt }),
       ...(record.answeredAt === undefined ? {} : { answeredAt: record.answeredAt }),
       ...(record.answer === undefined ? {} : { answer: record.answer }),
+      turn: record.turn ?? null,
+      answeredWith: view.answeredWith,
     });
   }
 
@@ -1025,6 +1060,7 @@ export class DaemonConnection {
     this.sendOk(id, {
       daemon: this.ctx.build,
       limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
+      features: DAEMON_FEATURES,
       lastUsedAgent: await this.ctx.loadLastUsedAgent(),
     });
   }

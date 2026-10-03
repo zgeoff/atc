@@ -4,8 +4,14 @@ import { toMessageID } from '../shared/to-message-id';
 
 interface AnsweredReport {
   readonly kind: 'answered';
-  readonly message: MessageID;
+
+  // Every message the turn answered, recorded together.
+  readonly messages: readonly MessageID[];
   readonly answer: string;
+
+  // The turn whose final reply the answer is; null from a reporter that
+  // sends none.
+  readonly turn: string | null;
 }
 
 export interface NoteReport {
@@ -16,8 +22,27 @@ export interface NoteReport {
 
 export type Report = AnsweredReport | NoteReport;
 
+// Optional, so a report from an older bridge still parses; a missing, empty,
+// or wrong-typed turn reads as unknown.
+const TURN_SCHEMA = z.preprocess(
+  (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+  z.string().optional(),
+);
+
+const MESSAGE_IDS_SCHEMA = z.array(z.string().min(1)).min(1).optional();
+
 const REPORT_SCHEMA = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('answered'), message: z.string().min(1), answer: z.string() }),
+  z
+    .object({
+      kind: z.literal('answered'),
+
+      // One message, or every message one turn answered.
+      message: z.string().min(1).optional(),
+      messages: MESSAGE_IDS_SCHEMA,
+      answer: z.string(),
+      turn: TURN_SCHEMA,
+    })
+    .refine((v) => (v.message === undefined) !== (v.messages === undefined)),
   z.object({ kind: z.literal('note'), label: z.string().min(1).max(64), text: z.string().min(1) }),
 ]);
 
@@ -38,7 +63,8 @@ export function parseReport(payload: Readonly<Record<string, unknown>>): Report 
 
   return {
     kind: 'answered',
-    message: toMessageID(parsed.data.message),
+    messages: (parsed.data.messages ?? [parsed.data.message ?? '']).map((id) => toMessageID(id)),
     answer: parsed.data.answer,
+    turn: parsed.data.turn ?? null,
   };
 }

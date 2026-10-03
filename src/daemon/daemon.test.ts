@@ -126,13 +126,14 @@ async function setupRawClient(): Promise<RawClient> {
   };
 }
 
-test('it answers daemon.hello with the build and limits', async () => {
+test('it answers daemon.hello with the build, limits, and features', async () => {
   const client = await setupClient();
   const ok = await client.sendHello('atc/test-build');
 
   expect(ok).toStrictEqual({
     daemon: 'atc/test-build',
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
+    features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
     lastUsedAgent: 'claude',
   });
 });
@@ -1100,7 +1101,7 @@ test('it answers events.read on an empty trail at once with no events and a curs
 
   const answer = await client.sendRequest('events.read', {});
 
-  expect(answer).toStrictEqual({ events: [], cursor: expect.any(String) });
+  expect(answer).toStrictEqual({ events: [], cursor: expect.any(String), more: false });
 });
 
 test('it holds events.read open for waitMs when no event arrives', async () => {
@@ -1112,6 +1113,6 @@ test('it holds events.read open for waitMs when no event arrives', async () => {
 
   const answer = await client.sendRequest('events.read', { waitMs: 300 });
 
-  expect(answer).toStrictEqual({ events: [], cursor: expect.any(String) });
+  expect(answer).toStrictEqual({ events: [], cursor: expect.any(String), more: false });
   expect(Date.now()).toBeWithin(before + 250, before + 3000);
 });

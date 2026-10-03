@@ -231,6 +231,25 @@ test.each([
   expect(parseRequestParams('events.read', payload)).toStrictEqual({ ok: true, data: expected });
 });
 
+test('it carries an events.read session filter through as a session id', () => {
+  const parsed = parseRequestParams('events.read', { session: 's1' });
+
+  expect(parsed).toStrictEqual({
+    ok: true,
+    data: { limit: 50, waitMs: 0, session: toSessionID('s1') },
+  });
+});
+
+test('it reads an empty events.read session filter as the whole fleet', () => {
+  const parsed = parseRequestParams('events.read', { session: '' });
+
+  if (!parsed.ok) {
+    throw new Error(parsed.message);
+  }
+
+  expect(parsed.data.session).toBeUndefined();
+});
+
 test('it clamps session.read limit to 200', () => {
   const parsed = parseRequestParams('session.read', { session: 's1', limit: 999 });
 
@@ -267,5 +286,18 @@ test('it rejects message.get without a message', () => {
 test('it parses message.get with a message id', () => {
   const parsed = parseRequestParams('message.get', { message: 'm-1' });
 
-  expect(parsed).toStrictEqual({ ok: true, data: { message: toMessageID('m-1') } });
+  expect(parsed).toStrictEqual({ ok: true, data: { message: toMessageID('m-1'), waitMs: 0 } });
+});
+
+test.each([
+  [120_000, 30_000],
+  [-5, 0],
+  [1500.7, 1500],
+] as const)('it clamps a message.get waitMs of %p to %p', (waitMs, expected) => {
+  const parsed = parseRequestParams('message.get', { message: 'm-1', waitMs });
+
+  expect(parsed).toStrictEqual({
+    ok: true,
+    data: { message: toMessageID('m-1'), waitMs: expected },
+  });
 });

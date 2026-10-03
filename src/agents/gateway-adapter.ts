@@ -7,6 +7,7 @@ import type {
   AdapterEvent,
   AgentAdapter,
   AgentID,
+  AgentProfile,
   HeadlessRunner,
   NameUpdate,
   ResumeCheck,
@@ -40,6 +41,8 @@ export class GatewayAdapter implements AgentAdapter {
 
   readonly takesMessages = true;
 
+  readonly profile: AgentProfile;
+
   private readonly gateway: GatewayConfig;
 
   private readonly claude: ClaudeAdapter;
@@ -61,6 +64,13 @@ export class GatewayAdapter implements AgentAdapter {
     this.bridgeTarget = bridgeTarget;
     this.gateway = gateway;
     this.id = gateway.id;
+
+    this.profile = {
+      label: gateway.label,
+      kind: 'gateway',
+      bin: gateway.bin,
+      models: pickModels(gateway.env),
+    };
 
     this.claude = new ClaudeAdapter(config);
 
@@ -130,4 +140,25 @@ export class GatewayAdapter implements AgentAdapter {
 
     return this.bridgeDir;
   }
+}
+
+// The model names a gateway's env sets explicitly, keyed by role:
+// `ANTHROPIC_MODEL` is `default`, and `ANTHROPIC_DEFAULT_<TIER>_MODEL` is the
+// tier in lower case. No other env value leaves the adapter.
+const MODEL_KEY = /^ANTHROPIC_(?:DEFAULT_(?<tier>[A-Z0-9]+)_)?MODEL$/u;
+
+function pickModels(
+  env: Readonly<Record<string, string>>,
+): Readonly<Record<string, string>> | null {
+  const models: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(env)) {
+    const matched = MODEL_KEY.exec(key);
+
+    if (matched !== null && value !== '') {
+      models[matched.groups?.['tier']?.toLowerCase() ?? 'default'] = value;
+    }
+  }
+
+  return Object.keys(models).length === 0 ? null : models;
 }

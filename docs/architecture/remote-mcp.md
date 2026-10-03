@@ -31,6 +31,18 @@ codes, never one of those three in the clear.
 The HTTP process keeps pending approvals in memory and signs each authorization request with a
 secret it draws at start. Restarting it ends the approvals in progress; grants survive.
 
+The server prints one line per request to stderr: the method, the path without its query, the
+status, the time taken, and for an MCP request its JSON-RPC method, tool name, and
+`MCP-Protocol-Version` header, as in
+`POST /mcp 200 41ms rpc=tools/call tool=atc_message_get mcp-protocol-version=2025-06-18`. A line
+holds no request body, query, cookie, or header other than `MCP-Protocol-Version`, and no address.
+The path, JSON-RPC method, tool name, and version come from the client and appear as sent, without
+control characters or whitespace and cut to a fixed length, so a client that puts a secret in one of
+them puts it in the line. The lines are always on, since the terminal running `atc mcp --http` is
+your own. Approval lines go to stdout, so redirecting stderr keeps them on screen. The startup line
+shows the address the server is bound to, such as `http://100.67.122.120:8414` with
+`--host 100.67.122.120`.
+
 When the daemon restarts, the HTTP process reconnects on its next request. A tool call in flight at
 that moment fails, because a spawn or a message must not run twice. A read-only tool call is the
 exception: it is retried once on a fresh connection.
@@ -83,13 +95,18 @@ clients, and `atc clients remove <id>` removes one with every token and consent 
 | `GET /error`                                                                       | the page for a request refused before any redirect        |
 | `POST /oauth2/token`                                                               | exchange an authorization code, or rotate a refresh token |
 | `POST /oauth2/revoke`                                                              | revoke a token                                            |
-| `POST /mcp`                                                                        | one JSON-RPC message, answered with JSON                  |
+| `POST /mcp` and `POST /`                                                           | one JSON-RPC message, answered with JSON                  |
 
 Every other path is a 404, including the client, consent, and session management endpoints
 better-auth defines. The origin is the public URL you configure, reduced to a bare origin, or
 `http://127.0.0.1:<port>` without one. It is the OAuth issuer, and `<origin>/mcp` is the one
 resource every token is bound to. The authorization server metadata advertises S256 PKCE only and
-`none` as the only client authentication method.
+`none` as the only client authentication method. atc accepts Bearer tokens alone, so neither
+metadata document advertises DPoP.
+
+`POST /` serves MCP the same way as `POST /mcp`, for a client configured with the bare origin. Both
+paths are the one resource `<origin>/mcp`: the 401 challenge and the protected resource metadata
+point at `<origin>/mcp` from either path, and a token bound to `<origin>/mcp` works at `/`.
 
 ## Connecting a client
 
@@ -168,6 +185,17 @@ missing scope; a tool atc does not know needs `kill`. To widen a grant, the clie
 and you approve the larger set. A message sent through `atc_session_message` from a remote client
 carries the client's name as its sender, and the tool's `from` argument is ignored.
 
+`atc_agents_list` needs only `read`. It returns the agents the host can run, with whether each
+binary is installed and what each agent supports, and the host's name, platform, architecture, and
+atc build, so a client can choose an agent before spawning. It never returns a gateway's
+environment, credential helper, or base URL; the [protocol](./protocol.md#agents) covers the fields.
+
+The answer `atc_message_get` returns is the final output of the session turn that carried the
+message, which can carry other messages too; the [protocol](./protocol.md#messages) covers the turn
+id and `answeredWith`. Pass `waitMs` to `atc_message_get` and `atc_events_read` instead of polling
+in a tight loop: each holds the request for up to 30 seconds, under the server's 60-second idle
+limit.
+
 ## Request checks
 
 - Host. Every request must carry a `Host` header of the public origin's host, `127.0.0.1:<port>`,
@@ -186,7 +214,7 @@ carries the client's name as its sender, and the tool's `from` argument is ignor
 - Protocol version. A request whose `MCP-Protocol-Version` header holds a version atc does not speak
   gets an empty 400, so a newer client falls back to `initialize`.
 - Transport. The server answers each `POST /mcp` with JSON and does not open a server-to-client
-  stream, so `GET /mcp` gets 405. JSON-RPC batches get a 400.
+  stream, so `GET /mcp` and `GET /` get 405. JSON-RPC batches get a 400.
 
 better-auth's telemetry stays off: `atc mcp --http`, `atc clients`, and `atc grants` turn it off in
 their own environment before better-auth starts, so a `BETTER_AUTH_TELEMETRY` variable you set

@@ -15,4 +15,7 @@ export interface MessageRecord {
   readonly deliveredAt?: number;
   readonly answeredAt?: number;
   readonly answer?: string;
+
+  // The turn whose final reply the answer is, when the reporter gave one.
+  readonly turn?: string;
 }

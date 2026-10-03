@@ -56,8 +56,16 @@ says to restart the daemon.
 
 { "v": 3, "id": 1, "ok": { "daemon": "atc/0.4.0",
                            "limits": { "maxLine": 1048576, "maxChunk": 65536 },
+                           "features": ["agents.list", "events.more", "events.session",
+                                        "message.turn", "message.wait"],
                            "lastUsedAgent": "claude" } }
 ```
+
+`features` lists the request features the daemon serves beyond the protocol version: `agents.list`
+exists, `events.read` returns `more` and takes `session`, and `message.get` returns `turn` and
+`answeredWith` and takes `waitMs`. A daemon from before the list existed sends none, and it ignores
+the parameters it does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads
+the list rather than the build string to learn what the running daemon honours.
 
 `lastUsedAgent` is the agent id of the last deliberate spawn that reported SessionStart. The
 built-in ids are `claude`, `grok`, and `codex`. A spawn that never reports SessionStart does not
@@ -78,6 +86,7 @@ semantics.
 | `daemon.quit`           | stop the daemon; every hosted session goes down with it                                                                                                                                                            |
 | `session.list`          | fleet listing (descriptors mirror the `Session` shape, minus the PTY handle, plus `kind` and `agent`)                                                                                                              |
 | `dirs.list`             | recent spawn directories, most recent first, for the picker                                                                                                                                                        |
+| `agents.list`           | the registered agents and the host the daemon runs on. [Agents](#agents) covers the answer                                                                                                                         |
 | `fleet.list`            | the persisted fleet rows, independent of which sessions are currently live                                                                                                                                         |
 | `session.spawn`         | spawn (cwd, name, prompt, resume, dims, optional `agent` id, optional `parent` id). Omitted agent is Claude, an empty id is `bad_args`, an unregistered one `unsupported`. An unknown parent is `no_such_session`. |
 | `session.update`        | rename and/or pin a session (`{ session, name?, pinned? }`). Pinning a sub-session is `bad_args`: it pins with its parent.                                                                                         |
@@ -95,11 +104,11 @@ semantics.
 | `permission.respond`    | answer a permission request (`{ request, decision }`)                                                                                                                                                              |
 | `session.get`           | one session's descriptor plus its spawn prompt, last activity, pending prompt, and latest result (`{ session }`)                                                                                                   |
 | `session.read`          | a Claude session's transcript, a page at a time from a cursor (`{ session, cursor?, limit? }`)                                                                                                                     |
-| `events.read`           | fleet events from the hook-event trail since a cursor (`{ cursor?, limit?, waitMs? }`)                                                                                                                             |
+| `events.read`           | fleet events from the hook-event trail since a cursor (`{ cursor?, limit?, waitMs?, session? }`)                                                                                                                   |
 | `session.message`       | queue a message for a session (`{ session, from, text }`); the ok holds the message id. [Messages](#messages) covers refusals                                                                                      |
 | `session.tap`           | subscribe to a session's inbox; messages arrive as `InboxMessage` events                                                                                                                                           |
 | `message.ack`           | mark a tapped message delivered (`{ session, message }`)                                                                                                                                                           |
-| `message.get`           | one message with its status, answer, and timestamps (`{ message }`)                                                                                                                                                |
+| `message.get`           | one message with its status, answer, turn, and timestamps (`{ message, waitMs? }`)                                                                                                                                 |
 
 `session.input` is a request (it gets an ok, preserving the rule that state-changing messages are
 acknowledged) but clients need not await it — measured cost of the JSON round trip is ~0.2 µs
@@ -182,9 +191,17 @@ session id and name, kind, and a short detail. The trail holds three groups of k
   characters of its text.
 
 Without a cursor, `events.read` returns the most recent `limit` events. `waitMs` holds the request
-open until an event arrives or the wait ends, for at most 30 seconds. The daemon writes a message or
-report event to the trail before it broadcasts the matching `SessionMessage` or `SessionReport`, so
-a client that reads the trail on the broadcast finds the event there.
+open until an event arrives or the wait ends, for at most 30 seconds. The answer holds `more`, which
+is true when events past the page's last one exist; a read without a cursor returns the newest
+events, so its `more` is always false. The daemon writes a message or report event to the trail
+before it broadcasts the matching `SessionMessage` or `SessionReport`, so a client that reads the
+trail on the broadcast finds the event there.
+
+`session` limits `events.read` to one session's events. The filter matches the trail rows under that
+atc id, plus, for a live session, the rows under its agent session id, so events from before a
+restore stay in the session's slice. The daemon refuses no id: an id no live session holds matches
+only the rows under it. Cursors are global trail positions, so a filtered read and an unfiltered
+read take each other's cursors.
 
 `session.read` returns a Claude session's transcript as user and assistant rows with tool uses
 summarised, oldest first. A page holds at most `limit` rows and about 256 KiB. Without a cursor, it
@@ -196,6 +213,28 @@ sessions with `unsupported`.
 activity time (the time of its latest trail event of any kind), the prompt or question it waits on
 while it needs you, and the final message of its latest turn, cut at 16 KiB. The fleet row holds the
 spawn prompt and latest result, so both survive a restore.
+
+## Agents
+
+`agents.list` returns a `daemon` object with the host's name, platform, and architecture and the
+daemon build, plus one entry per registered agent id. An entry holds the id, label, kind,
+`installed`, `capabilities`, and `models`:
+
+- `kind` is the agent CLI family, which the agent's adapter declares. It is an open string, so a
+  client must accept a kind it has not seen. An adapter without a profile is listed with its id as
+  its label and kind.
+- `installed` is true when the agent's binary resolves on the daemon's `PATH` or at its configured
+  path. A registered agent whose binary is missing stays in the list with `installed` false.
+- `capabilities` holds one boolean each for `spawn`, `readTranscript`, `message`, `attach`,
+  `screen`, and `input`. `spawn` is true only for an installed agent, `message` follows the agent's
+  message tap, and every agent takes `attach`, `screen`, and `input`, since each session runs in a
+  PTY.
+- `models` holds the model names the config sets explicitly, keyed by role, and is null otherwise.
+  For a gateway, `ANTHROPIC_MODEL` is the `default` role and each `ANTHROPIC_DEFAULT_<TIER>_MODEL`
+  is the tier in lower case.
+
+The answer never holds an environment value, a credential, an `apiKeyHelper` command, or a base URL,
+and no field describes which plans an agent's account holds.
 
 ## Messages
 
@@ -216,8 +255,18 @@ A message moves through three statuses:
 
 - `accepted`: the message is in the inbox.
 - `delivered`: a tap printed the message and acked it.
-- `answered`: the session reported the end of the turn the message started. The report arrives on
-  the reporter socket from `atc report answered`, and that turn's final text becomes the answer.
+- `answered`: the session reported the end of the turn that carried the message. The report arrives
+  on the reporter socket from `atc report answered`, and that turn's final text becomes the answer.
+
+An answer is the final output of the turn that carried the message, never a reply written to that
+message alone. A message that arrives during a running turn joins that turn, so one turn can carry
+several messages, and each of them gets the same answer. When a turn ends, the `atc-bridge` mod
+sends one report holding every message the turn answered and the turn id. The daemon marks all of
+them answered in one statement and stores the turn id on each, so a client that reads any of them as
+`answered` finds the whole group answered too. `message.get` returns the turn id as `turn`, null
+when the reporter sent none, and returns the other messages the same turn answered as
+`answeredWith`, empty when there are none. A report from an older mod holds no turn id, so its
+message stores null.
 
 A session can report progress with no message attached: `atc report note` sends a labelled free-form
 report, and the daemon broadcasts it as `SessionReport` with the session id, label (`kind`), text,
@@ -225,6 +274,11 @@ and time.
 
 Each status change broadcasts `SessionMessage` with the message id, status, sender, timestamps, and
 short previews of the text and answer. `message.get` returns the full text and answer.
+
+`message.get` takes `waitMs` and holds the request until the message's status moves from what it was
+when the request arrived, or the wait ends, for at most 30 seconds. An answered message has no later
+status, so the daemon returns it at once. Message ids and statuses live in `atc.db`, so a client
+whose wait ended, or whose connection dropped, calls again with the same id.
 
 `session.message` refuses a message with `unsupported` in two cases:
 

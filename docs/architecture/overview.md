@@ -54,6 +54,11 @@ beside its schema:
   can. The stdio server serves every scope to its caller; `atc mcp --http` serves only the scopes a
   client's grant holds, as [Remote MCP](./remote-mcp.md) describes.
 
+Every tool result holds its output as text. A result that is data also holds it as
+`structuredContent`, an object, and the message and event tools declare an `outputSchema` for it. A
+tool whose data is a list keeps the bare list as its text and wraps it in an object for
+`structuredContent`, so older clients read the same text.
+
 The server returns the client's requested protocol version from `initialize` when it supports it
 (`2025-11-25`, `2025-06-18`, or `2024-11-05`), else `2025-11-25`. The server leaves out
 `2025-03-26`, which requires JSON-RPC batching that atc does not implement.
@@ -101,8 +106,9 @@ through `CLAUDE_CODE_PLUGIN_DIRS`. The mod connects the session to its
 - At session start it runs `atc tap` for the session. It submits each message as a new turn when the
   session is idle and appends it to the running turn otherwise, inside an `<atc-message>` envelope
   that holds the sender and message id.
-- When a turn that carried messages ends with a reply, the mod reports each message answered with
-  that reply. An aborted or failed turn leaves its messages delivered.
+- When a turn that carried messages ends with a reply, the mod reports every message the turn
+  carried as answered with that reply and the turn's id, in one report. An aborted or failed turn
+  leaves its messages delivered.
 - It gives the model a `report` tool for progress mid-turn, which clients receive as a
   `SessionReport` event.
 

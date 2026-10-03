@@ -818,6 +818,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '010_add_events_trail_indexes',
     '011_create_messages',
     '012_index_messages_by_owner',
+    '013_add_messages_turn_id',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -1366,15 +1367,17 @@ test('it moves a delivered message to answered with the final text', async () =>
   await store.writeMessage(record);
   await store.updateMessageDelivered(record.id, owner, 2000);
 
-  const answered = await store.updateMessageAnswered(record.id, owner, 'done', 3000);
+  const answered = await store.updateMessagesAnswered([record.id], owner, 'done', 3000);
 
-  expect(answered).toStrictEqual({
-    ...record,
-    status: 'answered',
-    deliveredAt: 2000,
-    answeredAt: 3000,
-    answer: 'done',
-  });
+  expect(answered).toStrictEqual([
+    {
+      ...record,
+      status: 'answered',
+      deliveredAt: 2000,
+      answeredAt: 3000,
+      answer: 'done',
+    },
+  ]);
 });
 
 test('it answers an accepted message that was never acked', async () => {
@@ -1397,14 +1400,16 @@ test('it answers an accepted message that was never acked', async () => {
 
   await store.writeMessage(record);
 
-  const answered = await store.updateMessageAnswered(record.id, owner, 'done', 3000);
+  const answered = await store.updateMessagesAnswered([record.id], owner, 'done', 3000);
 
-  expect(answered).toStrictEqual({
-    ...record,
-    status: 'answered',
-    answeredAt: 3000,
-    answer: 'done',
-  });
+  expect(answered).toStrictEqual([
+    {
+      ...record,
+      status: 'answered',
+      answeredAt: 3000,
+      answer: 'done',
+    },
+  ]);
 });
 
 test('it refuses to deliver a message owned by another session', async () => {
@@ -1448,14 +1453,14 @@ test('it refuses to answer a message owned by another session', async () => {
 
   await store.writeMessage(record);
 
-  const updated = await store.updateMessageAnswered(
-    record.id,
+  const updated = await store.updateMessagesAnswered(
+    [record.id],
     { atcID: toSessionID('s2') },
     'done',
     2000,
   );
 
-  expect(updated).toBeNull();
+  expect(updated).toStrictEqual([]);
 });
 
 test('it gives messages sent before SessionStart their agent session id', async () => {
@@ -1809,4 +1814,85 @@ test("it counts a trail entry toward its session's last activity time", async ()
   const at = await store.loadLastActivityAt(toSessionID('s-new'), toAgentSessionID('c1'));
 
   expect(at).toBe(5000);
+});
+
+test('it answers every message of one turn in one call and returns them oldest first', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const owner = { atcID: toSessionID('s1') };
+
+  const base = {
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    status: 'accepted' as const,
+  };
+
+  await store.writeMessage({ ...base, id: toMessageID('m-2'), text: 'two', sentAt: 2000 });
+  await store.writeMessage({ ...base, id: toMessageID('m-1'), text: 'one', sentAt: 1000 });
+
+  const answered = await store.updateMessagesAnswered(
+    [toMessageID('m-2'), toMessageID('m-1')],
+    owner,
+    'both',
+    3000,
+    't-1',
+  );
+
+  const [oldest] = answered;
+
+  if (oldest === undefined) {
+    throw new Error('nothing answered');
+  }
+
+  const siblings = await store.collectTurnSiblings(oldest);
+
+  expect(answered.map((record) => [record.id, record.turn])).toStrictEqual([
+    [toMessageID('m-1'), 't-1'],
+    [toMessageID('m-2'), 't-1'],
+  ]);
+
+  expect(siblings).toStrictEqual([toMessageID('m-2')]);
+});
+
+test('it lists the other messages of one turn in send order when they share a send time', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const owner = { atcID: toSessionID('s1') };
+
+  const base = {
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    status: 'accepted' as const,
+    sentAt: 1000,
+  };
+
+  await store.writeMessage({ ...base, id: toMessageID('m-c'), text: 'first' });
+  await store.writeMessage({ ...base, id: toMessageID('m-b'), text: 'second' });
+  await store.writeMessage({ ...base, id: toMessageID('m-a'), text: 'third' });
+
+  await store.updateMessagesAnswered(
+    [toMessageID('m-c'), toMessageID('m-b'), toMessageID('m-a')],
+    owner,
+    'all',
+    2000,
+    't-1',
+  );
+
+  const first = await store.findMessage(toMessageID('m-c'), owner);
+
+  if (first === null) {
+    throw new Error('first message missing');
+  }
+
+  const siblings = await store.collectTurnSiblings(first);
+
+  expect(siblings).toStrictEqual([toMessageID('m-b'), toMessageID('m-a')]);
 });

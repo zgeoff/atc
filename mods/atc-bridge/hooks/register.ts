@@ -35,8 +35,9 @@ const REPORT_TOOL = 'mcp__atc-bridge__report';
 
 /**
  * Delivers the atc inbox of the session named by ATC_SESSION_ID into the
- * conversation, reports each delivered message's answer when its turn ends,
- * and serves the report tool. Outside atc it changes nothing.
+ * conversation and serves the report tool. When a turn ends, it reports the
+ * turn's final reply, with the turn's id, as the answer to every message the
+ * turn carried. Outside atc it changes nothing.
  */
 export const register: Register = (on) => {
   const state: BridgeState = {
@@ -311,29 +312,43 @@ function updateTurnCompleted(
     state.runningTurnID = null;
   }
 
+  const answered: string[] = [];
+
   for (const msg of carried) {
     if (state.unseen.delete(msg.id)) {
       scheduleDelivery($, state, msg);
     } else if (isAnswered) {
-      scheduleAnsweredReport($, state, msg.id, answer);
+      answered.push(msg.id);
     }
+  }
+
+  // One report carries every message the turn answered, so atc records the
+  // whole group at once and no member reads as answered before the rest.
+  if (answered.length > 0) {
+    scheduleAnsweredReport($, state, answered, turnID, answer);
   }
 }
 
 function scheduleAnsweredReport(
   $: EngineInterface,
   state: BridgeState,
-  messageID: string,
+  messageIDs: readonly string[],
+  turnID: string,
   answer: string,
 ): void {
   state.reporting = state.reporting
     .then(async () => {
-      await $.process.run([...ATC_CLI, 'report', 'answered', '--message', messageID], {
-        stdin: answer,
-        timeoutMs: 5000,
-      });
+      await $.process.run(
+        [...ATC_CLI, 'report', 'answered', '--messages', messageIDs.join(','), '--turn', turnID],
+        {
+          stdin: answer,
+          timeoutMs: 5000,
+        },
+      );
     })
     .catch((error: unknown) => {
-      $.ui.log(`atc-bridge: reporting ${messageID} failed (${String(error)})`, { to: 'debug' });
+      $.ui.log(`atc-bridge: reporting ${messageIDs.join(', ')} failed (${String(error)})`, {
+        to: 'debug',
+      });
     });
 }
