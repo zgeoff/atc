@@ -86,3 +86,13 @@ jobs:
           chmod +x "$ATC_BIN"
           "$ATC_BIN" --version
           bun run test:binary
+
+      # The gateway ships for linux-x64 alone.
+      - name: Smoke test the compiled gateway
+        if: matrix.target == 'linux-x64'
+        env:
+          ATC_GATEWAY_BIN: ${{ github.workspace }}/dist/atc-gateway-linux-x64
+        run: |
+          chmod +x "$ATC_GATEWAY_BIN"
+          "$ATC_GATEWAY_BIN" --version
+          bun run test:gateway-binary

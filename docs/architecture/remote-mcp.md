@@ -61,6 +61,69 @@ session is gone, the fallback has different params, so it runs under a key of it
 and the SHA-256 of the caller's key in hex. A retry derives the same key, and the derived key always
 fits the daemon's 200-character cap.
 
+## Gateway
+
+`atc-gateway` serves the same MCP tools and authorization server for several daemons at once, and
+routes each call over TCP to one daemon in its registry. It ships as its own release binary,
+`atc-gateway-linux-x64`, compiled from `src/gateway.ts`. The binary holds no daemon, PTY, or agent
+code, and `bun run check:imports` fails when the entry reaches any. It never starts a daemon or a
+session on its own machine, so a call to a daemon that does not answer fails.
+
+```bash
+atc-gateway serve --host 0.0.0.0 --port 8414 --public-url https://atc.example.com --registry /etc/atc-gateway/registry.json --state-dir /var/lib/atc-gateway
+```
+
+| Flag           | Value                                                                      | Default                  |
+| -------------- | -------------------------------------------------------------------------- | ------------------------ |
+| `--host`       | the address to bind                                                        | `127.0.0.1`              |
+| `--port`       | the port to listen on                                                      | `8414`                   |
+| `--public-url` | the origin clients reach, the OAuth issuer; the resource is `<origin>/mcp` | required                 |
+| `--registry`   | the registry file                                                          | required                 |
+| `--state-dir`  | the directory for `gateway.db` and `mcp-auth.db`                           | `$ATC_GATEWAY_STATE_DIR` |
+
+The registry file lists each daemon by name with its TCP address and the daemon ID that
+`atc daemon id` prints on its host, plus the daemon a spawn without one goes to:
+
+```json
+{
+  "daemons": { "cloud": { "address": "100.64.0.7:8415", "daemonID": "<daemon_id>" } },
+  "defaultDaemon": "cloud"
+}
+```
+
+The bearer token for each daemon comes from `ATC_GATEWAY_TOKEN_<NAME>`, the name upper-cased with
+`-` as `_`, such as `ATC_GATEWAY_TOKEN_CLOUD`. It is a token from that daemon's
+[token file](./daemon.md#the-tcp-listener). A registry that cannot be read or parsed, or a daemon
+without its token, makes the gateway print each problem to stderr and exit 1. The bind rule of
+`atc mcp --http` holds: a host other than loopback needs an https public URL.
+
+The gateway writes only in its state directory: `gateway.db` holds the bindings for retried spawns
+and messages, and `mcp-auth.db` the authorization server. With neither `--state-dir` nor
+`ATC_GATEWAY_STATE_DIR`, it exits 1. It has no default under a home directory, so one volume holds
+all its state.
+
+The gateway reads `--state-dir` anywhere on its command line: before the subcommand, between
+`clients` and its subcommand, or after it. A flag beats `ATC_GATEWAY_STATE_DIR`. The gateway exits 1
+before it opens a database in 3 cases:
+
+- two `--state-dir` flags give different directories
+- a flag it does not know appears anywhere, such as `--stat-dir`
+- a flag's separate value is missing or starts with `-`, as in `--redirect-uri --state-dir <dir>`;
+  write such a value as `--<flag>=<value>`
+
+`/healthz` and `/readyz` are always on. Each returns 200 for a request whose `Host` header is the
+public URL's host, such as `atc.example.com`, and 403 for any other host, so an orchestrator's probe
+sets that header. Approval lines go to stdout and request lines to stderr, so you read the approval
+code in the gateway's log. SIGTERM stops the server and exits 0.
+
+Manage the gateway's clients with the same binary, in the same state directory, while it runs:
+
+```bash
+atc-gateway clients add Claude --redirect-uri https://claude.ai/api/mcp/auth_callback --state-dir /var/lib/atc-gateway
+atc-gateway clients list --state-dir /var/lib/atc-gateway
+atc-gateway clients remove <client_id> --state-dir /var/lib/atc-gateway
+```
+
 ## What runs where
 
 better-auth runs the OAuth protocol through `@better-auth/mcp`, which configures
