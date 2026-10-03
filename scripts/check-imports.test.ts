@@ -102,12 +102,11 @@ test('it fails on a directory module importing a src root module', async () => {
   expect(tree.run()).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: src/shared/config.ts imports src/hook-report.ts (shared -> the src root)\n',
+    stderr: 'forbidden edge: src/shared/config.ts imports src/hook-report.ts (shared -> root)\n',
   });
 });
 
-test('it lets a src root module and a test file import any directory', async () => {
+test('it lets the composition root and a test file import any directory', async () => {
   await using tree = await setupTest();
 
   await Bun.write(join(tree.dir, 'src/daemon/daemon.ts'), 'export const DAEMON = 1;\n');
@@ -178,5 +177,137 @@ test('it ignores import text inside a one-line string literal', async () => {
     exitCode: 0,
     stdout: 'check-imports: 2 files, 0 cycles, 0 other findings\n',
     stderr: '',
+  });
+});
+
+test('it fails on a src root module that is not the composition root importing the daemon', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/daemon/daemon.ts'), 'export const DAEMON = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/statusline.ts'),
+    "import { DAEMON } from './daemon/daemon';\n\nexport const USED = DAEMON;\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/statusline.ts imports src/daemon/daemon.ts (root -> daemon)\n',
+  });
+});
+
+test('it reads an import whose list holds a comment with an apostrophe', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "import {\n  ID, // the daemon's id, `quoted`\n} from '../daemon/ids';\n\nexport const USED = ID;\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
+  });
+});
+
+test('it reads a require call', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "const ids = require('../daemon/ids');\n\nexport const USED = ids;\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
+  });
+});
+
+test('it reads an import-equals require', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "import ids = require('../daemon/ids');\n\nexport const USED = ids;\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
+  });
+});
+
+test('it reads a dynamic import whose specifier is a template literal', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    'export const LOADED = await import(`../daemon/ids`);\n',
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
+  });
+});
+
+test('it fails on a dynamic import whose specifier is computed', async () => {
+  await using tree = await setupTest();
+
+  // oxlint-disable-next-line no-template-curly-in-string -- the fixture is source text whose template literal holds a substitution
+  const source = "const n = 'x';\nexport const L = import(`../daemon/${n}`);\n";
+
+  await Bun.write(join(tree.dir, 'src/store/rows.ts'), source);
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
+    stderr: 'non-literal import: src/store/rows.ts:2 imports a computed specifier\n',
+  });
+});
+
+test('it fails on a require call whose specifier is computed', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "const path = '../daemon/ids';\nexport const LOADED = require(path);\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
+    stderr: 'non-literal import: src/store/rows.ts:2 imports a computed specifier\n',
+  });
+});
+
+test('it reads an import that follows a regular expression holding a quote', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "export const QUOTE = /['\"`]/;\n\nexport { ID } from '../daemon/ids';\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
   });
 });
