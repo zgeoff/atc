@@ -1112,6 +1112,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '019_add_idempotency_effect_target',
     '020_create_workspace_materialization',
     '021_add_fleet_lifecycle',
+    '022_add_events_report_id',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -2036,6 +2037,82 @@ test('it records a report into the trail with its label', async () => {
       label: 'blocked',
     },
   ]);
+});
+
+test('it stores a report resent under the same report id once', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const first = await store.recordTrailEntry({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'report',
+    label: 'blocked',
+    detail: 'need review',
+    reportID: 'r-1',
+  });
+
+  const resent = await store.recordTrailEntry({
+    at: 2000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'report',
+    label: 'blocked',
+    detail: 'need review',
+    reportID: 'r-1',
+  });
+
+  const events = await store.collectLatestEvents(10);
+
+  expect({ first, resent, events }).toStrictEqual({
+    first: true,
+    resent: false,
+    events: [
+      {
+        id: expect.toBeNumber(),
+        at: 1000,
+        atcID: toSessionID('s1'),
+        agentSessionID: null,
+        kind: 'report',
+        detail: 'need review',
+        label: 'blocked',
+      },
+    ],
+  });
+});
+
+test('it stores every report that carries no report id', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordTrailEntry({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'report',
+    label: 'blocked',
+    detail: 'need review',
+  });
+
+  const second = await store.recordTrailEntry({
+    at: 2000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'report',
+    label: 'blocked',
+    detail: 'need review',
+  });
+
+  const events = await store.collectLatestEvents(10);
+
+  expect({ second, count: events.length }).toStrictEqual({ second: true, count: 2 });
 });
 
 test('it reads the trail in order across hook events and message entries', async () => {

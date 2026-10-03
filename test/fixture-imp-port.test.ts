@@ -590,6 +590,156 @@ test('it relays each guest connection on a reverse forward to the daemon', async
   });
 });
 
+test('it writes every byte the daemon sends to the guest end of a relayed connection', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'imp-a' });
+
+  const guestPath = join(fixture.dir, 'guest.sock');
+
+  const sent = new Uint8Array(4 * 1024 * 1024).fill(97);
+
+  let received = 0;
+
+  fixture.port.openReverseForward('imp-a', guestPath, (connection) => {
+    void connection.write(sent);
+  });
+
+  await Bun.connect({
+    unix: guestPath,
+    socket: {
+      data(_socket, buf) {
+        received += buf.length;
+      },
+    },
+  });
+
+  await waitFor(() => {
+    expect(received).toBe(sent.length);
+  });
+});
+
+test('it closes every guest connection on its forwards and keeps listening for the next', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'imp-a' });
+
+  const guestPath = join(fixture.dir, 'guest.sock');
+  let connections = 0;
+  const closed = Promise.withResolvers<void>();
+
+  fixture.port.openReverseForward('imp-a', guestPath, () => {
+    connections += 1;
+  });
+
+  await Bun.connect({
+    unix: guestPath,
+    socket: {
+      data() {},
+      close() {
+        closed.resolve();
+      },
+    },
+  });
+
+  await waitFor(() => {
+    expect(connections).toBe(1);
+  });
+
+  fixture.port.stopRelays();
+
+  await closed.promise;
+
+  await Bun.connect({ unix: guestPath, socket: { data() {} } });
+
+  await waitFor(() => {
+    expect(connections).toBe(2);
+  });
+});
+
+test('it closes each new guest connection without relaying it while relays are refused', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'imp-a' });
+
+  const guestPath = join(fixture.dir, 'guest.sock');
+  let connections = 0;
+  const closed = Promise.withResolvers<void>();
+
+  fixture.port.openReverseForward('imp-a', guestPath, () => {
+    connections += 1;
+  });
+
+  fixture.port.startRelayRefusal();
+
+  await Bun.connect({
+    unix: guestPath,
+    socket: {
+      data() {},
+      close() {
+        closed.resolve();
+      },
+    },
+  });
+
+  await closed.promise;
+
+  expect(connections).toBe(0);
+});
+
+test('it relays guest connections again once the refusal stops', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'imp-a' });
+
+  const guestPath = join(fixture.dir, 'guest.sock');
+  let connections = 0;
+
+  fixture.port.openReverseForward('imp-a', guestPath, () => {
+    connections += 1;
+  });
+
+  fixture.port.startRelayRefusal();
+  fixture.port.stopRelayRefusal();
+
+  await Bun.connect({ unix: guestPath, socket: { data() {} } });
+
+  await waitFor(() => {
+    expect(connections).toBe(1);
+  });
+});
+
+test('it drops what a guest writes while guest bytes are dropped', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'imp-a' });
+
+  const received: string[] = [];
+  const guestPath = join(fixture.dir, 'guest.sock');
+
+  fixture.port.openReverseForward('imp-a', guestPath, (connection) => {
+    connection.onData((data) => {
+      received.push(Buffer.from(data).toString());
+    });
+  });
+
+  fixture.port.startGuestByteDrop();
+
+  const socket = await Bun.connect({ unix: guestPath, socket: { data() {} } });
+
+  socket.write('lost\n');
+
+  // No signal marks a dropped write, so the wait gives it time to arrive.
+  await Bun.sleep(100);
+
+  fixture.port.stopGuestByteDrop();
+  socket.write('kept\n');
+
+  await waitFor(() => {
+    expect(received.join('')).toBe('kept\n');
+  });
+});
+
 test('it runs a command in a running imp with the input it is given', async () => {
   using fixture = setupTest();
 

@@ -60,6 +60,7 @@ function buildGhostSession(): Session {
     attachment: 'local',
     suspended: false,
     hostKey: toSessionID('ghost-session'),
+    bridgeEpoch: 0,
   };
 }
 

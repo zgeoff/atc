@@ -132,10 +132,24 @@ export interface HarnessSpec {
   readonly cols: number;
   readonly rows: number;
 
-  // Takes each line the harness's hooks report. A remote provider relays
-  // them from a socket inside the host that serves this harness alone, and
-  // points the harness's ATC_SOCKET at it.
-  readonly onReport?: (line: string) => void;
+  // Takes each connection a process of the harness opens to the daemon. A
+  // remote provider relays them from a socket inside the host that serves
+  // this harness alone, and points the harness's ATC_SOCKET at it.
+  readonly onRelay?: (relay: HarnessRelay) => void;
+}
+
+/**
+ * One connection from a process inside a harness's host to the daemon, in
+ * lines: each line the process writes arrives whole, and each line the
+ * daemon writes reaches the process in order.
+ */
+export interface HarnessRelay {
+  readonly onLine: (listener: (line: string) => void) => void;
+  readonly onClose: (listener: () => void) => void;
+
+  // Settles once the relay has room for more.
+  readonly writeLine: (line: string) => Promise<void>;
+  readonly close: () => void;
 }
 
 /**

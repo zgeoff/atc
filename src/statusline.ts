@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { statusFile } from './shared/config';
 import { isRecord, sendReport } from './shared/report';
+import { sendBridgeRequest } from './shared/send-bridge-request';
 
 /**
  * Runs as the statusLine command injected into wrangled sessions. Chains the
@@ -60,6 +61,19 @@ export async function runStatusline(): Promise<void> {
     }
   } catch {}
 
+  const segment =
+    process.env['ATC_BRIDGE'] === '1' && sock !== undefined && sock !== ''
+      ? await readOwnSegment(sock)
+      : readFleetSegment();
+
+  const line = [chained, segment].filter((part) => part !== '').join(' \u001B[90m▏\u001B[0m ');
+
+  console.log(line);
+  process.exit(0);
+}
+
+// The fleet segment, from the status file the daemon writes beside it.
+function readFleetSegment(): string {
   let segment = '';
 
   try {
@@ -90,10 +104,27 @@ export async function runStatusline(): Promise<void> {
     }
   } catch {}
 
-  const line = [chained, segment].filter((part) => part !== '').join(' \u001B[90m▏\u001B[0m ');
+  return segment;
+}
 
-  console.log(line);
-  process.exit(0);
+// Inside a remote host the status file is out of reach, and the session
+// bridge returns the session's own state alone, never the rest of the fleet.
+async function readOwnSegment(sock: string): Promise<string> {
+  const status = await sendBridgeRequest(sock, 'status.read', {}, 500);
+
+  if (status === null || status['ok'] !== true) {
+    return '';
+  }
+
+  if (status['state'] === 'needs_you') {
+    return '\u001B[1;31m● needs you\u001B[0m';
+  }
+
+  if (status['state'] === 'done') {
+    return '\u001B[32m✓ done\u001B[0m';
+  }
+
+  return status['state'] === 'running' ? '\u001B[36m◐ running\u001B[0m' : '';
 }
 
 // A user statusline that is atc's own injected command would chain into

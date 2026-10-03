@@ -1,6 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../test/setup-temp-dir';
+import { isRecord } from './shared/report';
 
 // The report subcommand against a listener standing in for the daemon's
 // reporter socket; it must exit 0 on every path.
@@ -243,4 +245,91 @@ test('it exits 0 for a note without text', async () => {
   const code = await proc.exited;
 
   expect(code).toBe(0);
+});
+
+test('it clears a bridge report from the outbox once the bridge refuses it as forbidden', async () => {
+  using listener = setupTest();
+
+  const sock = join(listener.dir, 'bridge.sock');
+  const outbox = join(listener.dir, 'outbox');
+
+  mkdirSync(outbox);
+
+  const server = Bun.listen({
+    unix: sock,
+    socket: {
+      data(socket, buf) {
+        const parsed: unknown = JSON.parse(buf.toString().split('\n')[0] ?? '{}');
+        const id = isRecord(parsed) ? parsed['id'] : null;
+
+        socket.write(`${JSON.stringify({ id, ok: false, code: 'forbidden' })}\n`);
+      },
+      open() {},
+      error() {},
+    },
+  });
+
+  onTestFinished(() => {
+    server.stop(true);
+  });
+
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'cli.ts'), 'report', 'note'], {
+    stdin: new TextEncoder().encode('need review'),
+    env: {
+      ...process.env,
+      ATC_BRIDGE: '1',
+      ATC_SOCKET: sock,
+      ATC_OUTBOX: outbox,
+      ATC_SESSION_ID: 's1',
+    },
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
+
+  const code = await proc.exited;
+
+  expect(code).toBe(0);
+  expect(readdirSync(outbox)).toStrictEqual([]);
+});
+
+test('it keeps a bridge report in the outbox when the bridge never answers', async () => {
+  using listener = setupTest();
+
+  const sock = join(listener.dir, 'bridge.sock');
+  const outbox = join(listener.dir, 'outbox');
+
+  mkdirSync(outbox);
+
+  const server = Bun.listen({
+    unix: sock,
+    socket: {
+      data(socket) {
+        socket.end();
+      },
+      open() {},
+      error() {},
+    },
+  });
+
+  onTestFinished(() => {
+    server.stop(true);
+  });
+
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'cli.ts'), 'report', 'note'], {
+    stdin: new TextEncoder().encode('need review'),
+    env: {
+      ...process.env,
+      ATC_BRIDGE: '1',
+      ATC_SOCKET: sock,
+      ATC_OUTBOX: outbox,
+      ATC_SESSION_ID: 's1',
+    },
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
+
+  const code = await proc.exited;
+
+  expect(code).toBe(0);
+  expect(readdirSync(outbox)).toHaveLength(1);
 });

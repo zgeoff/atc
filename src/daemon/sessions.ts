@@ -24,9 +24,15 @@ import { buildSessionLifecycle } from './build-session-lifecycle';
 import type { SessionLifecycle } from './build-session-lifecycle';
 import { buildTarArchive } from './build-tar-archive';
 import { buildTargetIdentity } from './build-target-identity';
-import type { ExecutionCapability, ExecutionProvider, HarnessHandle } from './execution-provider';
+import type {
+  ExecutionCapability,
+  ExecutionProvider,
+  HarnessHandle,
+  HarnessRelay,
+} from './execution-provider';
 import { findExecutionRefusal } from './find-execution-refusal';
 import type { HookEvent } from './hooks';
+import type { BridgeBinding } from './is-binding-current';
 import { LocalPTYProvider } from './local-pty-provider';
 import { mintSessionID } from './mint-session-id';
 import { pickSessionState } from './pick-session-state';
@@ -159,6 +165,10 @@ export interface Session {
   // parent's when the parent runs on the same target, so one host serves a
   // top-level session and the sub-sessions beside it.
   hostKey: SessionID;
+
+  // The epoch of the session's latest harness start or attach, which the
+  // daemon's bridge to that harness is bound to; 0 before the first.
+  bridgeEpoch: number;
 }
 
 // A session's ready workspace and the variables its harnesses go without.
@@ -191,9 +201,9 @@ export class SessionManager {
   // the terminal size it starts at.
   onBoot: (s: Session, cols: number, rows: number) => void = () => {};
 
-  // Takes each line a harness's hooks report through a provider's own
-  // relay, with the session the relay serves.
-  onReport: (sessionID: SessionID, line: string) => void = () => {};
+  // Takes each connection a harness's processes open through a provider's
+  // own relay, with the binding of the harness start that opened it.
+  onRelay: (binding: BridgeBinding, relay: HarnessRelay) => void = () => {};
 
   onEvent: (kind: SessionEventKind, s: Session) => void = () => {};
 
@@ -221,6 +231,10 @@ export class SessionManager {
   // Sessions whose revive waits on their host waking, so a second revive
   // of the same session does not start a second harness.
   private readonly adopting = new Set<SessionID>();
+
+  // The epoch the next harness start or attach takes, unique across every
+  // session this manager holds.
+  private nextBridgeEpoch = 1;
 
   constructor(
     fallback: AgentAdapter,
@@ -413,6 +427,7 @@ export class SessionManager {
       vm: this.pickRestoredVM(target, entry.desired),
       attachment: this.hasHostLifecycle(target) ? 'detached' : 'local',
       hostKey: entry.hostKey ?? entry.sessionID,
+      bridgeEpoch: 0,
     };
 
     this.sessions.push(session);
@@ -484,6 +499,8 @@ export class SessionManager {
       return null;
     }
 
+    const binding = this.mintBridgeBinding(s.id, s.target, s.targetIdentity, s.hostKey);
+
     const pty = provider.spawnHarness({
       session: s.id,
       host: s.hostKey,
@@ -494,11 +511,12 @@ export class SessionManager {
       withheldEnv: s.withheldEnv,
       cols,
       rows,
-      onReport: (line) => {
-        this.onReport(s.id, line);
+      onRelay: (relay) => {
+        this.onRelay(binding, relay);
       },
     });
 
+    s.bridgeEpoch = binding.epoch;
     s.pty = pty;
     s.kind = 'pty';
     s.state = 'running';
@@ -705,6 +723,8 @@ export class SessionManager {
       ...overrides,
     });
 
+    const binding = this.mintBridgeBinding(id, target, execution.identity, hostKey);
+
     const pty = provider.spawnHarness({
       session: id,
       host: hostKey,
@@ -715,8 +735,8 @@ export class SessionManager {
       withheldEnv: materialized?.withheldEnv ?? [],
       cols,
       rows,
-      onReport: (line) => {
-        this.onReport(id, line);
+      onRelay: (relay) => {
+        this.onRelay(binding, relay);
       },
     });
 
@@ -755,6 +775,7 @@ export class SessionManager {
       attachment: 'local',
       suspended: false,
       hostKey,
+      bridgeEpoch: binding.epoch,
     };
 
     this.attachHarness(session, pty, this.hasHostLifecycle(target));
@@ -765,6 +786,21 @@ export class SessionManager {
     this.onBoot(session, cols, rows);
 
     return session;
+  }
+
+  // The binding a harness start or attach opens its bridge under, at a
+  // fresh epoch.
+  private mintBridgeBinding(
+    sessionID: SessionID,
+    target: string,
+    targetIdentity: string,
+    hostKey: SessionID,
+  ): BridgeBinding {
+    const epoch = this.nextBridgeEpoch;
+
+    this.nextBridgeEpoch += 1;
+
+    return { sessionID, target, targetIdentity, hostKey, epoch };
   }
 
   // Readies the host a harness is about to start on and plans the harness.

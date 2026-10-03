@@ -143,7 +143,7 @@ test('it refuses a remote Claude spawn when the host has no atc and the daemon h
   expect(daemon.port.collectImpNames()).toBeEmpty();
 });
 
-test('it gives a remote Claude session settings and a mod that report through the atc in its host, with no statusline', async () => {
+test('it gives a remote Claude session settings, a statusline, and a mod that report through the atc in its host', async () => {
   await using daemon = await setupTest({ guestATC: true });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -159,9 +159,8 @@ test('it gives a remote Claude session settings and a mod that report through th
     hooks: {
       SessionStart: [{ hooks: [{ command: `"${daemon.fakeATC}" hook-report` }] }],
     },
+    statusLine: { command: `"${daemon.fakeATC}" statusline` },
   });
-
-  expect(settings).not.toHaveProperty('statusLine');
 
   expect(readFileSync(join(dir, 'atc-bridge', 'hooks', 'atc-cli.ts'), 'utf8')).toInclude(
     JSON.stringify([daemon.fakeATC]),

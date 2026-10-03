@@ -293,7 +293,12 @@ type RelayAccept = (
     onEof: () => void;
     onClose: (lost: boolean) => void;
   }>,
-) => Readonly<{ close: () => void }>;
+) => Readonly<{
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
+  send: (data: Uint8Array) => boolean;
+  waitForRoom: () => Promise<void>;
+  close: () => void;
+}>;
 
 // Takes a guest connection at once, handing its bytes and its close to the
 // listeners the relay's owner adds.
@@ -322,6 +327,14 @@ function openRelay(accept: RelayAccept): ImpRelayConnection {
     },
     onClose: (listener) => {
       closeListeners.push(listener);
+    },
+
+    // A send past the relay's window still queues the bytes, so only the
+    // next write waits; a closed relay takes bytes and drops them.
+    write: async (data) => {
+      if (!relay.send(data)) {
+        await relay.waitForRoom();
+      }
     },
     close: () => {
       relay.close();

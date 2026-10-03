@@ -27,13 +27,12 @@ export interface HookSettingsProfile {
  * happened to carry. The credential is never part of it: the helper command
  * supplies that at run time, so it never reaches a file atc writes.
  *
- * A session on a remote host gets the argv of the atc inside that host and
- * no statusline, since the fleet status it renders lives on the daemon's
- * machine; a null padding leaves the statusline out.
+ * A session on a remote host gets the argv of the atc inside that host,
+ * whose statusline renders that session's own state alone.
  */
 export function buildHookSettings(
   profile: HookSettingsProfile,
-  statuslinePadding: number | null,
+  statuslinePadding: number,
   cliArgv?: readonly string[],
 ): Record<string, unknown> {
   const entry = [
@@ -60,15 +59,11 @@ export function buildHookSettings(
     // Fleet status renders inside Claude Code's own status line; the injected
     // command chains the user's configured statusline first, so mirror their
     // padding.
-    ...(statuslinePadding === null
-      ? {}
-      : {
-          statusLine: {
-            type: 'command',
-            command: buildCLICommand('statusline', cliArgv),
-            padding: statuslinePadding,
-          },
-        }),
+    statusLine: {
+      type: 'command',
+      command: buildCLICommand('statusline', cliArgv),
+      padding: statuslinePadding,
+    },
     ...(profile.env === undefined || Object.keys(profile.env).length === 0
       ? {}
       : { env: profile.env }),

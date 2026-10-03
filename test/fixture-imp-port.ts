@@ -77,11 +77,18 @@ export class FixtureImpPort implements ImpPort {
   // A refusal the next session request gets instead of an answer.
   private nextFailure: { readonly code: string; readonly data: unknown } | null = null;
 
+  // Whether every reverse forward closes each new guest connection at once.
+  private refusingRelays = false;
+
+  // Whether every relayed connection drops what the guest writes, while
+  // what the daemon writes still reaches the guest.
+  private droppingGuestBytes = false;
+
   private readonly principal: string;
 
   private readonly imps = new Map<string, FixtureImp>();
 
-  private readonly forwards = new Set<{ stop: () => void }>();
+  private readonly forwards = new Set<{ stop: () => void; stopRelays: () => void }>();
 
   constructor(principal = 'token:atc') {
     this.principal = principal;
@@ -351,10 +358,23 @@ export class FixtureImpPort implements ImpPort {
     const server = Bun.listen<FixtureRelay>({
       unix: guestPath,
       socket: {
-        open(socket) {
-          const relay: FixtureRelay = { dataListeners: [], closeListeners: [] };
+        open: (socket) => {
+          const relay: FixtureRelay = {
+            dataListeners: [],
+            closeListeners: [],
+            unsent: new Uint8Array(0),
+            roomWaiters: [],
+          };
 
           socket.data = relay;
+
+          if (this.refusingRelays) {
+            socket.end();
+
+            return;
+          }
+
+          relays.add(socket);
 
           onConnection({
             onData: (listener) => {
@@ -363,17 +383,53 @@ export class FixtureImpPort implements ImpPort {
             onClose: (listener) => {
               relay.closeListeners.push(listener);
             },
+
+            // A socket write takes what fits and drops the rest, so the
+            // remainder waits for the next drain.
+            write: async (data) => {
+              relay.unsent = mergeTail(relay.unsent, data, Number.POSITIVE_INFINITY);
+              relay.unsent = relay.unsent.subarray(socket.write(relay.unsent));
+
+              if (relay.unsent.length > 0) {
+                const room = Promise.withResolvers<void>();
+
+                relay.roomWaiters.push(room.resolve);
+
+                await room.promise;
+              }
+            },
             close: () => {
               socket.end();
             },
           });
         },
-        data(socket, buf) {
+        data: (socket, buf) => {
+          if (this.droppingGuestBytes) {
+            return;
+          }
+
           for (const listener of socket.data.dataListeners) {
             listener(new Uint8Array(buf));
           }
         },
-        close(socket) {
+        drain(socket) {
+          const relay = socket.data;
+
+          relay.unsent = relay.unsent.subarray(socket.write(relay.unsent));
+
+          if (relay.unsent.length === 0) {
+            for (const resolve of relay.roomWaiters.splice(0)) {
+              resolve();
+            }
+          }
+        },
+        close: (socket) => {
+          relays.delete(socket);
+
+          for (const resolve of socket.data.roomWaiters.splice(0)) {
+            resolve();
+          }
+
           for (const listener of socket.data.closeListeners) {
             listener();
           }
@@ -382,6 +438,8 @@ export class FixtureImpPort implements ImpPort {
       },
     });
 
+    const relays = new Set<{ readonly end: () => void }>();
+
     const forward = {
       stop: () => {
         server.stop(true);
@@ -389,6 +447,11 @@ export class FixtureImpPort implements ImpPort {
         rmSync(guestPath, { force: true });
 
         this.forwards.delete(forward);
+      },
+      stopRelays: () => {
+        for (const relay of relays) {
+          relay.end();
+        }
       },
     };
 
@@ -437,6 +500,41 @@ export class FixtureImpPort implements ImpPort {
     const proc = this.getImp(name).sessions.get(session);
 
     proc?.connection?.finish({ kind: 'closed', reason: `code ${closeCode}`, closeCode });
+  }
+
+  /**
+   * Closes every guest connection on every reverse forward, as a dropped
+   * network does, while each forward keeps listening for the next one.
+   */
+  stopRelays(): void {
+    for (const forward of this.forwards) {
+      forward.stopRelays();
+    }
+  }
+
+  /**
+   * Closes each new guest connection on every reverse forward at once, as
+   * a network that drops every connection does, until the refusal stops.
+   */
+  startRelayRefusal(): void {
+    this.refusingRelays = true;
+  }
+
+  stopRelayRefusal(): void {
+    this.refusingRelays = false;
+  }
+
+  /**
+   * Drops every byte a guest writes on a relayed connection, as a network
+   * that loses one direction does, until the drop stops; what the daemon
+   * writes still reaches the guest.
+   */
+  startGuestByteDrop(): void {
+    this.droppingGuestBytes = true;
+  }
+
+  stopGuestByteDrop(): void {
+    this.droppingGuestBytes = false;
   }
 
   /**
@@ -914,6 +1012,11 @@ interface FixtureRelay {
   // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
   readonly dataListeners: ((data: Uint8Array) => void)[];
   readonly closeListeners: (() => void)[];
+
+  // Bytes a write handed over that the socket has not taken yet, and the
+  // writes waiting for them to go.
+  unsent: Uint8Array;
+  readonly roomWaiters: (() => void)[];
 }
 
 function buildNotFound(name: string): ImpPortError {

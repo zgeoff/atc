@@ -124,7 +124,7 @@ export class ClaudeAdapter implements AgentAdapter {
       bin: this.config.claudeBin,
       args: this.buildArgs(opts, `${guest.dir}/settings.json`, `${guest.dir}/atc-bridge`),
       files: {
-        'settings.json': JSON.stringify(buildHookSettings({ id: this.id }, null, argv), null, 2),
+        'settings.json': JSON.stringify(buildHookSettings({ id: this.id }, 0, argv), null, 2),
         ...Object.fromEntries(bridge),
       },
     };

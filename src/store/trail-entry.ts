@@ -18,6 +18,10 @@ interface MessageTrailEntry extends TrailEntryBase {
 interface ReportTrailEntry extends TrailEntryBase {
   readonly kind: 'report';
   readonly label: string;
+
+  // The id a remote session's reporter gave the report, so a resent
+  // report is stored once; absent for a report that carries none.
+  readonly reportID?: string;
 }
 
 /**
