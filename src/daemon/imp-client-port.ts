@@ -18,12 +18,15 @@ import type {
 import { ImpPortError } from './imp-port-error';
 
 /**
- * Where impd listens and the token the daemon calls it with. The token
- * comes from the daemon's environment, never from a config file.
+ * Where impd listens, and how the daemon reads the token it calls impd
+ * with: null for no token. The port reads the token again before each
+ * call and connection, so a token that changes at its source takes effect
+ * on the next one. A read that throws fails that call without reaching
+ * impd.
  */
 export interface ImpClientPortOptions {
   readonly url: string;
-  readonly token: string | null;
+  readonly readToken: () => string | null;
 }
 
 /**
@@ -35,30 +38,26 @@ export interface ImpClientPortOptions {
 export class ImpClientPort implements ImpPort {
   private readonly url: string;
 
-  private readonly token: string | null;
+  private readonly readToken: () => string | null;
 
-  private readonly client: ImpClient;
+  // The client for the token read last, rebuilt when the token changes.
+  private client: Readonly<{ token: string | null; client: ImpClient }> | null = null;
 
   constructor(options: ImpClientPortOptions) {
     this.url = options.url;
-    this.token = options.token;
-
-    this.client = createImpClient({
-      url: options.url,
-      ...(options.token === null ? {} : { token: options.token }),
-    });
+    this.readToken = options.readToken;
   }
 
   // An impd from before the flags has neither.
   readonly readFeatures = async (): Promise<ImpFeatures> => {
-    const info = await this.tryCall(() => this.client.system.info());
+    const info = await this.tryCall((client) => client.system.info());
 
     return info.features ?? { sessionOffsets: false, leases: false };
   };
 
   readonly readImp = async (name: string): Promise<ImpView | null> => {
     try {
-      const imp = await this.tryCall(() => this.client.imps.get({ name }));
+      const imp = await this.tryCall((client) => client.imps.get({ name }));
 
       return {
         name: imp.name,
@@ -76,8 +75,8 @@ export class ImpClientPort implements ImpPort {
   };
 
   readonly createImp = async (spec: ImpCreateSpec): Promise<ImpView> => {
-    const imp = await this.tryCall(() =>
-      this.client.imps.create({
+    const imp = await this.tryCall((client) =>
+      client.imps.create({
         name: spec.name,
         ...(spec.image === undefined ? {} : { image: spec.image }),
         ...(spec.memoryMib === undefined ? {} : { memoryMib: spec.memoryMib }),
@@ -92,7 +91,9 @@ export class ImpClientPort implements ImpPort {
     label: string,
     ttlSeconds: number,
   ): Promise<ImpLease> => {
-    const lease = await this.tryCall(() => this.client.leases.acquire({ name, label, ttlSeconds }));
+    const lease = await this.tryCall((client) =>
+      client.leases.acquire({ name, label, ttlSeconds }),
+    );
 
     return toLease(lease);
   };
@@ -102,23 +103,23 @@ export class ImpClientPort implements ImpPort {
     label: string,
     ttlSeconds: number,
   ): Promise<ImpLease> => {
-    const lease = await this.tryCall(() => this.client.leases.renew({ name, label, ttlSeconds }));
+    const lease = await this.tryCall((client) => client.leases.renew({ name, label, ttlSeconds }));
 
     return toLease(lease);
   };
 
   readonly releaseLease = async (name: string, label: string): Promise<boolean> => {
-    const result = await this.tryCall(() => this.client.leases.release({ name, label }));
+    const result = await this.tryCall((client) => client.leases.release({ name, label }));
 
     return result.released;
   };
 
   readonly suspendImp = async (name: string): Promise<void> => {
-    await this.tryCall(() => this.client.imps.sleep({ name }));
+    await this.tryCall((client) => client.imps.sleep({ name }));
   };
 
   readonly destroyImp = async (name: string): Promise<void> => {
-    await this.tryCall(() => this.client.imps.destroy({ name }));
+    await this.tryCall((client) => client.imps.destroy({ name }));
   };
 
   // The exec WebSocket answers only after it opens, so nothing reaches the
@@ -127,9 +128,23 @@ export class ImpClientPort implements ImpPort {
     request: ImpSessionRequest,
     handlers: ImpSessionHandlers,
   ): ImpSessionConnection => {
+    const token = this.tryReadToken();
+
+    // A token that cannot be read ends the connection the way impd's
+    // refusal of a token does, without dialing impd.
+    if (token instanceof ImpPortError) {
+      return {
+        outcome: Promise.resolve({ kind: 'unauthorized' }),
+        write: () => {},
+        resize: () => {},
+        sendSignal: () => {},
+        close: () => {},
+      };
+    }
+
     const session = openExecSession({
       baseUrl: this.url,
-      token: this.token,
+      token,
       start:
         request.kind === 'start'
           ? {
@@ -179,8 +194,8 @@ export class ImpClientPort implements ImpPort {
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
   readonly runCommand = async (name: string, command: ImpCommand): Promise<ImpCommandResult> => {
-    const result = await this.tryCall(() =>
-      this.client.run(name, command.argv, {
+    const result = await this.tryCall((client) =>
+      client.run(name, command.argv, {
         ...(command.cwd === undefined ? {} : { cwd: command.cwd }),
         ...(command.stdin === undefined ? {} : { stdin: command.stdin }),
       }),
@@ -194,9 +209,15 @@ export class ImpClientPort implements ImpPort {
     guestPath: string,
     onConnection: (connection: ImpRelayConnection) => void,
   ): ImpReverseForward => {
+    const token = this.tryReadToken();
+
+    if (token instanceof ImpPortError) {
+      return { listening: Promise.reject(token), stop: () => {} };
+    }
+
     const forward = openReverseForward({
       baseUrl: this.url,
-      token: this.token,
+      token,
       name,
       guest: { network: 'unix', path: guestPath },
       connect: (url, headers) => new WebSocket(url, { headers }),
@@ -215,12 +236,35 @@ export class ImpClientPort implements ImpPort {
 
   // Runs one client call, turning impd's refusals and transport failures
   // into port errors.
-  private async tryCall<T>(call: () => Promise<T>): Promise<T> {
+  private async tryCall<T>(call: (client: ImpClient) => Promise<T>): Promise<T> {
     try {
-      return await call();
+      return await call(this.loadClient());
     } catch (error) {
       throw toPortError(error);
     }
+  }
+
+  // The token as it reads now, or the port error its read throws.
+  private tryReadToken(): string | null | ImpPortError {
+    try {
+      return this.readToken();
+    } catch (error) {
+      return toPortError(error);
+    }
+  }
+
+  // The client that calls impd with the token as it reads now.
+  private loadClient(): ImpClient {
+    const token = this.readToken();
+
+    if (this.client === null || this.client.token !== token) {
+      this.client = {
+        token,
+        client: createImpClient({ url: this.url, ...(token === null ? {} : { token }) }),
+      };
+    }
+
+    return this.client.client;
   }
 }
 

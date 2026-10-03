@@ -93,7 +93,8 @@ A session stays bound to its target as the target stood when the session started
 and options. Change a target's provider or options, and each session started on it refuses input,
 resume, and revive with `target_changed`, listing as exited with `target '<target_id>' changed`.
 Restore the target's earlier config to use those sessions again, or kill them. Never put a
-credential value in a target's options; name an environment variable that holds it instead.
+credential value in a target's options; name an environment variable or a file that holds it
+instead.
 
 ### imp targets
 
@@ -106,15 +107,42 @@ covers the lifecycle. Its options:
 | ----------- | ---------- | -------------------------------------------------------------------------- |
 | `url`       | required   | Where impd listens. Without it the target lists as unavailable.            |
 | `tokenEnv`  | unset      | The environment variable of the daemon that holds the impd token.          |
+| `tokenFile` | unset      | The file that holds the impd token.                                        |
 | `image`     | impd's     | The image a new imp boots.                                                 |
 | `memoryMib` | impd's     | The memory a new imp gets.                                                 |
 | `guestDir`  | `/tmp/atc` | The folder inside each imp that atc's files go under.                      |
 | `guestATC`  | unset      | An atc binary already installed in the image, for hooks to report through. |
 
+Set at most one of `tokenEnv` and `tokenFile`. A target that sets both is a config error, and each
+spawn on it fails with `target_config_invalid`. A target with neither calls impd with no token.
+
 A target that sets `tokenEnv` to a variable that is unset or empty when the daemon starts is a
 config error. The daemon prints the variable's name at startup, never a value, lists the error in
 `targetErrors`, and refuses each spawn on the target until the variable is set and the daemon
-restarts. A target without `tokenEnv` calls impd with no token.
+restarts.
+
+`tokenFile` keeps the token out of the daemon's environment, so a systemd unit can pass it as a
+credential:
+
+```ini
+[Service]
+LoadCredential=imp-token:/etc/atc/imp-token
+```
+
+```json
+{
+  "provider": "imp",
+  "url": "http://impd.tail:7070",
+  "tokenFile": "/run/credentials/atc-daemon.service/imp-token"
+}
+```
+
+The daemon reads the file at startup and again before each call and connection to impd, dropping one
+trailing newline. A file that is missing, unreadable, or empty at startup is a config error the
+daemon handles like an unset `tokenEnv` variable, printing the path and never the content. Rewrite
+the file to rotate the token: the next call to impd uses the new one, with no restart. A file that
+turns empty or unreadable while the daemon runs fails each call and connection to impd as
+unauthorized until it holds a token again, and a spawn in that time fails with `host_unavailable`.
 
 A Claude session on an imp target reports through an atc inside the imp. A compiled atc daemon on
 Linux copies itself in; a daemon run from source needs `guestATC`, and refuses the spawn without it.
