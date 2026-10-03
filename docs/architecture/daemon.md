@@ -118,6 +118,16 @@ sub-session on the same target in its parent's imp. It declares every capability
 The daemon reaches impd only through an imp port, the interface in `src/daemon/imp-port.ts`, and the
 tests drive a fixture port that runs real pseudo-terminals.
 
+A sub-session joins its parent's imp only when its resolved target matches the parent's binding, in
+both name and identity. A nested spawn without a target resolves to `defaultTarget` like any other
+spawn, so it joins only when that default is the parent's target. Any other sub-session gets a host
+of its own. Inside the parent's imp, the sub-session is one more imp session:
+
+- Its spawn takes the daemon's lease, which wakes the imp when the parent left it asleep.
+- A kill of the sub-session ends its own harness alone and never sleeps the imp.
+- Sleep and destroy follow the parent: a kill of the parent sleeps every session in the imp, and a
+  confirmed forget of the parent destroys them all.
+
 The daemon holds an imp with a lease labelled `atc-<daemonID>`, renews it at a third of its length
 while a harness runs there, and gives it back when the imp's last harness ends. A kill gives the
 lease back first, then asks impd to sleep the imp without force. When another owner's lease refuses

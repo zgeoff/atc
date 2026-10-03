@@ -679,7 +679,7 @@ export class SessionManager {
     // can throw, and a spawn that throws must leave nothing running. A
     // remote directory is not on the daemon's machine, so it is its own root.
     const repoRoot = provider.remote ? cwd : resolveRepoRoot(cwd);
-    const hostKey = this.pickHostKey(id, parent, target);
+    const hostKey = this.pickHostKey(id, parent, target, execution.identity);
 
     const plan = await this.setupHarness(adapter, provider, id, hostKey, target, {
       prompt,
@@ -812,14 +812,25 @@ export class SessionManager {
     return plan;
   }
 
-  // A sub-session runs on its parent's host when the two share a target
-  // whose hosts have a lifecycle, so one host serves a top-level session and
+  // A sub-session runs on its parent's host when its resolved target, name
+  // and identity both, is the one its parent is bound to and that target's
+  // hosts have a lifecycle, so one host serves a top-level session and
   // every sub-session beside it there; any other session has a host of its
   // own.
-  private pickHostKey(id: SessionID, parent: SessionID | null, target: string): SessionID {
+  private pickHostKey(
+    id: SessionID,
+    parent: SessionID | null,
+    target: string,
+    identity: string,
+  ): SessionID {
     const owner = parent === null ? undefined : this.sessions.find((s) => s.id === parent);
 
-    if (owner === undefined || owner.target !== target || !this.hasHostLifecycle(target)) {
+    if (
+      owner === undefined ||
+      owner.target !== target ||
+      owner.targetIdentity !== identity ||
+      !this.hasHostLifecycle(target)
+    ) {
       return id;
     }
 
