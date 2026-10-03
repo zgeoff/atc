@@ -81,6 +81,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   open(resume = false) {
     this.resume = resume;
+    this.target = null;
 
     const config = loadConfig();
 
@@ -336,8 +337,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // the chosen or default target selected, and the fallback step otherwise.
   private openTargetOrDir(fallback: 'dir' | 'name') {
     if (this.targets.length < 2) {
-      // An adopt names its one target, which may not be the default.
-      this.target = this.resume ? (this.targets[0] ?? null) : null;
+      // The one target is the spawn's, default or not, so the spawn names it
+      // and its provider decides whether a directory runs in place.
+      this.target = this.targets[0] ?? null;
       this.step = fallback;
 
       return;
