@@ -1435,3 +1435,83 @@ test('it refuses a principal the replay of a held spawn key that records no targ
   expect(getRecord(ownerReplayed, 'session')['id']).toBe(getRecord(owned, 'session')['id']);
   expect(daemon.harnesses).toStrictEqual(['box', 'box']);
 });
+
+test('it lists a principal its sessions in the order it gets when no hidden session sits among them', async () => {
+  await using mixed = await setupTest(SPLIT_CONFIG);
+  await using clean = await setupTest(SPLIT_CONFIG);
+
+  const mixedFirst = await mixed.spawnOn('local');
+  const pinnedHidden = await mixed.spawnOn('box');
+  const mixedSecond = await mixed.spawnOn('local');
+  const needyHidden = await mixed.spawnOn('box');
+  const mixedThird = await mixed.spawnOn('local');
+  const cleanFirst = await clean.spawnOn('local');
+  const cleanSecond = await clean.spawnOn('local');
+  const cleanThird = await clean.spawnOn('local');
+
+  await mixed.client.sendRequest('session.update', { session: pinnedHidden, pinned: true });
+  await mixed.sendHookEvent(needyHidden, 'Notification');
+
+  await waitFor(async () => {
+    const owner = await mixed.client.sendRequest('session.list');
+
+    expect(owner).toMatchObject({
+      sessions: expect.toIncludeAllPartialMembers([
+        { id: pinnedHidden, pinned: true },
+        { id: needyHidden, state: 'needs_you' },
+      ]),
+    });
+  });
+
+  const mixedLabels = new Map([
+    [mixedFirst, 'first'],
+    [mixedSecond, 'second'],
+    [mixedThird, 'third'],
+  ]);
+
+  const cleanLabels = new Map([
+    [cleanFirst, 'first'],
+    [cleanSecond, 'second'],
+    [cleanThird, 'third'],
+  ]);
+
+  const mixedListed = await mixed.client.sendRequest('session.list', {}, 'narrow');
+  const mixedFleet = await mixed.client.sendRequest('fleet.list', {}, 'narrow');
+  const cleanListed = await clean.client.sendRequest('session.list', {}, 'narrow');
+  const cleanFleet = await clean.client.sendRequest('fleet.list', {}, 'narrow');
+
+  const mixedSessions: unknown = mixedListed['sessions'];
+  const mixedEntries: unknown = mixedFleet['fleet'];
+  const cleanSessions: unknown = cleanListed['sessions'];
+  const cleanEntries: unknown = cleanFleet['fleet'];
+
+  if (
+    !Array.isArray(mixedSessions) ||
+    !Array.isArray(mixedEntries) ||
+    !Array.isArray(cleanSessions) ||
+    !Array.isArray(cleanEntries)
+  ) {
+    throw new TypeError('a list answered something other than an array');
+  }
+
+  const mixedOrder = {
+    sessions: mixedSessions.filter((x) => isRecord(x)).map((s) => mixedLabels.get(String(s['id']))),
+    fleet: mixedEntries
+      .filter((x) => isRecord(x))
+      .map((e) => mixedLabels.get(String(e['sessionID']))),
+  };
+
+  const cleanOrder = {
+    sessions: cleanSessions.filter((x) => isRecord(x)).map((s) => cleanLabels.get(String(s['id']))),
+    fleet: cleanEntries
+      .filter((x) => isRecord(x))
+      .map((e) => cleanLabels.get(String(e['sessionID']))),
+  };
+
+  expect(cleanOrder).toStrictEqual({
+    sessions: expect.toIncludeSameMembers(['first', 'second', 'third']),
+    fleet: expect.toIncludeSameMembers(['first', 'second', 'third']),
+  });
+
+  expect(mixedOrder).toStrictEqual(cleanOrder);
+});
