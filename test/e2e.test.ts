@@ -2009,7 +2009,7 @@ test('it returns a spawn whose clone fails to the repository step', async () => 
   expect(ctx.read()).toInclude('spawn: repository');
 }, 30_000);
 
-test('it returns a spawn whose commit left the upstream to the ref step', async () => {
+test('it returns a spawn whose commit left the upstream to the ref step with the refs re-read', async () => {
   await using ctx = setupTest();
 
   writeFakeGH(ctx.home);
@@ -2054,10 +2054,38 @@ test('it returns a spawn whose commit left the upstream to the ref step', async 
   ctx.reset();
   pty.write('\r');
 
-  await ctx.waitFor('ref_not_found', 10_000);
+  await ctx.waitFor('refs re-read', 10_000);
 
+  const rewritten = await $`git rev-parse HEAD`
+    .env(fixture.env)
+    .cwd(fixture.work)
+    .text()
+    .then((text) => text.trim());
+
+  expect(ctx.read()).toInclude('ref_not_found');
   expect(ctx.read()).toInclude('spawn: ref');
-}, 30_000);
+  expect(ctx.read()).toInclude(`main  default · ${rewritten.slice(0, 7)}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`main → ${rewritten.slice(0, 12)}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
+}, 40_000);
 
 test('it shows a repository the daemon cannot read on the repository step', async () => {
   await using ctx = setupTest();
@@ -2208,4 +2236,363 @@ test('it sends a local directory to a target off the daemon machine as a path wo
   await ctx.waitFor('workspace_dirty', 10_000);
 
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
+}, 20_000);
+
+test('it opens github mode on a target that takes a workspace when the default cannot, and esc at the target step returns to the directory', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: { local: { provider: 'local-pty' }, far: { provider: 'nowhere' } },
+      defaultTarget: 'far',
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: target');
+
+  expect(ctx.read()).toInclude('\u001B[7mlocal  local-pty');
+  expect(ctx.read()).toInclude('\u001B[90mfar  nowhere · default · unavailable');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: repository');
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('target  local (local-pty)');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
+}, 30_000);
+
+test("it builds each target's own default destination when the target changes", async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const name = `upstream-main-${fixture.sha.slice(0, 7)}`;
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: { local: { provider: 'local-pty' }, alt: { provider: 'local-pty', tag: 'alt' } },
+      defaultTarget: 'local',
+      workspaces: { targets: { alt: join(ctx.home, 'alt-ws') } },
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: repository');
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`> ${join(ctx.home, '.local', 'share', 'atc', 'workspaces', name)}`);
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor(`> ${fixture.upstream}`);
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7malt  local-pty');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`> ${fixture.upstream}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`> ${join(ctx.home, 'alt-ws', name)}`);
+
+  expect(ctx.read()).toInclude('target  alt (local-pty)');
+}, 30_000);
+
+test('it refuses a remote target workspace root and destination that rely on ~', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  // An imp target with a url and no token takes a workspace; nothing here
+  // reaches impd, since no spawn is sent.
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: {
+        local: { provider: 'local-pty' },
+        box: { provider: 'imp', url: 'http://127.0.0.1:9' },
+      },
+      defaultTarget: 'local',
+      workspaces: { targets: { box: '~/ws' } },
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7mbox  imp');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: repository');
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('set workspaces.targets.box in config.json to an absolute path on that target');
+
+  expect(ctx.read()).toInclude('dest    box:');
+
+  ctx.reset();
+  pty.write('~/ws/app\r');
+
+  await ctx.waitFor('~ is not expanded there');
+
+  expect(ctx.read()).not.toInclude('spawn: name');
+}, 30_000);
+
+test('it offers the other URL form after a failed probe and checks that form on request', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const mirror = join(ctx.home, 'mirror', 'acme', 'app.git');
+
+  mkdirSync(join(ctx.home, 'mirror', 'acme'), { recursive: true });
+
+  await $`git clone --quiet --bare --template= ${fixture.upstream} ${mirror}`
+    .env(fixture.env)
+    .quiet();
+
+  // The daemon reads the home's git config: the ssh form of acme/app reads
+  // the mirror, and the https form reads a path that does not exist, so no
+  // request reaches GitHub.
+  writeFileSync(
+    join(ctx.home, '.gitconfig'),
+    `[url "file://${join(ctx.home, 'mirror')}/"]\n\tinsteadOf = git@github.com:\n[url "file://${join(ctx.home, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  ctx.reset();
+  pty.write('acme/app\r');
+
+  await ctx.waitFor('try git@github.com:acme/app.git instead');
+
+  expect(ctx.read()).toInclude('clone_failed');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('source  git@github.com:acme/app.git');
+}, 30_000);
+
+test('it stops a repository listing on esc and keeps taking typed input', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home, '#!/bin/sh\nexec sleep 30\n');
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  await ctx.waitFor('listing repositories…');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('listing stopped');
+
+  expect(ctx.read()).toInclude('spawn: repository');
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+}, 20_000);
+
+test('it cancels a probe in flight on esc and drops its answer', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const server = Bun.serve({
+    port: 0,
+    hostname: '127.0.0.1',
+    fetch: () => new Promise<Response>(() => {}),
+  });
+
+  onTestFinished(async () => {
+    await server.stop(true);
+  });
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  ctx.reset();
+  pty.write(`http://127.0.0.1:${server.port}/silent.git\r`);
+
+  await ctx.waitFor('checking access');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('cancelled');
+
+  expect(ctx.read()).toInclude('spawn: repository');
+
+  pty.write('\u0015');
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
 }, 20_000);

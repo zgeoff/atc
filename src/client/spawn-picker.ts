@@ -1014,7 +1014,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     if (probed.ok) {
       this.repo = buildProbedRepo(repo.label, repo.url, probed.answer);
-      this.refusal = `${reason} · refs re-read · esc back`;
+      this.refusal = `refs re-read · ${reason} · esc back`;
     } else {
       this.refusal = `${reason} · ${formatError(probed.error)} · esc back`;
     }
