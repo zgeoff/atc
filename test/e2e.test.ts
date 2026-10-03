@@ -16,6 +16,7 @@ import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
 import { DaemonClient } from '../src/client/daemon-client';
 import { isRecord } from '../src/shared/report';
+import { startGitHTTPServer } from './start-git-http-server';
 
 const repo = join(import.meta.dir, '..');
 const CTRL_SPACE = String.fromCodePoint(0);
@@ -358,6 +359,14 @@ function writeFakeGH(home: string, script = "#!/bin/sh\necho 'gh auth login' >&2
   mkdirSync(join(home, 'bin'), { recursive: true });
   writeFileSync(join(home, 'bin', 'gh'), script, { mode: 0o755 });
 }
+
+// A fake gh whose repository listing answers 1.5 seconds after it starts.
+const SLOW_GH = `#!/bin/sh
+case "$1" in
+  config) echo https ;;
+  *) sleep 1.5; echo '[{"nameWithOwner":"me/dots","description":"dotfiles","isPrivate":false,"url":"https://github.com/me/dots","sshUrl":"git@github.com:me/dots.git"}]' ;;
+esac
+`;
 
 // Opens the GitHub repository step of a Claude spawn.
 async function openRepoStep(ctx: TestContext, pty: IPty) {
@@ -2530,7 +2539,7 @@ test('it offers the other URL form after a failed probe and checks that form on 
 test('it stops a repository listing on esc and keeps taking typed input', async () => {
   await using ctx = setupTest();
 
-  writeFakeGH(ctx.home, '#!/bin/sh\nexec sleep 30\n');
+  writeFakeGH(ctx.home, SLOW_GH);
 
   const fixture = await createFixtureUpstream(ctx.home);
 
@@ -2547,7 +2556,12 @@ test('it stops a repository listing on esc and keeps taking typed input', async 
 
   await ctx.waitFor('listing stopped');
 
+  // The fake gh answers 1.5 seconds after it starts; nothing signals that
+  // its dropped answer reached the client, so the test outwaits it.
+  await Bun.sleep(2500);
+
   expect(ctx.read()).toInclude('spawn: repository');
+  expect(ctx.read()).not.toInclude('me/dots');
 
   ctx.reset();
   pty.write(`${fixture.upstream}\r`);
@@ -2565,7 +2579,11 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
   const server = Bun.serve({
     port: 0,
     hostname: '127.0.0.1',
-    fetch: () => new Promise<Response>(() => {}),
+    async fetch() {
+      await Bun.sleep(1500);
+
+      return new Response('not found', { status: 404 });
+    },
   });
 
   onTestFinished(async () => {
@@ -2588,7 +2606,12 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   await ctx.waitFor('cancelled');
 
+  // The server answers 1.5 seconds after the request; nothing signals that
+  // the dropped answer reached the client, so the test outwaits it.
+  await Bun.sleep(2500);
+
   expect(ctx.read()).toInclude('spawn: repository');
+  expect(ctx.read()).not.toInclude('clone_failed');
 
   pty.write('\u0015');
   ctx.reset();
@@ -2596,6 +2619,188 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   await ctx.waitFor('spawn: ref');
 }, 20_000);
+
+test('it keeps the ref the user moved to when a repository listing answers late', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home, SLOW_GH.replace('sleep 1.5', 'sleep 2'));
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  await $`git push --quiet origin main:feat`.env(fixture.env).cwd(fixture.work).quiet();
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+  await ctx.waitFor('feat');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7mfeat');
+
+  // The fake gh answers 2 seconds after the step opened; nothing signals
+  // that the late listing reached the client, so the test outwaits it.
+  await Bun.sleep(2500);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  expect(ctx.read()).toInclude(`feat → ${fixture.sha.slice(0, 12)}`);
+}, 20_000);
+
+test('it leaves the picker when esc stops waiting on a spawn, and the spawn lists one session', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  // Every authenticated request waits 1.5 seconds, so the clone behind the
+  // spawn takes several. The home's git config supplies the basic auth the
+  // server asks for.
+  const server = startGitHTTPServer(ctx.home, fixture.env, { delayMs: 1500 });
+
+  onTestFinished(async () => {
+    await server.stop();
+  });
+
+  writeFileSync(
+    join(ctx.home, '.gitconfig'),
+    '[credential]\n\thelper = "!f() { echo username=atc; echo password=fixture; }; f"\n',
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  ctx.reset();
+  pty.write(`${server.url}upstream.git\r`);
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`, 8000);
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('slowclone\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('esc stops waiting; the session still lists');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('atc — control tower');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('slowclone', 15_000);
+
+  // The spawn answers once its session starts; nothing signals that the
+  // dropped answer reached the client, so the test outwaits it.
+  await Bun.sleep(1000);
+
+  expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
+  expect(ctx.read()).not.toInclude('spawn: initial prompt');
+
+  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  await daemon.sendHello('atc/test');
+
+  const listed = await daemon.sendRequest('session.list');
+
+  expect(listed['sessions']).toBeArrayOfSize(1);
+}, 40_000);
+
+test('it drops a typed destination when the repository changes', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const other = join(ctx.home, 'other.git');
+
+  await $`git clone --quiet --bare --template= ${fixture.upstream} ${other}`
+    .env(fixture.env)
+    .quiet();
+
+  const custom = join(ctx.home, 'custom-dest');
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  pty.write('\u0015');
+  pty.write(`${custom}\r`);
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor(`> ${custom}`);
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor(`> ${fixture.upstream}`);
+
+  pty.write('\u0015');
+  ctx.reset();
+  pty.write(`${other}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  expect(ctx.read()).toInclude(`other-main-${fixture.sha.slice(0, 7)}`);
+  expect(ctx.read()).not.toInclude(custom);
+}, 30_000);
 
 test('it offers an adopt only the targets that run on this host', async () => {
   await using ctx = setupTest();

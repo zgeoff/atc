@@ -167,6 +167,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private destinationEdited = false;
 
+  // The repository the destination was built or typed for.
+  private destinationRepoURL: string | null = null;
+
   private name = '';
 
   private resume = false;
@@ -205,6 +208,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.alternateURL = null;
     this.destination = '';
     this.destinationEdited = false;
+    this.destinationRepoURL = null;
 
     // A last-used agent that is no longer installed is not in the menu, so
     // the selection falls to the first one that is.
@@ -477,16 +481,19 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   // Stops waiting on the request in flight. Its answer, when it comes, is
   // dropped. A spawn goes on on the daemon, which lists the session once
-  // it starts.
+  // it starts, so the flow leaves rather than offer to spawn it again.
   private applyPendingCancel() {
     const cancelled = this.pending;
 
     this.pending = null;
 
-    this.refusal =
-      cancelled?.kind === 'spawn'
-        ? 'stopped waiting; the daemon finishes the spawn and lists the session · esc back'
-        : 'cancelled · esc back';
+    if (cancelled?.kind === 'spawn') {
+      this.deps.toBase();
+
+      return;
+    }
+
+    this.refusal = 'cancelled · esc back';
 
     process.stdout.write(ansi.clear);
     this.render();
@@ -866,9 +873,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
           : null;
     }
 
-    this.selected = 0;
-
+    // The list answers behind the flow, so only the repository step's own
+    // selection starts over.
     if (this.step === 'repo') {
+      this.selected = 0;
+
       process.stdout.write(ansi.clear);
       this.render();
     }
@@ -929,8 +938,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.requestSeq += 1;
 
     const seq = this.requestSeq;
+    const esc = kind === 'spawn' ? 'esc stops waiting; the session still lists' : 'esc cancels';
 
-    this.pending = { label: `${label} · esc cancels`, seq, kind };
+    this.pending = { label: `${label} · ${esc}`, seq, kind };
 
     this.render();
 
@@ -979,7 +989,15 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    this.repo = buildProbedRepo(label, url, probed.answer);
+    const repo = buildProbedRepo(label, url, probed.answer);
+
+    // A destination typed for one repository is not meant for another.
+    if (repo.url !== this.destinationRepoURL) {
+      this.destinationEdited = false;
+      this.destination = '';
+    }
+
+    this.repo = repo;
     this.ref = null;
 
     this.openRefStep();
@@ -1125,6 +1143,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       });
 
       if (root.ok) {
+        this.destinationRepoURL = this.repo.url;
+
         this.destination = buildWorkspaceDestination({
           root: root.root,
           url: this.repo.url,
@@ -1164,6 +1184,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.destinationEdited = true;
     }
 
+    this.destinationRepoURL = this.repo?.url ?? null;
     this.dir = this.buildDestination();
 
     return true;
