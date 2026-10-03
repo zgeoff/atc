@@ -1,14 +1,17 @@
 import { createImpClient, openExecSession, openReverseForward } from '@zgeoff/imp-client';
 import type { ExecOutcome, ImpClient } from '@zgeoff/imp-client';
+import { isRecord } from '../shared/report';
 import type {
   ImpCommand,
   ImpCommandResult,
   ImpCreateSpec,
   ImpFeatures,
+  ImpIdentity,
   ImpLease,
   ImpPort,
   ImpRelayConnection,
   ImpReverseForward,
+  ImpSecret,
   ImpSessionConnection,
   ImpSessionHandlers,
   ImpSessionOutcome,
@@ -48,11 +51,79 @@ export class ImpClientPort implements ImpPort {
     this.readToken = options.readToken;
   }
 
-  // An impd from before the flags has neither.
+  // A flag counts only as a literal true: an impd from before a flag has
+  // it false, and so does one that sends anything else in its place.
   readonly readFeatures = async (): Promise<ImpFeatures> => {
     const info = await this.tryCall((client) => client.system.info());
 
-    return info.features ?? { sessionOffsets: false, leases: false };
+    const features: Readonly<Record<string, unknown>> | undefined = info.features;
+
+    return {
+      sessionOffsets: features?.['sessionOffsets'] === true,
+      leases: features?.['leases'] === true,
+      grantableTokens: features?.['grantableTokens'] === true,
+      secretRebind: features?.['secretRebind'] === true,
+    };
+  };
+
+  // An impd from before grantable lists sends none, which grants nothing.
+  readonly readIdentity = async (): Promise<ImpIdentity> => {
+    const identity = await this.tryCall((client) => client.tokens.whoami());
+
+    return {
+      kind: identity.kind,
+      name: identity.name,
+      scope: identity.scope,
+      imps: identity.imps === null ? null : [...identity.imps],
+      grantable: [...(identity.grantable ?? [])],
+    };
+  };
+
+  readonly readSecrets = async (): Promise<readonly ImpSecret[]> => {
+    const secrets = await this.tryCall((client) => client.secrets.list());
+
+    return secrets.map((secret) => ({
+      name: secret.name,
+      kind: secret.kind,
+      rules: secret.rules.map((rule) => ({
+        host: rule.host,
+        header: rule.header,
+        scheme: rule.scheme,
+        ...(rule.user === undefined ? {} : { user: rule.user }),
+      })),
+      imps: [...secret.imps],
+    }));
+  };
+
+  readonly readGrants = async (name: string): Promise<readonly string[]> => {
+    const grants = await this.tryCall((client) => client.grants.list({ name }));
+
+    return [...grants];
+  };
+
+  readonly createGrant = async (name: string, secret: string): Promise<void> => {
+    await this.tryCall((client) => client.grants.add({ name, secret }));
+  };
+
+  // A grant impd no longer holds is no grant to revoke; a missing imp or
+  // secret still rejects.
+  readonly removeGrant = async (name: string, secret: string): Promise<boolean> => {
+    try {
+      await this.tryCall((client) => client.grants.delete({ name, secret }));
+
+      return true;
+    } catch (error) {
+      if (
+        error instanceof ImpPortError &&
+        error.code === 'NOT_FOUND' &&
+        isRecord(error.data) &&
+        error.data['kind'] === 'grant'
+      ) {
+        return false;
+      }
+
+      throw error;
+    }
   };
 
   readonly readImp = async (name: string): Promise<ImpView | null> => {
@@ -60,6 +131,7 @@ export class ImpClientPort implements ImpPort {
       const imp = await this.tryCall((client) => client.imps.get({ name }));
 
       return {
+        id: imp.id,
         name: imp.name,
         state: imp.state,
         leases: (imp.leases?.leases ?? []).map((lease) => toLease(lease)),
@@ -83,7 +155,7 @@ export class ImpClientPort implements ImpPort {
       }),
     );
 
-    return { name: imp.name, state: imp.state, leases: [], otherLeaseCount: 0 };
+    return { id: imp.id, name: imp.name, state: imp.state, leases: [], otherLeaseCount: 0 };
   };
 
   readonly acquireLease = async (

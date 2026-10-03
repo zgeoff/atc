@@ -9,26 +9,44 @@ import { ImpClientPort } from './imp-client-port';
 import { readImpToken } from './read-imp-token';
 
 // An impd stand-in on a real HTTP port that records the authorization
-// header of each call and WebSocket upgrade, answers every call as system
-// info, and answers a tunnel listen as listening, keeping that control
-// socket so a test can announce a guest connection on it. Plus a temp
-// directory for the token file.
+// header of each call and WebSocket upgrade, and the path and input of
+// each RPC call. It answers a call with the answer a test set for its
+// path, or else as system info, and answers a tunnel listen as listening,
+// keeping that control socket so a test can announce a guest connection on
+// it. Plus a temp directory for the token file.
 function setupTest() {
   const tmp = setupTempDir('atc-imp-client-port-');
   const authorizations: (string | null)[] = [];
+  const calls: { path: string; input: unknown }[] = [];
+
+  const answers = new Map<string, { status: number; json: unknown }>();
+
   const controls: ServerWebSocket[] = [];
 
   const server = Bun.serve({
     port: 0,
     hostname: '127.0.0.1',
-    fetch: (request, bunServer) => {
+    fetch: async (request, bunServer) => {
       authorizations.push(request.headers.get('authorization'));
 
-      const isUpgraded = new URL(request.url).pathname === '/tunnel' && bunServer.upgrade(request);
+      const path = new URL(request.url).pathname;
+
+      const isUpgraded = path === '/tunnel' && bunServer.upgrade(request);
+      const text = isUpgraded ? '' : await request.text();
+      const body: unknown = text === '' ? null : JSON.parse(text);
+
+      if (!isUpgraded) {
+        calls.push({ path, input: isRecord(body) ? body['json'] : undefined });
+      }
+
+      const answer = answers.get(path) ?? {
+        status: 200,
+        json: { features: { sessionOffsets: true, leases: true } },
+      };
 
       return isUpgraded
         ? undefined
-        : Response.json({ json: { features: { sessionOffsets: true, leases: true } } });
+        : Response.json({ json: answer.json }, { status: answer.status });
     },
     websocket: {
       message: (socket, message) => {
@@ -49,6 +67,8 @@ function setupTest() {
     dir: tmp.dir,
     url: `http://127.0.0.1:${String(server.port)}`,
     authorizations,
+    calls,
+    answers,
     controls,
     async [Symbol.asyncDispose]() {
       await server.stop(true);
@@ -69,7 +89,13 @@ test('it calls impd with the token its token file holds', async () => {
 
   const features = await port.readFeatures();
 
-  expect(features).toStrictEqual({ sessionOffsets: true, leases: true });
+  expect(features).toStrictEqual({
+    sessionOffsets: true,
+    leases: true,
+    grantableTokens: false,
+    secretRebind: false,
+  });
+
   expect(impd.authorizations).toStrictEqual(['Bearer file-token']);
 });
 
@@ -176,4 +202,275 @@ test('it opens a guest connection relay with the token its token file holds when
     },
     { timeoutMs: 2000 },
   );
+});
+
+test.each([
+  ['absent', false, { sessionOffsets: true, leases: true }],
+  [
+    'false',
+    false,
+    { sessionOffsets: true, leases: true, grantableTokens: false, secretRebind: false },
+  ],
+  [
+    'strings',
+    false,
+    { sessionOffsets: true, leases: true, grantableTokens: 'true', secretRebind: 'true' },
+  ],
+  ['true', true, { sessionOffsets: true, leases: true, grantableTokens: true, secretRebind: true }],
+])('it reads grant flags sent as %s as %p', async (_kind, flag, sent) => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/system/info', { status: 200, json: { features: sent } });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const features = await port.readFeatures();
+
+  expect(features).toStrictEqual({
+    sessionOffsets: true,
+    leases: true,
+    grantableTokens: flag,
+    secretRebind: flag,
+  });
+});
+
+test('it reads the caller identity impd answers tokens.whoami with', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/tokens/whoami', {
+    status: 200,
+    json: { kind: 'token', name: 'atc', scope: 'manage', imps: ['atc-*'], grantable: ['glm'] },
+  });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const identity = await port.readIdentity();
+
+  expect(identity).toStrictEqual({
+    kind: 'token',
+    name: 'atc',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  expect(impd.calls.map((call) => call.path)).toStrictEqual(['/rpc/tokens/whoami']);
+});
+
+test('it reads an identity without a grantable list as one that grants nothing', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/tokens/whoami', {
+    status: 200,
+    json: { kind: 'token', name: 'admin', scope: 'manage', imps: null },
+  });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const identity = await port.readIdentity();
+
+  expect(identity).toStrictEqual({
+    kind: 'token',
+    name: 'admin',
+    scope: 'manage',
+    imps: null,
+    grantable: [],
+  });
+});
+
+test('it lists each secret with its kind, rules, and imps', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/secrets/list', {
+    status: 200,
+    json: [
+      {
+        name: 'glm',
+        kind: 'custom',
+        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        imps: ['atc-s1'],
+        createdAt: '2026-10-01T00:00:00.000Z',
+      },
+      {
+        name: 'reg',
+        kind: 'custom',
+        rules: [{ host: 'reg.example.com', header: 'authorization', scheme: 'basic', user: 'bot' }],
+        imps: [],
+        createdAt: '2026-10-01T00:00:00.000Z',
+      },
+    ],
+  });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const secrets = await port.readSecrets();
+
+  expect(secrets).toStrictEqual([
+    {
+      name: 'glm',
+      kind: 'custom',
+      rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+      imps: ['atc-s1'],
+    },
+    {
+      name: 'reg',
+      kind: 'custom',
+      rules: [{ host: 'reg.example.com', header: 'authorization', scheme: 'basic', user: 'bot' }],
+      imps: [],
+    },
+  ]);
+});
+
+test('it lists the secrets granted to the named imp', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/grants/list', { status: 200, json: ['glm'] });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const grants = await port.readGrants('atc-s1');
+
+  expect(grants).toStrictEqual(['glm']);
+  expect(impd.calls).toStrictEqual([{ path: '/rpc/grants/list', input: { name: 'atc-s1' } }]);
+});
+
+test('it grants a secret to the named imp', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/grants/add', { status: 200, json: {} });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  await port.createGrant('atc-s1', 'glm');
+
+  expect(impd.calls).toStrictEqual([
+    { path: '/rpc/grants/add', input: { name: 'atc-s1', secret: 'glm' } },
+  ]);
+});
+
+test('it reports a revoke of a grant impd held as done', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/grants/delete', { status: 200, json: {} });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const removed = await port.removeGrant('atc-s1', 'glm');
+
+  expect(removed).toBe(true);
+
+  expect(impd.calls).toStrictEqual([
+    { path: '/rpc/grants/delete', input: { name: 'atc-s1', secret: 'glm' } },
+  ]);
+});
+
+test('it reports a revoke of a grant impd no longer holds as nothing removed', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/grants/delete', {
+    status: 404,
+    json: {
+      defined: true,
+      code: 'NOT_FOUND',
+      status: 404,
+      message: 'Not found',
+      data: { kind: 'grant', name: 'atc-s1/glm' },
+    },
+  });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const removed = await port.removeGrant('atc-s1', 'glm');
+
+  expect(removed).toBe(false);
+});
+
+test('it rejects a revoke on an imp impd does not hold', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/grants/delete', {
+    status: 404,
+    json: {
+      defined: true,
+      code: 'NOT_FOUND',
+      status: 404,
+      message: 'Not found',
+      data: { kind: 'imp', name: 'atc-s1' },
+    },
+  });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const refusal: unknown = await port.removeGrant('atc-s1', 'glm').catch((error: unknown) => error);
+
+  expect(refusal).toMatchObject({
+    code: 'NOT_FOUND',
+    data: { kind: 'imp', name: 'atc-s1' },
+  });
+});
+
+test('it rejects a revoke impd forbids with its reason', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/grants/delete', {
+    status: 403,
+    json: {
+      defined: true,
+      code: 'FORBIDDEN',
+      status: 403,
+      message: 'Forbidden',
+      data: { reason: 'not_grantable' },
+    },
+  });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const refusal: unknown = await port.removeGrant('atc-s1', 'glm').catch((error: unknown) => error);
+
+  expect(refusal).toMatchObject({
+    code: 'FORBIDDEN',
+    data: { reason: 'not_grantable' },
+  });
+});
+
+test('it reads the id of the imp under a name', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/imps/get', {
+    status: 200,
+    json: { id: '0199a1b2-0000-7000-8000-000000000001', name: 'atc-s1', state: 'sleeping' },
+  });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const imp = await port.readImp('atc-s1');
+
+  expect(imp).toStrictEqual({
+    id: '0199a1b2-0000-7000-8000-000000000001',
+    name: 'atc-s1',
+    state: 'sleeping',
+    leases: [],
+    otherLeaseCount: 0,
+  });
+});
+
+test('it reads the id of the imp it creates', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/imps/create', {
+    status: 200,
+    json: { id: '0199a1b2-0000-7000-8000-000000000002', name: 'atc-s2', state: 'creating' },
+  });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const imp = await port.createImp({ name: 'atc-s2' });
+
+  expect(imp).toStrictEqual({
+    id: '0199a1b2-0000-7000-8000-000000000002',
+    name: 'atc-s2',
+    state: 'creating',
+    leases: [],
+    otherLeaseCount: 0,
+  });
 });

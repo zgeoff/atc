@@ -756,3 +756,250 @@ test('it runs a command in a running imp with the input it is given', async () =
     stderr: new Uint8Array(0),
   });
 });
+
+test('it gives each imp made under a name a new id', async () => {
+  using fixture = setupTest();
+
+  const first = await fixture.port.createImp({ name: 'imp-a' });
+
+  await fixture.port.destroyImp('imp-a');
+
+  const second = await fixture.port.createImp({ name: 'imp-a' });
+
+  expect(second.id).not.toBe(first.id);
+
+  const view = await fixture.port.readImp('imp-a');
+
+  expect(view).toMatchObject({ id: second.id });
+});
+
+test('it reports the features of an old daemon without the grant flags', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setOldDaemonFeatures();
+
+  const features = await fixture.port.readFeatures();
+
+  expect(features).toStrictEqual({
+    sessionOffsets: true,
+    leases: true,
+    grantableTokens: false,
+    secretRebind: false,
+  });
+});
+
+test('it answers tokens.whoami with the identity a test set', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  const identity = await fixture.port.readIdentity();
+
+  expect(identity).toStrictEqual({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  expect(fixture.port.calls).toStrictEqual(['tokens.whoami']);
+});
+
+test('it grants a secret to an imp within the patterns and lists it on the imp and the secret', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+  await fixture.port.createGrant('atc-s1', 'glm');
+  await fixture.port.createGrant('atc-s1', 'glm');
+
+  const grants = await fixture.port.readGrants('atc-s1');
+
+  expect(grants).toStrictEqual(['glm']);
+
+  const secrets = await fixture.port.readSecrets();
+
+  expect(secrets).toStrictEqual([
+    {
+      name: 'glm',
+      kind: 'custom',
+      rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+      imps: ['atc-s1'],
+    },
+  ]);
+
+  expect(fixture.port.calls).toStrictEqual([
+    'imps.create atc-s1',
+    'grants.add atc-s1 glm',
+    'grants.add atc-s1 glm',
+    'grants.list atc-s1',
+    'secrets.list',
+  ]);
+});
+
+test('it refuses a grant of a secret the token may not grant', async () => {
+  using fixture = setupTest();
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+
+  expect(fixture.port.createGrant('atc-s1', 'glm')).rejects.toMatchObject({
+    code: 'FORBIDDEN',
+    data: { reason: 'not_grantable' },
+  });
+});
+
+test('it refuses a grant to an imp outside the token patterns', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'imp-a' });
+
+  expect(fixture.port.createGrant('imp-a', 'glm')).rejects.toMatchObject({
+    code: 'FORBIDDEN',
+    data: { reason: 'imp_out_of_scope' },
+  });
+});
+
+test('it refuses a second secret for a host another grant covers', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'glm-b'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  fixture.port.createSecret('glm-b', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+  await fixture.port.createGrant('atc-s1', 'glm');
+
+  expect(fixture.port.createGrant('atc-s1', 'glm-b')).rejects.toMatchObject({
+    code: 'CONFLICT',
+    data: { kind: 'grant' },
+  });
+});
+
+test('it revokes a held grant and reports a second revoke as nothing removed', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+  await fixture.port.createGrant('atc-s1', 'glm');
+
+  const first = await fixture.port.removeGrant('atc-s1', 'glm');
+  const second = await fixture.port.removeGrant('atc-s1', 'glm');
+
+  expect([first, second]).toStrictEqual([true, false]);
+
+  const grants = await fixture.port.readGrants('atc-s1');
+
+  expect(grants).toStrictEqual([]);
+});
+
+test('it drops every grant of a rebound secret and stops the token granting it', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+  await fixture.port.createGrant('atc-s1', 'glm');
+
+  fixture.port.updateSecret('glm', [{ host: 'api.z.ai', header: 'x-api-key', scheme: 'raw' }]);
+
+  const grants = await fixture.port.readGrants('atc-s1');
+
+  expect(grants).toStrictEqual([]);
+
+  expect(fixture.port.createGrant('atc-s1', 'glm')).rejects.toMatchObject({
+    code: 'FORBIDDEN',
+    data: { reason: 'not_grantable' },
+  });
+});
+
+test('it drops the grants of a destroyed imp', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+  await fixture.port.createGrant('atc-s1', 'glm');
+  await fixture.port.destroyImp('atc-s1');
+  await fixture.port.createImp({ name: 'atc-s1' });
+
+  const grants = await fixture.port.readGrants('atc-s1');
+
+  expect(grants).toStrictEqual([]);
+});

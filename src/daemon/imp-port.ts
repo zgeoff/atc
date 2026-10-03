@@ -9,6 +9,23 @@ export interface ImpPort {
   // impd's capability flags; an impd without them has neither.
   readonly readFeatures: () => Promise<ImpFeatures>;
 
+  // The caller's own identity: its scope, the imps it may reach, and the
+  // secrets it may grant.
+  readonly readIdentity: () => Promise<ImpIdentity>;
+
+  // Every secret impd holds, with its rules and never its value.
+  readonly readSecrets: () => Promise<readonly ImpSecret[]>;
+
+  // The names of the secrets granted to an imp.
+  readonly readGrants: (name: string) => Promise<readonly string[]>;
+
+  // Grants a secret to an imp; granting one it already holds changes
+  // nothing, and nothing in the result distinguishes the two.
+  readonly createGrant: (name: string, secret: string) => Promise<void>;
+
+  // Revokes a secret from an imp, and reports whether impd held the grant.
+  readonly removeGrant: (name: string, secret: string) => Promise<boolean>;
+
   // The imp under a name, or null when impd holds none.
   readonly readImp: (name: string) => Promise<ImpView | null>;
   readonly createImp: (spec: ImpCreateSpec) => Promise<ImpView>;
@@ -51,11 +68,54 @@ export interface ImpPort {
 export interface ImpFeatures {
   readonly sessionOffsets: boolean;
   readonly leases: boolean;
+
+  // Tokens limited to some imps may grant a list of secrets to them.
+  readonly grantableTokens: boolean;
+
+  // A rebound or recreated secret drops its grants and leaves a token's
+  // list of grantable secrets behind.
+  readonly secretRebind: boolean;
+}
+
+type ImpScope = 'read' | 'exec' | 'manage';
+
+export interface ImpIdentity {
+  readonly kind: 'token' | 'ssh' | 'tailnet' | 'dashboard';
+  readonly name: string;
+  readonly scope: ImpScope;
+
+  // Imp name patterns with `*` for any run of characters; null reaches
+  // every imp on the host.
+  readonly imps: readonly string[] | null;
+
+  // The secrets the caller may grant to the imps it reaches and revoke
+  // from them.
+  readonly grantable: readonly string[];
+}
+
+export interface ImpSecret {
+  readonly name: string;
+  readonly kind: 'anthropic' | 'custom' | 'github' | 'npm';
+  readonly rules: readonly ImpSecretRule[];
+
+  // The imps holding a grant of the secret.
+  readonly imps: readonly string[];
+}
+
+// How impd adds a secret to requests for one host.
+export interface ImpSecretRule {
+  readonly host: string;
+  readonly header: string;
+  readonly scheme: 'basic' | 'bearer' | 'raw';
+  readonly user?: string;
 }
 
 export type ImpState = 'creating' | 'running' | 'sleeping' | 'stopped' | 'error';
 
 export interface ImpView {
+  // impd's id for this imp, which a new imp made under the same name never
+  // shares.
+  readonly id: string;
   readonly name: string;
   readonly state: ImpState;
 
