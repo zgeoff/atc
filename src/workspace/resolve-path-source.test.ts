@@ -6,6 +6,9 @@ import { $ } from 'bun';
 import { updateEnv } from '../../test/update-env';
 import { resolvePathSource } from './resolve-path-source';
 
+// The transports a fixture upstream on the local filesystem is reached over.
+const FIXTURE_TRANSPORTS = ['https', 'ssh', 'file'];
+
 async function setupTest() {
   // A git hook exports GIT_DIR and friends, which would point these
   // commands at the repository running the hook instead of the temp tree.
@@ -50,7 +53,7 @@ test('it resolves a clean pushed checkout to its origin URL and HEAD', async () 
   await using project = await setupTest();
 
   const head = await $`git rev-parse HEAD`.env(project.env).cwd(project.work).text();
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toStrictEqual({
     ok: true,
@@ -67,7 +70,9 @@ test('it resolves a subdirectory to the checkout that holds it', async () => {
 
   await mkdir(join(project.work, 'nested'));
 
-  const resolved = await resolvePathSource(join(project.work, 'nested'));
+  const resolved = await resolvePathSource(join(project.work, 'nested'), {
+    transports: FIXTURE_TRANSPORTS,
+  });
 
   expect(resolved).toMatchObject({ ok: true, url: project.upstream });
 });
@@ -82,7 +87,7 @@ test('it strips a token from the origin URL', async () => {
 
   await $`git update-ref refs/remotes/origin/main HEAD`.env(project.env).cwd(project.work).quiet();
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: true, url: 'https://github.com/zgeoff/atc.git' });
 });
@@ -92,7 +97,7 @@ test('it refuses a checkout with an uncommitted change', async () => {
 
   await writeFile(join(project.work, 'README.md'), 'edited\n');
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: false, code: 'workspace_dirty' });
 });
@@ -102,7 +107,7 @@ test('it refuses a checkout with an untracked file as dirty', async () => {
 
   await writeFile(join(project.work, 'notes.txt'), 'scratch\n');
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: false, code: 'workspace_dirty' });
 });
@@ -114,7 +119,10 @@ test('it resolves a dirty checkout to HEAD with a warning when dirt is allowed',
 
   await writeFile(join(project.work, 'README.md'), 'edited\n');
 
-  const resolved = await resolvePathSource(project.work, { allowDirty: 'warn' });
+  const resolved = await resolvePathSource(project.work, {
+    allowDirty: 'warn',
+    transports: FIXTURE_TRANSPORTS,
+  });
 
   expect(resolved).toStrictEqual({
     ok: true,
@@ -131,7 +139,9 @@ test('it refuses a directory outside any git repository', async () => {
 
   await mkdir(join(project.dir, 'loose'));
 
-  const resolved = await resolvePathSource(join(project.dir, 'loose'));
+  const resolved = await resolvePathSource(join(project.dir, 'loose'), {
+    transports: FIXTURE_TRANSPORTS,
+  });
 
   expect(resolved).toMatchObject({ ok: false, code: 'not_a_git_repo' });
 });
@@ -139,7 +149,9 @@ test('it refuses a directory outside any git repository', async () => {
 test('it refuses a path that does not exist', async () => {
   await using project = await setupTest();
 
-  const resolved = await resolvePathSource(join(project.dir, 'missing'));
+  const resolved = await resolvePathSource(join(project.dir, 'missing'), {
+    transports: FIXTURE_TRANSPORTS,
+  });
 
   expect(resolved).toMatchObject({ ok: false, code: 'not_a_git_repo' });
 });
@@ -149,7 +161,9 @@ test('it refuses a repository with no commits', async () => {
 
   await $`git init --quiet --template= ${join(project.dir, 'empty')}`.env(project.env).quiet();
 
-  const resolved = await resolvePathSource(join(project.dir, 'empty'));
+  const resolved = await resolvePathSource(join(project.dir, 'empty'), {
+    transports: FIXTURE_TRANSPORTS,
+  });
 
   expect(resolved).toMatchObject({ ok: false, code: 'no_commits' });
 });
@@ -161,7 +175,7 @@ test('it refuses a HEAD commit that was never pushed', async () => {
 
   await $`git commit --quiet -am local`.env(project.env).cwd(project.work).quiet();
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: false, code: 'unpushed_head' });
 });
@@ -174,7 +188,7 @@ test('it refuses a HEAD commit that only another remote holds', async () => {
   await $`git commit --quiet -am fork`.env(project.env).cwd(project.work).quiet();
   await $`git update-ref refs/remotes/fork/main HEAD`.env(project.env).cwd(project.work).quiet();
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: false, code: 'unpushed_head' });
 });
@@ -191,7 +205,7 @@ test('it accepts a pushed HEAD whose remote-tracking ref was never fetched', asy
     .cwd(project.work)
     .quiet();
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: true, url: project.upstream });
 });
@@ -201,7 +215,7 @@ test('it refuses a checkout with no origin remote', async () => {
 
   await $`git remote remove origin`.env(project.env).cwd(project.work).quiet();
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: false, code: 'no_origin' });
 });
@@ -211,7 +225,7 @@ test('it refuses an origin URL it cannot read as a repository URL', async () => 
 
   await $`git remote set-url origin 'not a url'`.env(project.env).cwd(project.work).quiet();
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: false, code: 'invalid_git_url' });
 });
@@ -227,7 +241,7 @@ test('it refuses a checkout that uses submodules', async () => {
   await $`git commit --quiet -m submodule`.env(project.env).cwd(project.work).quiet();
   await $`git push --quiet origin main`.env(project.env).cwd(project.work).quiet();
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: false, code: 'has_submodules' });
 });
@@ -239,7 +253,7 @@ test('it resolves the checkout it is given when a git hook exports another GIT_D
 
   updateEnv('GIT_DIR', join(project.dir, 'other', '.git'));
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: true, url: project.upstream, branch: 'main' });
 });
@@ -253,7 +267,7 @@ test('it refuses a checkout whose HEAD tree cannot be listed', async () => {
 
   await rm(join(project.work, '.git', 'objects', object.slice(0, 2), object.slice(2)));
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: false, code: 'unreadable_tree' });
 });
@@ -263,7 +277,7 @@ test('it refuses a checkout whose status cannot be read', async () => {
 
   await writeFile(join(project.work, '.git', 'index'), 'not an index');
 
-  const resolved = await resolvePathSource(project.work);
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
   expect(resolved).toMatchObject({ ok: false, code: 'unreadable_tree' });
 });

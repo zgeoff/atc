@@ -6,9 +6,11 @@ import type { TargetConfigError } from '../shared/collect-targets';
 import type { DaemonID } from '../shared/daemon-id';
 import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
+import type { SourceKind, SourceProvider } from '../sources/types';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { MessageRecord } from '../store/message-record';
 import type { TurnSibling } from '../store/state-store';
+import type { checkRepositoryAccess } from '../workspace/check-repository-access';
 import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
@@ -79,6 +81,13 @@ interface AgentList {
   readonly spawnDefaults: { readonly agent: AgentID; readonly target: string | null };
   readonly configRevision: string;
   readonly targetErrors: readonly TargetConfigError[];
+
+  // The sources the spawn picker offers, in order.
+  readonly sources: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly kind: SourceKind;
+  }[];
 }
 
 // The slice of a connection the attach bookkeeping needs: identity plus the
@@ -162,6 +171,20 @@ export interface DaemonContext {
   // Throws the refusal for a target that cannot materialize a workspace:
   // one whose provider cannot both transfer an archive and run a command.
   readonly requireWorkspaceTarget: (target: string) => void;
+
+  // The source the daemon offers the spawn picker under an id, or null when
+  // it offers none under it.
+  readonly findSource: (id: string) => SourceProvider | null;
+
+  // The other URLs the offered sources know for a git URL the daemon's host
+  // could not read, each once.
+  readonly collectAlternateGitURLs: (url: string) => readonly string[];
+
+  // Checks that the daemon's host can read a git workspace source, and
+  // resolves its ref, the way a workspace spawn from it would.
+  readonly checkRepositoryAccess: (
+    request: Omit<Parameters<typeof checkRepositoryAccess>[0], 'transports'>,
+  ) => ReturnType<typeof checkRepositoryAccess>;
 
   // Runs the plan, which throws the refusal for a spawn it refuses, then
   // spawns. Answers with the `session.spawn` ok payload, which a keyed

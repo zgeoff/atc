@@ -45,11 +45,11 @@ closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `
 `target_unavailable`, `target_changed`, `target_config_invalid`, `target_forbidden`,
 `host_unavailable`, `auth_not_configured`, `host_leased`, `confirmation_required`,
 `confirm_token_invalid`, `already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`,
-`outcome_unknown`, `internal`, plus the workspace refusals that [workspaces](#workspaces) lists. An
-unknown method is an `unknown_method` error, never a disconnect; unknown fields in any message are
-ignored. A peer decodes an error code it does not know as `internal` and keeps its `msg`. These
-rules exist so additive evolution never breaks a peer. An error may also carry `data`, an object
-whose fields its code defines.
+`outcome_unknown`, `github_unavailable`, `internal`, plus the workspace refusals that
+[workspaces](#workspaces) lists. An unknown method is an `unknown_method` error, never a disconnect;
+unknown fields in any message are ignored. A peer decodes an error code it does not know as
+`internal` and keeps its `msg`. These rules exist so additive evolution never breaks a peer. An
+error may also carry `data`, an object whose fields its code defines.
 
 `unsupported_operation` refuses a request that the session's execution host cannot serve, such as
 input to a host that takes none. Its `data` holds the provider kind as `provider` and the missing
@@ -77,7 +77,8 @@ says to restart the daemon. The client never restarts the daemon on its own; the
                                         "daemon.id", "session.locator", "spawn.idempotency",
                                         "message.idempotency", "spawn.target",
                                         "request.principal", "spawn.workspace", "session.forget",
-                                        "session.submit", "report.get"],
+                                        "session.submit", "report.get", "sources",
+                                        "git.probe"],
                            "lastUsedAgent": "claude" } }
 ```
 
@@ -87,10 +88,12 @@ exists, `events.read` returns `more` and takes `session`, and `message.get` retu
 returns `spawnOptions`, `daemon.hello` returns `daemonID`, every session descriptor holds a
 `locator`, `session.spawn` and `session.message` each take `idempotencyKey`, `session.spawn` takes
 `target` while `agents.list` returns `targets`, a request takes `as` while `daemon.hello` takes
-`principal`, `session.spawn` takes `workspace`, and `session.forget`, `session.submit`, and
-`report.get` exist. A daemon from before the list existed sends none, and it ignores the parameters
-it does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the list rather
-than the build string to learn what the running daemon honours.
+`principal`, `session.spawn` takes `workspace`, `session.forget`, `session.submit`, and `report.get`
+exist, `sources.list` and `sources.interpret` exist while `agents.list` returns `sources`, and
+`git.probe` exists while a git `workspace` takes both `ref` and `sha`. A daemon from before the list
+existed sends none, and it ignores the parameters it does not know. A client that outlives a daemon
+upgrade, such as `atc mcp`, reads the list rather than the build string to learn what the running
+daemon honours.
 
 `daemonID` is the id the daemon minted into its state store the first time it opened it, so it stays
 the same across daemon restarts. Every session descriptor holds a `locator` of
@@ -119,6 +122,9 @@ semantics.
 | `dirs.list`             | recent spawn directories, most recent first, for the picker                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `agents.list`           | the registered agents and the host the daemon runs on. [Agents](#agents) covers the answer                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `fleet.list`            | the persisted fleet rows, independent of which sessions are currently live. Each row holds its `sessionID`, the `agentSessionID` once the agent reports one, and `parent` as an atc session id.                                                                                                                                                                                                                                                                                                                                                |
+| `sources.list`          | one source's candidates for the spawn picker (`{ source, target?, scope?, text? }`). [Sources](#sources) covers the answer                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `sources.interpret`     | what one source reads typed input as (`{ source, input, target? }`). [Sources](#sources) covers the answer                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `git.probe`             | check that the daemon's host can read a git workspace source and resolve its ref (`{ url, ref?, sha?, credentialRef?, target? }`). [Sources](#sources) covers the answer                                                                                                                                                                                                                                                                                                                                                                       |
 | `session.spawn`         | spawn (cwd, name, prompt, resume, dims, optional `agent` id, optional `parent` id, optional `model` and `effort`, optional `idempotencyKey`, optional `target`, optional `workspace`). Omitted agent is Claude, an empty id is `bad_args`, an unregistered one `unsupported`. An unknown parent is `no_such_session`. [Spawn options](#spawn-options) covers `model` and `effort`, [idempotent requests](#idempotent-requests) covers `idempotencyKey`, [targets](#targets) covers `target`, and [workspaces](#workspaces) covers `workspace`. |
 | `session.update`        | rename and/or pin a session (`{ session, name?, pinned? }`). Pinning a sub-session is `bad_args`: it pins with its parent.                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `session.kill`          | end a session or put its host to sleep; explicit, never implied by disconnect. [Kill and sleep](#kill-and-sleep) covers the cases                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -507,11 +513,24 @@ the checkout is verified:
   any credential, and to HEAD, which origin must already hold. Uncommitted or untracked changes
   refuse the spawn as `workspace_dirty`. With `allowDirty: "warn"`, the checkout is HEAD, the
   changes stay behind, and the spawn answer holds `warnings`.
-- A `git` source is a repository URL with exactly one of `ref`, a branch or tag, and `sha`, a full
-  commit id. `credentialRef` holds the name of the daemon environment variable its token is read
-  from. git receives the token through a private askpass helper for the ref lookup and the clone
-  alone, and atc never writes, logs, or stores it. The session's harness starts without that
-  variable and without the askpass context, and the workspace it receives holds no credential.
+- A `git` source is a repository URL with `ref`, a branch or tag, `sha`, a full commit id, or both.
+  `session.spawn` also takes the older `owner/repo` shorthand for a GitHub https URL; `git.probe`
+  and the sources take full URLs. With both, the daemon checks out `sha`, on the branch `ref` names
+  when the upstream has that branch, and records `ref` as the ref it was resolved from without
+  checking that `ref` still points at `sha`. `credentialRef` holds the name of the daemon
+  environment variable its token is read from. git receives the token through a private askpass
+  helper for the ref lookup and the clone alone, and atc never writes, logs, or stores it. The
+  session's harness starts without that variable and without the askpass context, and the workspace
+  it receives holds no credential.
+- The daemon fetches over the transports in `workspaces.gitTransports`, `https` and `ssh` by
+  default, the scp-style `user@host:path` counting as ssh. A `git` source on any other transport,
+  such as `file://` or a local path by default, fails as `invalid_git_url` before git runs. Every
+  git command the daemon runs carries `GIT_ALLOW_PROTOCOL` with the same list, so a host `insteadOf`
+  rewrite, a `path` source's origin, or a submodule cannot reach another transport either. `ext::`
+  and `fd::` are never allowed: the config refuses them. While the configured list is invalid, every
+  `git.probe` and every spawn whose workspace needs git fails as `git_transports_invalid` before git
+  runs, with the config error the daemon printed at startup in its message. An empty list is valid
+  and allows no transport.
 
 `cwd` must not exist on the target. The daemon creates it before it clones, so a directory that
 already exists refuses the spawn as `workspace_exists` and stays as it was. A refusal after that
@@ -527,26 +546,116 @@ The daemon answers the spawn once the workspace is ready, and the session descri
 Every workspace refusal holds the phase it failed in as `data.phase`, and its message and data hold
 `[credential]` wherever the token's value would appear:
 
-| Code                 | Phase                     | Refused when                                                                                    |
-| -------------------- | ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `not_a_git_repo`     | resolving                 | the path is not a directory inside a git work tree                                              |
-| `no_commits`         | resolving                 | the checkout has no commit                                                                      |
-| `unreadable_tree`    | resolving or cloning      | git cannot inspect the path, list the commit's tree, or read the checkout's status              |
-| `has_submodules`     | resolving or cloning      | the commit holds a gitlink or a `.gitmodules` file                                              |
-| `workspace_dirty`    | resolving                 | the checkout has uncommitted or untracked changes                                               |
-| `no_origin`          | resolving                 | the checkout has no origin remote                                                               |
-| `invalid_git_url`    | resolving                 | the URL does not read as a repository URL                                                       |
-| `unpushed_head`      | resolving                 | origin does not hold HEAD                                                                       |
-| `credential_in_url`  | resolving                 | the URL, or an `insteadOf` rewrite of it, carries a credential                                  |
-| `workspace_exists`   | resolving                 | `cwd` exists on the target, as `data.dir`                                                       |
-| `credential_missing` | cloning                   | the `credentialRef` variable is unset or empty                                                  |
-| `ref_not_found`      | cloning                   | the upstream has no such branch, tag, or commit                                                 |
-| `lfs_unsupported`    | cloning                   | a tracked path uses Git LFS, counted in `data.count`                                            |
-| `clone_failed`       | cloning                   | git cannot clone the repository or check the commit out                                         |
-| `sanitize_failed`    | cloning                   | the clone still holds a credential, or its history no longer reads                              |
-| `tar_failed`         | cloning                   | tar cannot archive the clone                                                                    |
-| `transfer_failed`    | resolving or transferring | the provider cannot create `cwd`'s parent or unpack the archive                                 |
-| `workspace_mismatch` | verifying                 | the target's HEAD is not the pinned commit, in `data.actual`, or a tracked file differs from it |
+| Code                     | Phase                     | Refused when                                                                                    |
+| ------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `not_a_git_repo`         | resolving                 | the path is not a directory inside a git work tree                                              |
+| `no_commits`             | resolving                 | the checkout has no commit                                                                      |
+| `unreadable_tree`        | resolving or cloning      | git cannot inspect the path, list the commit's tree, or read the checkout's status              |
+| `has_submodules`         | resolving or cloning      | the commit holds a gitlink or a `.gitmodules` file                                              |
+| `workspace_dirty`        | resolving                 | the checkout has uncommitted or untracked changes                                               |
+| `no_origin`              | resolving                 | the checkout has no origin remote                                                               |
+| `invalid_git_url`        | resolving                 | the URL does not read as a repository URL                                                       |
+| `git_transports_invalid` | resolving                 | `workspaces.gitTransports` in config.json is invalid                                            |
+| `unpushed_head`          | resolving                 | origin does not hold HEAD                                                                       |
+| `credential_in_url`      | resolving                 | the URL, or an `insteadOf` rewrite of it, carries a credential                                  |
+| `workspace_exists`       | resolving                 | `cwd` exists on the target, as `data.dir`                                                       |
+| `credential_missing`     | cloning                   | the `credentialRef` variable is unset or empty                                                  |
+| `ref_not_found`          | cloning                   | the upstream has no such branch, tag, or commit                                                 |
+| `lfs_unsupported`        | cloning                   | a tracked path uses Git LFS, counted in `data.count`                                            |
+| `clone_failed`           | cloning                   | git cannot clone the repository or check the commit out                                         |
+| `sanitize_failed`        | cloning                   | the clone still holds a credential, or its history no longer reads                              |
+| `tar_failed`             | cloning                   | tar cannot archive the clone                                                                    |
+| `transfer_failed`        | resolving or transferring | the provider cannot create `cwd`'s parent or unpack the archive                                 |
+| `workspace_mismatch`     | verifying                 | the target's HEAD is not the pinned commit, in `data.actual`, or a tracked file differs from it |
+
+## Sources
+
+A source is where the spawn picker finds what a session runs in: directories on the daemon's host, a
+GitHub account's repositories, or a typed git URL. `agents.list` returns the sources the daemon
+offers in the order the picker shows them, each with its `id`, its `label`, and its `kind`, `path`
+or `git`:
+
+```jsonc
+"sources": [{ "id": "dirs", "label": "directory on the daemon host", "kind": "path" },
+            { "id": "github", "label": "GitHub repository", "kind": "git" },
+            { "id": "git", "label": "git URL", "kind": "git" }]
+```
+
+The config's `workspaces.sources` sets the ids and their order, and without it the order is `dirs`,
+`github`, `git`. The daemon leaves out a source its host cannot run: `github` needs `gh` on the
+daemon's host, and `git` needs nothing beyond git. A daemon without the `sources` feature returns no
+`sources`, and the picker then offers its local directory flow alone.
+
+Every source request runs on the daemon's host and takes the `target` the spawn will run on. The
+daemon checks that target as it checks a spawn's: a principal that may not use it gets
+`target_forbidden`. A `git` source also needs a target whose provider has `transfer` and `run`, and
+gets `unsupported_operation` otherwise. Without `target`, the check uses the default target. A
+`source` the daemon does not offer is `unsupported`.
+
+`sources.list` returns one source's candidates. Each holds a `label`, an optional `detail`, and a
+`pick`: `{ kind: "path", dir }` for a directory on the daemon's host, or `{ kind: "git", url }` for
+a repository, which `git.probe` pins to a commit before a spawn uses it. `scope` narrows the listing
+the way the source defines, and the answer holds the scope it listed under, or null:
+
+```jsonc
+{ "v": 4, "id": 7, "m": "sources.list", "p": { "source": "github", "scope": "acme" } }
+
+{ "v": 4, "id": 7, "ok": { "source": "github", "scope": "acme",
+                           "candidates": [{ "label": "acme/app", "detail": "private",
+                                            "pick": { "kind": "git",
+                                                      "url": "git@github.com:acme/app.git" } }] } }
+```
+
+- `dirs` lists the spawn history on the targets the principal may use, most recent first, then the
+  directories under the configured `dirs.roots`, then zoxide's list on the daemon's host. It drops a
+  directory that no longer exists. A label starts with `~` for a path under the daemon user's home.
+- `github` lists one GitHub owner's repositories through the `gh` CLI, as the account `gh` is signed
+  in to sees them, at the clone URL form `gh` is configured to prefer. The scope is the owner.
+  Without one, it lists `workspaces.githubOwner`, and without that, the `gh` account's own
+  repositories, and the answer's scope is then the login the first repository holds, or null for an
+  empty list. A scope that is not a GitHub login is `bad_args`. A signed-out `gh` fails the request
+  with `github_unavailable` and `data.problem` `not_authenticated`, and any other `gh` failure with
+  `failed` and the message `gh` printed. A `gh` command that runs longer than 20 s fails the request
+  the same way, with `failed`.
+- `git` lists nothing.
+
+`sources.interpret` returns what one source reads typed input as: `{ kind: "browse", scope }` for a
+scope to list, a `path` or `git` pick, or `{ kind: "none" }` for input the source does not read.
+`dirs` reads an absolute path, and a path that starts with `~`, which stands for the daemon user's
+home. `github` reads `owner/` as that owner's scope, and `owner/repo` as that repository at the URL
+form `gh` prefers. `git` reads a URL with a scheme, an scp-style `user@host:path`, or an absolute
+path.
+
+Every built-in source reaches a repository with the daemon host's own git authentication: its git
+config and credential helpers, its ssh agent, and the `credentialRef` askpass helper of a probe or
+spawn. atc does not support a credential chosen per source, so every repository a picker offers is
+read with the same host credentials.
+
+`git.probe` checks that the daemon's host can read a git source and lists its refs. It resolves the
+URL exactly as a workspace spawn does, without the spawn's `owner/repo` shorthand, and runs one
+`git ls-remote` that authenticates as the clone would: through the host's git config, or through the
+`credentialRef` askpass helper. The answer holds the URL the clone fetches, the upstream's default
+branch as `head`, every branch and tag with the commit it points at, and `resolved`:
+
+```jsonc
+{ "v": 4, "id": 8, "m": "git.probe", "p": { "url": "acme/app", "ref": "main" } }
+
+{ "v": 4, "id": 8, "ok": { "url": "https://github.com/acme/app.git", "head": "main",
+                           "refs": [{ "name": "main", "kind": "branch", "sha": "c2e799e…" },
+                                    { "name": "v1.0", "kind": "tag", "sha": "5807f22…" }],
+                           "resolved": { "sha": "c2e799e…", "branch": "main" } } }
+```
+
+`resolved` is the commit `ref` points at now, resolved by the rules a spawn uses: a branch before a
+same-named tag, and an annotated tag to the commit it points at. A `sha` resolves to itself, since a
+ref listing never shows whether the upstream holds a commit; the clone checks that. Without either,
+`resolved` is null. A client that spawns with both the resolved `sha` and its `ref` gets the commit
+it showed, whatever lands on the branch in between. A refusal takes the code the same failure gets
+in a spawn: `invalid_git_url`, `credential_in_url`, `credential_missing`, `clone_failed` with git's
+own message for an upstream the host cannot read, and `ref_not_found`. A refusal holds, in
+`data.alternates`, the repository's other URLs that an offered source knows: the GitHub source gives
+the ssh form of an https URL and the https form of an ssh URL. A `git ls-remote` that runs longer
+than 20 s is stopped and fails the request with `clone_failed`.
 
 ## Kill and sleep
 

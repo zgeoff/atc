@@ -4,6 +4,9 @@ import { runGit } from './run-git';
 
 interface PathSourceOptions {
   readonly allowDirty?: 'refuse' | 'warn';
+
+  // The transports git may fetch over when it asks origin for its refs.
+  readonly transports: readonly string[];
 }
 
 interface ResolvedPathSource {
@@ -42,7 +45,7 @@ interface PathSourceRefusal {
  */
 export async function resolvePathSource(
   path: string,
-  options: PathSourceOptions = {},
+  options: PathSourceOptions,
 ): Promise<PathSourceRefusal | ResolvedPathSource> {
   if (statSync(path, { throwIfNoEntry: false })?.isDirectory() !== true) {
     return { ok: false, code: 'not_a_git_repo', message: `${path} is not a directory` };
@@ -118,7 +121,7 @@ export async function resolvePathSource(
     return { ok: false, code: url.code, message: `origin of ${root}: ${url.message}` };
   }
 
-  const pushed = await isOnOrigin(root, sha);
+  const pushed = await isOnOrigin(root, sha, options.transports);
 
   if (!pushed) {
     return { ok: false, code: 'unpushed_head', message: `${sha} is not on origin; push it first` };
@@ -152,7 +155,11 @@ function hasSubmodules(listing: string): boolean {
  * it without network access; failing that, origin's advertised ref tips are
  * checked, which catches a push whose tracking ref was never fetched.
  */
-async function isOnOrigin(root: string, sha: string): Promise<boolean> {
+async function isOnOrigin(
+  root: string,
+  sha: string,
+  transports: readonly string[],
+): Promise<boolean> {
   const tracking = await runGit(['branch', '-r', '--contains', sha, '--list', 'origin/*'], {
     cwd: root,
   });
@@ -161,7 +168,7 @@ async function isOnOrigin(root: string, sha: string): Promise<boolean> {
     return true;
   }
 
-  const advertised = await runGit(['ls-remote', 'origin'], { cwd: root });
+  const advertised = await runGit(['ls-remote', 'origin'], { cwd: root, transports });
 
   return (
     advertised.exitCode === 0 &&

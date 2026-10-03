@@ -18,6 +18,7 @@ function buildGatewayAdapter(): GatewayAdapter {
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
+    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -26,6 +27,7 @@ function buildGatewayAdapter(): GatewayAdapter {
     targetErrors: [],
     principals: null,
     principalErrors: [],
+    workspaceErrors: [],
   };
 
   return new GatewayAdapter(
@@ -114,6 +116,7 @@ test("it runs a headless turn through the gateway's binary and settings file und
       codexBin: 'codex',
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -122,6 +125,7 @@ test("it runs a headless turn through the gateway's binary and settings file und
       targetErrors: [],
       principals: null,
       principalErrors: [],
+      workspaceErrors: [],
     },
     (opts) => {
       received = { ...opts };
@@ -172,6 +176,7 @@ test('it profiles a gateway with only the model names its env sets', () => {
       codexBin: 'codex',
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -180,6 +185,7 @@ test('it profiles a gateway with only the model names its env sets', () => {
       targetErrors: [],
       principals: null,
       principalErrors: [],
+      workspaceErrors: [],
     },
   );
 

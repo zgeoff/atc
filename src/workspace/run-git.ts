@@ -1,3 +1,4 @@
+import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { REPOSITORY_ENV_VARS } from './repository-env-vars';
 
 interface GitRunOptions {
@@ -5,19 +6,31 @@ interface GitRunOptions {
   readonly env?: Readonly<Record<string, string>>;
   readonly input?: string;
   readonly isolated?: boolean;
+
+  // How long the command may run before it is stopped and reported as
+  // timed out; unset waits as long as git takes.
+  readonly timeoutMs?: number;
+
+  // The transports git may fetch over; https and ssh when unset.
+  readonly transports?: readonly string[];
 }
 
 interface GitRun {
   readonly exitCode: number;
   readonly stdout: string;
   readonly stderr: string;
+  readonly timedOut: boolean;
 }
 
 /**
  * Runs one git command to completion, feeding it any given input, and
- * returns its exit code and output.
+ * returns its exit code and output. A command given a time limit is
+ * stopped once it passes it, with every process it started, and reported
+ * as timed out.
  * git never prompts on a terminal here, since the daemon has none to answer
- * with, and its messages stay in the C locale so callers can read them.
+ * with, its messages stay in the C locale so callers can read them, and it
+ * fetches only over the transports it is given, https and ssh unless told
+ * otherwise, whatever URL a host config rewrite or a submodule hands it.
  * Variables that pin git to some other repository, such as the `GIT_DIR` a
  * git hook exports, are dropped so the command acts on its own directory.
  *
@@ -60,19 +73,54 @@ export async function runGit(
       ...(isolated ? ISOLATED_ENV : {}),
       GIT_TERMINAL_PROMPT: '0',
       LC_ALL: 'C',
+      GIT_ALLOW_PROTOCOL: (options.transports ?? DEFAULT_GIT_TRANSPORTS).join(':'),
     },
     stdin: options.input === undefined ? 'ignore' : Buffer.from(options.input),
     stdout: 'pipe',
     stderr: 'pipe',
+
+    // A command with a time limit leads its own process group, so stopping
+    // it stops the helpers it started, such as `git remote-http`, too.
+    detached: options.timeoutMs !== undefined,
   });
 
-  const [stdout, stderr, exitCode] = await Promise.all([
+  const finished = Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ]);
 
-  return { exitCode, stdout, stderr };
+  if (options.timeoutMs === undefined) {
+    const [stdout, stderr, exitCode] = await finished;
+
+    return { exitCode, stdout, stderr, timedOut: false };
+  }
+
+  // A stopped git can leave a helper holding its pipes open, so a timeout
+  // answers without waiting for them to close.
+  const limit = Promise.withResolvers<null>();
+
+  const timer = setTimeout(() => {
+    limit.resolve(null);
+  }, options.timeoutMs);
+
+  const settled = await Promise.race([finished, limit.promise]);
+
+  clearTimeout(timer);
+
+  if (settled === null) {
+    try {
+      process.kill(-proc.pid, 'SIGKILL');
+    } catch {
+      // The group already exited.
+    }
+
+    return { exitCode: -1, stdout: '', stderr: '', timedOut: true };
+  }
+
+  const [stdout, stderr, exitCode] = settled;
+
+  return { exitCode, stdout, stderr, timedOut: false };
 }
 
 function collectHostEnv(): Record<string, string | undefined> {

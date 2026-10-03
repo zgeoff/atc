@@ -60,6 +60,22 @@ test.each([
     { session: toSessionID('s1'), cursor: 'c', limit: 10 },
   ],
   ['events.read', { cursor: 'c', limit: 10, waitMs: 500 }, { cursor: 'c', limit: 10, waitMs: 500 }],
+  [
+    'sources.list',
+    { source: 'github', target: 'box', scope: 'zgeoff' },
+    { source: 'github', target: 'box', scope: 'zgeoff' },
+  ],
+  ['sources.list', { source: 'dirs' }, { source: 'dirs' }],
+  [
+    'sources.interpret',
+    { source: 'github', input: 'zgeoff/', target: 'box' },
+    { source: 'github', input: 'zgeoff/', target: 'box' },
+  ],
+  [
+    'git.probe',
+    { url: 'zgeoff/atc', ref: 'main', target: 'box' },
+    { url: 'zgeoff/atc', ref: 'main', target: 'box' },
+  ],
 ] as const)('it parses a valid %s payload', (method, payload, expected) => {
   const parsed = parseRequestParams(method, payload);
 
@@ -350,6 +366,10 @@ test.each([
       credentialRef: { kind: 'env', name: 'GIT_TOKEN' },
     },
   ],
+  [
+    'a git source at a commit resolved from a ref',
+    { kind: 'git', url: 'zgeoff/atc', ref: 'main', sha: 'a'.repeat(40) },
+  ],
 ] as const)('it carries %s through as the session.spawn workspace', (_, workspace) => {
   const parsed = parseRequestParams('session.spawn', { cwd: '/w', workspace });
 
@@ -359,14 +379,9 @@ test.each([
 test.each([
   ['a relative path', { kind: 'path', path: 'repo' }, 'a path workspace requires an absolute path'],
   [
-    'a git source with both ref and sha',
-    { kind: 'git', url: '/r.git', ref: 'main', sha: 'a'.repeat(40) },
-    'a git workspace takes exactly one of ref or sha',
-  ],
-  [
     'a git source with neither ref nor sha',
     { kind: 'git', url: '/r.git' },
-    'a git workspace takes exactly one of ref or sha',
+    'a git workspace takes a ref, a sha, or both',
   ],
   [
     'an abbreviated sha',
@@ -385,6 +400,49 @@ test.each([
   ],
 ])('it rejects %s as the session.spawn workspace', (_, workspace, message) => {
   const parsed = parseRequestParams('session.spawn', { cwd: '/w', workspace });
+
+  expect(parsed).toStrictEqual({ ok: false, message });
+});
+
+test.each([
+  ['no source', {}, 'source must be a source id'],
+  ['an empty source', { source: '' }, 'source must be a source id'],
+  ['an empty scope', { source: 'github', scope: '' }, 'scope must be non-empty'],
+  ['an empty target', { source: 'github', target: '' }, 'target must be a non-empty target id'],
+])('it rejects sources.list with %s', (_, params, message) => {
+  const parsed = parseRequestParams('sources.list', params);
+
+  expect(parsed).toStrictEqual({ ok: false, message });
+});
+
+test.each([
+  ['no input', { source: 'github' }, 'source text must be a string'],
+  [
+    'an input over 4096 characters',
+    { source: 'github', input: 'a'.repeat(4097) },
+    'source text must be at most 4096 characters',
+  ],
+])('it rejects sources.interpret with %s', (_, params, message) => {
+  const parsed = parseRequestParams('sources.interpret', params);
+
+  expect(parsed).toStrictEqual({ ok: false, message });
+});
+
+test.each([
+  ['no url', {}, 'a git workspace requires a url'],
+  ['a url that reads as an option', { url: '-u' }, 'a git workspace url must not start with -'],
+  [
+    'both a ref and a sha',
+    { url: 'zgeoff/atc', ref: 'main', sha: 'a'.repeat(40) },
+    'git.probe takes at most one of ref or sha',
+  ],
+  [
+    'an abbreviated sha',
+    { url: 'zgeoff/atc', sha: 'abc1234' },
+    'a git workspace sha is a full commit id',
+  ],
+])('it rejects git.probe with %s', (_, params, message) => {
+  const parsed = parseRequestParams('git.probe', params);
 
   expect(parsed).toStrictEqual({ ok: false, message });
 });

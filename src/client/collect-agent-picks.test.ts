@@ -37,6 +37,7 @@ test('it lists only the agents whose configured binary resolves', () => {
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -45,6 +46,7 @@ test('it lists only the agents whose configured binary resolves', () => {
       targetErrors: [],
       principals: null,
       principalErrors: [],
+      workspaceErrors: [],
     }),
   ).toStrictEqual([
     { agent: 'claude', label: 'Claude' },
@@ -66,6 +68,7 @@ test('it resolves a bare binary name off PATH', () => {
       codexBin: 'codex',
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -74,6 +77,7 @@ test('it resolves a bare binary name off PATH', () => {
       targetErrors: [],
       principals: null,
       principalErrors: [],
+      workspaceErrors: [],
     }),
   ).toStrictEqual([{ agent: 'grok', label: 'Grok' }]);
 });
@@ -90,6 +94,7 @@ test('it leaves out a binary that exists without the executable bit', () => {
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -98,6 +103,7 @@ test('it leaves out a binary that exists without the executable bit', () => {
       targetErrors: [],
       principals: null,
       principalErrors: [],
+      workspaceErrors: [],
     }),
   ).toStrictEqual([]);
 });
@@ -114,6 +120,7 @@ test('it lists a configured backend after the built-in agents', () => {
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
       gateways: [
         {
           id: 'zai',
@@ -132,6 +139,7 @@ test('it lists a configured backend after the built-in agents', () => {
       targetErrors: [],
       principals: null,
       principalErrors: [],
+      workspaceErrors: [],
     }),
   ).toStrictEqual([
     { agent: 'claude', label: 'Claude' },
@@ -151,6 +159,7 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
       gateways: [
         {
           id: 'zai',
@@ -169,6 +178,7 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
       targetErrors: [],
       principals: null,
       principalErrors: [],
+      workspaceErrors: [],
     }),
   ).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
 });

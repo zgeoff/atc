@@ -54,6 +54,7 @@ test('it does not write last-used when a restored session reports SessionStart',
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
+    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -62,6 +63,7 @@ test('it does not write last-used when a restored session reports SessionStart',
     targetErrors: [],
     principals: null,
     principalErrors: [],
+    workspaceErrors: [],
   });
 
   const daemon = await startDaemon({

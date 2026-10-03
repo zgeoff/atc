@@ -3,18 +3,22 @@ import { dirname, join, resolve } from 'node:path';
 import { DaemonError } from '../protocol/daemon-error';
 import type { ErrorCode } from '../protocol/protocol';
 import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
+import type { InvalidGitTransports } from '../shared/collect-workspaces-config';
 import type { SessionID } from '../shared/session-id';
 import type { StateStore } from '../store/state-store';
 import type { MaterializationPhase, SessionWorkspace } from '../store/workspace-materialization';
 import { checkURLCredentials } from '../workspace/check-url-credentials';
 import { createWorkspaceClone } from '../workspace/create-workspace-clone';
+import { expandGitShorthand } from '../workspace/expand-git-shorthand';
 import { normalizeGitURL } from '../workspace/normalize-git-url';
 import { readWorkspaceTar } from '../workspace/read-workspace-tar';
 import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
+import { resolveGitURL } from '../workspace/resolve-git-url';
 import { resolvePathSource } from '../workspace/resolve-path-source';
 import { runGit } from '../workspace/run-git';
 import { sanitizeWorkspaceClone } from '../workspace/sanitize-workspace-clone';
 import type { ExecutionProvider } from './execution-provider';
+import { requireGitTransports } from './require-git-transports';
 
 interface MaterializeRequest {
   readonly sessionID: SessionID;
@@ -39,6 +43,10 @@ interface MaterializeDeps {
   // The directory on the daemon's host that holds each clone's staging
   // directory while the workspace is built.
   readonly stagingRoot: string;
+
+  // The transports a source may use and git may fetch over, or the invalid
+  // list the config holds, which refuses every source that needs git.
+  readonly gitTransports: readonly string[] | InvalidGitTransports;
 }
 
 type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
@@ -203,7 +211,9 @@ async function runMaterialization(
   updateProgress: ProgressTracker,
   secret: string | null,
 ): Promise<Omit<ReadyWorkspace, 'withheldEnv'>> {
-  const pinned = await resolveSource(request.source, staging);
+  const transports = requireGitTransports(deps.gitTransports, { phase: 'resolving' });
+
+  const pinned = await resolveSource(request.source, staging, transports);
 
   // What is recorded and returned is scrubbed of the credential, even
   // where a caller's own ref happens to spell it.
@@ -213,7 +223,7 @@ async function runMaterialization(
   await claimTargetDir(request, deps, updateProgress);
   await recordPhase(request, deps, updateProgress, 'cloning', { repoURL, ref });
 
-  const clone = await createCleanClone(pinned, join(staging, 'clone'));
+  const clone = await createCleanClone(pinned, join(staging, 'clone'), transports);
 
   // The archive is in memory, so the clone leaves the daemon's host before
   // the target is touched.
@@ -251,8 +261,10 @@ interface PinnedSource {
   readonly cloneURL: string;
   readonly repoURL: string;
 
-  // The ref or commit the clone checks out, and the branch or tag recorded.
+  // The ref or commit the clone checks out, the commit it is pinned to when
+  // the ref only names its branch, and the branch or tag recorded.
   readonly checkout: string;
+  readonly sha?: string | undefined;
   readonly ref: string | null;
   readonly credential: { readonly kind: 'env'; readonly name: string } | undefined;
   readonly warnings: readonly string[];
@@ -263,7 +275,11 @@ interface PinnedSource {
  * not a pushed, complete, credential-free repository. A path source pins
  * its pushed HEAD; a git source keeps its ref, which the clone pins.
  */
-async function resolveSource(source: SpawnWorkspaceSource, staging: string): Promise<PinnedSource> {
+async function resolveSource(
+  source: SpawnWorkspaceSource,
+  staging: string,
+  transports: readonly string[],
+): Promise<PinnedSource> {
   if (source.kind === 'path') {
     // The origin is checked as configured, before resolving it applies any
     // rewrite: a rewrite the checkout's own config holds expands it too.
@@ -271,6 +287,7 @@ async function resolveSource(source: SpawnWorkspaceSource, staging: string): Pro
 
     const resolved = await resolvePathSource(source.path, {
       allowDirty: source.allowDirty ?? 'refuse',
+      transports,
     });
 
     if (!resolved.ok) {
@@ -289,22 +306,19 @@ async function resolveSource(source: SpawnWorkspaceSource, staging: string): Pro
     };
   }
 
-  await requireNoURLCredentials(source.url, staging);
+  // The clone fetches the URL it records, so the spawn API's `owner/repo`
+  // shorthand reaches the repository it expands to.
+  const resolved = await resolveGitURL(expandGitShorthand(source.url), staging, transports);
 
-  // The clone fetches the URL it records, so an `owner/repo` shorthand
-  // reaches the repository it expands to.
-  const normalized = normalizeGitURL(source.url);
-
-  if (!normalized.ok) {
-    throw new DaemonError(normalized.code, normalized.message, { phase: 'resolving' });
+  if (!resolved.ok) {
+    throw new DaemonError(resolved.code, resolved.message, { phase: 'resolving' });
   }
 
-  await requireNoURLCredentials(normalized.url, staging);
-
   return {
-    cloneURL: normalized.url,
-    repoURL: normalized.url,
-    checkout: source.sha ?? source.ref ?? '',
+    cloneURL: resolved.url,
+    repoURL: resolved.url,
+    checkout: source.ref ?? source.sha ?? '',
+    sha: source.ref === undefined ? undefined : source.sha,
     ref: source.ref ?? null,
     credential: source.credentialRef,
     warnings: [],
@@ -400,10 +414,20 @@ interface CleanClone {
  * Clones the pinned source into a staging directory on the daemon's host,
  * sanitizes it, and reads it back as a tar archive.
  */
-async function createCleanClone(pinned: PinnedSource, dir: string): Promise<CleanClone> {
+async function createCleanClone(
+  pinned: PinnedSource,
+  dir: string,
+  transports: readonly string[],
+): Promise<CleanClone> {
   const clone = await createWorkspaceClone({
-    source: { kind: 'git', url: pinned.cloneURL, ref: pinned.checkout },
+    source: {
+      kind: 'git',
+      url: pinned.cloneURL,
+      ref: pinned.checkout,
+      ...(pinned.sha === undefined ? {} : { sha: pinned.sha }),
+    },
     dir,
+    transports,
     ...(pinned.credential === undefined ? {} : { credential: pinned.credential }),
   });
 

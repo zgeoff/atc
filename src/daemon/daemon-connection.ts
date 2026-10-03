@@ -19,6 +19,7 @@ import type { AgentID } from '../shared/agent-id';
 import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
+import type { SourceProvider, SourceRequest } from '../sources/types';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
@@ -41,6 +42,18 @@ const OWNER_METHODS: ReadonlySet<string> = new Set(['daemon.quit', 'fleet.restor
 interface ViewUpdate {
   readonly events: readonly EventMsg[];
   readonly withdrawn: readonly SessionID[];
+}
+
+// What a source request holds: the source's id and the target it is for.
+interface SourceParams {
+  readonly source: string;
+  readonly target?: string | undefined;
+}
+
+// The source a request asks for, and the request the source serves.
+interface ResolvedSourceRequest {
+  readonly source: SourceProvider;
+  readonly request: SourceRequest;
 }
 
 interface PeerSocket extends SocketWriter {
@@ -406,6 +419,21 @@ export class DaemonConnection {
         this.sendOk(req.id, {
           fleet: fleet.filter((entry) => ctx.isSessionVisible(entry.sessionID)),
         });
+
+        return;
+      }
+      case 'sources.list': {
+        await this.applySourcesList(req, ctx);
+
+        return;
+      }
+      case 'sources.interpret': {
+        await this.applySourcesInterpret(req, ctx);
+
+        return;
+      }
+      case 'git.probe': {
+        await this.applyGitProbe(req, ctx);
 
         return;
       }
@@ -792,6 +820,107 @@ export class DaemonConnection {
     }
 
     this.sendOk(req.id, spawned);
+  }
+
+  // Lists one source's candidates for a spawn to the request's target.
+  private async applySourcesList(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('sources.list', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const resolved = this.resolveSourceRequest(parsed.data, ctx);
+    const source = resolved.source;
+
+    const listed = await source.list(
+      {
+        ...(parsed.data.scope === undefined ? {} : { scope: parsed.data.scope }),
+        ...(parsed.data.text === undefined ? {} : { text: parsed.data.text }),
+      },
+      resolved.request,
+    );
+
+    this.sendOk(req.id, { source: source.id, scope: listed.scope, candidates: listed.candidates });
+  }
+
+  // Reads typed input through one source for a spawn to the request's
+  // target.
+  private async applySourcesInterpret(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('sources.interpret', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const resolved = this.resolveSourceRequest(parsed.data, ctx);
+
+    const interpretation = await resolved.source.interpret(parsed.data.input, resolved.request);
+
+    this.sendOk(req.id, { ...interpretation });
+  }
+
+  // The source a request asks for and the request it serves, so a principal
+  // reaches a source only for a target it may spawn on, and a git source
+  // only for a target it may spawn a workspace on.
+  private resolveSourceRequest(params: SourceParams, ctx: DaemonContext): ResolvedSourceRequest {
+    const source = ctx.findSource(params.source);
+
+    if (source === null) {
+      throw new DaemonError('unsupported', `this daemon offers no source '${params.source}'`);
+    }
+
+    const target = ctx.resolveSpawnTarget(params.target);
+
+    if (source.kind === 'git') {
+      this.ctx.requireWorkspaceTarget(target);
+    }
+
+    // The spawn history is read through the request's own view, so a
+    // principal lists only directories spawned on targets it may use.
+    return { source, request: { target, collectSpawnDirs: () => ctx.collectSpawnDirs(null) } };
+  }
+
+  // Probes a git workspace source for a spawn to the request's target, so
+  // a principal probes only for a target it may spawn a workspace on. A
+  // refusal holds the repository's other URLs that the offered sources know.
+  private async applyGitProbe(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('git.probe', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const data = parsed.data;
+
+    this.ctx.requireWorkspaceTarget(ctx.resolveSpawnTarget(data.target));
+
+    const access = await ctx.checkRepositoryAccess({
+      url: data.url,
+      ref: data.ref,
+      sha: data.sha,
+      credential: data.credentialRef,
+    });
+
+    if (!access.ok) {
+      const alternates = ctx.collectAlternateGitURLs(data.url);
+      const detail = alternates.length === 0 ? undefined : { alternates };
+
+      throw new DaemonError(access.code, access.message, detail);
+    }
+
+    this.sendOk(req.id, {
+      url: access.url,
+      head: access.head,
+      refs: access.refs,
+      resolved: access.resolved,
+    });
   }
 
   private applyAttach(req: RequestMsg, ctx: DaemonContext): void {

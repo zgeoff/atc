@@ -11,6 +11,7 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
   "codexBin": "codex",
   "codexArgs": [],
   "dirs": { "roots": [] },
+  "workspaces": { "githubOwner": null, "sources": null, "gitTransports": ["https", "ssh"] },
   "gateways": {},
   "hooks": {},
   "leader": "ctrl-space"
@@ -31,6 +32,7 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 | `leader`        | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                  |
 | `targets`       | unset           | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                     |
 | `defaultTarget` | unset           | The target a spawn without a target runs on.                                                                           |
+| `workspaces`    | see above       | Where workspaces come from. The [git transports](#git-transports) section covers `gitTransports`.                      |
 
 ## Leader
 
@@ -59,6 +61,37 @@ Typed input that starts with `/`, `~`, `.`, or `..` completes against the filesy
 filtering the list: `~/pro` lists the directories under your home that start with `pro`, and a
 trailing slash lists every child. A relative path resolves against the directory you ran `atc` from.
 Hidden directories complete only when the typed segment starts with a dot.
+
+## Git transports
+
+A spawn whose workspace is a git repository fetches it on the daemon's host.
+`workspaces.gitTransports` holds the git transports that fetch may use, and defaults to
+`["https", "ssh"]`; the scp-style `user@host:path` counts as `ssh`. A URL on any other transport
+fails as `invalid_git_url` before git runs, and every git command the daemon runs is held to the
+same list, so a host `insteadOf` rewrite, a checkout's origin, or a submodule cannot reach another
+transport.
+
+```json
+{
+  "workspaces": { "gitTransports": ["https", "ssh", "file"] }
+}
+```
+
+The list accepts `https` and `ssh`, plus two opt-ins, `http` and `file`. This is trusted-operator
+configuration, and it comes only from this file: no request, source, or environment variable widens
+it. Each opt-in widens what the daemon fetches on behalf of any client that can spawn a session.
+`http` sends repository contents and any credentials unencrypted. `file` lets a git source read any
+repository on the daemon's host that the daemon's user can read. An empty list is valid and allows
+no transport, so every git source fails.
+
+Any other name is a config error, `git`, `ext`, `fd`, and remote-helper names among them, as is a
+value that is not a list. The daemon prints the error at startup and runs no git until you fix it:
+probing a repository, and spawning a workspace from a repository or from a checkout, fail as
+`git_transports_invalid` with the same error. Sessions that need no git, such as one in a local
+directory, start as usual.
+
+A first run writes the default list into config.json. A config that lists the transports keeps its
+list, so a later change to atc's default does not reach it.
 
 ## Targets
 

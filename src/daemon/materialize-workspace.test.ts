@@ -30,6 +30,7 @@ test('it leaves no staging directory behind when the materialization row cannot 
       },
       log: () => {},
       stagingRoot: scratch,
+      gitTransports: ['https', 'ssh'],
     },
   );
 

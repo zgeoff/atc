@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename } from 'node:path';
-import { collectRootDirs } from './collect-root-dirs';
+import { collectRootDirs } from '../shared/collect-root-dirs';
 
 /**
  * Every source the picker lists, merged in the order the reader expects

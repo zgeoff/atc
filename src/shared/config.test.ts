@@ -12,6 +12,7 @@ test('it leaves every target unusable, local included, and grants no principal a
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
+    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -27,6 +28,7 @@ test('it leaves every target unusable, local included, and grants no principal a
     ],
     principals: new Map(),
     principalErrors: [],
+    workspaceErrors: [],
   });
 });
 
@@ -58,6 +60,7 @@ test('it falls back field by field when a field is wrong-typed instead of failin
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
+    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -66,6 +69,7 @@ test('it falls back field by field when a field is wrong-typed instead of failin
     targetErrors: [],
     principals: null,
     principalErrors: [],
+    workspaceErrors: [],
   });
 });
 
