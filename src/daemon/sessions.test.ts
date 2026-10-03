@@ -8,6 +8,7 @@ import type { AgentAdapter } from '../agents/agent-adapter';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { buildTargetIdentity } from './build-target-identity';
 import { SessionManager } from './sessions';
 
 // Registry-level tests: which agent id resolves to which adapter, and what a
@@ -181,6 +182,8 @@ test('it persists a sub-session link by the parent atc session id', async () => 
       cwd: '/tmp/proj',
       agentSessionID: toAgentSessionID('c-parent'),
       agent: 'claude',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
       lastAttachedAt: expect.toBeNumber(),
     },
     {
@@ -189,6 +192,8 @@ test('it persists a sub-session link by the parent atc session id', async () => 
       cwd: '/tmp',
       agentSessionID: toAgentSessionID('c-child'),
       agent: 'claude',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
       lastAttachedAt: expect.toBeNumber(),
       parent: parent.id,
     },
@@ -307,6 +312,8 @@ test("it keeps a finished turn's last message as the session result", async () =
       cwd: '/tmp',
       agentSessionID: toAgentSessionID('c-1'),
       agent: 'claude',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
       lastAttachedAt: expect.toBeNumber(),
       prompt: 'go',
       result: 'all green',
@@ -388,6 +395,8 @@ test('it persists the transcript path its hooks report', async () => {
       cwd: '/tmp',
       agentSessionID: toAgentSessionID('c-2'),
       agent: 'claude',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
       lastAttachedAt: expect.toBeNumber(),
       transcriptPath: '/t/c-2.jsonl',
     },
@@ -463,6 +472,8 @@ test('it keeps a crashed sibling restorable as live when another session finishe
       cwd: '/tmp',
       agentSessionID: toAgentSessionID('c-1'),
       agent: 'claude',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
       lastAttachedAt: expect.toBeNumber(),
       prompt: 'go',
       result: 'all green',
@@ -473,6 +484,8 @@ test('it keeps a crashed sibling restorable as live when another session finishe
       cwd: '/tmp',
       agentSessionID: toAgentSessionID('c-2'),
       agent: 'claude',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
       lastAttachedAt: expect.toBeNumber(),
       prompt: 'go',
     },
@@ -534,6 +547,8 @@ test('it persists a session the agent has not yet given a session id', async () 
       name: 'booting',
       cwd: '/tmp',
       agent: 'claude',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
       lastAttachedAt: expect.toBeNumber(),
     },
   ]);

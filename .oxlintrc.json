@@ -78,6 +78,8 @@
           // the daemon's per-session bookkeeping: screen, timers, and
           // headless-run handle, mutated in place by the daemon
           { "from": "file", "name": "SessionRuntime" },
+          // a configured execution target: it holds its live provider
+          { "from": "file", "name": "ExecutionTarget" },
           // wraps a live db connection; not meaningfully freezable
           { "from": "file", "name": "StateStore" },
           // wraps a live db connection; not meaningfully freezable
@@ -101,6 +103,7 @@
           { "from": "file", "name": "DaemonID" },
           // already the readonly form; the rule doesn't recognize it as such
           { "from": "lib", "name": "ReadonlySet" },
+          { "from": "lib", "name": "ReadonlyMap" },
           // a kysely connection bound to a live driver; not meaningfully freezable
           { "from": "package", "name": "DatabaseConnection", "package": "kysely" },
           // a migrator result read once for its error field, never mutated

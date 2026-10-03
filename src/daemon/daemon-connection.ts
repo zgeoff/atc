@@ -15,6 +15,7 @@ import {
   encodeMessage,
 } from '../protocol/protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from '../protocol/protocol';
+import type { TargetConfigError } from '../shared/collect-targets';
 import type { DaemonID } from '../shared/daemon-id';
 import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
@@ -24,6 +25,7 @@ import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
 import { buildPayloadHash } from './build-payload-hash';
+import type { TargetEntry } from './build-target-list';
 import type { KeyedRequest } from './idempotency-ledger';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
@@ -42,6 +44,7 @@ export interface SpawnParams {
   readonly agent: AgentID;
   readonly parent: SessionID | null;
   readonly overrides: SpawnOverrides;
+  readonly target: string;
 }
 
 interface SessionRecord {
@@ -68,6 +71,11 @@ export interface DaemonContext {
   readonly collectFleet: () => Promise<FleetEntry[]>;
   readonly loadLastUsedAgent: () => Promise<AgentID>;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
+
+  // The target a spawn runs on: the one it names, else the default. Throws
+  // the refusal for a target the spawn cannot run on, and for a spawn
+  // without a target when the config gives no default.
+  readonly resolveSpawnTarget: (requested: string | undefined) => string;
 
   // Runs the plan, which throws the refusal for a spawn it refuses, then
   // spawns. Answers with the `session.spawn` ok payload, which a keyed
@@ -144,7 +152,10 @@ export interface OutputClient {
   readonly sendOutput: (sessionID: SessionID, event: EventMsg, byteLength: number) => void;
 }
 
-// The `agents.list` answer: the host the daemon runs on, and each agent.
+// The `agents.list` answer: the host the daemon runs on, each agent, each
+// execution target, what a spawn without either runs with, a digest of
+// the target config, and the target config problems the daemon started
+// with.
 interface AgentList {
   readonly daemon: {
     readonly hostname: string;
@@ -153,6 +164,10 @@ interface AgentList {
     readonly build: string;
   };
   readonly agents: readonly AgentEntry[];
+  readonly targets: readonly TargetEntry[];
+  readonly spawnDefaults: { readonly agent: AgentID; readonly target: string | null };
+  readonly configRevision: string;
+  readonly targetErrors: readonly TargetConfigError[];
 }
 
 // One `events.read` answer: the events, and whether more follow them.
@@ -631,6 +646,9 @@ export class DaemonConnection {
     // claimed: a retry of a held key answers from the key without checking
     // anything again, and a refused spawn drops its claim.
     const plan = (): SpawnParams => {
+      // The target goes first: a config or target problem is the cause a
+      // spawn reports, ahead of any agent check that problem can skew.
+      const target = this.ctx.resolveSpawnTarget(data.target);
       const agent: AgentID = data.agent ?? 'claude';
       const adapter = this.ctx.findAdapter(agent);
       const entry = this.ctx.collectAgents().agents.find((candidate) => candidate.id === agent);
@@ -679,6 +697,7 @@ export class DaemonConnection {
         agent,
         parent,
         overrides: overrides.overrides,
+        target,
       };
     };
 

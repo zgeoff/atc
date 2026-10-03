@@ -13,6 +13,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'session.locator': "a session's locator",
   'spawn.idempotency': "atc_session_spawn's idempotencyKey",
   'spawn.options': "atc_session_spawn's model and effort",
+  'spawn.target': "atc_session_spawn's target",
 };
 
 /**

@@ -64,6 +64,13 @@ export const REQUEST_PARAM_SCHEMAS = {
     // of spawning again.
     idempotencyKey: IDEMPOTENCY_KEY,
 
+    // The execution target the session runs on; absent runs on the default
+    // target, and a target the daemon cannot use refuses the spawn.
+    target: z
+      .string({ error: 'session.spawn target must be a non-empty target id' })
+      .min(1, 'session.spawn target must be a non-empty target id')
+      .optional(),
+
     // The session the new one is a sub-session of; absent or empty spawns a
     // top-level session.
     parent: z.preprocess(

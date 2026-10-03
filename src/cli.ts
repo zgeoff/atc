@@ -160,11 +160,21 @@ const main = defineCommand({
           const codex = await import('./agents/codex-adapter');
           const gateway = await import('./agents/gateway-adapter');
           const headless = await import('./daemon/start-headless-run');
+          const targets = await import('./daemon/build-execution-targets');
 
           // Test harnesses shrink the outbound queue to force overflow
           // deterministically; unset means the production default.
           const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
           const cfg = config.loadConfig();
+
+          for (const error of cfg.targetErrors) {
+            const line =
+              error.scope === 'config'
+                ? `${error.path} cannot be used (${error.problem}: ${error.detail}); every spawn is refused, local ones included, until it is fixed`
+                : error.problem;
+
+            console.error(`atc daemon: config: ${line}`);
+          }
 
           // Cap on how long a fleet restore waits for one revived session to
           // report it has booted before moving to the next. Tests pin it to
@@ -206,6 +216,9 @@ const main = defineCommand({
               legacyFleetPath: config.legacyFleetFile,
               pidPath: config.daemonPidFile,
               hooks: cfg.hooks,
+              targets: targets.buildExecutionTargets(cfg.targets),
+              defaultTarget: cfg.defaultTarget,
+              targetErrors: cfg.targetErrors,
               restoreBootTimeoutMs,
               ...(Number.isFinite(graceOverride) && graceOverride >= 0
                 ? { tapGraceMs: graceOverride }

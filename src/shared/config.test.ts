@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { parseConfig } from './config';
+import { parseConfig, renderDefaultConfig } from './config';
 
-test('it falls back to every default when the file is not an object', () => {
-  expect(parseConfig(null)).toStrictEqual({
+test('it leaves every target unusable, local included, when the root is not an object', () => {
+  expect(parseConfig(null, '/home/u/.config/atc/config.json')).toStrictEqual({
     claudeBin: 'claude',
     claudeArgs: [],
     grokBin: 'grok',
@@ -15,26 +15,29 @@ test('it falls back to every default when the file is not an object', () => {
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
+    targets: [],
+    defaultTarget: null,
+    targetErrors: [
+      {
+        scope: 'config',
+        problem: 'config_malformed',
+        path: '/home/u/.config/atc/config.json',
+        detail: 'the root is null, not an object',
+      },
+    ],
   });
 });
 
-test.each([[null], [undefined], [[]], ['garbage'], [42]])(
-  'it falls back to every default when the file holds %p',
-  (raw) => {
-    expect(parseConfig(raw)).toStrictEqual({
-      claudeBin: 'claude',
-      claudeArgs: [],
-      grokBin: 'grok',
-      grokArgs: [],
-      codexBin: 'codex',
-      codexArgs: [],
-      dirs: { roots: [] },
-      gateways: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-    });
-  },
-);
+test.each([
+  [[], 'the root is an array, not an object'],
+  ['garbage', 'the root is a string, not an object'],
+  [42, 'the root is a number, not an object'],
+  [true, 'the root is a boolean, not an object'],
+])('it reports a malformed config when the root is %p', (raw, detail) => {
+  expect(parseConfig(raw, '/c.json').targetErrors).toStrictEqual([
+    { scope: 'config', problem: 'config_malformed', path: '/c.json', detail },
+  ]);
+});
 
 test('it falls back field by field when a field is wrong-typed instead of failing the whole file', () => {
   const config = parseConfig({
@@ -56,6 +59,9 @@ test('it falls back field by field when a field is wrong-typed instead of failin
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
   });
 });
 
@@ -98,4 +104,50 @@ test('it collects the configured directory roots with the home directory expande
   const config = parseConfig({ dirs: { roots: ['~/projects/', '/srv/work', 7, ''] } });
 
   expect(config.dirs).toStrictEqual({ roots: [join(homedir(), 'projects'), '/srv/work'] });
+});
+
+test('it reads the targets and default target a config sets', () => {
+  const config = parseConfig({
+    targets: { local: { provider: 'local-pty' }, box: { provider: 'imp', image: 'dev' } },
+    defaultTarget: 'box',
+  });
+
+  expect({
+    targets: config.targets,
+    defaultTarget: config.defaultTarget,
+    targetErrors: config.targetErrors,
+  }).toStrictEqual({
+    targets: [
+      { id: 'local', provider: 'local-pty', options: {} },
+      { id: 'box', provider: 'imp', options: { image: 'dev' } },
+    ],
+    defaultTarget: 'box',
+    targetErrors: [],
+  });
+});
+
+test('it holds no targets and an error instead of throwing for a malformed targets map', () => {
+  const config = parseConfig({ claudeBin: 'my-claude', targets: ['local'] });
+
+  expect({
+    claudeBin: config.claudeBin,
+    targets: config.targets,
+    defaultTarget: config.defaultTarget,
+    targetErrors: config.targetErrors,
+  }).toStrictEqual({
+    claudeBin: 'my-claude',
+    targets: [],
+    defaultTarget: null,
+    targetErrors: [
+      { scope: 'targets', problem: 'targets must be a non-empty object of named targets' },
+    ],
+  });
+});
+
+test('it reads the config a first run writes back as the defaults, without target errors', () => {
+  const written: unknown = JSON.parse(renderDefaultConfig());
+  const config = parseConfig(written);
+
+  expect(config).toStrictEqual(parseConfig({}));
+  expect(config.targetErrors).toStrictEqual([]);
 });

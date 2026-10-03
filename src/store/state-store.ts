@@ -144,6 +144,8 @@ export class StateStore {
         'transcript_path',
         'model',
         'effort',
+        'target',
+        'target_identity',
       ])
       .execute();
 
@@ -167,6 +169,8 @@ export class StateStore {
         ...(row.transcript_path === null ? {} : { transcriptPath: row.transcript_path }),
         ...(row.model === null ? {} : { model: row.model }),
         ...(row.effort === null ? {} : { effort: row.effort }),
+        ...(row.target === null ? {} : { target: row.target }),
+        ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
       });
     }
 
@@ -242,6 +246,8 @@ export class StateStore {
             transcript_path: entry.transcriptPath ?? null,
             model: entry.model ?? null,
             effort: entry.effort ?? null,
+            target: entry.target ?? null,
+            target_identity: entry.targetIdentity ?? null,
           })
           .execute();
 

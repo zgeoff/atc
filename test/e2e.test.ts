@@ -1,6 +1,14 @@
 import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, setDefaultTimeout, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { expect, onTestFinished, test } from 'bun:test';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'bun-pty';
@@ -11,11 +19,6 @@ import { isRecord } from '../src/shared/report';
 const repo = join(import.meta.dir, '..');
 const CTRL_SPACE = String.fromCodePoint(0);
 const BEL = String.fromCodePoint(7);
-
-// A cold client boot spawns and handshakes a cold daemon before the first
-// frame, so a journey's budget covers that boot plus its interactions, and
-// a boot that never draws still leaves room for dispose to stop its daemon.
-setDefaultTimeout(20_000);
 
 function collectEnv(extra: Readonly<Record<string, string>>): Record<string, string> {
   const env: Record<string, string> = {};
@@ -152,7 +155,14 @@ idle
         // The picker lists the client's own directory first, so a spawn
         // that takes the first entry lands in this test's home.
         cwd: home,
-        env: collectEnv({ HOME: home, XDG_RUNTIME_DIR: home, PATH: '/usr/sbin:/usr/bin:/bin' }),
+
+        // A test that drops an executable into the home's bin directory
+        // puts it on the PATH of the client and the daemon it starts.
+        env: collectEnv({
+          HOME: home,
+          XDG_RUNTIME_DIR: home,
+          PATH: `${join(home, 'bin')}:/usr/sbin:/usr/bin:/bin`,
+        }),
       });
 
       firstOutputAt = null;
@@ -176,10 +186,12 @@ idle
     async waitFor(needle: string, ms = 4000) {
       const start = Date.now();
 
-      // Two cold Bun processes and a SQLite open sit between spawn and the
-      // first frame; on a starved CI runner that takes several times its
-      // unloaded third of a second, so the boot gets its own budget.
-      const bootMs = 10_000;
+      // The client gives its daemon 8 seconds to answer before it draws an
+      // error, so the boot phase waits that long plus 1 second for the
+      // client's own cold start, which measures under 1.1 seconds on a
+      // runner loaded at four times its cores. Every wait after the first
+      // byte keeps its own deadline.
+      const bootMs = 8000 + 1000;
 
       for (;;) {
         if (out.includes(needle)) {
@@ -358,7 +370,7 @@ test('it surfaces a needs-you session in the overlay and kills it on confirm', a
   await Bun.sleep(500); // quit tears the process down; only the exit event observes it
 
   expect(exited).toBe(true);
-});
+}, 15_000);
 
 test('it clears the need state when attaching a needy session', async () => {
   await using ctx = setupTest();
@@ -541,7 +553,7 @@ test('it jumps to the most urgent needs-you session on tab', async () => {
 
   // Tab attaches the needy session and attaching acks it.
   await waitForStatus(statusPath, '"needs_you":0');
-});
+}, 15_000);
 
 test('it tab-jumps to a finished session when none need you', async () => {
   await using ctx = setupTest();
@@ -583,7 +595,7 @@ for _ in $(seq 1 300); do sleep 0.1; done
   // Tab attaches the finished session: the attach jiggle repaints the fake,
   // whose marker only reaches the screen while attached.
   await ctx.waitFor('FAKE_CLAUDE_UP');
-});
+}, 15_000);
 
 test('it pins a session from the overlay and marks its row', async () => {
   await using ctx = setupTest();
@@ -602,7 +614,7 @@ test('it pins a session from the overlay and marks its row', async () => {
   pty.write('p');
 
   await ctx.waitFor('⋆');
-});
+}, 15_000);
 
 test('it clusters overlay rows under repository headers when grouping is toggled on', async () => {
   await using ctx = setupTest();
@@ -653,7 +665,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   await ctx.waitFor('▸');
   await ctx.waitFor('otherproj');
-});
+}, 15_000);
 
 test('it lists a sub-session indented under its parent', async () => {
   await using ctx = setupTest();
@@ -696,7 +708,7 @@ test('it lists a sub-session indented under its parent', async () => {
   const screen = ctx.read();
 
   expect(screen.indexOf('wrangler')).toBeLessThan(screen.indexOf('↳ worker'));
-});
+}, 15_000);
 
 test('it preselects the focused session when the overlay opens', async () => {
   await using ctx = setupTest();
@@ -738,7 +750,7 @@ test('it preselects the focused session when the overlay opens', async () => {
   await ctx.waitFor('second');
 
   expect(ctx.read()).toInclude('\u001B[7msecond');
-});
+}, 15_000);
 
 test('it opens the key reference from the overlay and returns on esc', async () => {
   await using ctx = setupTest();
@@ -808,7 +820,7 @@ test('it adopts a session with --resume and yanks its resume command', async () 
 
   expect(cmd).toInclude('claude --resume fake-1');
   expect(cmd).toStartWith("cd '");
-});
+}, 15_000);
 
 test('it chains the user statusline and appends the fleet segment', async () => {
   await using ctx = setupTest();
@@ -955,7 +967,7 @@ test('it revives a killed session in place with a fresh terminal', async () => {
   // The replayed screen of the killed process already holds FAKE_CLAUDE_UP,
   // so only the resume argument shows the revived process started.
   await ctx.waitFor('--resume fake-1');
-});
+}, 15_000);
 
 test('it explains a revive that has no saved transcript instead of failing silently', async () => {
   await using ctx = setupTest();
@@ -983,7 +995,7 @@ test('it explains a revive that has no saved transcript instead of failing silen
   pty.write('P');
 
   await ctx.waitFor('nothing to resume yet');
-});
+}, 15_000);
 
 test('it spawns a grok session without resume or -p and marks it resumable', async () => {
   await using ctx = setupTest();
@@ -1047,7 +1059,7 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
 
   await ctx.waitFor('NEEDS YOU');
   await ctx.waitFor('\u001B[90mg\u001B[0m');
-});
+}, 15_000);
 
 test('it marks a grok session done on end-turn Stop', async () => {
   await using ctx = setupTest();
@@ -1072,7 +1084,7 @@ test('it marks a grok session done on end-turn Stop', async () => {
   pty.write(CTRL_SPACE);
 
   await ctx.waitFor('done');
-});
+}, 15_000);
 
 test('it marks a grok session done on StopCancelled', async () => {
   await using ctx = setupTest();
@@ -1097,7 +1109,7 @@ test('it marks a grok session done on StopCancelled', async () => {
   pty.write(CTRL_SPACE);
 
   await ctx.waitFor('done');
-});
+}, 15_000);
 
 test('it keeps a grok session running when a hook names a subagent', async () => {
   await using ctx = setupTest();
@@ -1127,7 +1139,7 @@ test('it keeps a grok session running when a hook names a subagent', async () =>
 
   expect(ctx.read()).not.toInclude('NEEDS YOU');
   expect(ctx.read()).not.toInclude('done');
-});
+}, 15_000);
 
 test('it restores a grok session with grok --resume after a crash', async () => {
   await using ctx = setupTest();
@@ -1190,7 +1202,7 @@ test('it restores a grok session with grok --resume after a crash', async () => 
 
   expect(ctx.read()).not.toInclude('claude --resume');
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
-});
+}, 15_000);
 
 test('it yanks a grok resume command once the id is captured', async () => {
   await using ctx = setupTest();
@@ -1221,7 +1233,7 @@ test('it yanks a grok resume command once the id is captured', async () => {
   const cmd = Buffer.from(b64, 'base64').toString();
 
   expect(cmd).toBe(`cd '${ctx.home}' && grok --resume fake-grok-1`);
-});
+}, 15_000);
 
 test('it yanks a grok command without --resume before SessionStart', async () => {
   await using ctx = setupTest();
@@ -1252,7 +1264,7 @@ test('it yanks a grok command without --resume before SessionStart', async () =>
   const cmd = Buffer.from(b64, 'base64').toString();
 
   expect(cmd).toBe(`cd '${ctx.home}' && grok`);
-});
+}, 15_000);
 
 test('it ignores H on a grok row instead of opening the eject picker', async () => {
   await using ctx = setupTest();
@@ -1279,7 +1291,7 @@ test('it ignores H on a grok row instead of opening the eject picker', async () 
   await ctx.waitFor('adopt an external session');
 
   expect(ctx.read()).not.toInclude('eject: headless instruction');
-});
+}, 15_000);
 
 test('it adopts grok with --no-leader and without --resume', async () => {
   await using ctx = setupTest();
@@ -1325,7 +1337,7 @@ test('it adopts grok with --no-leader and without --resume', async () => {
   expect(argsLine).not.toInclude('--resume');
   expect(argsLine).not.toInclude('-p');
   expect(captured).not.toInclude('FAKE_CLAUDE_UP');
-});
+}, 15_000);
 
 test('it keeps NEEDS YOU when grok emits idle_prompt after permission_prompt', async () => {
   await using ctx = setupTest();
@@ -1355,7 +1367,7 @@ test('it keeps NEEDS YOU when grok emits idle_prompt after permission_prompt', a
   pty.write(CTRL_SPACE);
 
   await ctx.waitFor('NEEDS YOU');
-});
+}, 15_000);
 
 test('it leaves an agent with no installed binary out of the picker', async () => {
   await using ctx = setupTest();
@@ -1382,4 +1394,51 @@ test('it leaves an agent with no installed binary out of the picker', async () =
   pty.write('\r');
 
   await ctx.waitFor('spawn: directory');
-});
+}, 15_000);
+
+test('it shows a refused spawn in the picker and keeps the entered prompt', async () => {
+  await using ctx = setupTest();
+
+  // A config that is not JSON drops the configured claude binary, so the
+  // default name resolves on PATH to the fake one and the daemon's target
+  // check is what refuses the spawn.
+  writeFileSync(join(ctx.home, '.config', 'atc', 'config.json'), '{ "targets": ');
+  mkdirSync(join(ctx.home, 'bin'));
+  symlinkSync(join(ctx.home, 'fake-claude'), join(ctx.home, 'bin', 'claude'));
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('broken\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  pty.write('hello');
+
+  await ctx.waitFor('> hello');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('target_config_invalid: config file');
+
+  const screen = ctx.read();
+
+  expect(screen).toInclude('spawn: initial prompt');
+  expect(screen).toInclude('> hello');
+  expect(screen).not.toInclude('FAKE_CLAUDE_UP');
+}, 15_000);

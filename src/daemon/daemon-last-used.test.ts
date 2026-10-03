@@ -57,6 +57,9 @@ test('it does not write last-used when a restored session reports SessionStart',
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
   });
 
   const daemon = await startDaemon({

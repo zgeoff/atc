@@ -654,6 +654,54 @@ test('it round-trips a fleet row with its model and effort', async () => {
   ]);
 });
 
+test('it round-trips a fleet row with its execution target and identity', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    {
+      sessionID: toSessionID('s-c1'),
+      name: 'remote',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+    },
+    {
+      sessionID: toSessionID('s-c2'),
+      name: 'untargeted',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c2'),
+      agent: 'claude',
+    },
+  ]);
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    {
+      sessionID: toSessionID('s-c1'),
+      name: 'remote',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+    },
+    {
+      sessionID: toSessionID('s-c2'),
+      name: 'untargeted',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c2'),
+      agent: 'claude',
+    },
+  ]);
+});
+
 test('it adds parent to a fleet row that predates it', async () => {
   const dbPath = join(setupDir(), 'state.db');
 
@@ -1004,6 +1052,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '015_rebuild_fleet_keyed_by_session_id',
     '016_create_session_owner',
     '017_create_idempotency',
+    '018_add_fleet_target',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');

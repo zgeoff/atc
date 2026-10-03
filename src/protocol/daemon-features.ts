@@ -34,6 +34,10 @@ export const DAEMON_FEATURES = [
 
   // `session.message` takes `idempotencyKey`.
   'message.idempotency',
+
+  // `session.spawn` takes `target`, and `agents.list` returns `targets`,
+  // `spawnDefaults`, `configRevision`, and `targetErrors`.
+  'spawn.target',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

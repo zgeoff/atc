@@ -6,6 +6,7 @@ import { DaemonError } from '../protocol/daemon-error';
 import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
+import type { TargetConfigError } from '../shared/collect-targets';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import type { MessageID } from '../shared/message-id';
 import { isRecord } from '../shared/report';
@@ -21,12 +22,16 @@ import type { TrailEntry } from '../store/trail-entry';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
+import { buildConfigRevision } from './build-config-revision';
+import { buildExecutionTargets } from './build-execution-targets';
+import type { ExecutionTarget } from './build-execution-targets';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 import { buildReportTrailEntry } from './build-report-trail-entry';
 import { buildSessionEvent } from './build-session-event';
 import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionReportEvent } from './build-session-report-event';
+import { buildTargetList } from './build-target-list';
 import { claimDaemonLock } from './claim-daemon-lock';
 import { DaemonConnection } from './daemon-connection';
 import type {
@@ -38,7 +43,6 @@ import type {
 } from './daemon-connection';
 import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
-import type { ExecutionProvider } from './execution-provider';
 import { startHookServer } from './hooks';
 import type { HookEvent } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
@@ -49,7 +53,6 @@ import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
 import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
-import { requireCapability } from './require-capability';
 import { restoreFleet } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
 import { ScreenModel } from './screen-model';
@@ -74,9 +77,16 @@ export interface DaemonOptions {
   // grok adapter is unsupported, not a Claude spawn.
   readonly adapters?: readonly AgentAdapter[];
 
-  // Where session harnesses run; the local pseudo-terminal provider when
-  // unset.
-  readonly provider?: ExecutionProvider;
+  // Where sessions run, in config order; one `local` target on the local
+  // pseudo-terminal provider when unset. A spawn without a target runs on
+  // the default one: `local` when unset and the targets hold it, and none
+  // otherwise, which refuses such a spawn.
+  readonly targets?: readonly ExecutionTarget[];
+  readonly defaultTarget?: string | null;
+
+  // The target config problems the daemon started with. A target they cover
+  // refuses every session, and `agents.list` returns them.
+  readonly targetErrors?: readonly TargetConfigError[];
 
   // SQLite path for daemon state; a fleet.json at legacyFleetPath seeds the
   // fleet table once so upgrading keeps the restorable fleet.
@@ -187,12 +197,25 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   idempotencySweep.unref();
 
+  const targets =
+    opts.targets ?? buildExecutionTargets([{ id: 'local', provider: 'local-pty', options: {} }]);
+
+  const targetErrors = opts.targetErrors ?? [];
+
+  const defaultTarget =
+    opts.defaultTarget === undefined
+      ? (targets.find((target) => target.id === 'local')?.id ?? null)
+      : opts.defaultTarget;
+
+  const configRevision = buildConfigRevision(targets, defaultTarget, targetErrors);
+
   const mgr = new SessionManager(
     opts.adapter,
     store,
     opts.statusPath,
     opts.adapters ?? [],
-    opts.provider,
+    targets,
+    targetErrors,
   );
 
   const clients = new Set<DaemonConnection>();
@@ -469,7 +492,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     // A host that cannot resize keeps its terminal at the size it started
     // with; the screen model still follows the clients.
-    if (s !== undefined && mgr.provider.capabilities.resize) {
+    if (s !== undefined && (mgr.findProvider(s)?.capabilities.resize ?? false)) {
       s.pty?.resize(dims.cols, dims.rows);
     }
 
@@ -739,6 +762,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       p.parent,
       p.overrides,
       id,
+      p.target,
     );
 
     const runtime = runtimes.get(s.id);
@@ -889,10 +913,28 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         build: opts.build,
       },
       agents: buildAgentList(mgr.collectAdapters(), (bin) => Bun.which(bin) !== null),
+      targets: buildTargetList(targets, defaultTarget),
+      spawnDefaults: { agent: 'claude', target: defaultTarget },
+      configRevision,
+      targetErrors,
     }),
     collectFleet: () => store.loadFleet(),
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => mgr.findAdapter(kind),
+    resolveSpawnTarget: (requested) => {
+      const target = requested ?? defaultTarget;
+      const refusal = mgr.findExecutionRefusal({ target, targetIdentity: null }, 'spawn');
+
+      if (refusal !== null) {
+        throw refusal;
+      }
+
+      if (target === null) {
+        throw new Error('a spawn without a target passed its checks');
+      }
+
+      return target;
+    },
     spawnSession: (plan, keyed) => {
       if (keyed === null) {
         return startSpawn(plan(), mintSessionID()).then((session) => ({ session }));
@@ -928,8 +970,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return false;
       }
 
-      if ([s, ...mgr.collectChildren(id)].some((x) => x.pty !== null)) {
-        requireCapability(mgr.provider, 'kill');
+      for (const live of [s, ...mgr.collectChildren(id)]) {
+        if (live.pty !== null) {
+          mgr.requireExecution(live, 'kill');
+        }
       }
 
       for (const child of mgr.collectChildren(id)) {
@@ -959,7 +1003,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'no_transcript';
       }
 
-      requireCapability(mgr.provider, 'kill');
+      mgr.requireExecution(s, 'kill');
+      mgr.requireExecution(s, 'headless');
 
       const yanked = mgr.yankHeadless(id);
 
@@ -1042,8 +1087,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'dead';
       }
 
-      requireCapability(mgr.provider, 'attach');
-
+      mgr.requireExecution(s, 'attach');
       attachments.attach(sessionID, client, dims);
       mgr.attach(sessionID);
 
@@ -1084,7 +1128,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'missing';
       }
 
+      // A headless turn runs only through the session's own target, never
+      // anywhere else, and a dead session takes no input.
       if (s.kind === 'headless') {
+        mgr.requireExecution(s, 'headless');
+
+        if (s.state === 'exited') {
+          return 'dead';
+        }
+
         if ((runtimes.get(sessionID)?.headlessRun ?? null) !== null) {
           return 'busy';
         }
@@ -1104,8 +1156,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'dead';
       }
 
-      requireCapability(mgr.provider, 'input');
-
+      mgr.requireExecution(s, 'input');
       s.pty.write(data);
 
       return 'ok';

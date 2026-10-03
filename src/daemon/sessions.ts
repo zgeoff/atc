@@ -2,19 +2,23 @@ import { writeFileSync } from 'node:fs';
 import type { AdapterEvent, AgentAdapter, AgentID, SpawnOverrides } from '../agents/agent-adapter';
 import { truncateDetail } from '../agents/truncate-detail';
 import { DaemonError } from '../protocol/daemon-error';
+import type { ErrorCode } from '../protocol/protocol';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { collectCleanEnv } from '../shared/collect-clean-env';
+import type { TargetConfigError } from '../shared/collect-targets';
 import { socketPath, statusFile } from '../shared/config';
 import type { DaemonID } from '../shared/daemon-id';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { SessionID } from '../shared/session-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
-import type { ExecutionProvider, HarnessHandle } from './execution-provider';
+import type { ExecutionTarget } from './build-execution-targets';
+import { buildTargetIdentity } from './build-target-identity';
+import type { ExecutionCapability, ExecutionProvider, HarnessHandle } from './execution-provider';
+import { findExecutionRefusal } from './find-execution-refusal';
 import type { HookEvent } from './hooks';
 import { LocalPTYProvider } from './local-pty-provider';
 import { mintSessionID } from './mint-session-id';
-import { requireCapability } from './require-capability';
 
 export type SessionState = 'running' | 'needs_you' | 'done' | 'exited';
 
@@ -55,7 +59,7 @@ export interface SessionDescriptor {
 
 interface SessionLocator {
   readonly daemonID: DaemonID;
-  readonly targetID: 'local';
+  readonly targetID: string;
 }
 
 export interface Session {
@@ -107,6 +111,23 @@ export interface Session {
   // agent's configured default, and every revive passes them again.
   model?: string;
   effort?: string;
+
+  // the execution target the session runs on, and the identity it had
+  // when the session started there; every revive runs there too, and only
+  // while the target keeps that identity.
+  target: string;
+  targetIdentity: string;
+}
+
+// The identity of the implicit `local` target, which a fleet row without a
+// stored identity ran on.
+const LOCAL_TARGET_IDENTITY = buildTargetIdentity('local-pty', {});
+
+// The target a session runs on and the identity it is bound to there; null
+// binds a new session to the target as it stands now.
+interface TargetBinding {
+  readonly target: string;
+  readonly targetIdentity: string | null;
 }
 
 export class SessionManager {
@@ -137,15 +158,25 @@ export class SessionManager {
 
   private readonly statusPath: string;
 
-  // Where every session's harness runs.
-  readonly provider: ExecutionProvider;
+  private readonly targets: ReadonlyMap<string, ExecutionTarget>;
+
+  private readonly targetErrors: readonly TargetConfigError[];
 
   constructor(
     fallback: AgentAdapter,
     store: FleetStore,
     statusPath: string | undefined = statusFile,
     adapters: readonly AgentAdapter[] = [],
-    provider: ExecutionProvider = new LocalPTYProvider(),
+    targets: readonly ExecutionTarget[] = [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: LOCAL_TARGET_IDENTITY,
+        provider: new LocalPTYProvider(),
+      },
+    ],
+    targetErrors: readonly TargetConfigError[] = [],
   ) {
     // Each adapter names the id it answers to, so a registry key can never
     // disagree with the adapter behind it. A later one wins the id.
@@ -153,7 +184,51 @@ export class SessionManager {
     this.hasScreenDetector = Object.values(this.adapters).some((a) => a.screenDetector !== null);
     this.store = store;
     this.statusPath = statusPath ?? statusFile;
-    this.provider = provider;
+
+    this.targets = new Map(targets.map((t) => [t.id, t]));
+
+    this.targetErrors = targetErrors;
+  }
+
+  /**
+   * The provider a binding's work runs on, after every target check: throws
+   * the refusal for a target the config leaves unusable, one that is gone,
+   * one whose identity is not the binding's, one with no provider here, and
+   * a provider that lacks the capability. Returns the identity a new session
+   * binds to as well.
+   */
+  requireExecution(
+    binding: Readonly<TargetBinding>,
+    capability: ExecutionCapability,
+  ): { readonly provider: ExecutionProvider; readonly identity: string } {
+    const refusal = this.findExecutionRefusal(binding, capability);
+    const target = this.targets.get(binding.target);
+
+    if (refusal !== null) {
+      throw refusal;
+    }
+
+    if (target === undefined || target.provider === null) {
+      throw new Error(`execution target '${binding.target}' passed its checks without a provider`);
+    }
+
+    return { provider: target.provider, identity: target.identity };
+  }
+
+  // The refusal for running work of a capability on a binding's target, or
+  // null when the target serves it. A null target is a spawn that names
+  // none when the config gives no default, which is always refused.
+  findExecutionRefusal(
+    binding: Readonly<{ target: string | null; targetIdentity: string | null }>,
+    capability: ExecutionCapability,
+  ): DaemonError | null {
+    return findExecutionRefusal(this.targets, this.targetErrors, binding, capability);
+  }
+
+  // The provider a session's harness runs on, or null when its target is
+  // gone from the config or has no provider here.
+  findProvider(s: Session): ExecutionProvider | null {
+    return this.targets.get(s.target)?.provider ?? null;
   }
 
   /**
@@ -200,7 +275,15 @@ export class SessionManager {
   // never auto-adopted. An entry without an agent session id has nothing to
   // resume, so it comes back exited too.
   restore(entry: FleetEntry): Session {
-    const exited = entry.exited === true || entry.agentSessionID === undefined;
+    const target = entry.target ?? 'local';
+    const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
+    const refusal = this.findExecutionRefusal({ target, targetIdentity }, 'spawn');
+    const targetRefusal = refusal === null ? null : formatTargetRefusal(refusal.code, target);
+
+    // A session whose target this daemon cannot use comes back exited, so
+    // nothing runs it anywhere else: neither a terminal nor a headless turn.
+    const exited =
+      entry.exited === true || entry.agentSessionID === undefined || targetRefusal !== null;
 
     // An entry whose agent is no longer registered still gets its row, so a
     // backend dropped from the config shows as itself instead of vanishing or
@@ -209,6 +292,8 @@ export class SessionManager {
 
     if (entry.exited !== true && entry.agentSessionID === undefined) {
       lastMsg = 'nothing to resume';
+    } else if (entry.exited !== true && targetRefusal !== null) {
+      lastMsg = targetRefusal;
     } else if (exited) {
       lastMsg = 'killed';
     } else if (this.findAdapter(entry.agent) === null) {
@@ -239,6 +324,8 @@ export class SessionManager {
       ...(entry.transcriptPath === undefined ? {} : { transcriptPath: entry.transcriptPath }),
       ...(entry.model === undefined ? {} : { model: entry.model }),
       ...(entry.effort === undefined ? {} : { effort: entry.effort }),
+      target,
+      targetIdentity,
     };
 
     this.sessions.push(session);
@@ -263,7 +350,7 @@ export class SessionManager {
       return null;
     }
 
-    requireCapability(this.provider, 'spawn');
+    const provider = this.requireExecution(s, 'spawn').provider;
 
     const plan = adapter.planSpawn({
       prompt: '',
@@ -272,7 +359,7 @@ export class SessionManager {
       ...(s.effort === undefined ? {} : { effort: s.effort }),
     });
 
-    const pty = this.provider.spawnHarness({
+    const pty = provider.spawnHarness({
       bin: plan.bin,
       args: plan.args,
       cwd: s.cwd,
@@ -402,7 +489,9 @@ export class SessionManager {
   // resumes that specific session (fleet restore). parent makes the new
   // session a sub-session of that one. overrides hold the model and effort
   // the new process runs with, and the session keeps them for every revive.
-  // id is minted here unless the caller minted it ahead of the spawn.
+  // id is minted here unless the caller minted it ahead of the spawn. target
+  // is the execution target the harness runs on; one this daemon cannot use
+  // refuses the spawn before anything starts.
   spawn(
     cwd: string,
     name: string,
@@ -415,6 +504,7 @@ export class SessionManager {
     parent: SessionID | null = null,
     overrides: SpawnOverrides = {},
     id: SessionID = mintSessionID(),
+    target = 'local',
   ): Session {
     const adapter = this.findAdapter(agent);
 
@@ -422,14 +512,15 @@ export class SessionManager {
       throw new Error(`no adapter for agent '${agent}'`);
     }
 
-    requireCapability(this.provider, 'spawn');
+    const execution = this.requireExecution({ target, targetIdentity: null }, 'spawn');
+    const provider = execution.provider;
 
     // The repository root resolves before the process starts: resolving it
     // can throw, and a spawn that throws must leave nothing running.
     const repoRoot = resolveRepoRoot(cwd);
     const plan = adapter.planSpawn({ prompt, resume, ...overrides });
 
-    const pty = this.provider.spawnHarness({
+    const pty = provider.spawnHarness({
       bin: plan.bin,
       args: plan.args,
       cwd,
@@ -464,6 +555,8 @@ export class SessionManager {
       ...(prompt === '' ? {} : { prompt }),
       ...(overrides.model === undefined ? {} : { model: overrides.model }),
       ...(overrides.effort === undefined ? {} : { effort: overrides.effort }),
+      target,
+      targetIdentity: execution.identity,
     };
 
     pty.onData((d) => {
@@ -534,7 +627,7 @@ export class SessionManager {
       alive: s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'),
       canEject: (this.findAdapter(s.agent)?.headlessRunner ?? null) !== null,
       ...(s.parent === null ? {} : { parent: s.parent }),
-      locator: { daemonID: this.store.daemonID, targetID: 'local' },
+      locator: { daemonID: this.store.daemonID, targetID: s.target },
     }));
   }
 
@@ -851,6 +944,8 @@ export class SessionManager {
         ...(s.transcriptPath === undefined ? {} : { transcriptPath: s.transcriptPath }),
         ...(s.model === undefined ? {} : { model: s.model }),
         ...(s.effort === undefined ? {} : { effort: s.effort }),
+        target: s.target,
+        targetIdentity: s.targetIdentity,
       });
     }
 
@@ -992,4 +1087,25 @@ export function sortGroupedSessionViews<
   }
 
   return [...buckets.values()].flat();
+}
+
+// A target refusal as a session's last message, short enough for a list row.
+function formatTargetRefusal(code: ErrorCode, target: string): string {
+  if (code === 'target_config_invalid') {
+    return `target '${target}' misconfigured`;
+  }
+
+  if (code === 'unknown_target') {
+    return `no target '${target}'`;
+  }
+
+  if (code === 'target_changed') {
+    return `target '${target}' changed`;
+  }
+
+  if (code === 'target_unavailable') {
+    return `target '${target}' unavailable`;
+  }
+
+  return `target '${target}' cannot start a terminal`;
 }

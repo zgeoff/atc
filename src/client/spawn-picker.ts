@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import type { AgentID } from '../agents/agent-adapter';
+import { DaemonError } from '../protocol/daemon-error';
 import { loadConfig } from '../shared/config';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
@@ -32,7 +33,8 @@ export interface SpawnPickerDeps<TMirror> {
 /**
  * The modal flow behind n and r: agent, then directory, then name, then an
  * optional first prompt. Every path out of it either attaches the new
- * session or returns the client to the screen it came from.
+ * session or returns the client to the screen it came from. A spawn the
+ * daemon refuses is no path out: the flow stays open and shows why.
  */
 export class SpawnPicker<TMirror extends { readonly id: string }> {
   private readonly deps: SpawnPickerDeps<TMirror>;
@@ -60,6 +62,10 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private agent: AgentID = 'claude';
 
+  // The daemon's refusal of the last spawn, shown in place of the hint until
+  // the next key.
+  private refusal: string | null = null;
+
   constructor(deps: SpawnPickerDeps<TMirror>) {
     this.deps = deps;
   }
@@ -82,12 +88,15 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.agent = this.picks[this.selected]?.agent ?? this.deps.getLastUsedAgent();
     this.step = 'agent';
+    this.refusal = null;
 
     process.stdout.write(ansi.clear);
     this.render();
   }
 
   applyKey(buf: Buffer) {
+    this.refusal = null;
+
     const edit = planTextEdit(buf, this.input, {
       isLeaderKey: this.deps.isLeaderKey,
       moves: this.step === 'agent' || this.step === 'dir',
@@ -168,7 +177,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         selected: -1,
         input: this.input,
         placeholder: formatDirName(this.dir),
-        hint: `session name for ${formatDir(this.dir)} · ⏎ accept · esc back`,
+        hint: this.refusal ?? `session name for ${formatDir(this.dir)} · ⏎ accept · esc back`,
       });
     } else {
       drawPicker({
@@ -177,7 +186,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         selected: -1,
         input: this.input,
         placeholder: 'optional — ⏎ to start interactive',
-        hint: 'first message for the session · ⏎ spawn · esc back',
+        hint: this.refusal ?? 'first message for the session · ⏎ spawn · esc back',
       });
     }
 
@@ -320,7 +329,21 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
         return;
       }
-    } catch {}
+    } catch (error) {
+      // A refused spawn keeps the picker on the step that sent it, with the
+      // entered text back in the input, so the user can fix the cause and
+      // retry or back out.
+      const reason =
+        error instanceof DaemonError ? `${error.code}: ${error.message}` : String(error);
+
+      this.refusal = `${reason} · ⏎ retry · esc back`;
+      this.input = this.resume ? this.name : prompt;
+
+      process.stdout.write(ansi.clear);
+      this.render();
+
+      return;
+    }
 
     this.deps.toBase();
   }
