@@ -654,6 +654,62 @@ test('it round-trips a fleet row with its model and effort', async () => {
   ]);
 });
 
+test('it round-trips a fleet row with what the operator asked of it and its host', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    {
+      sessionID: toSessionID('s-c1'),
+      name: 'sleeper',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      exited: true,
+      desired: 'sleep',
+      hostKey: toSessionID('s-c1'),
+    },
+    {
+      sessionID: toSessionID('s-c2'),
+      name: 'helper',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c2'),
+      agent: 'claude',
+      parent: toSessionID('s-c1'),
+      desired: 'stop',
+      hostKey: toSessionID('s-c1'),
+    },
+  ]);
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    {
+      sessionID: toSessionID('s-c1'),
+      name: 'sleeper',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      exited: true,
+      desired: 'sleep',
+      hostKey: toSessionID('s-c1'),
+    },
+    {
+      sessionID: toSessionID('s-c2'),
+      name: 'helper',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c2'),
+      agent: 'claude',
+      parent: toSessionID('s-c1'),
+      desired: 'stop',
+      hostKey: toSessionID('s-c1'),
+    },
+  ]);
+});
+
 test('it round-trips a fleet row with its execution target and identity', async () => {
   const store = await StateStore.open(join(setupDir(), 'state.db'));
 
@@ -1055,6 +1111,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '018_add_fleet_target',
     '019_add_idempotency_effect_target',
     '020_create_workspace_materialization',
+    '021_add_fleet_lifecycle',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');

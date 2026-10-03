@@ -164,6 +164,8 @@ export class StateStore {
         'workspace.ref',
         'workspace.materialized_at',
         'workspace.withheld_env',
+        'fleet.desired',
+        'fleet.host_key',
       ])
       .execute();
 
@@ -191,6 +193,8 @@ export class StateStore {
         ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
         ...buildWorkspaceField(row),
         ...buildWithheldEnvField(row.withheld_env),
+        ...(row.desired === 'sleep' || row.desired === 'stop' ? { desired: row.desired } : {}),
+        ...(row.host_key === null ? {} : { hostKey: toSessionID(row.host_key) }),
       });
     }
 
@@ -268,6 +272,8 @@ export class StateStore {
             effort: entry.effort ?? null,
             target: entry.target ?? null,
             target_identity: entry.targetIdentity ?? null,
+            desired: entry.desired ?? null,
+            host_key: entry.hostKey ?? null,
           })
           .execute();
 

@@ -173,6 +173,21 @@ descriptor under a `session` key (the same shape `session.list` returns), rather
 subset of fields — a client decodes them through one path instead of tracking which fields each
 event happens to carry.
 
+Every descriptor holds a `lifecycle` object of four layers, and `state` derives from them and the
+session's attention:
+
+| Layer        | Values                                         | Holds                                       |
+| ------------ | ---------------------------------------------- | ------------------------------------------- |
+| `desired`    | `run`, `sleep`, `stop`                         | what the operator last asked of the session |
+| `vm`         | `none`, `awake`, `asleep`, `unknown`           | the last state the daemon saw of the host   |
+| `harness`    | `running`, `suspended`, `exited`               | the agent process                           |
+| `attachment` | `local`, `attached`, `reattaching`, `detached` | the daemon's connection to the output       |
+
+`vm` is `none` and `attachment` is `local` for a session on the daemon's own machine. `suspended` is
+a process kept inside a sleeping host, which a revive brings back as it was. A session whose harness
+is not `running` lists with `state` `exited`; a running harness lists with the attention its hooks
+last reported.
+
 A sub-session's descriptor carries the id of its parent under `parent`; a top-level session's
 descriptor omits the key. A spawn whose `parent` is itself a sub-session lands beside it, under the
 same parent, so a set stays one level deep.
@@ -197,6 +212,7 @@ same parent, so a set stays one level deep.
     "kind": "pty",
     "alive": true,
     "canEject": true,
+    "lifecycle": { "desired": "run", "vm": "none", "harness": "running", "attachment": "local" },
   },
 }
 ```

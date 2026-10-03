@@ -14,12 +14,15 @@ import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
 import type { SessionWorkspace } from '../store/workspace-materialization';
 import type { ExecutionTarget } from './build-execution-targets';
+import { buildSessionLifecycle } from './build-session-lifecycle';
+import type { SessionLifecycle } from './build-session-lifecycle';
 import { buildTargetIdentity } from './build-target-identity';
 import type { ExecutionCapability, ExecutionProvider, HarnessHandle } from './execution-provider';
 import { findExecutionRefusal } from './find-execution-refusal';
 import type { HookEvent } from './hooks';
 import { LocalPTYProvider } from './local-pty-provider';
 import { mintSessionID } from './mint-session-id';
+import { pickSessionState } from './pick-session-state';
 
 export type SessionState = 'running' | 'needs_you' | 'done' | 'exited';
 
@@ -60,6 +63,10 @@ export interface SessionDescriptor {
   // What the session's working directory was materialized from, for a
   // session spawned with a workspace source.
   readonly workspace?: SessionWorkspace;
+
+  // What the operator asked for, the host, the harness, and the daemon's
+  // connection to it; the state derives from these and the attention.
+  readonly lifecycle: SessionLifecycle;
 }
 
 interface SessionLocator {
@@ -130,6 +137,17 @@ export interface Session {
   // the environment variable names every harness the session starts goes
   // without: the materialization's credential and askpass context
   withheldEnv: readonly string[];
+
+  // What the operator asked of the harness, the last state seen of its
+  // host, and the daemon's connection to its output.
+  desired: SessionLifecycle['desired'];
+  vm: SessionLifecycle['vm'];
+  attachment: SessionLifecycle['attachment'];
+
+  // The session whose host the harness runs on: its own id, or its
+  // parent's when the parent runs on the same target, so one host serves a
+  // top-level session and the sub-sessions beside it.
+  hostKey: SessionID;
 }
 
 // A session's ready workspace and the variables its harnesses go without.
@@ -309,7 +327,9 @@ export class SessionManager {
     // reviving under another agent. Adopting a terminal for it is refused.
     let lastMsg = 'waiting to restore';
 
-    if (entry.exited !== true && entry.agentSessionID === undefined) {
+    if (exited && entry.desired === 'sleep') {
+      lastMsg = 'asleep';
+    } else if (entry.exited !== true && entry.agentSessionID === undefined) {
       lastMsg = 'nothing to resume';
     } else if (entry.exited !== true && targetRefusal !== null) {
       lastMsg = targetRefusal;
@@ -347,6 +367,10 @@ export class SessionManager {
       targetIdentity,
       ...(entry.workspace === undefined ? {} : { workspace: entry.workspace }),
       withheldEnv: entry.withheldEnv ?? [],
+      desired: entry.desired ?? 'run',
+      vm: this.pickRestoredVM(target, entry.desired),
+      attachment: this.hasHostLifecycle(target) ? 'detached' : 'local',
+      hostKey: entry.hostKey ?? entry.sessionID,
     };
 
     this.sessions.push(session);
@@ -354,6 +378,29 @@ export class SessionManager {
     this.onEvent('added', session);
 
     return session;
+  }
+
+  // Whether a target's host has a lifecycle of its own that the daemon
+  // follows: one that can sleep or be destroyed. The daemon's own machine
+  // has none.
+  private hasHostLifecycle(target: string): boolean {
+    const capabilities = this.targets.get(target)?.provider?.capabilities;
+
+    return capabilities !== undefined && (capabilities.suspend || capabilities.destroy);
+  }
+
+  // The host state a restored session lists with: asleep when the operator
+  // left it asleep, unknown for any other remote host until the daemon
+  // reaches it, and none on the daemon's own machine.
+  private pickRestoredVM(
+    target: string,
+    desired: 'sleep' | 'stop' | undefined,
+  ): SessionLifecycle['vm'] {
+    if (!this.hasHostLifecycle(target)) {
+      return 'none';
+    }
+
+    return desired === 'sleep' ? 'asleep' : 'unknown';
   }
 
   // Adopts a headless session back into a terminal: a fresh PTY resumes the
@@ -393,6 +440,7 @@ export class SessionManager {
     s.kind = 'pty';
     s.state = 'running';
     s.lastMsg = 'revived';
+    s.desired = 'run';
 
     pty.onData((d) => {
       this.onOutput(s, d);
@@ -586,6 +634,10 @@ export class SessionManager {
       targetIdentity: execution.identity,
       ...(materialized === null ? {} : { workspace: materialized.workspace }),
       withheldEnv: materialized?.withheldEnv ?? [],
+      desired: 'run',
+      vm: this.hasHostLifecycle(target) ? 'unknown' : 'none',
+      attachment: this.hasHostLifecycle(target) ? 'attached' : 'local',
+      hostKey: this.pickHostKey(id, parent, target),
     };
 
     pty.onData((d) => {
@@ -615,6 +667,20 @@ export class SessionManager {
     return session;
   }
 
+  // A sub-session runs on its parent's host when the two share a target
+  // whose hosts have a lifecycle, so one host serves a top-level session and
+  // every sub-session beside it there; any other session has a host of its
+  // own.
+  private pickHostKey(id: SessionID, parent: SessionID | null, target: string): SessionID {
+    const owner = parent === null ? undefined : this.sessions.find((s) => s.id === parent);
+
+    if (owner === undefined || owner.target !== target || !this.hasHostLifecycle(target)) {
+      return id;
+    }
+
+    return owner.hostKey;
+  }
+
   // Takes back a spawn that failed after its process started: the process
   // dies and the session leaves the list and the fleet, so the spawn leaves
   // nothing behind. It resolves only once the fleet without the session is
@@ -641,7 +707,7 @@ export class SessionManager {
       id: s.id,
       name: s.name,
       cwd: s.cwd,
-      state: s.state,
+      state: pickSessionState(buildLifecycle(s), s.state),
       unread: s.unread,
       lastMsg: s.lastMsg,
       ...(s.lastDetail === undefined ? {} : { lastDetail: s.lastDetail }),
@@ -658,6 +724,7 @@ export class SessionManager {
       ...(s.parent === null ? {} : { parent: s.parent }),
       locator: { daemonID: this.store.daemonID, targetID: s.target },
       ...(s.workspace === undefined ? {} : { workspace: s.workspace }),
+      lifecycle: buildLifecycle(s),
     }));
   }
 
@@ -911,6 +978,7 @@ export class SessionManager {
 
     s.state = 'exited';
     s.lastMsg = 'killed';
+    s.desired = 'stop';
 
     this.onEvent('state', s);
   }
@@ -976,6 +1044,8 @@ export class SessionManager {
         ...(s.effort === undefined ? {} : { effort: s.effort }),
         target: s.target,
         targetIdentity: s.targetIdentity,
+        ...(s.desired === 'run' ? {} : { desired: s.desired }),
+        ...(s.hostKey === s.id ? {} : { hostKey: s.hostKey }),
       });
     }
 
@@ -1117,6 +1187,17 @@ export function sortGroupedSessionViews<
   }
 
   return [...buckets.values()].flat();
+}
+
+function buildLifecycle(s: Session): SessionLifecycle {
+  return buildSessionLifecycle({
+    desired: s.desired,
+    vm: s.vm,
+    attachment: s.attachment,
+    hasHarness: s.pty !== null,
+    kind: s.kind,
+    state: s.state,
+  });
 }
 
 // A target refusal as a session's last message, short enough for a list row.

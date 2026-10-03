@@ -37,6 +37,7 @@ test('it names an event by the live session holding its agent session id', () =>
         alive: true,
         canEject: false,
         locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
+        lifecycle: { desired: 'run', vm: 'none', harness: 'running', attachment: 'local' },
       },
     ],
   );
@@ -83,6 +84,7 @@ test('it names an event by atc id when it carries no agent session id', () => {
         alive: true,
         canEject: false,
         locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
+        lifecycle: { desired: 'run', vm: 'none', harness: 'running', attachment: 'local' },
       },
     ],
   );
