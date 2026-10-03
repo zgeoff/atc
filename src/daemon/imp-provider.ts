@@ -535,16 +535,17 @@ export class ImpProvider implements ExecutionProvider {
   }
 
   // Runs a readying, a sleep, or a lease return of an imp after the one
-  // before it there. A turn never starts in its caller's tick, so a harness
-  // end the daemon still applies counts before the turn checks the host.
+  // before it there.
   private async withHostTurn<T>(name: string, run: () => Promise<T>): Promise<T> {
-    const before = this.turns.get(name) ?? Promise.resolve();
+    const before = this.turns.get(name);
     const turn = Promise.withResolvers<void>();
 
     this.turns.set(name, turn.promise);
 
     try {
-      await before;
+      if (before !== undefined) {
+        await before;
+      }
 
       return await run();
     } finally {

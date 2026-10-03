@@ -1735,3 +1735,71 @@ test('it returns the launch admission of each connection that fails before it op
     requests: [],
   });
 });
+
+test('it returns the launch admission of a connection whose opening throws before it returns', async () => {
+  await using auth = await setupTest();
+
+  const attemptID = await auth.binder.createBinding(auth.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: {
+      agent: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      placeholderEnv: {},
+      hash: 'h1',
+    },
+  });
+
+  await auth.binder.updateReady(toSessionID('s1'), attemptID);
+  await auth.port.createImp({ name: 'imp-x' });
+
+  auth.port.setOpenFailures(1);
+
+  const harness = new ImpHarness(
+    auth.port,
+    {
+      kind: 'start',
+      name: 'imp-x',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [],
+      isSuspending: () => false,
+      onDone: () => {},
+      admit: (kind, send) =>
+        auth.binder.withLaunchAdmission(
+          toSessionID('s1'),
+          { revision: 1, hash: 'h1', attemptID: null },
+          kind,
+          send,
+        ),
+    },
+  );
+
+  const started = harness.waitForStart();
+
+  expect(started).rejects.toMatchObject({ code: 'internal' });
+
+  await started.catch(() => null);
+
+  expect({
+    pending: auth.binder.countPendingAdmissions(toSessionID('s1')),
+    requests: auth.port.sessionRequests,
+  }).toStrictEqual({ pending: 0, requests: [] });
+});

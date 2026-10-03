@@ -10,6 +10,7 @@ import type {
   ImpExecRequirement,
   ImpPort,
   ImpSessionConnection,
+  ImpSessionHandlers,
   ImpSessionOutcome,
   ImpSessionRequest,
   ImpSessionStarted,
@@ -22,7 +23,8 @@ interface ImpHarnessHost {
   // connection the sleep ends is the sleep's and not the harness's end.
   readonly isSuspending: () => boolean;
 
-  // Called once, when the harness ends or the daemon lets go of it.
+  // Called once, when the harness ends or the daemon lets go of it; for an
+  // end, after every exit listener has run.
   readonly onDone: () => void;
 
   // Whether impd carries output offsets, so a reconnect can resume.
@@ -273,6 +275,7 @@ export class ImpHarness implements HarnessHandle {
 
     this.stopFollowing();
     connection?.close();
+    this.host.onDone();
   };
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- a promise is a live handle
@@ -423,22 +426,29 @@ export class ImpHarness implements HarnessHandle {
   private openConnection(request: ImpSessionRequest, ticket?: LaunchTicket): void {
     const gate = ticket === undefined ? undefined : () => this.checkTicket(ticket, request.kind);
 
-    const connection = this.port.openSession(
-      request,
-      {
-        onStarted: (started) => {
-          if (this.connection === connection) {
-            this.applyStarted(connection, started);
-          }
-        },
-        onOutput: (data) => {
-          if (this.connection === connection) {
-            this.applyOutput(data);
-          }
-        },
+    const handlers: ImpSessionHandlers = {
+      onStarted: (started) => {
+        if (this.connection === connection) {
+          this.applyStarted(connection, started);
+        }
       },
-      gate,
-    );
+      onOutput: (data) => {
+        if (this.connection === connection) {
+          this.applyOutput(data);
+        }
+      },
+    };
+
+    let connection: ImpSessionConnection;
+
+    // The ticket goes back however the connection ends, a throw from
+    // opening it included.
+    try {
+      connection = this.port.openSession(request, handlers, gate);
+    } catch (error) {
+      ticket?.release();
+      throw error;
+    }
 
     this.connection = connection;
     this.connectionTicket = ticket ?? null;
@@ -794,8 +804,14 @@ export class ImpHarness implements HarnessHandle {
 
     this.stopFollowing();
 
-    for (const listener of listeners) {
-      listener(exit);
+    // The host hears the harness is done only after every exit listener
+    // has run, so its owner no longer counts the harness as running then.
+    try {
+      for (const listener of listeners) {
+        listener(exit);
+      }
+    } finally {
+      this.host.onDone();
     }
   }
 
@@ -852,7 +868,6 @@ export class ImpHarness implements HarnessHandle {
     this.dataListeners.clear();
     this.exitListeners.clear();
     this.attachmentListeners.clear();
-    this.host.onDone();
   }
 }
 
