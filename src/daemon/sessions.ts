@@ -1,6 +1,4 @@
 import { writeFileSync } from 'node:fs';
-import { spawn } from 'bun-pty';
-import type { IPty } from 'bun-pty';
 import type { AdapterEvent, AgentAdapter, AgentID, SpawnOverrides } from '../agents/agent-adapter';
 import { truncateDetail } from '../agents/truncate-detail';
 import { DaemonError } from '../protocol/daemon-error';
@@ -12,15 +10,18 @@ import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { SessionID } from '../shared/session-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
+import type { ExecutionProvider, HarnessHandle } from './execution-provider';
 import type { HookEvent } from './hooks';
+import { LocalPTYProvider } from './local-pty-provider';
 import { mintSessionID } from './mint-session-id';
+import { requireCapability } from './require-capability';
 
 export type SessionState = 'running' | 'needs_you' | 'done' | 'exited';
 
 export type SessionEventKind = 'added' | 'state' | 'renamed' | 'removed';
 
-// The over-the-wire view of a session: everything but the PTY handle, plus
-// the surface kind.
+// The over-the-wire view of a session: everything but the harness handle,
+// plus the surface kind.
 export interface SessionDescriptor {
   readonly id: SessionID;
   readonly name: string;
@@ -62,7 +63,10 @@ export interface Session {
   name: string;
   cwd: string;
   kind: 'pty' | 'headless';
-  pty: IPty | null;
+
+  // The running harness its execution provider handed back, or null when
+  // the session has no terminal.
+  pty: HarnessHandle | null;
   state: SessionState;
   unread: boolean;
   lastMsg: string;
@@ -133,11 +137,15 @@ export class SessionManager {
 
   private readonly statusPath: string;
 
+  // Where every session's harness runs.
+  readonly provider: ExecutionProvider;
+
   constructor(
     fallback: AgentAdapter,
     store: FleetStore,
     statusPath: string | undefined = statusFile,
     adapters: readonly AgentAdapter[] = [],
+    provider: ExecutionProvider = new LocalPTYProvider(),
   ) {
     // Each adapter names the id it answers to, so a registry key can never
     // disagree with the adapter behind it. A later one wins the id.
@@ -145,6 +153,7 @@ export class SessionManager {
     this.hasScreenDetector = Object.values(this.adapters).some((a) => a.screenDetector !== null);
     this.store = store;
     this.statusPath = statusPath ?? statusFile;
+    this.provider = provider;
   }
 
   /**
@@ -254,6 +263,8 @@ export class SessionManager {
       return null;
     }
 
+    requireCapability(this.provider, 'spawn');
+
     const plan = adapter.planSpawn({
       prompt: '',
       resume: s.agentSessionID,
@@ -261,12 +272,13 @@ export class SessionManager {
       ...(s.effort === undefined ? {} : { effort: s.effort }),
     });
 
-    const pty = spawn(plan.bin, plan.args, {
-      name: 'xterm-256color',
-      cols,
-      rows,
+    const pty = this.provider.spawnHarness({
+      bin: plan.bin,
+      args: plan.args,
       cwd: s.cwd,
       env: collectCleanEnv({ ATC_SESSION_ID: s.id, ATC_SOCKET: socketPath }),
+      cols,
+      rows,
     });
 
     s.pty = pty;
@@ -410,17 +422,20 @@ export class SessionManager {
       throw new Error(`no adapter for agent '${agent}'`);
     }
 
+    requireCapability(this.provider, 'spawn');
+
     // The repository root resolves before the process starts: resolving it
     // can throw, and a spawn that throws must leave nothing running.
     const repoRoot = resolveRepoRoot(cwd);
     const plan = adapter.planSpawn({ prompt, resume, ...overrides });
 
-    const pty = spawn(plan.bin, plan.args, {
-      name: 'xterm-256color',
-      cols,
-      rows,
+    const pty = this.provider.spawnHarness({
+      bin: plan.bin,
+      args: plan.args,
       cwd,
       env: collectCleanEnv({ ATC_SESSION_ID: id, ATC_SOCKET: socketPath }),
+      cols,
+      rows,
     });
 
     let initialMsg = prompt;

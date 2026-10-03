@@ -38,11 +38,17 @@ Methods are `noun.verb`; events are PascalCase, the naming style hook consumers 
 Claude Code's hook events. The MCP tools map onto both mechanically (`session.spawn` → tool
 `atc_session_spawn`, `SessionAdded` → a notification). Error codes are human-readable strings from a
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
-`no_such_session`, `session_dead`, `unsupported`, `already_answered`, `too_slow`, `stale_epoch`,
-`idempotency_conflict`, `outcome_unknown`, `internal`. An unknown method is an `unknown_method`
-error, never a disconnect; unknown fields in any message are ignored. A peer decodes an error code
-it does not know as `internal` and keeps its `msg`. These rules exist so additive evolution never
-breaks a peer. An error may also carry `data`, an object whose fields its code defines.
+`no_such_session`, `session_dead`, `unsupported`, `unsupported_operation`, `already_answered`,
+`too_slow`, `stale_epoch`, `idempotency_conflict`, `outcome_unknown`, `internal`. An unknown method
+is an `unknown_method` error, never a disconnect; unknown fields in any message are ignored. A peer
+decodes an error code it does not know as `internal` and keeps its `msg`. These rules exist so
+additive evolution never breaks a peer. An error may also carry `data`, an object whose fields its
+code defines.
+
+`unsupported_operation` refuses a request that the session's execution host cannot serve, such as
+input to a host that takes none. Its `data` holds the provider kind as `provider` and the missing
+capability as `capability`. The [daemon architecture](./daemon.md#execution-providers) covers
+providers and their capabilities.
 
 ## Handshake
 

@@ -248,7 +248,7 @@ not app code.
 Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
 `.oxlintrc.json`): `ack`, `adopt`, `answer`, `attach`, `boot`, `copy`, `detach`, `dispose`, `draw`,
 `jiggle`, `kill`, `log`, `mint`, `open`, `quit`, `reconcile`, `record`, `refresh`, `restart`,
-`restore`, `revoke`, `schedule`, `spawn`, `truncate`, `yank`.
+`restore`, `revoke`, `schedule`, `spawn`, `transfer`, `truncate`, `yank`.
 
 `dispose` releases every resource an object holds in one call (`SessionRuntime.dispose`), and is
 safe to call more than once.
@@ -261,6 +261,9 @@ change leaves behind (`reconcileIdempotencyKeys`).
 
 `revoke` withdraws a credential atc issued so it no longer authorizes anything (`revokeGrant`), as
 opposed to `remove`, which deletes a resource outright.
+
+`transfer` moves content into an execution provider's host (`transferArchive`), as opposed to
+`write`, which persists to the daemon's own filesystem.
 
 Exempt names (tiny geometry/row helpers and script entrypoints): `cols`, `rows`, `ptyRows`, `out`,
 `main`, `boxTop`, `boxDivider`, `boxBottom`, `boxRow`, `dimRow`.
