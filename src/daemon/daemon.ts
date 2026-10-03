@@ -993,7 +993,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // Throws the refusal a fresh spawn to the target gets when the access
   // does not reach the target, and the identity, a held spawn key recorded
   // for its session. A key that records none is refused: nothing it holds
-  // shows where its session ran.
+  // shows where its session ran. A session the daemon still holds is
+  // refused the same way when the access does not reach its whole tree.
   const requireReplayInReach = (record: IdempotencyRecord, access: TargetAccess): void => {
     const bound = record.effectTarget;
 
@@ -1001,7 +1002,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       throw buildTargetForbiddenError(findReplayTarget(record));
     }
 
-    if (!access.canUse(bound)) {
+    const session = mgr.sessions.find((x) => x.id === record.effectRef);
+
+    if (
+      !access.canUse(bound) ||
+      (session !== undefined && !isTreeInReach(mgr.sessions, session.id, access))
+    ) {
       throw buildTargetForbiddenError(bound.target);
     }
   };

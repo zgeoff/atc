@@ -1480,6 +1480,36 @@ test('it refuses the replay of a held spawn key once the grant no longer reaches
   expect(daemon.harnesses).toStrictEqual(['box']);
 });
 
+test("it refuses the replay of a held spawn key once its session's tree leaves the principal's reach", async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const spawn = () =>
+    daemon.client.sendRequest(
+      'session.spawn',
+      { cwd: '/tmp', target: 'local', idempotencyKey: 'k-1' },
+      'narrow',
+    );
+
+  const spawned = await spawn();
+
+  const parent = String(getRecord(spawned, 'session')['id']);
+
+  const child = await daemon.spawnOn('box', parent);
+  const replayed = await readAnswer(spawn, 'k-1');
+
+  expect(replayed).toStrictEqual({
+    error: {
+      code: 'target_forbidden',
+      message: expect.toInclude("'local'"),
+      data: { target: 'local' },
+    },
+  });
+
+  expect(JSON.stringify(replayed)).not.toInclude(parent);
+  expect(JSON.stringify(replayed)).not.toInclude(child);
+  expect(daemon.harnesses).toStrictEqual(['local', 'box']);
+});
+
 test('it answers the replay of a held spawn key with its session while the grant still reaches it', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
