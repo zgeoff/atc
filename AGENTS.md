@@ -189,15 +189,16 @@ spawn picker's discovery sources, the directories, GitHub, and git URL sources t
 `protocol/` is the wire format, the transport it rides, and the types both ends of it share;
 `shared/` holds id types, config, and other utilities used across the rest of `src/`. `cli.ts` is
 the CLI entrypoint, and `gateway.ts` is the entrypoint of the separate `atc-gateway` binary, which
-must never reach `daemon/`, `agents/`, or any module that starts a daemon. A module that exists only to back one of its subcommands stays beside it at
-`src/` root, while the `tui` and `daemon` subcommands load their subsystems from `client/` and
-`daemon/`. `bun run check:imports` fails on an import cycle and on an import a directory's rule
-forbids; the rules live in `scripts/check-imports.ts`. `mcp/` holds the MCP tool definitions and
-request handling that `mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts`
-and the better-auth authorization server and its pages. `federation/` holds the gateway's daemon
-registry, per-daemon callers, and id and cursor rewriting, and imports only `shared/` and
-`protocol/`. `test/` holds the PTY-driven e2e suite, `bin/atc` is the executable shim. `mods/` holds
-the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling, not app code.
+must never reach `daemon/`, `agents/`, or any module that starts a daemon. A module that exists only
+to back one of its subcommands stays beside it at `src/` root, while the `tui` and `daemon`
+subcommands load their subsystems from `client/` and `daemon/`. `bun run check:imports` fails on an
+import cycle and on an import a directory's rule forbids; the rules live in
+`scripts/check-imports.ts`. `mcp/` holds the MCP tool definitions and request handling that
+`mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the better-auth
+authorization server and its pages. `federation/` holds the gateway's daemon registry, per-daemon
+callers, and id and cursor rewriting, and imports only `shared/` and `protocol/`. `test/` holds the
+PTY-driven e2e suite, `bin/atc` is the executable shim. `mods/` holds the `atc-bridge` Claude Code
+mod. `scripts/` holds repo tooling, not app code.
 
 ## Runtime rules
 
