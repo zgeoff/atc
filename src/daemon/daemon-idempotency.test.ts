@@ -1,8 +1,10 @@
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
@@ -13,6 +15,8 @@ import { StateStore } from '../store/state-store';
 import { buildPayloadHash } from './build-payload-hash';
 import { startDaemon } from './daemon';
 import type { DaemonHandle } from './daemon';
+import type { ExecutionProvider, HarnessHandle } from './execution-provider';
+import { LocalPTYProvider } from './local-pty-provider';
 
 const idleAdapter: AgentAdapter = {
   id: 'claude',
@@ -37,8 +41,9 @@ async function setupTest() {
   const clients: DaemonClient[] = [];
 
   return {
+    dir,
     dbPath,
-    async boot(adapter: AgentAdapter = idleAdapter) {
+    async boot(adapter: AgentAdapter = idleAdapter, provider?: ExecutionProvider) {
       const daemon = await startDaemon({
         socketPath,
         reporterSocketPath: join(dir, 'reporter.sock'),
@@ -46,6 +51,13 @@ async function setupTest() {
         adapter,
         dbPath,
         statusPath: join(dir, 'status.json'),
+        ...(provider === undefined
+          ? {}
+          : {
+              targets: [
+                { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+              ],
+            }),
       });
 
       daemons.push(daemon);
@@ -456,6 +468,524 @@ test('it keeps the key as outcome_unknown when a failed spawn cannot be removed 
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
 
   await retried.catch(() => null);
+
+  const list = await client.sendRequest('session.list');
+
+  expect(planned).toBe(1);
+  expect(list['sessions']).toStrictEqual([]);
+});
+
+test('it answers outcome_unknown with the session id when the fleet write after a successful spawn fails, so a retry spawns nothing', async () => {
+  await using ctx = await setupTest();
+
+  let planned = 0;
+
+  const counting: AgentAdapter = {
+    ...idleAdapter,
+    planSpawn: () => {
+      planned++;
+
+      return { bin: 'sleep', args: ['30'] };
+    },
+  };
+
+  const client = await ctx.boot(counting);
+
+  // Another connection drops the fleet table, so the spawn starts but its
+  // fleet write cannot land.
+  const db = new Database(ctx.dbPath);
+
+  db.run('DROP TABLE fleet');
+
+  const params = { cwd: '/tmp', cols: 80, rows: 24, idempotencyKey: 'k-1' };
+
+  const first = await client.sendRequest('session.spawn', params).catch((error: unknown) => ({
+    error,
+  }));
+
+  expect(first).toMatchObject({ error: { code: 'outcome_unknown' } });
+
+  const effectRef = getRecord(getRecord(first, 'error'), 'data')['effectRef'];
+
+  expect(effectRef).toBeString();
+
+  const retried = client.sendRequest('session.spawn', params);
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown', data: { effectRef } });
+
+  await retried.catch(() => null);
+
+  const list = await client.sendRequest('session.list');
+
+  const claim = db.query('SELECT state, effect_ref FROM idempotency').all();
+
+  db.close();
+
+  expect(planned).toBe(1);
+  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: effectRef, alive: true })]);
+  expect(claim).toStrictEqual([{ state: 'outcome_unknown', effect_ref: effectRef }]);
+});
+
+test('it answers outcome_unknown with the session id when completing the key fails, so a retry spawns nothing', async () => {
+  await using ctx = await setupTest();
+
+  let planned = 0;
+
+  const counting: AgentAdapter = {
+    ...idleAdapter,
+    planSpawn: () => {
+      planned++;
+
+      return { bin: 'sleep', args: ['30'] };
+    },
+  };
+
+  const client = await ctx.boot(counting);
+
+  // Another connection makes every update of a key fail, so the claim lands
+  // but neither its completion nor its outcome can.
+  const db = new Database(ctx.dbPath);
+
+  db.run(
+    "CREATE TRIGGER fail_key_update BEFORE UPDATE ON idempotency BEGIN SELECT RAISE(ABORT, 'injected key write failure'); END",
+  );
+
+  const params = { cwd: '/tmp', cols: 80, rows: 24, idempotencyKey: 'k-1' };
+
+  const first = await client.sendRequest('session.spawn', params).catch((error: unknown) => ({
+    error,
+  }));
+
+  expect(first).toMatchObject({ error: { code: 'outcome_unknown' } });
+
+  const effectRef = getRecord(getRecord(first, 'error'), 'data')['effectRef'];
+
+  expect(effectRef).toBeString();
+
+  const retried = client.sendRequest('session.spawn', params);
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown', data: { effectRef } });
+
+  await retried.catch(() => null);
+
+  const list = await client.sendRequest('session.list');
+
+  const claim = db.query('SELECT state, effect_ref FROM idempotency').all();
+
+  db.close();
+
+  expect(planned).toBe(1);
+  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: effectRef, alive: true })]);
+  expect(claim).toStrictEqual([{ state: 'in_progress', effect_ref: effectRef }]);
+});
+
+test('it answers outcome_unknown with the session id when the fleet write and the key update both fail after a successful spawn', async () => {
+  await using ctx = await setupTest();
+
+  let planned = 0;
+
+  const counting: AgentAdapter = {
+    ...idleAdapter,
+    planSpawn: () => {
+      planned++;
+
+      return { bin: 'sleep', args: ['30'] };
+    },
+  };
+
+  const client = await ctx.boot(counting);
+
+  const db = new Database(ctx.dbPath);
+
+  db.run('DROP TABLE fleet');
+
+  db.run(
+    "CREATE TRIGGER fail_key_update BEFORE UPDATE ON idempotency BEGIN SELECT RAISE(ABORT, 'injected key write failure'); END",
+  );
+
+  const params = { cwd: '/tmp', cols: 80, rows: 24, idempotencyKey: 'k-1' };
+
+  const first = await client.sendRequest('session.spawn', params).catch((error: unknown) => ({
+    error,
+  }));
+
+  expect(first).toMatchObject({ error: { code: 'outcome_unknown' } });
+
+  const effectRef = getRecord(getRecord(first, 'error'), 'data')['effectRef'];
+
+  expect(effectRef).toBeString();
+
+  const retried = client.sendRequest('session.spawn', params);
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown', data: { effectRef } });
+
+  await retried.catch(() => null);
+
+  const list = await client.sendRequest('session.list');
+
+  const claim = db.query('SELECT state, effect_ref FROM idempotency').all();
+
+  db.close();
+
+  expect(planned).toBe(1);
+  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: effectRef, alive: true })]);
+  expect(claim).toStrictEqual([{ state: 'in_progress', effect_ref: effectRef }]);
+});
+
+test('it answers outcome_unknown with the session id when a failed spawn cannot leave the fleet and the key update fails too', async () => {
+  await using ctx = await setupTest();
+
+  let armed = false;
+  let planned = 0;
+
+  const failing: AgentAdapter = {
+    ...idleAdapter,
+    planSpawn: () => {
+      planned++;
+      armed = planned === 1;
+
+      return { bin: 'sleep', args: ['30'] };
+    },
+    get headlessRunner() {
+      if (armed) {
+        armed = false;
+        throw new Error('adapter failed after the process started');
+      }
+
+      return null;
+    },
+  };
+
+  const client = await ctx.boot(failing);
+
+  const db = new Database(ctx.dbPath);
+
+  db.run('DROP TABLE fleet');
+
+  db.run(
+    "CREATE TRIGGER fail_key_update BEFORE UPDATE ON idempotency BEGIN SELECT RAISE(ABORT, 'injected key write failure'); END",
+  );
+
+  const params = { cwd: '/tmp', cols: 80, rows: 24, idempotencyKey: 'k-1' };
+
+  const first = await client.sendRequest('session.spawn', params).catch((error: unknown) => ({
+    error,
+  }));
+
+  expect(first).toMatchObject({ error: { code: 'outcome_unknown' } });
+
+  const effectRef = getRecord(getRecord(first, 'error'), 'data')['effectRef'];
+
+  expect(effectRef).toBeString();
+
+  const retried = client.sendRequest('session.spawn', params);
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown', data: { effectRef } });
+
+  await retried.catch(() => null);
+
+  const claim = db.query('SELECT state, effect_ref FROM idempotency').all();
+
+  db.close();
+
+  expect(planned).toBe(1);
+  expect(claim).toStrictEqual([{ state: 'in_progress', effect_ref: effectRef }]);
+});
+
+test('it ends a failed spawn that ignores its kill with a forced kill, so the rollback completes and a retry spawns once', async () => {
+  await using ctx = await setupTest();
+
+  const pidPath = join(ctx.dir, 'child.pid');
+  let armed = false;
+  let planned = 0;
+
+  // The first child ignores SIGHUP before it writes its pid, and the start
+  // fails only once that pid is written.
+  const failing: AgentAdapter = {
+    ...idleAdapter,
+    planSpawn: () => {
+      planned++;
+      armed = planned === 1;
+
+      return planned === 1
+        ? {
+            bin: 'bash',
+            args: [
+              '-c',
+              `trap '' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; exec sleep 10`,
+            ],
+          }
+        : { bin: 'sleep', args: ['30'] };
+    },
+    get headlessRunner() {
+      if (armed) {
+        armed = false;
+
+        while (!existsSync(pidPath)) {
+          Bun.sleepSync(10);
+        }
+
+        throw new Error('adapter failed after the process started');
+      }
+
+      return null;
+    },
+  };
+
+  const client = await ctx.boot(failing);
+
+  const params = { cwd: '/tmp', cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const first = client.sendRequest('session.spawn', params);
+
+  expect(first).rejects.toMatchObject({ code: 'internal' });
+
+  await first.catch(() => null);
+
+  const pid = Number(readFileSync(pidPath, 'utf8'));
+
+  expect(() => process.kill(pid, 0)).toThrow();
+
+  const retried = await client.sendRequest('session.spawn', params);
+  const list = await client.sendRequest('session.list');
+
+  expect(planned).toBe(2);
+  expect(list['sessions']).toStrictEqual([getRecord(retried, 'session')]);
+}, 10_000);
+
+test('it keeps a failed spawn listed, its key outcome_unknown, and its revive refused when its provider cannot confirm the exit', async () => {
+  await using ctx = await setupTest();
+
+  const pidPath = join(ctx.dir, 'child.pid');
+  let armed = false;
+  let planned = 0;
+
+  // The child ignores SIGHUP before it writes its pid, and the start fails
+  // only once that pid is written, so the rollback's kill cannot end it.
+  const failing: AgentAdapter = {
+    ...idleAdapter,
+    planSpawn: () => {
+      planned++;
+      armed = planned === 1;
+
+      return {
+        bin: 'bash',
+        args: [
+          '-c',
+          `trap '' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; exec sleep 10`,
+        ],
+      };
+    },
+    get headlessRunner() {
+      if (armed) {
+        armed = false;
+
+        while (!existsSync(pidPath)) {
+          Bun.sleepSync(10);
+        }
+
+        throw new Error('adapter failed after the process started');
+      }
+
+      return null;
+    },
+  };
+
+  // A provider that runs harnesses on local pseudo-terminals but has no
+  // forced kill to send, as a remote provider has none.
+  const local = new LocalPTYProvider();
+
+  const provider: ExecutionProvider = {
+    kind: 'no-forced-kill',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
+    capabilities: local.capabilities,
+    spawnHarness: (spec): HarnessHandle => {
+      const { killForced: _unused, ...handle } = local.spawnHarness(spec);
+
+      return handle;
+    },
+    transferArchive: local.transferArchive,
+    runCommand: local.runCommand,
+    suspendHost: local.suspendHost,
+    destroyHost: local.destroyHost,
+  };
+
+  const client = await ctx.boot(failing, provider);
+
+  const params = {
+    cwd: '/tmp',
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+    idempotencyKey: 'k-1',
+  };
+
+  const first = await client.sendRequest('session.spawn', params).catch((error: unknown) => ({
+    error,
+  }));
+
+  const pid = Number(readFileSync(pidPath, 'utf8'));
+
+  onTestFinished(() => {
+    process.kill(pid, 'SIGKILL');
+  });
+
+  expect(first).toMatchObject({ error: { code: 'outcome_unknown' } });
+
+  const effectRef = getRecord(getRecord(first, 'error'), 'data')['effectRef'];
+
+  expect(effectRef).toBeString();
+
+  const retried = client.sendRequest('session.spawn', params);
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown', data: { effectRef } });
+
+  await retried.catch(() => null);
+
+  const adopted = client.sendRequest('session.adopt', { session: effectRef, cols: 80, rows: 24 });
+
+  expect(adopted).rejects.toMatchObject({ code: 'no_such_session' });
+
+  await adopted.catch(() => null);
+
+  const list = await client.sendRequest('session.list');
+
+  expect(planned).toBe(1);
+  expect(process.kill(pid, 0)).toBeTrue();
+  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: effectRef })]);
+}, 10_000);
+
+test('it answers a failed spawn only once its killed process has exited, so a retry spawns once', async () => {
+  await using ctx = await setupTest();
+
+  const pidPath = join(ctx.dir, 'child.pid');
+  let armed = false;
+  let planned = 0;
+
+  // The child takes 300ms to exit after SIGHUP, and the start fails only
+  // once it has set that trap and written its pid.
+  const failing: AgentAdapter = {
+    ...idleAdapter,
+    planSpawn: () => {
+      planned++;
+      armed = planned === 1;
+
+      return planned === 1
+        ? {
+            bin: 'bash',
+            args: [
+              '-c',
+              `trap 'sleep 0.3; exit 0' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; while :; do sleep 0.05; done`,
+            ],
+          }
+        : { bin: 'sleep', args: ['30'] };
+    },
+    get headlessRunner() {
+      if (armed) {
+        armed = false;
+
+        while (!existsSync(pidPath)) {
+          Bun.sleepSync(10);
+        }
+
+        throw new Error('adapter failed after the process started');
+      }
+
+      return null;
+    },
+  };
+
+  const client = await ctx.boot(failing);
+
+  const params = { cwd: '/tmp', cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const first = client.sendRequest('session.spawn', params);
+
+  expect(first).rejects.toMatchObject({ code: 'internal' });
+
+  await first.catch(() => null);
+
+  const pid = Number(readFileSync(pidPath, 'utf8'));
+
+  expect(() => process.kill(pid, 0)).toThrow();
+
+  const retried = await client.sendRequest('session.spawn', params);
+  const list = await client.sendRequest('session.list');
+
+  expect(planned).toBe(2);
+  expect(list['sessions']).toStrictEqual([getRecord(retried, 'session')]);
+});
+
+test('it refuses to revive a failed spawn while its rollback waits for the killed process', async () => {
+  await using ctx = await setupTest();
+
+  const pidPath = join(ctx.dir, 'child.pid');
+  let armed = false;
+  let planned = 0;
+
+  // The first child takes 300ms to exit after SIGHUP, and the start fails
+  // only once it has set that trap and written its pid.
+  const failing: AgentAdapter = {
+    ...idleAdapter,
+    planSpawn: () => {
+      planned++;
+      armed = planned === 1;
+
+      return planned === 1
+        ? {
+            bin: 'bash',
+            args: [
+              '-c',
+              `trap 'sleep 0.3; exit 0' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; while :; do sleep 0.05; done`,
+            ],
+          }
+        : { bin: 'sleep', args: ['30'] };
+    },
+    get headlessRunner() {
+      if (armed) {
+        armed = false;
+
+        while (!existsSync(pidPath)) {
+          Bun.sleepSync(10);
+        }
+
+        throw new Error('adapter failed after the process started');
+      }
+
+      return null;
+    },
+  };
+
+  const client = await ctx.boot(failing);
+
+  const params = {
+    cwd: '/tmp',
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+    idempotencyKey: 'k-1',
+  };
+
+  const first = client.sendRequest('session.spawn', params);
+
+  const listed = await waitFor(async () => {
+    const list = await client.sendRequest('session.list');
+
+    expect(list['sessions']).toHaveLength(1);
+
+    return list;
+  });
+
+  const id = getRecord(getRecord(listed, 'sessions'), '0')['id'];
+  const adopted = client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  expect(adopted).rejects.toMatchObject({ code: 'no_such_session' });
+
+  await adopted.catch(() => null);
+
+  expect(first).rejects.toMatchObject({ code: 'internal' });
+
+  await first.catch(() => null);
 
   const list = await client.sendRequest('session.list');
 

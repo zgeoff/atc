@@ -99,6 +99,15 @@ export class ImpHarness implements HarnessHandle {
 
   private killPending = false;
 
+  // Whether the process exited, once the harness stops being followed, and
+  // the waits on that answer until then.
+  private exitConfirmed: boolean | null = null;
+
+  private readonly exitWaiters = new Set<{
+    readonly waited: PromiseWithResolvers<boolean>;
+    readonly timer: ReturnType<typeof setTimeout>;
+  }>();
+
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   // The terminal size the open connection's request asked for.
@@ -173,6 +182,28 @@ export class ImpHarness implements HarnessHandle {
     } else if (!this.done) {
       this.killPending = true;
     }
+  };
+
+  // Only an exit impd reports counts: a host that lost the process or went
+  // to sleep with it inside confirms nothing.
+  readonly waitForExit = (timeoutMs: number): Promise<boolean> => {
+    if (this.exitConfirmed !== null) {
+      return Promise.resolve(this.exitConfirmed);
+    }
+
+    const waited = Promise.withResolvers<boolean>();
+
+    const waiter = {
+      waited,
+      timer: setTimeout(() => {
+        this.exitWaiters.delete(waiter);
+        waited.resolve(false);
+      }, timeoutMs),
+    };
+
+    this.exitWaiters.add(waiter);
+
+    return waited.promise;
   };
 
   readonly detach = (): void => {
@@ -521,6 +552,8 @@ export class ImpHarness implements HarnessHandle {
   private emitExit(exit: HarnessExit): void {
     const listeners = [...this.exitListeners];
 
+    this.exitConfirmed = exit.reason === undefined || exit.reason === 'exited';
+
     this.stopFollowing();
 
     for (const listener of listeners) {
@@ -537,7 +570,15 @@ export class ImpHarness implements HarnessHandle {
 
     this.done = true;
     this.connection = null;
+    this.exitConfirmed ??= false;
 
+    for (const waiter of this.exitWaiters) {
+      clearTimeout(waiter.timer);
+
+      waiter.waited.resolve(this.exitConfirmed);
+    }
+
+    this.exitWaiters.clear();
     this.dataListeners.clear();
     this.exitListeners.clear();
     this.attachmentListeners.clear();
