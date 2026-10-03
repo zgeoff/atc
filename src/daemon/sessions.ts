@@ -232,6 +232,10 @@ export class SessionManager {
   // of the same session does not start a second harness.
   private readonly adopting = new Set<SessionID>();
 
+  // Sessions dropped from the list on purpose whose rows the next fleet
+  // write deletes; each stays here until a write carrying it lands.
+  private readonly removedIDs = new Set<SessionID>();
+
   // The epoch the next harness start or attach takes, unique across every
   // session this manager holds.
   private nextBridgeEpoch = 1;
@@ -1350,6 +1354,8 @@ export class SessionManager {
   private remove(s: Session) {
     this.sessions = this.sessions.filter((x) => x.id !== s.id);
 
+    this.removedIDs.add(s.id);
+
     if (this.focusedId === s.id) {
       this.focusedId = null;
     }
@@ -1383,8 +1389,11 @@ export class SessionManager {
   }
 
   // Persisted continuously so a crash (or quit) leaves a restorable fleet.
-  // Deliberate kills rewrite the file; unexpected session/atc deaths do not,
-  // so the last known fleet survives for `R` restore. Sessions whose
+  // A write covers the listed sessions and the ones dropped on purpose
+  // since the last write; a stored row the daemon has not restored yet
+  // stays as it is, so a write before `R` keeps it restorable. Deliberate
+  // kills rewrite the fleet; unexpected session/atc deaths do not, so the
+  // last known fleet survives for `R` restore. Sessions whose
   // terminal is gone persist as exited entries, so the killed archive
   // survives a daemon restart too. A session the agent has not yet given
   // its own session id persists as well, under its atc session id alone.
@@ -1416,7 +1425,13 @@ export class SessionManager {
       });
     }
 
-    await this.store.writeFleet(fleet);
+    const removed = [...this.removedIDs];
+
+    await this.store.writeFleet(fleet, removed);
+
+    for (const id of removed) {
+      this.removedIDs.delete(id);
+    }
   }
 
   // A write nobody awaits that fails leaves the stored rows as they were,

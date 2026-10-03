@@ -250,10 +250,15 @@ top-level. A row whose parent is itself a sub-session moves up to the top-level 
 is its own parent, and every parent is a top-level row the fleet holds.
 
 The `session_owner` table records which daemon owns each fleet row, by the `daemonID` the store
-holds in `prefs`, and at which ownership epoch. A fleet write deletes and rewrites only the rows
-this daemon owns, and a restore loads only those rows. A write that touches a session another daemon
-owns, or one whose stored epoch is past this daemon's, fails whole with `stale_epoch`. Every row
-this daemon writes holds epoch 1.
+holds in `prefs`, and at which ownership epoch. A restore loads only the rows this daemon owns.
+
+A fleet write rewrites this daemon's rows for the sessions it lists and deletes its rows for the
+sessions it dropped on purpose since the last write. The write also deletes this daemon's row for
+any agent session id a listed session holds, so the fleet keeps one row per agent session id. Every
+other row stays as it is: after a restart, a spawn or rename before `fleet.restore` leaves the
+stored fleet restorable. A write that touches a session another daemon owns, or one whose stored
+epoch is past this daemon's, fails whole with `stale_epoch`. Every row this daemon writes holds
+epoch 1.
 
 The `idempotency` table holds each idempotency key with its payload hash, its state, and the id of
 the effect it covers; the [protocol](./protocol.md#idempotent-requests) covers the answers a retry

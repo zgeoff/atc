@@ -241,12 +241,22 @@ export class StateStore {
     return recency;
   }
 
-  // Replaces this daemon's rows wholesale and leaves every other daemon's
-  // rows as they stand. A session another daemon owns, or one whose stored
-  // ownership epoch has moved past this daemon's, rejects the whole write
-  // with stale_epoch.
-  async writeFleet(entries: readonly FleetEntry[]): Promise<void> {
+  // Rewrites this daemon's rows for the given entries and drops its rows
+  // for the removed sessions, plus any row of its own that an entry
+  // replaces by holding the same agent session id. Every other row stays as
+  // it stands, so a row the daemon never loaded survives a write. A session
+  // another daemon owns, or one whose stored ownership epoch has moved past
+  // this daemon's, rejects the whole write with stale_epoch.
+  async writeFleet(
+    entries: readonly FleetEntry[],
+    removed: readonly SessionID[] = [],
+  ): Promise<void> {
     const kept = buildFleetWithoutReplacedRows(entries);
+    const sessionIDs = [...entries.map((entry) => entry.sessionID), ...removed];
+
+    const agentSessionIDs = entries.flatMap((entry) =>
+      entry.agentSessionID === undefined ? [] : [entry.agentSessionID],
+    );
 
     await this.db.transaction().execute(async (trx) => {
       await requireCurrentOwnership(
@@ -255,17 +265,35 @@ export class StateStore {
         entries.map((entry) => entry.sessionID),
       );
 
-      await trx
-        .deleteFrom('fleet')
-        .where('session_id', 'in', (eb) =>
-          eb
-            .selectFrom('session_owner')
-            .select('session_id')
-            .where('daemon_id', '=', this.daemonID),
-        )
-        .execute();
+      const replaced =
+        agentSessionIDs.length === 0
+          ? []
+          : await trx
+              .selectFrom('fleet')
+              .select(['session_id', 'agent_session_id'])
+              .where('agent_session_id', 'in', agentSessionIDs)
+              .execute();
 
-      await trx.deleteFrom('session_owner').where('daemon_id', '=', this.daemonID).execute();
+      const dropped = [...new Set([...sessionIDs, ...replaced.map((row) => row.session_id)])];
+
+      if (dropped.length > 0) {
+        await trx
+          .deleteFrom('fleet')
+          .where('session_id', 'in', dropped)
+          .where('session_id', 'in', (eb) =>
+            eb
+              .selectFrom('session_owner')
+              .select('session_id')
+              .where('daemon_id', '=', this.daemonID),
+          )
+          .execute();
+
+        await trx
+          .deleteFrom('session_owner')
+          .where('daemon_id', '=', this.daemonID)
+          .where('session_id', 'in', dropped)
+          .execute();
+      }
 
       const updatedAt = Date.now();
 
@@ -302,6 +330,38 @@ export class StateStore {
             owner_epoch: OWNER_EPOCH,
             updated_at: updatedAt,
           })
+          .execute();
+      }
+
+      // A stored row this write leaves in place follows its replaced parent
+      // to the session that replaced it, or to that session's own parent
+      // when the replacement is itself a sub-session.
+      const survivors = new Map(
+        kept.flatMap((entry) =>
+          entry.agentSessionID === undefined ? [] : [[entry.agentSessionID, entry] as const],
+        ),
+      );
+
+      for (const row of replaced) {
+        const survivor =
+          row.agent_session_id === null
+            ? undefined
+            : survivors.get(toAgentSessionID(row.agent_session_id));
+
+        if (survivor === undefined || survivor.sessionID === row.session_id) {
+          continue;
+        }
+
+        await trx
+          .updateTable('fleet')
+          .set({ parent_session_id: survivor.parent ?? survivor.sessionID })
+          .where('parent_session_id', '=', row.session_id)
+          .where('session_id', 'in', (eb) =>
+            eb
+              .selectFrom('session_owner')
+              .select('session_id')
+              .where('daemon_id', '=', this.daemonID),
+          )
           .execute();
       }
     });
