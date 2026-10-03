@@ -68,6 +68,11 @@ export const DAEMON_FEATURES = [
   // The daemon can serve the client protocol on a TCP listener whose
   // handshake takes a bearer token.
   'transport.tcp',
+
+  // A keyed `session.spawn` or `session.message` takes `replayOnly`, which
+  // replays a key the daemon holds and refuses one it does not hold with
+  // `idempotency_key_unknown`, running nothing.
+  'idempotency.replayOnly',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

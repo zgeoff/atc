@@ -947,10 +947,20 @@ export class DaemonConnection {
       };
     };
 
+    if (data.replayOnly === true && data.idempotencyKey === undefined) {
+      this.sendErr(req.id, 'bad_args', 'replayOnly needs an idempotencyKey');
+
+      return;
+    }
+
     const keyed =
       data.idempotencyKey === undefined
         ? null
-        : { key: data.idempotencyKey, payloadHash: buildPayloadHash(data) };
+        : {
+            key: data.idempotencyKey,
+            payloadHash: buildPayloadHash(data),
+            replayOnly: data.replayOnly === true,
+          };
 
     const spawned = await ctx.spawnSession(plan, keyed, null);
 
@@ -1367,10 +1377,20 @@ export class DaemonConnection {
 
     const sessionID = parsed.data.session;
 
+    if (parsed.data.replayOnly === true && parsed.data.idempotencyKey === undefined) {
+      this.sendErr(req.id, 'bad_args', 'replayOnly needs an idempotencyKey');
+
+      return;
+    }
+
     const keyed =
       parsed.data.idempotencyKey === undefined
         ? null
-        : { key: parsed.data.idempotencyKey, payloadHash: buildPayloadHash(parsed.data) };
+        : {
+            key: parsed.data.idempotencyKey,
+            payloadHash: buildPayloadHash(parsed.data),
+            replayOnly: parsed.data.replayOnly === true,
+          };
 
     const result = await ctx.writeSessionMessage(
       sessionID,

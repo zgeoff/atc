@@ -3,12 +3,14 @@ import type { EffectTarget, IdempotencyRecord } from '../store/idempotency-recor
 import type { StateStore } from '../store/state-store';
 import { EffectRemainsError } from './effect-remains-error';
 
-// A request's idempotency key, the hash of the payload it came with, and
-// the principal the request acts as when it is not the ledger's own.
+// A request's idempotency key, the hash of the payload it came with, the
+// principal the request acts as when it is not the ledger's own, and
+// whether it only replays a key the ledger already holds.
 export interface KeyedRequest {
   readonly key: string;
   readonly payloadHash: string;
   readonly principal?: string;
+  readonly replayOnly?: boolean;
 }
 
 interface IdempotentCall<T> {
@@ -45,6 +47,9 @@ interface IdempotentCall<T> {
  * answer; one with a different payload is `idempotency_conflict`; one whose
  * effect a stopped daemon may or may not have run is `outcome_unknown` with
  * the effect id in `data.effectRef`, and never starts the effect again.
+ * A replay-only request never claims: it answers a held key as a retry
+ * does, and refuses a key the ledger does not hold, never held or since
+ * swept, with `idempotency_key_unknown`, running nothing.
  * An effect that may still stand once its request fails is answered with
  * `outcome_unknown` and its effect id even when recording that outcome
  * fails: the claim stays held either way, and the failed write goes to the
@@ -106,6 +111,19 @@ export class IdempotencyLedger {
       operation: call.operation,
       key: call.keyed.key,
     };
+
+    if (call.keyed.replayOnly === true) {
+      const found = await this.store.findIdempotencyKey(id);
+
+      if (found === null) {
+        throw new DaemonError(
+          'idempotency_key_unknown',
+          `this daemon holds no ${call.operation} under idempotency key '${call.keyed.key}', so a replay-only request runs nothing`,
+        );
+      }
+
+      return answerHeldKey(call, found);
+    }
 
     const held = await this.store.claimIdempotencyKey({
       ...id,

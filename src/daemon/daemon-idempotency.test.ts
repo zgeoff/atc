@@ -1137,3 +1137,93 @@ test('it answers a message retried after an interrupted send with outcome_unknow
     data: { effectRef: 'm-never-written' },
   });
 });
+
+test('it refuses a replay-only spawn whose key it never held as idempotency_key_unknown and spawns nothing', async () => {
+  await using ctx = await setupTest();
+
+  const client = await ctx.boot();
+
+  const refused = client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    cols: 80,
+    rows: 24,
+    idempotencyKey: 'never-held',
+    replayOnly: true,
+  });
+
+  expect(refused).rejects.toMatchObject({ code: 'idempotency_key_unknown' });
+
+  await Promise.allSettled([refused]);
+
+  const list = await client.sendRequest('session.list');
+
+  expect(list['sessions']).toStrictEqual([]);
+});
+
+test('it refuses a replay-only spawn whose completed key was swept and spawns nothing more', async () => {
+  await using ctx = await setupTest();
+
+  const client = await ctx.boot();
+
+  const params = { cwd: '/tmp', cols: 80, rows: 24, idempotencyKey: 'swept' };
+
+  await client.sendRequest('session.spawn', params);
+
+  const db = new Database(ctx.dbPath);
+
+  db.run("DELETE FROM idempotency WHERE state = 'completed'");
+  db.close();
+
+  const refused = client.sendRequest('session.spawn', { ...params, replayOnly: true });
+
+  expect(refused).rejects.toMatchObject({ code: 'idempotency_key_unknown' });
+
+  await Promise.allSettled([refused]);
+
+  const list = await client.sendRequest('session.list');
+
+  expect(list['sessions']).toHaveLength(1);
+});
+
+test('it replays a held key for a replay-only spawn and message', async () => {
+  await using ctx = await setupTest();
+
+  const client = await ctx.boot({ ...idleAdapter, takesMessages: true });
+
+  const spawnParams = { cwd: '/tmp', cols: 80, rows: 24, idempotencyKey: 'held' };
+
+  const first = await client.sendRequest('session.spawn', spawnParams);
+  const replayed = await client.sendRequest('session.spawn', { ...spawnParams, replayOnly: true });
+
+  const session = getRecord(first, 'session')['id'];
+  const messageParams = { session, text: 'hello', idempotencyKey: 'held-message' };
+
+  const sent = await client.sendRequest('session.message', messageParams);
+
+  const resent = await client.sendRequest('session.message', {
+    ...messageParams,
+    replayOnly: true,
+  });
+
+  const list = await client.sendRequest('session.list');
+
+  expect(replayed).toMatchObject({ session: { id: session } });
+  expect(resent).toStrictEqual(sent);
+  expect(list['sessions']).toHaveLength(1);
+});
+
+test('it refuses replayOnly without an idempotency key as bad_args and spawns nothing', async () => {
+  await using ctx = await setupTest();
+
+  const client = await ctx.boot();
+
+  const refused = client.sendRequest('session.spawn', { cwd: '/tmp', replayOnly: true });
+
+  expect(refused).rejects.toMatchObject({ code: 'bad_args' });
+
+  await Promise.allSettled([refused]);
+
+  const list = await client.sendRequest('session.list');
+
+  expect(list['sessions']).toStrictEqual([]);
+});
