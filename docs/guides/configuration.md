@@ -423,10 +423,24 @@ when the daemon starts, when any of these holds:
 atc leaves out a profile that breaks impd's rules for secret names, hosts, or headers, and prints an
 error for it, so a gateway selecting it is refused as well.
 
-atc starts no session of a gateway with `auth`, on any target. A spawn, a resume, and a restore each
-fail with `auth_target_unsupported` before any harness starts or any imp is touched. The agent
-picker leaves the gateway out, `agents.list` lists it with `capabilities.spawn` false, a headless
-turn is refused, and the session has no resume command.
+A gateway with `auth` starts only on an imp target whose impd has a broker, in a session with a
+broker binding. On every other target, a spawn, a resume, a restore, and an adopt each fail with
+`auth_target_unsupported` before any workspace is materialized, any harness starts, or any imp is
+touched. The agent picker offers the gateway only the targets with a broker. A headless turn is
+refused, and the session has no resume command.
+
+On an imp target, the session's guest folder holds a settings file for its binding revision and a
+Claude config folder of its own. The settings file points the CLI at `baseURL` with the placeholder
+and holds no credential helper. The config folder holds no account, only the state that skips the
+first-run onboarding, and atc writes that state only when the folder has none. Claude asks a person
+to trust the workspace folder on first use; atc never answers that question. Each start names a
+permission mode: the one the gateway's `args` or `settings` set, else Claude's manual `default`
+mode, so the session never takes the default of a fresh Claude config.
+
+The placeholders must be `ANTHROPIC_AUTH_TOKEN` alone, and the profile for the `baseURL` host must
+set a bearer `authorization` header, since that is the header Claude sends the variable in. Any
+other pairing fails with `auth_placeholder_unsupported`, on every target and before anything is
+prepared, and `agents.list` lists the gateway as unable to spawn.
 
 ## Attention hooks (Grok and Codex)
 
