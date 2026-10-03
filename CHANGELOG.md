@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.25.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.24.0...@zgeoff/atc@2.25.0) (2026-10-03)
+
+
+### Features
+
+* **#178:** bind runtime auth through the session lifecycle ([#249](https://github.com/zgeoff/atc/issues/249)) ([0a48706](https://github.com/zgeoff/atc/commit/0a48706e3a95251607f4a4026a5fb07b15c43f53))
+
 ## [2.24.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.23.0...@zgeoff/atc@2.24.0) (2026-10-03)
 
 ### Features
