@@ -5,9 +5,10 @@ import type { RegistryDaemon } from './types';
 
 /**
  * A daemon method's answer as the gateway returns it, every id field in
- * the method's rules rewritten for the daemon that answered. An
- * `events.read` answer goes through the event merge instead, which owns
- * its cursors.
+ * the method's rules rewritten for the daemon that answered. Throws for a
+ * method without rules, so no answer leaves the gateway unchecked, and for
+ * `events.read`, whose answer goes through the event merge, which owns its
+ * cursors.
  */
 export function buildGatewayResult(
   method: string,
@@ -21,7 +22,7 @@ export function buildGatewayResult(
   const rules = ID_RULES[method];
 
   if (rules === undefined) {
-    return result;
+    throw new Error(`the gateway has no id rules for ${method}`);
   }
 
   const rewritten = buildRuledValue(result, rules, daemon);
