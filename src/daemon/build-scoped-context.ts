@@ -1,5 +1,4 @@
 import { DaemonError } from '../protocol/daemon-error';
-import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
@@ -11,15 +10,16 @@ import type { TargetAccess, TargetGrant } from './target-access';
 /**
  * The daemon as a principal with the given access sees it. Its keyed
  * spawns and messages hold their keys in the given namespace, apart from
- * every other namespace's. A session on a target outside the access does
- * not exist here: every lookup of it answers as a lookup of an unknown
- * session does, so the request's own handling refuses it with the words
- * and data it gives a session that never existed. Lists leave such
- * sessions out, the directory list leaves out directories spawned only on
- * targets outside the access, and a spawn may use only a target the access
- * holds, a spawn's replayed answer included. A kill, a forget, or a pin of
- * a session whose sub-sessions reach past the access is refused whole,
- * before anything changes.
+ * every other namespace's. A session exists here only when the access
+ * reaches every session in its tree: its top-level session and each
+ * sub-session of that one. Every lookup of any other session answers as a
+ * lookup of an unknown session does, so the request's own handling refuses
+ * it with the words and data it gives a session that never existed. Lists
+ * leave such sessions out, the directory list leaves out directories
+ * spawned only on targets outside the access, and a spawn may use only a
+ * target the access holds, a spawn's replayed answer included. A kill, a
+ * forget, or a change checks the tree in the same synchronous step that
+ * starts it, so a sub-session added after the check is never part of it.
  */
 export function buildScopedContext(
   ctx: DaemonContext,
@@ -30,25 +30,7 @@ export function buildScopedContext(
   const buildPrincipalKey = (keyed: KeyedRequest | null): KeyedRequest | null =>
     keyed === null ? null : { ...keyed, principal: keyNamespace };
 
-  const canSee = (id: SessionID): boolean => {
-    const grant = ctx.findSessionGrant(id);
-
-    return grant !== null && access.canUse(grant);
-  };
-
-  // A session as the access sees it: a parent out of reach is left out, so
-  // a sub-session of a hidden session lists as top-level.
-  const toVisibleParent = <T extends { readonly parent?: SessionID }>(
-    session: T,
-  ): T | Omit<T, 'parent'> => {
-    if (session.parent === undefined || canSee(session.parent)) {
-      return session;
-    }
-
-    const { parent: _hidden, ...visible } = session;
-
-    return visible;
-  };
+  const canSee = (id: SessionID): boolean => ctx.canSeeSession(id, access);
 
   const canUseTarget = (target: string): boolean => {
     const targetIdentity = ctx.findTargetIdentity(target);
@@ -89,29 +71,9 @@ export function buildScopedContext(
     }
   };
 
-  // Throws the refusal of a change to a session whose sub-sessions the
-  // change would reach too when any of them is out of reach. The refusal
-  // holds only the session the caller sent, never a sub-session's id or
-  // how many there are.
-  const requireTreeInReach = (id: SessionID, action: string): void => {
-    if (ctx.collectChildIDs(id).every((child) => canSee(child))) {
-      return;
-    }
-
-    throw new DaemonError(
-      'target_forbidden',
-      `this client may not ${action} session '${id}': it has a sub-session on a target this client may not use`,
-      { session: id },
-    );
-  };
-
   return {
     ...ctx,
-    collectSessions: () =>
-      ctx
-        .collectSessions()
-        .filter((session) => canSee(session.id))
-        .map((session) => toVisibleParent(session)),
+    collectSessions: () => ctx.collectSessions().filter((session) => canSee(session.id)),
     collectAgents: () => {
       const list = ctx.collectAgents();
       const defaultTarget = list.spawnDefaults.target;
@@ -143,21 +105,9 @@ export function buildScopedContext(
     collectFleet: async () => {
       const fleet = await ctx.collectFleet();
 
-      return fleet
-        .filter((entry) => canSee(entry.sessionID))
-        .map((entry) => toVisibleParent(entry));
+      return fleet.filter((entry) => canSee(entry.sessionID));
     },
-    resolveSpawnParent: (id) => {
-      if (!canSee(id)) {
-        return 'missing';
-      }
-
-      const parent = ctx.resolveSpawnParent(id);
-
-      // A spawn under a sub-session of a hidden session lands top-level, so
-      // nothing it answers holds the hidden session.
-      return parent === 'missing' || parent === null || canSee(parent) ? parent : null;
-    },
+    resolveSpawnParent: (id) => (canSee(id) ? ctx.resolveSpawnParent(id) : 'missing'),
     resolveSpawnTarget: (requested) => {
       if (requested !== undefined) {
         requireTarget(canUseTarget, requested);
@@ -170,12 +120,10 @@ export function buildScopedContext(
       return target;
     },
     spawnSession: async (plan, keyed) => {
-      let answer: Readonly<Record<string, unknown>>;
-
       // A held key's replay is checked against the target its session was
       // bound to, inside the spawn, before its answer leaves the daemon.
       try {
-        answer = await ctx.spawnSession(plan, buildPrincipalKey(keyed), access);
+        return await ctx.spawnSession(plan, buildPrincipalKey(keyed), access);
       } catch (error) {
         // A held key's refusal may carry the session its spawn made.
         if (error instanceof DaemonError && typeof error.data?.['effectRef'] === 'string') {
@@ -184,50 +132,17 @@ export function buildScopedContext(
 
         throw error;
       }
-
-      const session = answer['session'];
-
-      if (!isRecord(session) || typeof session['parent'] !== 'string') {
-        return answer;
-      }
-
-      return {
-        ...answer,
-        session: toVisibleParent({ ...session, parent: toSessionID(session['parent']) }),
-      };
     },
-    killSession: (id) => {
-      if (!canSee(id)) {
-        return Promise.resolve(false);
-      }
 
-      requireTreeInReach(id, 'kill');
-
-      return ctx.killSession(id);
-    },
+    // The daemon's kill takes the session's sub-sessions before its first
+    // await, so the set it kills is the set this check saw.
+    killSession: (id) => (canSee(id) ? ctx.killSession(id) : Promise.resolve(false)),
 
     // A session out of reach answers before any confirm token is handed
     // out or taken, so its host is never touched.
-    forgetSession: (id, confirmToken) => {
-      if (!canSee(id)) {
-        return Promise.resolve('missing' as const);
-      }
-
-      requireTreeInReach(id, 'forget');
-
-      return ctx.forgetSession(id, confirmToken);
-    },
-    updateSession: (id, name, pinned) => {
-      if (!canSee(id)) {
-        return false;
-      }
-
-      if (pinned !== undefined) {
-        requireTreeInReach(id, 'pin');
-      }
-
-      return ctx.updateSession(id, name, pinned);
-    },
+    forgetSession: (id, confirmToken) =>
+      canSee(id) ? ctx.forgetSession(id, confirmToken) : Promise.resolve('missing' as const),
+    updateSession: (id, name, pinned) => canSee(id) && ctx.updateSession(id, name, pinned),
     ackSession: (id) => canSee(id) && ctx.ackSession(id),
     buildResumeCommand: (id) => (canSee(id) ? ctx.buildResumeCommand(id) : null),
     readSessionScreen: (id) =>
@@ -253,18 +168,14 @@ export function buildScopedContext(
       canSee(id) ? ctx.adoptSession(id, cols, rows) : Promise.resolve('missing' as const),
     resizeSession: (client, sessionID, dims) =>
       canSee(sessionID) && ctx.resizeSession(client, sessionID, dims),
-    readSessionRecord: async (id, outer) => {
+    readSessionRecord: (id, outer) => {
       if (!canSee(id)) {
-        return 'missing';
+        return Promise.resolve('missing' as const);
       }
 
       const merged = outer === null ? access : outer.merge(access);
 
-      const record = await ctx.readSessionRecord(id, merged);
-
-      return record === 'missing'
-        ? record
-        : { ...record, session: toVisibleParent(record.session) };
+      return ctx.readSessionRecord(id, merged);
     },
     loadSessionTranscript: (id, from, limit) =>
       canSee(id) ? ctx.loadSessionTranscript(id, from, limit) : Promise.resolve('missing' as const),

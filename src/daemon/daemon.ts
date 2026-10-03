@@ -55,6 +55,7 @@ import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
+import { isTreeInReach } from './is-tree-in-reach';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
@@ -321,9 +322,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // A live session's scope also matches the rows it wrote under an earlier
   // atc id, through the agent session id a restore carries on. Under an
-  // access, the scope holds only the atc ids of the sessions on targets the
-  // access holds, so a session outside it matches nothing, as a session
-  // never seen does. It holds no agent session id there: a session on
+  // access, the scope holds only the atc ids of the sessions whose whole
+  // tree is on targets the access holds, so a session outside it matches
+  // nothing, as a session never seen does. It holds no agent session id there: a session on
   // another target can resume the same agent session, and its rows would
   // match.
   const buildEventScope = (
@@ -344,17 +345,20 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
 
     const visible = mgr.sessions.filter(
-      (x) => access.canUse(x) && (sessionID === null || x.id === sessionID),
+      (x) =>
+        (sessionID === null || x.id === sessionID) && isTreeInReach(mgr.sessions, x.id, access),
     );
 
     return { atcIDs: visible.map((x) => x.id), agentSessionIDs: [] };
   };
 
-  // The sessions that may name a trail row: under an access, only those on
-  // targets it holds.
+  // The sessions that may name a trail row: under an access, only those
+  // whose whole tree is on targets it holds.
   const collectNamingDescriptors = (access: TargetAccess | null): SessionDescriptor[] => {
     const reached = new Set(
-      mgr.sessions.filter((x) => access === null || access.canUse(x)).map((x) => x.id),
+      mgr.sessions
+        .filter((x) => access === null || isTreeInReach(mgr.sessions, x.id, access))
+        .map((x) => x.id),
     );
 
     return mgr.collectDescriptors().filter((d) => reached.has(d.id));
@@ -1186,7 +1190,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return s === undefined ? null : { target: s.target, targetIdentity: s.targetIdentity };
     },
     findTargetIdentity: (target) => targets.find((x) => x.id === target)?.identity ?? null,
-    collectChildIDs: (id) => mgr.collectChildren(id).map((child) => child.id),
+    canSeeSession: (id, access) => isTreeInReach(mgr.sessions, id, access),
     findPermissionSession: (request) => registry.findSessionID(request),
     resolveSpawnParent: (id) => {
       const owner = mgr.sessions.find((x) => x.id === id);

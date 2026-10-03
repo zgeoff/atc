@@ -1248,7 +1248,8 @@ export class SessionManager {
   // every harness on it kept inside, and fails whole when the host stays
   // awake. A dead session on a target that can destroy its host is not
   // forgotten by a kill: forgetting it destroys the host, which takes a
-  // confirmed forget.
+  // confirmed forget. The set is taken before the first await, so a
+  // sub-session spawned while the kill waits on a host is not part of it.
   async kill(id: SessionID): Promise<void> {
     const s = this.sessions.find((x) => x.id === id);
 
@@ -1256,11 +1257,15 @@ export class SessionManager {
       return;
     }
 
+    const children = this.collectChildren(id);
+
     if (s.pty) {
       await this.stopHarness(s);
 
-      for (const child of this.collectChildren(id)) {
-        await this.tryStopHarness(child);
+      for (const child of children) {
+        if (this.sessions.includes(child) && child.parent === id) {
+          await this.tryStopHarness(child);
+        }
       }
     } else {
       if (this.findProvider(s)?.capabilities.destroy === true) {
@@ -1271,8 +1276,8 @@ export class SessionManager {
         );
       }
 
-      this.updateForgottenChildren(id);
       this.remove(s);
+      this.updateForgottenChildren(id, children);
     }
 
     await this.writeFleet();
@@ -1288,7 +1293,9 @@ export class SessionManager {
    * kept asleep in that host is refused until the host wakes. Its dead
    * sub-sessions on other hosts go with it, unless their own target can
    * destroy their host, and its live ones become top-level. A failed destroy
-   * throws before anything is forgotten.
+   * throws before anything is forgotten. The sub-sessions it may forget are
+   * taken before the first await; one spawned while the forget waits on a
+   * host becomes top-level.
    */
   async forget(id: SessionID): Promise<boolean> {
     const s = this.sessions.find((x) => x.id === id);
@@ -1297,6 +1304,7 @@ export class SessionManager {
       return false;
     }
 
+    const children = this.collectChildren(id);
     const provider = this.findProvider(s);
     const destroys = provider !== null && provider.capabilities.destroy && s.hostKey === s.id;
 
@@ -1330,8 +1338,8 @@ export class SessionManager {
       this.killTerminal(s);
     }
 
-    this.updateForgottenChildren(id);
     this.remove(s);
+    this.updateForgottenChildren(id, children);
 
     await this.writeFleet();
 
@@ -1342,13 +1350,19 @@ export class SessionManager {
 
   // A forgotten parent's dead sub-sessions go with it, except one whose own
   // target can destroy its host: forgetting that one destroys the host, which
-  // takes its own confirmed forget. Every sub-session that stays becomes
-  // top-level.
-  private updateForgottenChildren(id: SessionID): void {
+  // takes its own confirmed forget. Only a sub-session among the given ones
+  // may go. Every sub-session that stays becomes top-level. It runs after the
+  // parent is removed, so no sub-session ever stands as the whole of its
+  // parent's set while the parent is still held.
+  private updateForgottenChildren(id: SessionID, forgettable: readonly Session[]): void {
     for (const child of this.collectChildren(id)) {
       const live = child.pty !== null || (child.kind === 'headless' && child.state !== 'exited');
 
-      if (live || this.findProvider(child)?.capabilities.destroy === true) {
+      if (
+        live ||
+        !forgettable.includes(child) ||
+        this.findProvider(child)?.capabilities.destroy === true
+      ) {
         child.parent = null;
 
         this.onEvent('state', child);

@@ -132,8 +132,10 @@ export interface DaemonContext {
   // target.
   readonly findTargetIdentity: (target: string) => string | null;
 
-  // The ids of a session's sub-sessions.
-  readonly collectChildIDs: (id: SessionID) => SessionID[];
+  // Whether the access reaches every session in the given session's tree:
+  // its top-level session and each sub-session of that one. False for an
+  // unknown session.
+  readonly canSeeSession: (id: SessionID, access: TargetAccess) => boolean;
 
   // The session a permission request belongs to, answered or not, or null
   // for an unknown request.

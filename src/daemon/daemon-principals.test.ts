@@ -7,6 +7,7 @@ import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
 import { DaemonError } from '../protocol/daemon-error';
 import { encodeCursor } from '../protocol/encode-cursor';
+import { PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import { collectPrincipals } from '../shared/collect-principals';
 import { collectTargets } from '../shared/collect-targets';
@@ -14,12 +15,21 @@ import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { buildTargetIdentity } from './build-target-identity';
 import { startDaemon } from './daemon';
+import type { ExecutionCapabilities } from './execution-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
 // The `targets` and `principals` keys of a config.json, raw.
 interface RawConfig {
   readonly targets?: unknown;
   readonly principals?: unknown;
+}
+
+// What a target's provider does in place of the local one's: the
+// capabilities it adds and the host sleep and destroy it runs.
+interface HostOverride {
+  readonly capabilities?: Partial<ExecutionCapabilities>;
+  readonly suspendHost?: (host: string) => Promise<void>;
+  readonly destroyHost?: (host: string) => Promise<void>;
 }
 
 /**
@@ -29,9 +39,10 @@ interface RawConfig {
  * connection; `openClientAs` opens a connection whose handshake gives a
  * principal. `restart` stops the daemon and starts it again on the same
  * state with another config, running `whileStopped` in between, and
- * `dbPath` is that state.
+ * `dbPath` is that state. `hosts` gives a target, by its id, capabilities
+ * and a host sleep or destroy of its own.
  */
-async function setupTest(raw: RawConfig) {
+async function setupTest(raw: RawConfig, hosts: Readonly<Record<string, HostOverride>> = {}) {
   const tmp = setupTempDir('atc-daemon-principals-');
   const socketPath = join(tmp.dir, 'daemon.sock');
 
@@ -82,7 +93,7 @@ async function setupTest(raw: RawConfig) {
           remote: false,
           prepareHost: local.prepareHost,
           dispose: local.dispose,
-          capabilities: local.capabilities,
+          capabilities: { ...local.capabilities, ...hosts[target.id]?.capabilities },
           spawnHarness: (spec) => {
             harnesses.push(target.id);
 
@@ -90,8 +101,8 @@ async function setupTest(raw: RawConfig) {
           },
           transferArchive: local.transferArchive,
           runCommand: local.runCommand,
-          suspendHost: local.suspendHost,
-          destroyHost: local.destroyHost,
+          suspendHost: hosts[target.id]?.suspendHost ?? local.suspendHost,
+          destroyHost: hosts[target.id]?.destroyHost ?? local.destroyHost,
         },
       })),
       defaultTarget: targets.defaultTarget,
@@ -299,36 +310,69 @@ test.each([
   expect(daemon.harnesses).toStrictEqual(['local']);
 });
 
-test.each([
-  ['session.get', {}],
-  ['session.read', {}],
-  ['session.screen', {}],
-  ['session.attach', { cols: 80, rows: 24 }],
-  ['session.input', { d: 'go\r' }],
-  ['session.submit', { text: 'go' }],
-  ['session.message', { from: 'remote', text: 'hello' }],
-  ['session.kill', {}],
-  ['session.forget', {}],
-  ['session.forget', { confirmToken: 'a-token' }],
-  ['session.update', { name: 'renamed' }],
-  ['session.ack', {}],
-  ['session.adopt', { cols: 80, rows: 24 }],
-  ['session.eject', { prompt: 'carry on' }],
-  ['session.resumeCommand', {}],
-  ['session.tap', {}],
-  ['session.resize', { cols: 80, rows: 24 }],
-  ['session.detach', {}],
-  ['message.ack', { message: 'a-message' }],
-  ['events.read', { waitMs: 0 }],
-])(
-  'it answers %s with %j for a session outside the principal as for a session that does not exist',
-  async (method, params) => {
-    await using daemon = await setupTest({
-      targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
-      principals: { 'client-a': { targets: ['local'] } },
-    });
+test.each(
+  [
+    { label: 'a session on a target outside the principal', targets: ['box'], hidden: 0 },
+    {
+      label: 'a parent whose sub-session is on a target outside the principal',
+      targets: ['local', 'box'],
+      hidden: 0,
+    },
+    {
+      label: 'a sub-session whose parent is on a target outside the principal',
+      targets: ['box', 'local'],
+      hidden: 1,
+    },
+  ].flatMap((kind) =>
+    (
+      [
+        ['session.get', {}, 'session'],
+        ['session.read', {}, 'session'],
+        ['session.screen', {}, 'session'],
+        ['session.attach', { cols: 80, rows: 24 }, 'session'],
+        ['session.input', { d: 'go\r' }, 'session'],
+        ['session.submit', { text: 'go' }, 'session'],
+        ['session.message', { from: 'remote', text: 'hello' }, 'session'],
+        ['session.kill', {}, 'session'],
+        ['session.forget', {}, 'session'],
+        ['session.forget', { confirmToken: 'a-token' }, 'session'],
+        ['session.update', { name: 'renamed' }, 'session'],
+        ['session.update', { pinned: true }, 'session'],
+        ['session.ack', {}, 'session'],
+        ['session.adopt', { cols: 80, rows: 24 }, 'session'],
+        ['session.eject', { prompt: 'carry on' }, 'session'],
+        ['session.resumeCommand', {}, 'session'],
+        ['session.tap', {}, 'session'],
+        ['session.resize', { cols: 80, rows: 24 }, 'session'],
+        ['session.detach', {}, 'session'],
+        ['message.ack', { message: 'a-message' }, 'session'],
+        ['events.read', { waitMs: 0 }, 'session'],
+        ['session.spawn', { cwd: '/tmp', target: 'local' }, 'parent'],
+      ] as const
+    ).map(([method, params, key]) => [method, params, kind.label, key, kind] as const),
+  ),
+)(
+  'it answers %s with %j for %s as for a session that does not exist',
+  async (method, params, _label, key, kind) => {
+    await using daemon = await setupTest(SPLIT_CONFIG);
 
-    const hidden = await daemon.spawnOn('box');
+    const [rootTarget = 'local', ...childTargets] = kind.targets;
+
+    const root = await daemon.spawnOn(rootTarget);
+
+    const tree = [root];
+
+    for (const target of childTargets) {
+      const child = await daemon.spawnOn(target, root);
+
+      tree.push(child);
+    }
+
+    const hidden = tree[kind.hidden];
+
+    if (hidden === undefined) {
+      throw new Error('the kind addresses no session of its tree');
+    }
 
     const missing = randomUUID();
 
@@ -343,19 +387,26 @@ test.each([
     });
 
     const answered = await readAnswer(
-      () => daemon.client.sendRequest(method, { ...params, session: hidden }, 'client-a'),
+      () => daemon.client.sendRequest(method, { ...params, [key]: hidden }, 'narrow'),
       hidden,
     );
 
     const unknown = await readAnswer(
-      () => daemon.client.sendRequest(method, { ...params, session: missing }, 'client-a'),
+      () => daemon.client.sendRequest(method, { ...params, [key]: missing }, 'narrow'),
       missing,
     );
 
     const listed = await daemon.client.sendRequest('session.list');
 
     expect(answered).toStrictEqual(unknown);
-    expect(listed).toMatchObject({ sessions: [{ id: hidden, name: 'tmp', alive: true }] });
+
+    expect(listed).toStrictEqual({
+      sessions: expect.toIncludeSamePartialMembers(
+        tree.map((id) => ({ id, name: 'tmp', alive: true, pinned: false })),
+      ),
+    });
+
+    expect(daemon.harnesses).toStrictEqual(kind.targets);
   },
 );
 
@@ -401,37 +452,6 @@ test('it answers permission.respond for a request of a session outside the princ
   );
 
   expect(answered).toStrictEqual(unknown);
-});
-
-test('it answers a spawn under a parent outside the principal as under a parent that does not exist', async () => {
-  await using daemon = await setupTest(SPLIT_CONFIG);
-
-  const hidden = await daemon.spawnOn('box');
-
-  const missing = randomUUID();
-
-  const answered = await readAnswer(
-    () =>
-      daemon.client.sendRequest(
-        'session.spawn',
-        { cwd: '/tmp', target: 'local', parent: hidden },
-        'narrow',
-      ),
-    hidden,
-  );
-
-  const unknown = await readAnswer(
-    () =>
-      daemon.client.sendRequest(
-        'session.spawn',
-        { cwd: '/tmp', target: 'local', parent: missing },
-        'narrow',
-      ),
-    missing,
-  );
-
-  expect(answered).toStrictEqual(unknown);
-  expect(daemon.harnesses).toStrictEqual(['box']);
 });
 
 test('it refuses a principal a workspace spawn on a target it may not use for the target alone', async () => {
@@ -654,75 +674,213 @@ test('it keeps the activity of a forgotten hidden session out of a principal ses
   expect(after['lastActivityAt']).toBe(before['lastActivityAt']);
 });
 
-test('it lists a principal a sub-session of a hidden parent as a top-level session', async () => {
-  await using daemon = await setupTest(SPLIT_CONFIG);
+test.each([
+  ['a parent whose sub-session is on a target outside the principal', ['local', 'box']],
+  ['a sub-session whose parent is on a target outside the principal', ['box', 'local']],
+])(
+  'it leaves the whole tree of %s out of the lists and the trail',
+  async (_label, [rootTarget = 'local', childTarget = 'local']) => {
+    await using daemon = await setupTest(SPLIT_CONFIG);
 
-  const hiddenParent = await daemon.spawnOn('box');
-  const shownChild = await daemon.spawnOn('local', hiddenParent);
+    const shown = await daemon.spawnOn('local');
+    const root = await daemon.spawnOn(rootTarget);
+    const child = await daemon.spawnOn(childTarget, root);
 
-  await waitFor(async () => {
-    const owner = await daemon.client.sendRequest('fleet.list');
+    await daemon.sendHookEvent(root);
+    await daemon.sendHookEvent(child);
+    await daemon.sendHookEvent(shown);
 
-    expect(owner).toMatchObject({
-      fleet: expect.toPartiallyContain({ sessionID: shownChild, parent: hiddenParent }),
+    await waitFor(async () => {
+      const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
+      const fleet = await daemon.client.sendRequest('fleet.list');
+
+      expect(JSON.stringify(owner)).toIncludeMultiple([root, child, shown]);
+      expect(getRecord(fleet, 'fleet')).toHaveLength(3);
     });
-  });
 
-  const listed = await daemon.client.sendRequest('session.list', {}, 'narrow');
-  const fleet = await daemon.client.sendRequest('fleet.list', {}, 'narrow');
-  const got = await daemon.client.sendRequest('session.get', { session: shownChild }, 'narrow');
+    const listed = await daemon.client.sendRequest('session.list', {}, 'narrow');
+    const fleet = await daemon.client.sendRequest('fleet.list', {}, 'narrow');
+    const read = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'narrow');
 
-  expect(listed).toMatchObject({ sessions: [{ id: shownChild }] });
-  expect(fleet).toMatchObject({ fleet: [{ sessionID: shownChild }] });
-  expect(getRecord(got, 'session')).toContainEntry(['id', shownChild]);
-  expect(getRecord(got, 'session')).not.toContainKey('parent');
-  expect(JSON.stringify([listed, fleet, got])).not.toInclude(hiddenParent);
-});
+    expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id: shown })] });
+    expect(fleet).toStrictEqual({ fleet: [expect.objectContaining({ sessionID: shown })] });
+    expect(JSON.stringify(read)).toInclude(shown);
+    expect(JSON.stringify([listed, fleet, read])).not.toInclude(root);
+    expect(JSON.stringify([listed, fleet, read])).not.toInclude(child);
+  },
+);
 
-test('it pushes a principal connection a sub-session of a hidden parent as a top-level session', async () => {
-  await using daemon = await setupTest(SPLIT_CONFIG);
+test.each([
+  ['a parent whose sub-session is on a target outside the principal', ['local', 'box']],
+  ['a sub-session whose parent is on a target outside the principal', ['box', 'local']],
+])(
+  'it pushes a principal connection no event of the tree of %s',
+  async (_label, [rootTarget = 'local', childTarget = 'local']) => {
+    await using daemon = await setupTest(SPLIT_CONFIG);
 
-  const client = await daemon.openClientAs('narrow');
+    const root = await daemon.spawnOn(rootTarget);
+    const child = await daemon.spawnOn(childTarget, root);
+    const client = await daemon.openClientAs('narrow');
 
-  const events: EventMsg[] = [];
+    const events: EventMsg[] = [];
 
-  client.onEvent = (event) => {
-    events.push(event);
+    client.onEvent = (event) => {
+      events.push(event);
+    };
+
+    const shown = await daemon.spawnOn('local');
+
+    await daemon.sendHookEvent(root, 'Notification');
+    await daemon.sendHookEvent(child, 'Notification');
+    await daemon.client.sendRequest('session.update', { session: root, name: 'renamed' });
+    await daemon.client.sendRequest('session.kill', { session: root });
+    await daemon.client.sendRequest('session.kill', { session: root });
+    await daemon.client.sendRequest('session.kill', { session: shown });
+    await daemon.client.sendRequest('session.kill', { session: shown });
+
+    await waitFor(() => {
+      expect(events).toPartiallyContain({ ev: 'SessionRemoved', s: shown });
+    });
+
+    expect(events).toSatisfyAny(
+      (event: EventMsg) =>
+        event.ev === 'SessionAdded' &&
+        isRecord(event['session']) &&
+        event['session']['id'] === shown,
+    );
+
+    expect(JSON.stringify(events)).not.toInclude(root);
+    expect(JSON.stringify(events)).not.toInclude(child);
+  },
+);
+
+test('it shows a principal a parent leaving when an out-of-reach sub-session joins it as when the owner forgets it', async () => {
+  await using joined = await setupTest(SPLIT_CONFIG);
+  await using forgot = await setupTest(SPLIT_CONFIG);
+
+  const joinedParent = await joined.spawnOn('local');
+  const forgotParent = await forgot.spawnOn('local');
+
+  await forgot.client.sendRequest('session.kill', { session: forgotParent });
+
+  const joinedClient = await joined.openClientAs('narrow');
+  const forgotClient = await forgot.openClientAs('narrow');
+
+  const joinedEvents: EventMsg[] = [];
+  const forgotEvents: EventMsg[] = [];
+
+  joinedClient.onEvent = (event) => {
+    joinedEvents.push(event);
   };
 
-  const hiddenParent = await daemon.spawnOn('box');
-  const shownChild = await daemon.spawnOn('local', hiddenParent);
+  forgotClient.onEvent = (event) => {
+    forgotEvents.push(event);
+  };
 
-  await daemon.client.sendRequest('session.kill', { session: shownChild });
+  const child = await joined.spawnOn('box', joinedParent);
+
+  await forgot.client.sendRequest('session.forget', { session: forgotParent });
 
   await waitFor(() => {
-    expect(JSON.stringify(events)).toInclude('"lastMsg":"killed"');
+    expect(joinedEvents).toPartiallyContain({ ev: 'SessionRemoved' });
+    expect(forgotEvents).toPartiallyContain({ ev: 'SessionRemoved' });
   });
 
-  expect(events.map((event) => event.ev)).toContain('SessionAdded');
-  expect(JSON.stringify(events)).toInclude(shownChild);
-  expect(JSON.stringify(events)).not.toInclude(hiddenParent);
+  await waitFor(async () => {
+    const fleet = await forgot.client.sendRequest('fleet.list');
+
+    expect(fleet).toStrictEqual({ fleet: [] });
+  });
+
+  const joinedSeen = {
+    events: joinedEvents,
+    sessions: await joinedClient.sendRequest('session.list'),
+    fleet: await joinedClient.sendRequest('fleet.list'),
+  };
+
+  const forgotSeen = {
+    events: forgotEvents,
+    sessions: await forgotClient.sendRequest('session.list'),
+    fleet: await forgotClient.sendRequest('fleet.list'),
+  };
+
+  expect(JSON.stringify(forgotSeen).replaceAll(forgotParent, '<parent>')).toBe(
+    JSON.stringify(joinedSeen).replaceAll(joinedParent, '<parent>'),
+  );
+
+  expect(forgotSeen).toStrictEqual({
+    events: [{ v: PROTOCOL_V, ev: 'SessionRemoved', s: forgotParent }],
+    sessions: { sessions: [] },
+    fleet: { fleet: [] },
+  });
+
+  expect(JSON.stringify(joinedSeen)).not.toInclude(child);
 });
 
-test('it spawns a principal top-level when the parent it asks for sits under a hidden parent', async () => {
+test('it hides from a principal a restored sub-session of a hidden parent', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
   const hiddenParent = await daemon.spawnOn('box');
-  const shownChild = await daemon.spawnOn('local', hiddenParent);
+  const hiddenChild = await daemon.spawnOn('local', hiddenParent);
+  const shown = await daemon.spawnOn('local');
 
-  const spawned = await daemon.client.sendRequest(
-    'session.spawn',
-    { cwd: '/tmp', target: 'local', parent: shownChild, resume: `a-${randomUUID()}` },
-    'narrow',
-  );
+  await daemon.restart(SPLIT_CONFIG);
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const id = getRecord(spawned, 'session')['id'];
+  const owner = await daemon.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list', {}, 'narrow');
+  const fleet = await daemon.client.sendRequest('fleet.list', {}, 'narrow');
 
-  const owner = await daemon.client.sendRequest('session.get', { session: id });
+  const sessions: unknown = listed['sessions'];
+  const entries: unknown = fleet['fleet'];
 
-  expect(JSON.stringify(spawned)).not.toInclude(hiddenParent);
-  expect(getRecord(spawned, 'session')).not.toContainKey('parent');
-  expect(getRecord(owner, 'session')).not.toContainKey('parent');
+  if (!Array.isArray(sessions) || !Array.isArray(entries)) {
+    throw new TypeError('a list answered something other than an array');
+  }
+
+  expect(owner).toMatchObject({
+    sessions: expect.toIncludeAllPartialMembers([{ id: hiddenChild, parent: hiddenParent }]),
+  });
+
+  expect(sessions.filter((x) => isRecord(x)).map((x) => x['id'])).toStrictEqual([shown]);
+  expect(entries.filter((x) => isRecord(x)).map((x) => x['sessionID'])).toStrictEqual([shown]);
+});
+
+test('it kills only the sub-sessions a principal could see when the kill began', async () => {
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+
+  await using daemon = await setupTest(SPLIT_CONFIG, {
+    local: {
+      capabilities: { suspend: true },
+      suspendHost: async () => {
+        entered.resolve();
+
+        await release.promise;
+      },
+    },
+  });
+
+  const parent = await daemon.spawnOn('local');
+
+  const killed = daemon.client.sendRequest('session.kill', { session: parent }, 'narrow');
+
+  await entered.promise;
+
+  const child = await daemon.spawnOn('box', parent);
+
+  release.resolve();
+
+  await killed;
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toMatchObject({
+    sessions: expect.toIncludeAllPartialMembers([
+      { id: parent, alive: false },
+      { id: child, alive: true, parent },
+    ]),
+  });
 });
 
 test('it spawns a principal that may see the parent beside the sub-session it asks for', async () => {
@@ -750,29 +908,29 @@ test('it lets a principal forget a session on a target it may use', async () => 
   expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
 });
 
-test('it refuses a principal a forget of a session with a sub-session out of reach, forgetting nothing', async () => {
+test('it answers a forget of a dead session with a dead sub-session out of reach as for a session that does not exist, forgetting nothing', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
   const parent = await daemon.spawnOn('local');
   const child = await daemon.spawnOn('box', parent);
 
+  const missing = randomUUID();
+
   await daemon.client.sendRequest('session.kill', { session: parent });
 
-  const refused = await readAnswer(
+  const answered = await readAnswer(
     () => daemon.client.sendRequest('session.forget', { session: parent }, 'narrow'),
     parent,
   );
 
+  const unknown = await readAnswer(
+    () => daemon.client.sendRequest('session.forget', { session: missing }, 'narrow'),
+    missing,
+  );
+
   const listed = await daemon.client.sendRequest('session.list');
 
-  expect(refused).toStrictEqual({
-    error: {
-      code: 'target_forbidden',
-      message:
-        "this client may not forget session '<session>': it has a sub-session on a target this client may not use",
-      data: { session: '<session>' },
-    },
-  });
+  expect(answered).toStrictEqual(unknown);
 
   expect(listed).toMatchObject({
     sessions: [
@@ -1092,29 +1250,27 @@ const SPLIT_CONFIG: RawConfig = {
   principals: { narrow: { targets: ['local'] }, wide: { targets: ['local', 'box'] } },
 };
 
-test('it refuses a principal a kill of a session with a sub-session out of reach, killing nothing', async () => {
+test('it answers a kill of a session with a sub-session out of reach as for a session that does not exist, killing nothing', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
   const parent = await daemon.spawnOn('local');
   const child = await daemon.spawnOn('box', parent);
 
-  const refused = await readAnswer(
+  const missing = randomUUID();
+
+  const answered = await readAnswer(
     () => daemon.client.sendRequest('session.kill', { session: parent }, 'narrow'),
     parent,
   );
 
+  const unknown = await readAnswer(
+    () => daemon.client.sendRequest('session.kill', { session: missing }, 'narrow'),
+    missing,
+  );
+
   const listed = await daemon.client.sendRequest('session.list');
 
-  expect(refused).toStrictEqual({
-    error: {
-      code: 'target_forbidden',
-      message:
-        "this client may not kill session '<session>': it has a sub-session on a target this client may not use",
-      data: { session: '<session>' },
-    },
-  });
-
-  expect(JSON.stringify(refused)).not.toContain(child);
+  expect(answered).toStrictEqual(unknown);
 
   expect(listed).toMatchObject({
     sessions: [
@@ -1145,7 +1301,7 @@ test.each([
   });
 });
 
-test('it refuses a principal a forget of a dead session with a dead sub-session out of reach, removing nothing', async () => {
+test('it answers a second kill of a dead session with a dead sub-session out of reach as for a session that does not exist, removing nothing', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
   const parent = await daemon.spawnOn('local');
@@ -1155,7 +1311,7 @@ test('it refuses a principal a forget of a dead session with a dead sub-session 
 
   expect(
     daemon.client.sendRequest('session.kill', { session: parent }, 'narrow'),
-  ).rejects.toMatchObject({ code: 'target_forbidden', data: { session: parent } });
+  ).rejects.toMatchObject({ code: 'no_such_session' });
 
   const listed = await daemon.client.sendRequest('session.list');
 
@@ -1167,7 +1323,7 @@ test('it refuses a principal a forget of a dead session with a dead sub-session 
   });
 });
 
-test('it refuses a principal a forget that would move a live sub-session out of reach, moving nothing', async () => {
+test('it answers a second kill that would move a live sub-session out of reach as for a session that does not exist, moving nothing', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
   const parent = await daemon.spawnOn('local');
@@ -1178,7 +1334,7 @@ test('it refuses a principal a forget that would move a live sub-session out of 
 
   expect(
     daemon.client.sendRequest('session.kill', { session: parent }, 'narrow'),
-  ).rejects.toMatchObject({ code: 'target_forbidden', data: { session: parent } });
+  ).rejects.toMatchObject({ code: 'no_such_session' });
 
   const listed = await daemon.client.sendRequest('session.list');
 
@@ -1190,7 +1346,7 @@ test('it refuses a principal a forget that would move a live sub-session out of 
   });
 });
 
-test('it refuses a principal a pin of a session with a sub-session out of reach, pinning nothing', async () => {
+test('it answers a pin or a rename of a session with a sub-session out of reach as for a session that does not exist, changing nothing', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
   const parent = await daemon.spawnOn('local');
@@ -1199,13 +1355,15 @@ test('it refuses a principal a pin of a session with a sub-session out of reach,
 
   expect(
     daemon.client.sendRequest('session.update', { session: parent, pinned: true }, 'narrow'),
-  ).rejects.toMatchObject({ code: 'target_forbidden', data: { session: parent } });
+  ).rejects.toMatchObject({ code: 'no_such_session' });
 
-  await daemon.client.sendRequest('session.update', { session: parent, name: 'renamed' }, 'narrow');
+  expect(
+    daemon.client.sendRequest('session.update', { session: parent, name: 'renamed' }, 'narrow'),
+  ).rejects.toMatchObject({ code: 'no_such_session' });
 
   const listed = await daemon.client.sendRequest('session.list');
 
-  expect(listed).toMatchObject({ sessions: [{ id: parent, name: 'renamed', pinned: false }, {}] });
+  expect(listed).toMatchObject({ sessions: [{ id: parent, name: 'tmp', pinned: false }, {}] });
 });
 
 test('it refuses the replay of a held spawn key once the grant no longer reaches its target', async () => {
