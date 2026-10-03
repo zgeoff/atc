@@ -56,9 +56,21 @@ export async function collectRemoteRefs(
   let listed: Awaited<ReturnType<typeof runGit>>;
 
   try {
+    const sshEnv = await buildSSHTimeoutEnv(timeoutMs);
+
     listed = await runGit(
-      [...askpass.args, 'ls-remote', '--symref', '--', url, 'HEAD', 'refs/heads/*', 'refs/tags/*'],
-      { env: askpass.env, timeoutMs },
+      [
+        ...askpass.args,
+        ...buildHTTPTimeoutArgs(timeoutMs),
+        'ls-remote',
+        '--symref',
+        '--',
+        url,
+        'HEAD',
+        'refs/heads/*',
+        'refs/tags/*',
+      ],
+      { env: { ...askpass.env, ...sshEnv }, timeoutMs },
     );
   } finally {
     await askpass[Symbol.asyncDispose]();
@@ -77,6 +89,32 @@ export async function collectRemoteRefs(
   }
 
   return parseListing(listed.stdout);
+}
+
+// An ssh connection that takes longer than the limit is given up by ssh.
+// A host that chose its own ssh command keeps it.
+async function buildSSHTimeoutEnv(timeoutMs: number): Promise<Readonly<Record<string, string>>> {
+  if (process.env['GIT_SSH_COMMAND'] !== undefined || process.env['GIT_SSH'] !== undefined) {
+    return {};
+  }
+
+  const configured = await runGit(['config', '--get', 'core.sshCommand']);
+
+  if (configured.exitCode === 0 && configured.stdout.trim() !== '') {
+    return {};
+  }
+
+  const seconds = String(Math.max(1, Math.ceil(timeoutMs / 1000)));
+
+  return { GIT_SSH_COMMAND: `ssh -o ConnectTimeout=${seconds}` };
+}
+
+// An HTTP transfer that moves under a byte a second for the whole limit is
+// given up by git itself.
+function buildHTTPTimeoutArgs(timeoutMs: number): string[] {
+  const seconds = String(Math.max(1, Math.ceil(timeoutMs / 1000)));
+
+  return ['-c', 'http.lowSpeedLimit=1', '-c', `http.lowSpeedTime=${seconds}`];
 }
 
 const SYMREF_PREFIX = 'ref: refs/heads/';

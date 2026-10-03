@@ -194,7 +194,7 @@ test('it authenticates with an env credential through the askpass helper', async
   );
 });
 
-test('it refuses an upstream that does not answer within its time limit', async () => {
+test('it refuses an upstream that does not answer within its time limit and leaves no git process behind', async () => {
   const server = Bun.serve({
     port: 0,
     hostname: '127.0.0.1',
@@ -205,12 +205,19 @@ test('it refuses an upstream that does not answer within its time limit', async 
     await server.stop(true);
   });
 
+  const marker = `silent-${crypto.randomUUID()}`;
   const started = Date.now();
 
   const access = await checkRepositoryAccess({
-    url: `http://127.0.0.1:${server.port}/silent.git`,
+    url: `http://127.0.0.1:${server.port}/${marker}.git`,
     timeoutMs: 300,
   });
+
+  // A killed process group is gone once the kernel reaps it, which takes a
+  // moment after the signal.
+  await Bun.sleep(300);
+
+  const left = Bun.spawnSync(['pgrep', '-f', marker]).stdout.toString();
 
   expect(access).toStrictEqual({
     ok: false,
@@ -219,4 +226,5 @@ test('it refuses an upstream that does not answer within its time limit', async 
   });
 
   expect(Date.now() - started).toBeLessThan(5000);
+  expect(left).toBe('');
 });

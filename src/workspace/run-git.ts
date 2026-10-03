@@ -21,7 +21,8 @@ interface GitRun {
 /**
  * Runs one git command to completion, feeding it any given input, and
  * returns its exit code and output. A command given a time limit is
- * stopped once it passes it, and reported as timed out.
+ * stopped once it passes it, with every process it started, and reported
+ * as timed out.
  * git never prompts on a terminal here, since the daemon has none to answer
  * with, and its messages stay in the C locale so callers can read them.
  * Variables that pin git to some other repository, such as the `GIT_DIR` a
@@ -70,6 +71,10 @@ export async function runGit(
     stdin: options.input === undefined ? 'ignore' : Buffer.from(options.input),
     stdout: 'pipe',
     stderr: 'pipe',
+
+    // A command with a time limit leads its own process group, so stopping
+    // it stops the helpers it started, such as `git remote-http`, too.
+    detached: options.timeoutMs !== undefined,
   });
 
   const finished = Promise.all([
@@ -97,7 +102,11 @@ export async function runGit(
   clearTimeout(timer);
 
   if (settled === null) {
-    proc.kill();
+    try {
+      process.kill(-proc.pid, 'SIGKILL');
+    } catch {
+      // The group already exited.
+    }
 
     return { exitCode: -1, stdout: '', stderr: '', timedOut: true };
   }
