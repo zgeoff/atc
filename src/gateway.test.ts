@@ -295,3 +295,37 @@ test('it exits 0 on SIGTERM', async () => {
 
   expect(exitCode).toBe(0);
 });
+
+test('it lists the clients when clients gets only a state directory', async () => {
+  await using gateway = await setupTest();
+
+  const added = Bun.spawnSync(
+    [
+      ...gatewayCommand,
+      'clients',
+      'add',
+      'Claude',
+      '--redirect-uri',
+      'https://claude.ai/api/mcp/auth_callback',
+      '--state-dir',
+      join(gateway.dir, 'state'),
+    ],
+    { env: gateway.env },
+  );
+
+  const listed = Bun.spawnSync(
+    [...gatewayCommand, 'clients', '--state-dir', join(gateway.dir, 'state')],
+    { env: gateway.env },
+  );
+
+  const clientID = /client ID is (?<id>\w+)/.exec(added.stdout.toString())?.groups?.['id'];
+
+  if (clientID === undefined) {
+    throw new Error(`no client ID in: ${added.stdout.toString()}`);
+  }
+
+  expect({ exitCode: listed.exitCode, stdout: listed.stdout.toString() }).toStrictEqual({
+    exitCode: 0,
+    stdout: `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`,
+  });
+});

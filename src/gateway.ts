@@ -71,6 +71,10 @@ const main = defineCommand({
           name: 'clients',
           description: 'List, add, or remove the clients that may connect to the gateway',
         },
+
+        // Declared here too, so `clients --state-dir <dir>` reads `<dir>` as
+        // the flag's value rather than a subcommand name.
+        args: STATE_DIR_ARG,
         default: 'list',
         subCommands: {
           list: () =>
