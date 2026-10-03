@@ -10,6 +10,9 @@ interface CloneRequest {
   readonly source: Extract<WorkspaceSource, { readonly kind: 'git' }>;
   readonly dir: string;
   readonly credential?: GitCredential;
+
+  // The transports git may fetch over.
+  readonly transports: readonly string[];
 }
 
 interface CreatedClone {
@@ -73,7 +76,7 @@ async function createCloneAtRef(
   env: Readonly<Record<string, string>>,
   args: readonly string[],
 ): Promise<CloneRefusal | CreatedClone | IncompleteCheckout> {
-  const target = await resolveRef(request.source, env, args);
+  const target = await resolveRef(request, env, args);
 
   if (!target.ok) {
     return target;
@@ -92,7 +95,7 @@ async function createCloneAtRef(
       request.source.url,
       request.dir,
     ],
-    { env },
+    { env, transports: request.transports },
   );
 
   if (clone.exitCode !== 0) {
@@ -153,10 +156,12 @@ const SHA_PATTERN = /^(?:[\da-f]{40}|[\da-f]{64})$/u;
  * names a branch upstream checks the commit out as that branch.
  */
 async function resolveRef(
-  source: Extract<WorkspaceSource, { readonly kind: 'git' }>,
+  request: CloneRequest,
   env: Readonly<Record<string, string>>,
   args: readonly string[],
 ): Promise<CloneRefusal | ResolvedRef> {
+  const source = request.source;
+
   if (SHA_PATTERN.test(source.ref)) {
     return { ok: true, sha: source.ref, branch: null };
   }
@@ -165,7 +170,7 @@ async function resolveRef(
 
   const listed = await runGit(
     [...args, 'ls-remote', '--', source.url, source.ref, `${source.ref}^{}`],
-    { env },
+    { env, transports: request.transports },
   );
 
   if (listed.exitCode !== 0) {

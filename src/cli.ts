@@ -182,7 +182,7 @@ const main = defineCommand({
             console.error(`atc daemon: config: ${line}`);
           }
 
-          for (const problem of cfg.principalErrors) {
+          for (const problem of [...cfg.principalErrors, ...cfg.workspaceErrors]) {
             console.error(`atc daemon: config: ${problem}`);
           }
 
@@ -242,6 +242,7 @@ const main = defineCommand({
               targetErrors,
               principals: cfg.principals,
               sources: sources.sources,
+              gitTransports: cfg.workspaces.gitTransports,
               restoreBootTimeoutMs,
               ...(Number.isFinite(graceOverride) && graceOverride >= 0
                 ? { tapGraceMs: graceOverride }

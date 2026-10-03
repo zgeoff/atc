@@ -13,19 +13,23 @@ type ResolvedGitURL =
 /**
  * Resolves the URL a git workspace source is fetched from: it normalizes
  * to its credential-free form, with `owner/repo` expanding to its GitHub
- * https URL, and that form must use a transport atc allows, both checked
+ * https URL, and that form must use one of `transports`, both checked
  * before any git runs. Then the raw URL and the normalized form must each
  * reach git without a credential. `cwd` is the directory whose git config
  * the `insteadOf` rewrites are read from.
  */
-export async function resolveGitURL(raw: string, cwd: string): Promise<ResolvedGitURL> {
+export async function resolveGitURL(
+  raw: string,
+  cwd: string,
+  transports: readonly string[],
+): Promise<ResolvedGitURL> {
   const normalized = normalizeGitURL(raw);
 
   if (!normalized.ok) {
     return normalized;
   }
 
-  const transport = checkGitTransport(normalized.url);
+  const transport = checkGitTransport(normalized.url, transports);
 
   if (!transport.ok) {
     return transport;

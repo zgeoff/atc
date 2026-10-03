@@ -178,7 +178,9 @@ export interface DaemonContext {
 
   // Checks that the daemon's host can read a git workspace source, and
   // resolves its ref, the way a workspace spawn from it would.
-  readonly checkRepositoryAccess: typeof checkRepositoryAccess;
+  readonly checkRepositoryAccess: (
+    request: Omit<Parameters<typeof checkRepositoryAccess>[0], 'transports'>,
+  ) => ReturnType<typeof checkRepositoryAccess>;
 
   // Runs the plan, which throws the refusal for a spawn it refuses, then
   // spawns. Answers with the `session.spawn` ok payload, which a keyed

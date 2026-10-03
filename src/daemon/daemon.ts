@@ -13,6 +13,7 @@ import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
 import type { SessionState } from '../protocol/session-state';
 import type { HooksConfig } from '../shared/collect-hooks';
 import type { TargetConfigError } from '../shared/collect-targets';
+import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import type { MessageID } from '../shared/message-id';
 import { isRecord } from '../shared/report';
@@ -158,6 +159,10 @@ export interface DaemonOptions {
   // The sources the spawn picker offers, in order, each built with the
   // services it uses; none when unset.
   readonly sources?: readonly SourceProvider[];
+
+  // The transports a git workspace source may use and git may fetch over;
+  // https and ssh when unset.
+  readonly gitTransports?: readonly string[];
 }
 
 export interface DaemonHandle {
@@ -241,6 +246,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const targetErrors = opts.targetErrors ?? [];
   const principals = opts.principals ?? null;
+  const gitTransports = opts.gitTransports ?? DEFAULT_GIT_TRANSPORTS;
 
   const targetsByID = new Map(targets.map((target) => [target.id, target]));
 
@@ -901,6 +907,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           mgr.log(line);
         },
         stagingRoot: tmpdir(),
+        gitTransports,
       },
     );
   };
@@ -1254,7 +1261,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       mgr.requireExecution({ target, targetIdentity: null }, 'run');
     },
     findSource: (id) => sources.find((source) => source.id === id) ?? null,
-    checkRepositoryAccess,
+    checkRepositoryAccess: (request) =>
+      checkRepositoryAccess({ ...request, transports: gitTransports }),
     spawnSession: (plan, keyed, access) => {
       // Under an access, a spawn under a parent whose tree leaves the access
       // before the harness starts is refused as a spawn under an unknown

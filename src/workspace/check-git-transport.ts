@@ -1,5 +1,3 @@
-import { resolveGitProtocols } from './resolve-git-protocols';
-
 type TransportCheck =
   | { readonly ok: true }
   | { readonly ok: false; readonly code: 'invalid_git_url'; readonly message: string };
@@ -18,27 +16,26 @@ const SCP_PATTERN = /^(?:[^@/:\s]+@)?[^@/:\s]+:/u;
 const SSH_SCHEMES: ReadonlySet<string> = new Set(['ssh', 'git+ssh', 'ssh+git']);
 
 /**
- * Checks that a repository URL uses a git transport atc allows, without
- * running git: `https` and `ssh` by default, the scp-style form counting as
- * ssh. A remote-helper URL is its helper's transport, and a path is the
- * `file` transport. A URL that git could read as an option is refused.
+ * Checks that a repository URL uses one of the allowed git transports,
+ * without running git. The scp-style form is ssh, a remote-helper URL is
+ * its helper's transport, and a path is the `file` transport. A URL that
+ * git could read as an option is refused whatever the transports.
  */
-export function checkGitTransport(url: string): TransportCheck {
+export function checkGitTransport(url: string, transports: readonly string[]): TransportCheck {
   if (url.startsWith('-')) {
     return { ok: false, code: 'invalid_git_url', message: 'a git URL must not start with -' };
   }
 
   const transport = findTransport(url);
-  const allowed = resolveGitProtocols();
 
-  if (allowed.includes(transport)) {
+  if (transports.includes(transport)) {
     return { ok: true };
   }
 
   return {
     ok: false,
     code: 'invalid_git_url',
-    message: `git transport '${transport}' is not allowed; atc fetches over ${allowed.join(' and ')}`,
+    message: `git transport '${transport}' is not allowed; the daemon fetches over ${transports.join(' and ')}`,
   };
 }
 

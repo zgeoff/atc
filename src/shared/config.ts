@@ -13,6 +13,7 @@ import { collectTargets } from './collect-targets';
 import type { TargetConfig, TargetConfigError } from './collect-targets';
 import { collectWorkspacesConfig } from './collect-workspaces-config';
 import type { WorkspacesConfig } from './collect-workspaces-config';
+import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
 import { formatJSONKind } from './format-json-kind';
 import { isRecord } from './report';
 import { resolveHomeDir } from './resolve-home-dir';
@@ -43,6 +44,9 @@ export interface Config {
   // principals, which leaves every principal the implicit local target.
   principals: ReadonlyMap<string, readonly string[]> | null;
   principalErrors: readonly string[];
+
+  // The workspace config problems, one line each.
+  workspaceErrors: readonly string[];
 }
 
 /**
@@ -66,7 +70,7 @@ const DEFAULTS: Config = {
   codexBin: 'codex',
   codexArgs: [],
   dirs: { roots: [] },
-  workspaces: { githubOwner: null, sources: null },
+  workspaces: { githubOwner: null, sources: null, gitTransports: DEFAULT_GIT_TRANSPORTS },
   gateways: [],
   hooks: {},
   leader: { code: 0, label: '^Space' },
@@ -75,6 +79,7 @@ const DEFAULTS: Config = {
   targetErrors: [],
   principals: null,
   principalErrors: [],
+  workspaceErrors: [],
 };
 
 const configDir = join(resolveHomeDir(), '.config', 'atc');
@@ -205,6 +210,7 @@ export function renderDefaultConfig(): string {
     targetErrors: _errors,
     principals: _principals,
     principalErrors: _principalErrors,
+    workspaceErrors: _workspaceErrors,
     ...written
   } = DEFAULTS;
 
@@ -261,7 +267,7 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     codexBin,
     codexArgs,
     dirs,
-    workspaces,
+    workspaces: workspaces.workspaces,
     gateways,
     hooks,
     leader,
@@ -270,6 +276,7 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     targetErrors: targets.errors,
     principals: principals.principals,
     principalErrors: principals.errors,
+    workspaceErrors: workspaces.errors,
   };
 }
 

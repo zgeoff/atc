@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import { $ } from 'bun';
 import { collectRemoteRefs } from './collect-remote-refs';
 
+// The transports a fixture upstream on the local filesystem is reached over.
+const FIXTURE_TRANSPORTS = ['https', 'ssh', 'file'];
+
 // A bare upstream and a work clone that pushes to it. Fixture git commands
 // read neither the host's system nor its global git config.
 async function setupTest() {
@@ -66,7 +69,7 @@ test('it lists the branches, the peeled tags, and the default branch of an upstr
     .text()
     .then((text) => text.trim());
 
-  const listing = await collectRemoteRefs(project.upstream, undefined);
+  const listing = await collectRemoteRefs(project.upstream, undefined, FIXTURE_TRANSPORTS);
 
   expect(listing).toStrictEqual({
     ok: true,
@@ -90,7 +93,7 @@ test('it lists the branches, the peeled tags, and the default branch of an upstr
 test('it lists an empty upstream as no refs and no default branch', async () => {
   await using project = await setupTest();
 
-  const listing = await collectRemoteRefs(project.upstream, undefined);
+  const listing = await collectRemoteRefs(project.upstream, undefined, FIXTURE_TRANSPORTS);
 
   expect(listing).toStrictEqual({ ok: true, head: null, refs: [], byName: new Map() });
 });
@@ -98,7 +101,11 @@ test('it lists an empty upstream as no refs and no default branch', async () => 
 test("it refuses an upstream git cannot read with git's own message", async () => {
   await using project = await setupTest();
 
-  const listing = await collectRemoteRefs(join(project.dir, 'missing.git'), undefined);
+  const listing = await collectRemoteRefs(
+    join(project.dir, 'missing.git'),
+    undefined,
+    FIXTURE_TRANSPORTS,
+  );
 
   expect(listing).toMatchObject({
     ok: false,
@@ -110,10 +117,14 @@ test("it refuses an upstream git cannot read with git's own message", async () =
 test('it refuses an env credential whose variable is unset', async () => {
   await using project = await setupTest();
 
-  const listing = await collectRemoteRefs(project.upstream, {
-    kind: 'env',
-    name: 'ATC_TEST_UNSET_GIT_TOKEN',
-  });
+  const listing = await collectRemoteRefs(
+    project.upstream,
+    {
+      kind: 'env',
+      name: 'ATC_TEST_UNSET_GIT_TOKEN',
+    },
+    FIXTURE_TRANSPORTS,
+  );
 
   expect(listing).toStrictEqual({
     ok: false,

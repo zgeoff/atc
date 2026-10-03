@@ -5,7 +5,12 @@ import { join } from 'node:path';
 import { $ } from 'bun';
 import { startGitHTTPServer } from '../../test/start-git-http-server';
 import { updateEnv } from '../../test/update-env';
+import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { checkRepositoryAccess } from './check-repository-access';
+
+// The transports a fixture upstream is reached over: a local path, and
+// smart HTTP on the loopback.
+const FIXTURE_TRANSPORTS = ['https', 'ssh', 'http', 'file'];
 
 // A bare upstream with one commit on main, a work clone that pushes to it,
 // and the upstream served over smart HTTP behind basic auth. Fixture git
@@ -61,7 +66,11 @@ test('it resolves a branch to the commit it points at and lists the upstream ref
     .text()
     .then((text) => text.trim());
 
-  const access = await checkRepositoryAccess({ url: project.upstream, ref: 'main' });
+  const access = await checkRepositoryAccess({
+    transports: FIXTURE_TRANSPORTS,
+    url: project.upstream,
+    ref: 'main',
+  });
 
   expect(access).toStrictEqual({
     ok: true,
@@ -84,7 +93,11 @@ test('it resolves an annotated tag to the commit it points at', async () => {
     .text()
     .then((text) => text.trim());
 
-  const access = await checkRepositoryAccess({ url: project.upstream, ref: 'v1' });
+  const access = await checkRepositoryAccess({
+    transports: FIXTURE_TRANSPORTS,
+    url: project.upstream,
+    ref: 'v1',
+  });
 
   expect(access).toMatchObject({ ok: true, resolved: { sha, branch: null } });
 });
@@ -92,7 +105,10 @@ test('it resolves an annotated tag to the commit it points at', async () => {
 test('it answers a probe without a ref with the refs alone', async () => {
   await using project = await setupTest();
 
-  const access = await checkRepositoryAccess({ url: project.upstream });
+  const access = await checkRepositoryAccess({
+    transports: FIXTURE_TRANSPORTS,
+    url: project.upstream,
+  });
 
   expect(access).toMatchObject({ ok: true, head: 'main', resolved: null });
 });
@@ -102,7 +118,11 @@ test('it takes a full commit id as it is', async () => {
 
   const sha = 'f'.repeat(40);
 
-  const access = await checkRepositoryAccess({ url: project.upstream, sha });
+  const access = await checkRepositoryAccess({
+    transports: FIXTURE_TRANSPORTS,
+    url: project.upstream,
+    sha,
+  });
 
   expect(access).toMatchObject({ ok: true, resolved: { sha, branch: null } });
 });
@@ -110,7 +130,11 @@ test('it takes a full commit id as it is', async () => {
 test('it refuses a ref the upstream does not have', async () => {
   await using project = await setupTest();
 
-  const access = await checkRepositoryAccess({ url: project.upstream, ref: 'nope' });
+  const access = await checkRepositoryAccess({
+    transports: FIXTURE_TRANSPORTS,
+    url: project.upstream,
+    ref: 'nope',
+  });
 
   expect(access).toStrictEqual({
     ok: false,
@@ -120,7 +144,10 @@ test('it refuses a ref the upstream does not have', async () => {
 });
 
 test('it refuses a URL that does not read as a repository URL', async () => {
-  const access = await checkRepositoryAccess({ url: 'not a url' });
+  const access = await checkRepositoryAccess({
+    url: 'not a url',
+    transports: DEFAULT_GIT_TRANSPORTS,
+  });
 
   expect(access).toStrictEqual({
     ok: false,
@@ -130,7 +157,10 @@ test('it refuses a URL that does not read as a repository URL', async () => {
 });
 
 test('it refuses a URL that carries a credential', async () => {
-  const access = await checkRepositoryAccess({ url: 'https://x:tok@example.com/o/r.git' });
+  const access = await checkRepositoryAccess({
+    url: 'https://x:tok@example.com/o/r.git',
+    transports: DEFAULT_GIT_TRANSPORTS,
+  });
 
   expect(access).toMatchObject({ ok: false, code: 'credential_in_url' });
 });
@@ -138,7 +168,10 @@ test('it refuses a URL that carries a credential', async () => {
 test("it refuses an upstream that asks for a sign-in the host cannot give, with git's own message", async () => {
   await using project = await setupTest();
 
-  const access = await checkRepositoryAccess({ url: project.httpURL });
+  const access = await checkRepositoryAccess({
+    transports: FIXTURE_TRANSPORTS,
+    url: project.httpURL,
+  });
 
   expect(access).toMatchObject({
     ok: false,
@@ -161,7 +194,11 @@ test('it authenticates through a credential helper in the host git config', asyn
     delete process.env['GIT_CONFIG_GLOBAL'];
   });
 
-  const access = await checkRepositoryAccess({ url: project.httpURL, ref: 'main' });
+  const access = await checkRepositoryAccess({
+    transports: FIXTURE_TRANSPORTS,
+    url: project.httpURL,
+    ref: 'main',
+  });
 
   expect(access).toMatchObject({ ok: true, resolved: { branch: 'main' } });
   expect(project.authorizations).not.toBeEmpty();
@@ -182,6 +219,7 @@ test('it authenticates with an env credential through the askpass helper', async
 
   const access = await checkRepositoryAccess({
     url: project.httpURL,
+    transports: FIXTURE_TRANSPORTS,
     ref: 'main',
     credential: { kind: 'env', name: 'ATC_TEST_PROBE_TOKEN' },
   });
@@ -212,6 +250,7 @@ test('it refuses an upstream that does not answer within its time limit and leav
   const access = await checkRepositoryAccess({
     url: `http://127.0.0.1:${server.port}/${marker}.git`,
     timeoutMs: 300,
+    transports: FIXTURE_TRANSPORTS,
   });
 
   // A killed process group is gone once the kernel reaps it, which takes a
@@ -249,10 +288,9 @@ test.each([
     },
   );
 
-  updateEnv('ATC_GIT_ALLOW_PROTOCOL', undefined);
   updateEnv('PATH', `${project.dir}:${process.env['PATH'] ?? ''}`);
 
-  const access = await checkRepositoryAccess({ url });
+  const access = await checkRepositoryAccess({ url, transports: DEFAULT_GIT_TRANSPORTS });
   const ran = await Bun.file(join(project.dir, 'git-ran')).exists();
 
   expect(access).toMatchObject({ ok: false, code: 'invalid_git_url' });
@@ -267,10 +305,12 @@ test('it refuses an https URL the host git config rewrites to a local repository
     `[url "file://${project.upstream}"]\n\tinsteadOf = https://example.invalid/upstream.git\n`,
   );
 
-  updateEnv('ATC_GIT_ALLOW_PROTOCOL', undefined);
   updateEnv('GIT_CONFIG_GLOBAL', join(project.dir, 'gitconfig'));
 
-  const access = await checkRepositoryAccess({ url: 'https://example.invalid/upstream.git' });
+  const access = await checkRepositoryAccess({
+    url: 'https://example.invalid/upstream.git',
+    transports: DEFAULT_GIT_TRANSPORTS,
+  });
 
   const message = access.ok ? '' : access.message;
 

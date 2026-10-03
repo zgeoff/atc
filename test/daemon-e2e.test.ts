@@ -222,6 +222,9 @@ process.stdin.on('data', (buf) => {
         codexBin: fakeCodex,
         codexArgs: [],
         gateways: { zai: { baseURL: 'http://127.0.0.1:9' } },
+
+        // The workspace tests clone fixture repositories from local paths.
+        workspaces: { gitTransports: ['https', 'ssh', 'file'] },
       }),
     );
   }

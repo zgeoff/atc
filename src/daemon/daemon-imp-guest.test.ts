@@ -71,7 +71,7 @@ done
       codexBin: 'codex',
       codexArgs: [],
       dirs: { roots: [] },
-      workspaces: { githubOwner: null, sources: null },
+      workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -80,6 +80,7 @@ done
       targetErrors: [],
       principals: new Map(),
       principalErrors: [],
+      workspaceErrors: [],
     });
 
   const daemon = await startDaemon({

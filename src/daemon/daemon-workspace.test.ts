@@ -38,6 +38,10 @@ const idleAdapter: AgentAdapter = {
 // and a `box` target on the provider a test hands in. Fixture git commands
 // read neither the host's system nor its global git config. Every line a
 // daemon logs is kept.
+// The transports the fixture upstream on the local filesystem is reached
+// over.
+const FIXTURE_TRANSPORTS = ['https', 'ssh', 'http', 'file'];
+
 async function setupTest() {
   const dir = await mkdtemp(join(tmpdir(), 'atc-workspace-'));
 
@@ -75,8 +79,12 @@ async function setupTest() {
     work,
     dbPath,
     logs,
-    async boot(box: ExecutionProvider) {
+
+    // A daemon on the default transports takes no transports option, as
+    // one with no `workspaces.gitTransports` in its config does.
+    async boot(box: ExecutionProvider, transports: 'fixture' | 'default' = 'fixture') {
       const daemon = await startDaemon({
+        ...(transports === 'fixture' ? { gitTransports: FIXTURE_TRANSPORTS } : {}),
         socketPath,
         reporterSocketPath: join(dir, 'reporter.sock'),
         build: 'atc/test-build',
@@ -1047,11 +1055,9 @@ test('it checks out the sha of a git source that holds both on the branch its re
 test('it refuses a git source on a local transport before it runs git, transferring nothing', async () => {
   await using ctx = await setupTest();
 
-  updateEnv('ATC_GIT_ALLOW_PROTOCOL', undefined);
-
   const box = new FixtureDirProvider();
 
-  const booted = await ctx.boot(box);
+  const booted = await ctx.boot(box, 'default');
 
   const spawn = booted.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -1070,11 +1076,76 @@ test('it refuses a git source on a local transport before it runs git, transferr
 test('it refuses a path source whose origin is a local repository, in git, transferring nothing', async () => {
   await using ctx = await setupTest();
 
-  updateEnv('ATC_GIT_ALLOW_PROTOCOL', undefined);
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box, 'default');
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toThrow("transport 'file' not allowed");
+
+  await spawn.catch(() => null);
+
+  expect(box.calls).not.toContainEqual(expect.objectContaining({ op: 'transfer' }));
+});
+
+test('it holds a probe and a spawn to the configured transports whatever transports they carry', async () => {
+  await using ctx = await setupTest();
 
   const box = new FixtureDirProvider();
 
-  const booted = await ctx.boot(box);
+  const booted = await ctx.boot(box, 'default');
+
+  const probe = await booted.client
+    .sendRequest('git.probe', {
+      url: `file://${ctx.upstream}`,
+      target: 'box',
+      transports: ['file'],
+      gitTransports: ['file'],
+    })
+    .catch((error: unknown) => error);
+
+  const spawn = await booted.client
+    .sendRequest('session.spawn', {
+      cwd: join(ctx.dir, 'box', 'ws'),
+      target: 'box',
+      gitTransports: ['file'],
+      workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    })
+    .catch((error: unknown) => error);
+
+  const widened = await booted.client
+    .sendRequest('session.spawn', {
+      cwd: join(ctx.dir, 'box', 'ws'),
+      target: 'box',
+      workspace: {
+        kind: 'git',
+        url: `file://${ctx.upstream}`,
+        ref: 'main',
+        gitTransports: ['file'],
+      },
+    })
+    .catch((error: unknown) => error);
+
+  expect(probe).toMatchObject({ code: 'invalid_git_url' });
+  expect(spawn).toMatchObject({ code: 'invalid_git_url' });
+  expect(widened).toMatchObject({ code: 'bad_args' });
+  expect(box.calls).toStrictEqual([]);
+});
+
+test('it holds git to the configured transports whatever the daemon environment allows', async () => {
+  await using ctx = await setupTest();
+
+  updateEnv('GIT_ALLOW_PROTOCOL', 'https:ssh:file');
+  updateEnv('ATC_GIT_ALLOW_PROTOCOL', 'https:ssh:file');
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box, 'default');
 
   const spawn = booted.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),

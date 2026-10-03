@@ -54,6 +54,7 @@ async function setupTest(options: { readonly githubOwner?: string } = {}) {
   const clients: DaemonClient[] = [];
 
   const daemon = await startDaemon({
+    gitTransports: ['https', 'ssh', 'file'],
     socketPath,
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',

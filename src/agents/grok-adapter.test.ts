@@ -30,7 +30,7 @@ function buildGrokConfig(): Config {
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
-    workspaces: { githubOwner: null, sources: null },
+    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -39,6 +39,7 @@ function buildGrokConfig(): Config {
     targetErrors: [],
     principals: null,
     principalErrors: [],
+    workspaceErrors: [],
   };
 }
 
@@ -89,7 +90,7 @@ test('it drops a user --leader from grokArgs and still appends --no-leader', () 
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
-    workspaces: { githubOwner: null, sources: null },
+    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
     gateways: [],
   }).planSpawn({ prompt: '', resume: false });
 

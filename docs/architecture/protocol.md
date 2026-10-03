@@ -520,12 +520,12 @@ the checkout is verified:
   from. git receives the token through a private askpass helper for the ref lookup and the clone
   alone, and atc never writes, logs, or stores it. The session's harness starts without that
   variable and without the askpass context, and the workspace it receives holds no credential.
-- atc fetches over `https` and `ssh` alone, the scp-style `user@host:path` counting as ssh. A `git`
-  source on any other transport, such as `file://`, a local path, `ext::`, or `fd::`, fails as
-  `invalid_git_url` before git runs. Every git command atc runs carries `GIT_ALLOW_PROTOCOL`, so a
-  host `insteadOf` rewrite, a `path` source's origin, or a submodule cannot reach another transport
-  either. `ATC_GIT_ALLOW_PROTOCOL` in the daemon's environment, a colon-separated list, widens the
-  set, and `ext` and `fd` stay refused whatever it holds.
+- The daemon fetches over the transports in `workspaces.gitTransports`, `https` and `ssh` by
+  default, the scp-style `user@host:path` counting as ssh. A `git` source on any other transport,
+  such as `file://` or a local path by default, fails as `invalid_git_url` before git runs. Every
+  git command the daemon runs carries `GIT_ALLOW_PROTOCOL` with the same list, so a host `insteadOf`
+  rewrite, a `path` source's origin, or a submodule cannot reach another transport either. `ext::`
+  and `fd::` are never allowed: the config refuses them.
 
 `cwd` must not exist on the target. The daemon creates it before it clones, so a directory that
 already exists refuses the spawn as `workspace_exists` and stays as it was. A refusal after that

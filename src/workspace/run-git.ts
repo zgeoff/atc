@@ -1,5 +1,5 @@
+import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { REPOSITORY_ENV_VARS } from './repository-env-vars';
-import { resolveGitProtocols } from './resolve-git-protocols';
 
 interface GitRunOptions {
   readonly cwd?: string;
@@ -10,6 +10,9 @@ interface GitRunOptions {
   // How long the command may run before it is stopped and reported as
   // timed out; unset waits as long as git takes.
   readonly timeoutMs?: number;
+
+  // The transports git may fetch over; https and ssh when unset.
+  readonly transports?: readonly string[];
 }
 
 interface GitRun {
@@ -26,8 +29,8 @@ interface GitRun {
  * as timed out.
  * git never prompts on a terminal here, since the daemon has none to answer
  * with, its messages stay in the C locale so callers can read them, and it
- * fetches only over the transports atc allows, whatever URL a host config
- * rewrite or a submodule hands it.
+ * fetches only over the transports it is given, https and ssh unless told
+ * otherwise, whatever URL a host config rewrite or a submodule hands it.
  * Variables that pin git to some other repository, such as the `GIT_DIR` a
  * git hook exports, are dropped so the command acts on its own directory.
  *
@@ -70,7 +73,7 @@ export async function runGit(
       ...(isolated ? ISOLATED_ENV : {}),
       GIT_TERMINAL_PROMPT: '0',
       LC_ALL: 'C',
-      GIT_ALLOW_PROTOCOL: resolveGitProtocols().join(':'),
+      GIT_ALLOW_PROTOCOL: (options.transports ?? DEFAULT_GIT_TRANSPORTS).join(':'),
     },
     stdin: options.input === undefined ? 'ignore' : Buffer.from(options.input),
     stdout: 'pipe',

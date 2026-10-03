@@ -18,6 +18,9 @@ interface AccessRequest {
 
   // How long the listing may take; 20 s when unset.
   readonly timeoutMs?: number | undefined;
+
+  // The transports the URL may use and git may fetch over.
+  readonly transports: readonly string[];
 }
 
 interface RepositoryAccess {
@@ -63,13 +66,18 @@ export async function checkRepositoryAccess(
   const cwd = await mkdtemp(join(tmpdir(), 'atc-repo-access-'));
 
   try {
-    const resolved = await resolveGitURL(request.url, cwd);
+    const resolved = await resolveGitURL(request.url, cwd, request.transports);
 
     if (!resolved.ok) {
       return resolved;
     }
 
-    const listing = await collectRemoteRefs(resolved.url, request.credential, request.timeoutMs);
+    const listing = await collectRemoteRefs(
+      resolved.url,
+      request.credential,
+      request.transports,
+      request.timeoutMs,
+    );
 
     if (!listing.ok) {
       return listing;

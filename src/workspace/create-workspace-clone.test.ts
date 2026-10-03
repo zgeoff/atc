@@ -7,6 +7,10 @@ import { $ } from 'bun';
 import { updateEnv } from '../../test/update-env';
 import { createWorkspaceClone } from './create-workspace-clone';
 
+// The transports a fixture upstream is reached over: a local path, and
+// smart HTTP on the loopback.
+const FIXTURE_TRANSPORTS = ['https', 'ssh', 'http', 'file'];
+
 async function setupTest() {
   // A git hook exports GIT_DIR and friends, which would point these
   // commands at the repository running the hook instead of the temp tree.
@@ -164,6 +168,7 @@ test('it checks out the commit a branch points at, on that branch', async () => 
   const upstreamHead = await $`git rev-parse main`.env(project.env).cwd(project.upstream).text();
 
   const clone = await createWorkspaceClone({
+    transports: FIXTURE_TRANSPORTS,
     source: { kind: 'git', url: project.upstream, ref: 'main' },
     dir: join(project.dir, 'clone'),
   });
@@ -193,6 +198,7 @@ test('it checks out the commit an annotated tag points at, detached', async () =
   await $`git push --quiet origin main v1`.env(project.env).cwd(project.work).quiet();
 
   const clone = await createWorkspaceClone({
+    transports: FIXTURE_TRANSPORTS,
     source: { kind: 'git', url: project.upstream, ref: 'v1' },
     dir: join(project.dir, 'clone'),
   });
@@ -214,6 +220,7 @@ test('it checks out a full commit id detached', async () => {
   await $`git push --quiet origin main`.env(project.env).cwd(project.work).quiet();
 
   const clone = await createWorkspaceClone({
+    transports: FIXTURE_TRANSPORTS,
     source: { kind: 'git', url: project.upstream, ref: pinned.trim() },
     dir: join(project.dir, 'clone'),
   });
@@ -228,6 +235,7 @@ test('it copies objects instead of hard-linking them from a local upstream', asy
   await using project = await setupTest();
 
   await createWorkspaceClone({
+    transports: FIXTURE_TRANSPORTS,
     source: { kind: 'git', url: project.upstream, ref: 'main' },
     dir: join(project.dir, 'clone'),
   });
@@ -246,6 +254,7 @@ test('it refuses a ref the upstream does not have', async () => {
   await using project = await setupTest();
 
   const clone = await createWorkspaceClone({
+    transports: FIXTURE_TRANSPORTS,
     source: { kind: 'git', url: project.upstream, ref: 'missing' },
     dir: join(project.dir, 'clone'),
   });
@@ -263,6 +272,7 @@ test('it refuses a full commit id the upstream does not have and leaves no direc
   const unpushed = await $`git rev-parse HEAD`.env(project.env).cwd(project.work).text();
 
   const clone = await createWorkspaceClone({
+    transports: FIXTURE_TRANSPORTS,
     source: { kind: 'git', url: project.upstream, ref: unpushed.trim() },
     dir: join(project.dir, 'clone'),
   });
@@ -275,6 +285,7 @@ test('it refuses an upstream it cannot reach', async () => {
   await using project = await setupTest();
 
   const clone = await createWorkspaceClone({
+    transports: FIXTURE_TRANSPORTS,
     source: { kind: 'git', url: join(project.dir, 'missing.git'), ref: 'main' },
     dir: join(project.dir, 'clone'),
   });
@@ -286,6 +297,7 @@ test('it refuses an env credential whose variable is unset', async () => {
   await using project = await setupTest();
 
   const clone = await createWorkspaceClone({
+    transports: FIXTURE_TRANSPORTS,
     source: { kind: 'git', url: project.httpURL, ref: 'main' },
     dir: join(project.dir, 'clone'),
     credential: { kind: 'env', name: 'ATC_TEST_UNSET_GIT_TOKEN' },
@@ -303,6 +315,7 @@ test.skipIf(process.platform !== 'linux')(
     updateEnv('ATC_TEST_GIT_TOKEN', 'tok-4f9c2e');
 
     const clone = await createWorkspaceClone({
+      transports: FIXTURE_TRANSPORTS,
       source: { kind: 'git', url: project.httpURL, ref: 'main' },
       dir: join(project.dir, 'clone'),
       credential: { kind: 'env', name: 'ATC_TEST_GIT_TOKEN' },
@@ -344,6 +357,7 @@ test('it refuses a git source whose commit holds a gitlink and leaves no directo
   await $`git push --quiet origin main`.env(project.env).cwd(project.work).quiet();
 
   const clone = await createWorkspaceClone({
+    transports: FIXTURE_TRANSPORTS,
     source: { kind: 'git', url: project.upstream, ref: 'main' },
     dir: join(project.dir, 'clone'),
   });
@@ -383,6 +397,7 @@ test('it refuses a git source that tracks LFS paths without running the host LFS
   updateEnv('GIT_CONFIG_GLOBAL', join(project.dir, 'gitconfig'));
 
   const clone = await createWorkspaceClone({
+    transports: FIXTURE_TRANSPORTS,
     source: { kind: 'git', url: project.upstream, ref: 'main' },
     dir: join(project.dir, 'clone'),
   });
@@ -417,6 +432,7 @@ test('it checks out without running a filter from the host global git config', a
   updateEnv('GIT_CONFIG_GLOBAL', join(project.dir, 'gitconfig'));
 
   const clone = await createWorkspaceClone({
+    transports: FIXTURE_TRANSPORTS,
     source: { kind: 'git', url: project.upstream, ref: 'main' },
     dir: join(project.dir, 'clone'),
   });

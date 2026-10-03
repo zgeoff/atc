@@ -457,7 +457,7 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
-    workspaces: { githubOwner: null, sources: null },
+    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -466,6 +466,7 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     targetErrors: [],
     principals: null,
     principalErrors: [],
+    workspaceErrors: [],
   });
 
   const daemon = await startDaemon({
@@ -513,7 +514,7 @@ test('it yanks a grok session by id and without an id', async () => {
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
-    workspaces: { githubOwner: null, sources: null },
+    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -522,6 +523,7 @@ test('it yanks a grok session by id and without an id', async () => {
     targetErrors: [],
     principals: null,
     principalErrors: [],
+    workspaceErrors: [],
   });
 
   const daemon = await startDaemon({
@@ -596,7 +598,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
-    workspaces: { githubOwner: null, sources: null },
+    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -605,6 +607,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
     targetErrors: [],
     principals: null,
     principalErrors: [],
+    workspaceErrors: [],
   });
 
   const daemon = await startDaemon({
@@ -670,7 +673,7 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
-    workspaces: { githubOwner: null, sources: null },
+    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -679,6 +682,7 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
     targetErrors: [],
     principals: null,
     principalErrors: [],
+    workspaceErrors: [],
   });
 
   const daemon = await startDaemon({

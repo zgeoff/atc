@@ -18,7 +18,7 @@ function buildClaudeConfig(): Config {
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
-    workspaces: { githubOwner: null, sources: null },
+    workspaces: { githubOwner: null, sources: null, gitTransports: ['https', 'ssh'] },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -27,6 +27,7 @@ function buildClaudeConfig(): Config {
     targetErrors: [],
     principals: null,
     principalErrors: [],
+    workspaceErrors: [],
   };
 }
 
