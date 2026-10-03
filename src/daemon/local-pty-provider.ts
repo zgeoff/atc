@@ -74,6 +74,35 @@ export class LocalPTYProvider implements ExecutionProvider {
       kill: () => {
         pty.kill();
       },
+
+      // A process already gone has nothing left to end.
+      killForced: () => {
+        try {
+          process.kill(pty.pid, 'SIGKILL');
+        } catch (error) {
+          if (!isMissingProcessError(error)) {
+            throw error;
+          }
+        }
+      },
+
+      // bun-pty's kill sends one SIGHUP and reports an exit at once, whether
+      // the process ended or not, so the exit is read from the process id
+      // instead: the library reaps its child, so the id stops answering a
+      // signal once the process is gone.
+      waitForExit: async (timeoutMs) => {
+        const deadline = Date.now() + timeoutMs;
+
+        while (isProcessRunning(pty.pid)) {
+          if (Date.now() >= deadline) {
+            return false;
+          }
+
+          await Bun.sleep(20);
+        }
+
+        return true;
+      },
       detach: () => {
         for (const subscription of subscriptions) {
           subscription.dispose();
@@ -139,4 +168,20 @@ export class LocalPTYProvider implements ExecutionProvider {
 
     return { exitCode, stdout, stderr };
   }
+}
+
+// A process another user owns still runs, so only a missing process counts
+// as gone.
+function isProcessRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+
+    return true;
+  } catch (error) {
+    return !isMissingProcessError(error);
+  }
+}
+
+function isMissingProcessError(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'ESRCH';
 }

@@ -970,7 +970,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
-  const ledger = new IdempotencyLedger(store, LOCAL_PRINCIPAL);
+  const ledger = new IdempotencyLedger(store, LOCAL_PRINCIPAL, (line) => {
+    mgr.log(line);
+  });
 
   // Throws the refusal a fresh spawn to the target gets when the access
   // does not reach the target, and the identity, a held spawn key recorded

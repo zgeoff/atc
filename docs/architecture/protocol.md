@@ -572,23 +572,34 @@ keys under that principal, whatever principal it acts as.
 
 The daemon records the key before it checks any param. A refused request drops the key again, so a
 retry runs fresh. A spawn that fails after its process starts kills that process and drops its
-session first, and drops the key only once the kill succeeds and the fleet without that session is
-written. When either step fails, the session may still stand, so the daemon keeps the key as
-`outcome_unknown` and answers the spawn with that error. A retry of a key the daemon holds gets its
-answer from the key without any param checked again. The daemon records the key with a SHA-256 of
-the request's params as it parsed them, as JSON with sorted keys and without the key itself, so a
-default spelled out or a field the daemon ignores leaves the hash unchanged. It records the id it
-mints for the effect before the effect runs as well: the new session's id, or the new message's id.
-The daemon's answer to a retry depends on what the key holds:
+session first. The daemon drops the key only once the process has exited and the fleet without that
+session is written. The kill sends SIGHUP and waits 2 s for the exit. On a `local-pty` target, a
+process still running then gets SIGKILL and 2 s more. When the process outlives those waits, or the
+fleet write fails, the session may still stand, so the daemon keeps the key as `outcome_unknown` and
+answers the spawn with that error. A session whose process outlived the waits stays listed. The
+daemon refuses a `session.adopt` of that session as `no_such_session` while it waits for the exit,
+and after it until it finds the process gone, so no revived process runs beside the first.
+
+A spawn whose process started but whose fleet write fails gets `outcome_unknown` too, and its
+session stays listed and running. A request whose key the daemon cannot mark completed gets
+`outcome_unknown`, and its session or message stands. The daemon answers `outcome_unknown` with the
+effect's id even when it cannot record that state in the key. The key then stays in progress, the
+daemon answers a retry under it with the same error, and the daemon logs the failed write to stderr.
+
+A retry of a key the daemon holds gets its answer from the key without any param checked again. The
+daemon records the key with a SHA-256 of the request's params as it parsed them, as JSON with sorted
+keys and without the key itself, so a default spelled out or a field the daemon ignores leaves the
+hash unchanged. It records the id it mints for the effect before the effect runs as well: the new
+session's id, or the new message's id. The daemon's answer to a retry depends on what the key holds:
 
 - The same key with different params is `idempotency_conflict`.
 - For a completed spawn, the daemon returns the session's current descriptor while it is listed,
   else the descriptor the first spawn returned.
 - For a completed message, the daemon returns the message id with the message's current status.
-- A request that a stopped daemon may or may not have run, or a spawn whose failed start the daemon
-  could not take back, is `outcome_unknown`, with the session or message id in `err.data.effectRef`.
-  The daemon never runs it again under that key; check the session or message and retry under a new
-  key.
+- A request that a stopped daemon may or may not have run, a spawn whose failed start the daemon
+  could not take back, or a request whose effect the daemon could not record, is `outcome_unknown`,
+  with the session or message id in `err.data.effectRef`. The daemon never runs it again under that
+  key; check the session or message and retry under a new key.
 
 At start, before it serves a request, the daemon marks every key a stopped daemon left in progress
 as `outcome_unknown`, then completes each `outcome_unknown` spawn key whose session is in the fleet
