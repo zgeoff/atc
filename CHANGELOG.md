@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.26.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.25.0...@zgeoff/atc@2.26.0) (2026-10-03)
+
+
+### Features
+
+* **#178:** plan claude gateway guest settings for brokered auth ([#247](https://github.com/zgeoff/atc/issues/247)) ([9f45685](https://github.com/zgeoff/atc/commit/9f45685d15c5d5abdb1a7ceb0a0dfcfb8f6747b2))
+* **#255:** log tcp listener start and refused handshakes ([#257](https://github.com/zgeoff/atc/issues/257)) ([2add867](https://github.com/zgeoff/atc/commit/2add867a8ef71c505f88c952c8894875fb70a856))
+
 ## [2.25.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.24.0...@zgeoff/atc@2.25.0) (2026-10-03)
 
 ### Features
