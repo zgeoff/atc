@@ -20,7 +20,6 @@ import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
 import type { SourceProvider, SourceRequest } from '../sources/types';
-import { findAlternateGitURL } from '../workspace/find-alternate-git-url';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
@@ -888,7 +887,7 @@ export class DaemonConnection {
 
   // Probes a git workspace source for a spawn to the request's target, so
   // a principal probes only for a target it may spawn a workspace on. A
-  // refusal holds the repository's other URL form when it has one.
+  // refusal holds the repository's other URLs that the offered sources know.
   private async applyGitProbe(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('git.probe', req.p);
 
@@ -910,8 +909,8 @@ export class DaemonConnection {
     });
 
     if (!access.ok) {
-      const alternate = findAlternateGitURL(data.url);
-      const detail = alternate === null ? undefined : { alternates: [alternate] };
+      const alternates = ctx.collectAlternateGitURLs(data.url);
+      const detail = alternates.length === 0 ? undefined : { alternates };
 
       throw new DaemonError(access.code, access.message, detail);
     }

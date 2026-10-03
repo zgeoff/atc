@@ -12,8 +12,7 @@ type ResolvedGitURL =
 
 /**
  * Resolves the URL a git workspace source is fetched from: it normalizes
- * to its credential-free form, with `owner/repo` expanding to its GitHub
- * https URL, and that form must use one of `transports`, both checked
+ * to its credential-free form, and that form must use one of `transports`, both checked
  * before any git runs. Then the raw URL and the normalized form must each
  * reach git without a credential. `cwd` is the directory whose git config
  * the `insteadOf` rewrites are read from.

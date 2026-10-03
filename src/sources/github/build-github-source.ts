@@ -1,6 +1,7 @@
 import { DaemonError } from '../../protocol/daemon-error';
 import type { SourceProvider } from '../types';
 import { collectGitHubRepos } from './collect-github-repos';
+import { findGitHubAlternateURL } from './find-github-alternate-url';
 import { readGitProtocol } from './read-git-protocol';
 
 interface GitHubSourceOptions {
@@ -32,6 +33,8 @@ const REPO_INPUT_PATTERN =
  * The GitHub repositories gh on the daemon's host can see. A listing's
  * scope is the owner to list. Typed `owner/` lists that owner, and typed
  * `owner/repo` is that repository at the clone URL the gh config prefers.
+ * A GitHub URL the host cannot read has the other URL form as its
+ * alternate.
  * A listing gh cannot give throws `github_unavailable` with the problem.
  */
 export function buildGitHubSource(options: GitHubSourceOptions): SourceProvider {
@@ -95,6 +98,11 @@ export function buildGitHubSource(options: GitHubSourceOptions): SourceProvider 
         kind: 'git',
         url: protocol === 'ssh' ? `git@github.com:${name}.git` : `https://github.com/${name}.git`,
       };
+    },
+    findAlternateURLs(url) {
+      const alternate = findGitHubAlternateURL(url);
+
+      return alternate === null ? [] : [alternate];
     },
   };
 }

@@ -1261,6 +1261,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       mgr.requireExecution({ target, targetIdentity: null }, 'run');
     },
     findSource: (id) => sources.find((source) => source.id === id) ?? null,
+    collectAlternateGitURLs: (url) => [
+      ...new Set(sources.flatMap((source) => source.findAlternateURLs?.(url) ?? [])),
+    ],
     checkRepositoryAccess: (request) =>
       checkRepositoryAccess({ ...request, transports: gitTransports }),
     spawnSession: (plan, keyed, access) => {

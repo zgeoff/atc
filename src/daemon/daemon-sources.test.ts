@@ -22,7 +22,9 @@ import { LocalPTYProvider } from './local-pty-provider';
  * from `gh` in the temp tree, which a test writes as a fake that records
  * its argv in `ghArgv`, or leaves absent.
  */
-async function setupTest(options: { readonly githubOwner?: string } = {}) {
+async function setupTest(
+  options: { readonly githubOwner?: string; readonly withoutGitHub?: boolean } = {},
+) {
   const dir = await mkdtemp(join(tmpdir(), 'atc-daemon-repos-'));
 
   const env = {
@@ -101,7 +103,9 @@ async function setupTest(options: { readonly githubOwner?: string } = {}) {
         collectZoxideDirs: () => Promise.resolve([join(dir, 'zoxide-dir'), join(dir, 'gone')]),
         homeDir: dir,
       }),
-      buildGitHubSource({ bin: join(dir, 'gh'), owner: options.githubOwner ?? null }),
+      ...(options.withoutGitHub === true
+        ? []
+        : [buildGitHubSource({ bin: join(dir, 'gh'), owner: options.githubOwner ?? null })]),
       buildGitSource(),
     ],
     log: () => {},
@@ -404,4 +408,38 @@ test("it refuses a GitHub probe git cannot read with the repository's other URL 
     code: 'clone_failed',
     data: { alternates: ['git@github.com:acme/app.git'] },
   });
+});
+
+test('it refuses a probe of the owner/repo shorthand, which only a spawn expands', async () => {
+  await using ctx = await setupTest();
+
+  // The rewrite sends the expanded form to a path that does not exist, so
+  // a probe that expanded the shorthand would fail in git instead.
+  await writeFile(
+    join(ctx.dir, 'gitconfig'),
+    `[url "file://${join(ctx.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
+  );
+
+  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
+
+  const probed = ctx.client.sendRequest('git.probe', { url: 'acme/app' });
+
+  expect(probed).rejects.toMatchObject({ code: 'invalid_git_url', data: undefined });
+});
+
+test('it refuses a GitHub probe with no alternates when the daemon offers no GitHub source', async () => {
+  await using ctx = await setupTest({ withoutGitHub: true });
+
+  // The rewrite sends the https form to a path that does not exist, so no
+  // request reaches GitHub.
+  await writeFile(
+    join(ctx.dir, 'gitconfig'),
+    `[url "file://${join(ctx.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
+  );
+
+  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
+
+  const probed = ctx.client.sendRequest('git.probe', { url: 'https://github.com/acme/app.git' });
+
+  expect(probed).rejects.toMatchObject({ code: 'clone_failed', data: undefined });
 });

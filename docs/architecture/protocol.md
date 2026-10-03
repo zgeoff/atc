@@ -514,12 +514,14 @@ the checkout is verified:
   refuse the spawn as `workspace_dirty`. With `allowDirty: "warn"`, the checkout is HEAD, the
   changes stay behind, and the spawn answer holds `warnings`.
 - A `git` source is a repository URL with `ref`, a branch or tag, `sha`, a full commit id, or both.
-  With both, the daemon checks out `sha`, on the branch `ref` names when the upstream has that
-  branch, and records `ref` as the ref it was resolved from without checking that `ref` still points
-  at `sha`. `credentialRef` holds the name of the daemon environment variable its token is read
-  from. git receives the token through a private askpass helper for the ref lookup and the clone
-  alone, and atc never writes, logs, or stores it. The session's harness starts without that
-  variable and without the askpass context, and the workspace it receives holds no credential.
+  `session.spawn` also takes the older `owner/repo` shorthand for a GitHub https URL; `git.probe`
+  and the sources take full URLs. With both, the daemon checks out `sha`, on the branch `ref` names
+  when the upstream has that branch, and records `ref` as the ref it was resolved from without
+  checking that `ref` still points at `sha`. `credentialRef` holds the name of the daemon
+  environment variable its token is read from. git receives the token through a private askpass
+  helper for the ref lookup and the clone alone, and atc never writes, logs, or stores it. The
+  session's harness starts without that variable and without the askpass context, and the workspace
+  it receives holds no credential.
 - The daemon fetches over the transports in `workspaces.gitTransports`, `https` and `ssh` by
   default, the scp-style `user@host:path` counting as ssh. A `git` source on any other transport,
   such as `file://` or a local path by default, fails as `invalid_git_url` before git runs. Every
@@ -620,11 +622,16 @@ home. `github` reads `owner/` as that owner's scope, and `owner/repo` as that re
 form `gh` prefers. `git` reads a URL with a scheme, an scp-style `user@host:path`, or an absolute
 path.
 
+Every built-in source reaches a repository with the daemon host's own git authentication: its git
+config and credential helpers, its ssh agent, and the `credentialRef` askpass helper of a probe or
+spawn. atc does not support a credential chosen per source, so every repository a picker offers is
+read with the same host credentials.
+
 `git.probe` checks that the daemon's host can read a git source and lists its refs. It resolves the
-URL exactly as a workspace spawn does and runs one `git ls-remote` that authenticates as the clone
-would: through the host's git config, or through the `credentialRef` askpass helper. The answer
-holds the URL the clone fetches, the upstream's default branch as `head`, every branch and tag with
-the commit it points at, and `resolved`:
+URL exactly as a workspace spawn does, without the spawn's `owner/repo` shorthand, and runs one
+`git ls-remote` that authenticates as the clone would: through the host's git config, or through the
+`credentialRef` askpass helper. The answer holds the URL the clone fetches, the upstream's default
+branch as `head`, every branch and tag with the commit it points at, and `resolved`:
 
 ```jsonc
 { "v": 4, "id": 8, "m": "git.probe", "p": { "url": "acme/app", "ref": "main" } }
@@ -641,9 +648,10 @@ ref listing never shows whether the upstream holds a commit; the clone checks th
 `resolved` is null. A client that spawns with both the resolved `sha` and its `ref` gets the commit
 it showed, whatever lands on the branch in between. A refusal takes the code the same failure gets
 in a spawn: `invalid_git_url`, `credential_in_url`, `credential_missing`, `clone_failed` with git's
-own message for an upstream the host cannot read, and `ref_not_found`. A refusal of a GitHub
-repository holds its other URL form, ssh for https and https for ssh, in `data.alternates`. A
-`git ls-remote` that runs longer than 20 s is stopped and fails the request with `clone_failed`.
+own message for an upstream the host cannot read, and `ref_not_found`. A refusal holds, in
+`data.alternates`, the repository's other URLs that an offered source knows: the GitHub source gives
+the ssh form of an https URL and the https form of an ssh URL. A `git ls-remote` that runs longer
+than 20 s is stopped and fails the request with `clone_failed`.
 
 ## Kill and sleep
 

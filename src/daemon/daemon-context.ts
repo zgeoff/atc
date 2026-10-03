@@ -176,6 +176,10 @@ export interface DaemonContext {
   // it offers none under it.
   readonly findSource: (id: string) => SourceProvider | null;
 
+  // The other URLs the offered sources know for a git URL the daemon's host
+  // could not read, each once.
+  readonly collectAlternateGitURLs: (url: string) => readonly string[];
+
   // Checks that the daemon's host can read a git workspace source, and
   // resolves its ref, the way a workspace spawn from it would.
   readonly checkRepositoryAccess: (

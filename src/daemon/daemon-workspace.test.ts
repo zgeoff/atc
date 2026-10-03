@@ -1159,3 +1159,30 @@ test('it holds git to the configured transports whatever the daemon environment 
 
   expect(box.calls).not.toContainEqual(expect.objectContaining({ op: 'transfer' }));
 });
+
+test('it materializes a spawn from the owner/repo shorthand at its GitHub https URL', async () => {
+  await using ctx = await setupTest();
+
+  // The rewrite sends the expanded URL to the fixture upstream, so no
+  // request reaches GitHub.
+  writeFileSync(
+    join(ctx.dir, 'gitconfig'),
+    `[url "file://${ctx.dir}/"]\n\tinsteadOf = https://github.com/acme/\n`,
+  );
+
+  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+
+  const dest = join(ctx.dir, 'local', 'ws');
+
+  const spawned = await booted.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'local',
+    workspace: { kind: 'git', url: 'acme/upstream', ref: 'main' },
+  });
+
+  expect(spawned).toMatchObject({
+    session: { workspace: { repoURL: 'https://github.com/acme/upstream.git', ref: 'main' } },
+  });
+});

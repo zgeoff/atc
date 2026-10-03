@@ -62,4 +62,9 @@ export interface SourceProvider {
   readonly kind: SourceKind;
   readonly list: (query: SourceQuery, request: SourceRequest) => Promise<SourceListing>;
   readonly interpret: (input: string, request: SourceRequest) => Promise<SourceInterpretation>;
+
+  // The other URLs of the repository at a git URL the daemon's host could
+  // not read, for a source that knows its host's URL forms; none when it
+  // does not recognize the URL.
+  readonly findAlternateURLs?: (url: string) => readonly string[];
 }

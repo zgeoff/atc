@@ -8,6 +8,7 @@ import type { StateStore } from '../store/state-store';
 import type { MaterializationPhase, SessionWorkspace } from '../store/workspace-materialization';
 import { checkURLCredentials } from '../workspace/check-url-credentials';
 import { createWorkspaceClone } from '../workspace/create-workspace-clone';
+import { expandGitShorthand } from '../workspace/expand-git-shorthand';
 import { normalizeGitURL } from '../workspace/normalize-git-url';
 import { readWorkspaceTar } from '../workspace/read-workspace-tar';
 import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
@@ -300,9 +301,9 @@ async function resolveSource(
     };
   }
 
-  // The clone fetches the URL it records, so an `owner/repo` shorthand
-  // reaches the repository it expands to.
-  const resolved = await resolveGitURL(source.url, staging, transports);
+  // The clone fetches the URL it records, so the spawn API's `owner/repo`
+  // shorthand reaches the repository it expands to.
+  const resolved = await resolveGitURL(expandGitShorthand(source.url), staging, transports);
 
   if (!resolved.ok) {
     throw new DaemonError(resolved.code, resolved.message, { phase: 'resolving' });

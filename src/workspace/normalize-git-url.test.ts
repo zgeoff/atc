@@ -16,8 +16,6 @@ test.each([
   ['ssh://git@github.com/zgeoff/atc.git', 'ssh://git@github.com/zgeoff/atc.git'],
   ['git@github.com:zgeoff/atc.git', 'git@github.com:zgeoff/atc.git'],
   ['github.com:zgeoff/atc.git', 'github.com:zgeoff/atc.git'],
-  ['zgeoff/atc', 'https://github.com/zgeoff/atc.git'],
-  ['zgeoff/atc.git', 'https://github.com/zgeoff/atc.git'],
   ['/srv/git/atc.git', '/srv/git/atc.git'],
   ['file:///srv/git/atc.git', 'file:///srv/git/atc.git'],
 ])('it normalizes %p to %p', (raw, url) => {
@@ -28,6 +26,7 @@ test.each([
   '',
   'not a url',
   './relative/path',
+  'zgeoff/atc',
   'user:secret@host:owner/repo',
   'https://exa mple.com/x',
 ])('it refuses %p as a repository URL', (raw) => {

@@ -67,6 +67,7 @@ function setupConnection(queueBytes: number, principal = false): ConnectionHarne
     resolveSpawnTarget: assertUnreachable,
     requireWorkspaceTarget: assertUnreachable,
     findSource: assertUnreachable,
+    collectAlternateGitURLs: assertUnreachable,
     checkRepositoryAccess: assertUnreachable,
     spawnSession: assertUnreachable,
     killSession: assertUnreachable,
