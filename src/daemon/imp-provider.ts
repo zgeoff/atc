@@ -4,6 +4,7 @@ import { isCompiledBinary } from '../shared/is-compiled-binary';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildImpName } from './build-imp-name';
 import { buildTarArchive } from './build-tar-archive';
+import { EffectRemainsError } from './effect-remains-error';
 import type {
   CommandResult,
   CommandSpec,
@@ -219,9 +220,18 @@ export class ImpProvider implements ExecutionProvider {
 
       await this.setupGuest(name, request.installATC === true);
     } catch (error) {
-      await this.tryUndoPrepare(name, label, created, leased);
+      const undone = await this.tryUndoPrepare(name, label, created, leased);
 
-      throw toHostRefusal(error, name);
+      const refusal = toHostRefusal(error, name);
+
+      if (!undone) {
+        throw new EffectRemainsError(
+          `imp ${name} failed to ready and destroying the imp it created failed too`,
+          { cause: refusal },
+        );
+      }
+
+      throw refusal;
     }
 
     const host = this.hosts.get(request.host) ?? {
@@ -405,20 +415,29 @@ export class ImpProvider implements ExecutionProvider {
   // Takes back what a failed prepare left: an imp it created is destroyed,
   // which ends the lease on it too, since no session was ever listed on it;
   // on an imp that existed before, only the lease this prepare took is
-  // given back, and the imp itself stays.
+  // given back, and the imp itself stays. Resolves to false when an imp it
+  // created may still stand; a lease left behind runs out on its own.
   private async tryUndoPrepare(
     name: string,
     label: string,
     created: boolean,
     leased: boolean,
-  ): Promise<void> {
-    try {
-      if (created) {
+  ): Promise<boolean> {
+    if (created) {
+      try {
         await this.port.destroyImp(name);
-      } else if (leased) {
-        await this.port.releaseLease(name, label);
+
+        return true;
+      } catch (error) {
+        return error instanceof ImpPortError && error.code === 'NOT_FOUND';
       }
-    } catch {}
+    }
+
+    if (leased) {
+      await this.port.releaseLease(name, label).catch(() => false);
+    }
+
+    return true;
   }
 
   // Readies the folder the harnesses' report sockets live in, and copies

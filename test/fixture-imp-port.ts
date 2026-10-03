@@ -1049,6 +1049,8 @@ export class FixtureImpPort implements ImpPort {
   }
 
   [Symbol.dispose](): void {
+    this.stopCommandHold();
+
     for (const imp of this.imps.values()) {
       for (const proc of imp.sessions.values()) {
         tryKill(proc.pty, 'SIGCONT');

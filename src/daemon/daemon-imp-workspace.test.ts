@@ -155,6 +155,7 @@ async function setupTest() {
     work,
     dbPath: join(tmp.dir, 'state.db'),
     async [Symbol.asyncDispose]() {
+      port.stopCommandHold();
       client.stop();
 
       await daemon.stop();
@@ -908,4 +909,55 @@ test('it keeps the key of a workspace spawn whose own host it cannot destroy as 
   expect(daemon.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([
     expect.toStartWith('imps.create '),
   ]);
+});
+
+test('it keeps the key of a spawn whose failed readying leaves an imp it cannot destroy as outcome_unknown', async () => {
+  await using daemon = await setupTest();
+
+  daemon.port.setAcquireFailure(0, 'INTERNAL');
+  daemon.port.setDestroyFailure('INTERNAL');
+
+  const params = {
+    cwd: join(daemon.dir, 'box', 'ws'),
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+    idempotencyKey: 'k-1',
+  };
+
+  const first = daemon.client.sendRequest('session.spawn', params);
+
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await first.catch(() => null);
+
+  const retried = daemon.client.sendRequest('session.spawn', params);
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await retried.catch(() => null);
+
+  expect(daemon.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([
+    expect.toStartWith('imps.create '),
+  ]);
+});
+
+test('it refuses a spawn whose readying fails and destroys the imp the readying created', async () => {
+  await using daemon = await setupTest();
+
+  daemon.port.setAcquireFailure(0, 'INTERNAL');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'box', 'ws'),
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+    idempotencyKey: 'k-1',
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'host_unavailable' });
+
+  await spawn.catch(() => null);
+
+  expect(daemon.port.collectImpNames()).toStrictEqual([]);
 });
