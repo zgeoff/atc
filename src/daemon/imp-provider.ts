@@ -1,24 +1,31 @@
 import { DaemonError } from '../protocol/daemon-error';
+import { isCompiledBinary } from '../shared/is-compiled-binary';
+import { buildTarArchive } from './build-tar-archive';
 import type {
   CommandResult,
   CommandSpec,
   ExecutionCapabilities,
   ExecutionProvider,
+  GuestLayout,
   HarnessHandle,
   HarnessSpec,
   HostRequest,
 } from './execution-provider';
 import { ImpHarness } from './imp-harness';
-import type { ImpPort } from './imp-port';
+import type { ImpPort, ImpRelayConnection } from './imp-port';
 import { ImpPortError } from './imp-port-error';
 
 /**
  * The options an `imp` target takes beside its provider: the image a new
- * imp boots and the memory it gets. Neither holds a credential.
+ * imp boots, the memory it gets, the folder inside each imp that atc's
+ * files go under, and the path of an atc binary already installed in the
+ * image. None holds a credential.
  */
 export interface ImpTargetOptions {
   readonly image?: string;
   readonly memoryMib?: number;
+  readonly guestDir?: string;
+  readonly guestATC?: string;
 }
 
 interface ImpProviderOptions {
@@ -28,7 +35,16 @@ interface ImpProviderOptions {
   // The wait before each reconnect to a harness whose connection ended
   // without an exit, in milliseconds.
   readonly reconnectDelaysMs?: readonly number[];
+
+  // The Linux atc binary on the daemon's machine that the provider copies
+  // into an imp without one, or null for none. A compiled daemon on Linux
+  // copies itself; one run from source has no binary to copy.
+  readonly atcBinary?: string | null;
 }
+
+// The folder inside an imp that atc's files go under when the target sets
+// none.
+const GUEST_DIR = '/tmp/atc';
 
 // impd takes a lease of 10 to 3600 seconds; the daemon renews at a third of it.
 const LEASE_SECONDS = 600;
@@ -66,6 +82,8 @@ export class ImpProvider implements ExecutionProvider {
     destroy: true,
   };
 
+  readonly guest: GuestLayout;
+
   private readonly port: ImpPort;
 
   private readonly target: ImpTargetOptions;
@@ -75,6 +93,8 @@ export class ImpProvider implements ExecutionProvider {
   private readonly reconnectDelaysMs: readonly number[];
 
   private readonly hosts = new Map<string, ImpHost>();
+
+  private readonly atcBinary: string | null;
 
   // Whether impd carries output offsets, once a prepare has read its
   // features; an impd without the flag carries none.
@@ -89,6 +109,16 @@ export class ImpProvider implements ExecutionProvider {
     this.target = target;
     this.leaseSeconds = options.leaseSeconds ?? LEASE_SECONDS;
     this.reconnectDelaysMs = options.reconnectDelaysMs ?? RECONNECT_DELAYS_MS;
+
+    this.atcBinary =
+      target.guestATC === undefined ? (options.atcBinary ?? findOwnLinuxBinary()) : null;
+
+    const dir = target.guestDir ?? GUEST_DIR;
+
+    this.guest = {
+      dir,
+      atc: target.guestATC ?? (this.atcBinary === null ? null : `${dir}/bin/atc`),
+    };
   }
 
   // Creates the host's imp when impd holds none, then takes the daemon's
@@ -115,6 +145,7 @@ export class ImpProvider implements ExecutionProvider {
       }
 
       await this.port.acquireLease(name, label, this.leaseSeconds);
+      await this.setupGuest(name, request.installATC === true);
     } catch (error) {
       throw toHostRefusal(error, name);
     }
@@ -144,6 +175,8 @@ export class ImpProvider implements ExecutionProvider {
 
     host.harnesses += 1;
 
+    const reporter = spec.onReport === undefined ? null : this.openReporter(host, spec);
+
     return new ImpHarness(
       this.port,
       {
@@ -151,7 +184,10 @@ export class ImpProvider implements ExecutionProvider {
         name: host.name,
         session: buildImpSessionName(spec.session),
         argv: [spec.bin, ...spec.args],
-        env: buildGuestEnv(spec.env),
+        env: {
+          ...buildGuestEnv(spec.env),
+          ...(reporter === null ? {} : { ATC_SOCKET: reporter.path }),
+        },
         cwd: spec.cwd,
         cols: spec.cols,
         rows: spec.rows,
@@ -159,8 +195,10 @@ export class ImpProvider implements ExecutionProvider {
       {
         offsets: this.offsets,
         reconnectDelaysMs: this.reconnectDelaysMs,
+        ...(reporter === null ? {} : { ready: reporter.forward.listening }),
         isSuspending: () => host.suspending,
         onDone: () => {
+          reporter?.forward.stop();
           host.harnesses -= 1;
 
           if (host.harnesses === 0 && !host.suspending) {
@@ -262,6 +300,53 @@ export class ImpProvider implements ExecutionProvider {
       this.stopRenewal(host);
     }
   };
+
+  // Readies the folder the harnesses' report sockets live in, and copies
+  // the provider's atc binary in when a harness needs atc and the imp has
+  // none, as a cold boot of an imp leaves it.
+  private async setupGuest(name: string, installATC: boolean): Promise<void> {
+    const ready = await this.port.runCommand(name, {
+      argv: [
+        'sh',
+        '-c',
+        'mkdir -p "$1/run" && { [ -z "$2" ] || [ -x "$2" ]; }',
+        'sh',
+        this.guest.dir,
+        this.guest.atc ?? '',
+      ],
+    });
+
+    if (ready.code === 0 || !installATC || this.atcBinary === null) {
+      return;
+    }
+
+    const binary = await Bun.file(this.atcBinary).bytes();
+
+    const unpacked = await this.port.runCommand(name, {
+      argv: ['sh', '-c', 'mkdir -p "$1" && tar -x -f - -C "$1"', 'sh', this.guest.dir],
+      stdin: buildTarArchive([{ path: 'bin/atc', content: binary, mode: 0o755 }]),
+    });
+
+    if (unpacked.code !== 0) {
+      throw new Error(`tar exited ${unpacked.code ?? 'by a signal'} installing atc in ${name}`);
+    }
+  }
+
+  // A socket inside the imp that serves one harness's hooks: each line a
+  // connection writes there goes to that harness's report sink, and nothing
+  // else reaches the daemon through it.
+  private openReporter(host: ImpHost, spec: HarnessSpec) {
+    const path = `${this.guest.dir}/run/${buildSocketName(spec.session)}.sock`;
+    const onReport = spec.onReport;
+
+    const forward = this.port.openReverseForward(host.name, path, (connection) => {
+      if (onReport !== undefined) {
+        subscribeToReportLines(connection, onReport);
+      }
+    });
+
+    return { path, forward };
+  }
 
   private async runOnHost(
     hostKey: string | undefined,
@@ -381,6 +466,41 @@ function buildImpSessionName(sessionID: string): string {
     .toLowerCase()
     .replaceAll(/[^a-z0-9]/g, '')
     .slice(0, 32)}`;
+}
+
+// Short enough that the socket's path stays inside a unix socket's limit.
+function buildSocketName(sessionID: string): string {
+  return sessionID
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]/g, '')
+    .slice(0, 16);
+}
+
+function subscribeToReportLines(
+  connection: ImpRelayConnection,
+  onReport: (line: string) => void,
+): void {
+  const decoder = new TextDecoder();
+
+  let pending = '';
+
+  connection.onData((data) => {
+    const lines = `${pending}${decoder.decode(data, { stream: true })}`.split('\n');
+
+    pending = lines.pop() ?? '';
+
+    for (const line of lines) {
+      if (line.trim() !== '') {
+        onReport(line);
+      }
+    }
+  });
+}
+
+// The binary the provider copies into an imp: the running daemon itself
+// when it is a compiled Linux binary, since an imp runs Linux.
+function findOwnLinuxBinary(): string | null {
+  return isCompiledBinary() && process.platform === 'linux' ? process.execPath : null;
 }
 
 // A guest harness gets the variables atc sets for it and the guest's own

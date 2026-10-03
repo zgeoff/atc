@@ -45,6 +45,7 @@ const ERROR_CODES = [
   'transfer_failed',
   'workspace_mismatch',
   'host_unavailable',
+  'auth_not_configured',
   'host_leased',
   'confirmation_required',
   'confirm_token_invalid',

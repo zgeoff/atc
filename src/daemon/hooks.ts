@@ -1,8 +1,7 @@
 import { unlinkSync } from 'node:fs';
 import { socketPath } from '../shared/config';
-import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
-import { toSessionID } from '../shared/to-session-id';
+import { parseHookLine } from './parse-hook-line';
 
 export interface HookEvent {
   atcId: SessionID;
@@ -38,22 +37,11 @@ export function startHookServer(onEvent: (e: HookEvent) => void, path: string = 
             continue;
           }
 
-          try {
-            const parsed: unknown = JSON.parse(line);
+          const event = parseHookLine(line);
 
-            if (
-              isRecord(parsed) &&
-              typeof parsed['atcId'] === 'string' &&
-              typeof parsed['event'] === 'string' &&
-              isRecord(parsed['payload'])
-            ) {
-              onEvent({
-                atcId: toSessionID(parsed['atcId']),
-                event: parsed['event'],
-                payload: parsed['payload'],
-              });
-            }
-          } catch {}
+          if (event !== null) {
+            onEvent(event);
+          }
         }
       },
       open(socket) {

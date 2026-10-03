@@ -129,6 +129,21 @@ kill of a sub-session sends its process `SIGHUP`. When the daemon stops, it clos
 leaves every imp session running, and gives its leases back, so an idle imp sleeps after impd's idle
 timeout. The next daemon's revive wakes the imp from memory and attaches to the session again.
 
+Each session's files live under the target's `guestDir` inside the imp, `/tmp/atc` by default. A
+Claude session there reports through an atc inside the imp: the one the target's `guestATC` names,
+or a copy of the daemon's own binary at `bin/atc`, which a compiled daemon on Linux installs when
+the imp lacks it. A daemon run from source has no binary to copy, so without `guestATC` it refuses a
+remote Claude spawn with `unsupported_operation`. The session's settings and its copy of the
+`atc-bridge` mod unpack into `sessions/<id>/`, and the settings hold no statusline, since the fleet
+status lives on the daemon's machine. A gateway session never runs remotely: its credential helper
+runs on the daemon's machine.
+
+A harness's hooks report to a socket inside the imp under `run/`, named for its session, which
+`ATC_SOCKET` points at. impd forwards each connection there to the daemon, and the daemon takes only
+lines for that harness's own session; it never exposes its own sockets to the imp. An agent with a
+sign-in check runs it inside the imp before its harness starts, and a failed check refuses the spawn
+with `auth_not_configured`.
+
 A connection that ends without an exit reconnects without waking the imp, and the session lists as
 `reattaching` until it does. Where impd carries offsets, the daemon resumes after the last byte it
 has, at the generation it last saw, and drops any byte below that offset, since impd may repeat

@@ -46,6 +46,24 @@ export interface SpawnPlan {
   args: string[];
 }
 
+/**
+ * Where a session on a remote host finds atc: the atc binary inside the
+ * host, null when the host has none, and the folder the session's own
+ * files unpack into.
+ */
+export interface GuestPaths {
+  readonly atc: string | null;
+  readonly dir: string;
+}
+
+/**
+ * A spawn on a remote host, with the files the harness reads there, keyed
+ * by their path inside the session's guest folder.
+ */
+export interface GuestSpawnPlan extends SpawnPlan {
+  readonly files: Readonly<Record<string, string>>;
+}
+
 export interface AdapterEvent {
   kind: 'started' | 'needs-input' | 'turn-done' | 'prompt-submitted' | 'ended' | 'heartbeat';
   agentSessionID?: AgentSessionID;
@@ -206,6 +224,15 @@ export interface AgentAdapter {
   // Absent on a stand-in adapter, which `agents.list` reports as not installed.
   readonly profile?: AgentProfile;
   readonly planSpawn: (opts: SpawnOptions) => SpawnPlan;
+
+  // Plans a spawn on a remote host; null when this agent cannot run there,
+  // such as one whose instrumentation needs atc on a host without it.
+  // Absent: the agent runs there as a local spawn plans it, with no files.
+  readonly planGuestSpawn?: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
+
+  // The command that exits 0 inside a remote host when the agent there can
+  // sign in without a person. Absent: atc runs no check.
+  readonly planAuthCheck?: () => readonly string[];
   readonly normalizeHook: (e: HookEvent) => AdapterEvent;
   readonly loadName: (
     source: string,

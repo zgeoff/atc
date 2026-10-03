@@ -1,5 +1,12 @@
 import { writeFileSync } from 'node:fs';
-import type { AdapterEvent, AgentAdapter, AgentID, SpawnOverrides } from '../agents/agent-adapter';
+import type {
+  AdapterEvent,
+  AgentAdapter,
+  AgentID,
+  SpawnOptions,
+  SpawnOverrides,
+  SpawnPlan,
+} from '../agents/agent-adapter';
 import { truncateDetail } from '../agents/truncate-detail';
 import { DaemonError } from '../protocol/daemon-error';
 import type { ErrorCode } from '../protocol/protocol';
@@ -15,6 +22,7 @@ import type { SessionWorkspace } from '../store/workspace-materialization';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionLifecycle } from './build-session-lifecycle';
 import type { SessionLifecycle } from './build-session-lifecycle';
+import { buildTarArchive } from './build-tar-archive';
 import { buildTargetIdentity } from './build-target-identity';
 import type { ExecutionCapability, ExecutionProvider, HarnessHandle } from './execution-provider';
 import { findExecutionRefusal } from './find-execution-refusal';
@@ -182,6 +190,10 @@ export class SessionManager {
   // Called as a harness starts, before its first output can arrive, with
   // the terminal size it starts at.
   onBoot: (s: Session, cols: number, rows: number) => void = () => {};
+
+  // Takes each line a harness's hooks report through a provider's own
+  // relay, with the session the relay serves.
+  onReport: (sessionID: SessionID, line: string) => void = () => {};
 
   onEvent: (kind: SessionEventKind, s: Session) => void = () => {};
 
@@ -433,12 +445,18 @@ export class SessionManager {
     }
 
     const provider = this.requireExecution(s, 'spawn').provider;
-    const resume = s.agentSessionID;
 
     this.adopting.add(id);
 
+    let plan: SpawnPlan;
+
     try {
-      await provider.prepareHost({ host: s.hostKey, daemonID: this.store.daemonID });
+      plan = await this.setupHarness(adapter, provider, s.id, s.hostKey, s.target, {
+        prompt: '',
+        resume: s.agentSessionID,
+        ...(s.model === undefined ? {} : { model: s.model }),
+        ...(s.effort === undefined ? {} : { effort: s.effort }),
+      });
     } finally {
       this.adopting.delete(id);
     }
@@ -447,13 +465,6 @@ export class SessionManager {
     if (s.pty !== null || !this.sessions.includes(s)) {
       return null;
     }
-
-    const plan = adapter.planSpawn({
-      prompt: '',
-      resume,
-      ...(s.model === undefined ? {} : { model: s.model }),
-      ...(s.effort === undefined ? {} : { effort: s.effort }),
-    });
 
     const pty = provider.spawnHarness({
       session: s.id,
@@ -465,6 +476,9 @@ export class SessionManager {
       withheldEnv: s.withheldEnv,
       cols,
       rows,
+      onReport: (line) => {
+        this.onReport(s.id, line);
+      },
     });
 
     s.pty = pty;
@@ -665,10 +679,13 @@ export class SessionManager {
     // can throw, and a spawn that throws must leave nothing running. A
     // remote directory is not on the daemon's machine, so it is its own root.
     const repoRoot = provider.remote ? cwd : resolveRepoRoot(cwd);
-    const plan = adapter.planSpawn({ prompt, resume, ...overrides });
     const hostKey = this.pickHostKey(id, parent, target);
 
-    await provider.prepareHost({ host: hostKey, daemonID: this.store.daemonID });
+    const plan = await this.setupHarness(adapter, provider, id, hostKey, target, {
+      prompt,
+      resume,
+      ...overrides,
+    });
 
     const pty = provider.spawnHarness({
       session: id,
@@ -680,6 +697,9 @@ export class SessionManager {
       withheldEnv: materialized?.withheldEnv ?? [],
       cols,
       rows,
+      onReport: (line) => {
+        this.onReport(id, line);
+      },
     });
 
     let initialMsg = prompt;
@@ -727,6 +747,69 @@ export class SessionManager {
     this.onBoot(session, cols, rows);
 
     return session;
+  }
+
+  // Readies the host a harness is about to start on and plans the harness.
+  // On a remote host the agent plans a guest spawn, whose files unpack into
+  // the session's own guest folder, and the agent's sign-in check runs
+  // there first. Every refusal comes before the harness starts.
+  private async setupHarness(
+    adapter: AgentAdapter,
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    options: SpawnOptions,
+  ): Promise<SpawnPlan> {
+    if (!provider.remote) {
+      await provider.prepareHost({ host: hostKey, daemonID: this.store.daemonID });
+
+      return adapter.planSpawn(options);
+    }
+
+    const guest = provider.guest ?? { dir: '/tmp/atc', atc: null };
+    const dir = `${guest.dir}/sessions/${id}`;
+
+    const plan =
+      adapter.planGuestSpawn === undefined
+        ? { ...adapter.planSpawn(options), files: {} }
+        : adapter.planGuestSpawn(options, { atc: guest.atc, dir });
+
+    if (plan === null) {
+      throw new DaemonError(
+        'unsupported_operation',
+        `agent '${adapter.id}' cannot run on target '${target}': its host has no atc to report through; run a compiled atc daemon on Linux, or set the target's guestATC to an atc installed in its image`,
+        { provider: provider.kind, agent: adapter.id, problem: 'no_guest_atc' },
+      );
+    }
+
+    await provider.prepareHost({
+      host: hostKey,
+      daemonID: this.store.daemonID,
+      installATC: adapter.planGuestSpawn !== undefined,
+    });
+
+    const check = adapter.planAuthCheck?.();
+
+    if (check !== undefined) {
+      const result = await provider.runCommand({ argv: check, cwd: '/', host: hostKey });
+
+      if (result.exitCode !== 0) {
+        throw new DaemonError(
+          'auth_not_configured',
+          `agent '${adapter.id}' is not signed in on target '${target}'; sign it in inside the host's image`,
+          { agent: adapter.id, target },
+        );
+      }
+    }
+
+    const files = Object.entries(plan.files).map(([path, content]) => ({ path, content }));
+
+    if (files.length > 0) {
+      await provider.transferArchive(buildTarArchive(files), dir, hostKey);
+    }
+
+    return plan;
   }
 
   // A sub-session runs on its parent's host when the two share a target

@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { stateDir } from '../shared/config';
-import { ATC_BRIDGE_FILES } from './atc-bridge-files';
+import { buildATCBridgeFiles } from './build-atc-bridge-files';
 import { buildCLIArgv } from './build-cli-argv';
 
 /**
@@ -13,7 +13,7 @@ import { buildCLIArgv } from './build-cli-argv';
  * there.
  */
 export function writeATCBridge(dir: string = join(stateDir, 'atc-bridge')): string {
-  const files = { ...ATC_BRIDGE_FILES, 'hooks/atc-cli.ts': renderATCCLIModule(buildCLIArgv()) };
+  const files = buildATCBridgeFiles(buildCLIArgv());
 
   for (const [path, content] of Object.entries(files)) {
     const file = join(dir, path);
@@ -27,10 +27,6 @@ export function writeATCBridge(dir: string = join(stateDir, 'atc-bridge')): stri
   }
 
   return dir;
-}
-
-function renderATCCLIModule(argv: readonly string[]): string {
-  return `export const ATC_CLI: readonly string[] = ${JSON.stringify(argv)};\n`;
 }
 
 function tryReadFileText(file: string): string | null {

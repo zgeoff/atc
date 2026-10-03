@@ -24,6 +24,10 @@ interface ImpHarnessHost {
   // The wait before each reconnect after a connection ends without an
   // exit; the harness ends once they run out.
   readonly reconnectDelaysMs: readonly number[];
+
+  // Settles once the harness may start, such as when its report socket
+  // listens; a rejection ends the harness before it starts.
+  readonly ready?: Promise<void>;
 }
 
 // The bytes a fresh attach sends listeners ahead of its replay: reset the
@@ -93,6 +97,7 @@ export class ImpHarness implements HarnessHandle {
 
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the host holds a live promise
   constructor(port: ImpPort, start: ImpSessionRequest, host: ImpHarnessHost) {
     this.port = port;
     this.host = host;
@@ -101,7 +106,11 @@ export class ImpHarness implements HarnessHandle {
     this.cols = start.cols;
     this.rows = start.rows;
 
-    this.openConnection(start);
+    if (host.ready === undefined) {
+      this.openConnection(start);
+    } else {
+      void this.startWhenReady(host.ready, start);
+    }
   }
 
   readonly onData = (listener: (data: string) => void) => {
@@ -169,6 +178,27 @@ export class ImpHarness implements HarnessHandle {
     this.stopFollowing();
     connection?.close();
   };
+
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- a promise is a live handle
+  private async startWhenReady(ready: Promise<void>, start: ImpSessionRequest): Promise<void> {
+    try {
+      await ready;
+    } catch (error) {
+      if (!this.done) {
+        this.emitExit({
+          exitCode: 1,
+          reason: 'ended',
+          detail: `imp refused the report socket (${error instanceof Error ? error.message : String(error)})`,
+        });
+      }
+
+      return;
+    }
+
+    if (!this.done) {
+      this.openConnection(start);
+    }
+  }
 
   private openConnection(request: ImpSessionRequest): void {
     const connection = this.port.openSession(request, {

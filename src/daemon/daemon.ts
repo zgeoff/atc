@@ -57,6 +57,7 @@ import type { HookScope } from './make-hook-runner';
 import { materializeWorkspace } from './materialize-workspace';
 import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
+import { parseHookLine } from './parse-hook-line';
 import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
 import { restoreFleet } from './restore-fleet';
@@ -747,7 +748,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
-  const reporter = startHookServer((e) => {
+  const applyHookEvent = (e: HookEvent) => {
     if (e.event === 'Report') {
       void applyReport(e);
 
@@ -794,7 +795,19 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         void store.writeLastUsedAgent(started.agent);
       }
     }
-  }, opts.reporterSocketPath);
+  };
+
+  const reporter = startHookServer(applyHookEvent, opts.reporterSocketPath);
+
+  // A remote harness reports through a socket that serves it alone, so a
+  // line that names any other session is dropped.
+  mgr.onReport = (sessionID, line) => {
+    const e = parseHookLine(line);
+
+    if (e !== null && e.atcId === sessionID) {
+      applyHookEvent(e);
+    }
+  };
 
   // A spawn with a workspace source materializes it first, and the session
   // registers only once its workspace is ready, so no session ever lists
@@ -1726,6 +1739,12 @@ function hasResumableTranscript(mgr: SessionManager, id: SessionID): boolean {
 
   if (adapter === null) {
     return false;
+  }
+
+  // A remote session's transcript lives in its host, out of the daemon's
+  // reach, so the agent's session id alone makes it resumable.
+  if (mgr.findProvider(s)?.remote === true) {
+    return s.agentSessionID !== undefined;
   }
 
   return adapter.canResume({

@@ -43,13 +43,13 @@ Claude Code's hook events. The MCP tools map onto both mechanically (`session.sp
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
 `no_such_session`, `session_dead`, `unsupported`, `unsupported_operation`, `unknown_target`,
 `target_unavailable`, `target_changed`, `target_config_invalid`, `target_forbidden`,
-`host_unavailable`, `host_leased`, `confirmation_required`, `confirm_token_invalid`,
-`already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`, `outcome_unknown`,
-`internal`, plus the workspace refusals that [workspaces](#workspaces) lists. An unknown method is
-an `unknown_method` error, never a disconnect; unknown fields in any message are ignored. A peer
-decodes an error code it does not know as `internal` and keeps its `msg`. These rules exist so
-additive evolution never breaks a peer. An error may also carry `data`, an object whose fields its
-code defines.
+`host_unavailable`, `auth_not_configured`, `host_leased`, `confirmation_required`,
+`confirm_token_invalid`, `already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`,
+`outcome_unknown`, `internal`, plus the workspace refusals that [workspaces](#workspaces) lists. An
+unknown method is an `unknown_method` error, never a disconnect; unknown fields in any message are
+ignored. A peer decodes an error code it does not know as `internal` and keeps its `msg`. These
+rules exist so additive evolution never breaks a peer. An error may also carry `data`, an object
+whose fields its code defines.
 
 `unsupported_operation` refuses a request that the session's execution host cannot serve, such as
 input to a host that takes none. Its `data` holds the provider kind as `provider` and the missing
@@ -383,6 +383,11 @@ refuses the request before anything starts:
 - A remote host that cannot be created, woken, or reached is `host_unavailable`, with the provider
   kind as `data.provider` and the host's own error code, lowercased, as `data.problem`. A restore
   lists such a session as exited.
+- An agent that cannot run on a remote host is `unsupported_operation`, with the agent id as
+  `data.agent` and `no_guest_atc` as `data.problem` when its hooks need an atc inside the host and
+  the host has none.
+- An agent whose sign-in check fails inside a remote host is `auth_not_configured`, with
+  `data.agent` and `data.target`. No harness starts.
 
 A refused spawn under an idempotency key leaves the key free for a retry. A restore lists a session
 whose target the daemon cannot use as exited, and input or `session.adopt` on it answers with the

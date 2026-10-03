@@ -11,6 +11,8 @@ import type {
   AdapterEvent,
   AgentAdapter,
   AgentProfile,
+  GuestPaths,
+  GuestSpawnPlan,
   HeadlessRunner,
   NameUpdate,
   ResumeCheck,
@@ -18,7 +20,9 @@ import type {
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
+import { buildATCBridgeFiles } from './build-atc-bridge-files';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
+import { buildHookSettings } from './build-hook-settings';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { findFlagValue } from './find-flag-value';
@@ -98,17 +102,45 @@ export class ClaudeAdapter implements AgentAdapter {
 
     return {
       bin: this.config.claudeBin,
-      args: [
-        ...buildClaudeOverrideArgs(this.config.claudeArgs, opts),
-        '--settings',
-        this.settingsFile,
-        '--plugin-dir',
-        this.writeBridge(),
-        ...(opts.resume === true ? ['--resume'] : []),
-        ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
-        ...(opts.prompt === '' ? [] : [opts.prompt]),
-      ],
+      args: this.buildArgs(opts, this.settingsFile, this.writeBridge()),
     };
+  }
+
+  // A remote session reports through the atc inside its host, so without
+  // one it has no instrumentation and cannot run there. Its settings and
+  // its copy of the mod travel with it, and it has no statusline.
+  planGuestSpawn(opts: SpawnOptions, guest: GuestPaths): GuestSpawnPlan | null {
+    if (guest.atc === null) {
+      return null;
+    }
+
+    const argv = [guest.atc];
+
+    const bridge = Object.entries(buildATCBridgeFiles(argv)).map(
+      ([path, content]): [string, string] => [`atc-bridge/${path}`, content],
+    );
+
+    return {
+      bin: this.config.claudeBin,
+      args: this.buildArgs(opts, `${guest.dir}/settings.json`, `${guest.dir}/atc-bridge`),
+      files: {
+        'settings.json': JSON.stringify(buildHookSettings({ id: this.id }, null, argv), null, 2),
+        ...Object.fromEntries(bridge),
+      },
+    };
+  }
+
+  private buildArgs(opts: SpawnOptions, settings: string, pluginDir: string): string[] {
+    return [
+      ...buildClaudeOverrideArgs(this.config.claudeArgs, opts),
+      '--settings',
+      settings,
+      '--plugin-dir',
+      pluginDir,
+      ...(opts.resume === true ? ['--resume'] : []),
+      ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
+      ...(opts.prompt === '' ? [] : [opts.prompt]),
+    ];
   }
 
   private writeBridge(): string {

@@ -55,7 +55,11 @@ done
         kind: 'imp',
         options: {},
         identity: 'imp:test',
-        provider: new ImpProvider(port, {}, { reconnectDelaysMs: [0, 0, 0] }),
+        provider: new ImpProvider(
+          port,
+          { guestDir: join(tmp.dir, 'g') },
+          { reconnectDelaysMs: [0, 0, 0] },
+        ),
       },
     ],
     defaultTarget: 'box',
@@ -254,8 +258,11 @@ test('it starts a remote harness with only the variables atc sets, never the dae
     throw new Error('the spawn sent no start request');
   }
 
+  const id = String(getRecord(spawned, 'session')['id']);
+
   expect<Readonly<Record<string, unknown>>>(request.env).toStrictEqual({
-    ATC_SESSION_ID: getRecord(spawned, 'session')['id'],
+    ATC_SESSION_ID: id,
+    ATC_SOCKET: join(daemon.dir, 'g', 'run', `${id.replaceAll('-', '').slice(0, 16)}.sock`),
     LANG: 'C.UTF-8',
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     TERM: 'xterm-256color',

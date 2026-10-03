@@ -17,6 +17,11 @@ export interface ExecutionProvider {
   // environment holds only what atc sets for it.
   readonly remote: boolean;
 
+  // Where a remote host keeps atc's files: the folder each session's own
+  // files unpack under, and the atc binary inside the host, null when the
+  // host has none. Absent on the daemon's own machine.
+  readonly guest?: GuestLayout;
+
   // Readies the host a harness is about to start on: a remote host is
   // created when missing, woken when asleep, and held awake while its
   // harnesses run. Rejects with the refusal before any harness starts.
@@ -56,6 +61,15 @@ export interface ExecutionProvider {
 export interface HostRequest {
   readonly host: string;
   readonly daemonID: string;
+
+  // Whether the harness about to start needs atc inside the host, which a
+  // provider that ships its own binary installs when missing.
+  readonly installATC?: boolean;
+}
+
+export interface GuestLayout {
+  readonly dir: string;
+  readonly atc: string | null;
 }
 
 /**
@@ -117,6 +131,11 @@ export interface HarnessSpec {
   readonly withheldEnv?: readonly string[];
   readonly cols: number;
   readonly rows: number;
+
+  // Takes each line the harness's hooks report. A remote provider relays
+  // them from a socket inside the host that serves this harness alone, and
+  // points the harness's ATC_SOCKET at it.
+  readonly onReport?: (line: string) => void;
 }
 
 /**
