@@ -1,3 +1,5 @@
+import { decodeCursor } from '../protocol/decode-cursor';
+import { encodeCursor } from '../protocol/encode-cursor';
 import { isRecord } from '../shared/report';
 import { buildRuledValue } from './build-ruled-value';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
@@ -64,7 +66,7 @@ export function mergeEventPages(
   filter: string,
   limit: number,
 ): MergedEvents {
-  const parts = new Map<string, string | null>();
+  const parts = new Map<string, string>();
 
   const queues: {
     readonly source: MergeSource;
@@ -82,16 +84,19 @@ export function mergeEventPages(
     if (page.kind === 'unavailable') {
       unavailable.push(source.daemon.name);
 
-      if (source.before !== null) {
+      if (source.before?.cursor !== null && source.before?.cursor !== undefined) {
         parts.set(key, source.before.cursor);
       }
     } else if (page.kind === 'started') {
       started.push(source.daemon.name);
       parts.set(key, page.cursor);
     } else {
-      // An empty page's cursor is where the daemon stands; a page whose
-      // events are cut below resumes from where it stood before the read.
-      const position = page.events.length === 0 ? page.cursor : (source.before?.cursor ?? null);
+      // An empty page's cursor is where the daemon stands. Until one of a
+      // page's events goes out, its daemon resumes right before the first
+      // one, a position the daemon reads as concrete, unlike no cursor,
+      // which it reads as its latest events.
+      const [first] = page.events;
+      const position = first === undefined ? page.cursor : buildPositionBefore(first);
 
       parts.set(key, position);
       queues.push({ source, events: page.events, taken: 0 });
@@ -166,4 +171,18 @@ function pickNextQueue<
   }
 
   return best;
+}
+
+// The daemon cursor that resumes a read right before an event, from the
+// event's own cursor. Throws for an event whose cursor is not a daemon's
+// events cursor, which no daemon sends.
+function buildPositionBefore(event: Readonly<Record<string, unknown>>): string {
+  const raw = event['cursor'];
+  const decoded = typeof raw === 'string' ? decodeCursor(raw) : null;
+
+  if (decoded === null || decoded.kind !== 'events') {
+    throw new Error('a daemon event holds no events cursor');
+  }
+
+  return encodeCursor({ kind: 'events', id: decoded.id - 1 });
 }
