@@ -176,13 +176,13 @@ test('it fails on a confined package imported outside the file that owns it', as
 test('it fails on a module in a directory with no import rule', async () => {
   await using tree = await setupTest();
 
-  await Bun.write(join(tree.dir, 'src/federation/registry.ts'), 'export const REGISTRY = 1;\n');
+  await Bun.write(join(tree.dir, 'src/elsewhere/registry.ts'), 'export const REGISTRY = 1;\n');
 
   expect(tree.run()).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
     stderr:
-      'unknown directory: src/federation/registry.ts is in src/federation/, which has no import rule\n',
+      'unknown directory: src/elsewhere/registry.ts is in src/elsewhere/, which has no import rule\n',
   });
 });
 
@@ -448,5 +448,23 @@ test('it ignores a URL that is not relative to the module', async () => {
     exitCode: 0,
     stdout: 'check-imports: 1 files, 0 cycles, 0 other findings\n',
     stderr: '',
+  });
+});
+
+test('it fails on a federation module that imports the mcp layer', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/mcp/types.ts'), 'export const TOOLS = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/federation/router.ts'),
+    "import { TOOLS } from '../mcp/types';\nexport const ROUTER = TOOLS;\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr:
+      'forbidden edge: src/federation/router.ts imports src/mcp/types.ts (federation -> mcp)\n',
   });
 });

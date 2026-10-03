@@ -402,6 +402,7 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   daemon: ['shared', 'protocol', 'agents', 'workspace', 'sources', 'store'],
   client: ['shared', 'protocol'],
   mcp: ['shared', 'protocol'],
+  federation: ['shared', 'protocol'],
 
   // modules at the src/ root: the subcommand modules beside the entrypoint
   root: ['shared', 'protocol', 'agents', 'client', 'mcp'],
