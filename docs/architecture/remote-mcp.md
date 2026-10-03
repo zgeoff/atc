@@ -43,9 +43,23 @@ your own. Approval lines go to stdout, so redirecting stderr keeps them on scree
 shows the address the server is bound to, such as `http://100.67.122.120:8414` with
 `--host 100.67.122.120`.
 
-When the daemon restarts, the HTTP process reconnects on its next request. A tool call in flight at
-that moment fails, because a spawn or a message must not run twice. A read-only tool call is the
-exception: it is retried once on a fresh connection.
+When the daemon restarts, the HTTP process reconnects on its next request. A read-only tool call in
+flight at that moment is retried once on a fresh connection. So is a spawn or a message, when the
+daemon announces `spawn.idempotency` or `message.idempotency`: the server sends it under an
+idempotency key, the one the tool call passed or one it mints, and retries under the same key, so
+the daemon runs it at most once. The retry needs the fresh daemon to announce the feature too.
+Against a daemon without the feature, a spawn or a message in flight fails, because it must not run
+twice.
+
+`atc_session_spawn` and `atc_session_message` take an optional `idempotencyKey` of 1 to 180
+characters, and the server refuses any other value with `bad_args` before it sends the daemon
+anything; the [protocol](./protocol.md#idempotent-requests) covers what a retry under a key returns.
+A key lets a client retry its own tool call safely. Against a daemon that does not announce the
+feature, the server leaves the input out of `tools/list` and refuses a call that passes it with
+`daemon_outdated`. When a spawn from inside a session falls back to top-level because the calling
+session is gone, the fallback has different params, so it runs under a key of its own: `top-level:`
+and the SHA-256 of the caller's key in hex. A retry derives the same key, and the derived key always
+fits the daemon's 200-character cap.
 
 ## What runs where
 

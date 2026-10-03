@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import { match } from 'ts-pattern';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { isRecord } from '../shared/report';
+import { parseIdempotencyKey } from './parse-idempotency-key';
 import type { FleetCaller, ToolContext } from './types';
 
 /**
@@ -33,6 +35,7 @@ export function runTool(
     .with('atc_session_spawn', async () => {
       const rawAgent = args['agent'];
       const nested = args['detached'] !== true && ctx.callerSessionID !== null;
+      const key = parseIdempotencyKey(args['idempotencyKey']);
 
       const params = {
         cwd: args['cwd'],
@@ -41,14 +44,18 @@ export function runTool(
         ...(rawAgent === undefined ? {} : { agent: rawAgent }),
         ...(args['model'] === undefined ? {} : { model: args['model'] }),
         ...(args['effort'] === undefined ? {} : { effort: args['effort'] }),
+        ...(key === undefined ? {} : { idempotencyKey: key }),
         cols: 100,
         rows: 30,
       };
 
-      // A model or effort needs a daemon that takes them; the check runs on
-      // every connection the spawn rides.
-      const required: readonly DaemonFeature[] =
+      // A model, effort, or key needs a daemon that takes them; the check
+      // runs on every connection the spawn rides.
+      const optionFeatures: readonly DaemonFeature[] =
         args['model'] === undefined && args['effort'] === undefined ? [] : ['spawn.options'];
+
+      const keyFeatures: readonly DaemonFeature[] = key === undefined ? [] : ['spawn.idempotency'];
+      const required = [...optionFeatures, ...keyFeatures];
 
       const ok =
         nested && ctx.callerSessionID !== null
@@ -149,11 +156,19 @@ export function runTool(
           ? given
           : ctx.sender.name;
 
-      const ok = await caller.sendRequest('session.message', {
-        session: args['session'],
-        text: args['text'],
-        from,
-      });
+      const key = parseIdempotencyKey(args['idempotencyKey']);
+      const required: DaemonFeature[] = key === undefined ? [] : ['message.idempotency'];
+
+      const ok = await caller.sendRequest(
+        'session.message',
+        {
+          session: args['session'],
+          text: args['text'],
+          from,
+          ...(key === undefined ? {} : { idempotencyKey: key }),
+        },
+        required,
+      );
 
       return buildObjectResult(ok);
     })
@@ -184,7 +199,13 @@ function buildObjectResult(value: unknown): ToolResult {
 
 // The inherited id can point at a session another daemon hosts, or one
 // this daemon no longer lists; the spawn then lands top-level instead of
-// failing the tool call.
+// failing the tool call. The top-level spawn has a different payload, so it
+// runs under its own key, a fixed-length hash of the caller's: a retry of the
+// tool call derives the same key and replays it rather than conflicting with
+// the nested attempt's key, and the derived key fits the daemon's cap
+// whatever the caller's length. An answer
+// that holds an effect id is a keyed spawn that already ran, which a
+// top-level spawn would only duplicate.
 async function sendNestedSpawn(
   caller: FleetCaller,
   params: Readonly<Record<string, unknown>>,
@@ -194,10 +215,28 @@ async function sendNestedSpawn(
   try {
     return await caller.sendRequest('session.spawn', { ...params, parent }, required);
   } catch (error) {
-    if (error instanceof DaemonError && error.code === 'no_such_session') {
-      return caller.sendRequest('session.spawn', params, required);
+    if (
+      error instanceof DaemonError &&
+      error.code === 'no_such_session' &&
+      error.data?.['effectRef'] === undefined
+    ) {
+      return caller.sendRequest('session.spawn', buildTopLevelParams(params), required);
     }
 
     throw error;
   }
+}
+
+function buildTopLevelParams(
+  params: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  const key = params['idempotencyKey'];
+
+  if (typeof key !== 'string') {
+    return params;
+  }
+
+  const digest = createHash('sha256').update(key).digest('hex');
+
+  return { ...params, idempotencyKey: `top-level:${digest}` };
 }

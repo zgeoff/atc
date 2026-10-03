@@ -16,8 +16,7 @@ const SESSION_DEFAULTED = z.object({
   session: buildDefaultedString('').transform(toSessionID),
 });
 
-// The longest key a caller may send, with room left under the stored cap
-// for the suffix a nested spawn's fallback derives from it.
+// The idempotency key a spawn or message may carry, at most 200 characters.
 const IDEMPOTENCY_KEY = z
   .string({ error: 'idempotencyKey must be a string' })
   .min(1, 'idempotencyKey must not be empty')
@@ -128,6 +127,10 @@ export const REQUEST_PARAM_SCHEMAS = {
   'session.message': SESSION_DEFAULTED.extend({
     from: buildDefaultedNonEmptyString('unknown'),
     text: buildDefaultedString(''),
+
+    // A retry carrying the same key replays the first send's message
+    // instead of sending another.
+    idempotencyKey: IDEMPOTENCY_KEY,
   }).refine((v) => v.text !== '', { message: 'session.message requires text' }),
   'session.tap': SESSION_DEFAULTED,
   'message.get': z

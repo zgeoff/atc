@@ -120,11 +120,15 @@ export interface DaemonContext {
     waitMs: number,
     sessionID: SessionID | null,
   ) => Promise<EventsPage>;
+
+  // Answers with the `session.message` ok payload, which a keyed retry
+  // replays with the message's current status, or with the refusal.
   readonly writeSessionMessage: (
     sessionID: SessionID,
     from: string,
     text: string,
-  ) => Promise<MessageRecord | 'missing' | 'dead' | 'unsupported' | 'no_tap'>;
+    keyed: KeyedRequest | null,
+  ) => Promise<Readonly<Record<string, unknown>> | MessageRefusal>;
   readonly readMessage: (messageID: MessageID, waitMs: number) => Promise<MessageView | null>;
   readonly attachTap: (client: TapClient, sessionID: SessionID) => 'ok' | 'missing' | 'unsupported';
   readonly ackMessage: (
@@ -164,6 +168,9 @@ interface MessageView {
   readonly record: MessageRecord;
   readonly answeredWith: readonly MessageID[];
 }
+
+// Why a session refuses a message before the daemon accepts it.
+export type MessageRefusal = 'missing' | 'dead' | 'unsupported' | 'no_tap';
 
 // The slice of a connection a tap subscription needs.
 export interface TapClient {
@@ -928,10 +935,16 @@ export class DaemonConnection {
 
     const sessionID = parsed.data.session;
 
+    const keyed =
+      parsed.data.idempotencyKey === undefined
+        ? null
+        : { key: parsed.data.idempotencyKey, payloadHash: buildPayloadHash(parsed.data) };
+
     const result = await this.ctx.writeSessionMessage(
       sessionID,
       parsed.data.from,
       parsed.data.text,
+      keyed,
     );
 
     if (result === 'missing') {
@@ -962,7 +975,7 @@ export class DaemonConnection {
       return;
     }
 
-    this.sendOk(req.id, { message: result.id, status: result.status });
+    this.sendOk(req.id, result);
   }
 
   private applyTap(req: RequestMsg): void {

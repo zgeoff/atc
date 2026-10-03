@@ -3,6 +3,7 @@ import type { DaemonFeature } from '../protocol/daemon-features';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import type { GrantScope } from '../shared/grant-scope';
 import { buildSpawnDescriptions } from './build-spawn-descriptions';
+import { IDEMPOTENCY_KEY_FIELD } from './parse-idempotency-key';
 
 const NO_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(z.strictObject({}));
 
@@ -19,6 +20,12 @@ const SESSION_ID_BASE = z.object({
 const SESSION_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(SESSION_ID_BASE.strict());
 const SPAWN_SCHEMA = REQUEST_PARAM_SCHEMAS['session.spawn'];
 const SPAWN_AGENT_DESCRIPTION = buildSpawnDescriptions(null).agent;
+
+// The key as a plain JSON Schema property, for an input schema written out
+// by hand.
+const { $schema: _, ...IDEMPOTENCY_KEY_INPUT } = z.toJSONSchema(IDEMPOTENCY_KEY_FIELD, {
+  io: 'input',
+});
 
 const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   z.strictObject({
@@ -38,6 +45,7 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
       .describe(
         'Spawn a top-level session. By default a spawn from inside an atc session becomes a sub-session of it: listed under it, pinned with it, killed with it.',
       ),
+    idempotencyKey: IDEMPOTENCY_KEY_FIELD,
   }),
   { io: 'input' },
 );
@@ -298,7 +306,13 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     scope: 'spawn',
     description: buildSpawnDescriptions(null).tool,
     inputSchema: SPAWN_INPUT,
-    requires: { inputs: { model: 'spawn.options', effort: 'spawn.options' } },
+    requires: {
+      inputs: {
+        model: 'spawn.options',
+        effort: 'spawn.options',
+        idempotencyKey: 'spawn.idempotency',
+      },
+    },
   },
   {
     name: 'atc_session_input',
@@ -422,11 +436,13 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
           description:
             'Who the message is from; defaults to the calling session id, or mcp outside a session. Ignored for a remote client, whose messages are always from its own name',
         },
+        idempotencyKey: IDEMPOTENCY_KEY_INPUT,
       },
       required: ['session', 'text'],
       additionalProperties: false,
     },
     outputSchema: MESSAGE_SENT_OUTPUT,
+    requires: { inputs: { idempotencyKey: 'message.idempotency' } },
   },
   {
     name: 'atc_message_get',

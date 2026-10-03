@@ -88,3 +88,25 @@ test('it lists the spawn tool without model and effort for a daemon that announc
     'detached',
   ]);
 });
+
+test('it lists the message tool without an idempotency key for a daemon that announces no features', () => {
+  const message = buildToolList(new Set(), null).find(
+    (tool) => tool.name === 'atc_session_message',
+  );
+
+  if (message === undefined) {
+    throw new Error('message tool missing');
+  }
+
+  expect(message.inputSchema['properties']).toContainAllKeys(['session', 'text', 'from']);
+});
+
+test('it lists the spawn and message tools with an idempotency key for a daemon that takes keys', () => {
+  const tools = buildToolList(new Set(DAEMON_FEATURES), null);
+
+  const keyed = tools
+    .filter((tool) => JSON.stringify(tool.inputSchema).includes('"idempotencyKey"'))
+    .map((tool) => tool.name);
+
+  expect(keyed).toStrictEqual(['atc_session_spawn', 'atc_session_message']);
+});
