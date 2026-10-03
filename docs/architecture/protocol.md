@@ -477,13 +477,14 @@ A spawn to a target the principal may not use, named or the default, fails with 
 with the target as `data.target`. So does the replay of a held spawn key when the principal no
 longer reaches the target, at the identity, that the key recorded for its session, even after the
 session is forgotten; the refusal holds no part of the session. The replay gets the same refusal
-while the daemon holds the session but its tree is out of reach. A key that records no target, which
-only a key from before atc recorded them holds, refuses every principal's replay; the daemon's owner
-still gets the session. A kill, a forget, or a pin checks the tree in the same step that starts it,
-and a kill or a forget acts only on the sub-sessions the tree held then. `daemon.quit` and
-`fleet.restore` act on the whole daemon, and a principal gets `unauthorized` for them. The
-[events socket](#events-socket) has no handshake and streams every event: it is a local socket for
-the daemon's owner alone.
+when the session's tree is out of reach: the live tree while the daemon holds the session, and the
+tree its fleet rows hold once it no longer does, such as after a restart. A key that records no
+target, which only a key from before atc recorded them holds, refuses every principal's replay; the
+daemon's owner still gets the session. A kill, a forget, or a pin checks the tree in the same step
+that starts it, and a kill or a forget acts only on the sub-sessions the tree held then.
+`daemon.quit` and `fleet.restore` act on the whole daemon, and a principal gets `unauthorized` for
+them. The [events socket](#events-socket) has no handshake and streams every event: it is a local
+socket for the daemon's owner alone.
 
 ## Workspaces
 
