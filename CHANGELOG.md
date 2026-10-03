@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.15.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.15.0...@zgeoff/atc@2.15.1) (2026-10-03)
+
+### Bug Fixes
+
+- **#180:** keep spawn uncertainty when persistence fails
+  ([#219](https://github.com/zgeoff/atc/issues/219))
+  ([53c5cd0](https://github.com/zgeoff/atc/commit/53c5cd05928468097a3402f2443845016cec8eec))
+
 ## [2.15.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.14.0...@zgeoff/atc@2.15.0) (2026-10-03)
 
 ### Features
