@@ -121,12 +121,13 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
   });
 
   const match = /PID:(?<pid>\d+):/.exec(output.join(''));
+  const printed = match?.groups?.['pid'];
 
-  if (match === null) {
+  if (printed === undefined) {
     throw new Error('the harness printed no pid');
   }
 
-  const pid = Number(match.groups?.['pid']);
+  const pid = Number(printed);
 
   onTestFinished(() => {
     process.kill(pid, 'SIGKILL');

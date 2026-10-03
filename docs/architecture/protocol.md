@@ -583,15 +583,15 @@ keys under that principal, whatever principal it acts as.
 The daemon records the key before it checks any param. A refused request drops the key again, so a
 retry runs fresh. A spawn that fails after its process starts kills that process and drops its
 session first. The daemon drops the key only once the process has exited and the fleet without that
-session is written. When the process is still running 2 s after the kill, the session stays listed.
-When the process outlives that wait or the fleet write fails, the session may still stand, so the
-daemon keeps the key as `outcome_unknown` and answers the spawn with that error.
+session is written. When the process outlives a 2 s wait after the kill, or the fleet write fails,
+the session may still stand, so the daemon keeps the key as `outcome_unknown` and answers the spawn
+with that error. A session whose process outlived the wait stays listed.
 
-A spawn whose process started but whose fleet write fails, or a request whose key the daemon cannot
-mark completed, gets `outcome_unknown` as well, and its session or message stands. The daemon
-answers `outcome_unknown` with the effect's id even when it cannot record that state in the key. The
-key then stays in progress, the daemon answers a retry under it with the same error, and the daemon
-logs the failed write to stderr.
+A spawn whose process started but whose fleet write fails gets `outcome_unknown` too, and its
+session stays listed and running. A request whose key the daemon cannot mark completed gets
+`outcome_unknown`, and its session or message stands. The daemon answers `outcome_unknown` with the
+effect's id even when it cannot record that state in the key. The key then stays in progress, the
+daemon answers a retry under it with the same error, and the daemon logs the failed write to stderr.
 
 A retry of a key the daemon holds gets its answer from the key without any param checked again. The
 daemon records the key with a SHA-256 of the request's params as it parsed them, as JSON with sorted

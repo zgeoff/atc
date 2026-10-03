@@ -193,17 +193,6 @@ export class IdempotencyLedger {
   }
 }
 
-function buildOutcomeUnknownError(
-  call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
-  what: string,
-): DaemonError {
-  return new DaemonError(
-    'outcome_unknown',
-    `the ${call.operation} under idempotency key '${call.keyed.key}' ${what} and its effect may still stand; check ${call.effectRef} before retrying under a new key`,
-    { effectRef: call.effectRef },
-  );
-}
-
 function answerHeldKey<T>(call: IdempotentCall<T>, held: IdempotencyRecord): T | Promise<T> {
   if (held.payloadHash !== call.keyed.payloadHash) {
     throw new DaemonError(
@@ -220,5 +209,16 @@ function answerHeldKey<T>(call: IdempotentCall<T>, held: IdempotencyRecord): T |
     'outcome_unknown',
     `the ${held.operation} under idempotency key '${held.key}' was interrupted and may or may not have taken effect; check ${held.effectRef} before retrying under a new key`,
     { effectRef: held.effectRef },
+  );
+}
+
+function buildOutcomeUnknownError(
+  call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
+  what: string,
+): DaemonError {
+  return new DaemonError(
+    'outcome_unknown',
+    `the ${call.operation} under idempotency key '${call.keyed.key}' ${what} and its effect may still stand; check ${call.effectRef} before retrying under a new key`,
+    { effectRef: call.effectRef },
   );
 }
