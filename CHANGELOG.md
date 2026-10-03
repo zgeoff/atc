@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.10.4](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.10.3...@zgeoff/atc@2.10.4) (2026-10-03)
+
+### Bug Fixes
+
+- **grants:** revoke grants whose id starts with a dash
+  ([#156](https://github.com/zgeoff/atc/issues/156))
+  ([38d668f](https://github.com/zgeoff/atc/commit/38d668fb9cee306884f4aac70aed66546732f9f0))
+
 ## [2.10.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.10.2...@zgeoff/atc@2.10.3) (2026-10-03)
 
 ### Bug Fixes
