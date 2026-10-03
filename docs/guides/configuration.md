@@ -333,6 +333,28 @@ Codex hooks live in `$CODEX_HOME/hooks.json` (`~/.codex` when `CODEX_HOME` is un
 Sessions you start outside atc report events too; the reporter exits immediately when no atc session
 id is present.
 
+### Nested harnesses
+
+A harness you start from inside an atc session, such as `codex exec` run by a Claude session,
+inherits that session's `ATC_SESSION_ID` and `ATC_SOCKET`, so its hooks report under the parent
+session. Each hook command atc writes or prints carries the agent it reports for
+(`hook-report --agent codex`), and the daemon drops a report whose agent differs from the session's.
+A dropped report never changes the session's agent session id, last output, or state, and the
+reporter exits 0.
+
+A hook command without `--agent`, such as one installed from an older `atc codex-hooks` or
+`atc grok-hooks`, reports for the session it runs in. The daemon drops it only in a session whose
+own hooks have reported with an agent since the session's terminal started, so a Claude session
+drops it. A Codex or Grok session whose own hooks lack the flag accepts every report under it,
+nested or not. Run `atc codex-hooks` or `atc grok-hooks` again and replace the installed entries to
+give those sessions the same protection.
+
+The agent flag cannot separate a nested harness of the session's own agent, such as `codex exec`
+inside a Codex session: both report as `codex`. A nested `claude` reports nothing, because atc's
+Claude hooks exist only in the settings file atc passes to the sessions it starts. To keep a nested
+harness of the same agent from reporting, start it with `ATC_SESSION_ID` and `ATC_SOCKET` removed
+from its environment.
+
 ## Remote MCP
 
 `atc mcp --http` reads the `mcpHTTP` section, and nothing else in atc does. Command-line flags win

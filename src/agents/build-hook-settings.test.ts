@@ -128,3 +128,20 @@ test('it keeps its own hooks when the configured ones are malformed', () => {
     'SessionEnd',
   ]);
 });
+
+test('it gives every command it registers the agent id of its session', () => {
+  const settings = buildHookSettings({ id: 'zai' }, 0, ['/usr/local/bin/atc']);
+
+  expect(settings).toMatchObject({
+    hooks: {
+      SessionStart: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
+      Notification: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
+      Stop: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
+      UserPromptSubmit: [
+        { hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] },
+      ],
+      SessionEnd: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
+    },
+    statusLine: { command: '"/usr/local/bin/atc" statusline --agent \'zai\'' },
+  });
+});

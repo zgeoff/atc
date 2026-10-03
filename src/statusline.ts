@@ -8,10 +8,11 @@ import { isRecord, sendReport } from './shared/report';
 /**
  * Runs as the statusLine command injected into wrangled sessions. Chains the
  * user's own statusline (from ~/.claude/settings.json), appends the atc fleet
- * segment, and heartbeats the session id back to the atc socket. Always
- * exits 0 so it never breaks the session it renders for.
+ * segment, and heartbeats the session id back to the atc socket, with the
+ * agent id the command gave it. Always exits 0 so it never breaks the
+ * session it renders for.
  */
-export async function runStatusline(): Promise<void> {
+export async function runStatusline(agent: string): Promise<void> {
   const raw = await new Response(Bun.stdin.stream()).text();
 
   const sock = process.env['ATC_SOCKET'];
@@ -28,7 +29,7 @@ export async function runStatusline(): Promise<void> {
       }
     } catch {}
 
-    const line = `${JSON.stringify({ atcId, event: 'Statusline', payload })}\n`;
+    const line = `${JSON.stringify({ atcId, ...(agent === '' ? {} : { agent }), event: 'Statusline', payload })}\n`;
 
     await sendReport(sock, line, 500);
   }
@@ -128,7 +129,8 @@ async function readOwnSegment(sock: string): Promise<string> {
 }
 
 // A user statusline that is atc's own injected command would chain into
-// itself; the injected command always ends with the bare subcommand.
+// itself; the injected command ends with the bare subcommand, or with the
+// subcommand and its agent flag.
 function isSelfCommand(cmd: string): boolean {
-  return cmd.includes('statusline.ts') || cmd.trimEnd().endsWith(' statusline');
+  return cmd.includes('statusline.ts') || /\sstatusline(?:\s+--agent\s.*)?$/u.test(cmd);
 }

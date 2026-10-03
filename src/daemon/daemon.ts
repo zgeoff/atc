@@ -58,6 +58,7 @@ import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
+import { isOwnHookEvent } from './is-own-hook-event';
 import { isTreeInReach } from './is-tree-in-reach';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
@@ -765,6 +766,22 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
 
     const before = mgr.sessions.find((s) => s.id === e.atcId);
+    const runtime = runtimes.get(e.atcId);
+
+    // A harness nested inside a session inherits its environment and reports
+    // under its id; only the harness atc started may change the session.
+    if (
+      before !== undefined &&
+      runtime !== undefined &&
+      !isOwnHookEvent(e.agent, before.agent, runtime.hasAgentHookLines)
+    ) {
+      return;
+    }
+
+    if (runtime !== undefined && e.agent !== undefined) {
+      runtime.hasAgentHookLines = true;
+    }
+
     const previousAgentSessionID = before?.agentSessionID;
     const ev = mgr.applyHook(e);
 
@@ -777,7 +794,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
 
     const kind = ev?.kind ?? null;
-    const runtime = runtimes.get(e.atcId);
     const currentAgentSessionID = mgr.sessions.find((s) => s.id === e.atcId)?.agentSessionID;
 
     if (currentAgentSessionID !== undefined && currentAgentSessionID !== previousAgentSessionID) {

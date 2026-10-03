@@ -44,7 +44,7 @@ async function setupTest() {
 echo "UP:$$"
 while read -r line; do
   case "$line" in
-    start) echo '{"hook_event_name":"SessionStart","session_id":"agent-remote-1","transcript_path":"/guest/only/transcript.jsonl"}' | "${fakeATC}" hook-report ;;
+    start) echo '{"hook_event_name":"SessionStart","session_id":"agent-remote-1","transcript_path":"/guest/only/transcript.jsonl"}' | "${fakeATC}" hook-report --agent claude ;;
     tap) "${fakeATC}" tap --session "$ATC_SESSION_ID" >> "${tapLog}" 2>&1 & ;;
     answer*) printf 'the answer' | "${fakeATC}" report answered --messages "\${line#answer }" ;;
     note*) printf '%s' "\${line#note }" | "${fakeATC}" report note --label progress ;;

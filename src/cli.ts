@@ -291,10 +291,16 @@ const main = defineCommand({
           description: 'Forward a hook event from a wrangled session to the atc socket',
           hidden: true,
         },
-        async run() {
+
+        // No arg is required: a citty usage error exits nonzero, and
+        // reporters must always exit 0.
+        args: {
+          agent: { type: 'string', default: '' },
+        },
+        async run(ctx) {
           const reporter = await import('./hook-report');
 
-          await reporter.runHookReport();
+          await reporter.runHookReport(ctx.args.agent);
         },
       }),
     tap: () =>
@@ -352,10 +358,15 @@ const main = defineCommand({
           description: 'Render the chained statusline for a wrangled session',
           hidden: true,
         },
-        async run() {
+
+        // A statusline command must always exit 0 too, so no arg is required.
+        args: {
+          agent: { type: 'string', default: '' },
+        },
+        async run(ctx) {
           const statusline = await import('./statusline');
 
-          await statusline.runStatusline();
+          await statusline.runStatusline(ctx.args.agent);
         },
       }),
   },

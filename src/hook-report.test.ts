@@ -39,13 +39,20 @@ function setupListener(): Listener {
   return { sock, waitForLine: () => received.promise };
 }
 
-function runReporter(sock: string, payload: Readonly<Record<string, unknown>>): Promise<number> {
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'cli.ts'), 'hook-report'], {
-    stdin: new TextEncoder().encode(JSON.stringify(payload)),
-    env: { ...process.env, ATC_SOCKET: sock, ATC_SESSION_ID: 's1' },
-    stdout: 'ignore',
-    stderr: 'ignore',
-  });
+function runReporter(
+  sock: string,
+  payload: Readonly<Record<string, unknown>>,
+  flags: readonly string[] = [],
+): Promise<number> {
+  const proc = Bun.spawn(
+    [process.execPath, join(import.meta.dir, 'cli.ts'), 'hook-report', ...flags],
+    {
+      stdin: new TextEncoder().encode(JSON.stringify(payload)),
+      env: { ...process.env, ATC_SOCKET: sock, ATC_SESSION_ID: 's1' },
+      stdout: 'ignore',
+      stderr: 'ignore',
+    },
+  );
 
   return proc.exited;
 }
@@ -87,4 +94,17 @@ test('it exits 0 when both event name keys are missing', async () => {
 
   expect(code).toBe(0);
   expect(JSON.parse(line)).toStrictEqual({ atcId: 's1', payload });
+});
+
+test('it forwards the agent its command line gives it', async () => {
+  const listener = setupListener();
+  const payload = { hook_event_name: 'Stop', session_id: 'codex-1' };
+
+  const [code, line] = await Promise.all([
+    runReporter(listener.sock, payload, ['--agent', 'codex']),
+    listener.waitForLine(),
+  ]);
+
+  expect(code).toBe(0);
+  expect(JSON.parse(line)).toStrictEqual({ atcId: 's1', agent: 'codex', event: 'Stop', payload });
 });

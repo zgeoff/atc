@@ -46,9 +46,10 @@ async function setupTest(
 echo "UP:$$"
 while read -r line; do
   case "$line" in
-    start) echo '{"hook_event_name":"SessionStart","session_id":"agent-remote-1","transcript_path":"/guest/only/transcript.jsonl"}' | "${fakeATC}" hook-report ;;
-    notify) echo '{"hook_event_name":"Notification","message":"own"}' | "${fakeATC}" hook-report ;;
-    forge*) echo '{"hook_event_name":"Notification","message":"forged"}' | ATC_SESSION_ID="\${line#forge }" "${fakeATC}" hook-report ;;
+    start) echo '{"hook_event_name":"SessionStart","session_id":"agent-remote-1","transcript_path":"/guest/only/transcript.jsonl"}' | "${fakeATC}" hook-report --agent claude ;;
+    notify) echo '{"hook_event_name":"Notification","message":"own"}' | "${fakeATC}" hook-report --agent claude ;;
+    nested) echo '{"hook_event_name":"SessionStart","session_id":"nested-codex-1","source":"startup"}' | "${fakeATC}" hook-report --agent codex ;;
+    forge*) echo '{"hook_event_name":"Notification","message":"forged"}' | ATC_SESSION_ID="\${line#forge }" "${fakeATC}" hook-report --agent claude ;;
   esac
   echo "GOT:$line"
 done
@@ -157,9 +158,9 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
 
   expect(settings).toMatchObject({
     hooks: {
-      SessionStart: [{ hooks: [{ command: `"${daemon.fakeATC}" hook-report` }] }],
+      SessionStart: [{ hooks: [{ command: `"${daemon.fakeATC}" hook-report --agent 'claude'` }] }],
     },
-    statusLine: { command: `"${daemon.fakeATC}" statusline` },
+    statusLine: { command: `"${daemon.fakeATC}" statusline --agent 'claude'` },
   });
 
   expect(readFileSync(join(dir, 'atc-bridge', 'hooks', 'atc-cli.ts'), 'utf8')).toInclude(
@@ -206,6 +207,37 @@ test("it takes a remote session's hook reports from a socket that serves that se
         { id: firstID, state: 'running' },
         { id: secondID, state: 'needs_you', lastMsg: 'own' },
       ],
+    });
+  });
+});
+
+test('it keeps a nested harness inside a remote session from rebinding that session', async () => {
+  await using daemon = await setupTest({ guestATC: true });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await daemon.client.sendRequest('session.input', { session: id, d: 'start\r' });
+
+  await waitFor(async () => {
+    const listed = await daemon.client.sendRequest('session.list');
+
+    expect(listed).toMatchObject({ sessions: [{ id, agentSessionID: 'agent-remote-1' }] });
+  });
+
+  await daemon.client.sendRequest('session.input', { session: id, d: 'nested\r' });
+  await daemon.client.sendRequest('session.input', { session: id, d: 'notify\r' });
+
+  await waitFor(async () => {
+    const listed = await daemon.client.sendRequest('session.list');
+
+    expect(listed).toMatchObject({
+      sessions: [{ id, state: 'needs_you', lastMsg: 'own', agentSessionID: 'agent-remote-1' }],
     });
   });
 });
