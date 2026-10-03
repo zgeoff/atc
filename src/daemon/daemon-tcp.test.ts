@@ -6,17 +6,22 @@ import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
 import type { EventMsg } from '../protocol/protocol';
+import { collectTargets } from '../shared/collect-targets';
 import { getRecord } from '../shared/get-record';
+import { buildTargetIdentity } from './build-target-identity';
 import { claimDaemonLock } from './claim-daemon-lock';
 import { startDaemon } from './daemon';
+import { LocalPTYProvider } from './local-pty-provider';
 
 const TOKEN_A = 'a'.repeat(32);
 const TOKEN_B = 'b'.repeat(40);
 
 // The token file's starting content, the principals key (null for none),
-// and the failure delay the listener uses.
+// the failure delay the listener uses, and whether the daemon has a second
+// target, `box`, beside `local`.
 interface TCPDaemonOptions {
   readonly tokens: string;
+  readonly box?: boolean;
   readonly principals: ReadonlyMap<string, readonly string[]> | null;
   readonly failureDelayMs?: number;
   readonly maxDelayedHandshakes?: number;
@@ -25,7 +30,9 @@ interface TCPDaemonOptions {
 /**
  * A real daemon with a TCP listener on a kernel-chosen loopback port,
  * whose token file starts with the given content and whose principals key
- * is the given map, or absent when null. `owner` is the daemon owner's
+ * is the given map, or absent when null. With `box`, the daemon runs the
+ * targets `local` and `box`, each on a real pseudo-terminal, and
+ * `spawnSession` takes the target. `owner` is the daemon owner's
  * connection on the local socket. `openTCP` dials the listener without a
  * handshake, and `openTCPAs` dials it and handshakes with a token.
  * `writeTokens` rewrites the token file.
@@ -36,6 +43,13 @@ async function setupTest(options: TCPDaemonOptions) {
   const logged: string[] = [];
 
   writeFileSync(tokenFile, options.tokens);
+
+  const local = new LocalPTYProvider();
+
+  const targets = collectTargets(
+    { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+    undefined,
+  );
 
   const daemon = await startDaemon({
     socketPath: join(tmp.dir, 'daemon.sock'),
@@ -55,6 +69,19 @@ async function setupTest(options: TCPDaemonOptions) {
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),
     principals: options.principals,
+    ...(options.box === true
+      ? {
+          targets: targets.targets.map((target) => ({
+            id: target.id,
+            kind: target.provider,
+            options: target.options,
+            identity: buildTargetIdentity(target.provider, target.options),
+            provider: local,
+          })),
+          defaultTarget: targets.defaultTarget,
+          targetErrors: targets.errors,
+        }
+      : {}),
     listen: {
       host: '127.0.0.1',
       port: 0,
@@ -106,10 +133,11 @@ async function setupTest(options: TCPDaemonOptions) {
     writeTokens(content: string): void {
       writeFileSync(tokenFile, content);
     },
-    async spawnSession(): Promise<string> {
+    async spawnSession(target?: string): Promise<string> {
       const spawned = await owner.sendRequest('session.spawn', {
         cwd: '/tmp',
         resume: `a-${randomUUID()}`,
+        ...(target === undefined ? {} : { target }),
       });
 
       return String(getRecord(spawned, 'session')['id']);
@@ -324,6 +352,28 @@ test('it answers a TCP principal for a session outside its targets as for a miss
   expect(ownerList).toMatchObject({ sessions: [expect.objectContaining({ id })] });
 });
 
+test('it lists and reads for a TCP principal only the sessions on the targets it may use', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map([['gw', ['local']]]),
+    box: true,
+  });
+
+  const onLocal = await daemon.spawnSession('local');
+  const onBox = await daemon.spawnSession('box');
+  const client = await daemon.openTCPAs(TOKEN_A);
+  const listed = await client.sendRequest('session.list', {}, 'gw');
+  const got = await client.sendRequest('session.get', { session: onLocal }, 'gw');
+
+  expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id: onLocal })] });
+  expect(got).toMatchObject({ session: { id: onLocal } });
+
+  expect(client.sendRequest('session.get', { session: onBox }, 'gw')).rejects.toMatchObject({
+    code: 'no_such_session',
+    message: `no session '${onBox}'`,
+  });
+});
+
 test('it pushes a TCP connection no event of a session it did not act on', async () => {
   await using daemon = await setupTest({
     tokens: `${TOKEN_A}\n`,
@@ -346,7 +396,9 @@ test('it pushes a TCP connection no event of a session it did not act on', async
 
   const id = await daemon.spawnSession();
 
-  await waitFor(() => ownerEvents.some((event) => event.ev === 'SessionAdded'));
+  await waitFor(() => {
+    expect(ownerEvents.map((event) => event.ev)).toContain('SessionAdded');
+  });
 
   await client.sendRequest('session.list', {}, 'gw');
 
@@ -875,3 +927,39 @@ test('it keeps answering local pings while many TCP sockets each send a handshak
 
   expect(Math.max(...latencies)).toBeLessThan(500);
 }, 20_000);
+
+test('it pushes a TCP connection whose handshake gives a principal the removal of a session that leaves its reach', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map([['gw', ['local']]]),
+    box: true,
+  });
+
+  const parent = await daemon.spawnSession('local');
+  const client = await daemon.openTCP();
+
+  await client.sendRequest('daemon.hello', {
+    client: 'atc/test-gateway',
+    principal: 'gw',
+    auth: { scheme: 'bearer', token: TOKEN_A },
+  });
+
+  const pushed: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    pushed.push(event);
+  };
+
+  await daemon.owner.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'box',
+    parent,
+    resume: `a-${randomUUID()}`,
+  });
+
+  await waitFor(() => {
+    const removed = pushed.filter((event) => event.ev === 'SessionRemoved');
+
+    expect(removed.map((event) => event['s'])).toStrictEqual([parent]);
+  });
+});
