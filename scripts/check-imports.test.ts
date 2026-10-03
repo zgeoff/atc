@@ -311,3 +311,119 @@ test('it reads an import that follows a regular expression holding a quote', asy
     stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
   });
 });
+
+test('it reads an import that follows a regular expression after a control condition', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "const ok = true;\nif (ok) /`/.test('a');\n\nexport { ID } from '../daemon/ids';\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
+  });
+});
+
+test('it reads an import that follows a regular expression after a block', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "{\n  const a = 1;\n}\n/`/.test('a');\n\nexport { ID } from '../daemon/ids';\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
+  });
+});
+
+test('it reads a literal module resolved through import.meta.resolve', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "export const PATH = import.meta.resolve('../daemon/ids');\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
+  });
+});
+
+test('it reads a literal module resolved through Bun.resolveSync', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "export const PATH = Bun.resolveSync('../daemon/ids', import.meta.dir);\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
+  });
+});
+
+test('it reads a literal module located with a URL relative to import.meta.url', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "export const PATH = new URL('../daemon/ids.ts', import.meta.url);\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
+  });
+});
+
+test('it fails on a module resolved from a computed specifier', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "const name = '../daemon/ids';\nexport const A = import.meta.resolve(name);\nexport const B = Bun.resolveSync(name, import.meta.dir);\nexport const C = new URL(name, import.meta.url);\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 1 files, 0 cycles, 3 other findings\n',
+    stderr:
+      'non-literal import: src/store/rows.ts:2 imports a computed specifier\nnon-literal import: src/store/rows.ts:3 imports a computed specifier\nnon-literal import: src/store/rows.ts:4 imports a computed specifier\n',
+  });
+});
+
+test('it ignores a URL that is not relative to the module', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(
+    join(tree.dir, 'src/store/rows.ts'),
+    "const base = 'https://example.com';\nexport const SITE = new URL(base);\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-imports: 1 files, 0 cycles, 0 other findings\n',
+    stderr: '',
+  });
+});
