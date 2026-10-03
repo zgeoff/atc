@@ -140,9 +140,11 @@ LoadCredential=imp-token:/etc/atc/imp-token
 The daemon reads the file at startup and again before each call and connection to impd, dropping one
 trailing newline. A file that is missing, unreadable, or empty at startup is a config error the
 daemon handles like an unset `tokenEnv` variable, printing the path and never the content. Rewrite
-the file to rotate the token: the next call to impd uses the new one, with no restart. A file that
-turns empty or unreadable while the daemon runs fails each call and connection to impd as
-unauthorized until it holds a token again, and a spawn in that time fails with `host_unavailable`.
+the file to rotate the token: the next call and connection to impd use the new one, with no restart.
+systemd mounts `/run/credentials` read-only, so to rotate a credential it passes, change the source
+file and restart the unit. A file that turns empty or unreadable while the daemon runs fails each
+call and connection to impd as unauthorized until it holds a token again, and a spawn in that time
+fails with `host_unavailable`.
 
 A Claude session on an imp target reports through an atc inside the imp. A compiled atc daemon on
 Linux copies itself in; a daemon run from source needs `guestATC`, and refuses the spawn without it.

@@ -220,7 +220,19 @@ export class ImpClientPort implements ImpPort {
       token,
       name,
       guest: { network: 'unix', path: guestPath },
-      connect: (url, headers) => new WebSocket(url, { headers }),
+
+      // The client reuses the headers of the listening socket for every
+      // guest connection relay, so each socket reads the token afresh. A
+      // token that cannot be read dials without one, which impd refuses.
+      connect: (url, headers) => {
+        const { authorization: _, ...rest } = headers;
+        const current = this.tryReadToken();
+
+        return new WebSocket(url, {
+          headers:
+            typeof current === 'string' ? { ...rest, authorization: `Bearer ${current}` } : rest,
+        });
+      },
       onConnection: (accept) => {
         onConnection(openRelay(accept));
       },
