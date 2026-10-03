@@ -80,6 +80,7 @@ function collectEnv(extra: Readonly<Record<string, string>>): Record<string, str
 function setupDaemonProc(
   home?: string,
   extraEnv?: Readonly<Record<string, string>>,
+  daemonArgs: readonly string[] = [],
 ): DaemonContext {
   const freshHome = home ?? mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
 
@@ -230,7 +231,7 @@ process.stdin.on('data', (buf) => {
   // itself in the failure instead of leaving only a timeout.
   const stderrPath = join(freshHome, 'daemon.stderr');
 
-  const proc = Bun.spawn([...atcCommand, 'daemon'], {
+  const proc = Bun.spawn([...atcCommand, 'daemon', ...daemonArgs], {
     env: collectEnv({
       HOME: freshHome,
       XDG_RUNTIME_DIR: freshHome,
@@ -3058,4 +3059,104 @@ test('it unpacks every tracked file of a local workspace when the daemon env ask
   });
 
   expect(readFileSync(join(dest, 'notes.txt'), 'utf8')).toBe('kept\n');
+});
+
+test('it prints the running daemon id through atc daemon id', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+  const hello = await client.sendHello('atc/test');
+
+  const printed = Bun.spawnSync([...atcCommand, 'daemon', 'id'], {
+    env: collectEnv({ HOME: ctx.home, XDG_RUNTIME_DIR: ctx.home }),
+  });
+
+  expect(printed.stdout.toString()).toBe(`${getString(hello, 'daemonID')}\n`);
+});
+
+test('it exits nonzero from atc daemon id when no daemon answers', () => {
+  const home = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
+
+  onTestFinished(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  const printed = Bun.spawnSync([...atcCommand, 'daemon', 'id'], {
+    env: collectEnv({ HOME: home, XDG_RUNTIME_DIR: home }),
+  });
+
+  expect(printed.exitCode).toBe(1);
+  expect(printed.stderr.toString()).toInclude('atc daemon id: no daemon at');
+});
+
+test.each([
+  [['--listen', '0.0.0.0:8415', '--token-file', '/dev/null'], "--listen refuses '0.0.0.0'"],
+  [['--listen', '127.0.0.1:8415'], '--listen and --token-file go together'],
+])('it refuses to start a daemon with %j', (args, message) => {
+  const home = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
+
+  onTestFinished(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  const started = Bun.spawnSync([...atcCommand, 'daemon', ...args], {
+    env: collectEnv({ HOME: home, XDG_RUNTIME_DIR: home }),
+  });
+
+  expect(started.exitCode).toBe(1);
+  expect(started.stderr.toString()).toInclude(message);
+});
+
+test('it closes a TCP connection whose token a SIGHUP reload removed', async () => {
+  const tokens = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-tokens-'));
+  const tokenFile = join(tokens, 'gateway-token');
+  const probe = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
+  const port = probe.port;
+
+  probe.stop(true);
+
+  writeFileSync(tokenFile, `${'a'.repeat(32)}\n${'b'.repeat(32)}\n`);
+
+  onTestFinished(() => {
+    rmSync(tokens, { recursive: true, force: true });
+  });
+
+  const ctx = setupDaemonProc(undefined, {}, [
+    '--listen',
+    `127.0.0.1:${port}`,
+    '--token-file',
+    tokenFile,
+  ]);
+
+  await ctx.openClient();
+
+  const tcp = await DaemonClient.open({ hostname: '127.0.0.1', port });
+
+  const closed = Promise.withResolvers<void>();
+
+  onTestFinished(() => {
+    tcp.stop();
+  });
+
+  tcp.onClose = () => {
+    closed.resolve();
+  };
+
+  await tcp.sendHello('atc/test-gateway', 'a'.repeat(32));
+
+  writeFileSync(tokenFile, `${'b'.repeat(32)}\n`);
+
+  ctx.proc.kill('SIGHUP');
+
+  await closed.promise;
+
+  const fresh = await DaemonClient.open({ hostname: '127.0.0.1', port });
+
+  onTestFinished(() => {
+    fresh.stop();
+  });
+
+  const hello = await fresh.sendHello('atc/test-gateway', 'b'.repeat(32));
+
+  expect(hello).toContainKey('daemonID');
 });
