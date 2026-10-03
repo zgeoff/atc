@@ -39,6 +39,8 @@ interface RefusalLogOptions {
 }
 
 interface RefusalWindow {
+  // The window's line without its count.
+  readonly line: string;
   readonly startedAt: number;
 
   // The refusals in the window after the first, which no line holds yet.
@@ -47,16 +49,18 @@ interface RefusalWindow {
 
 /**
  * Logs TCP listener refusals as `key=value` lines, at most one per window
- * for each peer and kind of refusal. The first refusal of a window logs at
- * once with `count=1`; later ones in the window are counted, and a line
- * with their `count` follows once the window ends, so the counts of every
- * line sum to every refusal. Ended windows are logged on the next refusal
- * from any peer and on a drain.
+ * for each peer and kind of refusal: a handshake refusal per reason, and a
+ * principal refusal whatever principal it gave, whose line holds the first
+ * principal of the window. The first refusal of a window logs at once with
+ * `count=1`; later ones in the window are counted, and a line with their
+ * `count` follows once the window ends, so the counts of every line sum to
+ * every refusal. Ended windows are logged on the next refusal from any
+ * peer and on a drain.
  */
 export class RefusalLog {
   private readonly opts: RefusalLogOptions;
 
-  // Keyed by the line without its count, in the order the windows started.
+  // Keyed by the peer and kind of refusal, in the order the windows started.
   private readonly windows = new Map<string, RefusalWindow>();
 
   constructor(opts: RefusalLogOptions) {
@@ -68,8 +72,8 @@ export class RefusalLog {
 
     this.drainEnded(now);
 
-    const line = formatRefusal(refusal);
-    const window = this.windows.get(line);
+    const key = buildWindowKey(refusal);
+    const window = this.windows.get(key);
 
     if (window !== undefined) {
       window.pending++;
@@ -81,7 +85,9 @@ export class RefusalLog {
       this.drainOldest();
     }
 
-    this.windows.set(line, { startedAt: now, pending: 0 });
+    const line = formatRefusal(refusal);
+
+    this.windows.set(key, { line, startedAt: now, pending: 0 });
     this.opts.log(`${line} count=1`);
   }
 
@@ -89,8 +95,8 @@ export class RefusalLog {
    * Logs the pending count of every window and forgets them all.
    */
   drain(): void {
-    for (const [line, window] of this.windows) {
-      this.logPending(line, window);
+    for (const window of this.windows.values()) {
+      this.logPending(window);
     }
 
     this.windows.clear();
@@ -99,13 +105,13 @@ export class RefusalLog {
   // Windows start in map order and all last the same interval, so the
   // ended ones lead the map.
   private drainEnded(now: number): void {
-    for (const [line, window] of this.windows) {
+    for (const [key, window] of this.windows) {
       if (now - window.startedAt < this.opts.intervalMs) {
         return;
       }
 
-      this.windows.delete(line);
-      this.logPending(line, window);
+      this.windows.delete(key);
+      this.logPending(window);
     }
   }
 
@@ -116,17 +122,25 @@ export class RefusalLog {
       return;
     }
 
-    const [line, window] = oldest.value;
+    const [key, window] = oldest.value;
 
-    this.windows.delete(line);
-    this.logPending(line, window);
+    this.windows.delete(key);
+    this.logPending(window);
   }
 
-  private logPending(line: string, window: Readonly<RefusalWindow>): void {
+  private logPending(window: Readonly<RefusalWindow>): void {
     if (window.pending > 0) {
-      this.opts.log(`${line} count=${window.pending}`);
+      this.opts.log(`${window.line} count=${window.pending}`);
     }
   }
+}
+
+// A NUL never appears in an address or a reason, so the parts cannot run
+// together into another key.
+function buildWindowKey(refusal: Refusal): string {
+  return refusal.event === 'handshake_refused'
+    ? `${refusal.event}\u0000${refusal.peer}\u0000${refusal.reason}`
+    : `${refusal.event}\u0000${refusal.peer}`;
 }
 
 function formatRefusal(refusal: Refusal): string {

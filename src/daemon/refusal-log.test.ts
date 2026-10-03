@@ -73,6 +73,22 @@ test('it keeps separate windows for each reason from one peer', () => {
   ]);
 });
 
+test('it folds refusals of different principals from one peer within the window into one line', () => {
+  const refusals = setupTest(16);
+
+  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1', principal: 'p1' });
+  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1', principal: 'p2' });
+  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1', principal: 'p3' });
+  refusals.advanceClock(60_000);
+  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1', principal: 'p4' });
+
+  expect(refusals.logged).toStrictEqual([
+    'atc tcp event=principal_refused peer=10.0.0.1 principal=p1 count=1',
+    'atc tcp event=principal_refused peer=10.0.0.1 principal=p1 count=2',
+    'atc tcp event=principal_refused peer=10.0.0.1 principal=p4 count=1',
+  ]);
+});
+
 test('it ends the oldest window early, with its count, once the cap of windows is full', () => {
   const refusals = setupTest(2);
 
