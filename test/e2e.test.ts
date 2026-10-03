@@ -2596,3 +2596,46 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   await ctx.waitFor('spawn: ref');
 }, 20_000);
+
+test('it offers an adopt only the targets that run on this host', async () => {
+  await using ctx = setupTest();
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: {
+        local: { provider: 'local-pty' },
+        alt: { provider: 'local-pty', tag: 'alt' },
+        box: { provider: 'imp', url: 'http://127.0.0.1:9' },
+      },
+      defaultTarget: 'local',
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('r');
+
+  await ctx.waitFor('adopt: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('adopt: directory');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('adopt: target');
+
+  const menu = ctx.read();
+
+  expect(menu).toInclude('local  local-pty · default');
+  expect(menu).toInclude('alt  local-pty');
+  expect(menu).not.toInclude('box  imp');
+}, 15_000);

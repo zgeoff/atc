@@ -1192,7 +1192,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // that does when it does not, else the default.
   private openTargetStep(fallback: () => void) {
     if (this.targets.length < 2) {
-      this.target = null;
+      // An adopt names its one target, which may not be the default.
+      this.target = this.resume ? (this.targets[0] ?? null) : null;
 
       fallback();
 
