@@ -2822,29 +2822,7 @@ test('it drives a source the daemon composition adds from its candidates to the 
 
   const fixture = await createFixtureUpstream(ctx.home);
 
-  // A daemon started first holds the socket, so the client connects to it
-  // instead of starting its own; it prints a line once it listens.
-  const daemon = Bun.spawn([process.execPath, join(repo, 'test', 'run-source-daemon.ts')], {
-    env: collectEnv({
-      HOME: ctx.home,
-      XDG_RUNTIME_DIR: ctx.home,
-      PATH: `${join(ctx.home, 'bin')}:/usr/sbin:/usr/bin:/bin`,
-      ATC_TEST_SOURCES: 'fixture',
-      ATC_TEST_FIXTURE_URL: fixture.upstream,
-    }),
-    stdout: 'pipe',
-    stderr: 'ignore',
-  });
-
-  onTestFinished(() => {
-    daemon.kill();
-  });
-
-  const reader = daemon.stdout.getReader();
-
-  await reader.read();
-
-  reader.releaseLock();
+  await startSourceDaemon(ctx, { ATC_TEST_FIXTURE_URL: fixture.upstream });
 
   const pty = ctx.boot();
 
@@ -2886,17 +2864,163 @@ test('it drives a source the daemon composition adds from its candidates to the 
   expect(ctx.read()).toInclude(`source  ${fixture.upstream}`);
 }, 30_000);
 
-test('it offers the local directory flow alone when the daemon offers no sources', async () => {
+test('it spawns the repository a composed source reads typed text as, through to its workspace', async () => {
   await using ctx = setupTest();
 
   writeFakeGH(ctx.home);
 
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  await startSourceDaemon(ctx, { ATC_TEST_FIXTURE_URL: fixture.upstream });
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('tab GitHub repository');
+
+  pty.write('\t');
+
+  await ctx.waitFor('tab git URL');
+
+  pty.write('\t');
+
+  await ctx.waitFor('tab fixture repository');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('upstream  fixture');
+
+  ctx.reset();
+  pty.write('pick upstream');
+
+  await ctx.waitFor('> pick upstream');
+
+  pty.write('\r');
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`, 10_000);
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('picked\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP', 20_000);
+
+  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  await daemon.sendHello('atc/test');
+
+  const listed = await daemon.sendRequest('session.list');
+
+  const name = `upstream-main-${fixture.sha.slice(0, 7)}`;
+
+  expect(listed['sessions']).toMatchObject([
+    {
+      name: 'picked',
+      cwd: join(ctx.home, '.local', 'share', 'atc', 'workspaces', name),
+      workspace: { repoURL: fixture.upstream, sha: fixture.sha, ref: 'main' },
+    },
+  ]);
+}, 60_000);
+
+test('it lists the scope a composed source reads from a directory step once, on the target chosen next', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+  const listLog = join(ctx.home, 'source-lists.jsonl');
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: { local: { provider: 'local-pty' }, alt: { provider: 'local-pty', tag: 'alt' } },
+      defaultTarget: 'local',
+    }),
+  );
+
+  await startSourceDaemon(ctx, {
+    ATC_TEST_FIXTURE_URL: fixture.upstream,
+    ATC_TEST_SOURCE_LOG: listLog,
+  });
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory on the daemon host');
+
+  ctx.reset();
+  pty.write('in acme');
+
+  await ctx.waitFor('> in acme');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7malt  local-pty');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('acme/upstream  fixture');
+
+  expect(ctx.read()).toInclude('spawn: fixture repository · acme');
+
+  const lists = readFileSync(listLog, 'utf8').trim().split('\n');
+
+  expect(lists.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    { scope: 'acme', target: 'alt' },
+  ]);
+}, 30_000);
+
+// Starts a daemon composed with the sources `ATC_TEST_SOURCES` selects,
+// the fixture source unless the env says otherwise, on the test's socket
+// before the client boots, so the client connects to it instead of
+// starting its own, and resolves once it listens.
+async function startSourceDaemon(ctx: TestContext, env: Readonly<Record<string, string>>) {
   const daemon = Bun.spawn([process.execPath, join(repo, 'test', 'run-source-daemon.ts')], {
     env: collectEnv({
       HOME: ctx.home,
       XDG_RUNTIME_DIR: ctx.home,
       PATH: `${join(ctx.home, 'bin')}:/usr/sbin:/usr/bin:/bin`,
-      ATC_TEST_SOURCES: 'none',
+      ATC_TEST_SOURCES: 'fixture',
+      ...env,
     }),
     stdout: 'pipe',
     stderr: 'ignore',
@@ -2911,6 +3035,14 @@ test('it offers the local directory flow alone when the daemon offers no sources
   await reader.read();
 
   reader.releaseLock();
+}
+
+test('it offers the local directory flow alone when the daemon offers no sources', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  await startSourceDaemon(ctx, { ATC_TEST_SOURCES: 'none' });
 
   const pty = ctx.boot();
 

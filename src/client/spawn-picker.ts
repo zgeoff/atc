@@ -101,11 +101,13 @@ interface PendingRequest {
   readonly kind: 'interpret' | 'probe' | 'spawn';
 }
 
-// What a git source step does once it opens: nothing, or probe a URL a
-// reading of typed input already resolved.
+// What a git source step does once it opens: nothing, probe a URL a
+// reading of typed input already resolved, or list the scope a reading
+// asked for, once the step's target is known.
 type SourceStepAction =
   | { readonly kind: 'none' }
-  | { readonly kind: 'probe'; readonly url: string };
+  | { readonly kind: 'probe'; readonly url: string }
+  | { readonly kind: 'browse'; readonly scope: string };
 
 /**
  * The modal flow behind n and r: agent, then source, then name, then an
@@ -226,11 +228,17 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private requestSeq = 0;
 
+  // The flow's generation. Opening the flow and every way out of it moves
+  // it on, and an answer that arrives for an earlier generation is dropped
+  // before it changes any state or draws anything.
+  private generation = 0;
+
   constructor(deps: SpawnPickerDeps<TMirror>) {
     this.deps = deps;
   }
 
   open(resume = false) {
+    this.generation += 1;
     this.resume = resume;
 
     const config = loadConfig();
@@ -289,9 +297,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       if (edit.kind === 'cancel') {
         this.applyPendingCancel();
       } else if (edit.kind === 'leader') {
-        this.pending = null;
-
-        this.deps.toBase();
+        this.quitFlow();
       }
 
       return;
@@ -327,7 +333,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         return;
       }
       case 'leader': {
-        this.deps.toBase();
+        this.quitFlow();
 
         return;
       }
@@ -407,6 +413,27 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     this.deps.scheduleStatus();
+  }
+
+  // Leaves the flow for the screen it came from, dropping every answer
+  // still on its way.
+  private quitFlow() {
+    this.stopFlow();
+    this.deps.toBase();
+  }
+
+  // Ends the flow's generation: no request it sent changes anything when
+  // its answer comes.
+  private stopFlow() {
+    this.generation += 1;
+    this.pending = null;
+    this.listingSeq = null;
+    this.pathListingSeq = null;
+  }
+
+  // Whether an answer belongs to a flow that has since ended.
+  private isStale(generation: number): boolean {
+    return generation !== this.generation;
   }
 
   private renderDirStep(verb: string) {
@@ -570,7 +597,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.pending = null;
 
     if (cancelled?.kind === 'spawn') {
-      this.deps.toBase();
+      this.quitFlow();
 
       return;
     }
@@ -587,7 +614,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.pathListingSeq = null;
 
     if (this.step === 'agent') {
-      this.deps.toBase();
+      this.quitFlow();
 
       return;
     }
@@ -665,6 +692,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // Leaves the target step backwards: a directory goes back to its step,
   // and a repository to the first source of directories, else the agent.
   private applyTargetCancel() {
+    this.sourceAction = { kind: 'none' };
+
     if (!this.isGitFlow()) {
       this.step = 'dir';
 
@@ -917,6 +946,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // dropped.
   private async openPathSource(index: number, scope: string | null) {
     const source = this.sources?.[index];
+    const generation = this.generation;
 
     this.requestSeq += 1;
 
@@ -937,7 +967,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       } catch {}
     }
 
-    if (this.pathListingSeq !== seq) {
+    if (this.isStale(generation) || this.pathListingSeq !== seq) {
       return;
     }
 
@@ -987,7 +1017,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    this.target = null;
+    this.target = this.targets[0] ?? null;
 
     this.openSourceStep();
   }
@@ -999,6 +1029,10 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.input = this.sourceDraft;
     this.selected = 0;
     this.alternateURL = null;
+
+    const action = this.sourceAction;
+
+    this.sourceAction = { kind: 'none' };
 
     const key = `${this.findSource()?.id ?? ''}\n${this.target?.id ?? ''}`;
     const stale = this.listedKey !== key;
@@ -1013,13 +1047,13 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     process.stdout.write(ansi.clear);
     this.render();
 
-    if (stale) {
+    // A scope a reading asked for is listed in place of the source's own
+    // default, for the target the step now has.
+    if (action.kind === 'browse') {
+      void this.loadCandidates(action.scope);
+    } else if (stale) {
       void this.loadCandidates(null);
     }
-
-    const action = this.sourceAction;
-
-    this.sourceAction = { kind: 'none' };
 
     if (action.kind === 'probe') {
       void this.checkRepoAccess(this.sourceDraft, action.url);
@@ -1037,6 +1071,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // notice row. Typing goes on meanwhile, and Esc stops the listing.
   private async loadCandidates(scope: string | null) {
     const source = this.findSource();
+    const generation = this.generation;
 
     if (source === null) {
       return;
@@ -1065,7 +1100,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       failure = error;
     }
 
-    if (this.listingSeq !== seq || this.findSource()?.id !== source.id) {
+    if (
+      this.isStale(generation) ||
+      this.listingSeq !== seq ||
+      this.findSource()?.id !== source.id
+    ) {
       return;
     }
 
@@ -1214,17 +1253,17 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
+    // The step lists the scope or probes the repository once it opens,
+    // after any target step, so the request is made for the spawn's target.
     if (index !== this.sourceIndex || this.step !== 'source') {
       const action: SourceStepAction =
-        reading.kind === 'git' ? { kind: 'probe', url: reading.url } : { kind: 'none' };
+        reading.kind === 'git'
+          ? { kind: 'probe', url: reading.url }
+          : { kind: 'browse', scope: reading.scope };
 
       const draft = reading.kind === 'git' ? typed : '';
 
       this.openGitSource(index, draft, action);
-
-      if (reading.kind === 'browse') {
-        void this.loadCandidates(reading.scope);
-      }
 
       return;
     }
@@ -1254,6 +1293,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.requestSeq += 1;
 
     const seq = this.requestSeq;
+    const generation = this.generation;
     const esc = kind === 'spawn' ? 'esc stops waiting; the session still lists' : 'esc cancels';
 
     this.pending = { label: `${label} · ${esc}`, seq, kind };
@@ -1270,7 +1310,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       result = { ok: false, error };
     }
 
-    if (this.pending?.seq !== seq) {
+    if (this.isStale(generation) || this.pending?.seq !== seq) {
       return null;
     }
 
@@ -1524,8 +1564,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // that does when it does not, else the default.
   private openTargetStep(fallback: () => void) {
     if (this.targets.length < 2) {
-      // An adopt names its one target, which may not be the default.
-      this.target = this.resume ? (this.targets[0] ?? null) : null;
+      // The one target is the spawn's, default or not, so the spawn names it
+      // and its provider decides whether a directory runs in place.
+      this.target = this.targets[0] ?? null;
 
       fallback();
 
@@ -1553,11 +1594,16 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // opens the first source: the first of directories for an adopt, and the
   // local directory flow for a daemon that offers no sources.
   private async openFirstSource() {
+    const generation = this.generation;
     let listed: Readonly<Record<string, unknown>> = {};
 
     try {
       listed = await this.deps.sendRequest('agents.list');
     } catch {}
+
+    if (this.isStale(generation)) {
+      return;
+    }
 
     const picks = collectTargetPicks(listed);
 
@@ -1579,13 +1625,13 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.sources = null;
 
-    await this.openLocalDirs();
+    await this.openLocalDirs(generation);
   }
 
   // The local directory flow of a daemon that offers no sources: the
   // client's own directory, the daemon's spawn history, the configured
   // roots, and zoxide's list on this host.
-  private async openLocalDirs() {
+  private async openLocalDirs(generation: number) {
     let recent: string[] = [];
 
     try {
@@ -1598,12 +1644,13 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       }
     } catch {}
 
-    this.dirs = collectDirs({
-      cwd: process.cwd(),
-      recent,
-      roots: this.roots,
-      zoxide: await collectZoxideDirs(),
-    });
+    const zoxide = await collectZoxideDirs();
+
+    if (this.isStale(generation)) {
+      return;
+    }
+
+    this.dirs = collectDirs({ cwd: process.cwd(), recent, roots: this.roots, zoxide });
 
     this.dirLabels = new Map();
 
@@ -1645,11 +1692,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const session = this.deps.toMirrorSession(spawned.answer['session']);
 
     if (session === null) {
-      this.deps.toBase();
+      this.quitFlow();
 
       return;
     }
 
+    this.stopFlow();
     this.deps.upsertMirror(session);
 
     await this.deps.attach(session.id);
@@ -1701,8 +1749,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // What the spawn sends for its source. A git repository goes as a git
   // workspace at the commit the confirm screen showed, with the ref it was
   // chosen by. A chosen target goes with the spawn; a local directory runs
-  // in place on a target on the daemon's own machine, and is materialized
-  // at the same path from its pushed HEAD on any other.
+  // in place when the spawn's target is on the daemon's own machine, and is
+  // materialized at the same path from its pushed HEAD on any other.
   private buildSourceParams(): Readonly<Record<string, unknown>> {
     const target = this.buildTargetParam();
 
@@ -1718,7 +1766,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       };
     }
 
-    if (this.target === null || this.target.inPlace) {
+    const effective = this.findEffectiveTarget();
+
+    if (effective === null || effective.inPlace) {
       return target;
     }
 
