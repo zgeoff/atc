@@ -154,13 +154,28 @@ function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
     : [...ASKPASS_ENV];
 }
 
-// Whether a path is a directory that no git work tree holds.
+// Whether a path is a directory that no git work tree holds. Only git's own
+// answer that no repository holds it proves that: any other failure to
+// inspect the path, such as a broken config or a repository git does not
+// trust, refuses the spawn rather than run it in place unchecked.
 async function isOutsideWorkTree(path: string): Promise<boolean> {
   const inside = await runGit(['rev-parse', '--is-inside-work-tree'], { cwd: path }).catch(
     () => null,
   );
 
-  return inside !== null && inside.exitCode !== 0;
+  if (inside === null || inside.exitCode === 0) {
+    return false;
+  }
+
+  if (inside.stderr.startsWith('fatal: not a git repository')) {
+    return true;
+  }
+
+  throw new DaemonError(
+    'unreadable_tree',
+    `git cannot inspect ${path}: ${inside.stderr.trim().split('\n')[0] ?? ''}`,
+    { phase: 'resolving' },
+  );
 }
 
 // The credential's value, which every message leaving this module is

@@ -865,6 +865,62 @@ test('it runs a local session in a directory outside git as it stands', async ()
   expect(rows).toStrictEqual([]);
 });
 
+test('it refuses to run a local repository in place when git cannot read its config', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+
+  writeFileSync(join(ctx.work, '.git', 'config'), '[[[\n');
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: ctx.work,
+    target: 'local',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'unreadable_tree', data: { phase: 'resolving' } });
+
+  await spawn.catch(() => null);
+});
+
+test('it refuses to run a local repository in place when git does not trust its owner', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+
+  // git's own switch for treating every repository as another user's.
+  process.env['GIT_TEST_ASSUME_DIFFERENT_OWNER'] = '1';
+
+  onTestFinished(() => {
+    delete process.env['GIT_TEST_ASSUME_DIFFERENT_OWNER'];
+  });
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: ctx.work,
+    target: 'local',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'unreadable_tree', data: { phase: 'resolving' } });
+
+  await spawn.catch(() => null);
+});
+
+test('it runs a local spawn without a workspace in a repository git cannot read', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+
+  writeFileSync(join(ctx.work, '.git', 'config'), '[[[\n');
+
+  const spawned = await booted.client.sendRequest('session.spawn', { cwd: ctx.work });
+
+  expect(getRecord(spawned, 'session')).toMatchObject({
+    cwd: ctx.work,
+    locator: { targetID: 'local' },
+  });
+});
+
 test('it refuses a local directory outside git as the workspace of a spawn elsewhere', async () => {
   await using ctx = await setupTest();
 
