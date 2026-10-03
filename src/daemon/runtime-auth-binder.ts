@@ -367,6 +367,8 @@ export class RuntimeAuthBinder {
       }
 
       try {
+        assertRecordedImpName(host, row);
+
         const imp =
           row.impID === null
             ? await tryReadImp(host, row.impName)
@@ -422,7 +424,10 @@ export class RuntimeAuthBinder {
       const isOrphan = !listedHostKeys.has(row.hostKey);
 
       try {
-        if (row.rebind !== null && row.state === 'provisioning') {
+        if (
+          row.rebind !== null &&
+          (row.state === 'provisioning' || row.state === 'rebind_failed')
+        ) {
           await this.reconcileRebind(host, row);
         } else if (
           isOrphan &&
@@ -550,6 +555,8 @@ export class RuntimeAuthBinder {
           );
         }
       } else {
+        assertRecordedImpName(host, row);
+
         const imp = await verifyCleanupAuthority(
           host.port,
           { name: row.impName, id: row.impID },
@@ -741,7 +748,10 @@ export class RuntimeAuthBinder {
       (grant) =>
         grant.attemptID === attemptID &&
         !grant.preexisting &&
-        (grant.phase === 'granting' || grant.phase === 'granted' || grant.phase === 'uncertain'),
+        (grant.phase === 'granting' ||
+          grant.phase === 'granted' ||
+          grant.phase === 'uncertain' ||
+          grant.phase === 'revocation_pending'),
     );
 
     for (const grant of added) {
@@ -755,18 +765,18 @@ export class RuntimeAuthBinder {
   }
 
   // A rebind a stopped daemon left in flight failed: it is blocked first,
-  // and its added grants are removed only from the imp it was recorded
-  // against.
+  // and the grants its attempt added are removed only from the imp it was
+  // recorded against. A failed rebind whose removal never finished is
+  // tried again on each start. Nothing changes unless the binding still
+  // holds the same imp, revision, and rebind attempt under the host's lock.
   private async reconcileRebind(
     host: BrokerAuthHost | null,
     row: RuntimeAuthBinding,
   ): Promise<void> {
-    await this.store.updateAuthBinding(row.hostKey, { state: 'rebind_failed' }, this.now());
-
     const rebind = row.rebind;
     const impID = row.impID;
 
-    if (host === null || impID === null || rebind === null) {
+    if (rebind === null) {
       return;
     }
 
@@ -777,10 +787,19 @@ export class RuntimeAuthBinder {
         current === null ||
         current.impID !== impID ||
         current.revision !== row.revision ||
+        current.state !== row.state ||
         current.rebind?.attemptID !== rebind.attemptID
       ) {
         return;
       }
+
+      await this.store.updateAuthBinding(row.hostKey, { state: 'rebind_failed' }, this.now());
+
+      if (host === null || impID === null) {
+        return;
+      }
+
+      assertRecordedImpName(host, row);
 
       const imp = await verifyCleanupAuthority(
         host.port,
@@ -792,6 +811,21 @@ export class RuntimeAuthBinder {
         await this.removeRebindGrants(host, row.hostKey, row.impName, rebind.attemptID);
       }
     });
+  }
+}
+
+// Refuses a provider whose name for the host is not the imp the binding
+// recorded, such as after the target's imp name prefix changed, so a
+// destroy by host key never reaches another imp.
+function assertRecordedImpName(host: BrokerAuthHost, row: RuntimeAuthBinding): void {
+  const name = host.getImpName(row.hostKey);
+
+  if (name !== row.impName) {
+    throw new BrokerAuthorityError(
+      'auth_runtime_mismatch',
+      `host ${row.hostKey} was bound to imp ${row.impName}, but its target now names it ${name}`,
+      { imp: row.impName, recordedID: row.impID, actualID: null },
+    );
   }
 }
 

@@ -1342,3 +1342,115 @@ test('it refuses to rebind a host whose spawn is still provisioning before it cr
 
   expect(rebound).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'provisioning' } });
 });
+
+test('it refuses to take back an attempt through a target whose imp prefix changed, and destroys no imp', async () => {
+  await using auth = await setupTest();
+
+  const attemptID = await auth.binder.createBinding(auth.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: {
+      agent: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      placeholderEnv: {},
+      hash: 'h1',
+    },
+  });
+
+  await auth.port.createImp({ name: 'atc-new-s1' });
+
+  const renamed = new ImpProvider(auth.port, { impPrefix: 'atc-new-' }, { atcBinary: null });
+
+  const removed = auth.binder.removeAttempt(renamed.brokerAuth, toSessionID('s1'), attemptID);
+
+  expect(removed).rejects.toThrow('atc could not take back the runtime auth of host s1');
+
+  await removed.catch(() => null);
+
+  expect<Record<string, unknown>>({
+    imps: auth.port.collectImpNames().toSorted(),
+    binding: await auth.store.findAuthBinding(toSessionID('s1')),
+  }).toMatchObject({ imps: ['atc-new-s1', 'atc-s1'], binding: { state: 'rollback_pending' } });
+});
+
+test('it retries the removal of the grants a failed rebind added on a later start once impd is reachable', async () => {
+  await using auth = await setupTest();
+
+  const attemptID = await auth.binder.createBinding(auth.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: {
+      agent: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      placeholderEnv: {},
+      hash: 'h1',
+    },
+  });
+
+  await auth.binder.updateReady(toSessionID('s1'), attemptID);
+
+  await auth.store.updateAuthBinding(
+    toSessionID('s1'),
+    {
+      state: 'provisioning',
+      rebind: { revision: 2, bindingHash: 'h2', bindingJSON: '{}', attemptID: 'rebind-1' },
+    },
+    2000,
+  );
+
+  await auth.store.upsertAuthGrant(
+    {
+      hostKey: toSessionID('s1'),
+      secret: 'judge',
+      revision: 2,
+      attemptID: 'rebind-1',
+      preexisting: false,
+      phase: 'granted',
+    },
+    2000,
+  );
+
+  await auth.port.createGrant('atc-s1', 'judge');
+
+  await auth.binder.reconcileBindings(
+    () => null,
+    new Set([toSessionID('s1')]),
+    () => {},
+  );
+
+  const unreached = await auth.port.readGrants('atc-s1');
+
+  await auth.binder.reconcileBindings(
+    () => auth.host,
+    new Set([toSessionID('s1')]),
+    () => {},
+  );
+
+  expect<Record<string, unknown>>({
+    unreached,
+    grants: await auth.port.readGrants('atc-s1'),
+    binding: await auth.store.findAuthBinding(toSessionID('s1')),
+  }).toMatchObject({
+    unreached: ['glm', 'judge'],
+    grants: ['glm'],
+    binding: { state: 'rebind_failed', revision: 1 },
+  });
+});
