@@ -9,6 +9,7 @@ import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildTargetIdentity } from './build-target-identity';
+import { LocalPTYProvider } from './local-pty-provider';
 import { SessionManager } from './sessions';
 
 // Registry-level tests: which agent id resolves to which adapter, and what a
@@ -275,6 +276,215 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
   expect(mgr.sessions.map((s) => s.id)).toStrictEqual([live.id]);
   expect(mgr.sessions.some((s) => s.id === dead.id)).toBe(false);
   expect(live.parent).toBeNull();
+});
+
+test('it keeps an exited sub-session on a host-destroying target when a second kill forgets its dead local parent', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const local = new LocalPTYProvider();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  const mgr = new SessionManager(
+    idleAdapter,
+    store,
+    join(dir, 'status.json'),
+    [],
+    [
+      { id: 'local', kind: 'local-pty', options: {}, identity: 'local-pty:test', provider: local },
+      {
+        id: 'box',
+        kind: 'imp-like',
+        options: {},
+        identity: 'imp-like:test',
+        provider: {
+          kind: 'imp-like',
+          capabilities: { ...local.capabilities, suspend: true, destroy: true },
+          spawnHarness: local.spawnHarness,
+          transferArchive: local.transferArchive,
+          runCommand: local.runCommand,
+          suspendHost: () => Promise.resolve(),
+          destroyHost: () => Promise.resolve(),
+        },
+      },
+    ],
+  );
+
+  mgr.restore({
+    sessionID: toSessionID('s-parent'),
+    name: 'wrangler',
+    cwd: '/tmp/proj',
+    agentSessionID: toAgentSessionID('c-parent'),
+    agent: 'claude',
+    exited: true,
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  const remote = mgr.restore({
+    sessionID: toSessionID('s-remote'),
+    name: 'remote worker',
+    cwd: '/tmp/proj',
+    agentSessionID: toAgentSessionID('c-remote'),
+    agent: 'claude',
+    exited: true,
+    parent: toSessionID('s-parent'),
+    target: 'box',
+    targetIdentity: 'imp-like:test',
+  });
+
+  await mgr.kill(toSessionID('s-parent'));
+
+  expect(mgr.sessions.map((s) => ({ id: s.id, parent: s.parent }))).toStrictEqual([
+    { id: remote.id, parent: null },
+  ]);
+});
+
+test("it refuses to forget a session kept asleep inside its parent's host and keeps its record", async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const local = new LocalPTYProvider();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  const mgr = new SessionManager(
+    idleAdapter,
+    store,
+    join(dir, 'status.json'),
+    [],
+    [
+      {
+        id: 'box',
+        kind: 'imp-like',
+        options: {},
+        identity: 'imp-like:test',
+        provider: {
+          kind: 'imp-like',
+          capabilities: { ...local.capabilities, suspend: true, destroy: true },
+          spawnHarness: local.spawnHarness,
+          transferArchive: local.transferArchive,
+          runCommand: local.runCommand,
+          suspendHost: () => Promise.resolve(),
+          destroyHost: () => Promise.resolve(),
+        },
+      },
+    ],
+  );
+
+  mgr.restore({
+    sessionID: toSessionID('s-parent'),
+    name: 'wrangler',
+    cwd: '/tmp/proj',
+    agentSessionID: toAgentSessionID('c-parent'),
+    agent: 'claude',
+    exited: true,
+    desired: 'sleep',
+    target: 'box',
+    targetIdentity: 'imp-like:test',
+  });
+
+  mgr.restore({
+    sessionID: toSessionID('s-guest'),
+    name: 'guest',
+    cwd: '/tmp/proj',
+    agentSessionID: toAgentSessionID('c-guest'),
+    agent: 'claude',
+    exited: true,
+    desired: 'sleep',
+    parent: toSessionID('s-parent'),
+    hostKey: toSessionID('s-parent'),
+    target: 'box',
+    targetIdentity: 'imp-like:test',
+  });
+
+  const forgotten = mgr.forget(toSessionID('s-guest'));
+
+  expect(forgotten).rejects.toMatchObject({
+    code: 'unsupported_operation',
+    data: { problem: 'host_asleep', host: 's-parent' },
+  });
+
+  await forgotten.catch(() => null);
+
+  expect(mgr.sessions.map((s) => s.id)).toStrictEqual([
+    toSessionID('s-parent'),
+    toSessionID('s-guest'),
+  ]);
+});
+
+test("it forgets an exited session on its parent's host while that host is not asleep", async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const local = new LocalPTYProvider();
+
+  const store = await StateStore.open(join(dir, 'state.db'));
+
+  const mgr = new SessionManager(
+    idleAdapter,
+    store,
+    join(dir, 'status.json'),
+    [],
+    [
+      {
+        id: 'box',
+        kind: 'imp-like',
+        options: {},
+        identity: 'imp-like:test',
+        provider: {
+          kind: 'imp-like',
+          capabilities: { ...local.capabilities, suspend: true, destroy: true },
+          spawnHarness: local.spawnHarness,
+          transferArchive: local.transferArchive,
+          runCommand: local.runCommand,
+          suspendHost: () => Promise.resolve(),
+          destroyHost: () => Promise.resolve(),
+        },
+      },
+    ],
+  );
+
+  mgr.restore({
+    sessionID: toSessionID('s-parent'),
+    name: 'wrangler',
+    cwd: '/tmp/proj',
+    agentSessionID: toAgentSessionID('c-parent'),
+    agent: 'claude',
+    exited: true,
+    target: 'box',
+    targetIdentity: 'imp-like:test',
+  });
+
+  mgr.restore({
+    sessionID: toSessionID('s-guest'),
+    name: 'guest',
+    cwd: '/tmp/proj',
+    agentSessionID: toAgentSessionID('c-guest'),
+    agent: 'claude',
+    exited: true,
+    parent: toSessionID('s-parent'),
+    hostKey: toSessionID('s-parent'),
+    target: 'box',
+    targetIdentity: 'imp-like:test',
+  });
+
+  const destroyed = await mgr.forget(toSessionID('s-guest'));
+
+  expect({ destroyed, ids: mgr.sessions.map((s) => s.id) }).toStrictEqual({
+    destroyed: false,
+    ids: [toSessionID('s-parent')],
+  });
 });
 
 test("it keeps a finished turn's last message as the session result", async () => {

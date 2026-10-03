@@ -46,6 +46,10 @@ export const DAEMON_FEATURES = [
   // `session.spawn` takes `workspace`, and a session descriptor holds the
   // `workspace` its checkout was materialized from.
   'spawn.workspace',
+
+  // `session.forget` exists, and a kill of a session asleep on a target that
+  // can destroy its host answers `confirmation_required`.
+  'session.forget',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

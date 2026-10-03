@@ -55,6 +55,10 @@ function buildGhostSession(): Session {
     target: 'local',
     targetIdentity: 'local-pty:test',
     withheldEnv: [],
+    desired: 'run',
+    vm: 'none',
+    attachment: 'local',
+    hostKey: toSessionID('ghost-session'),
   };
 }
 

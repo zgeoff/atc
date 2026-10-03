@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
+import { DaemonError } from '../protocol/daemon-error';
 import type { EventMsg } from '../protocol/protocol';
 import { getRecord } from '../shared/get-record';
 import { startDaemon } from './daemon';
@@ -133,6 +134,8 @@ test('it refuses a spawn with unsupported_operation when the provider cannot spa
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
     runCommand: local.runCommand,
+    suspendHost: local.suspendHost,
+    destroyHost: local.destroyHost,
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
@@ -157,6 +160,8 @@ test('it refuses input with unsupported_operation when the provider takes no inp
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
     runCommand: local.runCommand,
+    suspendHost: local.suspendHost,
+    destroyHost: local.destroyHost,
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -182,6 +187,8 @@ test('it refuses a kill with unsupported_operation when the provider cannot end 
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
     runCommand: local.runCommand,
+    suspendHost: local.suspendHost,
+    destroyHost: local.destroyHost,
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -210,6 +217,8 @@ test('it refuses an attach with unsupported_operation when the provider streams 
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
     runCommand: local.runCommand,
+    suspendHost: local.suspendHost,
+    destroyHost: local.destroyHost,
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -236,6 +245,8 @@ test('it takes a resize from an attached client on a provider that cannot resize
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
     runCommand: local.runCommand,
+    suspendHost: local.suspendHost,
+    destroyHost: local.destroyHost,
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -258,5 +269,133 @@ test('it takes a resize from an attached client on a provider that cannot resize
 
   await waitFor(() => {
     expect(daemon.events).toPartiallyContain({ ev: 'SessionResized', cols: 120, rows: 40 });
+  });
+});
+
+test('it puts the host of a killed session to sleep on a provider that can suspend it', async () => {
+  const local = new LocalPTYProvider();
+
+  const suspended: string[] = [];
+
+  await using daemon = await setupTest({
+    kind: 'sleepy',
+    capabilities: { ...local.capabilities, suspend: true, destroy: true },
+    suspendHost: (host) => {
+      suspended.push(host);
+
+      return Promise.resolve();
+    },
+    spawnHarness: local.spawnHarness,
+    transferArchive: local.transferArchive,
+    runCommand: local.runCommand,
+    destroyHost: local.destroyHost,
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  expect<readonly unknown[]>(suspended).toStrictEqual([id]);
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({
+    sessions: [
+      expect.objectContaining({
+        id,
+        state: 'exited',
+        lastMsg: 'asleep',
+        alive: false,
+        lifecycle: { desired: 'sleep', vm: 'asleep', harness: 'suspended', attachment: 'detached' },
+      }),
+    ],
+  });
+});
+
+test('it refuses a second kill with confirmation_required on a provider that can destroy the host', async () => {
+  const local = new LocalPTYProvider();
+
+  await using daemon = await setupTest({
+    kind: 'sleepy',
+    capabilities: { ...local.capabilities, suspend: true, destroy: true },
+    suspendHost: () => Promise.resolve(),
+    spawnHarness: local.spawnHarness,
+    transferArchive: local.transferArchive,
+    runCommand: local.runCommand,
+    destroyHost: local.destroyHost,
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  const killedAgain = daemon.client.sendRequest('session.kill', { session: id });
+
+  expect(killedAgain).rejects.toMatchObject({
+    code: 'confirmation_required',
+    data: { session: id },
+  });
+
+  await killedAgain.catch(() => null);
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id, lastMsg: 'asleep' })],
+  });
+});
+
+test('it keeps a session running when its host refuses to sleep', async () => {
+  const local = new LocalPTYProvider();
+
+  await using daemon = await setupTest({
+    kind: 'sleepy',
+    capabilities: { ...local.capabilities, suspend: true, destroy: true },
+    suspendHost: () =>
+      Promise.reject(
+        new DaemonError('host_leased', 'another owner keeps the host awake', {
+          leases: [],
+          otherCount: 1,
+        }),
+      ),
+    spawnHarness: local.spawnHarness,
+    transferArchive: local.transferArchive,
+    runCommand: local.runCommand,
+    destroyHost: local.destroyHost,
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+  const killed = daemon.client.sendRequest('session.kill', { session: id });
+
+  expect(killed).rejects.toMatchObject({
+    code: 'host_leased',
+    data: { leases: [], otherCount: 1 },
+  });
+
+  await killed.catch(() => null);
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [
+      expect.objectContaining({
+        id,
+        state: 'running',
+        alive: true,
+        lifecycle: { desired: 'run', vm: 'unknown', harness: 'running', attachment: 'attached' },
+      }),
+    ],
   });
 });

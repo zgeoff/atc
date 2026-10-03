@@ -138,6 +138,15 @@ export const REQUEST_PARAM_SCHEMAS = {
   }),
   'session.kill': SESSION_DEFAULTED,
   'session.ack': SESSION_DEFAULTED,
+
+  // Without a token, a forget that destroys a host answers with one; the
+  // forget that carries it destroys the host.
+  'session.forget': SESSION_DEFAULTED.extend({
+    confirmToken: z
+      .string({ error: 'session.forget confirmToken must be a string' })
+      .min(1, 'session.forget confirmToken must not be empty')
+      .optional(),
+  }),
   'session.update': SESSION_DEFAULTED.extend({
     name: buildOptionalString(),
     pinned: buildOptionalBoolean(),

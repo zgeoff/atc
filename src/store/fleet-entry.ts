@@ -58,6 +58,15 @@ export interface FleetEntry {
   // The environment variable names every harness the session starts goes
   // without, held with its ready workspace; never their values.
   readonly withheldEnv?: readonly string[];
+
+  // What the operator asked of the harness: absent keeps it running,
+  // `sleep` keeps its host asleep, and `stop` leaves it ended.
+  readonly desired?: 'sleep' | 'stop';
+
+  // The session whose host the harness runs on: its own id, or its
+  // parent's when the two share one host. A row without one runs on a host
+  // of its own.
+  readonly hostKey?: SessionID;
 }
 
 export interface FleetStore {

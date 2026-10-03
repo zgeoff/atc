@@ -24,6 +24,15 @@ interface FleetTable {
   effort: string | null;
   target: string | null;
   target_identity: string | null;
+
+  // What the operator asked of the session's harness: null keeps it
+  // running, `sleep` keeps its host asleep, and `stop` leaves it ended.
+  desired: string | null;
+
+  // The session whose host this session's harness runs on: its own id, or
+  // its parent's when the two share one host. Null for a row from before
+  // hosts were recorded, which runs on its own.
+  host_key: string | null;
 }
 
 interface EventsTable {
@@ -403,6 +412,12 @@ const MIGRATIONS: Record<string, Migration> = {
         .addColumn('materialized_at', 'integer')
         .addColumn('withheld_env', 'text')
         .execute();
+    },
+  },
+  '021_add_fleet_lifecycle': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('desired', 'text').execute();
+      await db.schema.alterTable('fleet').addColumn('host_key', 'text').execute();
     },
   },
 };

@@ -61,6 +61,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     requireWorkspaceTarget: assertUnreachable,
     spawnSession: assertUnreachable,
     killSession: assertUnreachable,
+    forgetSession: assertUnreachable,
     updateSession: assertUnreachable,
     quitDaemon: assertUnreachable,
     ackSession: assertUnreachable,

@@ -21,6 +21,15 @@ export interface ExecutionProvider {
 
   // Runs a command to completion and returns what it printed.
   readonly runCommand: (spec: CommandSpec) => Promise<CommandResult>;
+
+  // Puts a host to sleep with every harness on it kept inside, so a revive
+  // finds each one as it was. Rejects with `host_leased` when another owner
+  // keeps the host awake, and leaves the host as it was then.
+  readonly suspendHost: (host: string) => Promise<void>;
+
+  // Deletes a host and everything on it, harnesses included. Nothing brings
+  // a destroyed host back.
+  readonly destroyHost: (host: string) => Promise<void>;
 }
 
 /**
@@ -81,6 +90,11 @@ export interface HarnessHandle {
   readonly write: (data: string) => void;
   readonly resize: (cols: number, rows: number) => void;
   readonly kill: () => void;
+
+  // Stops following the harness and leaves its process running, for a host
+  // that keeps it after the daemon lets go; on a host that cannot keep it,
+  // the process ends as a kill ends it. No listener fires after a detach.
+  readonly detach: () => void;
 }
 
 interface HarnessSubscription {

@@ -19,9 +19,11 @@
           "attach",
           "boot",
           "copy",
+          "destroy",
           "detach",
           "dispose",
           "draw",
+          "forget",
           "jiggle",
           "kill",
           "log",
@@ -38,6 +40,7 @@
           "sanitize",
           "schedule",
           "spawn",
+          "suspend",
           "transfer",
           "truncate",
           "yank"
@@ -60,8 +63,7 @@
           "beginTransaction",
           "commitTransaction",
           "rollbackTransaction",
-          "releaseConnection",
-          "destroy"
+          "releaseConnection"
         ]
       }
     ],

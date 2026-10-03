@@ -31,14 +31,52 @@ export class LocalPTYProvider implements ExecutionProvider {
     destroy: false,
   };
 
-  readonly spawnHarness = (spec: HarnessSpec): HarnessHandle =>
-    spawn(spec.bin, [...spec.args], {
+  // The daemon's machine keeps no process the daemon lets go of, so a
+  // detach ends the harness as a kill does, after dropping every listener.
+  readonly spawnHarness = (spec: HarnessSpec): HarnessHandle => {
+    const pty = spawn(spec.bin, [...spec.args], {
       name: 'xterm-256color',
       cols: spec.cols,
       rows: spec.rows,
       cwd: spec.cwd,
       env: { ...spec.env },
     });
+
+    const subscriptions = new Set<{ readonly dispose: () => void }>();
+
+    return {
+      onData: (listener) => {
+        const subscription = pty.onData(listener);
+
+        subscriptions.add(subscription);
+
+        return subscription;
+      },
+      onExit: (listener) => {
+        const subscription = pty.onExit(listener);
+
+        subscriptions.add(subscription);
+
+        return subscription;
+      },
+      write: (data) => {
+        pty.write(data);
+      },
+      resize: (cols, rows) => {
+        pty.resize(cols, rows);
+      },
+      kill: () => {
+        pty.kill();
+      },
+      detach: () => {
+        for (const subscription of subscriptions) {
+          subscription.dispose();
+        }
+
+        pty.kill();
+      },
+    };
+  };
 
   // Options the host passes to GNU tar through `TAR_OPTIONS` are ignored,
   // since one could leave tracked files out of the unpacked checkout.
@@ -62,6 +100,12 @@ export class LocalPTYProvider implements ExecutionProvider {
 
   readonly runCommand = (spec: CommandSpec): Promise<CommandResult> =>
     this.runCommandWithInput(spec.argv, spec.cwd, null);
+
+  readonly suspendHost = (host: string): Promise<void> =>
+    Promise.reject(new Error(`the local-pty provider cannot suspend host ${host}`));
+
+  readonly destroyHost = (host: string): Promise<void> =>
+    Promise.reject(new Error(`the local-pty provider cannot destroy host ${host}`));
 
   private async runCommandWithInput(
     argv: readonly string[],

@@ -66,6 +66,15 @@ interface SessionRecord {
 
 // A transcript page with the file it came from, so a cursor into a replaced
 // transcript is distinguishable from one into a grown transcript.
+/**
+ * What `session.forget` answers: the token a forget that destroys a host
+ * must carry, with the time it stops being taken; or the forgotten session,
+ * with whether its host was destroyed.
+ */
+type ForgetResult =
+  | { readonly confirmToken: string; readonly expiresAt: number }
+  | { readonly forgotten: true; readonly destroyed: boolean };
+
 interface SessionTranscriptRead {
   readonly path: string;
   readonly page: TranscriptPage;
@@ -118,6 +127,13 @@ export interface DaemonContext {
     access: TargetAccess | null,
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly killSession: (id: SessionID) => Promise<boolean>;
+
+  // Forgets a session, or answers with the token a forget that destroys a
+  // host must carry. Throws the refusal for a token it does not take.
+  readonly forgetSession: (
+    id: SessionID,
+    confirmToken: string | undefined,
+  ) => Promise<ForgetResult | 'missing'>;
   readonly updateSession: (id: SessionID, name?: string, pinned?: boolean) => boolean | 'child_pin';
   readonly quitDaemon: () => void;
   readonly ackSession: (id: SessionID) => boolean;
@@ -557,6 +573,27 @@ export class DaemonConnection {
       }
       case 'session.ack': {
         await this.applySessionVerb(req, 'session.ack', ctx.ackSession);
+
+        return;
+      }
+      case 'session.forget': {
+        const parsed = parseRequestParams('session.forget', req.p);
+
+        if (!parsed.ok) {
+          this.sendErr(req.id, 'bad_args', parsed.message);
+
+          return;
+        }
+
+        const id = parsed.data.session;
+
+        const forgotten = await this.ctx.forgetSession(id, parsed.data.confirmToken);
+
+        if (forgotten === 'missing') {
+          this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
+        } else {
+          this.sendOk(req.id, { ...forgotten });
+        }
 
         return;
       }
