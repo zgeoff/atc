@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.18.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.17.0...@zgeoff/atc@2.18.0) (2026-10-03)
+
+
+### Features
+
+* **#192:** choose the execution target in the spawn picker ([#224](https://github.com/zgeoff/atc/issues/224)) ([fe9a234](https://github.com/zgeoff/atc/commit/fe9a234989ffcde5bc5012e94fa831d7598499e9))
+
 ## [2.17.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.16.0...@zgeoff/atc@2.17.0) (2026-10-03)
 
 ### Features
