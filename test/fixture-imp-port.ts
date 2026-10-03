@@ -114,6 +114,9 @@ export class FixtureImpPort implements ImpPort {
   // A refusal the next session request gets instead of an answer.
   private nextFailure: { readonly code: string; readonly data: unknown } | null = null;
 
+  // Feature reads still to fail as an unreachable impd before they answer.
+  private featureFailures = 0;
+
   // Whether every reverse forward closes each new guest connection at once.
   private refusingRelays = false;
 
@@ -137,6 +140,12 @@ export class FixtureImpPort implements ImpPort {
 
   readFeatures(): Promise<ImpFeatures> {
     this.calls.push('system.info');
+
+    if (this.featureFailures > 0) {
+      this.featureFailures -= 1;
+
+      return Promise.reject(new ImpPortError('UNREACHABLE', 'impd did not answer'));
+    }
 
     return Promise.resolve(this.features);
   }
@@ -763,6 +772,13 @@ export class FixtureImpPort implements ImpPort {
    */
   setSessionDrops(count: number, closeCode: number): void {
     this.drops = { count, closeCode };
+  }
+
+  /**
+   * Fails the next feature reads as an unreachable impd.
+   */
+  setFeatureFailures(count: number): void {
+    this.featureFailures = count;
   }
 
   /**

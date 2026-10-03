@@ -712,3 +712,105 @@ test('it rejects its start as auth_impd_too_old when impd refuses it as outdated
 
   await harness.waitForStart().catch(() => null);
 });
+
+test('it starts a harness that requires the broker after one failed feature read, sending the start again rather than an attach', async () => {
+  using fixture = await setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['imp-*'],
+    grantable: ['glm'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'imp-b' });
+  await fixture.port.createGrant('imp-b', 'glm');
+
+  fixture.port.setFeatureFailures(1);
+
+  const harness = new ImpHarness(
+    fixture.port,
+    {
+      kind: 'start',
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  await harness.waitForStart();
+
+  expect<Record<string, unknown>>({
+    requests: fixture.port.sessionRequests
+      .filter((request) => request.name === 'imp-b')
+      .map((request) => request.kind),
+    state: fixture.port.findState('imp-b'),
+  }).toStrictEqual({ requests: ['start'], state: 'running' });
+
+  harness.kill();
+});
+
+test('it refuses a harness that requires the broker once its feature reads keep failing, sending no exec', async () => {
+  using fixture = await setupTest();
+
+  await fixture.port.createImp({ name: 'imp-b' });
+
+  fixture.port.setFeatureFailures(10);
+
+  const exits: HarnessExit[] = [];
+
+  const harness = new ImpHarness(
+    fixture.port,
+    {
+      kind: 'start',
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
+
+  const started = harness.waitForStart();
+
+  expect(started).rejects.toMatchObject({ code: 'host_unavailable' });
+
+  await started.catch(() => null);
+
+  expect<Record<string, unknown>>({
+    requests: fixture.port.sessionRequests.filter((request) => request.name === 'imp-b'),
+    exits,
+  }).toStrictEqual({
+    requests: [],
+    exits: [{ exitCode: 1, reason: 'ended', detail: 'imp unreachable' }],
+  });
+});

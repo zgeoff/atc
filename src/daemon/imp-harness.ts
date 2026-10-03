@@ -61,6 +61,13 @@ export class ImpHarness implements HarnessHandle {
   // attach never joins the process past a requirement the start had.
   private readonly require: readonly ImpExecRequirement[] | undefined;
 
+  // The request that starts the process, and whether it went out to impd.
+  // Until it has, a retry sends it again, since there is no process to
+  // attach to.
+  private readonly start: ImpSessionRequest;
+
+  private startSent = false;
+
   private readonly dataListeners = new Set<(data: string) => void>();
 
   private readonly exitListeners = new Set<(exit: HarnessExit) => void>();
@@ -136,6 +143,7 @@ export class ImpHarness implements HarnessHandle {
     this.name = start.name;
     this.session = start.session;
     this.require = start.require;
+    this.start = start;
     this.cols = start.cols;
     this.rows = start.rows;
 
@@ -340,6 +348,7 @@ export class ImpHarness implements HarnessHandle {
 
     this.connection = connection;
     this.started = false;
+    this.startSent ||= request.kind === 'start';
     this.requestedSize = { cols: request.cols, rows: request.rows };
     void this.waitForOutcome(connection);
   }
@@ -592,7 +601,11 @@ export class ImpHarness implements HarnessHandle {
       this.reconnectTimer = null;
 
       if (!this.done) {
-        this.openCheckedConnection(this.buildAttach());
+        const next = this.startSent
+          ? this.buildAttach()
+          : { ...this.start, cols: this.cols, rows: this.rows };
+
+        this.openCheckedConnection(next);
       }
     }, wait);
 
