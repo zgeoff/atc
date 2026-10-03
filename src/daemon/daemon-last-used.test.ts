@@ -7,6 +7,7 @@ import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { isRecord } from '../shared/report';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { startDaemon } from './daemon';
 
@@ -34,7 +35,13 @@ test('it does not write last-used when a restored session reports SessionStart',
   const store = await StateStore.open(dbPath);
 
   await store.writeFleet([
-    { name: 'old-grok', cwd: '/tmp', agentSessionID: toAgentSessionID('g-restore'), agent: 'grok' },
+    {
+      sessionID: toSessionID('s-g-restore'),
+      name: 'old-grok',
+      cwd: '/tmp',
+      agentSessionID: toAgentSessionID('g-restore'),
+      agent: 'grok',
+    },
   ]);
 
   await store.writeLastUsedAgent('claude');

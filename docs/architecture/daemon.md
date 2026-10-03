@@ -78,3 +78,13 @@ SQLite (`bun:sqlite`) in the daemon holds the fleet, event trail, spawn history,
 in one store with no cross-process write races; the [overview](./overview.md#state) covers the
 files. `status.json` alone stays a plain file, because statusline reporters in wrangled sessions
 read it without speaking the protocol.
+
+The fleet table keys each row by the atc session id. The agent session id is optional, since a row
+exists from the moment a session spawns, and unique, since one agent session belongs to one row.
+When a resume gives a second session the same agent session id, the row written last replaces the
+earlier one. The write then relinks the rows it keeps as a one-level hierarchy. A link to a replaced
+row moves to the row that replaced it, and a row that was a sub-session of the row it replaced takes
+that row's parent instead. A row linked to a row the fleet does not hold becomes top-level. Where
+two crossed resumes leave rows linked in a cycle, the row written first in the cycle becomes
+top-level. A row whose parent is itself a sub-session moves up to the top-level row above it. No row
+is its own parent, and every parent is a top-level row the fleet holds.

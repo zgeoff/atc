@@ -1,4 +1,5 @@
 import { Database } from 'bun:sqlite';
+import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
 import type { Expression, ExpressionBuilder, SqlBool } from 'kysely';
@@ -13,7 +14,7 @@ import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
-import type { FleetEntry, FleetEntryUpdate } from './fleet-entry';
+import type { FleetEntry, FleetEntryUpdate, LegacyFleetEntry } from './fleet-entry';
 import type { MessageOwner } from './message-owner';
 import type { MessageRecord } from './message-record';
 import { runMigrations } from './run-migrations';
@@ -25,8 +26,8 @@ const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;
 
 /**
  * One session's slice of the event trail: rows under its atc id, plus rows
- * under its agent session id, since a restore re-mints the atc id while the
- * agent session id carries on.
+ * under its agent session id, since rows written before atc session ids
+ * stayed stable across restores carry an earlier atc id.
  */
 export interface EventScope {
   readonly atcID: SessionID;
@@ -106,6 +107,7 @@ export class StateStore {
     const rows = await this.db
       .selectFrom('fleet')
       .select([
+        'session_id',
         'agent_session_id',
         'name',
         'cwd',
@@ -113,7 +115,7 @@ export class StateStore {
         'last_attached',
         'agent',
         'exited',
-        'parent',
+        'parent_session_id',
         'prompt',
         'result',
         'transcript_path',
@@ -126,14 +128,17 @@ export class StateStore {
 
     for (const row of rows) {
       entries.push({
-        agentSessionID: toAgentSessionID(row.agent_session_id),
+        sessionID: toSessionID(row.session_id),
         name: row.name,
         cwd: row.cwd,
+        ...(row.agent_session_id === null
+          ? {}
+          : { agentSessionID: toAgentSessionID(row.agent_session_id) }),
         agent: toAgentID(row.agent),
         ...(row.pinned === 0 ? {} : { pinned: true }),
         ...(row.last_attached === null ? {} : { lastAttachedAt: row.last_attached }),
         ...(row.exited === 0 ? {} : { exited: true }),
-        ...(row.parent === null ? {} : { parent: toAgentSessionID(row.parent) }),
+        ...(row.parent_session_id === null ? {} : { parent: toSessionID(row.parent_session_id) }),
         ...(row.prompt === null ? {} : { prompt: row.prompt }),
         ...(row.result === null ? {} : { result: row.result }),
         ...(row.transcript_path === null ? {} : { transcriptPath: row.transcript_path }),
@@ -169,28 +174,31 @@ export class StateStore {
   }
 
   async writeFleet(entries: readonly FleetEntry[]): Promise<void> {
+    const kept = buildFleetWithoutReplacedRows(entries);
+
     await this.db.transaction().execute(async (trx) => {
       await trx.deleteFrom('fleet').execute();
 
-      for (const entry of entries) {
+      for (const entry of kept) {
         await trx
           .insertInto('fleet')
           .values({
-            agent_session_id: entry.agentSessionID,
+            session_id: entry.sessionID,
+            agent_session_id: entry.agentSessionID ?? null,
             name: entry.name,
             cwd: entry.cwd,
             pinned: entry.pinned === true ? 1 : 0,
             last_attached: entry.lastAttachedAt ?? null,
             agent: entry.agent,
             exited: entry.exited === true ? 1 : 0,
-            parent: entry.parent ?? null,
+            parent_session_id: entry.parent ?? null,
             prompt: entry.prompt ?? null,
             result: entry.result ?? null,
             transcript_path: entry.transcriptPath ?? null,
             model: entry.model ?? null,
             effort: entry.effort ?? null,
           })
-          .orReplace()
+
           .execute();
       }
     });
@@ -199,7 +207,7 @@ export class StateStore {
   // Rewrites fields on one existing row and leaves every other row as it
   // stands. A session without a row yet is a no-op: the next fleet write
   // inserts it with these fields.
-  async updateFleetEntry(agentSessionID: AgentSessionID, fields: FleetEntryUpdate): Promise<void> {
+  async updateFleetEntry(sessionID: SessionID, fields: FleetEntryUpdate): Promise<void> {
     const values = {
       ...(fields.result === undefined ? {} : { result: fields.result }),
       ...(fields.transcriptPath === undefined ? {} : { transcript_path: fields.transcriptPath }),
@@ -209,11 +217,7 @@ export class StateStore {
       return;
     }
 
-    await this.db
-      .updateTable('fleet')
-      .set(values)
-      .where('agent_session_id', '=', agentSessionID)
-      .execute();
+    await this.db.updateTable('fleet').set(values).where('session_id', '=', sessionID).execute();
   }
 
   async recordEvent(e: HookEvent, ev: Readonly<AdapterEvent> | null = null): Promise<void> {
@@ -288,8 +292,8 @@ export class StateStore {
     return buildStoredEvents(rows).toReversed();
   }
 
-  // Matches the session by either id, since a restore re-mints the atc id
-  // while the agent session id carries on.
+  // Matches the session by either id, since rows written before atc session
+  // ids stayed stable across restores carry an earlier atc id.
   async loadLastActivityAt(
     atcID: SessionID,
     agentSessionID: AgentSessionID | undefined,
@@ -525,19 +529,155 @@ export class StateStore {
         return;
       }
 
-      const entries: FleetEntry[] = [];
+      const legacy: LegacyFleetEntry[] = [];
 
       for (const entry of parsed) {
         const parsedEntry = parseFleetEntry(entry);
 
         if (parsedEntry !== undefined) {
-          entries.push(parsedEntry);
+          legacy.push(parsedEntry);
         }
       }
 
-      await this.writeFleet(entries);
+      await this.writeFleet(buildFleetFromLegacy(legacy));
     } catch {}
   }
+}
+
+// Two sessions share an agent session id when one resumes the other's agent
+// session. The fleet keeps one row per agent session id, the entry written
+// last, and relinks the survivors as a one-level hierarchy of rows it holds:
+//
+// 1. A link to a dropped row follows to the row that replaced it. A row that
+//    replaced its own parent follows that parent's link instead, and a link
+//    to a row the fleet does not hold makes the row top-level.
+// 2. Where the links form a cycle, the row written first in the cycle
+//    becomes top-level.
+// 3. A row whose parent is itself a sub-session moves up to the top-level
+//    row above it.
+//
+// Every walk takes at most one step per entry, so it ends on any input.
+function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEntry[] {
+  const survivors = new Map<AgentSessionID, SessionID>();
+
+  for (const entry of entries) {
+    if (entry.agentSessionID !== undefined) {
+      survivors.set(entry.agentSessionID, entry.sessionID);
+    }
+  }
+
+  const replaced = new Map<SessionID, SessionID>();
+
+  for (const entry of entries) {
+    const survivor =
+      entry.agentSessionID === undefined ? undefined : survivors.get(entry.agentSessionID);
+
+    if (survivor !== undefined && survivor !== entry.sessionID) {
+      replaced.set(entry.sessionID, survivor);
+    }
+  }
+
+  const kept = entries.filter((entry) => !replaced.has(entry.sessionID));
+
+  const order = new Map(kept.map((entry, index) => [entry.sessionID, index]));
+  const links = new Map(entries.map((entry) => [entry.sessionID, entry.parent]));
+
+  const bound = entries.length;
+
+  // The surviving row an entry's parent link resolves to, or undefined when
+  // it resolves to no row the fleet keeps.
+  const findSurvivingParent = (entry: FleetEntry): SessionID | undefined => {
+    let link = entry.parent;
+
+    for (let step = 0; step < bound && link !== undefined; step++) {
+      const target = replaced.get(link) ?? link;
+
+      if (target !== entry.sessionID) {
+        return order.has(target) ? target : undefined;
+      }
+
+      link = links.get(link);
+    }
+
+    return undefined;
+  };
+
+  const linked = new Map(kept.map((entry) => [entry.sessionID, findSurvivingParent(entry)]));
+
+  // The row written first in the cycle a walk up from this row enters, or
+  // undefined when the walk reaches a top-level row.
+  const findCycleStart = (sessionID: SessionID): SessionID | undefined => {
+    const seen: SessionID[] = [];
+    let current: SessionID | undefined = sessionID;
+
+    for (let step = 0; step <= bound && current !== undefined; step++) {
+      const at = seen.indexOf(current);
+
+      if (at !== -1) {
+        return seen.slice(at).toSorted((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))[0];
+      }
+
+      seen.push(current);
+
+      current = linked.get(current);
+    }
+
+    return undefined;
+  };
+
+  for (const entry of kept) {
+    const cycleStart = findCycleStart(entry.sessionID);
+
+    if (cycleStart !== undefined) {
+      linked.set(cycleStart, undefined);
+    }
+  }
+
+  // The top-level row a walk up from this row reaches.
+  const findTopLevel = (sessionID: SessionID): SessionID => {
+    let current = sessionID;
+
+    for (let step = 0; step < bound; step++) {
+      const parent = linked.get(current);
+
+      if (parent === undefined) {
+        return current;
+      }
+
+      current = parent;
+    }
+
+    return current;
+  };
+
+  const relinked: FleetEntry[] = [];
+
+  for (const entry of kept) {
+    const { parent: _parent, ...rest } = entry;
+    const top = findTopLevel(entry.sessionID);
+    const row = top === entry.sessionID ? rest : { ...rest, parent: top };
+
+    relinked.push(row);
+  }
+
+  return relinked;
+}
+
+// Mints each legacy entry an atc session id, then moves each sub-session
+// link from the parent's agent session id to the parent's minted id.
+function buildFleetFromLegacy(legacy: readonly LegacyFleetEntry[]): FleetEntry[] {
+  const minted = new Map(legacy.map((entry) => [entry.agentSessionID, toSessionID(randomUUID())]));
+
+  return legacy.map((entry) => {
+    const { parent, ...rest } = entry;
+    const parentID = parent === undefined ? undefined : minted.get(parent);
+
+    return {
+      ...rest,
+      sessionID: minted.get(entry.agentSessionID) ?? toSessionID(randomUUID()),
+      ...(parentID === undefined ? {} : { parent: parentID }),
+    };
+  });
 }
 
 function buildScopeMatch(

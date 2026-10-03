@@ -88,7 +88,7 @@ semantics.
 | `session.list`          | fleet listing (descriptors mirror the `Session` shape, minus the PTY handle, plus `kind` and `agent`)                                                                                                                                                                                                          |
 | `dirs.list`             | recent spawn directories, most recent first, for the picker                                                                                                                                                                                                                                                    |
 | `agents.list`           | the registered agents and the host the daemon runs on. [Agents](#agents) covers the answer                                                                                                                                                                                                                     |
-| `fleet.list`            | the persisted fleet rows, independent of which sessions are currently live                                                                                                                                                                                                                                     |
+| `fleet.list`            | the persisted fleet rows, independent of which sessions are currently live. Each row holds its `sessionID`, the `agentSessionID` once the agent reports one, and `parent` as an atc session id.                                                                                                                |
 | `session.spawn`         | spawn (cwd, name, prompt, resume, dims, optional `agent` id, optional `parent` id, optional `model` and `effort`). Omitted agent is Claude, an empty id is `bad_args`, an unregistered one `unsupported`. An unknown parent is `no_such_session`. [Spawn options](#spawn-options) covers `model` and `effort`. |
 | `session.update`        | rename and/or pin a session (`{ session, name?, pinned? }`). Pinning a sub-session is `bad_args`: it pins with its parent.                                                                                                                                                                                     |
 | `session.kill`          | kill process; explicit, never implied by disconnect                                                                                                                                                                                                                                                            |
@@ -199,10 +199,10 @@ before it broadcasts the matching `SessionMessage` or `SessionReport`, so a clie
 trail on the broadcast finds the event there.
 
 `session` limits `events.read` to one session's events. The filter matches the trail rows under that
-atc id, plus, for a live session, the rows under its agent session id, so events from before a
-restore stay in the session's slice. The daemon refuses no id: an id no live session holds matches
-only the rows under it. Cursors are global trail positions, so a filtered read and an unfiltered
-read take each other's cursors.
+atc id, plus, for a live session, the rows under its agent session id, so rows written under another
+atc id for the same agent session stay in the session's slice. The daemon refuses no id: an id no
+live session holds matches only the rows under it. Cursors are global trail positions, so a filtered
+read and an unfiltered read take each other's cursors.
 
 `session.read` returns a Claude session's transcript as user and assistant rows with tool uses
 summarised, oldest first. A page holds at most `limit` rows and about 256 KiB. Without a cursor, it

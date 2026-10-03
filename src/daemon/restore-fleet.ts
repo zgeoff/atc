@@ -1,5 +1,5 @@
-import type { AgentSessionID } from '../shared/agent-session-id';
 import type { SessionID } from '../shared/session-id';
+import type { FleetEntry } from '../store/fleet-entry';
 import type { StateStore } from '../store/state-store';
 import { ScreenModel } from './screen-model';
 import type { SessionRuntime } from './session-runtime';
@@ -33,15 +33,17 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
   const rows = params.rows;
   const capMs = params.capMs;
 
-  const hasLiveSession = (agentSessionID: AgentSessionID) =>
+  const hasLiveSession = (entry: FleetEntry) =>
     mgr.sessions.some(
       (s) =>
-        s.agentSessionID === agentSessionID &&
+        isSameSession(s, entry) &&
         (s.pty !== null || (s.kind === 'headless' && s.state !== 'exited')),
     );
 
-  const hasAnySession = (agentSessionID: AgentSessionID) =>
-    mgr.sessions.some((s) => s.agentSessionID === agentSessionID);
+  const hasAnySession = (entry: FleetEntry) => mgr.sessions.some((s) => isSameSession(s, entry));
+
+  const findRecency = (entry: FleetEntry) =>
+    entry.agentSessionID === undefined ? '' : (recency.get(entry.agentSessionID) ?? '');
 
   const recency = await store.collectFleetRecency();
   const stored = await store.loadFleet();
@@ -52,14 +54,8 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
   // dedupe against every listed session, so repeated restores never double
   // up the killed archive.
   const kept = stored
-    .filter((entry) =>
-      entry.exited === true
-        ? !hasAnySession(entry.agentSessionID)
-        : !hasLiveSession(entry.agentSessionID),
-    )
-    .toSorted((a, b) =>
-      (recency.get(b.agentSessionID) ?? '').localeCompare(recency.get(a.agentSessionID) ?? ''),
-    );
+    .filter((entry) => (entry.exited === true ? !hasAnySession(entry) : !hasLiveSession(entry)))
+    .toSorted((a, b) => findRecency(b).localeCompare(findRecency(a)));
 
   // Sub-sessions register after every top-level entry, so each one links
   // to a parent that is already listed; the wrangling session also boots
@@ -72,9 +68,20 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
   // The whole fleet registers as terminal-less sessions up front, so the
   // list shows every incoming session immediately instead of revealing them
   // one boot at a time. Exited entries only register — they stay killed
-  // until revived by hand, so no terminal is adopted for them.
-  const registered = entries.map((entry) => mgr.restore(entry));
-  const queued = registered.filter((s) => s.state !== 'exited');
+  // until revived by hand, so no terminal is adopted for them. An entry
+  // whose session is still listed, dead, revives that session in place
+  // rather than listing a second session under the same id.
+  const registered = entries.map((entry) => {
+    const listed = mgr.sessions.find((s) => s.id === entry.sessionID);
+
+    return listed === undefined
+      ? { session: mgr.restore(entry), revive: false }
+      : { session: listed, revive: true };
+  });
+
+  const queued = registered
+    .filter((r) => r.revive || r.session.state !== 'exited')
+    .map((r) => r.session);
 
   const adoptQueued = (s: Session): boolean => {
     if (mgr.adoptTerminal(s.id, cols, rows) === null) {
@@ -84,7 +91,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
     const runtime = findRuntime(s.id);
 
     if (runtime !== undefined) {
-      runtime.dims = { cols, rows };
+      runtime.resetBoot({ cols, rows });
 
       runtime.screen ??= new ScreenModel(cols, rows);
     }
@@ -146,4 +153,13 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
   void adoptRest(firstBooted);
 
   return registered.length;
+}
+
+// A stored entry matches a listed session by its atc session id, or by its
+// agent session id when a listed session resumed the same agent session.
+function isSameSession(s: Session, entry: FleetEntry): boolean {
+  return (
+    s.id === entry.sessionID ||
+    (entry.agentSessionID !== undefined && s.agentSessionID === entry.agentSessionID)
+  );
 }

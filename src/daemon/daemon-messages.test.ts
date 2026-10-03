@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { spawnNamedSession } from '../../test/spawn-named-session';
@@ -10,6 +10,7 @@ import { DaemonClient } from '../client/daemon-client';
 import type { EventMsg } from '../protocol/protocol';
 import { isRecord, sendReport } from '../shared/report';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toSessionID } from '../shared/to-session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import { StateStore } from '../store/state-store';
 import { startDaemon } from './daemon';
@@ -20,6 +21,7 @@ interface SetupOptions {
   readonly fleet?: readonly FleetEntry[];
   readonly queueBytes?: number;
   readonly tapGraceMs?: number;
+  readonly planSpawn?: AgentAdapter['planSpawn'];
 }
 
 async function setupTest(options: SetupOptions = {}) {
@@ -42,7 +44,7 @@ async function setupTest(options: SetupOptions = {}) {
     headlessRunner: null,
     screenDetector: null,
     takesMessages: true,
-    planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
+    planSpawn: options.planSpawn ?? (() => ({ bin: 'sleep', args: ['30'] })),
     normalizeHook: (e) => {
       const sessionID = e.payload['session_id'];
 
@@ -293,8 +295,20 @@ test('it rejects a message without text as bad_args', async () => {
 test('it queues a message for a session waiting to restore', async () => {
   await using daemon = await setupTest({
     fleet: [
-      { name: 'a', cwd: '/tmp', agentSessionID: toAgentSessionID('agent-a'), agent: 'claude' },
-      { name: 'b', cwd: '/tmp', agentSessionID: toAgentSessionID('agent-b'), agent: 'claude' },
+      {
+        sessionID: toSessionID('s-agent-a'),
+        name: 'a',
+        cwd: '/tmp',
+        agentSessionID: toAgentSessionID('agent-a'),
+        agent: 'claude',
+      },
+      {
+        sessionID: toSessionID('s-agent-b'),
+        name: 'b',
+        cwd: '/tmp',
+        agentSessionID: toAgentSessionID('agent-b'),
+        agent: 'claude',
+      },
     ],
   });
 
@@ -1564,4 +1578,116 @@ test("it counts a note toward the session's last activity time", async () => {
 
   expect(after['lastActivityAt']).toBe(report['reportedAt']);
   expect(after['lastActivityAt']).toBeGreaterThan(createdAt);
+});
+
+test('it gates a revived session on its own tap, not the tap its previous process attached', async () => {
+  let boots = 0;
+
+  await using daemon = await setupTest({
+    tapGraceMs: 0,
+
+    // The first terminal runs until the test drops a file; every later one
+    // runs on.
+    planSpawn: () => {
+      boots++;
+
+      return boots === 1
+        ? {
+            bin: 'bash',
+            args: ['-c', 'while [ ! -e "$1" ]; do sleep 0.02; done', 'boot', `${daemon.dir}/die`],
+          }
+        : { bin: 'sleep', args: ['30'] };
+    },
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'agent-1' } })}\n`,
+    2000,
+  );
+
+  await waitFor(async () => {
+    const listed = await daemon.actor.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: 'agent-1' });
+  });
+
+  await daemon.tap.sendRequest('session.tap', { session: id });
+
+  writeFileSync(join(daemon.dir, 'die'), '');
+
+  await waitFor(async () => {
+    const listed = await daemon.actor.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, alive: false });
+  });
+
+  await daemon.actor.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'agent-1' } })}\n`,
+    2000,
+  );
+
+  await waitFor(async () => {
+    const listed = await daemon.actor.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, alive: true, lastMsg: 'revived' });
+  });
+
+  expect(
+    daemon.actor.sendRequest('session.message', { session: id, text: 'hello' }),
+  ).rejects.toMatchObject({ code: 'unsupported' });
+});
+
+test('it queues a message to a revived session before it reports SessionStart again', async () => {
+  let boots = 0;
+
+  await using daemon = await setupTest({
+    tapGraceMs: 0,
+
+    // The first terminal runs until the test drops a file; every later one
+    // runs on.
+    planSpawn: () => {
+      boots++;
+
+      return boots === 1
+        ? {
+            bin: 'bash',
+            args: ['-c', 'while [ ! -e "$1" ]; do sleep 0.02; done', 'boot', `${daemon.dir}/die`],
+          }
+        : { bin: 'sleep', args: ['30'] };
+    },
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'agent-1' } })}\n`,
+    2000,
+  );
+
+  await waitFor(async () => {
+    const listed = await daemon.actor.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: 'agent-1' });
+  });
+
+  writeFileSync(join(daemon.dir, 'die'), '');
+
+  await waitFor(async () => {
+    const listed = await daemon.actor.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, alive: false });
+  });
+
+  await daemon.actor.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const ok = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+
+  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
 });

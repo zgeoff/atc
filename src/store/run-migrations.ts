@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import type { Generated, Kysely } from 'kysely';
 import { DEFAULT_MIGRATION_TABLE, Migrator } from 'kysely/migration';
@@ -5,14 +6,15 @@ import type { Migration, MigrationProvider, MigrationResultSet } from 'kysely/mi
 import type { MessageStatus } from './message-record';
 
 interface FleetTable {
-  agent_session_id: string;
+  session_id: string;
+  agent_session_id: string | null;
   name: string;
   cwd: string;
   pinned: number;
   last_attached: number | null;
   agent: string;
   exited: number;
-  parent: string | null;
+  parent_session_id: string | null;
   prompt: string | null;
   result: string | null;
   transcript_path: string | null;
@@ -72,7 +74,8 @@ export interface StateStoreSchema {
 
 // Every shape the fleet table has shipped with: the oldest carries only
 // agent_session_id under its Claude-era name plus name and cwd, and each
-// later step adds one column the daemon grew to depend on. events later gains
+// later step adds one column the daemon grew to depend on, until the
+// rebuild that keys the table by the atc session id. events later gains
 // columns of its own, as does messages, while spawn_history and prefs have
 // carried one shape since they were added.
 const MIGRATIONS: Record<string, Migration> = {
@@ -240,6 +243,32 @@ const MIGRATIONS: Record<string, Migration> = {
       await db.schema.alterTable('fleet').addColumn('effort', 'text').execute();
     },
   },
+  '015_rebuild_fleet_keyed_by_session_id': {
+    async up(db: Kysely<StateStoreSchema>) {
+      // The ledger records this step only after it returns, so a crash in
+      // between leaves a rebuilt table behind a ledger that still lacks it.
+      const columns = await collectFleetColumns(db);
+
+      if (columns.has('session_id')) {
+        return;
+      }
+
+      // SQLite takes this DDL inside a transaction even though kysely's
+      // adapter declines to open one for it, so the rebuild lands whole or
+      // not at all.
+      await sql`BEGIN IMMEDIATE`.execute(db);
+
+      try {
+        await updateFleetKeyToSessionID(db);
+
+        await sql`COMMIT`.execute(db);
+      } catch (error) {
+        await sql`ROLLBACK`.execute(db);
+
+        throw error;
+      }
+    },
+  },
 };
 
 const PROVIDER: MigrationProvider = {
@@ -251,8 +280,8 @@ const PROVIDER: MigrationProvider = {
  * `Migrator`, one additive step at a time. A database from before the
  * ladder existed is recognized at whichever shape it stopped at by a
  * baselining pass that records the steps its columns already satisfy, so
- * only what is genuinely missing runs. Nothing here ever drops a column or
- * a row.
+ * only what is genuinely missing runs. One step rebuilds the fleet table
+ * under a new key and carries every row across; no step drops a row.
  */
 export async function runMigrations(db: Kysely<StateStoreSchema>): Promise<void> {
   // A baselined step can land out of order relative to a step that turned
@@ -322,8 +351,103 @@ async function recordLegacyBaseline(db: Kysely<StateStoreSchema>): Promise<void>
   }
 }
 
+interface LegacyFleetIDRow {
+  old_rowid: number;
+  agent_session_id: string | null;
+}
+
+// The columns the rebuild writes by name. Any other column a legacy table
+// carries moves across untouched, so the rebuild never loses data a step
+// outside this ladder added.
+const REBUILT_FLEET_COLUMNS: ReadonlySet<string> = new Set([
+  'agent_session_id',
+  'name',
+  'cwd',
+  'pinned',
+  'last_attached',
+  'agent',
+  'exited',
+  'parent',
+  'prompt',
+  'result',
+  'transcript_path',
+  'model',
+  'effort',
+]);
+
+// Gives every row a minted atc session id and moves the sub-session link
+// from the parent's agent session id to the parent's atc session id. A link
+// to an agent session id no row holds becomes no link.
+async function updateFleetKeyToSessionID(db: Kysely<StateStoreSchema>): Promise<void> {
+  const columns = await sql<ColumnInfoRow>`PRAGMA table_info(fleet)`.execute(db);
+
+  const extras = columns.rows.filter((column) => !REBUILT_FLEET_COLUMNS.has(column.name));
+
+  // Keyed by rowid: SQLite lets a text primary key hold NULL, so a legacy
+  // row can lack the agent session id the mapping would otherwise key on.
+  await sql`CREATE TEMP TABLE fleet_ids (old_rowid INTEGER PRIMARY KEY, agent_session_id TEXT, session_id TEXT NOT NULL)`.execute(
+    db,
+  );
+
+  const rows =
+    await sql<LegacyFleetIDRow>`SELECT rowid AS old_rowid, agent_session_id FROM fleet`.execute(db);
+
+  for (const row of rows.rows) {
+    await sql`INSERT INTO fleet_ids (old_rowid, agent_session_id, session_id) VALUES (${row.old_rowid}, ${row.agent_session_id}, ${randomUUID()})`.execute(
+      db,
+    );
+  }
+
+  const extraDefinitions = extras.map(
+    (column) => sql`, ${sql.ref(column.name)} ${sql.raw(column.type)}`,
+  );
+
+  const extraTargets = extras.map((column) => sql`, ${sql.ref(column.name)}`);
+  const extraSources = extras.map((column) => sql`, ${sql.ref(`f.${column.name}`)}`);
+
+  await sql`
+    CREATE TABLE fleet_rebuilt (
+      session_id TEXT PRIMARY KEY,
+      agent_session_id TEXT UNIQUE,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      last_attached INTEGER,
+      agent TEXT NOT NULL DEFAULT 'claude',
+      exited INTEGER NOT NULL DEFAULT 0,
+      parent_session_id TEXT,
+      prompt TEXT,
+      result TEXT,
+      transcript_path TEXT,
+      model TEXT,
+      effort TEXT
+      ${sql.join(extraDefinitions, sql``)}
+    )
+  `.execute(db);
+
+  await sql`
+    INSERT INTO fleet_rebuilt (
+      session_id, agent_session_id, name, cwd, pinned, last_attached, agent, exited,
+      parent_session_id, prompt, result, transcript_path, model, effort
+      ${sql.join(extraTargets, sql``)}
+    )
+    SELECT
+      ids.session_id, f.agent_session_id, f.name, f.cwd, f.pinned, f.last_attached, f.agent,
+      f.exited, parents.session_id, f.prompt, f.result, f.transcript_path, f.model, f.effort
+      ${sql.join(extraSources, sql``)}
+    FROM fleet f
+    JOIN fleet_ids ids ON ids.old_rowid = f.rowid
+    LEFT JOIN fleet_ids parents ON parents.agent_session_id = f.parent
+  `.execute(db);
+
+  await sql`DROP TABLE fleet`.execute(db);
+  await sql`ALTER TABLE fleet_rebuilt RENAME TO fleet`.execute(db);
+  await sql`DROP TABLE fleet_ids`.execute(db);
+}
+
 interface ColumnInfoRow {
   name: string;
+  type: string;
 }
 
 async function collectFleetColumns(db: Kysely<StateStoreSchema>): Promise<ReadonlySet<string>> {
