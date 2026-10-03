@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { $ } from 'bun';
 import { FixtureDirProvider } from '../../test/fixture-dir-provider';
 import { startGitHTTPServer } from '../../test/start-git-http-server';
+import { updateEnv } from '../../test/update-env';
 import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -223,16 +224,7 @@ test('it verifies the target checkout itself when the daemon env points git at a
     .cwd(decoy)
     .quiet();
 
-  const previous = process.env['GIT_DIR'];
-
-  process.env['GIT_DIR'] = join(decoy, '.git');
-
-  onTestFinished(() => {
-    const restored = previous === undefined ? {} : { GIT_DIR: previous };
-
-    delete process.env['GIT_DIR'];
-    Object.assign(process.env, restored);
-  });
+  updateEnv('GIT_DIR', join(decoy, '.git'));
 
   const booted = await ctx.boot(new FixtureDirProvider());
   const sha = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
@@ -506,11 +498,7 @@ test('it keeps a credential out of every row, provenance, log line, and refusal'
 
   const booted = await ctx.boot(new FixtureDirProvider());
 
-  process.env['ATC_TEST_WORKSPACE_TOKEN'] = 'tok-7d1e5a';
-
-  onTestFinished(() => {
-    delete process.env['ATC_TEST_WORKSPACE_TOKEN'];
-  });
+  updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'tok-7d1e5a');
 
   const credentialRef = { kind: 'env', name: 'ATC_TEST_WORKSPACE_TOKEN' };
 
@@ -564,22 +552,9 @@ test('it clones with the workspace credential and starts the harness without it 
 
   // The askpass variables stand in for a daemon whose own environment holds
   // them; the credential variable is the one the spawn names.
-  for (const [name, value] of [
-    ['ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret'],
-    ['GIT_ASKPASS', '/fixture/askpass'],
-    ['ATC_GIT_ASKPASS_SECRET', 'fixture-not-a-secret'],
-  ] as const) {
-    const previous = process.env[name];
-
-    process.env[name] = value;
-
-    onTestFinished(() => {
-      const restored = previous === undefined ? {} : { [name]: previous };
-
-      Reflect.deleteProperty(process.env, name);
-      Object.assign(process.env, restored);
-    });
-  }
+  updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
+  updateEnv('GIT_ASKPASS', '/fixture/askpass');
+  updateEnv('ATC_GIT_ASKPASS_SECRET', 'fixture-not-a-secret');
 
   const box = new FixtureDirProvider();
 
@@ -664,17 +639,7 @@ test('it starts a revived harness after a restart without the workspace credenti
 
   await seeded.stop();
 
-  const previous = process.env['ATC_TEST_WORKSPACE_CRED'];
-
-  process.env['ATC_TEST_WORKSPACE_CRED'] = 'fixture-not-a-secret';
-
-  onTestFinished(() => {
-    const restored = previous === undefined ? {} : { ATC_TEST_WORKSPACE_CRED: previous };
-
-    delete process.env['ATC_TEST_WORKSPACE_CRED'];
-    Object.assign(process.env, restored);
-  });
-
+  updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
   mkdirSync(dest, { recursive: true });
 
   const box = new FixtureDirProvider();
@@ -946,26 +911,9 @@ test('it refuses to run a local repository in place when git does not trust its 
   // git's own switch for treating every repository as another user's, with
   // the host's system and global config kept out, since a host that lists
   // the repository under safe.directory trusts it whatever its owner.
-  const overrides = {
-    GIT_TEST_ASSUME_DIFFERENT_OWNER: '1',
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-  };
-
-  const previous = Object.fromEntries(
-    Object.keys(overrides).map((name) => [name, process.env[name]]),
-  );
-
-  Object.assign(process.env, overrides);
-
-  onTestFinished(() => {
-    for (const [name, value] of Object.entries(previous)) {
-      const restored = value === undefined ? {} : { [name]: value };
-
-      Reflect.deleteProperty(process.env, name);
-      Object.assign(process.env, restored);
-    }
-  });
+  updateEnv('GIT_TEST_ASSUME_DIFFERENT_OWNER', '1');
+  updateEnv('GIT_CONFIG_NOSYSTEM', '1');
+  updateEnv('GIT_CONFIG_GLOBAL', '/dev/null');
 
   const spawn = booted.client.sendRequest('session.spawn', {
     cwd: ctx.work,

@@ -1,37 +1,18 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { updateEnv } from '../../test/update-env';
 import { resolveAgentHome } from './resolve-agent-home';
 
 const VAR = 'ATC_TEST_AGENT_HOME';
 
-// Sets the variable under test for one test and puts back whatever the
-// environment held, including its absence.
-function setupEnv(value: string | undefined) {
-  const prior = process.env[VAR];
-
-  onTestFinished(() => {
-    if (prior === undefined) {
-      delete process.env[VAR];
-    } else {
-      process.env[VAR] = prior;
-    }
-  });
-
-  if (value === undefined) {
-    delete process.env[VAR];
-  } else {
-    process.env[VAR] = value;
-  }
-}
-
 test('it returns the env var when set and non-empty', () => {
-  setupEnv('/custom/agent/home');
+  updateEnv(VAR, '/custom/agent/home');
 
   expect(resolveAgentHome(VAR, '.agent')).toBe('/custom/agent/home');
 });
 
 test('it falls back to the default directory under the home when the env var is empty', () => {
-  setupEnv('');
+  updateEnv(VAR, '');
 
   const root = process.env['ATC_TEST_HOME'];
 
@@ -43,7 +24,7 @@ test('it falls back to the default directory under the home when the env var is 
 });
 
 test('it falls back to the default directory under the home when the env var is unset', () => {
-  setupEnv(undefined);
+  updateEnv(VAR, undefined);
 
   const root = process.env['ATC_TEST_HOME'];
 

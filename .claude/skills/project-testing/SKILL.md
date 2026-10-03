@@ -36,6 +36,11 @@ started with, so a home a preload sets never reaches a test's subprocesses.
 
 - Derive a home path from `resolveHomeDir()`, never `os.homedir()`: Bun reads `HOME` for
   `os.homedir()` once at startup, so a home set after startup never moves it.
+- Override an environment variable with `updateEnv(key, value)` from `test/update-env.ts`, passing
+  `undefined` to unset it, and write no restore code. The `test/isolate-home.ts` preload puts every
+  overridden variable back after each test, so a test that moves `GROK_HOME` or `PATH` leaves the
+  test home's own value for the next test. When an override exists only to steer where a module
+  writes, such as `TMPDIR` for a staging directory, pass the path into the module instead.
 - `bun run test:isolation` runs a gate inside a synthetic home of canary files and fails when the
   gate reads, changes, or adds to them. Run it after adding anything that writes generated state. It
   runs on Linux with GNU coreutils only, and stops with a message anywhere else; no canary check

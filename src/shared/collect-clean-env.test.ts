@@ -1,23 +1,12 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
+import { updateEnv } from '../../test/update-env';
 import { collectCleanEnv } from './collect-clean-env';
 
 test('it strips parent-session grok keys and keeps home and api keys', () => {
-  const prevSession = process.env['GROK_SESSION_ID'];
-  const prevLeader = process.env['GROK_LEADER_SOCKET'];
-  const prevHome = process.env['GROK_HOME'];
-  const prevKey = process.env['XAI_API_KEY'];
-
-  process.env['GROK_SESSION_ID'] = 'parent-session';
-  process.env['GROK_LEADER_SOCKET'] = '/tmp/leader.sock';
-  process.env['GROK_HOME'] = '/tmp/grok-home';
-  process.env['XAI_API_KEY'] = 'xai-test-key';
-
-  onTestFinished(() => {
-    restoreEnv('GROK_SESSION_ID', prevSession);
-    restoreEnv('GROK_LEADER_SOCKET', prevLeader);
-    restoreEnv('GROK_HOME', prevHome);
-    restoreEnv('XAI_API_KEY', prevKey);
-  });
+  updateEnv('GROK_SESSION_ID', 'parent-session');
+  updateEnv('GROK_LEADER_SOCKET', '/tmp/leader.sock');
+  updateEnv('GROK_HOME', '/tmp/grok-home');
+  updateEnv('XAI_API_KEY', 'xai-test-key');
 
   const env = collectCleanEnv();
 
@@ -28,16 +17,8 @@ test('it strips parent-session grok keys and keeps home and api keys', () => {
 });
 
 test('it leaves withheld variables out and keeps an explicit extra of the same name', () => {
-  const prevWithheld = process.env['ATC_TEST_WITHHELD'];
-  const prevExplicit = process.env['ATC_TEST_EXPLICIT'];
-
-  process.env['ATC_TEST_WITHHELD'] = 'fixture-not-a-secret';
-  process.env['ATC_TEST_EXPLICIT'] = 'inherited';
-
-  onTestFinished(() => {
-    restoreEnv('ATC_TEST_WITHHELD', prevWithheld);
-    restoreEnv('ATC_TEST_EXPLICIT', prevExplicit);
-  });
+  updateEnv('ATC_TEST_WITHHELD', 'fixture-not-a-secret');
+  updateEnv('ATC_TEST_EXPLICIT', 'inherited');
 
   const env = collectCleanEnv({ ATC_TEST_EXPLICIT: 'configured' }, [
     'ATC_TEST_WITHHELD',
@@ -47,11 +28,3 @@ test('it leaves withheld variables out and keeps an explicit extra of the same n
   expect(env).not.toContainKey('ATC_TEST_WITHHELD');
   expect(env['ATC_TEST_EXPLICIT']).toBe('configured');
 });
-
-function restoreEnv(key: string, prior: string | undefined): void {
-  if (prior === undefined) {
-    delete process.env[key];
-  } else {
-    process.env[key] = prior;
-  }
-}

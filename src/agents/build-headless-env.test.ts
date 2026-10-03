@@ -1,4 +1,5 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
+import { updateEnv } from '../../test/update-env';
 import { toSessionID } from '../shared/to-session-id';
 import { buildHeadlessEnv } from './build-headless-env';
 
@@ -23,17 +24,7 @@ test('it keeps the mod folder when the run carries no session', () => {
 });
 
 test('it drops an enclosing session mod folder when none is supplied', () => {
-  const prior = process.env['CLAUDE_CODE_PLUGIN_DIRS'];
-
-  process.env['CLAUDE_CODE_PLUGIN_DIRS'] = '/parent/plugins';
-
-  onTestFinished(() => {
-    if (prior === undefined) {
-      delete process.env['CLAUDE_CODE_PLUGIN_DIRS'];
-    } else {
-      process.env['CLAUDE_CODE_PLUGIN_DIRS'] = prior;
-    }
-  });
+  updateEnv('CLAUDE_CODE_PLUGIN_DIRS', '/parent/plugins');
 
   const env = buildHeadlessEnv({ socketPath: '/state/r.sock' });
 
@@ -41,16 +32,7 @@ test('it drops an enclosing session mod folder when none is supplied', () => {
 });
 
 test('it leaves the variables a run withholds out of its environment', () => {
-  const prior = process.env['ATC_TEST_WORKSPACE_CRED'];
-
-  process.env['ATC_TEST_WORKSPACE_CRED'] = 'fixture-not-a-secret';
-
-  onTestFinished(() => {
-    const restored = prior === undefined ? {} : { ATC_TEST_WORKSPACE_CRED: prior };
-
-    delete process.env['ATC_TEST_WORKSPACE_CRED'];
-    Object.assign(process.env, restored);
-  });
+  updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
 
   const env = buildHeadlessEnv({
     sessionID: toSessionID('s-1'),

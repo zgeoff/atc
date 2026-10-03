@@ -1,8 +1,9 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { updateEnv } from '../../test/update-env';
 import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
 import type { EventMsg } from '../protocol/protocol';
@@ -226,25 +227,8 @@ test('it destroys the imp of a session once a forget carries its confirm token',
 test('it starts a remote harness with only the variables atc sets, never the daemon environment', async () => {
   await using daemon = await setupTest();
 
-  const previousCanary = process.env['ATC_TEST_DAEMON_CANARY'];
-  const previousCredential = process.env['ATC_TEST_WORKSPACE_TOKEN'];
-
-  process.env['ATC_TEST_DAEMON_CANARY'] = 'daemon-only';
-  process.env['ATC_TEST_WORKSPACE_TOKEN'] = 'fixture-not-a-secret';
-
-  onTestFinished(() => {
-    if (previousCanary === undefined) {
-      delete process.env['ATC_TEST_DAEMON_CANARY'];
-    } else {
-      process.env['ATC_TEST_DAEMON_CANARY'] = previousCanary;
-    }
-
-    if (previousCredential === undefined) {
-      delete process.env['ATC_TEST_WORKSPACE_TOKEN'];
-    } else {
-      process.env['ATC_TEST_WORKSPACE_TOKEN'] = previousCredential;
-    }
-  });
+  updateEnv('ATC_TEST_DAEMON_CANARY', 'daemon-only');
+  updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'fixture-not-a-secret');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,

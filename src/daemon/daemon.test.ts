@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { spawnNamedSession } from '../../test/spawn-named-session';
+import { updateEnv } from '../../test/update-env';
 import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
@@ -442,9 +443,8 @@ test('it refuses session.spawn with agent grok as unsupported', async () => {
 
 test('it spawns a grok session when a grok adapter is registered', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
-  const prevHome = process.env['GROK_HOME'];
 
-  process.env['GROK_HOME'] = join(dir, 'grok-home');
+  updateEnv('GROK_HOME', join(dir, 'grok-home'));
 
   const grok = new GrokAdapter({
     claudeBin: 'claude',
@@ -480,12 +480,6 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     client.stop();
 
     await daemon.stop();
-
-    if (prevHome === undefined) {
-      delete process.env['GROK_HOME'];
-    } else {
-      process.env['GROK_HOME'] = prevHome;
-    }
 
     rmSync(dir, { recursive: true, force: true });
   });
@@ -504,9 +498,8 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
 
 test('it yanks a grok session by id and without an id', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
-  const prevHome = process.env['GROK_HOME'];
 
-  process.env['GROK_HOME'] = join(dir, 'grok-home');
+  updateEnv('GROK_HOME', join(dir, 'grok-home'));
 
   const grok = new GrokAdapter({
     claudeBin: 'claude',
@@ -542,12 +535,6 @@ test('it yanks a grok session by id and without an id', async () => {
     client.stop();
 
     await daemon.stop();
-
-    if (prevHome === undefined) {
-      delete process.env['GROK_HOME'];
-    } else {
-      process.env['GROK_HOME'] = prevHome;
-    }
 
     rmSync(dir, { recursive: true, force: true });
   });
@@ -593,9 +580,8 @@ test('it yanks a grok session by id and without an id', async () => {
 
 test('it revives a grok session from a captured id when summary.json is missing', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
-  const prevHome = process.env['GROK_HOME'];
 
-  process.env['GROK_HOME'] = join(dir, 'grok-home');
+  updateEnv('GROK_HOME', join(dir, 'grok-home'));
 
   const grok = new GrokAdapter({
     claudeBin: 'claude',
@@ -632,12 +618,6 @@ test('it revives a grok session from a captured id when summary.json is missing'
 
     await daemon.stop();
 
-    if (prevHome === undefined) {
-      delete process.env['GROK_HOME'];
-    } else {
-      process.env['GROK_HOME'] = prevHome;
-    }
-
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -670,9 +650,8 @@ test('it revives a grok session from a captured id when summary.json is missing'
 
 test('it writes last-used on SessionStart and ignores a spawn that never reports', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
-  const prevHome = process.env['GROK_HOME'];
 
-  process.env['GROK_HOME'] = join(dir, 'grok-home');
+  updateEnv('GROK_HOME', join(dir, 'grok-home'));
 
   const reporterPath = join(dir, 'reporter.sock');
   const sockPath = join(dir, 'daemon.sock');
@@ -711,12 +690,6 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
     client.stop();
 
     await daemon.stop();
-
-    if (prevHome === undefined) {
-      delete process.env['GROK_HOME'];
-    } else {
-      process.env['GROK_HOME'] = prevHome;
-    }
 
     rmSync(dir, { recursive: true, force: true });
   });

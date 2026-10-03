@@ -1,7 +1,8 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { updateEnv } from '../../test/update-env';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
 test('it leaves the SDK on its own CLI copy under a source run', () => {
@@ -27,14 +28,7 @@ test('it resolves a bare binary name on PATH for a compiled binary', () => {
   mkdirSync(join(temp.dir, 'bin'));
   writeFileSync(join(temp.dir, 'bin', 'fake-claude'), '#!/bin/sh\n');
   chmodSync(join(temp.dir, 'bin', 'fake-claude'), 0o755);
-
-  const previous = process.env['PATH'];
-
-  onTestFinished(() => {
-    process.env['PATH'] = previous;
-  });
-
-  process.env['PATH'] = join(temp.dir, 'bin');
+  updateEnv('PATH', join(temp.dir, 'bin'));
 
   expect(resolveHeadlessExecutable('fake-claude', true)).toStrictEqual({
     pathToClaudeCodeExecutable: join(temp.dir, 'bin', 'fake-claude'),

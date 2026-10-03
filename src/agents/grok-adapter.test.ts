@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { updateEnv } from '../../test/update-env';
 import type { HookEvent } from '../daemon/hooks';
 import type { Config } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
@@ -10,17 +11,10 @@ import { GrokAdapter } from './grok-adapter';
 
 function setupGrokHome(): string {
   const dir = mkdtempSync(join(tmpdir(), 'atc-grok-home-'));
-  const prev = process.env['GROK_HOME'];
 
-  process.env['GROK_HOME'] = dir;
+  updateEnv('GROK_HOME', dir);
 
   onTestFinished(() => {
-    if (prev === undefined) {
-      delete process.env['GROK_HOME'];
-    } else {
-      process.env['GROK_HOME'] = prev;
-    }
-
     rmSync(dir, { recursive: true, force: true });
   });
 

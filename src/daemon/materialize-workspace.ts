@@ -1,5 +1,4 @@
 import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { DaemonError } from '../protocol/daemon-error';
 import type { ErrorCode } from '../protocol/protocol';
@@ -36,6 +35,10 @@ interface MaterializeDeps {
   readonly requireProvider: (capability: 'run' | 'transfer') => ExecutionProvider;
   readonly store: Pick<StateStore, 'createMaterialization' | 'updateMaterialization'>;
   readonly log: (line: string) => void;
+
+  // The directory on the daemon's host that holds each clone's staging
+  // directory while the workspace is built.
+  readonly stagingRoot: string;
 }
 
 type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
@@ -122,7 +125,7 @@ export async function materializeWorkspace(
   // The staging directory exists only once the row does, and only inside
   // the block that removes it, so neither can outlive a failure of the other.
   try {
-    const staging = await mkdtemp(join(tmpdir(), 'atc-workspace-'));
+    const staging = await mkdtemp(join(deps.stagingRoot, 'atc-workspace-'));
 
     try {
       const ready = await runMaterialization(request, deps, staging, updateProgress, secret);

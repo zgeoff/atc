@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { updateEnv } from '../../test/update-env';
 import { collectAgentPicks } from './collect-agent-picks';
 
 function setupBinDir(bins: readonly { readonly name: string; readonly executable: boolean }[]) {
@@ -53,13 +54,8 @@ test('it lists only the agents whose configured binary resolves', () => {
 
 test('it resolves a bare binary name off PATH', () => {
   const dir = setupBinDir([{ name: 'grok', executable: true }]);
-  const prev = process.env['PATH'];
 
-  process.env['PATH'] = dir;
-
-  onTestFinished(() => {
-    process.env['PATH'] = prev;
-  });
+  updateEnv('PATH', dir);
 
   expect(
     collectAgentPicks({

@@ -1,9 +1,10 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
+import { updateEnv } from '../../test/update-env';
 import { createWorkspaceClone } from './create-workspace-clone';
 
 async function setupTest() {
@@ -299,11 +300,7 @@ test.skipIf(process.platform !== 'linux')(
   async () => {
     await using project = await setupTest();
 
-    process.env['ATC_TEST_GIT_TOKEN'] = 'tok-4f9c2e';
-
-    onTestFinished(() => {
-      delete process.env['ATC_TEST_GIT_TOKEN'];
-    });
+    updateEnv('ATC_TEST_GIT_TOKEN', 'tok-4f9c2e');
 
     const clone = await createWorkspaceClone({
       source: { kind: 'git', url: project.httpURL, ref: 'main' },
@@ -383,11 +380,7 @@ test('it refuses a git source that tracks LFS paths without running the host LFS
     `[filter "lfs"]\n\tsmudge = ${join(project.dir, 'trap')}\n\tprocess = ${join(project.dir, 'trap')}\n\trequired = true\n`,
   );
 
-  process.env['GIT_CONFIG_GLOBAL'] = join(project.dir, 'gitconfig');
-
-  onTestFinished(() => {
-    delete process.env['GIT_CONFIG_GLOBAL'];
-  });
+  updateEnv('GIT_CONFIG_GLOBAL', join(project.dir, 'gitconfig'));
 
   const clone = await createWorkspaceClone({
     source: { kind: 'git', url: project.upstream, ref: 'main' },
@@ -421,11 +414,7 @@ test('it checks out without running a filter from the host global git config', a
     `[core]\n\tattributesFile = ${join(project.dir, 'attributes')}\n[filter "trap"]\n\tsmudge = ${join(project.dir, 'trap')}\n`,
   );
 
-  process.env['GIT_CONFIG_GLOBAL'] = join(project.dir, 'gitconfig');
-
-  onTestFinished(() => {
-    delete process.env['GIT_CONFIG_GLOBAL'];
-  });
+  updateEnv('GIT_CONFIG_GLOBAL', join(project.dir, 'gitconfig'));
 
   const clone = await createWorkspaceClone({
     source: { kind: 'git', url: project.upstream, ref: 'main' },
