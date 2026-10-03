@@ -466,7 +466,10 @@ exist:
 - Events and messages belong to the session they were recorded under. A session within reach that
   resumes the same agent session as one out of reach never shows the other's events, messages, or
   activity time. A principal's inbox tap receives only the messages sent to that session's own id,
-  and its `message.ack` answers a message sent to another session as an unknown message.
+  and its `message.ack` answers a message sent to another session as an unknown message. A
+  `message.get` lists in `answeredWith` only the messages sent to sessions within reach, and an
+  event or a report is checked against the session it was recorded under, never another session that
+  resumes the same agent session.
 - `dirs.list` lists only the directories of spawns on targets the principal may use. A directory
   recorded before atc recorded each spawn's target counts as a spawn on a `local` target with no
   options.
