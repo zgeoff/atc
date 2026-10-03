@@ -371,17 +371,15 @@ function toPortError(error: unknown): ImpPortError {
   return new ImpPortError('UNREACHABLE', message);
 }
 
-// A start as the client takes it, with the requirements impd checks before
-// the command runs.
-type ExecStartWithRequire = Extract<ExecSessionOptions['start'], { readonly argv: unknown }> & {
+// A start or an attach as the client takes it, with the requirements impd
+// checks before the command runs or the attach joins it.
+type ExecStartWithRequire = ExecSessionOptions['start'] & {
   readonly require?: readonly ImpExecRequirement[];
 };
 
-// The client sends every field of a start as it is, so a list of
-// requirements reaches impd though the client's start type lacks it.
-function buildExecStart(
-  request: ImpSessionRequest,
-): ExecStartWithRequire | ExecSessionOptions['start'] {
+// The client sends every field of a start or an attach as it is, so a list
+// of requirements reaches impd though the client's types lack it.
+function buildExecStart(request: ImpSessionRequest): ExecStartWithRequire {
   if (request.kind === 'attach') {
     return {
       name: request.name,
@@ -390,6 +388,7 @@ function buildExecStart(
       rows: request.rows,
       wake: request.wake,
       ...(request.resumeFrom === undefined ? {} : { resumeFrom: request.resumeFrom }),
+      ...(request.require === undefined ? {} : { require: request.require }),
     };
   }
 

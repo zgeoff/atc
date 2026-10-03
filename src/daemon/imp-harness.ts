@@ -2,6 +2,7 @@ import { DaemonError } from '../protocol/daemon-error';
 import { isRecord } from '../shared/report';
 import type { HarnessAttachment, HarnessExit, HarnessHandle } from './execution-provider';
 import type {
+  ImpExecRequirement,
   ImpPort,
   ImpSessionConnection,
   ImpSessionOutcome,
@@ -55,6 +56,10 @@ export class ImpHarness implements HarnessHandle {
   private readonly name: string;
 
   private readonly session: string;
+
+  // What impd must have ready before the start and every reattach, so an
+  // attach never joins the process past a requirement the start had.
+  private readonly require: readonly ImpExecRequirement[] | undefined;
 
   private readonly dataListeners = new Set<(data: string) => void>();
 
@@ -130,11 +135,12 @@ export class ImpHarness implements HarnessHandle {
     this.host = host;
     this.name = start.name;
     this.session = start.session;
+    this.require = start.require;
     this.cols = start.cols;
     this.rows = start.rows;
 
     if (host.ready === undefined) {
-      this.openConnection(start);
+      this.openCheckedConnection(start);
     } else {
       void this.startWhenReady(host.ready, start);
     }
@@ -262,8 +268,60 @@ export class ImpHarness implements HarnessHandle {
 
     // A resize while the host readied changed the size the start asks for.
     if (!this.done) {
-      this.openConnection({ ...start, cols: this.cols, rows: this.rows });
+      this.openCheckedConnection({ ...start, cols: this.cols, rows: this.rows });
     }
+  }
+
+  // An impd from before exec requirements ignores them and runs the
+  // command anyway, so a request that has any goes out only after impd
+  // shows it honours them; otherwise the harness ends as impd's own
+  // client refuses an outdated impd, and nothing runs.
+  private openCheckedConnection(request: ImpSessionRequest): void {
+    if (request.require === undefined || request.require.length === 0) {
+      this.openConnection(request);
+
+      return;
+    }
+
+    void this.openRequiredConnection(request);
+  }
+
+  private async openRequiredConnection(request: ImpSessionRequest): Promise<void> {
+    let execRequire: boolean;
+
+    try {
+      const features = await this.port.readFeatures();
+
+      execRequire = features.execRequire;
+    } catch (error) {
+      if (!this.done && !this.host.isSuspending()) {
+        const detail = error instanceof Error ? error.message : String(error);
+
+        this.applyOutcome({ kind: 'unreachable', detail }, false);
+      }
+
+      return;
+    }
+
+    if (this.done || this.host.isSuspending()) {
+      return;
+    }
+
+    if (!execRequire) {
+      this.applyOutcome(
+        {
+          kind: 'failed',
+          code: 'PRECONDITION_FAILED',
+          message: `impd for imp ${this.name} does not honour exec requirements`,
+          data: { reason: 'impd_outdated' },
+        },
+        false,
+      );
+
+      return;
+    }
+
+    this.openConnection(request);
   }
 
   private openConnection(request: ImpSessionRequest): void {
@@ -478,6 +536,18 @@ export class ImpHarness implements HarnessHandle {
       return;
     }
 
+    if (outcome.code === 'PRECONDITION_FAILED' && isImpdOutdated(outcome.data)) {
+      this.startRefusal = new DaemonError(
+        'auth_impd_too_old',
+        `impd for imp ${this.name} does not honour exec requirements; upgrade it to 0.30.0 or later`,
+        { imp: this.name, execRequire: false },
+      );
+
+      this.emitExit({ exitCode: 1, reason: 'ended', detail: 'impd too old to require the broker' });
+
+      return;
+    }
+
     if (outcome.code === 'PRECONDITION_FAILED' && isBrokerNotReady(outcome.data)) {
       const detail =
         isRecord(outcome.data) && typeof outcome.data['detail'] === 'string'
@@ -522,7 +592,7 @@ export class ImpHarness implements HarnessHandle {
       this.reconnectTimer = null;
 
       if (!this.done) {
-        this.openConnection(this.buildAttach());
+        this.openCheckedConnection(this.buildAttach());
       }
     }, wait);
 
@@ -545,6 +615,7 @@ export class ImpHarness implements HarnessHandle {
       cols: this.cols,
       rows: this.rows,
       wake: false,
+      ...(this.require === undefined ? {} : { require: this.require }),
       ...(cursor === null
         ? {}
         : { resumeFrom: { executionGeneration: cursor.generation, offset: this.highWater } }),
@@ -561,7 +632,7 @@ export class ImpHarness implements HarnessHandle {
 
     this.fresh = true;
 
-    this.openConnection(this.buildAttach());
+    this.openCheckedConnection(this.buildAttach());
   }
 
   // A generation under the session's name other than its own is not the
@@ -673,6 +744,12 @@ export class ImpHarness implements HarnessHandle {
 // impd's refusal of a start whose broker is not ready.
 function isBrokerNotReady(data: unknown): boolean {
   return isRecord(data) && data['reason'] === 'broker_not_ready';
+}
+
+// The refusal of an exec with requirements against an impd that would
+// ignore them, which impd's client and the harness both give.
+function isImpdOutdated(data: unknown): boolean {
+  return isRecord(data) && data['reason'] === 'impd_outdated';
 }
 
 // What ended a process impd no longer holds. In the same boot, the kept

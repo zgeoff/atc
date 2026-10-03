@@ -561,6 +561,39 @@ test('it sends the requirements of a start to impd and ends the connection with 
   });
 });
 
+test('it sends the requirements of an attach to impd', async () => {
+  await using impd = setupTest();
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const connection = port.openSession(
+    {
+      kind: 'attach',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      cols: 80,
+      rows: 24,
+      wake: false,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await connection.outcome;
+
+  expect(impd.execOpens).toStrictEqual([
+    {
+      type: 'attach',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      cols: 80,
+      rows: 24,
+      wake: false,
+      require: ['broker'],
+    },
+  ]);
+});
+
 test('it sends a start without requirements when the request holds none', async () => {
   await using impd = setupTest();
 

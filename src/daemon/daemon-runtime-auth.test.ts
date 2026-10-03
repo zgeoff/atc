@@ -20,7 +20,9 @@ import { RuntimeAuthBinder } from './runtime-auth-binder';
  * `atc-runtime` manages `atc-*` imps and may grant `glm`, and impd holds
  * `glm` for api.z.ai as a custom bearer secret. The agent `glm` takes that
  * credential from the broker and plans a guest spawn that prints the
- * binding revision it launches under; `plain` takes none. The principal
+ * binding revision it launches under, with its placeholder and its own
+ * config folder in the harness's variables; `proxied` takes the same
+ * credential but plans a proxy variable; `plain` takes none. The principal
  * `ops` may use `box`. `restart` stops the daemon and starts another on
  * the same state.
  */
@@ -58,13 +60,14 @@ async function setupTest() {
     ...shared,
     id: 'glm',
     planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-    planGuestSpawn: (_opts, _guest, auth) =>
-      auth === undefined
+    planGuestSpawn: (_opts, guest) =>
+      guest.auth === undefined
         ? null
         : {
             bin: 'sh',
-            args: ['-c', `echo "revision ${String(auth.revision)}"; exec sleep 30`],
+            args: ['-c', `echo "revision ${String(guest.auth.revision)}"; exec sleep 30`],
             files: {},
+            env: { ...guest.auth.env, CLAUDE_CONFIG_DIR: `${guest.dir}/claude-config` },
           },
     findAuthSelection: () => ({
       gateway: {
@@ -98,13 +101,24 @@ async function setupTest() {
     planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
   };
 
+  const proxied: AgentAdapter = {
+    ...brokered,
+    id: 'proxied',
+    planGuestSpawn: () => ({
+      bin: 'sleep',
+      args: ['30'],
+      files: {},
+      env: { https_proxy: 'http://proxy.example:3128' },
+    }),
+  };
+
   const start = (): Promise<DaemonHandle> =>
     startDaemon({
       socketPath: sockPath,
       reporterSocketPath: join(tmp.dir, 'reporter.sock'),
       build: 'atc/test-build',
       adapter: brokered,
-      adapters: [brokered, plain],
+      adapters: [brokered, plain, proxied],
       dbPath,
       statusPath: join(tmp.dir, 'status.json'),
       targets: [
@@ -195,12 +209,58 @@ test('it provisions the host of a spawn before readying it and starts the harnes
       expect.toStartWith(`leases.acquire ${imp} `),
       expect.toStartWith(`exec.run ${imp} sh -c mkdir`),
       expect.toStartWith(`reverse ${imp} `),
+      'system.info',
       expect.toStartWith(`exec.start ${imp} `),
     ],
     require: [['broker']],
     grants: ['glm'],
     binding: expect.objectContaining({ state: 'ready', revision: 1, impName: imp }),
   });
+});
+
+test('it starts a brokered harness with the variables its guest plan holds beside the ones atc sets', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const [start] = daemon.port.sessionRequests;
+
+  if (start?.kind !== 'start') {
+    throw new Error('expected the harness start');
+  }
+
+  expect(start.env).toMatchObject({
+    ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+    CLAUDE_CONFIG_DIR: expect.toEndWith(`/sessions/${id}/claude-config`),
+    ATC_SESSION_ID: id,
+  });
+});
+
+test('it refuses a brokered spawn whose guest plan sets a proxy variable before touching impd', async () => {
+  await using daemon = await setupTest();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'proxied',
+    target: 'box',
+  });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'auth_target_unsupported',
+    data: { problem: 'guest_env_conflict', variable: 'https_proxy' },
+  });
+
+  await spawn.catch(() => null);
+
+  expect<Record<string, unknown>>({
+    calls: daemon.port.calls,
+    listed: await daemon.client.sendRequest('session.list'),
+  }).toStrictEqual({ calls: [], listed: { sessions: [] } });
 });
 
 test('it refuses a spawn on an impd without exec requirements after reading only its features', async () => {
@@ -306,6 +366,7 @@ test('it revives a slept session after verifying its binding, granting nothing a
       expect.toStartWith(`leases.acquire ${imp} `),
       expect.toStartWith(`exec.run ${imp} sh -c mkdir`),
       expect.toStartWith(`reverse ${imp} `),
+      'system.info',
       expect.toStartWith(`exec.start ${imp} `),
     ],
     require: [['broker'], ['broker']],

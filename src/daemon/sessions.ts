@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import type {
   AgentAdapter,
-  GuestAuth,
+  GuestPaths,
   SpawnOptions,
   SpawnOverrides,
   SpawnPlan,
@@ -18,6 +18,7 @@ import type { AgentSessionID } from '../shared/agent-session-id';
 import type { TargetConfigError } from '../shared/collect-targets';
 import { socketPath, statusFile } from '../shared/config';
 import type { DaemonID } from '../shared/daemon-id';
+import { isBrokerVariable } from '../shared/is-broker-variable';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { SessionID } from '../shared/session-id';
 import { truncateDetail } from '../shared/truncate-detail';
@@ -203,6 +204,13 @@ interface HarnessAuth {
 interface HarnessAuthSetup extends HarnessAuth {
   readonly mode: 'create' | 'verify';
   readonly targetIdentity: string;
+}
+
+// A harness as its setup plans it: the agent's spawn, and the variables
+// the agent's guest plan starts the harness with, which no variable atc
+// adds overrides.
+interface HarnessPlan extends SpawnPlan {
+  readonly env: Readonly<Record<string, string>>;
 }
 
 // The target a session runs on and the identity it is bound to there; null
@@ -537,7 +545,7 @@ export class SessionManager {
 
     this.adopting.add(id);
 
-    let plan: SpawnPlan;
+    let plan: HarnessPlan;
 
     try {
       const setup = await this.setupHarness(
@@ -581,7 +589,7 @@ export class SessionManager {
       bin: plan.bin,
       args: plan.args,
       cwd: s.cwd,
-      env: { ATC_SESSION_ID: s.id, ATC_SOCKET: socketPath },
+      env: { ...plan.env, ATC_SESSION_ID: s.id, ATC_SOCKET: socketPath },
       withheldEnv: s.withheldEnv,
       cols,
       rows,
@@ -841,7 +849,7 @@ export class SessionManager {
       bin: plan.bin,
       args: plan.args,
       cwd,
-      env: { ATC_SESSION_ID: id, ATC_SOCKET: socketPath },
+      env: { ...plan.env, ATC_SESSION_ID: id, ATC_SOCKET: socketPath },
       withheldEnv: materialized?.withheldEnv ?? [],
       cols,
       rows,
@@ -1061,7 +1069,7 @@ export class SessionManager {
     target: string,
     options: SpawnOptions,
     auth: HarnessAuthSetup | null,
-  ): Promise<{ readonly plan: SpawnPlan; readonly attemptID: string | null }> {
+  ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
     const refusal = adapter.findSpawnRefusal?.() ?? null;
 
     if (refusal !== null) {
@@ -1071,21 +1079,25 @@ export class SessionManager {
     if (!provider.remote) {
       await provider.prepareHost({ host: hostKey, daemonID: this.store.daemonID });
 
-      return { plan: adapter.planSpawn(options), attemptID: null };
+      return { plan: { ...adapter.planSpawn(options), env: {} }, attemptID: null };
     }
 
     const guest = provider.guest ?? { dir: '/tmp/atc', atc: null };
     const dir = `${guest.dir}/sessions/${id}`;
 
-    const guestAuth =
+    const paths: GuestPaths =
       auth === null
-        ? undefined
-        : await this.planGuestAuth(hostKey, auth.mode, auth.binding.placeholderEnv);
+        ? { atc: guest.atc, dir }
+        : {
+            atc: guest.atc,
+            dir,
+            auth: await this.planGuestAuth(hostKey, auth.mode, auth.binding.placeholderEnv),
+          };
 
     const plan =
       adapter.planGuestSpawn === undefined
         ? { ...adapter.planSpawn(options), files: {} }
-        : adapter.planGuestSpawn(options, { atc: guest.atc, dir }, guestAuth);
+        : adapter.planGuestSpawn(options, paths);
 
     if (plan === null) {
       throw auth === null
@@ -1097,6 +1109,10 @@ export class SessionManager {
           );
     }
 
+    const env = plan.env ?? {};
+
+    requireGuestEnv(adapter.id, target, env, auth !== null);
+
     const attemptID = await this.applyHarnessAuth(hostKey, target, auth);
 
     try {
@@ -1107,7 +1123,7 @@ export class SessionManager {
       throw error;
     }
 
-    return { plan, attemptID };
+    return { plan: { bin: plan.bin, args: plan.args, env }, attemptID };
   }
 
   // The binding revision and placeholders a guest plan behind the broker
@@ -1117,10 +1133,10 @@ export class SessionManager {
     hostKey: SessionID,
     mode: HarnessAuthSetup['mode'],
     placeholderEnv: Readonly<Record<string, string>>,
-  ): Promise<GuestAuth> {
+  ): Promise<NonNullable<GuestPaths['auth']>> {
     const held = mode === 'create' ? null : await this.requireAuthBinder().findBinding(hostKey);
 
-    return { revision: held?.revision ?? 1, placeholderEnv };
+    return { revision: held?.revision ?? 1, env: placeholderEnv };
   }
 
   // Creates the binding of a host a spawn provisions, or verifies the one
@@ -2029,6 +2045,32 @@ function buildGuestRefusal(
         `agent '${agent}' cannot run on a remote target such as '${target}'`,
         { provider, agent, problem: 'remote_unsupported' },
       );
+}
+
+// A guest plan's variables start the harness as they are, so none may be
+// one atc sets for its own reporting, and behind the broker none may be a
+// proxy or CA variable that would route around the broker.
+function requireGuestEnv(
+  agent: string,
+  target: string,
+  env: Readonly<Record<string, string>>,
+  behindBroker: boolean,
+): void {
+  const own = Object.keys(env).find((key) => key.startsWith('ATC_'));
+
+  if (own !== undefined) {
+    throw new Error(`agent '${agent}' plans ${own}, which atc sets for the harness itself`);
+  }
+
+  const broker = behindBroker ? Object.keys(env).find((key) => isBrokerVariable(key)) : undefined;
+
+  if (broker !== undefined) {
+    throw new DaemonError(
+      'auth_target_unsupported',
+      `agent '${agent}' plans ${broker} on target '${target}', which would route around impd's broker`,
+      { agent, target, problem: 'guest_env_conflict', variable: broker },
+    );
+  }
 }
 
 // Why a harness stopped, as a session's last message.

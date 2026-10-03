@@ -27,6 +27,7 @@ import type {
 } from '../src/daemon/imp-port';
 import { ImpPortError } from '../src/daemon/imp-port-error';
 import { isImpNameAllowed } from '../src/daemon/is-imp-name-allowed';
+import { isBrokerVariable } from '../src/shared/is-broker-variable';
 
 // impd keeps exactly this many bytes of each generation's output.
 const RING_BYTES = 262_144;
@@ -52,9 +53,11 @@ const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
  * caller's identity must reach the imp and, under imp patterns, list the
  * secret as grantable; a grant is idempotent, one secret per host, and a
  * destroyed imp or a rebound or removed secret takes its grants with it. A
- * start that requires the broker is refused with `PRECONDITION_FAILED`
- * and reason `broker_not_ready`, and runs nothing, while the broker fails
- * or the imp holds no grant.
+ * start or an attach that requires the broker is refused with
+ * `PRECONDITION_FAILED` and reason `broker_not_ready`, and runs nothing,
+ * while the broker fails or the imp holds no grant, when the start sets a
+ * broker variable, and when it would join a process that started without
+ * the broker required.
  */
 export class FixtureImpPort implements ImpPort {
   // Every port call, in order, as `<call> <imp> [<detail>]`.
@@ -997,7 +1000,8 @@ export class FixtureImpPort implements ImpPort {
 
     this.updateAwake(imp);
 
-    const brokerProblem = this.findBrokerProblem(imp, request);
+    const running = imp.sessions.get(request.session);
+    const brokerProblem = this.findBrokerProblem(imp, request, running);
 
     if (brokerProblem !== null) {
       connection.finish({
@@ -1009,8 +1013,6 @@ export class FixtureImpPort implements ImpPort {
 
       return;
     }
-
-    const running = imp.sessions.get(request.session);
 
     if (running === undefined && request.kind === 'attach') {
       const previous = imp.previous.get(request.session);
@@ -1038,10 +1040,16 @@ export class FixtureImpPort implements ImpPort {
     this.attachProcess(imp, proc, request, connection, running === undefined);
   }
 
-  // Why the broker a start requires is not ready, or null when it is or
-  // the request requires nothing.
-  private findBrokerProblem(imp: FixtureImp, request: ImpSessionRequest): string | null {
-    if (request.kind !== 'start' || request.require?.includes('broker') !== true) {
+  // Why the broker a start or an attach requires is not ready, or null
+  // when it is or the request requires nothing. A broker variable the
+  // start sets, or a running process that started without the broker
+  // required, fails the requirement as impd's would.
+  private findBrokerProblem(
+    imp: FixtureImp,
+    request: ImpSessionRequest,
+    running: FixtureProcess | undefined,
+  ): string | null {
+    if (request.require?.includes('broker') !== true) {
       return null;
     }
 
@@ -1049,7 +1057,22 @@ export class FixtureImpPort implements ImpPort {
       return 'the broker CA did not install';
     }
 
-    return imp.grants.size === 0 ? 'the imp holds no grant' : null;
+    if (imp.grants.size === 0) {
+      return 'the imp holds no grant';
+    }
+
+    const overridden =
+      request.kind === 'start'
+        ? Object.keys(request.env).find((key) => isBrokerVariable(key))
+        : undefined;
+
+    if (overridden !== undefined) {
+      return overridden;
+    }
+
+    return running !== undefined && !running.requireBroker
+      ? 'the session did not start with the broker required'
+      : null;
   }
 
   private startProcess(imp: FixtureImp, request: ImpSessionRequest): FixtureProcess | null {
@@ -1073,6 +1096,7 @@ export class FixtureImpPort implements ImpPort {
       exited: null,
       ended: false,
       connection: null,
+      requireBroker: request.require?.includes('broker') === true,
     };
 
     imp.sessions.set(request.session, proc);
@@ -1260,6 +1284,10 @@ interface FixtureProcess {
   // Ended by a cold boot: its exit is never delivered.
   ended: boolean;
   connection: FixtureConnection | null;
+
+  // Whether its start required the broker, which an attach that requires
+  // it needs.
+  readonly requireBroker: boolean;
 }
 
 interface FixtureConnection {

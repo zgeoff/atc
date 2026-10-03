@@ -482,7 +482,9 @@ refuses the request before anything starts:
   as `data.agent`. No harness starts and no host is prepared.
 - An agent that takes its credential from impd's broker is `auth_target_unsupported` on a target
   whose provider has no broker, with `data.agent` and `data.target`, and on one where the agent
-  plans no guest settings for the broker, with `no_guest_plan` as `data.problem`.
+  plans no guest settings for the broker, with `no_guest_plan` as `data.problem`. A guest plan whose
+  variables set a proxy or CA variable is `auth_target_unsupported` too, with `guest_env_conflict`
+  as `data.problem` and the variable as `data.variable`, before impd is touched.
   [Runtime auth](#runtime-auth) covers the refusals on a target that has one.
 
 A refused spawn under an idempotency key leaves the key free for a retry. A restore lists a session
@@ -558,9 +560,13 @@ event: it is a local socket for the daemon's owner alone.
 A session whose agent takes its credential from impd's credential broker runs on an imp whose grants
 atc binds. The daemon records each host's binding in its state store: the imp's name and id, the
 secrets and rules the binding grants, a revision, and a state. Every start of such a session's
-harness asks impd to require the broker, so impd refuses the start and runs nothing when the broker
-CA failed to install or the imp holds no grant. That refusal is `broker_not_ready`, with impd's
-cause as `data.detail`.
+harness, and every attach that reconnects it, asks impd to require the broker. impd refuses the
+request and runs nothing when the broker CA failed to install, the imp holds no grant, the request
+sets a proxy or CA variable, or an attach would join a process that started without the requirement.
+That refusal is `broker_not_ready`, with impd's cause as `data.detail`. An impd from before exec
+requirements would ignore them, so the daemon reads impd's features before each such request and
+sends none to an impd without them: the harness ends with `auth_impd_too_old`, as it does when
+impd's own client refuses an outdated impd.
 
 - A spawn checks impd and its token first and writes nothing on a refusal: impd must have grantable
   tokens, secret rebinds, and exec requirements (`auth_impd_too_old`), the token must manage imps

@@ -1161,3 +1161,186 @@ test('it runs a start that requires nothing while the broker fails', async () =>
 
   expect(outcome).toStrictEqual({ kind: 'exit', code: 0, signal: null, offset: 3 });
 });
+
+test('it refuses a start that requires the broker and sets a broker variable, with the variable as the detail', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+  await fixture.port.createGrant('atc-s1', 'glm');
+
+  const connection = fixture.port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 's1',
+      argv: ['touch', join(fixture.dir, 'ran')],
+      env: { HTTPS_PROXY: 'http://proxy.example:3128' },
+      cwd: fixture.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect<Record<string, unknown>>({
+    outcome,
+    ran: await Bun.file(join(fixture.dir, 'ran')).exists(),
+  }).toStrictEqual({
+    outcome: {
+      kind: 'failed',
+      code: 'PRECONDITION_FAILED',
+      message: 'the broker is not ready in imp atc-s1',
+      data: { reason: 'broker_not_ready', detail: 'HTTPS_PROXY' },
+    },
+    ran: false,
+  });
+});
+
+test('it lets an attach that requires the broker join a session that started with it required', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+  await fixture.port.createGrant('atc-s1', 'glm');
+
+  const first = Promise.withResolvers<void>();
+
+  fixture.port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 's1',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: fixture.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    {
+      onStarted: () => {
+        first.resolve();
+      },
+      onOutput: () => {},
+    },
+  );
+
+  await first.promise;
+
+  const joined: ImpSessionStarted[] = [];
+
+  fixture.port.openSession(
+    {
+      kind: 'attach',
+      name: 'atc-s1',
+      session: 's1',
+      cols: 80,
+      rows: 24,
+      wake: false,
+      require: ['broker'],
+    },
+    {
+      onStarted: (started) => {
+        joined.push(started);
+      },
+      onOutput: () => {},
+    },
+  );
+
+  await waitFor(() => {
+    expect(joined).toHaveLength(1);
+  });
+});
+
+test('it refuses an attach that requires the broker to a session that started without it required', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+  await fixture.port.createGrant('atc-s1', 'glm');
+
+  const first = Promise.withResolvers<void>();
+
+  fixture.port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 's1',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: fixture.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      onStarted: () => {
+        first.resolve();
+      },
+      onOutput: () => {},
+    },
+  );
+
+  await first.promise;
+
+  const connection = fixture.port.openSession(
+    {
+      kind: 'attach',
+      name: 'atc-s1',
+      session: 's1',
+      cols: 80,
+      rows: 24,
+      wake: false,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect(outcome).toStrictEqual({
+    kind: 'failed',
+    code: 'PRECONDITION_FAILED',
+    message: 'the broker is not ready in imp atc-s1',
+    data: {
+      reason: 'broker_not_ready',
+      detail: 'the session did not start with the broker required',
+    },
+  });
+});

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { AgentID } from './agent-id';
 import { buildOptionalStringArray } from './build-optional-string-array';
 import type { AuthProfile } from './collect-auth-profiles';
+import { isBrokerVariable } from './is-broker-variable';
 import { isRecord } from './report';
 import { resolveAuthProfiles } from './resolve-auth-profiles';
 
@@ -249,28 +250,6 @@ function collectEnvProblems(source: string, keys: readonly string[]): string[] {
       (key) => isBrokerVariable(key) || CREDENTIAL_VARIABLES.has(key) || key === BASE_URL_VARIABLE,
     )
     .map((key) => `${source} must not set ${key}`);
-}
-
-// Variables impd sets in a brokered exec to route requests through the
-// broker and trust its CA. impd lets a variable the caller sets win, so a
-// configured one would route around the broker or mask a failed CA install.
-const BROKER_VARIABLES: ReadonlySet<string> = new Set([
-  'HTTPS_PROXY',
-  'HTTP_PROXY',
-  'ALL_PROXY',
-  'NO_PROXY',
-  'NODE_USE_ENV_PROXY',
-  'SSL_CERT_FILE',
-  'SSL_CERT_DIR',
-  'NODE_EXTRA_CA_CERTS',
-  'GIT_SSL_CAINFO',
-  'REQUESTS_CA_BUNDLE',
-  'CURL_CA_BUNDLE',
-]);
-
-// Proxy and CA variables are read in either case by some clients.
-function isBrokerVariable(key: string): boolean {
-  return BROKER_VARIABLES.has(key.toUpperCase());
 }
 
 function collectPlaceholderProblems(env: Readonly<Record<string, string>>): string[] {

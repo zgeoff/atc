@@ -233,6 +233,10 @@ export type ImpSessionRequest =
 
       // false fails with `INVALID_STATE` instead of booting or waking the imp.
       readonly wake: boolean;
+
+      // impd refuses the attach with `PRECONDITION_FAILED` when any of these
+      // is not ready, or when the process did not start with it required.
+      readonly require?: readonly ImpExecRequirement[];
     };
 
 export interface ImpSessionHandlers {
