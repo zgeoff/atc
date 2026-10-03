@@ -141,7 +141,10 @@ jobs:
       # asynchronously after the sync push — poll until it settles — and a
       # MERGEABLE read can be stale ("Base branch was modified" from the
       # merge mutation), so the merge attempt itself retries inside the
-      # same loop rather than trusting any single read.
+      # same loop rather than trusting any single read. The release app is a
+      # bypass actor on the main ruleset, and --admin merges through that
+      # bypass past the required review; without it, gh refuses any PR that
+      # GitHub reports as blocked.
       - name: Auto-merge release PRs
         if: github.event_name == 'push' && steps.app-token.outputs.token != ''
         env:
@@ -155,7 +158,7 @@ jobs:
                 echo "release PR #$pr has conflicts" >&2
                 exit 1
               fi
-              if [ "$state" = "MERGEABLE" ] && gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash; then
+              if [ "$state" = "MERGEABLE" ] && gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash --admin; then
                 merged=1
                 break
               fi
