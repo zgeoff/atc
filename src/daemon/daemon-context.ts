@@ -8,6 +8,7 @@ import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { MessageRecord } from '../store/message-record';
+import type { TurnSibling } from '../store/state-store';
 import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
@@ -93,11 +94,12 @@ interface EventsPage {
 }
 
 // One message as `message.get` reports it: the session it belongs to now,
-// every field of the record, and the other messages its turn answered.
+// every field of the record, and the other messages its turn answered with
+// the atc id each was sent to.
 interface MessageView {
   readonly session: SessionID;
   readonly record: MessageRecord;
-  readonly answeredWith: readonly MessageID[];
+  readonly answeredWith: readonly TurnSibling[];
 }
 
 // Why a session refuses a message before the daemon accepts it.

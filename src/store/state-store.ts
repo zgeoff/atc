@@ -78,6 +78,14 @@ export interface SpawnDir {
 }
 
 /**
+ * Another message one turn answered, and the atc id it was sent to.
+ */
+export interface TurnSibling {
+  readonly id: MessageID;
+  readonly atcID: SessionID;
+}
+
+/**
  * One report as the trail holds it. A report recorded before the trail kept
  * whole texts has only its preview, so its text is that preview and
  * `complete` is false.
@@ -634,7 +642,7 @@ export class StateStore {
 
   // The other messages of the same session the given message's turn
   // answered, oldest first; none when the message has no turn.
-  async collectTurnSiblings(record: MessageRecord): Promise<MessageID[]> {
+  async collectTurnSiblings(record: MessageRecord): Promise<TurnSibling[]> {
     if (record.turn === undefined) {
       return [];
     }
@@ -646,7 +654,7 @@ export class StateStore {
 
     const rows = await this.db
       .selectFrom('messages')
-      .select('id')
+      .select(['id', 'atc_id'])
       .where('turn_id', '=', record.turn)
       .where('id', '!=', record.id)
       .where((eb) => buildOwnerFilter(eb, owner))
@@ -654,7 +662,7 @@ export class StateStore {
       .orderBy(sql`rowid`, 'asc')
       .execute();
 
-    return rows.map((row) => toMessageID(row.id));
+    return rows.map((row) => ({ id: toMessageID(row.id), atcID: toSessionID(row.atc_id) }));
   }
 
   async updateMessageDelivered(

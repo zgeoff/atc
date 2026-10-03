@@ -2593,7 +2593,7 @@ test('it answers every message of one turn in one call and returns them oldest f
     [toMessageID('m-2'), 't-1'],
   ]);
 
-  expect(siblings).toStrictEqual([toMessageID('m-2')]);
+  expect(siblings).toStrictEqual([{ id: toMessageID('m-2'), atcID: toSessionID('s1') }]);
 });
 
 test('it lists the other messages of one turn in send order when they share a send time', async () => {
@@ -2632,7 +2632,10 @@ test('it lists the other messages of one turn in send order when they share a se
 
   const siblings = await store.collectTurnSiblings(first);
 
-  expect(siblings).toStrictEqual([toMessageID('m-b'), toMessageID('m-a')]);
+  expect(siblings).toStrictEqual([
+    { id: toMessageID('m-b'), atcID: toSessionID('s1') },
+    { id: toMessageID('m-a'), atcID: toSessionID('s1') },
+  ]);
 });
 
 test('it links a legacy fleet.json sub-session to its parent by the minted session id', async () => {

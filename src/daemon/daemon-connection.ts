@@ -1180,6 +1180,12 @@ export class DaemonConnection {
 
     const record = view.record;
 
+    // A message the turn also answered is listed only while the session it
+    // was sent to is in view, checked in the step that sends.
+    const answeredWith = view.answeredWith
+      .filter((sibling) => ctx.isSessionVisible(sibling.atcID))
+      .map((sibling) => sibling.id);
+
     this.sendOk(req.id, {
       message: record.id,
       session: view.session,
@@ -1191,7 +1197,7 @@ export class DaemonConnection {
       ...(record.answeredAt === undefined ? {} : { answeredAt: record.answeredAt }),
       ...(record.answer === undefined ? {} : { answer: record.answer }),
       turn: record.turn ?? null,
-      answeredWith: view.answeredWith,
+      answeredWith,
     });
   }
 

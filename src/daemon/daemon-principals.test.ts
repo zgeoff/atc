@@ -631,6 +631,64 @@ test('it keeps the events and messages of a hidden session from a principal whos
   expect(got['lastActivityAt']).toBe(getRecord(own, 'session')['createdAt']);
 });
 
+test("it lists a principal no message of a hidden session that one turn answered with its own session's", async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const agentSessionID = `a-${randomUUID()}`;
+
+  const moved = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'box',
+    resume: agentSessionID,
+  });
+
+  const hidden = String(getRecord(moved, 'session')['id']);
+
+  const own = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp', target: 'local', resume: agentSessionID },
+    'narrow',
+  );
+
+  const shown = String(getRecord(own, 'session')['id']);
+
+  const toHidden = await daemon.client.sendRequest('session.message', {
+    session: hidden,
+    from: 'owner',
+    text: 'box secret message',
+  });
+
+  const toShown = await daemon.client.sendRequest('session.message', {
+    session: shown,
+    from: 'owner',
+    text: 'local message',
+  });
+
+  await daemon.sendHookEvent(shown, 'Report', {
+    kind: 'answered',
+    messages: [toHidden['message'], toShown['message']],
+    answer: 'both',
+    turn: 't-1',
+  });
+
+  await waitFor(async () => {
+    const got = await daemon.client.sendRequest('message.get', { message: toShown['message'] });
+
+    expect(got['status']).toBe('answered');
+  });
+
+  const ownerGot = await daemon.client.sendRequest('message.get', { message: toShown['message'] });
+
+  const principalGot = await daemon.client.sendRequest(
+    'message.get',
+    { message: toShown['message'] },
+    'narrow',
+  );
+
+  expect(ownerGot).toMatchObject({ turn: 't-1', answeredWith: [toHidden['message']] });
+  expect(principalGot).toMatchObject({ turn: 't-1', answeredWith: [] });
+});
+
 test('it keeps the activity of a forgotten hidden session out of a principal session that shares its agent session id', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
