@@ -454,8 +454,8 @@ exist:
 - A spawn whose `parent` is out of reach is refused as a spawn under an unknown parent.
 - A session whose tree leaves the principal's reach, such as a parent that gains a sub-session on a
   target the principal may not use, leaves a principal connection's view: the connection is pushed
-  `SessionRemoved` for it, as for a forgotten session, and its output stops. A session whose tree
-  comes back within reach is pushed as `SessionAdded`.
+  `SessionRemoved` for it, as for a forgotten session, and loses its output and its inbox tap. A
+  session whose tree comes back within reach is pushed as `SessionAdded`.
 - Events and messages belong to the session they were recorded under. A session within reach that
   resumes the same agent session as one out of reach never shows the other's events, messages, or
   activity time.
