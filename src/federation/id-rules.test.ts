@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
+import { parseClaudeTranscriptLine } from '../agents/parse-claude-transcript-line';
 import { DaemonClient } from '../client/daemon-client';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
 import { startDaemon } from '../daemon/daemon';
@@ -16,7 +18,8 @@ import { ERROR_DATA_RULES, ID_RULES } from './id-rules';
 /**
  * A real daemon whose sessions run `sleep`, on state at `dbPath`. `boot`
  * starts it and returns its owner's connection, so a test can seed the
- * state first. Every answer these tests check comes from it, so a field
+ * state first. `reportStart` reports a session's SessionStart with a
+ * transcript at `transcriptPath`, which `session.read` then reads. Every answer these tests check comes from it, so a field
  * the daemon starts sending with an id in it fails the check below until
  * a rule covers it.
  */
@@ -26,6 +29,28 @@ function setupTest() {
 
   return {
     dbPath: join(tmp.dir, 'state.db'),
+    transcriptPath: join(tmp.dir, 'transcript.jsonl'),
+    async reportStart(sessionID: string): Promise<void> {
+      const closed = Promise.withResolvers<void>();
+      const line = { atcId: sessionID, event: 'SessionStart', payload: {} };
+
+      await Bun.connect({
+        unix: join(tmp.dir, 'reporter.sock'),
+        socket: {
+          open(socket) {
+            socket.write(`${JSON.stringify(line)}\n`);
+            socket.end();
+          },
+          close() {
+            closed.resolve();
+          },
+          data() {},
+          error() {},
+        },
+      });
+
+      await closed.promise;
+    },
     async boot(): Promise<DaemonClient> {
       const daemon = await startDaemon({
         socketPath: join(tmp.dir, 'daemon.sock'),
@@ -37,10 +62,14 @@ function setupTest() {
           takesMessages: true,
           headlessRunner: null,
           planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-          normalizeHook: () => ({ kind: 'prompt-submitted' }),
+          normalizeHook: (event) =>
+            event.event === 'SessionStart'
+              ? { kind: 'started', transcriptSource: join(tmp.dir, 'transcript.jsonl') }
+              : { kind: 'prompt-submitted' },
           loadName: () => Promise.resolve(null),
           canResume: () => true,
-          buildResumeCommand: () => 'claude --resume',
+          buildResumeCommand: (_cwd, agentSessionID) => `claude --resume ${agentSessionID ?? ''}`,
+          parseTranscriptLine: parseClaudeTranscriptLine,
         },
         dbPath: join(tmp.dir, 'state.db'),
         statusPath: join(tmp.dir, 'status.json'),
@@ -224,4 +253,71 @@ test('it finds an id in a field no rule covers', () => {
   expect(collectUnruledIDPaths(answer, ID_RULES['session.list'] ?? new Map())).toStrictEqual([
     'sessions[].origin',
   ]);
+});
+
+test('it has a rule for every id in a session.read answer, transcript text included', async () => {
+  await using daemon = setupTest();
+
+  const owner = await daemon.boot();
+
+  const agentSessionID = randomUUID();
+
+  writeFileSync(
+    daemon.transcriptPath,
+    `${JSON.stringify({ type: 'user', sessionId: agentSessionID, message: { content: `resume ${agentSessionID}` } })}\n`,
+  );
+
+  const spawned = await owner.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    resume: `a-${randomUUID()}`,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await daemon.reportStart(String(id));
+
+  const read = await waitFor(async () => {
+    const page = await owner.sendRequest('session.read', { session: id });
+
+    expect(page['rows']).not.toBeEmpty();
+
+    return page;
+  });
+
+  expect(collectUnruledIDPaths(read, ID_RULES['session.read'] ?? new Map())).toStrictEqual([]);
+});
+
+test('it has a rule for every id in a session.resumeCommand answer', async () => {
+  await using daemon = setupTest();
+
+  const owner = await daemon.boot();
+
+  const spawned = await owner.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    resume: randomUUID(),
+  });
+
+  const command = await owner.sendRequest('session.resumeCommand', {
+    session: getRecord(spawned, 'session')['id'],
+  });
+
+  expect(command['command']).toMatch(/[\da-f]{8}-/);
+
+  expect(
+    collectUnruledIDPaths(command, ID_RULES['session.resumeCommand'] ?? new Map()),
+  ).toStrictEqual([]);
+});
+
+test('it has a rule for every id in agents.list and dirs.list answers', async () => {
+  await using daemon = setupTest();
+
+  const owner = await daemon.boot();
+
+  await owner.sendRequest('session.spawn', { cwd: '/tmp', resume: `a-${randomUUID()}` });
+
+  const agents = await owner.sendRequest('agents.list');
+  const dirs = await owner.sendRequest('dirs.list');
+
+  expect(collectUnruledIDPaths(agents, ID_RULES['agents.list'] ?? new Map())).toStrictEqual([]);
+  expect(collectUnruledIDPaths(dirs, ID_RULES['dirs.list'] ?? new Map())).toStrictEqual([]);
 });

@@ -374,3 +374,35 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
     sessions: [expect.objectContaining({ id: getRecord(spawned, 'session')['id'] })],
   });
 });
+
+test('it refuses a daemon that never answers the handshake as daemon_unavailable', () => {
+  const silent = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
+
+  onTestFinished(() => {
+    silent.stop(true);
+  });
+
+  const caller = new DaemonCaller({
+    daemon: {
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: silent.port },
+      daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
+      incarnation: '0f6c2a8e',
+      token: TOKEN,
+    },
+    build: 'atc-gateway/test',
+    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    connectTimeoutMs: 300,
+  });
+
+  onTestFinished(() => caller.stop());
+
+  const started = Date.now();
+
+  expect(caller.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
+    code: 'daemon_unavailable',
+    message: "daemon 'cloud' did not answer the connection in time",
+  });
+
+  expect(Date.now() - started).toBeWithin(250, 5000);
+});

@@ -145,12 +145,18 @@ test('it rewrites the message of session.message and message.ack answers', () =>
   });
 });
 
-test('it passes an answer of a method without ids unchanged', () => {
-  const answer = { dirs: ['/tmp'] };
+test('it passes the opaque fields of an answer unchanged', () => {
+  const answer = { command: 'claude --resume 2b7f0c1e-9a4d-4e8b-b1c2-3d4e5f6a7b8c' };
 
-  expect(buildGatewayResult('dirs.list', answer, { name: 'cloud', incarnation: '0f6c2a8e' })).toBe(
-    answer,
-  );
+  expect(
+    buildGatewayResult('session.resumeCommand', answer, { name: 'cloud', incarnation: '0f6c2a8e' }),
+  ).toStrictEqual(answer);
+});
+
+test('it refuses to pass on the answer of a method without id rules', () => {
+  expect(() =>
+    buildGatewayResult('fleet.list', { fleet: [] }, { name: 'cloud', incarnation: '0f6c2a8e' }),
+  ).toThrowWithMessage(Error, 'the gateway has no id rules for fleet.list');
 });
 
 test('it routes every rewritten id back to the daemon id it came from', () => {
