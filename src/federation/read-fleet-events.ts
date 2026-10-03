@@ -12,7 +12,6 @@ import type { MergeSource } from './merge-event-pages';
 import { parseGatewayID } from './parse-gateway-id';
 import { planEventReads } from './plan-event-reads';
 import type { EventReadStart } from './plan-event-reads';
-import { requireServingDaemon } from './require-serving-daemon';
 import type { GatewayRegistry, RegistryDaemon } from './types';
 import { waitForOutcome } from './wait-for-outcome';
 
@@ -213,14 +212,13 @@ async function sendEventsRead(
   readonly cursor: string;
   readonly more: boolean;
 }> {
-  await requireServingDaemon(read.deps.getCaller, daemon, read.required);
-
   const answer = await read.deps
     .getCaller(daemon.name)
     .sendRequest(
       'events.read',
       { ...params, ...(read.sessionID === null ? {} : { session: read.sessionID }) },
       read.principal,
+      read.required,
     );
 
   const rawEvents: unknown = answer['events'];

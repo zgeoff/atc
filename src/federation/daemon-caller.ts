@@ -1,6 +1,7 @@
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
+import { buildDaemonOutdatedError } from './build-daemon-outdated-error';
 import { GatewayError } from './gateway-error';
 import type { RegistryDaemon } from './types';
 
@@ -108,8 +109,20 @@ export class DaemonCaller {
     m: string,
     p: Readonly<Record<string, unknown>> = {},
     as?: string,
+    required: readonly DaemonFeature[] = [],
   ): Promise<Readonly<Record<string, unknown>>> {
+    // A request that acts as a principal relies on the daemon honouring it.
+    const needed: readonly DaemonFeature[] =
+      as === undefined ? required : [...required, 'request.principal'];
+
     const opened = await this.openConnection();
+
+    const unserved = needed.find((feature) => !opened.hello.features.has(feature));
+
+    if (unserved !== undefined) {
+      throw buildDaemonOutdatedError(this.opts.daemon.name, unserved);
+    }
+
     const first = await this.trySend(opened.channel, m, p, as);
 
     if (first.kind === 'answered') {
@@ -141,6 +154,12 @@ export class DaemonCaller {
       fresh.hello.features.has('idempotency.replayOnly');
 
     if (keyFeature !== undefined && !replays) {
+      throw this.buildOutcomeUnknown(m);
+    }
+
+    // Nor does a retry reach a connection whose daemon would ignore what
+    // the request relies on, such as the principal it acts as.
+    if (needed.some((feature) => !fresh.hello.features.has(feature))) {
       throw this.buildOutcomeUnknown(m);
     }
 

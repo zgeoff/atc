@@ -68,6 +68,8 @@ test('it keeps the first binding of a key and returns it to a later claim for an
     payloadHash: 'h',
     outcome: 'pending',
     outcomeAt: 10,
+    claimedAt: 10,
+    effectRef: null,
   });
 });
 

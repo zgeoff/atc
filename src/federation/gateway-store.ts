@@ -27,6 +27,11 @@ export interface KeyBinding {
   readonly payloadHash: string;
   readonly outcome: BindingOutcome;
   readonly outcomeAt: number;
+
+  // When the binding was claimed, before its first send, and the daemon's
+  // id of the effect an uncertain answer returned, null without one.
+  readonly claimedAt: number;
+  readonly effectRef: string | null;
 }
 
 interface BindingRow {
@@ -39,6 +44,8 @@ interface BindingRow {
   readonly payload_hash: string;
   readonly outcome: string;
   readonly outcome_at: number;
+  readonly claimed_at: number;
+  readonly effect_ref: string | null;
 }
 
 /**
@@ -71,6 +78,8 @@ export class GatewayStore {
       payload_hash TEXT NOT NULL,
       outcome TEXT NOT NULL,
       outcome_at INTEGER NOT NULL,
+      claimed_at INTEGER NOT NULL,
+      effect_ref TEXT,
       PRIMARY KEY (principal, operation, key)
     )`);
 
@@ -84,12 +93,15 @@ export class GatewayStore {
    * `idempotency_conflict` when the key's binding holds another payload, so
    * a reused key never reaches a daemon that may have dropped it already.
    */
-  claimBinding(binding: Omit<KeyBinding, 'outcome' | 'outcomeAt'>, now: number): KeyBinding {
+  claimBinding(
+    binding: Omit<KeyBinding, 'outcome' | 'outcomeAt' | 'claimedAt' | 'effectRef'>,
+    now: number,
+  ): KeyBinding {
     this.db
       .query(
         `INSERT INTO key_binding
-           (principal, operation, key, daemon, daemon_id, retention_ms, payload_hash, outcome, outcome_at)
-         VALUES ($principal, $operation, $key, $daemon, $daemonID, $retentionMs, $payloadHash, 'pending', $now)
+           (principal, operation, key, daemon, daemon_id, retention_ms, payload_hash, outcome, outcome_at, claimed_at)
+         VALUES ($principal, $operation, $key, $daemon, $daemonID, $retentionMs, $payloadHash, 'pending', $now, $now)
          ON CONFLICT (principal, operation, key) DO NOTHING`,
       )
       .run({
@@ -130,19 +142,39 @@ export class GatewayStore {
     return row === null ? null : toKeyBinding(row);
   }
 
+  /**
+   * Records the last outcome of the key's request, and the effect id an
+   * uncertain answer returned, keeping one recorded earlier when this
+   * answer holds none.
+   */
   updateOutcome(
     principal: string,
     operation: string,
     key: string,
     outcome: BindingOutcome,
     now: number,
+    effectRef: string | null = null,
   ): void {
     this.db
       .query(
-        `UPDATE key_binding SET outcome = $outcome, outcome_at = $now
+        `UPDATE key_binding
+         SET outcome = $outcome, outcome_at = $now, effect_ref = COALESCE($effectRef, effect_ref)
          WHERE principal = $principal AND operation = $operation AND key = $key`,
       )
-      .run({ principal, operation, key, outcome, now });
+      .run({ principal, operation, key, outcome, now, effectRef });
+  }
+
+  /**
+   * Removes the key's binding, for a request the gateway refused before it
+   * sent anything, so nothing about the key reached a daemon.
+   */
+  removeBinding(principal: string, operation: string, key: string): void {
+    this.db
+      .query(
+        `DELETE FROM key_binding
+         WHERE principal = $principal AND operation = $operation AND key = $key`,
+      )
+      .run({ principal, operation, key });
   }
 
   /**
@@ -175,6 +207,8 @@ function toKeyBinding(row: BindingRow): KeyBinding {
     payloadHash: row.payload_hash,
     outcome: pickOutcome(row.outcome),
     outcomeAt: row.outcome_at,
+    claimedAt: row.claimed_at,
+    effectRef: row.effect_ref,
   };
 }
 
