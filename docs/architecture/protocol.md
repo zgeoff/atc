@@ -457,10 +457,12 @@ exist:
   `SessionRemoved` for it, as for a forgotten session, and loses its output and its inbox tap. A
   session whose tree comes back within reach is pushed as `SessionAdded`.
 - A request checks the reach again after each of its waits, before it answers or acts. A session
-  whose tree leaves reach during `events.read`, `message.get`, `report.get`, `session.get`,
-  `session.screen`, `session.read`, `session.adopt`, or `session.message` answers as a session the
-  daemon never held, and its message or report as an unknown one. A spawn whose `parent` leaves
-  reach before its harness starts is refused as a spawn under an unknown parent.
+  whose tree leaves reach during `fleet.list`, `events.read`, `message.get`, `message.ack`,
+  `report.get`, `session.get`, `session.screen`, `session.read`, `session.adopt`, or
+  `session.message` answers as a session the daemon never held, and its message or report as an
+  unknown one. A spawn whose `parent` leaves reach before its harness starts is refused as a spawn
+  under an unknown parent. A spawn whose new session leaves reach before the answer goes out fails
+  with `target_forbidden`, as the replay of its key would.
 - Events and messages belong to the session they were recorded under. A session within reach that
   resumes the same agent session as one out of reach never shows the other's events, messages, or
   activity time. A principal's inbox tap receives only the messages sent to that session's own id,
