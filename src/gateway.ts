@@ -65,8 +65,13 @@ const main = defineCommand({
           });
         },
       }),
-    clients: () =>
-      defineCommand({
+    clients: () => {
+      // The parent parses the whole command line, so it holds `--state-dir`
+      // whether the flag comes before or after the subcommand name, while a
+      // subcommand sees only the arguments after its name.
+      let parentStateDir: string | undefined;
+
+      return defineCommand({
         meta: {
           name: 'clients',
           description: 'List, add, or remove the clients that may connect to the gateway',
@@ -75,6 +80,9 @@ const main = defineCommand({
         // Declared here too, so `clients --state-dir <dir>` reads `<dir>` as
         // the flag's value rather than a subcommand name.
         args: STATE_DIR_ARG,
+        setup(ctx) {
+          parentStateDir = ctx.args['state-dir'];
+        },
         default: 'list',
         subCommands: {
           list: () =>
@@ -82,7 +90,7 @@ const main = defineCommand({
               meta: { name: 'list', description: 'List the clients', hidden: true },
               args: STATE_DIR_ARG,
               async run(ctx) {
-                const stateDir = findStateDir(ctx.args['state-dir'], process.env);
+                const stateDir = findStateDir(ctx.args['state-dir'] ?? parentStateDir, process.env);
 
                 if (stateDir === null) {
                   console.error(NO_STATE_DIR);
@@ -113,7 +121,7 @@ const main = defineCommand({
                 ...STATE_DIR_ARG,
               },
               async run(ctx) {
-                const stateDir = findStateDir(ctx.args['state-dir'], process.env);
+                const stateDir = findStateDir(ctx.args['state-dir'] ?? parentStateDir, process.env);
 
                 if (stateDir === null) {
                   console.error(NO_STATE_DIR);
@@ -146,7 +154,7 @@ const main = defineCommand({
                 ...STATE_DIR_ARG,
               },
               async run(ctx) {
-                const stateDir = findStateDir(ctx.args['state-dir'], process.env);
+                const stateDir = findStateDir(ctx.args['state-dir'] ?? parentStateDir, process.env);
 
                 if (stateDir === null) {
                   console.error(NO_STATE_DIR);
@@ -165,7 +173,8 @@ const main = defineCommand({
               },
             }),
         },
-      }),
+      });
+    },
   },
 });
 

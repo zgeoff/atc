@@ -329,3 +329,40 @@ test('it lists the clients when clients gets only a state directory', async () =
     stdout: `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`,
   });
 });
+
+test('it adds a client to the state directory given before the subcommand', async () => {
+  await using gateway = await setupTest();
+
+  const added = Bun.spawnSync(
+    [
+      ...gatewayCommand,
+      'clients',
+      '--state-dir',
+      join(gateway.dir, 'flagged'),
+      'add',
+      'Claude',
+      '--redirect-uri',
+      'https://claude.ai/api/mcp/auth_callback',
+    ],
+    { env: { ...gateway.env, ATC_GATEWAY_STATE_DIR: join(gateway.dir, 'from-env') } },
+  );
+
+  const listed = Bun.spawnSync(
+    [...gatewayCommand, 'clients', 'list', '--state-dir', join(gateway.dir, 'flagged')],
+    { env: gateway.env },
+  );
+
+  const clientID = /client ID is (?<id>\w+)/.exec(added.stdout.toString())?.groups?.['id'];
+
+  if (clientID === undefined) {
+    throw new Error(`no client ID in: ${added.stdout.toString()}`);
+  }
+
+  expect({
+    stdout: listed.stdout.toString(),
+    entries: readdirSync(gateway.dir).toSorted(),
+  }).toStrictEqual({
+    stdout: `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`,
+    entries: ['flagged', 'registry.json'],
+  });
+});
