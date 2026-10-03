@@ -1661,8 +1661,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         const remaining = deadline - Date.now();
 
         if (rows.length > 0 || remaining <= 0 || eventSignal.disposed) {
+          const naming = collectNamingDescriptors(access);
+
+          // Under an access an event takes no alias, so each event keeps the
+          // atc id it was recorded under for the check that sends it.
+          const aliases = access === null ? naming : [];
+
           return {
-            events: buildFleetEvents(rows.slice(0, limit), collectNamingDescriptors(access)),
+            events: buildFleetEvents(rows.slice(0, limit), naming, aliases),
             more: rows.length > limit,
           };
         }
@@ -1677,7 +1683,16 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return null;
       }
 
-      return buildReportView(stored, collectNamingDescriptors(access));
+      const naming = collectNamingDescriptors(access);
+      const aliases = access === null ? naming : [];
+
+      // Under an access a report takes no alias, so a session in reach
+      // never names a report whose own session left the access while the
+      // query waited.
+      return {
+        owner: stored.atcID,
+        view: buildReportView(stored, naming, aliases),
+      };
     },
     writeSessionMessage: async (sessionID, from, text, keyed, access) => {
       // Under an access, a session whose tree leaves the access before the

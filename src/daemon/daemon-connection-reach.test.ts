@@ -23,6 +23,9 @@ function assertUnreachable(): never {
  */
 function setupTest() {
   let visible = true;
+
+  const hidden = new Set<string>();
+
   let written = '';
   let nextID = 2;
   const entered = Promise.withResolvers<void>();
@@ -62,7 +65,7 @@ function setupTest() {
     buildTargetAccess: () => new TargetAccess([]),
     findSessionGrant: () => ({ target: 'local', targetIdentity: 'local-pty' }),
     findTargetIdentity: assertUnreachable,
-    canSeeSession: () => visible,
+    canSeeSession: (id) => visible && !hidden.has(id),
     isSessionVisible: assertUnreachable,
     findPermissionSession: assertUnreachable,
     resolveSpawnParent: assertUnreachable,
@@ -146,6 +149,9 @@ function setupTest() {
     entered: entered.promise,
     setVisible: (value: boolean) => {
       visible = value;
+    },
+    hide: (id: string) => {
+      hidden.add(id);
     },
     setFleetHeld: (value: boolean) => {
       isFleetHeld = value;
@@ -298,13 +304,16 @@ test('it answers report.get whose session leaves the view during the read as for
   scoped.setVisible(false);
 
   scoped.holds.report.resolve({
-    report: 'eyJrIjoiZXYiLCJpIjoxfQ',
-    at: 0,
-    session: 's-held',
-    name: 'secret',
-    label: 'l',
-    text: 'secret',
-    complete: true,
+    owner: toSessionID('s-held'),
+    view: {
+      report: 'eyJrIjoiZXYiLCJpIjoxfQ',
+      at: 0,
+      session: 's-held',
+      name: 'secret',
+      label: 'l',
+      text: 'secret',
+      complete: true,
+    },
   });
 
   const answered = await held;
@@ -315,6 +324,37 @@ test('it answers report.get whose session leaves the view during the read as for
   );
 
   expect(unknown).toMatchObject({ err: { code: 'bad_args' } });
+});
+
+test('it answers report.get whose sender leaves the view during the read as for a report that does not exist, whatever session its view is named by', async () => {
+  const scoped = setupTest();
+  const held = scoped.request('report.get', { report: 'eyJrIjoiZXYiLCJpIjoxfQ' });
+
+  await scoped.entered;
+
+  scoped.hide('s-held');
+
+  scoped.holds.report.resolve({
+    owner: toSessionID('s-held'),
+    view: {
+      report: 'eyJrIjoiZXYiLCJpIjoxfQ',
+      at: 0,
+      session: 's-shown',
+      name: 'shown',
+      label: 'l',
+      text: 'secret',
+      complete: true,
+    },
+  });
+
+  const answered = await held;
+  const unknown = await scoped.request('report.get', { report: 'eyJrIjoiZXYiLCJpIjoyfQ' });
+
+  expect(JSON.stringify(answered).replace('eyJrIjoiZXYiLCJpIjoxfQ', '<report>')).toBe(
+    JSON.stringify(unknown).replace('eyJrIjoiZXYiLCJpIjoyfQ', '<report>'),
+  );
+
+  expect(JSON.stringify(answered)).not.toInclude('secret');
 });
 
 test('it answers message.get whose session leaves the view during the wait as for an unknown message', async () => {

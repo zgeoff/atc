@@ -275,3 +275,43 @@ test('it names an event by the session holding its atc id ahead of one sharing i
     },
   ]);
 });
+
+test('it keeps an event on its own atc id when it may take no alias', () => {
+  const [event] = buildFleetEvents(
+    [
+      {
+        id: 1,
+        at: 1000,
+        atcID: toSessionID('s-hidden'),
+        agentSessionID: toAgentSessionID('c1'),
+        kind: 'turn-done',
+        detail: null,
+      },
+    ],
+    [
+      {
+        id: toSessionID('s-shown'),
+        name: 'worker',
+        cwd: '/tmp',
+        state: 'done',
+        unread: false,
+        lastMsg: 'turn done',
+        agentSessionID: toAgentSessionID('c1'),
+        agent: 'claude',
+        pinned: false,
+        lastAttachedAt: 1,
+        repoRoot: '/tmp',
+        namedBy: 'user',
+        createdAt: 1,
+        kind: 'pty',
+        alive: true,
+        canEject: false,
+        locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
+        lifecycle: { desired: 'run', vm: 'none', harness: 'running', attachment: 'local' },
+      },
+    ],
+    [],
+  );
+
+  expect(event).toMatchObject({ session: 's-hidden', name: null });
+});

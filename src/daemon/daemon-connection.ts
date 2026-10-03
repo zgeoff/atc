@@ -1063,16 +1063,18 @@ export class DaemonConnection {
 
     const decoded = decodeCursor(parsed.data.report);
 
-    const view =
+    const read =
       decoded === null || decoded.kind !== 'events' ? null : await ctx.readReport(decoded.id, null);
 
-    if (view === null || !ctx.isSessionVisible(toSessionID(view.session))) {
+    // Reach is checked against the session that sent the report, never the
+    // session its view is named by.
+    if (read === null || !ctx.isSessionVisible(read.owner)) {
       this.sendErr(req.id, 'bad_args', `no report '${parsed.data.report}'`);
 
       return;
     }
 
-    this.sendOk(req.id, { ...view });
+    this.sendOk(req.id, { ...read.view });
   }
 
   private async applySessionMessage(req: RequestMsg, ctx: DaemonContext): Promise<void> {
