@@ -455,7 +455,9 @@ exist:
 - A session whose tree leaves the principal's reach, such as a parent that gains a sub-session on a
   target the principal may not use, leaves a principal connection's view: the connection is pushed
   `SessionRemoved` for it, as for a forgotten session, and loses its output and its inbox tap. A
-  session whose tree comes back within reach is pushed as `SessionAdded`.
+  session whose tree comes back within reach is pushed as `SessionAdded`. A long `events.read`
+  checks the reach again after each wait, so a session whose tree leaves reach during the wait
+  answers as one the trail never held.
 - Events and messages belong to the session they were recorded under. A session within reach that
   resumes the same agent session as one out of reach never shows the other's events, messages, or
   activity time.
@@ -468,7 +470,8 @@ exist:
 A spawn to a target the principal may not use, named or the default, fails with `target_forbidden`,
 with the target as `data.target`. So does the replay of a held spawn key when the principal no
 longer reaches the target, at the identity, that the key recorded for its session, even after the
-session is forgotten; the refusal holds no part of the session. A key that records no target, which
+session is forgotten; the refusal holds no part of the session. The replay gets the same refusal
+while the daemon holds the session but its tree is out of reach. A key that records no target, which
 only a key from before atc recorded them holds, refuses every principal's replay; the daemon's owner
 still gets the session. A kill, a forget, or a pin checks the tree in the same step that starts it,
 and a kill or a forget acts only on the sub-sessions the tree held then. `daemon.quit` and
