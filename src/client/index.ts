@@ -10,6 +10,7 @@ import { bootDaemonClient } from './boot-daemon';
 import { buildClientMachine } from './build-client-machine';
 import { buildLeaderChords } from './build-leader-chords';
 import { findFuzzyScore, formatDir } from './dirs';
+import type { ProtocolMismatch } from './format-protocol-mismatch';
 import { KEY, isDown, isUp, planTextEdit } from './keys';
 import { parseDaemonEvent } from './parse-daemon-event';
 import { pickTabTarget } from './pick-tab-target';
@@ -781,7 +782,17 @@ const service = createActor(
   }),
 );
 
-const boot = await bootDaemonClient();
+// A daemon on another protocol is restarted only when the user confirms
+// it, and the fleet it hosted is then restored on the new one.
+let restartedOnBoot = false;
+
+const boot = await bootDaemonClient({
+  onProtocolMismatch: async (mismatch) => {
+    restartedOnBoot = await waitForRestartConsent(mismatch);
+
+    return restartedOnBoot;
+  },
+});
 
 let client = boot.client;
 let daemonStale = boot.stale;
@@ -790,7 +801,49 @@ let daemonRestarting = false;
 lastUsedAgent = boot.lastUsedAgent;
 client.onEvent = applyDaemonEvent;
 
+if (restartedOnBoot) {
+  await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
+}
+
 await refreshMirror();
+
+/**
+ * Asks on the terminal whether to restart a daemon that speaks another
+ * protocol, reading a single key. Anything but `y` declines, and so does a
+ * terminal that cannot answer.
+ */
+async function waitForRestartConsent(mismatch: ProtocolMismatch): Promise<boolean> {
+  if (!process.stdin.isTTY) {
+    return false;
+  }
+
+  process.stderr.write(
+    [
+      `atc: the daemon (pid ${mismatch.daemonPID}) speaks another protocol than this client, ${mismatch.clientBuild} on protocol v${mismatch.clientProtocol}.`,
+      `The daemon answered: ${mismatch.daemonMessage}`,
+      'Restart it now? Every session it hosts ends, then the fleet is restored on the new daemon. [y/N] ',
+    ].join('\n'),
+  );
+
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+
+  const key = await new Promise<string>((resolve) => {
+    process.stdin.once('data', (buf: Buffer) => {
+      resolve(buf.toString());
+    });
+  });
+
+  process.stdin.setRawMode(false);
+  process.stdin.pause();
+
+  const confirmed = key === 'y' || key === 'Y';
+  const echo = confirmed ? 'y\n' : 'n\n';
+
+  process.stderr.write(echo);
+
+  return confirmed;
+}
 
 async function refreshMirror() {
   const list = await client.sendRequest('session.list');

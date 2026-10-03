@@ -62,7 +62,8 @@ The first line on a connection must be `daemon.hello`; the daemon answers nothin
 Versioning is a single integer with strict equality — daemon and client ship from the same repo, so
 the only mismatch that happens in practice is a long-running daemon outliving an upgrade. The
 failure must be actionable, not cryptic: the error names both versions and both build strings and
-says to restart the daemon.
+says to restart the daemon. The client never restarts the daemon on its own; the
+[daemon architecture](./daemon.md#one-daemon-per-state-directory) covers the deliberate restart.
 
 ```jsonc
 { "v": 4, "id": 1, "m": "daemon.hello",
