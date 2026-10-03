@@ -136,8 +136,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
   // booted, so a heavy fleet comes up one process at a time instead of all
   // at once. A per-session cap keeps a session that never reports from
   // stalling the rest.
-  // A later session's failure runs in the background, so it is logged and
-  // the restore moves on rather than rejecting where nothing awaits it.
+  // A session whose revive fails is logged and left without a terminal,
+  // and the restore moves on: one host's failure never keeps the sessions on
+  // other hosts down, and a later one's runs where nothing awaits it.
   const tryAdoptQueued = async (s: Session): Promise<boolean> => {
     try {
       return await adoptQueued(s);
@@ -164,7 +165,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
     }
   };
 
-  const firstAdopted = await adoptQueued(first);
+  const firstAdopted = await tryAdoptQueued(first);
 
   const firstBooted = firstAdopted ? first : null;
 

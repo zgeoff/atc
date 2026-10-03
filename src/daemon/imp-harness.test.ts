@@ -346,3 +346,115 @@ test('it counts connections impd drops before they start, and ends once its reco
 
   expect(fixture.port.sessionRequests).toHaveLength(5);
 });
+
+test('it starts at the size a resize asked for while its host was still readying', async () => {
+  using tmp = setupTempDir('atc-imp-harness-');
+
+  using port = new FixtureImpPort();
+
+  const script = join(tmp.dir, 'size');
+
+  writeFileSync(script, '#!/usr/bin/env bash\necho "SIZE:$(stty size)"\nsleep 30\n', {
+    mode: 0o755,
+  });
+
+  await port.createImp({ name: 'imp-a' });
+
+  const ready = Promise.withResolvers<void>();
+  const output: string[] = [];
+
+  const harness = new ImpHarness(
+    port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [script],
+      env: {},
+      cwd: tmp.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      ready: ready.promise,
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  harness.resize(100, 40);
+  ready.resolve();
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('SIZE:40 100');
+  });
+
+  expect(port.sessionRequests).toMatchObject([{ kind: 'start', cols: 100, rows: 40 }]);
+
+  harness.kill();
+});
+
+test('it applies a resize that arrived before impd answered the start', async () => {
+  using tmp = setupTempDir('atc-imp-harness-');
+
+  using port = new FixtureImpPort();
+
+  const script = join(tmp.dir, 'size');
+
+  writeFileSync(
+    script,
+    '#!/usr/bin/env bash\nwhile read -r line; do echo "SIZE:$(stty size)"; done\n',
+    { mode: 0o755 },
+  );
+
+  await port.createImp({ name: 'imp-a' });
+
+  port.startAnswerHold();
+
+  const output: string[] = [];
+
+  const harness = new ImpHarness(
+    port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [script],
+      env: {},
+      cwd: tmp.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  harness.resize(100, 40);
+  harness.write('size\n');
+
+  await waitFor(() => {
+    expect(port.sessionRequests).toHaveLength(1);
+  });
+
+  port.stopAnswerHold();
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('SIZE:40 100');
+  });
+
+  harness.kill();
+});

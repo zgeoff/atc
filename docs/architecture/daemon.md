@@ -132,7 +132,10 @@ The daemon holds an imp with a lease labelled `atc-<daemonID>`, renews it at a t
 while a harness runs there, and gives it back when the imp's last harness ends. A kill gives the
 lease back first, then asks impd to sleep the imp without force. When another owner's lease refuses
 the sleep, the daemon takes its own lease back and the kill fails with `host_leased`. A confirmed
-`session.forget` destroys the imp, which ends every lease on it.
+`session.forget` destroys the imp, which ends every lease on it. A start that fails while it readies
+the imp takes back only what it did: it destroys an imp it created, since no session holds it, and
+on an imp that existed before, it gives back the lease it took and leaves the imp. A fleet restore
+logs a session whose revive fails, the first one included, and goes on to the next.
 
 Each harness is an imp session named after its atc session, and the daemon is its one attacher. A
 kill of a sub-session sends its process `SIGHUP`. When the daemon stops, it closes its connections,

@@ -133,3 +133,31 @@ test('it logs a later session whose revive fails and leaves it without a termina
     ['s-second', false],
   ]);
 });
+
+test('it logs a first session whose revive fails with a plain error and still revives the next one', async () => {
+  await using ctx = await setupTest({
+    ...baseAdapter,
+    planGuestSpawn: (_opts, guest) => {
+      if (guest.dir.endsWith('s-first')) {
+        throw new Error('no plan for s-first');
+      }
+
+      return { bin: 'sleep', args: ['30'], files: {} };
+    },
+  });
+
+  const restored = await ctx.restore();
+
+  expect(restored).toBe(2);
+
+  await waitFor(() => {
+    expect<readonly unknown[]>(ctx.mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
+      ['s-first', false],
+      ['s-second', true],
+    ]);
+  });
+
+  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+    'atc could not revive session s-first (no plan for s-first)',
+  ]);
+});

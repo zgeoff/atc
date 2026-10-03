@@ -97,6 +97,9 @@ export class ImpHarness implements HarnessHandle {
 
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // The terminal size the open connection's request asked for.
+  private requestedSize: { cols: number; rows: number } = { cols: 0, rows: 0 };
+
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the host holds a live promise
   constructor(port: ImpPort, start: ImpSessionRequest, host: ImpHarnessHost) {
     this.port = port;
@@ -195,8 +198,9 @@ export class ImpHarness implements HarnessHandle {
       return;
     }
 
+    // A resize while the host readied changed the size the start asks for.
     if (!this.done) {
-      this.openConnection(start);
+      this.openConnection({ ...start, cols: this.cols, rows: this.rows });
     }
   }
 
@@ -216,6 +220,7 @@ export class ImpHarness implements HarnessHandle {
 
     this.connection = connection;
     this.started = false;
+    this.requestedSize = { cols: request.cols, rows: request.rows };
     void this.waitForOutcome(connection);
   }
 
@@ -255,6 +260,12 @@ export class ImpHarness implements HarnessHandle {
     this.started = true;
 
     this.emitAttachment('attached');
+
+    // impd drops a resize that reaches it before the session starts, so the
+    // size asked for since the request goes out now.
+    if (this.requestedSize.cols !== this.cols || this.requestedSize.rows !== this.rows) {
+      connection.resize(this.cols, this.rows);
+    }
 
     for (const bytes of this.pending) {
       connection.write(bytes);

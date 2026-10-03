@@ -129,6 +129,13 @@ export class ImpProvider implements ExecutionProvider {
 
     this.label = label;
 
+    // A lease a running harness here already relies on stays held through a
+    // failed prepare; only one this prepare took is given back.
+    const held = this.hosts.get(request.host);
+    const holdsLease = held !== undefined && (held.harnesses > 0 || held.renewTimer !== null);
+    let created = false;
+    let leased = false;
+
     try {
       const features = await this.port.readFeatures();
 
@@ -142,11 +149,18 @@ export class ImpProvider implements ExecutionProvider {
           ...(this.target.image === undefined ? {} : { image: this.target.image }),
           ...(this.target.memoryMib === undefined ? {} : { memoryMib: this.target.memoryMib }),
         });
+
+        created = true;
       }
 
       await this.port.acquireLease(name, label, this.leaseSeconds);
+
+      leased = !holdsLease;
+
       await this.setupGuest(name, request.installATC === true);
     } catch (error) {
+      await this.tryUndoPrepare(name, label, created, leased);
+
       throw toHostRefusal(error, name);
     }
 
@@ -300,6 +314,25 @@ export class ImpProvider implements ExecutionProvider {
       this.stopRenewal(host);
     }
   };
+
+  // Takes back what a failed prepare left: an imp it created is destroyed,
+  // which ends the lease on it too, since no session was ever listed on it;
+  // on an imp that existed before, only the lease this prepare took is
+  // given back, and the imp itself stays.
+  private async tryUndoPrepare(
+    name: string,
+    label: string,
+    created: boolean,
+    leased: boolean,
+  ): Promise<void> {
+    try {
+      if (created) {
+        await this.port.destroyImp(name);
+      } else if (leased) {
+        await this.port.releaseLease(name, label);
+      }
+    } catch {}
+  }
 
   // Readies the folder the harnesses' report sockets live in, and copies
   // the provider's atc binary in when a harness needs atc and the imp has
