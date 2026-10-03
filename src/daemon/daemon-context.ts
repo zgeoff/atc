@@ -180,6 +180,10 @@ export interface DaemonContext {
   // one whose provider cannot both transfer an archive and run a command.
   readonly requireWorkspaceTarget: (target: string) => void;
 
+  // Throws the refusal for an agent that takes its credential from impd's
+  // broker on a target whose provider reaches no broker.
+  readonly requireAgentTarget: (agent: AgentID, target: string) => void;
+
   // The source the daemon offers the spawn picker under an id, or null when
   // it offers none under it.
   readonly findSource: (id: string) => SourceProvider | null;

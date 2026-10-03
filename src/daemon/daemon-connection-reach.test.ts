@@ -73,6 +73,7 @@ function setupTest() {
     resolveSpawnParent: assertUnreachable,
     resolveSpawnTarget: assertUnreachable,
     requireWorkspaceTarget: assertUnreachable,
+    requireAgentTarget: assertUnreachable,
     findSource: assertUnreachable,
     checkRepositoryAccess: assertUnreachable,
     collectAlternateGitURLs: assertUnreachable,

@@ -481,11 +481,12 @@ refuses the request before anything starts:
 - A gateway configured with `auth` is `auth_target_unsupported` on every target, with the agent id
   as `data.agent`. No harness starts and no host is prepared.
 - An agent that takes its credential from impd's broker is `auth_target_unsupported` on a target
-  whose provider has no broker, with `data.agent` and `data.target`, and on one where the agent
-  plans no guest settings for the broker, with `no_guest_plan` as `data.problem`. A guest plan whose
-  variables set a proxy or CA variable is `auth_target_unsupported` too, with `guest_env_conflict`
-  as `data.problem` and the variable as `data.variable`, before impd is touched.
-  [Runtime auth](#runtime-auth) covers the refusals on a target that has one.
+  whose provider has no broker, with `data.agent` and `data.target`, for a spawn, a resume, a
+  restore, and an adopt alike, before any workspace is materialized or host prepared; and on one
+  where the agent plans no guest settings for the broker, with `no_guest_plan` as `data.problem`. A
+  guest plan whose variables set a proxy or CA variable is `auth_target_unsupported` too, with
+  `guest_env_conflict` as `data.problem` and the variable as `data.variable`, before impd is
+  touched. [Runtime auth](#runtime-auth) covers the refusals on a target that has one.
 
 A refused spawn under an idempotency key leaves the key free for a retry. A restore lists a session
 whose target the daemon cannot use as exited, and input or `session.adopt` on it answers with the

@@ -1334,6 +1334,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       mgr.requireExecution({ target, targetIdentity: null }, 'transfer');
       mgr.requireExecution({ target, targetIdentity: null }, 'run');
     },
+    requireAgentTarget: (agent, target) => {
+      mgr.requireAgentTarget(agent, target);
+    },
     findSource: (id) => sources.find((source) => source.id === id) ?? null,
     collectAlternateGitURLs: (url) => [
       ...new Set(sources.flatMap((source) => source.findAlternateURLs?.(url) ?? [])),
@@ -1504,6 +1507,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     adoptSession: async (id, cols, rows, access) => {
       if (!hasResumableTranscript(mgr, id)) {
         return 'no_transcript';
+      }
+
+      const listed = mgr.sessions.find((s) => s.id === id);
+
+      // Refused before the headless run stops, so a refusal leaves it as
+      // it was.
+      if (listed !== undefined) {
+        mgr.requireAgentTarget(listed.agent, listed.target);
       }
 
       const runtime = runtimes.get(id);

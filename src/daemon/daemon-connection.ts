@@ -949,6 +949,8 @@ export class DaemonConnection {
         throw refusal;
       }
 
+      ctx.requireAgentTarget(agent, target);
+
       const overrides = parseSpawnOverrides(entry, { model: data.model, effort: data.effort });
 
       if (!overrides.ok) {

@@ -24,7 +24,8 @@ import { RuntimeAuthBinder } from './runtime-auth-binder';
  * config folder in the harness's variables; `proxied` takes the same
  * credential but plans a proxy variable; `plain` takes none. The principal
  * `ops` may use `box`. `restart` stops the daemon and starts another on
- * the same state.
+ * the same state, and `setAuthSelected` turns the broker credential of
+ * `glm` off and on.
  */
 async function setupTest() {
   const tmp = setupTempDir('atc-runtime-auth-');
@@ -45,6 +46,8 @@ async function setupTest() {
   port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
+
+  let authSelected = true;
 
   const shared = {
     headlessRunner: null,
@@ -69,30 +72,33 @@ async function setupTest() {
             files: {},
             env: { ...guest.auth.env, CLAUDE_CONFIG_DIR: `${guest.dir}/claude-config` },
           },
-    findAuthSelection: () => ({
-      gateway: {
-        id: 'glm',
-        baseURL: 'https://api.z.ai/api/anthropic',
-        auth: {
-          profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
-        },
-      },
-      profiles: new Map([
-        [
-          'glm',
-          {
-            name: 'glm',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            dependencies: [],
-          },
-        ],
-      ]),
-    }),
+    findAuthSelection: () =>
+      authSelected
+        ? {
+            gateway: {
+              id: 'glm',
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+            profiles: new Map([
+              [
+                'glm',
+                {
+                  name: 'glm',
+                  secret: 'glm',
+                  kind: 'custom',
+                  host: 'api.z.ai',
+                  header: 'authorization',
+                  scheme: 'bearer',
+                  dependencies: [],
+                },
+              ],
+            ]),
+          }
+        : null,
   };
 
   const plain: AgentAdapter = {
@@ -148,6 +154,13 @@ async function setupTest() {
     port,
     provider,
     dbPath,
+    dir: tmp.dir,
+
+    // Whether `glm` takes its credential from the broker, as a config
+    // change can turn on for an agent whose sessions already exist.
+    setAuthSelected(selected: boolean): void {
+      authSelected = selected;
+    },
     async restart(): Promise<void> {
       client.stop();
 
@@ -328,6 +341,166 @@ test('it refuses a spawn with runtime auth on the local target before touching i
   await spawn.catch(() => null);
 
   expect(daemon.port.calls).toStrictEqual([]);
+});
+
+test.each([
+  ['a spawn', false],
+  ['a resume', 'a1'],
+] as const)(
+  'it refuses %s of a brokered agent with a workspace on the local target before materializing it',
+  async (_kind, resume) => {
+    await using daemon = await setupTest();
+
+    const cwd = join(daemon.dir, 'ws');
+
+    const spawn = daemon.client.sendRequest('session.spawn', {
+      cwd,
+      agent: 'glm',
+      target: 'local',
+      resume,
+      workspace: { kind: 'path', path: join(daemon.dir, 'source') },
+    });
+
+    expect(spawn).rejects.toMatchObject({
+      code: 'auth_target_unsupported',
+      data: { agent: 'glm', target: 'local' },
+    });
+
+    await spawn.catch(() => null);
+
+    expect<Record<string, unknown>>({
+      calls: daemon.port.calls,
+      created: await Bun.file(cwd).exists(),
+      listed: await daemon.client.sendRequest('session.list'),
+    }).toStrictEqual({ calls: [], created: false, listed: { sessions: [] } });
+  },
+);
+
+test('it refuses to adopt a local session with a workspace once its agent takes the broker credential', async () => {
+  await using daemon = await setupTest();
+
+  daemon.setAuthSelected(false);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'local',
+    resume: 'a1',
+  });
+
+  const id = toSessionID(String(getRecord(spawned, 'session')['id']));
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  const store = await StateStore.open(daemon.dbPath);
+
+  await store.createMaterialization(
+    { sessionID: id, target: 'local', dir: '/tmp', sourceKind: 'path', withheldEnv: [] },
+    Date.now(),
+  );
+
+  await store.updateMaterialization(
+    id,
+    { phase: 'ready', repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 },
+    Date.now(),
+  );
+
+  const recorded = await store.findMaterialization(id);
+
+  await store.stop();
+
+  daemon.setAuthSelected(true);
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  expect(adopt).rejects.toMatchObject({
+    code: 'auth_target_unsupported',
+    data: { agent: 'glm', target: 'local' },
+  });
+
+  await adopt.catch(() => null);
+
+  const after = await StateStore.open(daemon.dbPath);
+  const materialization = await after.findMaterialization(id);
+
+  await after.stop();
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
+  expect<Record<string, unknown>>({
+    session: getRecord(got, 'session'),
+    materialization,
+    calls: daemon.port.calls,
+  }).toStrictEqual({
+    session: expect.objectContaining({
+      state: 'exited',
+      alive: false,
+      workspace: { repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 },
+    }),
+    materialization: recorded,
+    calls: [],
+  });
+});
+
+test('it restores a local session with a workspace without a terminal once its agent takes the broker credential', async () => {
+  await using daemon = await setupTest();
+
+  daemon.setAuthSelected(false);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'local',
+    resume: 'a1',
+  });
+
+  const id = toSessionID(String(getRecord(spawned, 'session')['id']));
+
+  const store = await StateStore.open(daemon.dbPath);
+
+  await store.createMaterialization(
+    { sessionID: id, target: 'local', dir: '/tmp', sourceKind: 'path', withheldEnv: [] },
+    Date.now(),
+  );
+
+  await store.updateMaterialization(
+    id,
+    { phase: 'ready', repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 },
+    Date.now(),
+  );
+
+  const recorded = await store.findMaterialization(id);
+
+  await store.stop();
+
+  daemon.setAuthSelected(true);
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const after = await StateStore.open(daemon.dbPath);
+  const materialization = await after.findMaterialization(id);
+
+  await after.stop();
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
+  expect<Record<string, unknown>>({
+    session: getRecord(got, 'session'),
+    materialization,
+    calls: daemon.port.calls,
+  }).toStrictEqual({
+    session: expect.objectContaining({
+      kind: 'headless',
+      lastMsg: 'waiting to restore',
+      workspace: { repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 },
+    }),
+    materialization: recorded,
+    calls: [],
+  });
 });
 
 test('it revives a slept session after verifying its binding, granting nothing again', async () => {

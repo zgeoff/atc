@@ -507,6 +507,25 @@ export class SessionManager {
     return desired === 'sleep' ? 'asleep' : 'unknown';
   }
 
+  /**
+   * Throws the refusal for an agent that takes its credential from impd's
+   * broker on a target whose provider reaches no broker, before a spawn
+   * or an adopt does any work.
+   */
+  requireAgentTarget(agent: AgentID, target: string): void {
+    const adapter = this.findAdapter(agent);
+
+    if (adapter === null || (adapter.findAuthSelection?.() ?? null) === null) {
+      return;
+    }
+
+    const provider = this.targets.get(target)?.provider ?? null;
+
+    if (provider?.brokerAuth === undefined || this.authBinder === null) {
+      throw buildBrokerTargetRefusal(agent, target);
+    }
+  }
+
   // Adopts a headless session back into a terminal: a fresh PTY resumes the
   // same agent session id. On a remote host the host wakes first, and a
   // harness still running inside it is attached rather than started again;
@@ -936,11 +955,7 @@ export class SessionManager {
     const host = provider.brokerAuth;
 
     if (host === undefined || this.authBinder === null) {
-      throw new DaemonError(
-        'auth_target_unsupported',
-        `agent '${adapter.id}' takes its credential from impd's broker, which target '${target}' does not reach`,
-        { agent: adapter.id, target },
-      );
+      throw buildBrokerTargetRefusal(adapter.id, target);
     }
 
     const planned = buildAuthBinding(selection.gateway, selection.profiles);
@@ -2024,6 +2039,16 @@ function buildLifecycle(s: Session): SessionLifecycle {
     kind: s.kind,
     state: s.state,
   });
+}
+
+// An agent that takes its credential from impd's broker on a target that
+// reaches none.
+function buildBrokerTargetRefusal(agent: string, target: string): DaemonError {
+  return new DaemonError(
+    'auth_target_unsupported',
+    `agent '${agent}' takes its credential from impd's broker, which target '${target}' does not reach`,
+    { agent, target },
+  );
 }
 
 // An agent that plans no remote spawn: for want of an atc inside the host
