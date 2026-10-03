@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.19.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.18.0...@zgeoff/atc@2.19.0) (2026-10-03)
+
+### Features
+
+- **#192:** spawn sessions from github repositories in the picker
+  ([#225](https://github.com/zgeoff/atc/issues/225))
+  ([63954f0](https://github.com/zgeoff/atc/commit/63954f0d63c141a108df793221f0c9200ec675da))
+
 ## [2.18.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.17.0...@zgeoff/atc@2.18.0) (2026-10-03)
 
 ### Features
