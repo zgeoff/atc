@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.14.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.13.0...@zgeoff/atc@2.14.0) (2026-10-03)
+
+### Features
+
+- **#161:** read a report's full text without messaging its session
+  ([#199](https://github.com/zgeoff/atc/issues/199))
+  ([86f811a](https://github.com/zgeoff/atc/commit/86f811ae1a15d179c872bd4650842a32533482f1))
+
+### Bug Fixes
+
+- **#196:** never stop a daemon implicitly on a protocol mismatch
+  ([#200](https://github.com/zgeoff/atc/issues/200))
+  ([aee0e41](https://github.com/zgeoff/atc/commit/aee0e41ed75ca4ed6beba32f6a5392adcf8ad5c4))
+
 ## [2.13.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.12.0...@zgeoff/atc@2.13.0) (2026-10-03)
 
 ### Features
