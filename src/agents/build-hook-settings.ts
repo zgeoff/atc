@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AgentID } from '../shared/agent-id';
+import { toShellArg } from '../shared/to-shell-arg';
 import { buildCLICommand } from './build-cli-command';
 
 /**
@@ -42,7 +43,7 @@ export function buildHookSettings(
       hooks: [
         {
           type: 'command',
-          command: buildCLICommand(`hook-report --agent ${profile.id}`, cliArgv),
+          command: buildCLICommand(`hook-report --agent ${toShellArg(profile.id)}`, cliArgv),
           timeout: 5,
         },
       ],
@@ -69,7 +70,7 @@ export function buildHookSettings(
     // padding.
     statusLine: {
       type: 'command',
-      command: buildCLICommand(`statusline --agent ${profile.id}`, cliArgv),
+      command: buildCLICommand(`statusline --agent ${toShellArg(profile.id)}`, cliArgv),
       padding: statuslinePadding,
     },
     ...(profile.env === undefined || Object.keys(profile.env).length === 0

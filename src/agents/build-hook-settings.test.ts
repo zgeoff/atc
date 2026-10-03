@@ -134,12 +134,14 @@ test('it gives every command it registers the agent id of its session', () => {
 
   expect(settings).toMatchObject({
     hooks: {
-      SessionStart: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent zai' }] }],
-      Notification: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent zai' }] }],
-      Stop: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent zai' }] }],
-      UserPromptSubmit: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent zai' }] }],
-      SessionEnd: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent zai' }] }],
+      SessionStart: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
+      Notification: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
+      Stop: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
+      UserPromptSubmit: [
+        { hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] },
+      ],
+      SessionEnd: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
     },
-    statusLine: { command: '"/usr/local/bin/atc" statusline --agent zai' },
+    statusLine: { command: '"/usr/local/bin/atc" statusline --agent \'zai\'' },
   });
 });

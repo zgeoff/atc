@@ -132,5 +132,5 @@ async function readOwnSegment(sock: string): Promise<string> {
 // itself; the injected command ends with the bare subcommand, or with the
 // subcommand and its agent flag.
 function isSelfCommand(cmd: string): boolean {
-  return cmd.includes('statusline.ts') || /\sstatusline(?:\s+--agent\s+\S+)?\s*$/u.test(cmd);
+  return cmd.includes('statusline.ts') || /\sstatusline(?:\s+--agent\s.*)?$/u.test(cmd);
 }
