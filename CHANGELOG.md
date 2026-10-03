@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.24.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.23.0...@zgeoff/atc@2.24.0) (2026-10-03)
+
+### Features
+
+- **#210:** package the gateway as its own release binary
+  ([#245](https://github.com/zgeoff/atc/issues/245))
+  ([7f043b4](https://github.com/zgeoff/atc/commit/7f043b4e51a93da8dd1c87ffc0697cc34bff5f60))
+
 ## [2.23.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.22.0...@zgeoff/atc@2.23.0) (2026-10-03)
 
 ### Features
