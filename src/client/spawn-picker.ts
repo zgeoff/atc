@@ -644,12 +644,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       ...refs.filter((ref) => !(ref.kind === 'branch' && ref.name === head)),
     ];
 
-    const names = pickMatches(
-      ordered.map((ref) => `${ref.kind}:${ref.name}`),
-      this.input.trim(),
-    );
+    const names = pickMatches([...new Set(ordered.map((ref) => ref.name))], this.input.trim());
 
-    return names.flatMap((key) => ordered.filter((ref) => `${ref.kind}:${ref.name}` === key));
+    return names.flatMap((name) => ordered.filter((ref) => ref.name === name));
   }
 
   // Switches the source step, carrying the typed text across and reading
