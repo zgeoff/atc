@@ -88,6 +88,22 @@ reload succeeds. Rotate a token without downtime in four steps:
 3. Remove the old token from the file.
 4. Send `SIGHUP` again.
 
+The listener logs to stderr, one `key=value` line per event, for a journal alert to match:
+
+```text
+atc tcp event=listening host=127.0.0.1 port=8415
+atc tcp event=handshake_refused peer=100.64.0.7 reason=unauthorized count=1
+atc tcp event=principal_refused peer=100.64.0.7 principal=ops count=1
+```
+
+The `reason` is one of `missing_token`, `unauthorized`, `delay_cap_full`, `closed_during_delay`,
+`unexpected_line`, and `line_too_long`. A line never holds a token or any part of one. Each field
+from the network is cut to 64 characters, and every control character, space, `=`, `"`, `\`, and
+non-ASCII character in it is written as a `\u{hex}` escape. The first refusal of one kind from one
+peer logs at once with `count=1`. Later ones within a minute are counted, and a line with their
+count follows once the minute ends, so the counts of every line sum to every refusal. The daemon
+tracks at most 1024 such windows, and a new one past that ends the oldest early.
+
 `atc daemon id` prints the running daemon's `daemonID` over the owner's unix socket, for a client
 that pins the daemon's identity. It exits with status 1 when no daemon answers.
 

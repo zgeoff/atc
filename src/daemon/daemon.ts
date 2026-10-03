@@ -191,6 +191,12 @@ interface ListenOptions {
   // How many delayed handshakes may wait at once across every address; 64
   // when unset.
   readonly maxDelayedHandshakes?: number;
+
+  // The clock the refusal log reads, Date.now when unset, and how long it
+  // folds repeated refusals from one peer into one line; a minute when
+  // unset.
+  readonly now?: () => number;
+  readonly refusalLogIntervalMs?: number;
 }
 
 export interface DaemonHandle {
@@ -229,6 +235,10 @@ const HANDSHAKE_FAILURE_DELAY_MS = 10_000;
 // How many delayed handshakes may wait at once; a handshake over the cap is
 // refused at once.
 const MAX_DELAYED_HANDSHAKES = 64;
+
+// How long the TCP listener folds repeated refusals from one peer into one
+// log line.
+const REFUSAL_LOG_INTERVAL_MS = 60_000;
 
 // How long startup waits for a daemon that is shutting down to release the
 // state lock before refusing to start.
@@ -2010,6 +2020,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           return connection;
         },
         closeConnection: detachConnection,
+        log:
+          opts.log ??
+          ((line) => {
+            console.error(line);
+          }),
+        now: opts.listen.now ?? Date.now,
+        refusalLogIntervalMs: opts.listen.refusalLogIntervalMs ?? REFUSAL_LOG_INTERVAL_MS,
       });
     } catch (error) {
       await releaseResources();
