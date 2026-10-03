@@ -605,7 +605,10 @@ impd's own client refuses an outdated impd.
   answers `auth_revocation_pending`.
 - `session.auth.rebind` (`{ session }`) binds the host to its agent's current selection at the next
   revision and answers `{ revision }`. A rebind that fails removes only the grants it added, keeps
-  the old revision, and blocks launches until a rebind succeeds.
+  the old revision, and blocks launches until a rebind succeeds. The broker grants change when the
+  rebind succeeds. A harness that is running or suspended keeps the guest settings it launched with,
+  from the earlier revision, until it restarts; only a harness launched after the rebind reads the
+  new revision's settings.
 - A launch whose agent takes no credential from the broker is `auth_rebind_required` while its host
   holds a binding in any state, with the state as `data.state`, so a config that drops `auth` never
   reopens a blocked host. A rebind needs the agent's selection back; otherwise a forget of the host
