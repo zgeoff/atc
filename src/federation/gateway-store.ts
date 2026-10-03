@@ -1,4 +1,5 @@
 import { Database } from 'bun:sqlite';
+import { DaemonError } from '../protocol/daemon-error';
 
 /**
  * The last outcome the gateway saw for a keyed request: `pending` until an
@@ -13,7 +14,8 @@ export type BindingOutcome = 'pending' | 'completed' | 'uncertain';
  * operation, and key before the request leaves the gateway, so every retry
  * reaches the same daemon whatever the default daemon is by then. The
  * daemon's announced completed-key retention, null when it announced none,
- * decides when the binding may go.
+ * decides when the binding may go. The payload hash binds the key to the
+ * request it was first used with, as the daemon's own ledger does.
  */
 export interface KeyBinding {
   readonly principal: string;
@@ -22,6 +24,7 @@ export interface KeyBinding {
   readonly daemon: string;
   readonly daemonID: string;
   readonly retentionMs: number | null;
+  readonly payloadHash: string;
   readonly outcome: BindingOutcome;
   readonly outcomeAt: number;
 }
@@ -33,6 +36,7 @@ interface BindingRow {
   readonly daemon: string;
   readonly daemon_id: string;
   readonly retention_ms: number | null;
+  readonly payload_hash: string;
   readonly outcome: string;
   readonly outcome_at: number;
 }
@@ -64,6 +68,7 @@ export class GatewayStore {
       daemon TEXT NOT NULL,
       daemon_id TEXT NOT NULL,
       retention_ms INTEGER,
+      payload_hash TEXT NOT NULL,
       outcome TEXT NOT NULL,
       outcome_at INTEGER NOT NULL,
       PRIMARY KEY (principal, operation, key)
@@ -75,14 +80,16 @@ export class GatewayStore {
   /**
    * Binds the key to the daemon unless a binding for it already exists, and
    * returns the binding that holds after the call: the new one, or the one
-   * an earlier request made, whose daemon the request must go to.
+   * an earlier request made, whose daemon the request must go to. Throws
+   * `idempotency_conflict` when the key's binding holds another payload, so
+   * a reused key never reaches a daemon that may have dropped it already.
    */
   claimBinding(binding: Omit<KeyBinding, 'outcome' | 'outcomeAt'>, now: number): KeyBinding {
     this.db
       .query(
         `INSERT INTO key_binding
-           (principal, operation, key, daemon, daemon_id, retention_ms, outcome, outcome_at)
-         VALUES ($principal, $operation, $key, $daemon, $daemonID, $retentionMs, 'pending', $now)
+           (principal, operation, key, daemon, daemon_id, retention_ms, payload_hash, outcome, outcome_at)
+         VALUES ($principal, $operation, $key, $daemon, $daemonID, $retentionMs, $payloadHash, 'pending', $now)
          ON CONFLICT (principal, operation, key) DO NOTHING`,
       )
       .run({
@@ -92,6 +99,7 @@ export class GatewayStore {
         daemon: binding.daemon,
         daemonID: binding.daemonID,
         retentionMs: binding.retentionMs,
+        payloadHash: binding.payloadHash,
         now,
       });
 
@@ -99,6 +107,13 @@ export class GatewayStore {
 
     if (held === null) {
       throw new Error('a claimed key binding is missing');
+    }
+
+    if (held.payloadHash !== binding.payloadHash) {
+      throw new DaemonError(
+        'idempotency_conflict',
+        `idempotency key '${binding.key}' was first used with a different ${binding.operation} payload`,
+      );
     }
 
     return held;
@@ -157,6 +172,7 @@ function toKeyBinding(row: BindingRow): KeyBinding {
     daemon: row.daemon,
     daemonID: row.daemon_id,
     retentionMs: row.retention_ms,
+    payloadHash: row.payload_hash,
     outcome: pickOutcome(row.outcome),
     outcomeAt: row.outcome_at,
   };

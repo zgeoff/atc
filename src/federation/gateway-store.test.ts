@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { GatewayStore } from './gateway-store';
 
 /**
@@ -39,6 +40,7 @@ test('it keeps the first binding of a key and returns it to a later claim for an
       daemon: 'cloud',
       daemonID: 'd1',
       retentionMs: 1000,
+      payloadHash: 'h',
     },
     10,
   );
@@ -51,6 +53,7 @@ test('it keeps the first binding of a key and returns it to a later claim for an
       daemon: 'pc',
       daemonID: 'd2',
       retentionMs: 1000,
+      payloadHash: 'h',
     },
     20,
   );
@@ -62,6 +65,7 @@ test('it keeps the first binding of a key and returns it to a later claim for an
     daemon: 'cloud',
     daemonID: 'd1',
     retentionMs: 1000,
+    payloadHash: 'h',
     outcome: 'pending',
     outcomeAt: 10,
   });
@@ -78,6 +82,7 @@ test('it keeps a binding across a gateway restart', () => {
       daemon: 'cloud',
       daemonID: 'd1',
       retentionMs: null,
+      payloadHash: 'h',
     },
     10,
   );
@@ -98,6 +103,7 @@ test('it holds the keys of each principal and operation apart', () => {
       daemon: 'cloud',
       daemonID: 'd1',
       retentionMs: null,
+      payloadHash: 'h',
     },
     10,
   );
@@ -117,6 +123,7 @@ test('it removes a completed binding once twice the daemon retention has passed'
       daemon: 'cloud',
       daemonID: 'd1',
       retentionMs: 1000,
+      payloadHash: 'h',
     },
     0,
   );
@@ -141,6 +148,7 @@ test.each([['pending'], ['uncertain']] as const)(
         daemon: 'cloud',
         daemonID: 'd1',
         retentionMs: 1000,
+        payloadHash: 'h',
       },
       0,
     );
@@ -162,6 +170,7 @@ test('it keeps a completed binding to a daemon that announced no retention', () 
       daemon: 'cloud',
       daemonID: 'd1',
       retentionMs: null,
+      payloadHash: 'h',
     },
     0,
   );
@@ -169,4 +178,41 @@ test('it keeps a completed binding to a daemon that announced no retention', () 
   gateway.store.updateOutcome('c1', 'session.spawn', 'k', 'completed', 0);
 
   expect(gateway.store.removeExpiredBindings(Number.MAX_SAFE_INTEGER)).toBe(0);
+});
+
+test('it refuses a key reused with another payload as idempotency_conflict before any daemon call', () => {
+  using gateway = setupTest();
+
+  gateway.store.claimBinding(
+    {
+      principal: 'c1',
+      operation: 'session.spawn',
+      key: 'k',
+      daemon: 'cloud',
+      daemonID: 'd1',
+      retentionMs: 1000,
+      payloadHash: buildBindingPayloadHash({ cwd: '/tmp', idempotencyKey: 'k' }),
+    },
+    0,
+  );
+
+  expect(() =>
+    gateway.store.claimBinding(
+      {
+        principal: 'c1',
+        operation: 'session.spawn',
+        key: 'k',
+        daemon: 'cloud',
+        daemonID: 'd1',
+        retentionMs: 1000,
+        payloadHash: buildBindingPayloadHash({ cwd: '/var', idempotencyKey: 'k' }),
+      },
+      10,
+    ),
+  ).toThrow(
+    expect.objectContaining({
+      code: 'idempotency_conflict',
+      message: "idempotency key 'k' was first used with a different session.spawn payload",
+    }),
+  );
 });
