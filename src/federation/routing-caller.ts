@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { match } from 'ts-pattern';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
@@ -41,6 +42,9 @@ interface RoutedSend {
   readonly required: readonly DaemonFeature[];
   readonly principal: string;
   readonly key: string | null;
+
+  // Checked right before each write of the request; a throw sends nothing.
+  readonly requireSendable?: () => void;
 }
 
 // A keyed request on its way to a daemon: the daemon its ids or the
@@ -197,9 +201,11 @@ export class RoutingCaller {
     return this.sendKeyed(keyed, route);
   }
 
-  // Sends a keyed request to the daemon its binding holds. A refusal about
-  // the daemon comes before anything is sent, so a binding this call made
-  // leaves no trace of the key.
+  // Sends a keyed request to the daemon its binding holds. Right before each
+  // write the binding is read again, so a retry whose daemon may have
+  // dropped the key since never leaves. A refusal about the daemon comes
+  // before anything is sent, so a binding this call's own claim wrote, with
+  // no outcome yet, leaves no trace of the key.
   private async sendKeyed(
     keyed: KeyedRoute,
     route: RoutedSend['route'],
@@ -214,10 +220,13 @@ export class RoutingCaller {
         required: keyed.required,
         principal: keyed.principal,
         key: keyed.key,
+        requireSendable: () => {
+          this.requireUnlapsedBinding(keyed);
+        },
       });
     } catch (error) {
-      if (claimed.created && error instanceof GatewayError) {
-        this.opts.store.removeBinding(keyed.principal, keyed.m, keyed.key);
+      if (error instanceof GatewayError) {
+        this.opts.store.removeBinding(keyed.principal, keyed.m, keyed.key, claimed.claimID);
       }
 
       throw error;
@@ -233,7 +242,13 @@ export class RoutingCaller {
     try {
       const ok = await this.opts.pool
         .getCaller(send.daemon.name)
-        .sendRequest(send.m, send.route.params, send.principal, send.required);
+        .sendRequest(
+          send.m,
+          send.route.params,
+          send.principal,
+          send.required,
+          send.requireSendable,
+        );
 
       if (send.key !== null) {
         store.updateOutcome(send.principal, send.m, send.key, 'completed', this.getNow());
@@ -257,6 +272,16 @@ export class RoutingCaller {
     }
   }
 
+  // Throws `outcome_unknown` when the key's binding never got a known
+  // answer and the daemon's retention may have lapsed since it was claimed.
+  private requireUnlapsedBinding(keyed: KeyedRoute): void {
+    const held = this.opts.store.findBinding(keyed.principal, keyed.m, keyed.key);
+
+    if (held !== null && hasLapsedUnanswered(held, this.getNow())) {
+      throw buildLapsedError(held);
+    }
+  }
+
   // The daemon a keyed request goes to: the one an earlier call with the
   // same principal, operation, and key was bound to, or else the one the
   // call picked, bound now, before anything is sent. A bound daemon whose
@@ -265,7 +290,7 @@ export class RoutingCaller {
   // retention go first.
   private async claimRoute(
     route: KeyedRoute,
-  ): Promise<{ readonly daemon: RegistryDaemon; readonly created: boolean }> {
+  ): Promise<{ readonly daemon: RegistryDaemon; readonly claimID: string }> {
     const store = this.opts.store;
     const now = this.getNow();
 
@@ -287,22 +312,14 @@ export class RoutingCaller {
     }
 
     if (held !== null && bound !== undefined && bound !== null && hasLapsedUnanswered(held, now)) {
-      const data = held.effectRef === null ? undefined : { effectRef: held.effectRef };
-
-      throw buildGatewayError(
-        new DaemonError(
-          'outcome_unknown',
-          `idempotency key '${route.key}' went to daemon '${held.daemon}' without a known outcome, and that daemon may no longer remember it; check what it did instead of sending it again`,
-          data,
-        ),
-        bound,
-        new Map(),
-      );
+      throw buildGatewayError(buildLapsedError(held), bound, new Map());
     }
 
     const daemon = bound ?? route.picked;
 
     const hello = await requireServingDaemon(this.getCaller, daemon, route.required);
+
+    const claimID = randomUUID();
 
     const binding = store.claimBinding(
       {
@@ -313,6 +330,7 @@ export class RoutingCaller {
         daemonID: daemon.daemonID,
         retentionMs: hello.retentionMs,
         payloadHash: buildBindingPayloadHash(route.params),
+        claimID,
       },
       this.getNow(),
     );
@@ -323,7 +341,7 @@ export class RoutingCaller {
       throw buildConflict(route.key, binding.daemon);
     }
 
-    return { daemon, created: held === null };
+    return { daemon, claimID };
   }
 
   // Asks every daemon at once. `session.list` merges the sessions and adds
@@ -419,6 +437,18 @@ function collectSessions(outcome: CallOutcome<Readonly<Record<string, unknown>>>
   const sessions: unknown = outcome.value['sessions'];
 
   return Array.isArray(sessions) ? sessions : [];
+}
+
+// The refusal for a resend the daemon may no longer deduplicate, with the
+// daemon's id of the effect when the binding holds one.
+function buildLapsedError(binding: Readonly<KeyBinding>): DaemonError {
+  const data = binding.effectRef === null ? undefined : { effectRef: binding.effectRef };
+
+  return new DaemonError(
+    'outcome_unknown',
+    `idempotency key '${binding.key}' went to daemon '${binding.daemon}' without a known outcome, and that daemon may no longer remember it; check what it did instead of sending it again`,
+    data,
+  );
 }
 
 function buildConflict(key: string, daemon: string): DaemonError {

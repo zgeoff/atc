@@ -41,6 +41,7 @@ test('it keeps the first binding of a key and returns it to a later claim for an
       daemonID: 'd1',
       retentionMs: 1000,
       payloadHash: 'h',
+      claimID: 'claim',
     },
     10,
   );
@@ -54,6 +55,7 @@ test('it keeps the first binding of a key and returns it to a later claim for an
       daemonID: 'd2',
       retentionMs: 1000,
       payloadHash: 'h',
+      claimID: 'claim',
     },
     20,
   );
@@ -66,6 +68,7 @@ test('it keeps the first binding of a key and returns it to a later claim for an
     daemonID: 'd1',
     retentionMs: 1000,
     payloadHash: 'h',
+    claimID: 'claim',
     outcome: 'pending',
     outcomeAt: 10,
     claimedAt: 10,
@@ -85,6 +88,7 @@ test('it keeps a binding across a gateway restart', () => {
       daemonID: 'd1',
       retentionMs: null,
       payloadHash: 'h',
+      claimID: 'claim',
     },
     10,
   );
@@ -106,6 +110,7 @@ test('it holds the keys of each principal and operation apart', () => {
       daemonID: 'd1',
       retentionMs: null,
       payloadHash: 'h',
+      claimID: 'claim',
     },
     10,
   );
@@ -126,6 +131,7 @@ test('it removes a completed binding once twice the daemon retention has passed'
       daemonID: 'd1',
       retentionMs: 1000,
       payloadHash: 'h',
+      claimID: 'claim',
     },
     0,
   );
@@ -151,6 +157,7 @@ test.each([['pending'], ['uncertain']] as const)(
         daemonID: 'd1',
         retentionMs: 1000,
         payloadHash: 'h',
+        claimID: 'claim',
       },
       0,
     );
@@ -173,6 +180,7 @@ test('it keeps a completed binding to a daemon that announced no retention', () 
       daemonID: 'd1',
       retentionMs: null,
       payloadHash: 'h',
+      claimID: 'claim',
     },
     0,
   );
@@ -194,6 +202,7 @@ test('it refuses a key reused with another payload as idempotency_conflict befor
       daemonID: 'd1',
       retentionMs: 1000,
       payloadHash: buildBindingPayloadHash({ cwd: '/tmp', idempotencyKey: 'k' }),
+      claimID: 'claim',
     },
     0,
   );
@@ -208,6 +217,7 @@ test('it refuses a key reused with another payload as idempotency_conflict befor
         daemonID: 'd1',
         retentionMs: 1000,
         payloadHash: buildBindingPayloadHash({ cwd: '/var', idempotencyKey: 'k' }),
+        claimID: 'claim',
       },
       10,
     ),
@@ -237,6 +247,7 @@ test('it accepts a retry whose payload holds two keys a locale comparison ties i
       payloadHash: buildBindingPayloadHash({
         env: { é: 'precomposed', é: 'decomposed' },
       }),
+      claimID: 'claim',
     },
     0,
   );
@@ -247,6 +258,7 @@ test('it accepts a retry whose payload holds two keys a locale comparison ties i
       payloadHash: buildBindingPayloadHash({
         env: { é: 'decomposed', é: 'precomposed' },
       }),
+      claimID: 'claim',
     },
     10,
   );
