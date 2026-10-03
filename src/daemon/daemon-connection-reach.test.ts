@@ -71,6 +71,8 @@ function setupTest() {
     resolveSpawnParent: assertUnreachable,
     resolveSpawnTarget: assertUnreachable,
     requireWorkspaceTarget: assertUnreachable,
+    findSource: assertUnreachable,
+    checkRepositoryAccess: assertUnreachable,
     spawnSession: () => waitOnHold(holds.spawn.promise),
     killSession: assertUnreachable,
     forgetSession: assertUnreachable,

@@ -89,6 +89,29 @@ test('it fails on an import of a directory the importer may not use', async () =
   });
 });
 
+test('it lets a sources module import workspace and the daemon import sources, but not the reverse', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/workspace/probe.ts'), 'export const PROBE = 1;\n');
+  await Bun.write(join(tree.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/sources/types.ts'),
+    "export { PROBE } from '../workspace/probe';\nexport { ID } from '../daemon/ids';\n",
+  );
+
+  await Bun.write(
+    join(tree.dir, 'src/daemon/connection.ts'),
+    "export { PROBE } from '../sources/types';\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 4 files, 0 cycles, 1 other findings\n',
+    stderr: 'forbidden edge: src/sources/types.ts imports src/daemon/ids.ts (sources -> daemon)\n',
+  });
+});
+
 test('it fails on a directory module importing a src root module', async () => {
   await using tree = await setupTest();
 

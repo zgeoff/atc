@@ -37,6 +37,7 @@ test('it lists only the agents whose configured binary resolves', () => {
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -66,6 +67,7 @@ test('it resolves a bare binary name off PATH', () => {
       codexBin: 'codex',
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -90,6 +92,7 @@ test('it leaves out a binary that exists without the executable bit', () => {
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null },
       gateways: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
@@ -114,6 +117,7 @@ test('it lists a configured backend after the built-in agents', () => {
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null },
       gateways: [
         {
           id: 'zai',
@@ -151,6 +155,7 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
       codexBin: join(dir, 'my-codex'),
       codexArgs: [],
       dirs: { roots: [] },
+      workspaces: { githubOwner: null, sources: null },
       gateways: [
         {
           id: 'zai',

@@ -56,6 +56,14 @@ export const DAEMON_FEATURES = [
 
   // `report.get` exists.
   'report.get',
+
+  // `sources.list` and `sources.interpret` exist, and `agents.list` returns
+  // `sources`.
+  'sources',
+
+  // `git.probe` exists, and `session.spawn` takes a git workspace with both
+  // `ref` and `sha`.
+  'git.probe',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

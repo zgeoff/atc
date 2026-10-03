@@ -1,11 +1,11 @@
 import { homedir } from 'node:os';
 import { DaemonError } from '../protocol/daemon-error';
 import type { AgentID } from '../shared/agent-id';
+import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
 import { loadConfig } from '../shared/config';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
 import { collectPathCompletions } from './collect-path-completions';
-import { collectZoxideDirs } from './collect-zoxide-dirs';
 import { collectDirs, formatDir, formatDirName, pickMatches } from './dirs';
 import { planTextEdit } from './keys';
 import { resolvePathInput } from './resolve-path-input';

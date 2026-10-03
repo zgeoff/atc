@@ -11,6 +11,7 @@ import { createWorkspaceClone } from '../workspace/create-workspace-clone';
 import { normalizeGitURL } from '../workspace/normalize-git-url';
 import { readWorkspaceTar } from '../workspace/read-workspace-tar';
 import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
+import { resolveGitURL } from '../workspace/resolve-git-url';
 import { resolvePathSource } from '../workspace/resolve-path-source';
 import { runGit } from '../workspace/run-git';
 import { sanitizeWorkspaceClone } from '../workspace/sanitize-workspace-clone';
@@ -251,8 +252,10 @@ interface PinnedSource {
   readonly cloneURL: string;
   readonly repoURL: string;
 
-  // The ref or commit the clone checks out, and the branch or tag recorded.
+  // The ref or commit the clone checks out, the commit it is pinned to when
+  // the ref only names its branch, and the branch or tag recorded.
   readonly checkout: string;
+  readonly sha?: string | undefined;
   readonly ref: string | null;
   readonly credential: { readonly kind: 'env'; readonly name: string } | undefined;
   readonly warnings: readonly string[];
@@ -289,22 +292,19 @@ async function resolveSource(source: SpawnWorkspaceSource, staging: string): Pro
     };
   }
 
-  await requireNoURLCredentials(source.url, staging);
-
   // The clone fetches the URL it records, so an `owner/repo` shorthand
   // reaches the repository it expands to.
-  const normalized = normalizeGitURL(source.url);
+  const resolved = await resolveGitURL(source.url, staging);
 
-  if (!normalized.ok) {
-    throw new DaemonError(normalized.code, normalized.message, { phase: 'resolving' });
+  if (!resolved.ok) {
+    throw new DaemonError(resolved.code, resolved.message, { phase: 'resolving' });
   }
 
-  await requireNoURLCredentials(normalized.url, staging);
-
   return {
-    cloneURL: normalized.url,
-    repoURL: normalized.url,
-    checkout: source.sha ?? source.ref ?? '',
+    cloneURL: resolved.url,
+    repoURL: resolved.url,
+    checkout: source.ref ?? source.sha ?? '',
+    sha: source.ref === undefined ? undefined : source.sha,
     ref: source.ref ?? null,
     credential: source.credentialRef,
     warnings: [],
@@ -402,7 +402,12 @@ interface CleanClone {
  */
 async function createCleanClone(pinned: PinnedSource, dir: string): Promise<CleanClone> {
   const clone = await createWorkspaceClone({
-    source: { kind: 'git', url: pinned.cloneURL, ref: pinned.checkout },
+    source: {
+      kind: 'git',
+      url: pinned.cloneURL,
+      ref: pinned.checkout,
+      ...(pinned.sha === undefined ? {} : { sha: pinned.sha }),
+    },
     dir,
     ...(pinned.credential === undefined ? {} : { credential: pinned.credential }),
   });

@@ -397,8 +397,9 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   protocol: ['shared'],
   agents: ['shared', 'protocol'],
   workspace: ['shared', 'protocol'],
+  sources: ['shared', 'protocol', 'workspace'],
   store: ['shared', 'protocol'],
-  daemon: ['shared', 'protocol', 'agents', 'workspace', 'store'],
+  daemon: ['shared', 'protocol', 'agents', 'workspace', 'sources', 'store'],
   client: ['shared', 'protocol'],
   mcp: ['shared', 'protocol'],
 

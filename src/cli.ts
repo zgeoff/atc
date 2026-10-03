@@ -161,6 +161,10 @@ const main = defineCommand({
           const gateway = await import('./agents/gateway-adapter');
           const headless = await import('./agents/start-claude-headless-run');
           const targets = await import('./daemon/build-execution-targets');
+          const sourceOrder = await import('./sources/build-sources');
+          const builtinSources = await import('./sources/collect-builtin-sources');
+          const zoxide = await import('./shared/collect-zoxide-dirs');
+          const home = await import('./shared/resolve-home-dir');
 
           // Test harnesses shrink the outbound queue to force overflow
           // deterministically; unset means the production default.
@@ -180,6 +184,23 @@ const main = defineCommand({
 
           for (const problem of cfg.principalErrors) {
             console.error(`atc daemon: config: ${problem}`);
+          }
+
+          const sources = sourceOrder.buildSources(
+            builtinSources.collectBuiltinSources({
+              roots: cfg.dirs.roots,
+              githubOwner: cfg.workspaces.githubOwner,
+              ghBin: 'gh',
+              homeDir: home.resolveHomeDir(),
+              collectZoxideDirs: zoxide.collectZoxideDirs,
+            }),
+            cfg.workspaces.sources,
+          );
+
+          for (const id of sources.missing) {
+            console.error(
+              `atc daemon: config: workspaces.sources holds '${id}', which this daemon cannot offer; the picker leaves it out`,
+            );
           }
 
           // Cap on how long a fleet restore waits for one revived session to
@@ -220,6 +241,7 @@ const main = defineCommand({
               defaultTarget: cfg.defaultTarget,
               targetErrors,
               principals: cfg.principals,
+              sources: sources.sources,
               restoreBootTimeoutMs,
               ...(Number.isFinite(graceOverride) && graceOverride >= 0
                 ? { tapGraceMs: graceOverride }

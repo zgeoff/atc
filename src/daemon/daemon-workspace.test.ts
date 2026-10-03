@@ -1005,3 +1005,41 @@ test('it runs a local spawn without a workspace in its directory as it stands', 
 
   expect(rows).toStrictEqual([]);
 });
+
+test('it checks out the sha of a git source that holds both on the branch its ref names', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+
+  const pinned = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
+
+  writeFileSync(join(ctx.work, 'later.txt'), 'later\n');
+
+  await $`git add later.txt`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git commit --quiet -m later`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git push --quiet origin main`.env(ctx.env).cwd(ctx.work).quiet();
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  const spawned = await booted.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main', sha: pinned },
+  });
+
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(dest).text();
+  const branch = await $`git symbolic-ref HEAD`.env(ctx.env).cwd(dest).nothrow().text();
+
+  expect(getRecord(getRecord(spawned, 'session'), 'workspace')).toMatchObject({
+    sha: pinned,
+    ref: 'main',
+  });
+
+  expect(head.trim()).toBe(pinned);
+  expect(branch.trim()).toBe('refs/heads/main');
+  expect(existsSync(join(dest, 'later.txt'))).toBeFalse();
+});

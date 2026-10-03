@@ -11,6 +11,8 @@ import type { HooksConfig } from './collect-hooks';
 import { collectPrincipals } from './collect-principals';
 import { collectTargets } from './collect-targets';
 import type { TargetConfig, TargetConfigError } from './collect-targets';
+import { collectWorkspacesConfig } from './collect-workspaces-config';
+import type { WorkspacesConfig } from './collect-workspaces-config';
 import { formatJSONKind } from './format-json-kind';
 import { isRecord } from './report';
 import { resolveHomeDir } from './resolve-home-dir';
@@ -23,6 +25,7 @@ export interface Config {
   codexBin: string;
   codexArgs: string[];
   dirs: DirsConfig;
+  workspaces: WorkspacesConfig;
   gateways: GatewayConfig[];
   hooks: HooksConfig;
   leader: LeaderKey;
@@ -63,6 +66,7 @@ const DEFAULTS: Config = {
   codexBin: 'codex',
   codexArgs: [],
   dirs: { roots: [] },
+  workspaces: { githubOwner: null, sources: null },
   gateways: [],
   hooks: {},
   leader: { code: 0, label: '^Space' },
@@ -101,6 +105,7 @@ const CONFIG_SCHEMA = z.object({
   codexBin: buildOptionalString(),
   codexArgs: buildOptionalStringArray(),
   dirs: z.unknown().optional(),
+  workspaces: z.unknown().optional(),
   gateways: z.unknown().optional(),
   hooks: z.unknown().optional(),
   leader: buildOptionalString(),
@@ -239,6 +244,7 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
   const codexBin = parsed.data.codexBin ?? DEFAULTS.codexBin;
   const codexArgs = parsed.data.codexArgs ?? DEFAULTS.codexArgs;
   const dirs = { roots: collectDirRoots(parsed.data.dirs) };
+  const workspaces = collectWorkspacesConfig(parsed.data.workspaces);
   const gateways = collectGateways(parsed.data.gateways, claudeBin, claudeArgs);
   const hooks = collectHooks(parsed.data.hooks);
   const targets = collectTargets(parsed.data.targets, parsed.data.defaultTarget);
@@ -255,6 +261,7 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     codexBin,
     codexArgs,
     dirs,
+    workspaces,
     gateways,
     hooks,
     leader,

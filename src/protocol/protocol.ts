@@ -44,6 +44,7 @@ const ERROR_CODES = [
   'workspace_exists',
   'transfer_failed',
   'workspace_mismatch',
+  'github_unavailable',
   'host_unavailable',
   'auth_not_configured',
   'host_leased',

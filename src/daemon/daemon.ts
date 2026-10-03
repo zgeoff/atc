@@ -19,6 +19,7 @@ import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toMessageID } from '../shared/to-message-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
+import type { SourceProvider } from '../sources/types';
 import type { IdempotencyRecord } from '../store/idempotency-record';
 import type { MessageOwner } from '../store/message-owner';
 import type { MessageRecord, MessageStatus } from '../store/message-record';
@@ -26,6 +27,7 @@ import { StateStore } from '../store/state-store';
 import type { EventScope } from '../store/state-store';
 import type { TrailEntry } from '../store/trail-entry';
 import type { SessionWorkspace } from '../store/workspace-materialization';
+import { checkRepositoryAccess } from '../workspace/check-repository-access';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
@@ -152,6 +154,10 @@ export interface DaemonOptions {
   // Where background failures are reported, one line at a time; stderr
   // when unset.
   readonly log?: (line: string) => void;
+
+  // The sources the spawn picker offers, in order, each built with the
+  // services it uses; none when unset.
+  readonly sources?: readonly SourceProvider[];
 }
 
 export interface DaemonHandle {
@@ -1176,6 +1182,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
+  const sources = opts.sources ?? [];
+
   const ctx: DaemonContext = {
     build: opts.build,
     daemonID: store.daemonID,
@@ -1199,6 +1207,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       spawnDefaults: { agent: 'claude', target: defaultTarget },
       configRevision,
       targetErrors,
+      sources: sources.map((source) => ({
+        id: source.id,
+        label: source.label,
+        kind: source.kind,
+      })),
     }),
     collectFleet: () => store.loadFleet(),
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
@@ -1240,6 +1253,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       mgr.requireExecution({ target, targetIdentity: null }, 'transfer');
       mgr.requireExecution({ target, targetIdentity: null }, 'run');
     },
+    findSource: (id) => sources.find((source) => source.id === id) ?? null,
+    checkRepositoryAccess,
     spawnSession: (plan, keyed, access) => {
       // Under an access, a spawn under a parent whose tree leaves the access
       // before the harness starts is refused as a spawn under an unknown

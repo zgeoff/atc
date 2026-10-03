@@ -18,6 +18,7 @@ function buildClaudeConfig(): Config {
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
+    workspaces: { githubOwner: null, sources: null },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
