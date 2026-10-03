@@ -899,3 +899,82 @@ test('it sends the start of a harness whose admission check passes as its connec
     { kind: 'start', name: 'imp-b' },
   ]);
 });
+
+test('it tells its host the harness is done only after every exit listener has run', async () => {
+  using fixture = await setupTest();
+
+  await fixture.port.createImp({ name: 'imp-b' });
+
+  const order: string[] = [];
+
+  const harness = new ImpHarness(
+    fixture.port,
+    {
+      kind: 'start',
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sh', '-c', 'exit 3'],
+      env: {},
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {
+        order.push('done');
+      },
+    },
+  );
+
+  harness.onExit(() => {
+    order.push('exit');
+  });
+
+  await waitFor(() => {
+    expect(order).toStrictEqual(['exit', 'done']);
+  });
+});
+
+test('it tells its host the harness is done once when the daemon lets go of it, with no exit', async () => {
+  using fixture = await setupTest();
+
+  await fixture.port.createImp({ name: 'imp-b' });
+
+  const order: string[] = [];
+
+  const harness = new ImpHarness(
+    fixture.port,
+    {
+      kind: 'start',
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {
+        order.push('done');
+      },
+    },
+  );
+
+  harness.onExit(() => {
+    order.push('exit');
+  });
+
+  await harness.waitForStart();
+
+  harness.detach();
+  harness.detach();
+
+  expect(order).toStrictEqual(['done']);
+});

@@ -117,6 +117,10 @@ export class FixtureImpPort implements ImpPort {
   // Feature reads still to fail as an unreachable impd before they answer.
   private featureFailures = 0;
 
+  // Session connections whose opening still throws before it returns, as
+  // an invalid authorization header makes the socket's constructor throw.
+  private openFailures = 0;
+
   // Session connections still to fail their upgrade, ending unreachable
   // before they open and before any gate runs.
   private upgradeFailures = 0;
@@ -434,6 +438,11 @@ export class FixtureImpPort implements ImpPort {
     handlers: ImpSessionHandlers,
     gate?: () => boolean,
   ): ImpSessionConnection {
+    if (this.openFailures > 0) {
+      this.openFailures -= 1;
+      throw new TypeError('the authorization header is invalid');
+    }
+
     const outcome = Promise.withResolvers<ImpSessionOutcome>();
 
     const connection: FixtureConnection = {
@@ -845,6 +854,13 @@ export class FixtureImpPort implements ImpPort {
    */
   setSessionDrops(count: number, closeCode: number): void {
     this.drops = { count, closeCode };
+  }
+
+  /**
+   * Throws from opening the next session connections, before they return.
+   */
+  setOpenFailures(count: number): void {
+    this.openFailures = count;
   }
 
   /**
