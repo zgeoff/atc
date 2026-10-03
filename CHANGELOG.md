@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.16.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.15.2...@zgeoff/atc@2.16.0) (2026-10-03)
+
+### Features
+
+- **#178:** add imp grant calls and the broker authority checks
+  ([#232](https://github.com/zgeoff/atc/issues/232))
+  ([54ef1cf](https://github.com/zgeoff/atc/commit/54ef1cf2234258ba37d33e13117a988e9ab8312f))
+
+### Bug Fixes
+
+- **#233:** drop hook reports from a harness nested in a session
+  ([#235](https://github.com/zgeoff/atc/issues/235))
+  ([6e9932a](https://github.com/zgeoff/atc/commit/6e9932ade18fec0e9a65adc1246d5469b6c239c1))
+
 ## [2.15.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.15.1...@zgeoff/atc@2.15.2) (2026-10-03)
 
 ### Bug Fixes
