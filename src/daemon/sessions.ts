@@ -1018,7 +1018,17 @@ export class SessionManager {
       this.log(
         `atc could not put the host of session ${hostKey} back to sleep after a refused start (${error instanceof Error ? error.message : String(error)})`,
       );
+
+      return;
     }
+
+    for (const onHost of this.sessions) {
+      if (onHost.hostKey === hostKey && this.findProvider(onHost) === provider) {
+        this.updateSuspended(onHost);
+      }
+    }
+
+    this.emitChange();
   }
 
   // The binding a harness start or attach opens its bridge under, at a

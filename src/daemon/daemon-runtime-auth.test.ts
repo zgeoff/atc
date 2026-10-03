@@ -366,7 +366,51 @@ test('it refuses to revive a session whose broker is not ready and puts its host
 
   await adopt.catch(() => null);
 
-  expect(daemon.port.findState(imp)).toBe('sleeping');
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect<Record<string, unknown>>({ state: daemon.port.findState(imp), listed }).toMatchObject({
+    state: 'sleeping',
+    listed: {
+      sessions: [
+        {
+          id,
+          alive: false,
+          lastMsg: 'imp broker not ready (the broker CA did not install)',
+          lifecycle: { vm: 'asleep' },
+        },
+      ],
+    },
+  });
+});
+
+test('it provisions concurrent spawns each in an imp of its own with only its own grant', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await Promise.all([
+    daemon.client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'glm', target: 'box' }),
+    daemon.client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'glm', target: 'box' }),
+  ]);
+
+  const imps = spawned.map(
+    (answer) =>
+      `atc-${String(getRecord(answer, 'session')['id']).replaceAll('-', '').slice(0, 20)}`,
+  );
+
+  const grants = await Promise.all(imps.map((imp) => daemon.port.readGrants(imp)));
+  const store = await StateStore.open(daemon.dbPath);
+  const bindings = await store.collectAuthBindings();
+
+  await store.stop();
+
+  expect<Record<string, unknown>>({
+    imps: daemon.port.collectImpNames().toSorted(),
+    grants,
+    states: bindings.map((binding) => binding.state),
+  }).toStrictEqual({
+    imps: imps.toSorted(),
+    grants: [['glm'], ['glm']],
+    states: ['ready', 'ready'],
+  });
 });
 
 test('it revokes the grants of a running session while its harness keeps running', async () => {

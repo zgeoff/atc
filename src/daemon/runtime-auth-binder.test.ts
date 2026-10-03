@@ -1262,3 +1262,83 @@ test('it fails a rebind a stopped daemon left in flight and revokes only the gra
     binding: expect.objectContaining({ state: 'rebind_failed', revision: 1 }),
   });
 });
+
+test('it rebinds a provisioned host whose spawn listed but never recorded its start', async () => {
+  await using auth = await setupTest();
+
+  await auth.binder.createBinding(auth.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: {
+      agent: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      placeholderEnv: {},
+      hash: 'h1',
+    },
+  });
+
+  const revision = await auth.binder.updateBinding(auth.host, toSessionID('s1'), {
+    agent: 'glm',
+    baseURL: 'https://api.z.ai/api/anthropic',
+    profiles: ['glm'],
+    secrets: [
+      {
+        secret: 'glm',
+        kind: 'custom',
+        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+    placeholderEnv: {},
+    hash: 'h1',
+  });
+
+  const binding = await auth.store.findAuthBinding(toSessionID('s1'));
+
+  expect<Record<string, unknown>>({ revision, binding }).toMatchObject({
+    revision: 2,
+    binding: { state: 'ready', revision: 2, rebind: null },
+  });
+});
+
+test('it refuses to rebind a host whose spawn is still provisioning before it created the imp', async () => {
+  await using auth = await setupTest();
+
+  await auth.store.createAuthBinding(
+    {
+      hostKey: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:test',
+      impName: 'atc-s1',
+      bindingHash: 'h1',
+      bindingJSON: '{"secrets":[]}',
+      attemptID: 'attempt-1',
+    },
+    1000,
+  );
+
+  const rebound = auth.binder.updateBinding(auth.host, toSessionID('s1'), {
+    agent: 'glm',
+    baseURL: 'https://api.z.ai/api/anthropic',
+    profiles: ['glm'],
+    secrets: [
+      {
+        secret: 'glm',
+        kind: 'custom',
+        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+    placeholderEnv: {},
+    hash: 'h1',
+  });
+
+  expect(rebound).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'provisioning' } });
+});

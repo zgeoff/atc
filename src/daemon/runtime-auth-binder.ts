@@ -260,7 +260,17 @@ export class RuntimeAuthBinder {
     return this.withHostLock(hostKey, async () => {
       const row = await this.requireBinding(hostKey);
 
-      if (row.state !== 'ready' && row.state !== 'revoked' && row.state !== 'rebind_failed') {
+      // A spawn whose session listed but never recorded its start leaves a
+      // provisioned imp a rebind may take on.
+      const isProvisioned =
+        row.state === 'provisioning' && row.rebind === null && row.impID !== null;
+
+      if (
+        row.state !== 'ready' &&
+        row.state !== 'revoked' &&
+        row.state !== 'rebind_failed' &&
+        !isProvisioned
+      ) {
         throw new DaemonError(
           'auth_blocked',
           `the runtime auth of host ${hostKey} is ${row.state}, which a rebind cannot move on from`,
