@@ -439,8 +439,8 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     });
   } catch (error) {
     // A second daemon on the same state directory, or a listener whose
-    // address or token file is refused, stops the start before it touches
-    // anything; any other startup failure stays a crash.
+    // address or token file is refused or whose bind fails, stops the start
+    // with nothing left held; any other startup failure stays a crash.
     const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : null;
 
     if (error instanceof Error && (code === 'daemon_locked' || code === 'listen_refused')) {

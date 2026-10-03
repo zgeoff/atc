@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import {
   appendFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -3343,6 +3344,34 @@ test.each([
 
   expect(started.exitCode).toBe(1);
   expect(started.stderr.toString()).toInclude(message);
+});
+
+test('it refuses to start a daemon whose --listen port another socket holds, leaving no socket or record', () => {
+  const home = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
+  const tokenFile = join(home, 'gateway-token');
+  const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
+
+  onTestFinished(() => {
+    held.stop(true);
+
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
+
+  const started = Bun.spawnSync(
+    [...atcCommand, 'daemon', '--listen', `127.0.0.1:${held.port}`, '--token-file', tokenFile],
+    { env: collectEnv({ HOME: home, XDG_RUNTIME_DIR: home }) },
+  );
+
+  expect(started.exitCode).toBe(1);
+
+  expect(started.stderr.toString()).toBe(
+    `atc daemon: --listen cannot bind 127.0.0.1:${held.port} (EADDRINUSE)\n`,
+  );
+
+  expect(existsSync(join(home, 'atc-daemon.sock'))).toBeFalse();
+  expect(existsSync(join(home, '.local', 'state', 'atc', 'daemon.json'))).toBeFalse();
 });
 
 test('it closes a TCP connection whose token a SIGHUP reload removed', async () => {

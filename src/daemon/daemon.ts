@@ -1948,87 +1948,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     },
   };
 
-  try {
-    unlinkSync(opts.socketPath);
-  } catch {}
-
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a connection is a live object the daemon releases
-  const detachConnection = (connection: DaemonConnection) => {
-    clients.delete(connection);
-    ctx.detachClient(connection);
-    taps.detachAll(connection);
-  };
-
-  const server = Bun.listen<DaemonConnection>({
-    unix: opts.socketPath,
-    socket: {
-      open(socket) {
-        socket.data = new DaemonConnection(socket, ctx);
-
-        clients.add(socket.data);
-      },
-      data(socket, buf) {
-        socket.data.applyChunk(socket.data.decodeChunk(buf));
-      },
-      drain(socket) {
-        socket.data.drain();
-      },
-      close(socket) {
-        detachConnection(socket.data);
-      },
-      error() {},
-    },
-  });
-
-  const tcpListener: TCPListener | null =
-    opts.listen === undefined || listenTokens === null
-      ? null
-      : startTCPListener({
-          host: opts.listen.host,
-          port: opts.listen.port,
-          tokens: listenTokens,
-          failureDelayMs: opts.listen.failureDelayMs ?? HANDSHAKE_FAILURE_DELAY_MS,
-          maxDelayedHandshakes: opts.listen.maxDelayedHandshakes ?? MAX_DELAYED_HANDSHAKES,
-          openConnection: (socket, peer) => {
-            const connection = new DaemonConnection(socket, ctx, peer);
-
-            clients.add(connection);
-
-            return connection;
-          },
-          closeConnection: detachConnection,
-        });
-
-  const refreshTokens = () => {
-    if (opts.listen === undefined || tcpListener === null) {
-      return;
-    }
-
-    const loaded = loadListenerTokens(opts.listen.tokenFile);
-
-    if (loaded.ok) {
-      tcpListener.setTokens(loaded.tokens);
-
-      return;
-    }
-
-    tcpListener.setTokens(null);
-
-    mgr.log(
-      `atc daemon: token reload failed (${loaded.reason}); every TCP connection is closed and refused until a reload succeeds`,
-    );
-  };
-
-  stopDaemon = async () => {
-    // Ends each client itself so every peer sees the close: a stopped
-    // listener does not reliably end the connections it already accepted.
-    for (const client of clients) {
-      client.dispose();
-    }
-
+  // Releases everything the daemon holds except its listeners, on a stop
+  // and on a start that fails once it holds the lock.
+  const releaseResources = async () => {
     clearInterval(idempotencySweep);
-    tcpListener?.stop();
-    server.stop(true);
     eventsServer?.stop();
     reporter.stop(true);
     mgr.detachAll();
@@ -2057,6 +1980,100 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
 
     lock.dispose();
+  };
+
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- a connection is a live object the daemon releases
+  const detachConnection = (connection: DaemonConnection) => {
+    clients.delete(connection);
+    ctx.detachClient(connection);
+    taps.detachAll(connection);
+  };
+
+  // The TCP listener binds before the unix socket, so a bind that fails
+  // refuses the start before any client can connect, and releases what the
+  // daemon holds, the lock included.
+  let tcpListener: TCPListener | null = null;
+
+  if (opts.listen !== undefined && listenTokens !== null) {
+    try {
+      tcpListener = startTCPListener({
+        host: opts.listen.host,
+        port: opts.listen.port,
+        tokens: listenTokens,
+        failureDelayMs: opts.listen.failureDelayMs ?? HANDSHAKE_FAILURE_DELAY_MS,
+        maxDelayedHandshakes: opts.listen.maxDelayedHandshakes ?? MAX_DELAYED_HANDSHAKES,
+        openConnection: (socket, peer) => {
+          const connection = new DaemonConnection(socket, ctx, peer);
+
+          clients.add(connection);
+
+          return connection;
+        },
+        closeConnection: detachConnection,
+      });
+    } catch (error) {
+      await releaseResources();
+
+      throw buildBindRefusal(opts.listen, error);
+    }
+  }
+
+  try {
+    unlinkSync(opts.socketPath);
+  } catch {}
+
+  const server = Bun.listen<DaemonConnection>({
+    unix: opts.socketPath,
+    socket: {
+      open(socket) {
+        socket.data = new DaemonConnection(socket, ctx);
+
+        clients.add(socket.data);
+      },
+      data(socket, buf) {
+        socket.data.applyChunk(socket.data.decodeChunk(buf));
+      },
+      drain(socket) {
+        socket.data.drain();
+      },
+      close(socket) {
+        detachConnection(socket.data);
+      },
+      error() {},
+    },
+  });
+
+  const refreshTokens = () => {
+    if (opts.listen === undefined || tcpListener === null) {
+      return;
+    }
+
+    const loaded = loadListenerTokens(opts.listen.tokenFile);
+
+    if (loaded.ok) {
+      tcpListener.setTokens(loaded.tokens);
+
+      return;
+    }
+
+    tcpListener.setTokens(null);
+
+    mgr.log(
+      `atc daemon: token reload failed (${loaded.reason}); every TCP connection is closed and refused until a reload succeeds`,
+    );
+  };
+
+  stopDaemon = async () => {
+    // Ends each client itself so every peer sees the close: a stopped
+    // listener does not reliably end the connections it already accepted.
+    for (const client of clients) {
+      client.dispose();
+    }
+
+    tcpListener?.stop();
+    server.stop(true);
+
+    await releaseResources();
   };
 
   writeDaemonRecord(recordPath, {
@@ -2098,6 +2115,23 @@ function requireListenTokens(listen: ListenOptions): readonly string[] {
   }
 
   return loaded.tokens;
+}
+
+// The refused start for a TCP listener whose bind failed, holding the
+// address and the bind error's code, such as EADDRINUSE for a port another
+// socket holds.
+function buildBindRefusal(listen: ListenOptions, error: unknown): Error {
+  const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : null;
+
+  const address = listen.host.includes(':')
+    ? `[${listen.host}]:${listen.port}`
+    : `${listen.host}:${listen.port}`;
+
+  const reason = typeof code === 'string' ? code : String(error);
+
+  return Object.assign(new Error(`atc daemon: --listen cannot bind ${address} (${reason})`), {
+    code: 'listen_refused',
+  });
 }
 
 // Tells a tap its subscription is over so the `atc tap` process behind it
