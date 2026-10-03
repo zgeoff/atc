@@ -7,7 +7,7 @@ import { buildGatewayResult } from './build-gateway-result';
 import type { DaemonCaller } from './daemon-caller';
 import type { DaemonPool } from './daemon-pool';
 import { GatewayError } from './gateway-error';
-import type { GatewayStore } from './gateway-store';
+import type { GatewayStore, KeyBinding } from './gateway-store';
 import { pickDaemonState } from './pick-daemon-state';
 import { readFleetEvents } from './read-fleet-events';
 import { requireServingDaemon } from './require-serving-daemon';
@@ -31,6 +31,17 @@ const FAN_OUT_TIMEOUT_MS = 5000;
 
 // The requests a daemon runs at most once under an idempotency key.
 const KEYED_METHODS: ReadonlySet<string> = new Set(['session.spawn', 'session.message']);
+
+// One routed request as it leaves for its daemon; `key` is null for an
+// unkeyed request.
+interface RoutedSend {
+  readonly m: string;
+  readonly route: ReturnType<typeof resolveDaemonRequest>;
+  readonly daemon: RegistryDaemon;
+  readonly required: readonly DaemonFeature[];
+  readonly principal: string;
+  readonly key: string | null;
+}
 
 // A keyed request on its way to a daemon: the daemon its ids or the
 // default picked, and the one its `daemon` param named, if any.
@@ -60,6 +71,9 @@ interface KeyedRoute {
  */
 export class RoutingCaller {
   private readonly opts: RoutingCallerOptions;
+
+  // The last keyed call holding each key's lock.
+  private readonly keyLocks = new Map<string, Promise<void>>();
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the options hold the live daemon pool and binding store
   constructor(opts: RoutingCallerOptions) {
@@ -156,7 +170,7 @@ export class RoutingCaller {
     return daemon;
   }
 
-  private async sendRouted(
+  private sendRouted(
     m: string,
     params: Readonly<Record<string, unknown>>,
     rawNamed: unknown,
@@ -177,45 +191,90 @@ export class RoutingCaller {
     const rawKey = route.params['idempotencyKey'];
     const key = typeof rawKey === 'string' && KEYED_METHODS.has(m) ? rawKey : null;
 
-    const daemon =
-      key === null
-        ? picked
-        : await this.claimRoute({
-            m,
-            params: route.params,
-            key,
-            picked,
-            named,
-            required,
-            principal,
-          });
-
     if (key === null) {
-      await requireServingDaemon(this.getCaller, daemon, required);
+      return this.sendToRoute({ m, route, daemon: picked, required, principal, key: null });
     }
+
+    const keyed: KeyedRoute = { m, params: route.params, key, picked, named, required, principal };
+
+    // Keyed requests with one key run one at a time, so a second waits for
+    // the first's binding and outcome instead of racing it to a daemon.
+    return this.withKeyLock(JSON.stringify([principal, m, key]), async () => {
+      const claimed = await this.claimRoute(keyed);
+
+      try {
+        return await this.sendToRoute({
+          m,
+          route,
+          daemon: claimed.daemon,
+          required,
+          principal,
+          key,
+        });
+      } catch (error) {
+        // A refusal about the daemon comes before anything is sent, so a
+        // binding this call made leaves no trace of the key.
+        if (claimed.created && error instanceof GatewayError) {
+          this.opts.store.removeBinding(principal, m, key);
+        }
+
+        throw error;
+      }
+    });
+  }
+
+  // Sends one routed request to its daemon on a connection whose handshake
+  // announces every feature the request relies on, and records a keyed
+  // request's outcome on its binding.
+  private async sendToRoute(send: RoutedSend): Promise<Readonly<Record<string, unknown>>> {
+    const store = this.opts.store;
 
     try {
       const ok = await this.opts.pool
-        .getCaller(daemon.name)
-        .sendRequest(m, route.params, principal);
+        .getCaller(send.daemon.name)
+        .sendRequest(send.m, send.route.params, send.principal, send.required);
 
-      if (key !== null) {
-        this.opts.store.updateOutcome(principal, m, key, 'completed', this.getNow());
+      if (send.key !== null) {
+        store.updateOutcome(send.principal, send.m, send.key, 'completed', this.getNow());
       }
 
-      return buildGatewayResult(m, ok, daemon);
+      return buildGatewayResult(send.m, ok, send.daemon);
     } catch (error) {
-      if (key !== null && error instanceof DaemonError) {
+      if (send.key !== null && error instanceof DaemonError) {
         const outcome = error.code === 'outcome_unknown' ? 'uncertain' : 'completed';
+        const rawRef = error.data?.['effectRef'];
+        const effectRef = typeof rawRef === 'string' ? rawRef : null;
 
-        this.opts.store.updateOutcome(principal, m, key, outcome, this.getNow());
+        store.updateOutcome(send.principal, send.m, send.key, outcome, this.getNow(), effectRef);
       }
 
       if (error instanceof DaemonError) {
-        throw buildGatewayError(error, daemon, route.requestIDs);
+        throw buildGatewayError(error, send.daemon, send.route.requestIDs);
       }
 
       throw error;
+    }
+  }
+
+  // Runs `run` once every earlier call holding the same lock has settled.
+  private async withKeyLock<T>(lock: string, run: () => Promise<T>): Promise<T> {
+    const before = this.keyLocks.get(lock);
+    const turn = Promise.withResolvers<void>();
+
+    this.keyLocks.set(lock, turn.promise);
+
+    if (before !== undefined) {
+      await before;
+    }
+
+    try {
+      return await run();
+    } finally {
+      turn.resolve();
+
+      if (this.keyLocks.get(lock) === turn.promise) {
+        this.keyLocks.delete(lock);
+      }
     }
   }
 
@@ -225,10 +284,13 @@ export class RoutingCaller {
   // state identity changed, or that left the registry, is unavailable; the
   // key never goes to another daemon. Completed bindings past their
   // retention go first.
-  private async claimRoute(route: KeyedRoute): Promise<RegistryDaemon> {
+  private async claimRoute(
+    route: KeyedRoute,
+  ): Promise<{ readonly daemon: RegistryDaemon; readonly created: boolean }> {
     const store = this.opts.store;
+    const now = this.getNow();
 
-    store.removeExpiredBindings(this.getNow());
+    store.removeExpiredBindings(now);
 
     const held = store.findBinding(route.principal, route.m, route.key);
     const bound = held === null ? null : this.opts.registry.daemons.get(held.daemon);
@@ -242,9 +304,20 @@ export class RoutingCaller {
     }
 
     if (held !== null && route.named !== null && route.named.name !== held.daemon) {
-      throw new DaemonError(
-        'idempotency_conflict',
-        `idempotency key '${route.key}' was first used on daemon '${held.daemon}'`,
+      throw buildConflict(route.key, held.daemon);
+    }
+
+    if (held !== null && bound !== undefined && bound !== null && hasLapsedUnanswered(held, now)) {
+      const data = held.effectRef === null ? undefined : { effectRef: held.effectRef };
+
+      throw buildGatewayError(
+        new DaemonError(
+          'outcome_unknown',
+          `idempotency key '${route.key}' went to daemon '${held.daemon}' without a known outcome, and that daemon may no longer remember it; check what it did instead of sending it again`,
+          data,
+        ),
+        bound,
+        new Map(),
       );
     }
 
@@ -252,7 +325,7 @@ export class RoutingCaller {
 
     const hello = await requireServingDaemon(this.getCaller, daemon, route.required);
 
-    store.claimBinding(
+    const binding = store.claimBinding(
       {
         principal: route.principal,
         operation: route.m,
@@ -265,7 +338,13 @@ export class RoutingCaller {
       this.getNow(),
     );
 
-    return daemon;
+    // Another gateway call may have bound the key since it was read; the
+    // request goes only where the stored binding points.
+    if (binding.daemon !== daemon.name) {
+      throw buildConflict(route.key, binding.daemon);
+    }
+
+    return { daemon, created: held === null };
   }
 
   // Asks every daemon at once. `session.list` merges the sessions and adds
@@ -318,9 +397,7 @@ export class RoutingCaller {
     required: readonly DaemonFeature[],
     principal: string,
   ): Promise<Readonly<Record<string, unknown>>> {
-    await requireServingDaemon(this.getCaller, daemon, required);
-
-    const ok = await this.opts.pool.getCaller(daemon.name).sendRequest(m, {}, principal);
+    const ok = await this.opts.pool.getCaller(daemon.name).sendRequest(m, {}, principal, required);
 
     return buildGatewayResult(m, ok, daemon);
   }
@@ -363,4 +440,24 @@ function collectSessions(outcome: CallOutcome<Readonly<Record<string, unknown>>>
   const sessions: unknown = outcome.value['sessions'];
 
   return Array.isArray(sessions) ? sessions : [];
+}
+
+function buildConflict(key: string, daemon: string): DaemonError {
+  return new DaemonError(
+    'idempotency_conflict',
+    `idempotency key '${key}' was first used on daemon '${daemon}'`,
+  );
+}
+
+// Whether a binding whose request never got a known answer has outlived
+// the daemon's promise to remember its key: once the daemon's announced
+// completed-key retention has passed since the binding was claimed, the
+// daemon may have run the request and dropped the key, so a resend could
+// run it again. A daemon that announced no retention keeps its keys.
+function hasLapsedUnanswered(binding: Readonly<KeyBinding>, now: number): boolean {
+  return (
+    binding.outcome !== 'completed' &&
+    binding.retentionMs !== null &&
+    now >= binding.claimedAt + binding.retentionMs
+  );
 }

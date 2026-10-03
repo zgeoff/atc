@@ -1,6 +1,6 @@
 import type { DaemonFeature } from '../protocol/daemon-features';
+import { buildDaemonOutdatedError } from './build-daemon-outdated-error';
 import type { DaemonCaller, DaemonHello } from './daemon-caller';
-import { GatewayError } from './gateway-error';
 import type { RegistryDaemon } from './types';
 
 /**
@@ -20,11 +20,7 @@ export async function requireServingDaemon(
   const missing = required.find((feature) => !hello.features.has(feature));
 
   if (missing !== undefined) {
-    throw new GatewayError(
-      'daemon_outdated',
-      `daemon '${daemon.name}' runs an atc build without ${missing}; call without the option that needs it, or upgrade that daemon`,
-      { daemon: daemon.name, feature: missing },
-    );
+    throw buildDaemonOutdatedError(daemon.name, missing);
   }
 
   return hello;
