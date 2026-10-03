@@ -456,12 +456,15 @@ exist:
   target the principal may not use, leaves a principal connection's view: the connection is pushed
   `SessionRemoved` for it, as for a forgotten session, and loses its output and its inbox tap. A
   session whose tree comes back within reach is pushed as `SessionAdded`.
-- A read checks the reach again after each of its waits, before it answers. A session whose tree
-  leaves reach during `events.read`, `message.get`, `session.get`, `session.screen`, or
-  `session.read` answers as a session the daemon never held, and its message as an unknown message.
+- A request checks the reach again after each of its waits, before it answers or acts. A session
+  whose tree leaves reach during `events.read`, `message.get`, `report.get`, `session.get`,
+  `session.screen`, `session.read`, `session.adopt`, or `session.message` answers as a session the
+  daemon never held, and its message or report as an unknown one. A spawn whose `parent` leaves
+  reach before its harness starts is refused as a spawn under an unknown parent.
 - Events and messages belong to the session they were recorded under. A session within reach that
   resumes the same agent session as one out of reach never shows the other's events, messages, or
-  activity time.
+  activity time. A principal's inbox tap receives only the messages sent to that session's own id,
+  and its `message.ack` answers a message sent to another session as an unknown message.
 - `dirs.list` lists only the directories of spawns on targets the principal may use. A directory
   recorded before atc recorded each spawn's target counts as a spawn on a `local` target with no
   options.
