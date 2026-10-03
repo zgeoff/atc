@@ -32,6 +32,10 @@ export interface KeyBinding {
   // id of the effect an uncertain answer returned, null without one.
   readonly claimedAt: number;
   readonly effectRef: string | null;
+
+  // The id of the claim that wrote the binding, so a call can tell its own
+  // binding from one another call wrote first.
+  readonly claimID: string;
 }
 
 interface BindingRow {
@@ -46,6 +50,7 @@ interface BindingRow {
   readonly outcome_at: number;
   readonly claimed_at: number;
   readonly effect_ref: string | null;
+  readonly claim_id: string;
 }
 
 /**
@@ -80,6 +85,7 @@ export class GatewayStore {
       outcome_at INTEGER NOT NULL,
       claimed_at INTEGER NOT NULL,
       effect_ref TEXT,
+      claim_id TEXT NOT NULL,
       PRIMARY KEY (principal, operation, key)
     )`);
 
@@ -87,7 +93,8 @@ export class GatewayStore {
   }
 
   /**
-   * Binds the key to the daemon unless a binding for it already exists, and
+   * Binds the key to the daemon under the given claim id unless a binding
+   * for it already exists, and
    * returns the binding that holds after the call: the new one, or the one
    * an earlier request made, whose daemon the request must go to. Throws
    * `idempotency_conflict` when the key's binding holds another payload, so
@@ -100,8 +107,8 @@ export class GatewayStore {
     this.db
       .query(
         `INSERT INTO key_binding
-           (principal, operation, key, daemon, daemon_id, retention_ms, payload_hash, outcome, outcome_at, claimed_at)
-         VALUES ($principal, $operation, $key, $daemon, $daemonID, $retentionMs, $payloadHash, 'pending', $now, $now)
+           (principal, operation, key, daemon, daemon_id, retention_ms, payload_hash, outcome, outcome_at, claimed_at, claim_id)
+         VALUES ($principal, $operation, $key, $daemon, $daemonID, $retentionMs, $payloadHash, 'pending', $now, $now, $claimID)
          ON CONFLICT (principal, operation, key) DO NOTHING`,
       )
       .run({
@@ -112,6 +119,7 @@ export class GatewayStore {
         daemonID: binding.daemonID,
         retentionMs: binding.retentionMs,
         payloadHash: binding.payloadHash,
+        claimID: binding.claimID,
         now,
       });
 
@@ -165,16 +173,18 @@ export class GatewayStore {
   }
 
   /**
-   * Removes the key's binding, for a request the gateway refused before it
-   * sent anything, so nothing about the key reached a daemon.
+   * Removes the key's binding when the given claim wrote it and its request
+   * has no outcome yet, for a request the gateway refused before it sent
+   * anything. A binding another claim wrote, or one with an outcome, stays.
    */
-  removeBinding(principal: string, operation: string, key: string): void {
+  removeBinding(principal: string, operation: string, key: string, claimID: string): void {
     this.db
       .query(
         `DELETE FROM key_binding
-         WHERE principal = $principal AND operation = $operation AND key = $key`,
+         WHERE principal = $principal AND operation = $operation AND key = $key
+           AND claim_id = $claimID AND outcome = 'pending'`,
       )
-      .run({ principal, operation, key });
+      .run({ principal, operation, key, claimID });
   }
 
   /**
@@ -209,6 +219,7 @@ function toKeyBinding(row: BindingRow): KeyBinding {
     outcomeAt: row.outcome_at,
     claimedAt: row.claimed_at,
     effectRef: row.effect_ref,
+    claimID: row.claim_id,
   };
 }
 

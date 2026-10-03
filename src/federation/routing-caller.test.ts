@@ -347,3 +347,139 @@ test("it answers outcome_unknown instead of resending an uncertain keyed spawn o
 
   expect(listed['sessions']).toHaveLength(1);
 });
+
+test("it keeps another call's completed binding when a call that found none is refused before sending", async () => {
+  await using daemons = await setupTest();
+
+  const cloud = daemons.daemon('cloud');
+  const storePath = join(daemons.dir, 'shared-gateway.db');
+
+  const legacy = startLegacyDaemon(join(daemons.dir, 'legacy.sock'), {
+    replies: {
+      'daemon.hello': {
+        daemon: 'atc/legacy-build',
+        daemonID: cloud.daemonID,
+        features: ['transport.tcp', 'daemon.id', 'spawn.idempotency'],
+        idempotency: { completedRetentionMs: 86_400_000 },
+      },
+    },
+  });
+
+  onTestFinished(() => {
+    legacy.stop();
+  });
+
+  const dialed = Promise.withResolvers<void>();
+  const released = Promise.withResolvers<void>();
+  const first = daemons.startRouter({ storePath });
+
+  const second = daemons.startRouter({
+    storePath,
+    openChannel: async () => {
+      dialed.resolve();
+
+      await released.promise;
+
+      return DaemonClient.open(join(daemons.dir, 'legacy.sock'));
+    },
+  });
+
+  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-kept' };
+  const held = second.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  await dialed.promise;
+
+  await first.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  released.resolve();
+
+  expect(held).rejects.toMatchObject({ code: 'daemon_outdated' });
+
+  await Promise.allSettled([held]);
+
+  const retried = first.sendRequest(
+    'session.spawn',
+    { ...params, daemon: 'pc' },
+    ['spawn.idempotency'],
+    'gw',
+  );
+
+  expect(retried).rejects.toMatchObject({ code: 'idempotency_conflict' });
+
+  await Promise.allSettled([retried]);
+
+  const pcList = await daemons.owner('pc').sendRequest('session.list');
+
+  expect(pcList['sessions']).toStrictEqual([]);
+});
+
+test("it answers outcome_unknown without sending when the daemon's retention lapses while the retry waits for its handshake", async () => {
+  await using daemons = await setupTest();
+
+  const cloud = daemons.daemon('cloud');
+
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: cloud.address.port },
+    method: 'session.spawn',
+    cuts: 2,
+    mode: 'close',
+  });
+
+  onTestFinished(() => {
+    proxy.stop();
+  });
+
+  const retention = 24 * 60 * 60 * 1000;
+  const dialed = Promise.withResolvers<void>();
+  const released = Promise.withResolvers<void>();
+  let now = 1_000_000;
+  let opened = 0;
+
+  const router = daemons.startRouter({
+    addresses: new Map([['cloud', { host: '127.0.0.1', port: proxy.port }]]),
+    now: () => now,
+    openChannel: async (address) => {
+      opened++;
+
+      if (opened === 3) {
+        dialed.resolve();
+
+        await released.promise;
+      }
+
+      return DaemonClient.open({ hostname: address.host, port: address.port });
+    },
+  });
+
+  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-expiring' };
+  const first = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await Promise.allSettled([first]);
+
+  now += retention - 1;
+
+  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  await dialed.promise;
+
+  // The retention passes and the daemon drops the completed key while the
+  // retry still waits for its handshake.
+  now += 2;
+
+  const ledger = new Database(daemons.stateDB('cloud'));
+
+  ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
+  ledger.close();
+  released.resolve();
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await Promise.allSettled([retried]);
+
+  const listed = await daemons.owner('cloud').sendRequest('session.list');
+
+  expect(proxy.countRequests()).toBe(2);
+  expect(listed['sessions']).toHaveLength(1);
+});

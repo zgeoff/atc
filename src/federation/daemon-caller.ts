@@ -89,7 +89,9 @@ const RESPONSE_TIMEOUT_MS = 30_000;
  * `idempotency_key_unknown`, which ends as `outcome_unknown`.
  * Any other request, a reconnect without that feature, or a second loss is
  * `outcome_unknown`. A daemon's
- * own error passes through as it came.
+ * own error passes through as it came. `requireSendable` runs right before
+ * each write of the request, first send and retry alike, and a throw from it
+ * sends nothing.
  */
 export class DaemonCaller {
   private readonly opts: DaemonCallerOptions;
@@ -110,6 +112,7 @@ export class DaemonCaller {
     p: Readonly<Record<string, unknown>> = {},
     as?: string,
     required: readonly DaemonFeature[] = [],
+    requireSendable: () => void = () => {},
   ): Promise<Readonly<Record<string, unknown>>> {
     // A request that acts as a principal relies on the daemon honouring it.
     const needed: readonly DaemonFeature[] =
@@ -123,7 +126,7 @@ export class DaemonCaller {
       throw buildDaemonOutdatedError(this.opts.daemon.name, unserved);
     }
 
-    const first = await this.trySend(opened.channel, m, p, as);
+    const first = await this.trySend(opened.channel, m, p, as, requireSendable);
 
     if (first.kind === 'answered') {
       return first.ok;
@@ -167,7 +170,7 @@ export class DaemonCaller {
     let second: Awaited<ReturnType<DaemonCaller['trySend']>>;
 
     try {
-      second = await this.trySend(fresh.channel, m, retryParams, as);
+      second = await this.trySend(fresh.channel, m, retryParams, as, requireSendable);
     } catch (error) {
       if (error instanceof DaemonError && error.code === 'idempotency_key_unknown') {
         throw this.buildOutcomeUnknown(m);
@@ -218,10 +221,16 @@ export class DaemonCaller {
     m: string,
     p: Readonly<Record<string, unknown>>,
     as: string | undefined,
+    requireSendable: () => void,
   ): Promise<
     | { readonly kind: 'answered'; readonly ok: Readonly<Record<string, unknown>> }
     | { readonly kind: 'lost' }
   > {
+    // Runs in the same synchronous step as the write below, after the
+    // connection's handshake, so whatever it checks still holds when the
+    // request leaves; a throw sends nothing.
+    requireSendable();
+
     const timeout = Promise.withResolvers<'timeout'>();
 
     // A request that waits for a change on the daemon, such as a long poll,
