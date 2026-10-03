@@ -18,6 +18,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'spawn.target': "atc_session_spawn's target",
   'request.principal': 'the target limits of a remote MCP client',
   'spawn.workspace': "atc_session_spawn's workspace",
+  'transport.tcp': 'a TCP connection to the daemon',
 };
 
 /**

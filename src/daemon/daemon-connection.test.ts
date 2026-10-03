@@ -46,6 +46,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
   const ctx: DaemonContext = {
     build: 'atc/test',
     daemonID: toDaemonID('d-1'),
+    idempotencyRetentionMs: 86_400_000,
     collectSessions: () => [],
     collectSpawnDirs: assertUnreachable,
     collectAgents: assertUnreachable,
@@ -53,6 +54,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     loadLastUsedAgent: () => Promise.resolve('claude'),
     findAdapter: assertUnreachable,
     buildTargetAccess: assertUnreachable,
+    hasListedPrincipal: assertUnreachable,
     collectChildIDs: assertUnreachable,
     findSessionGrant: assertUnreachable,
     findTargetIdentity: assertUnreachable,

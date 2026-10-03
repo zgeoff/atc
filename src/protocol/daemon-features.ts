@@ -53,6 +53,10 @@ export const DAEMON_FEATURES = [
 
   // `session.submit` exists.
   'session.submit',
+
+  // The daemon can serve the client protocol on a TCP listener whose
+  // handshake takes a bearer token.
+  'transport.tcp',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

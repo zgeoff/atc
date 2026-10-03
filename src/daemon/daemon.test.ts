@@ -153,7 +153,9 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'spawn.workspace',
       'session.forget',
       'session.submit',
+      'transport.tcp',
     ],
+    idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
   });
 });

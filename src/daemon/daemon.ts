@@ -52,6 +52,8 @@ import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
 import type { HookEvent } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
+import { isAllowedListenHost } from './is-allowed-listen-host';
+import { loadListenerTokens } from './load-listener-tokens';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
@@ -69,6 +71,8 @@ import type { Session, SessionDescriptor, SessionState } from './sessions';
 import { startEventsServer } from './start-events-server';
 import { startHeadlessTurn } from './start-headless-turn';
 import { startSessionBridge } from './start-session-bridge';
+import { startTCPListener } from './start-tcp-listener';
+import type { TCPListener } from './start-tcp-listener';
 import { TapRegistry } from './tap-registry';
 import type { TargetAccess } from './target-access';
 import { writeDaemonRecord } from './write-daemon-record';
@@ -138,6 +142,10 @@ export interface DaemonOptions {
   // How long a confirm token from `session.forget` stays usable.
   readonly forgetConfirmMs?: number;
 
+  // When set, a TCP listener serves the client protocol on this address to
+  // peers whose handshake presents a token from the token file.
+  readonly listen?: ListenOptions;
+
   // Called after a client-requested quit has stopped the daemon; the real
   // entrypoint exits the process, tests leave it unset.
   readonly onQuit?: () => void;
@@ -147,11 +155,31 @@ export interface DaemonOptions {
   readonly log?: (line: string) => void;
 }
 
+// The TCP listener's address and the file holding the tokens a handshake
+// may present.
+interface ListenOptions {
+  readonly host: string;
+  readonly port: number;
+  readonly tokenFile: string;
+
+  // How long a handshake waits once its source address has failed five
+  // times within a minute; 10 s when unset.
+  readonly failureDelayMs?: number;
+}
+
 export interface DaemonHandle {
   readonly stop: () => Promise<void>;
 
   // How many client-protocol connections are open right now.
   readonly countClients: () => number;
+
+  // The port the TCP listener bound, or null without one.
+  readonly listenPort: number | null;
+
+  // Reads the token file again and closes every TCP connection whose
+  // handshake token it no longer holds. A file that fails to load drops
+  // every token and closes every TCP connection until a load succeeds.
+  readonly refreshTokens: () => void;
 }
 
 // How long a started Claude session may go without a tap before a message to
@@ -169,6 +197,9 @@ const LOCAL_PRINCIPAL = 'local';
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 const IDEMPOTENCY_SWEEP_MS = 60 * 60 * 1000;
 
+// How long a TCP handshake waits once its address has failed too often.
+const HANDSHAKE_FAILURE_DELAY_MS = 10_000;
+
 // How long startup waits for a daemon that is shutting down to release the
 // state lock before refusing to start.
 const LOCK_WAIT_MS = 2000;
@@ -184,6 +215,10 @@ const LOCK_WAIT_MS = 2000;
  */
 export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   let stopDaemon: (() => Promise<void>) | null = null;
+
+  // The listener's address and tokens are checked before the daemon takes
+  // anything, so a refused listener leaves no state behind.
+  const listenTokens = opts.listen === undefined ? null : requireListenTokens(opts.listen);
 
   // One daemon per state directory: the lock comes before the store, the
   // sockets, or the fleet, so a second daemon touches none of them.
@@ -1141,6 +1176,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const ctx: DaemonContext = {
     build: opts.build,
     daemonID: store.daemonID,
+    idempotencyRetentionMs: IDEMPOTENCY_TTL_MS,
     collectSessions: () => mgr.collectDescriptors(),
     collectSpawnDirs: () => store.collectSpawnDirs(),
     collectAgents: () => ({
@@ -1160,6 +1196,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => mgr.findAdapter(kind),
     buildTargetAccess: (principal) => buildTargetAccess(principals, targetsByID, principal),
+    hasListedPrincipal: (principal) => principals?.has(principal) ?? false,
     findSessionGrant: (id) => {
       const s = mgr.sessions.find((x) => x.id === id);
 
@@ -1699,6 +1736,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     unlinkSync(opts.socketPath);
   } catch {}
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- a connection is a live object the daemon releases
+  const detachConnection = (connection: DaemonConnection) => {
+    clients.delete(connection);
+    ctx.detachClient(connection);
+    taps.detachAll(connection);
+  };
+
   const server = Bun.listen<DaemonConnection>({
     unix: opts.socketPath,
     socket: {
@@ -1714,13 +1758,49 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         socket.data.drain();
       },
       close(socket) {
-        clients.delete(socket.data);
-        ctx.detachClient(socket.data);
-        taps.detachAll(socket.data);
+        detachConnection(socket.data);
       },
       error() {},
     },
   });
+
+  const tcpListener: TCPListener | null =
+    opts.listen === undefined || listenTokens === null
+      ? null
+      : startTCPListener({
+          host: opts.listen.host,
+          port: opts.listen.port,
+          tokens: listenTokens,
+          failureDelayMs: opts.listen.failureDelayMs ?? HANDSHAKE_FAILURE_DELAY_MS,
+          openConnection: (socket, peer) => {
+            const connection = new DaemonConnection(socket, ctx, peer);
+
+            clients.add(connection);
+
+            return connection;
+          },
+          closeConnection: detachConnection,
+        });
+
+  const refreshTokens = () => {
+    if (opts.listen === undefined || tcpListener === null) {
+      return;
+    }
+
+    const loaded = loadListenerTokens(opts.listen.tokenFile);
+
+    if (loaded.ok) {
+      tcpListener.setTokens(loaded.tokens);
+
+      return;
+    }
+
+    tcpListener.setTokens(null);
+
+    mgr.log(
+      `atc daemon: token reload failed (${loaded.reason}); every TCP connection is closed and refused until a reload succeeds`,
+    );
+  };
 
   stopDaemon = async () => {
     // Ends each client itself so every peer sees the close: a stopped
@@ -1730,7 +1810,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
 
     clearInterval(idempotencySweep);
-
+    tcpListener?.stop();
     server.stop(true);
     eventsServer?.stop();
     reporter.stop(true);
@@ -1769,7 +1849,37 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     eventsSocketPath: opts.eventsSocketPath ?? null,
   });
 
-  return { stop: stopDaemon, countClients: () => clients.size };
+  return {
+    stop: stopDaemon,
+    countClients: () => clients.size,
+    listenPort: tcpListener?.port ?? null,
+    refreshTokens,
+  };
+}
+
+// The tokens the TCP listener starts with. Throws, with the code a refused
+// start carries, for an address outside the allowed ranges or a token file
+// that fails to load, so the daemon never starts with a listener that
+// takes no token or binds where it must not.
+function requireListenTokens(listen: ListenOptions): readonly string[] {
+  if (!isAllowedListenHost(listen.host)) {
+    throw Object.assign(
+      new Error(
+        `atc daemon: --listen refuses '${listen.host}': bind a loopback address or one in 100.64.0.0/10 or fd7a:115c:a1e4::/48`,
+      ),
+      { code: 'listen_refused' },
+    );
+  }
+
+  const loaded = loadListenerTokens(listen.tokenFile);
+
+  if (!loaded.ok) {
+    throw Object.assign(new Error(`atc daemon: --token-file: ${loaded.reason}`), {
+      code: 'listen_refused',
+    });
+  }
+
+  return loaded.tokens;
 }
 
 // Tells a tap its subscription is over so the `atc tap` process behind it
