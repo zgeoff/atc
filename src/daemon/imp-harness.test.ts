@@ -331,3 +331,18 @@ test('it reports a harness whose imp another owner put to sleep as suspended, wi
   expect(fixture.port.sessionRequests[1]).toMatchObject({ kind: 'attach', wake: false });
   expect(fixture.port.findState('imp-a')).toBe('sleeping');
 });
+
+test('it counts connections impd drops before they start, and ends once its reconnects run out', async () => {
+  using fixture = await setupTest();
+
+  fixture.port.setSessionDrops(10, 1011);
+  fixture.port.stopConnection('imp-a', 's1', 1011);
+
+  await waitFor(() => {
+    expect(fixture.exits).toStrictEqual([
+      { exitCode: 1, reason: 'ended', detail: 'imp connection closed (code 1011)' },
+    ]);
+  });
+
+  expect(fixture.port.sessionRequests).toHaveLength(5);
+});

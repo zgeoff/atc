@@ -136,6 +136,20 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
   // booted, so a heavy fleet comes up one process at a time instead of all
   // at once. A per-session cap keeps a session that never reports from
   // stalling the rest.
+  // A later session's failure runs in the background, so it is logged and
+  // the restore moves on rather than rejecting where nothing awaits it.
+  const tryAdoptQueued = async (s: Session): Promise<boolean> => {
+    try {
+      return await adoptQueued(s);
+    } catch (error) {
+      mgr.log(
+        `atc could not revive session ${s.id} (${error instanceof Error ? error.message : String(error)})`,
+      );
+
+      return false;
+    }
+  };
+
   const adoptRest = async (previous: Session | null) => {
     let prev = previous;
 
@@ -144,7 +158,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
         await waitForBoot(prev.id);
       }
 
-      const booted = await adoptQueued(s);
+      const booted = await tryAdoptQueued(s);
 
       prev = booted ? s : null;
     }
@@ -178,6 +192,7 @@ const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'target_changed',
   'target_config_invalid',
   'host_unavailable',
+  'auth_not_configured',
 ]);
 
 async function tryAdoptTerminal(

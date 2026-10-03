@@ -316,8 +316,16 @@ export class ImpProvider implements ExecutionProvider {
       ],
     });
 
-    if (ready.code === 0 || !installATC || this.atcBinary === null) {
+    if (ready.code === 0 || !installATC) {
       return;
+    }
+
+    if (this.atcBinary === null) {
+      throw new DaemonError(
+        'unsupported_operation',
+        `imp ${name} has no executable atc at ${this.guest.atc ?? '(none)'}`,
+        { provider: 'imp', problem: 'no_guest_atc' },
+      );
     }
 
     const binary = await Bun.file(this.atcBinary).bytes();

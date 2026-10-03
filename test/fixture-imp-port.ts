@@ -66,6 +66,14 @@ export class FixtureImpPort implements ImpPort {
   // when answers go out at once.
   private held: (() => void)[] | null = null;
 
+  // How many of the next session requests impd drops before it answers,
+  // and the close code it drops them with.
+  private drops = { count: 0, closeCode: 1011 };
+
+  // Lease acquisitions that go through before the next one fails, and
+  // impd's code for that failure, or null for none.
+  private acquireFailure: { skip: number; readonly code: string } | null = null;
+
   // A refusal the next session request gets instead of an answer.
   private nextFailure: { readonly code: string; readonly data: unknown } | null = null;
 
@@ -121,6 +129,20 @@ export class FixtureImpPort implements ImpPort {
 
   acquireLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
     this.calls.push(`leases.acquire ${name} ${label}`);
+
+    const failure = this.acquireFailure;
+
+    if (failure !== null) {
+      if (failure.skip === 0) {
+        this.acquireFailure = null;
+
+        return Promise.reject(
+          new ImpPortError(failure.code, `impd refused the lease (${failure.code})`),
+        );
+      }
+
+      failure.skip -= 1;
+    }
 
     if (label === 'hold' || ttlSeconds < 10 || ttlSeconds > 3600) {
       return Promise.reject(new ImpPortError('BAD_REQUEST', 'the label or ttl is not allowed'));
@@ -439,6 +461,22 @@ export class FixtureImpPort implements ImpPort {
   }
 
   /**
+   * Fails a lease acquisition with an impd code once `skip` more have gone
+   * through.
+   */
+  setAcquireFailure(skip: number, code: string): void {
+    this.acquireFailure = { skip, code };
+  }
+
+  /**
+   * Drops the next session requests before impd answers them, closing
+   * each with the close code.
+   */
+  setSessionDrops(count: number, closeCode: number): void {
+    this.drops = { count, closeCode };
+  }
+
+  /**
    * Refuses the next session request with an impd code and its data.
    */
   setNextSessionFailure(code: string, data: unknown): void {
@@ -570,6 +608,18 @@ export class FixtureImpPort implements ImpPort {
 
   private answerSession(request: ImpSessionRequest, connection: FixtureConnection): void {
     if (connection.finished) {
+      return;
+    }
+
+    if (this.drops.count > 0) {
+      this.drops.count -= 1;
+
+      connection.finish({
+        kind: 'closed',
+        reason: `code ${this.drops.closeCode}`,
+        closeCode: this.drops.closeCode,
+      });
+
       return;
     }
 

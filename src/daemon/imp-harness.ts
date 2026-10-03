@@ -306,13 +306,17 @@ export class ImpHarness implements HarnessHandle {
       return;
     }
 
+    const wasStarted = this.started;
+
     this.connection = null;
     this.started = false;
 
-    this.applyOutcome(outcome);
+    this.applyOutcome(outcome, wasStarted);
   }
 
-  private applyOutcome(outcome: ImpSessionOutcome): void {
+  // A drop resumes at once only on a connection that had started, so a
+  // connection impd drops before it answers counts as a failed reconnect.
+  private applyOutcome(outcome: ImpSessionOutcome, wasStarted: boolean): void {
     if (outcome.kind === 'exit') {
       this.emitExit({ exitCode: outcome.code ?? 1, reason: 'exited' });
 
@@ -337,7 +341,7 @@ export class ImpHarness implements HarnessHandle {
       (outcome.kind === 'closed' && outcome.closeCode === 1011) ||
       (outcome.kind === 'detached' && outcome.reason === 'slow');
 
-    const delay = isDropped ? 0 : null;
+    const delay = isDropped && wasStarted ? 0 : null;
 
     this.scheduleReconnect(outcome, delay);
   }

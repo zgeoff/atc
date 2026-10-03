@@ -385,7 +385,8 @@ refuses the request before anything starts:
   lists such a session as exited.
 - An agent that cannot run on a remote host is `unsupported_operation`, with the agent id as
   `data.agent` and `no_guest_atc` as `data.problem` when its hooks need an atc inside the host and
-  the host has none.
+  the host has none, or `remote_unsupported` when the agent never runs remotely, such as a gateway
+  whose credential helper runs on the daemon's machine.
 - An agent whose sign-in check fails inside a remote host is `auth_not_configured`, with
   `data.agent` and `data.target`. No harness starts.
 

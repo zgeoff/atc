@@ -470,3 +470,41 @@ test('it gives its lease back when a session it revived from sleep exits', async
     expect(daemon.port.calls.filter((call) => call === release)).toHaveLength(2);
   });
 });
+
+test('it revives a session that woke its imp even when a sibling on that imp cannot revive', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-parent',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+
+  const child = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-child',
+    parent: parentID,
+  });
+
+  const childID = getRecord(child, 'session')['id'];
+
+  await daemon.client.sendRequest('session.kill', { session: parentID });
+
+  daemon.port.setAcquireFailure(1, 'UNAVAILABLE');
+
+  await daemon.client.sendRequest('session.adopt', { session: parentID, cols: 80, rows: 24 });
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toMatchObject({
+    sessions: [
+      { id: parentID, state: 'running' },
+      { id: childID, state: 'exited', lastMsg: 'asleep' },
+    ],
+  });
+});

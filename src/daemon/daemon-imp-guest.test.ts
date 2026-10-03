@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { readFileSync, statSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
 import { setupTempDir } from '../../test/setup-temp-dir';
@@ -279,4 +279,57 @@ test('it revives a slept remote session whose transcript only its imp holds', as
   const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toMatchObject({ sessions: [{ id, state: 'running', lastMsg: 'revived' }] });
+});
+
+test('it refuses a remote Claude spawn when the atc the target names is missing from the host', async () => {
+  await using daemon = await setupTest({ guestATC: true });
+
+  rmSync(daemon.fakeATC);
+
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(spawned).rejects.toMatchObject({
+    code: 'unsupported_operation',
+    data: { provider: 'imp', problem: 'no_guest_atc' },
+  });
+
+  await spawned.catch(() => null);
+
+  expect(daemon.port.sessionRequests).toBeEmpty();
+});
+
+test('it refuses a remote spawn of an agent that never runs remotely, without blaming a missing atc', async () => {
+  await using daemon = await setupTest({
+    guestATC: true,
+    adapter: (fakeClaude) => ({
+      id: 'zai',
+      headlessRunner: null,
+      screenDetector: null,
+      takesMessages: false,
+      planSpawn: () => ({ bin: fakeClaude, args: [] }),
+      planGuestSpawn: () => null,
+      normalizeHook: () => ({ kind: 'heartbeat' }),
+      loadName: () => Promise.resolve(null),
+      canResume: () => true,
+      buildResumeCommand: () => null,
+    }),
+  });
+
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+    agent: 'zai',
+  });
+
+  expect(spawned).rejects.toMatchObject({
+    code: 'unsupported_operation',
+    data: { provider: 'imp', agent: 'zai', problem: 'remote_unsupported' },
+  });
+
+  await spawned.catch(() => null);
 });

@@ -328,6 +328,24 @@ export class SessionManager {
     return s;
   }
 
+  // A sibling's revive failing leaves that sibling asleep; the session
+  // whose revive woke the host is already running, so the failure is
+  // logged rather than thrown.
+  private async tryAdoptSibling(
+    sibling: Session,
+    s: Session,
+    cols: number,
+    rows: number,
+  ): Promise<void> {
+    try {
+      await this.adoptTerminal(sibling.id, cols, rows);
+    } catch (error) {
+      this.log(
+        `atc could not revive session ${sibling.id} beside ${s.id} (${error instanceof Error ? error.message : String(error)})`,
+      );
+    }
+  }
+
   // Registers a fleet entry as a session with no terminal yet, under the
   // atc session id its row holds, so a fleet-wide restore can show every
   // incoming session at once; adopting it later attaches the terminal.
@@ -496,7 +514,7 @@ export class SessionManager {
 
     for (const asleep of this.sessions) {
       if (asleep.hostKey === s.hostKey && asleep.target === s.target && asleep.suspended) {
-        await this.adoptTerminal(asleep.id, cols, rows);
+        await this.tryAdoptSibling(asleep, s, cols, rows);
       }
     }
 
@@ -776,11 +794,7 @@ export class SessionManager {
         : adapter.planGuestSpawn(options, { atc: guest.atc, dir });
 
     if (plan === null) {
-      throw new DaemonError(
-        'unsupported_operation',
-        `agent '${adapter.id}' cannot run on target '${target}': its host has no atc to report through; run a compiled atc daemon on Linux, or set the target's guestATC to an atc installed in its image`,
-        { provider: provider.kind, agent: adapter.id, problem: 'no_guest_atc' },
-      );
+      throw buildGuestRefusal(provider.kind, adapter.id, target, guest.atc === null);
     }
 
     await provider.prepareHost({
@@ -1516,6 +1530,27 @@ function buildLifecycle(s: Session): SessionLifecycle {
     kind: s.kind,
     state: s.state,
   });
+}
+
+// An agent that plans no remote spawn: for want of an atc inside the host
+// when the host has none, or because the agent never runs remotely.
+function buildGuestRefusal(
+  provider: string,
+  agent: string,
+  target: string,
+  hasNoATC: boolean,
+): DaemonError {
+  return hasNoATC
+    ? new DaemonError(
+        'unsupported_operation',
+        `agent '${agent}' cannot run on target '${target}': its host has no atc to report through; run a compiled atc daemon on Linux, or set the target's guestATC to an atc installed in its image`,
+        { provider, agent, problem: 'no_guest_atc' },
+      )
+    : new DaemonError(
+        'unsupported_operation',
+        `agent '${agent}' cannot run on a remote target such as '${target}'`,
+        { provider, agent, problem: 'remote_unsupported' },
+      );
 }
 
 // Why a harness stopped, as a session's last message.
