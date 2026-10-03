@@ -304,3 +304,24 @@ test('it lists a scope read from typed text once, on the target chosen after it'
     { source: 'fake', scope: 'acme', target: 'box' },
   ]);
 });
+
+test('it starts a new flow on the default target, not the one the last flow chose', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [LOCAL, BOX], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, DOWN, ENTER, ENTER, ENTER);
+  await ctx.answer('session.spawn', { session: { id: 's-1' } });
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [LOCAL, BOX], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER, ENTER);
+
+  expect(ctx.collectSent('session.spawn').map((p) => p['target'])).toStrictEqual(['box', 'local']);
+});
