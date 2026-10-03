@@ -5,11 +5,16 @@ import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import type { GatewayConfig } from '../shared/collect-gateways';
 import type { Config } from '../shared/config';
+import { isBrokerVariable } from '../shared/is-broker-variable';
+import { isRecord } from '../shared/report';
+import { resolveAuthProfiles } from '../shared/resolve-auth-profiles';
 import { toShellArg } from '../shared/to-shell-arg';
 import type {
   AgentAdapter,
   AgentProfile,
   AuthSelection,
+  GuestPaths,
+  GuestSpawnPlan,
   HeadlessRunner,
   NameUpdate,
   ResumeCheck,
@@ -17,10 +22,13 @@ import type {
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
+import { buildATCBridgeFiles } from './build-atc-bridge-files';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
+import { buildHookSettings } from './build-hook-settings';
 import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { ClaudeAdapter } from './claude-adapter';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
+import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { findFlagValue } from './find-flag-value';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
@@ -106,19 +114,20 @@ export class GatewayAdapter implements AgentAdapter {
           });
   }
 
-  // A gateway whose credential comes through impd's broker starts only in a
-  // guest that reaches the broker, with guest settings the adapter plans
-  // for it, and it plans none: started without them, the CLI would send
-  // whatever credential it holds to the gateway's host.
+  // A gateway whose credential comes through impd's broker is refused
+  // before anything is prepared for it when its placeholders cannot pair
+  // with the broker's header, or when its settings env would route the CLI
+  // around the broker.
   findSpawnRefusal(): DaemonError | null {
-    if (this.gateway.auth === undefined) {
+    const auth = this.gateway.auth;
+
+    if (auth === undefined) {
       return null;
     }
 
-    return new DaemonError(
-      'auth_target_unsupported',
-      `gateway '${this.id}' takes its credential from impd's broker, and atc plans no guest settings for it on any target`,
-      { agent: this.id },
+    return (
+      this.findPlaceholderRefusal(auth.placeholderEnv, auth.profiles) ??
+      this.findSettingsEnvConflict()
     );
   }
 
@@ -135,29 +144,101 @@ export class GatewayAdapter implements AgentAdapter {
     };
   }
 
+  // A gateway whose credential comes through impd's broker never starts on
+  // the daemon's machine: started without the broker, the CLI would send
+  // whatever credential it holds to the gateway's host.
   planSpawn(opts: SpawnOptions): SpawnPlan {
+    if (this.gateway.auth !== undefined) {
+      throw this.buildBrokerRefusal('which only an imp target can give it');
+    }
+
+    const modeArgs =
+      opts.resume === false ? [] : buildRestoreModeArgs(this.gateway.args, this.gateway.settings);
+
     return {
       bin: this.gateway.bin,
-      args: [
-        ...buildClaudeOverrideArgs(this.gateway.args, opts),
-        ...(opts.resume === false
-          ? []
-          : buildRestoreModeArgs(this.gateway.args, this.gateway.settings)),
-        '--settings',
-        this.writeSettings(),
-        '--plugin-dir',
-        this.writeBridge(),
-        ...(opts.resume === true ? ['--resume'] : []),
-        ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
-        ...(opts.prompt === '' ? [] : [opts.prompt]),
-      ],
+      args: this.buildArgs(opts, modeArgs, this.writeSettings(), this.writeBridge()),
     };
   }
 
-  // The credential helper runs on the daemon's machine, so a gateway
-  // session never runs on a remote host.
-  planGuestSpawn(): null {
-    return null;
+  // A gateway whose credential comes through impd's broker runs on a
+  // remote host with a settings file of the session's own per binding
+  // revision, a Claude config folder of its own that holds no account,
+  // and placeholders in place of the credential, which the broker swaps
+  // for the real one on the host's side. A shell seeds the config folder
+  // before it runs the CLI, since a transferred file would replace the
+  // state an earlier run left. Any other gateway's credential
+  // helper runs on the daemon's machine, so it never runs remotely.
+  planGuestSpawn(opts: SpawnOptions, guest: GuestPaths): GuestSpawnPlan | null {
+    if (this.gateway.auth === undefined) {
+      return null;
+    }
+
+    if (guest.auth === undefined) {
+      throw this.buildBrokerRefusal('and this session has no broker binding');
+    }
+
+    if (guest.atc === null) {
+      return null;
+    }
+
+    const refusal =
+      this.findPlaceholderRefusal(guest.auth.env, this.gateway.auth.profiles) ??
+      this.findSettingsEnvConflict();
+
+    if (refusal !== null) {
+      throw refusal;
+    }
+
+    const argv = [guest.atc];
+    const settingsPath = `auth-r${guest.auth.revision}/settings.json`;
+
+    const bridge = Object.entries(buildATCBridgeFiles(argv)).map(
+      ([path, content]): [string, string] => [`atc-bridge/${path}`, content],
+    );
+
+    const settings = buildHookSettings(
+      {
+        id: this.id,
+        env: {
+          ...this.gateway.env,
+          ANTHROPIC_BASE_URL: this.gateway.baseURL,
+          ...guest.auth.env,
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+        },
+        ...(this.gateway.settings === undefined
+          ? {}
+          : { settings: buildSettingsWithoutHelper(this.gateway.settings) }),
+      },
+      0,
+      argv,
+    );
+
+    const configDir = `${guest.dir}/${CLAUDE_CONFIG_FOLDER}`;
+
+    return {
+      bin: 'sh',
+      args: [
+        '-c',
+        SEED_CONFIG_SCRIPT,
+        'sh',
+        configDir,
+        `${guest.dir}/${CONFIG_SEED_FILE}`,
+        this.gateway.bin,
+        ...this.buildArgs(
+          opts,
+          this.buildGuestModeArgs(),
+          `${guest.dir}/${settingsPath}`,
+          `${guest.dir}/atc-bridge`,
+        ),
+      ],
+      files: {
+        [settingsPath]: JSON.stringify(settings, null, 2),
+        [CONFIG_SEED_FILE]: JSON.stringify(ONBOARDED_CONFIG, null, 2),
+        ...Object.fromEntries(bridge),
+      },
+      env: { CLAUDE_CONFIG_DIR: configDir, ...guest.auth.env },
+    };
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {
@@ -197,6 +278,117 @@ export class GatewayAdapter implements AgentAdapter {
     return `cd ${toShellArg(cwd)} && ${this.gateway.bin}${args} --settings ${settings} --resume${resume}`;
   }
 
+  private buildArgs(
+    opts: SpawnOptions,
+    modeArgs: readonly string[],
+    settings: string,
+    pluginDir: string,
+  ): string[] {
+    return [
+      ...buildClaudeOverrideArgs(this.gateway.args, opts),
+      ...modeArgs,
+      '--settings',
+      settings,
+      '--plugin-dir',
+      pluginDir,
+      ...(opts.resume === true ? ['--resume'] : []),
+      ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
+      ...(opts.prompt === '' ? [] : [opts.prompt]),
+    ];
+  }
+
+  // A brokered session's Claude config is fresh, so the CLI's own default
+  // mode would apply rather than the one the owner's settings set. Every
+  // start therefore names its mode: the one the gateway's arguments or
+  // settings set, else the CLI's manual mode, which asks before each
+  // action.
+  private buildGuestModeArgs(): string[] {
+    if (findFlagValue(this.gateway.args, ['--permission-mode']) !== null) {
+      return [];
+    }
+
+    return [
+      '--permission-mode',
+      findClaudePermissionMode([], this.gateway.settings) ?? MANUAL_PERMISSION_MODE,
+    ];
+  }
+
+  private buildBrokerRefusal(reason: string): DaemonError {
+    return new DaemonError(
+      'auth_target_unsupported',
+      `gateway '${this.id}' takes its credential from impd's broker, ${reason}`,
+      { agent: this.id },
+    );
+  }
+
+  // The Claude CLI sends ANTHROPIC_AUTH_TOKEN as a bearer authorization
+  // header, the one pairing atc binds, so the placeholders must be that
+  // variable alone, holding the placeholder, for a profile whose rule on
+  // the base URL's host sets that header. Any other variable would put the
+  // placeholder in a header the broker never fills.
+  private findPlaceholderRefusal(
+    env: Readonly<Record<string, string>>,
+    profiles: readonly string[],
+  ): DaemonError | null {
+    const keys = Object.keys(env);
+
+    if (keys.length !== 1 || keys[0] !== BEARER_VARIABLE) {
+      return this.buildPlaceholderRefusal(
+        `needs ${BEARER_VARIABLE} as its only placeholder variable, which the broker fills as a bearer authorization header; it has ${keys.length === 0 ? 'none' : keys.join(', ')}`,
+      );
+    }
+
+    if (env[BEARER_VARIABLE] !== PLACEHOLDER) {
+      return this.buildPlaceholderRefusal(`needs ${BEARER_VARIABLE} to hold ${PLACEHOLDER}`);
+    }
+
+    const resolution = resolveAuthProfiles(this.config.authProfiles, profiles);
+
+    const host = new URL(this.gateway.baseURL).hostname;
+
+    const rule =
+      'resolved' in resolution
+        ? resolution.resolved.secrets.flatMap((s) => s.rules).find((r) => r.host === host)
+        : undefined;
+
+    if (rule?.header !== 'authorization' || rule.scheme !== 'bearer') {
+      return this.buildPlaceholderRefusal(
+        `needs a profile that sets a bearer authorization header for ${host}, the header ${BEARER_VARIABLE} fills`,
+      );
+    }
+
+    return null;
+  }
+
+  // The settings file's env block reaches the CLI's own process, so a proxy
+  // or CA variable there would route the CLI around the broker.
+  private findSettingsEnvConflict(): DaemonError | null {
+    const settingsEnv = this.gateway.settings?.['env'];
+
+    const keys = [
+      ...Object.keys(this.gateway.env),
+      ...(isRecord(settingsEnv) ? Object.keys(settingsEnv) : []),
+    ];
+
+    const variable = keys.find((key) => isBrokerVariable(key));
+
+    if (variable === undefined) {
+      return null;
+    }
+
+    return new DaemonError(
+      'auth_target_unsupported',
+      `gateway '${this.id}' sets ${variable} in its settings env, which would route around impd's broker`,
+      { agent: this.id, problem: 'guest_env_conflict', variable },
+    );
+  }
+
+  private buildPlaceholderRefusal(problem: string): DaemonError {
+    return new DaemonError('auth_placeholder_unsupported', `gateway '${this.id}' ${problem}`, {
+      agent: this.id,
+    });
+  }
+
   private writeSettings(): string {
     this.settingsFile ??= writeHookSettings({
       id: this.id,
@@ -215,6 +407,43 @@ export class GatewayAdapter implements AgentAdapter {
 
     return this.bridgeDir;
   }
+}
+
+// The variable the Claude CLI sends as a bearer authorization header, and
+// the value impd's broker replaces with the credential on the host's side.
+const BEARER_VARIABLE = 'ANTHROPIC_AUTH_TOKEN';
+const PLACEHOLDER = 'imp-broker-placeholder';
+
+// The Claude CLI's mode that asks a person before each action.
+const MANUAL_PERMISSION_MODE = 'default';
+
+// The Claude config folder a brokered session gets inside its guest
+// folder, so no account or setting of the host's image reaches it.
+const CLAUDE_CONFIG_FOLDER = 'claude-config';
+
+// The state the Claude CLI reads from its config folder's `.claude.json`
+// to start without its first-run onboarding. It holds no account: the
+// placeholder credential is what keeps the CLI from asking for a login.
+// It holds no folder trust either, so the CLI asks a person to trust the
+// workspace on its first start.
+const ONBOARDED_CONFIG = { hasCompletedOnboarding: true };
+
+// Where that state travels, beside the config folder rather than in it.
+const CONFIG_SEED_FILE = 'claude-config-seed.json';
+
+// Copies the seed into the config folder only when the folder holds no
+// `.claude.json` yet, then runs the CLI. A resumed session keeps the state
+// the CLI wrote, a folder trust a person accepted included. The arguments
+// are the config folder, the seed, and the CLI's own command line.
+const SEED_CONFIG_SCRIPT =
+  'mkdir -p "$1" && { [ -e "$1/.claude.json" ] || cp "$2" "$1/.claude.json"; } && shift 2 && exec "$@"';
+
+// The gateway's settings without a credential helper, which a brokered
+// session never runs.
+function buildSettingsWithoutHelper(
+  settings: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  return Object.fromEntries(Object.entries(settings).filter(([key]) => key !== 'apiKeyHelper'));
 }
 
 // The model names a gateway's env sets explicitly, keyed by role:

@@ -228,7 +228,7 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
   ).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
 });
 
-test('it leaves out a gateway with auth, since every start of one is refused', () => {
+test('it lists a gateway with auth, which starts on a target with broker auth', () => {
   const dir = setupBinDir([{ name: 'my-claude', executable: true }]);
 
   expect(
@@ -271,5 +271,8 @@ test('it leaves out a gateway with auth, since every start of one is refused', (
       principalErrors: [],
       workspaceErrors: [],
     }),
-  ).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
+  ).toStrictEqual([
+    { agent: 'claude', label: 'Claude' },
+    { agent: 'glm', label: 'GLM' },
+  ]);
 });

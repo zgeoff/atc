@@ -161,7 +161,7 @@ test('it spawns a gateway without auth as before', async () => {
   expect(started).toBeTrue();
 });
 
-test('it lists a gateway with auth as unable to spawn', async () => {
+test('it lists a gateway with auth as able to spawn, since a target with a broker binding can start it', async () => {
   await using daemon = await setupTest();
 
   const answer = await daemon.client.sendRequest('agents.list');
@@ -169,13 +169,35 @@ test('it lists a gateway with auth as unable to spawn', async () => {
   expect(answer).toMatchObject({
     agents: [
       { id: 'claude' },
-      { id: 'glm', installed: true, capabilities: { spawn: false } },
+      { id: 'glm', installed: true, capabilities: { spawn: true } },
       { id: 'zai', installed: true, capabilities: { spawn: true } },
     ],
   });
 });
 
-test('it refuses to resume a session of a gateway with auth and starts no harness', async () => {
+test('it refuses a local spawn that resumes a session of a gateway with auth and starts no harness', async () => {
+  await using daemon = await setupTest();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'local',
+    resume: 'a1',
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
+
+  await spawn.catch(() => null);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect({ listed, started: existsSync(daemon.marker) }).toStrictEqual({
+    listed: { sessions: [] },
+    started: false,
+  });
+});
+
+test('it refuses to adopt a restored local session of a gateway with auth and starts no harness', async () => {
   await using daemon = await setupTest([
     {
       sessionID: toSessionID('s1'),
@@ -203,7 +225,7 @@ test('it refuses to resume a session of a gateway with auth and starts no harnes
   expect(existsSync(daemon.marker)).toBeFalse();
 });
 
-test('it restores a session of a gateway with auth without starting its harness', async () => {
+test('it restores a local session of a gateway with auth without starting its harness', async () => {
   await using daemon = await setupTest([
     {
       sessionID: toSessionID('s1'),

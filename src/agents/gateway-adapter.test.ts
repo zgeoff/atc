@@ -1,12 +1,14 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { updateEnv } from '../../test/update-env';
 import { parseConfig } from '../shared/config';
 import type { Config } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
+import { ClaudeAdapter } from './claude-adapter';
 import { GatewayAdapter } from './gateway-adapter';
 
 function buildGatewayAdapter(): GatewayAdapter {
@@ -478,7 +480,7 @@ test('it restores and resumes a gateway in its explicit permission-mode argument
   expect(command).not.toInclude("'default'");
 });
 
-test('it refuses every spawn of a gateway with auth, since it plans no guest settings for one', () => {
+test("it refuses to start a gateway with auth on the daemon's machine", () => {
   const adapter = new GatewayAdapter(
     {
       id: 'glm',
@@ -496,13 +498,9 @@ test('it refuses every spawn of a gateway with auth, since it plans no guest set
     parseConfig({}),
   );
 
-  const refusal = adapter.findSpawnRefusal();
-
-  expect(refusal).toMatchObject({
-    code: 'auth_target_unsupported',
-    message:
-      "gateway 'glm' takes its credential from impd's broker, and atc plans no guest settings for it on any target",
-  });
+  expect(() => adapter.planSpawn({ prompt: '', resume: false })).toThrow(
+    expect.objectContaining({ code: 'auth_target_unsupported', data: { agent: 'glm' } }),
+  );
 });
 
 test('it gives a gateway with auth no headless runner and no resume command', () => {
@@ -527,7 +525,269 @@ test('it gives a gateway with auth no headless runner and no resume command', ()
   }).toStrictEqual({ headless: null, resume: null });
 });
 
-test('it refuses no spawn of a gateway without auth', () => {
+test('it plans a brokered guest spawn with its own settings file, Claude config folder and placeholder credential', () => {
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+  });
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: { ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-4.6' },
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    config,
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: { revision: 3, env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  if (plan === null) {
+    throw new Error('expected a guest spawn plan');
+  }
+
+  const settingsFile = plan.files['auth-r3/settings.json'];
+
+  if (settingsFile === undefined) {
+    throw new Error('expected the revision settings file');
+  }
+
+  const onboardingFile = plan.files['claude-config-seed.json'];
+
+  if (onboardingFile === undefined) {
+    throw new Error('expected the Claude config file');
+  }
+
+  const settings: unknown = JSON.parse(settingsFile);
+  const onboarding: unknown = JSON.parse(onboardingFile);
+
+  expect({ bin: plan.bin, args: plan.args.slice(2), env: plan.env }).toStrictEqual({
+    bin: 'sh',
+    args: [
+      'sh',
+      '/tmp/atc/sessions/s1/claude-config',
+      '/tmp/atc/sessions/s1/claude-config-seed.json',
+      'claude',
+      '--permission-mode',
+      'default',
+      '--settings',
+      '/tmp/atc/sessions/s1/auth-r3/settings.json',
+      '--plugin-dir',
+      '/tmp/atc/sessions/s1/atc-bridge',
+    ],
+    env: {
+      CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+    },
+  });
+
+  expect(settings).toContainAllKeys(['hooks', 'statusLine', 'env']);
+
+  expect(settings).toHaveProperty('env', {
+    ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-4.6',
+    ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
+    ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  });
+
+  expect(settings).toHaveProperty(
+    'statusLine.command',
+    '"/opt/atc/bin/atc" statusline --agent \'glm\'',
+  );
+
+  expect(onboarding).toStrictEqual({ hasCompletedOnboarding: true });
+
+  expect(Object.keys(plan.files)).toIncludeAllMembers([
+    'auth-r3/settings.json',
+    'claude-config-seed.json',
+    'atc-bridge/.claude-plugin/plugin.json',
+  ]);
+});
+
+test("it keeps the gateway's permission hook and mode in a brokered guest's settings and restore arguments", () => {
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+  });
+
+  const hook = { matcher: '.*', hooks: [{ type: 'command', command: 'classify', timeout: 90 }] };
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      settings: { permissions: { defaultMode: 'default' }, hooks: { PermissionRequest: [hook] } },
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    config,
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: toAgentSessionID('a1') },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: { revision: 1, env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  if (plan === null) {
+    throw new Error('expected a guest spawn plan');
+  }
+
+  const settingsFile = plan.files['auth-r1/settings.json'];
+
+  if (settingsFile === undefined) {
+    throw new Error('expected the revision settings file');
+  }
+
+  const settings: unknown = JSON.parse(settingsFile);
+
+  expect(plan.args.slice(6)).toStrictEqual([
+    '--permission-mode',
+    'default',
+    '--settings',
+    '/tmp/atc/sessions/s1/auth-r1/settings.json',
+    '--plugin-dir',
+    '/tmp/atc/sessions/s1/atc-bridge',
+    '--resume',
+    'a1',
+  ]);
+
+  expect(settings).toHaveProperty('permissions', { defaultMode: 'default' });
+  expect(settings).toHaveProperty('hooks.PermissionRequest', [hook]);
+});
+
+test.each([
+  { name: 'ANTHROPIC_API_KEY', env: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' } },
+  { name: 'no variable', env: {} },
+  {
+    name: 'a second variable',
+    env: {
+      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+      ANTHROPIC_API_KEY: 'imp-broker-placeholder',
+    },
+  },
+  { name: 'a value other than the placeholder', env: { ANTHROPIC_AUTH_TOKEN: 'sk-real' } },
+])('it refuses a brokered guest spawn whose placeholders hold $name', (row) => {
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+  });
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: { profiles: ['glm'], placeholderEnv: row.env },
+    },
+    config,
+  );
+
+  expect(() =>
+    adapter.planGuestSpawn(
+      { prompt: '', resume: false },
+      { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1', auth: { revision: 1, env: row.env } },
+    ),
+  ).toThrow(
+    expect.objectContaining({ code: 'auth_placeholder_unsupported', data: { agent: 'glm' } }),
+  );
+});
+
+test("it refuses a brokered guest spawn whose profile sets a header other than a bearer authorization for the base URL's host", () => {
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'x-api-key', scheme: 'bearer' },
+    },
+  });
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    config,
+  );
+
+  expect(() =>
+    adapter.planGuestSpawn(
+      { prompt: '', resume: false },
+      {
+        atc: '/opt/atc/bin/atc',
+        dir: '/tmp/atc/sessions/s1',
+        auth: { revision: 1, env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' } },
+      },
+    ),
+  ).toThrow(expect.objectContaining({ code: 'auth_placeholder_unsupported' }));
+});
+
+test('it refuses a brokered guest spawn on a host that gave it no broker binding', () => {
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    parseConfig({}),
+  );
+
+  expect(() =>
+    adapter.planGuestSpawn(
+      { prompt: '', resume: false },
+      { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
+    ),
+  ).toThrow(expect.objectContaining({ code: 'auth_target_unsupported', data: { agent: 'glm' } }));
+});
+
+test('it plans no guest spawn for a gateway whose credential helper runs on the daemon machine', () => {
   const adapter = new GatewayAdapter(
     {
       id: 'zai',
@@ -536,13 +796,308 @@ test('it refuses no spawn of a gateway without auth', () => {
       bin: 'claude',
       args: [],
       baseURL: 'https://api.z.ai/api/anthropic',
+      apiKeyHelper: 'zai-key',
       env: {},
     },
     parseConfig({}),
   );
 
-  expect(adapter.findSpawnRefusal()).toBeNull();
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: { revision: 1, env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  expect(plan).toBeNull();
 });
+
+test('it plans no brokered guest spawn on a host without atc', () => {
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    parseConfig({}),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: null,
+      dir: '/tmp/atc/sessions/s1',
+      auth: { revision: 1, env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  expect(plan).toBeNull();
+});
+
+test('it keeps a credential held on the daemon side out of every file, argument and variable a brokered guest spawn plans', () => {
+  const canary = 'canary-sk-7f3e9b21d4c8a6';
+
+  updateEnv('ANTHROPIC_API_KEY', canary);
+  updateEnv('ANTHROPIC_AUTH_TOKEN', canary);
+  updateEnv('CLAUDE_CODE_OAUTH_TOKEN', canary);
+
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+  });
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      apiKeyHelper: `echo ${canary}`,
+      env: {},
+      settings: { apiKeyHelper: `echo ${canary}`, env: { ANTHROPIC_API_KEY: canary } },
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    config,
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: { revision: 1, env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  if (plan === null) {
+    throw new Error('expected a guest spawn plan');
+  }
+
+  expect(Object.keys(plan.files)).not.toBeEmpty();
+  expect(JSON.stringify(plan)).not.toInclude(canary);
+  expect(JSON.stringify(plan)).not.toInclude('apiKeyHelper');
+});
+
+test("it seeds a brokered guest's Claude config with the onboarding state when the folder holds none", () => {
+  using tmp = setupTempDir('atc-gateway-seed-');
+
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+  });
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'true',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    config,
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: tmp.dir,
+      auth: { revision: 1, env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  if (plan === null) {
+    throw new Error('expected a guest spawn plan');
+  }
+
+  writeFileSync(
+    join(tmp.dir, 'claude-config-seed.json'),
+    plan.files['claude-config-seed.json'] ?? '',
+  );
+
+  const run = Bun.spawnSync([plan.bin, ...plan.args]);
+  const seeded = readFileSync(join(tmp.dir, 'claude-config', '.claude.json'), 'utf8');
+
+  expect(run.exitCode).toBe(0);
+  expect(JSON.parse(seeded)).toStrictEqual({ hasCompletedOnboarding: true });
+});
+
+test("it keeps the state an earlier run left in a brokered guest's Claude config, an accepted folder trust included", () => {
+  using tmp = setupTempDir('atc-gateway-seed-');
+
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+  });
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'true',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    config,
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: toAgentSessionID('a1') },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: tmp.dir,
+      auth: { revision: 2, env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  if (plan === null) {
+    throw new Error('expected a guest spawn plan');
+  }
+
+  const earlier = JSON.stringify({
+    hasCompletedOnboarding: true,
+    projects: { '/work': { hasTrustDialogAccepted: true } },
+  });
+
+  writeFileSync(
+    join(tmp.dir, 'claude-config-seed.json'),
+    plan.files['claude-config-seed.json'] ?? '',
+  );
+
+  mkdirSync(join(tmp.dir, 'claude-config'));
+  writeFileSync(join(tmp.dir, 'claude-config', '.claude.json'), earlier);
+
+  const run = Bun.spawnSync([plan.bin, ...plan.args]);
+
+  expect(run.exitCode).toBe(0);
+  expect(readFileSync(join(tmp.dir, 'claude-config', '.claude.json'), 'utf8')).toBe(earlier);
+});
+
+test('it starts a brokered guest in the permission mode the plain Claude adapter passes for the same arguments', () => {
+  const config = parseConfig({
+    claudeArgs: ['--permission-mode', 'plan'],
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+  });
+
+  const claude = new ClaudeAdapter(config);
+
+  const gateway = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: ['--permission-mode', 'plan'],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    config,
+  );
+
+  const guest = {
+    atc: '/opt/atc/bin/atc',
+    dir: '/tmp/atc/sessions/s1',
+    auth: { revision: 1, env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' } },
+  };
+
+  const brokered = gateway.planGuestSpawn({ prompt: '', resume: false }, guest);
+  const plain = claude.planGuestSpawn({ prompt: '', resume: false }, guest);
+
+  if (brokered === null || plain === null) {
+    throw new Error('expected both guest spawn plans');
+  }
+
+  const brokeredMode = brokered.args.filter((arg) => arg === '--permission-mode' || arg === 'plan');
+  const plainMode = plain.args.filter((arg) => arg === '--permission-mode' || arg === 'plan');
+
+  expect(brokeredMode).toStrictEqual(['--permission-mode', 'plan']);
+  expect(brokeredMode).toStrictEqual(plainMode);
+});
+
+test.each([
+  { name: 'a fresh spawn', resume: false },
+  { name: 'a resume', resume: toAgentSessionID('a1') },
+])(
+  "it starts $name of a brokered guest in Claude's manual mode when the gateway sets none",
+  (row) => {
+    const config = parseConfig({
+      authProfiles: {
+        glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+      },
+    });
+
+    const adapter = new GatewayAdapter(
+      {
+        id: 'glm',
+        label: 'glm',
+        mark: 'g',
+        bin: 'claude',
+        args: [],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        env: {},
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+      config,
+    );
+
+    const plan = adapter.planGuestSpawn(
+      { prompt: '', resume: row.resume },
+      {
+        atc: '/opt/atc/bin/atc',
+        dir: '/tmp/atc/sessions/s1',
+        auth: { revision: 1, env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' } },
+      },
+    );
+
+    if (plan === null) {
+      throw new Error('expected a guest spawn plan');
+    }
+
+    const mode = plan.args.indexOf('--permission-mode');
+
+    expect(plan.args.slice(mode, mode + 2)).toStrictEqual(['--permission-mode', 'default']);
+    expect(plan.args.filter((arg) => arg === '--permission-mode')).toHaveLength(1);
+  },
+);
 
 test('it selects the credential a gateway with auth takes from the broker, with the auth profiles it resolves against', () => {
   const config = parseConfig({
@@ -596,4 +1151,86 @@ test('it selects no broker credential for a gateway without auth', () => {
   );
 
   expect(adapter.findAuthSelection()).toBeNull();
+});
+
+test('it refuses no start of a gateway with auth whose placeholder pairs with the bearer header', () => {
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    parseConfig({
+      authProfiles: {
+        glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+      },
+    }),
+  );
+
+  expect(adapter.findSpawnRefusal()).toBeNull();
+});
+
+test('it refuses every start of a gateway with auth whose placeholder is not the bearer variable', () => {
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+      },
+    },
+    parseConfig({
+      authProfiles: {
+        glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+      },
+    }),
+  );
+
+  expect(adapter.findSpawnRefusal()).toMatchObject({
+    code: 'auth_placeholder_unsupported',
+    data: { agent: 'glm' },
+  });
+});
+
+test('it refuses every start of a gateway with auth whose env sets a proxy variable', () => {
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      settings: { env: { https_proxy: 'http://proxy.example:3128' } },
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    parseConfig({
+      authProfiles: {
+        glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+      },
+    }),
+  );
+
+  expect(adapter.findSpawnRefusal()).toMatchObject({
+    code: 'auth_target_unsupported',
+    data: { agent: 'glm', problem: 'guest_env_conflict', variable: 'https_proxy' },
+  });
 });

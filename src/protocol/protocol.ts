@@ -65,6 +65,7 @@ const ERROR_CODES = [
   'auth_binding_invalid',
   'auth_revocation_pending',
   'broker_not_ready',
+  'auth_placeholder_unsupported',
   'host_leased',
   'confirmation_required',
   'confirm_token_invalid',

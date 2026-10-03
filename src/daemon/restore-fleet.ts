@@ -209,6 +209,7 @@ const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'auth_blocked',
   'auth_binding_invalid',
   'broker_not_ready',
+  'auth_placeholder_unsupported',
 ]);
 
 async function tryAdoptTerminal(
