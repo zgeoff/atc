@@ -145,8 +145,18 @@ export function buildScopedContext(
     updateSession: (id, name, pinned) => canSee(id) && ctx.updateSession(id, name, pinned),
     ackSession: (id) => canSee(id) && ctx.ackSession(id),
     buildResumeCommand: (id) => (canSee(id) ? ctx.buildResumeCommand(id) : null),
-    readSessionScreen: (id) =>
-      canSee(id) ? ctx.readSessionScreen(id) : Promise.resolve('missing' as const),
+    readSessionScreen: async (id) => {
+      if (!canSee(id)) {
+        return 'missing';
+      }
+
+      const screen = await ctx.readSessionScreen(id);
+
+      // The tree may leave the access during the read. That window is one
+      // render, which no test can hold open, so this check is a second line
+      // behind the one above.
+      return canSee(id) ? screen : 'missing';
+    },
     answerPermission: (request, decision) => {
       const owner = ctx.findPermissionSession(request);
 
@@ -168,17 +178,32 @@ export function buildScopedContext(
       canSee(id) ? ctx.adoptSession(id, cols, rows) : Promise.resolve('missing' as const),
     resizeSession: (client, sessionID, dims) =>
       canSee(sessionID) && ctx.resizeSession(client, sessionID, dims),
-    readSessionRecord: (id, outer) => {
+    readSessionRecord: async (id, outer) => {
       if (!canSee(id)) {
-        return Promise.resolve('missing' as const);
+        return 'missing';
       }
 
       const merged = outer === null ? access : outer.merge(access);
 
-      return ctx.readSessionRecord(id, merged);
+      const record = await ctx.readSessionRecord(id, merged);
+
+      // The tree may leave the access during the read. That window is one
+      // store read, which no test can hold open, so this check is a second
+      // line behind the one above.
+      return canSee(id) ? record : 'missing';
     },
-    loadSessionTranscript: (id, from, limit) =>
-      canSee(id) ? ctx.loadSessionTranscript(id, from, limit) : Promise.resolve('missing' as const),
+    loadSessionTranscript: async (id, from, limit) => {
+      if (!canSee(id)) {
+        return 'missing';
+      }
+
+      const page = await ctx.loadSessionTranscript(id, from, limit);
+
+      // The tree may leave the access during the read. That window is one
+      // file read, which no test can hold open, so this check is a second
+      // line behind the one above.
+      return canSee(id) ? page : 'missing';
+    },
     readEvents: (afterID, limit, waitMs, sessionID, outer) => {
       const merged = outer === null ? access : outer.merge(access);
 
