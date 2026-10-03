@@ -325,3 +325,18 @@ test('it starts a new flow on the default target, not the one the last flow chos
 
   expect(ctx.collectSent('session.spawn').map((p) => p['target'])).toStrictEqual(['box', 'local']);
 });
+
+test('it lists a git source again when the flow left it before its listing answered', async () => {
+  const ctx = setupTest();
+  const tab = Buffer.from('\t');
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [LOCAL], sources: [GIT_SOURCE, DIR_SOURCE] });
+  await ctx.applyKeys(tab);
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(tab);
+
+  expect(ctx.collectSent('sources.list').filter((p) => p['source'] === 'fake')).toHaveLength(2);
+});

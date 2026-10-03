@@ -978,7 +978,13 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     );
 
     this.sourceIndex = index;
-    this.listingSeq = null;
+
+    // A git listing dropped here never fills its candidates, so its source
+    // step lists again when it reopens.
+    if (this.listingSeq !== null) {
+      this.listingSeq = null;
+      this.listedKey = null;
+    }
 
     this.dirLabels = new Map(listed);
 
@@ -1100,11 +1106,16 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       failure = error;
     }
 
-    if (
-      this.isStale(generation) ||
-      this.listingSeq !== seq ||
-      this.findSource()?.id !== source.id
-    ) {
+    if (this.isStale(generation) || this.listingSeq !== seq) {
+      return;
+    }
+
+    // An answer for a source the flow has left fills nothing, so that
+    // source lists again when its step reopens.
+    if (this.findSource()?.id !== source.id) {
+      this.listingSeq = null;
+      this.listedKey = null;
+
       return;
     }
 
