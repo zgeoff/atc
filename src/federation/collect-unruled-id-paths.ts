@@ -9,7 +9,7 @@ const ID_PATTERN = /[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}/;
  * The paths of every string in a daemon answer that holds an id but has no
  * rule, so a daemon field that starts carrying an id cannot leave the
  * gateway without its daemon's name. A ruled field and everything below a
- * ruled locator count as covered.
+ * ruled locator or an opaque value count as covered.
  */
 export function collectUnruledIDPaths(
   value: unknown,
@@ -18,7 +18,11 @@ export function collectUnruledIDPaths(
 ): string[] {
   const rule = rules.get(path);
 
-  if (rule === 'locator' || (rule !== undefined && typeof value === 'string')) {
+  if (
+    rule === 'locator' ||
+    rule === 'opaque' ||
+    (rule !== undefined && typeof value === 'string')
+  ) {
     return [];
   }
 

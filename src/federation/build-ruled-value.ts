@@ -9,7 +9,8 @@ type DaemonRef = Pick<RegistryDaemon, 'name' | 'incarnation'>;
  * A daemon answer with every field a rule covers rewritten for the
  * gateway: ids carry the daemon's name and incarnation, and a locator's
  * daemon ID gives way to them. A `cursor` field is left for the event
- * merge, and a `keep` object is still searched for ruled fields below it.
+ * merge, a `keep` object is still searched for ruled fields below it, and
+ * an `opaque` value passes whole.
  * Fields without a rule pass unchanged.
  */
 export function buildRuledValue(
@@ -19,6 +20,10 @@ export function buildRuledValue(
   path = '',
 ): unknown {
   const rule = rules.get(path);
+
+  if (rule === 'opaque') {
+    return value;
+  }
 
   if (rule === 'id' && typeof value === 'string') {
     return buildGatewayID(daemon, value);

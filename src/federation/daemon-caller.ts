@@ -256,16 +256,42 @@ export class DaemonCaller {
       timeout.resolve('timeout');
     }, this.opts.connectTimeoutMs ?? CONNECT_TIMEOUT_MS);
 
-    try {
-      const opened = await Promise.race([this.openHandshaken(), timeout.promise]);
+    let timedOut = false;
 
-      if (opened === 'timeout') {
+    // Settles as a value either way, and stops a connection that opens
+    // after the timeout won, so a late open never leaks.
+    const handshaken = (async () => {
+      try {
+        const late = await this.openHandshaken();
+
+        if (timedOut) {
+          late.channel.stop();
+        }
+
+        return { kind: 'opened' as const, opened: late };
+      } catch (error) {
+        return { kind: 'failed' as const, error };
+      }
+    })();
+
+    try {
+      const raced = await Promise.race([handshaken, timeout.promise]);
+
+      if (raced === 'timeout') {
+        timedOut = true;
+
         throw new GatewayError(
           'daemon_unavailable',
           `daemon '${daemon.name}' did not answer the connection in time`,
           { daemon: daemon.name },
         );
       }
+
+      if (raced.kind === 'failed') {
+        throw raced.error;
+      }
+
+      const opened = raced.opened;
 
       opened.channel.onClose = () => {
         this.closed.add(opened.channel);
