@@ -52,6 +52,8 @@ import type {
   SpawnParams,
   TapClient,
 } from './daemon-context';
+import { drainInbox } from './drain-inbox';
+import type { InboxSource } from './drain-inbox';
 import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
@@ -421,55 +423,17 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // the order of their sent times, which the inbox drains by.
   let lastMessageWrite: Promise<void> = Promise.resolve();
 
-  // Hands one pending message to the session's tap, once, and reports whether
-  // it did. The event goes to the tap connection alone: it never reaches
-  // other clients, the events socket, or hooks.
-  const sendInboxMessage = (sessionID: SessionID, record: MessageRecord): boolean => {
-    const tap = taps.claimDelivery(sessionID, record.id);
+  const inboxSource: InboxSource = {
+    taps,
+    findLinkedOwner: (sessionID) => {
+      const s = mgr.sessions.find((x) => x.id === sessionID);
 
-    if (tap === null) {
-      return false;
-    }
-
-    tap.sendEvent({
-      v: PROTOCOL_V,
-      ev: 'InboxMessage',
-      s: sessionID,
-      message: record.id,
-      from: record.from,
-      text: record.text,
-      sentAt: record.sentAt,
-    });
-
-    return true;
+      return s === undefined ? null : buildMessageOwner(s);
+    },
+    collectPendingMessages: (owner) => store.collectPendingMessages(owner),
   };
 
-  // Reads the backlog from the store before sending anything, so a tap's
-  // ok response is always queued ahead of its first message. It sends one
-  // unclaimed message per call and the tap's ack calls it again, so the
-  // backlog never outgrows the connection's outbound queue.
-  const drainInbox = async (sessionID: SessionID) => {
-    const s = mgr.sessions.find((x) => x.id === sessionID);
-
-    if (s === undefined) {
-      return;
-    }
-
-    // A tap a principal holds takes only the messages sent to this atc id:
-    // another session that shares the agent session id may be out of its
-    // reach.
-    const owner = taps.isLinked(sessionID) ? buildMessageOwner(s) : { atcID: s.id };
-
-    try {
-      const pending = await store.collectPendingMessages(owner);
-
-      for (const record of pending) {
-        if (sendInboxMessage(sessionID, record)) {
-          return;
-        }
-      }
-    } catch {}
-  };
+  const drainSessionInbox = (sessionID: SessionID) => drainInbox(sessionID, inboxSource);
 
   // A report id, which a remote session's reporter gives each report,
   // makes a resent note land once; a resent answer changes nothing, since
@@ -1171,7 +1135,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       written.resolve();
     }
 
-    await drainInbox(sessionID);
+    await drainSessionInbox(sessionID);
 
     return record;
   };
@@ -1810,7 +1774,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         runtime.tapAttached = true;
       }
 
-      void drainInbox(sessionID);
+      void drainSessionInbox(sessionID);
 
       return 'ok';
     },
@@ -1865,7 +1829,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       const delivered = await store.updateMessageDelivered(messageID, owner, Date.now());
 
-      void drainInbox(sessionID);
+      void drainSessionInbox(sessionID);
 
       if (delivered !== null) {
         await recordMessageStatus(sessionID, delivered);
