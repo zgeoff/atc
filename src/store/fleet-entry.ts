@@ -72,7 +72,10 @@ export interface FleetEntry {
 export interface FleetStore {
   readonly daemonID: DaemonID;
   readonly loadFleet: () => Promise<FleetEntry[]>;
-  readonly writeFleet: (entries: readonly FleetEntry[]) => Promise<void>;
+  readonly writeFleet: (
+    entries: readonly FleetEntry[],
+    removed?: readonly SessionID[],
+  ) => Promise<void>;
   readonly updateFleetEntry: (sessionID: SessionID, fields: FleetEntryUpdate) => Promise<void>;
 }
 

@@ -140,7 +140,7 @@ test('it round-trips the fleet', async () => {
   ]);
 });
 
-test('it replaces the fleet wholesale on write', async () => {
+test('it keeps a stored row that a later write does not cover', async () => {
   const store = await StateStore.open(join(setupDir(), 'state.db'));
 
   onTestFinished(async () => {
@@ -171,10 +171,82 @@ test('it replaces the fleet wholesale on write', async () => {
 
   expect(fleet).toStrictEqual([
     {
+      sessionID: toSessionID('s-c1'),
+      name: 'one',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+    },
+    {
       sessionID: toSessionID('s-c2'),
       name: 'two',
       cwd: '/y',
       agentSessionID: toAgentSessionID('c2'),
+      agent: 'claude',
+    },
+  ]);
+});
+
+test('it drops the row of a session the write removes', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    { sessionID: toSessionID('s-c1'), name: 'one', cwd: '/x', agent: 'claude' },
+    { sessionID: toSessionID('s-c2'), name: 'two', cwd: '/y', agent: 'claude' },
+  ]);
+
+  await store.writeFleet(
+    [{ sessionID: toSessionID('s-c2'), name: 'two', cwd: '/y', agent: 'claude' }],
+    [toSessionID('s-c1')],
+  );
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    { sessionID: toSessionID('s-c2'), name: 'two', cwd: '/y', agent: 'claude' },
+  ]);
+});
+
+test('it drops a stored row whose agent session id a written entry holds', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    {
+      sessionID: toSessionID('s-old'),
+      name: 'old',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      exited: true,
+    },
+  ]);
+
+  await store.writeFleet([
+    {
+      sessionID: toSessionID('s-new'),
+      name: 'resumed',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+    },
+  ]);
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    {
+      sessionID: toSessionID('s-new'),
+      name: 'resumed',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
       agent: 'claude',
     },
   ]);
@@ -202,7 +274,7 @@ test('it never lets two overlapping writes leave a mixed or half-written fleet',
 
   const first: FleetEntry[] = [
     {
-      sessionID: toSessionID('s-c1'),
+      sessionID: toSessionID('s-c0'),
       name: 'one',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c1'),
@@ -212,7 +284,7 @@ test('it never lets two overlapping writes leave a mixed or half-written fleet',
 
   const second: FleetEntry[] = [
     {
-      sessionID: toSessionID('s-c2'),
+      sessionID: toSessionID('s-c0'),
       name: 'two',
       cwd: '/y',
       agentSessionID: toAgentSessionID('c2'),
@@ -323,6 +395,13 @@ test('it never overwrites an existing fleet table from the legacy file', async (
   const fleet = await second.loadFleet();
 
   expect(fleet).toStrictEqual([
+    {
+      sessionID: expect.toSatisfy(isUUID),
+      name: 'stale',
+      cwd: '/old',
+      agentSessionID: toAgentSessionID('c0'),
+      agent: 'claude',
+    },
     {
       sessionID: toSessionID('s-c1'),
       name: 'fresh',
@@ -2627,9 +2706,10 @@ test("it rewrites only this daemon's fleet rows and leaves another daemon's in p
     { sessionID: toSessionID('s-mine'), name: 'mine', cwd: '/x', agent: 'claude' },
   ]);
 
-  await store.writeFleet([
-    { sessionID: toSessionID('s-next'), name: 'next', cwd: '/y', agent: 'claude' },
-  ]);
+  await store.writeFleet(
+    [{ sessionID: toSessionID('s-next'), name: 'next', cwd: '/y', agent: 'claude' }],
+    [toSessionID('s-mine')],
+  );
 
   const reader = new Database(dbPath, { readonly: true });
 
