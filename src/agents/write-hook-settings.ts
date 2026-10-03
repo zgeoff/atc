@@ -1,8 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { stateDir } from '../shared/config';
 import { isRecord } from '../shared/report';
+import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';
 
@@ -26,7 +26,7 @@ export function writeHookSettings(profile: HookSettingsProfile): string {
  */
 function readStatuslinePadding(): number {
   try {
-    const raw = readFileSync(join(homedir(), '.claude', 'settings.json'), 'utf8');
+    const raw = readFileSync(join(resolveHomeDir(), '.claude', 'settings.json'), 'utf8');
     const user: unknown = JSON.parse(raw);
     const statusLine = isRecord(user) ? user['statusLine'] : undefined;
     const padding = isRecord(statusLine) ? statusLine['padding'] : undefined;

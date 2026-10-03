@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { buildOptionalString } from './build-optional-string';
@@ -9,6 +8,7 @@ import { collectGateways } from './collect-gateways';
 import type { GatewayConfig } from './collect-gateways';
 import { collectHooks } from './collect-hooks';
 import type { HooksConfig } from './collect-hooks';
+import { resolveHomeDir } from './resolve-home-dir';
 
 export interface Config {
   claudeBin: string;
@@ -49,10 +49,10 @@ const DEFAULTS: Config = {
   leader: { code: 0, label: '^Space' },
 };
 
-const configDir = join(homedir(), '.config', 'atc');
+const configDir = join(resolveHomeDir(), '.config', 'atc');
 
 export const configFile = join(configDir, 'config.json');
-export const stateDir = join(homedir(), '.local', 'state', 'atc');
+export const stateDir = join(resolveHomeDir(), '.local', 'state', 'atc');
 export const socketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc.sock');
 export const daemonSocketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-daemon.sock');
 export const eventsSocketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-events.sock');

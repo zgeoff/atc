@@ -1065,22 +1065,25 @@ test("it ends a client's oldest approval when the client starts a fourth", async
 
   const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
-
-  authorize.search = new URLSearchParams({
-    response_type: 'code',
-    client_id: clientID,
-    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-    scope: 'read',
-    code_challenge: createHash('sha256')
-      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
-      .digest('base64url'),
-    code_challenge_method: 'S256',
-  }).toString();
-
   const logins = [];
 
+  // Each request carries its own state, as a client's separate attempts do,
+  // so the four approvals stay distinct within one millisecond.
   for (let started = 0; started < 4; started += 1) {
+    const authorize = new URL(`${server.url}/oauth2/authorize`);
+
+    authorize.search = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientID,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      scope: 'read',
+      state: `attempt-${started}`,
+      code_challenge: createHash('sha256')
+        .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+        .digest('base64url'),
+      code_challenge_method: 'S256',
+    }).toString();
+
     const answered = await fetch(authorize, { redirect: 'manual' });
 
     logins.push(new URL(answered.headers.get('location') ?? '/', server.url));
