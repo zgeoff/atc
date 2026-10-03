@@ -857,6 +857,12 @@ export class SessionManager {
     target: string,
     options: SpawnOptions,
   ): Promise<SpawnPlan> {
+    const refusal = adapter.findSpawnRefusal?.() ?? null;
+
+    if (refusal !== null) {
+      throw refusal;
+    }
+
     if (!provider.remote) {
       await provider.prepareHost({ host: hostKey, daemonID: this.store.daemonID });
 

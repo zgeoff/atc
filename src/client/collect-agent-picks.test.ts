@@ -227,3 +227,49 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
     }),
   ).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
 });
+
+test('it leaves out a gateway with auth, since every start of one is refused', () => {
+  const dir = setupBinDir([{ name: 'my-claude', executable: true }]);
+
+  expect(
+    collectAgentPicks({
+      claudeBin: join(dir, 'my-claude'),
+      claudeArgs: [],
+      grokBin: join(dir, 'my-grok'),
+      grokArgs: [],
+      codexBin: join(dir, 'my-codex'),
+      codexArgs: [],
+      dirs: { roots: [] },
+      workspaces: {
+        githubOwner: null,
+        sources: null,
+        gitTransports: ['https', 'ssh'],
+        root: null,
+        targetRoots: new Map(),
+      },
+      gateways: [
+        {
+          id: 'glm',
+          label: 'GLM',
+          mark: 'g',
+          bin: join(dir, 'my-claude'),
+          args: [],
+          baseURL: 'https://api.z.ai/api/anthropic',
+          env: {},
+          auth: { profiles: ['glm'], placeholderEnv: {} },
+        },
+      ],
+      gatewayErrors: [],
+      authProfiles: new Map(),
+      authProfileErrors: [],
+      hooks: {},
+      leader: { code: 0, label: '^Space' },
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+      defaultTarget: 'local',
+      targetErrors: [],
+      principals: null,
+      principalErrors: [],
+      workspaceErrors: [],
+    }),
+  ).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
+});

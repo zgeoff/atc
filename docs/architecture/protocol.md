@@ -43,13 +43,13 @@ Claude Code's hook events. The MCP tools map onto both mechanically (`session.sp
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
 `no_such_session`, `session_dead`, `unsupported`, `unsupported_operation`, `unknown_target`,
 `target_unavailable`, `target_changed`, `target_config_invalid`, `target_forbidden`,
-`host_unavailable`, `auth_not_configured`, `host_leased`, `confirmation_required`,
-`confirm_token_invalid`, `already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`,
-`outcome_unknown`, `github_unavailable`, `internal`, plus the workspace refusals that
-[workspaces](#workspaces) lists. An unknown method is an `unknown_method` error, never a disconnect;
-unknown fields in any message are ignored. A peer decodes an error code it does not know as
-`internal` and keeps its `msg`. These rules exist so additive evolution never breaks a peer. An
-error may also carry `data`, an object whose fields its code defines.
+`host_unavailable`, `auth_not_configured`, `auth_target_unsupported`, `host_leased`,
+`confirmation_required`, `confirm_token_invalid`, `already_answered`, `too_slow`, `stale_epoch`,
+`idempotency_conflict`, `outcome_unknown`, `github_unavailable`, `internal`, plus the workspace
+refusals that [workspaces](#workspaces) lists. An unknown method is an `unknown_method` error, never
+a disconnect; unknown fields in any message are ignored. A peer decodes an error code it does not
+know as `internal` and keeps its `msg`. These rules exist so additive evolution never breaks a peer.
+An error may also carry `data`, an object whose fields its code defines.
 
 `unsupported_operation` refuses a request that the session's execution host cannot serve, such as
 input to a host that takes none. Its `data` holds the provider kind as `provider` and the missing
@@ -429,6 +429,8 @@ refuses the request before anything starts:
   whose credential helper runs on the daemon's machine.
 - An agent whose sign-in check fails inside a remote host is `auth_not_configured`, with
   `data.agent` and `data.target`. No harness starts.
+- A gateway configured with `auth` is `auth_target_unsupported` on every target, with the agent id
+  as `data.agent`. No harness starts and no host is prepared.
 
 A refused spawn under an idempotency key leaves the key free for a retry. A restore lists a session
 whose target the daemon cannot use as exited, and input or `session.adopt` on it answers with the

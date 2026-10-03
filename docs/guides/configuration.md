@@ -421,6 +421,11 @@ when the daemon starts, when any of these holds:
 atc leaves out a profile that breaks impd's rules for secret names, hosts, or headers, and prints an
 error for it, so a gateway selecting it is refused as well.
 
+atc starts no session of a gateway with `auth`, on any target. A spawn, a resume, and a restore each
+fail with `auth_target_unsupported` before any harness starts or any imp is touched. The agent
+picker leaves the gateway out, `agents.list` lists it with `capabilities.spawn` false, a headless
+turn is refused, and the session has no resume command.
+
 ## Attention hooks (Grok and Codex)
 
 Claude needs no install step: atc instruments each spawned Claude session through a generated
