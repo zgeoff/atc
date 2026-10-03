@@ -1,12 +1,13 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
 import type { EventMsg } from '../protocol/protocol';
 import { getRecord } from '../shared/get-record';
+import { claimDaemonLock } from './claim-daemon-lock';
 import { startDaemon } from './daemon';
 
 const TOKEN_A = 'a'.repeat(32);
@@ -545,6 +546,54 @@ test('it refuses to start a listener whose token file holds a short token', () =
       listen: { host: '127.0.0.1', port: 0, tokenFile },
     }),
   ).rejects.toMatchObject({ code: 'listen_refused' });
+});
+
+test('it refuses a listener whose port another socket holds and releases the daemon lock', async () => {
+  using tmp = setupTempDir('atc-daemon-tcp-');
+
+  const tokenFile = join(tmp.dir, 'gateway-token');
+  const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
+
+  onTestFinished(() => {
+    held.stop(true);
+  });
+
+  writeFileSync(tokenFile, `${TOKEN_A}\n`);
+
+  const refusal: unknown = await startDaemon({
+    socketPath: join(tmp.dir, 'daemon.sock'),
+    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+    build: 'atc/test-build',
+    adapter: {
+      id: 'claude',
+      screenDetector: null,
+      takesMessages: true,
+      headlessRunner: null,
+      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
+      normalizeHook: () => ({ kind: 'prompt-submitted' }),
+      loadName: () => Promise.resolve(null),
+      canResume: () => true,
+      buildResumeCommand: () => 'claude --resume',
+    },
+    dbPath: join(tmp.dir, 'state.db'),
+    statusPath: join(tmp.dir, 'status.json'),
+    listen: { host: '127.0.0.1', port: held.port, tokenFile },
+  }).catch((error: unknown) => error);
+
+  const lock = await claimDaemonLock(join(tmp.dir, 'daemon.lock'), 0);
+
+  onTestFinished(() => {
+    lock?.dispose();
+  });
+
+  expect(refusal).toMatchObject({
+    code: 'listen_refused',
+    message: `atc daemon: --listen cannot bind 127.0.0.1:${held.port} (EADDRINUSE)`,
+  });
+
+  expect(lock).not.toBeNull();
+  expect(existsSync(join(tmp.dir, 'daemon.sock'))).toBeFalse();
+  expect(existsSync(join(tmp.dir, 'daemon.json'))).toBeFalse();
 });
 
 test('it closes an unauthenticated TCP connection that sends a malformed line without a reply', async () => {

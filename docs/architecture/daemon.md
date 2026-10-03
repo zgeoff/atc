@@ -66,7 +66,9 @@ daemons. The protocol carries no TLS, so the listener relies on the tailnet's Wi
 `100.64.0.0/10` and `fd7a:115c:a1e4::/48`, written as an IP literal. `0.0.0.0`, `::`, other
 addresses, and host names refuse the start, and so does `--listen` without `--token-file`. Write an
 IPv6 host in brackets (`[fd7a:115c:a1e4::7]:8415`). Port `0` lets the kernel pick a free port, and
-`daemon.json` holds the port the listener bound once the daemon answers a handshake.
+`daemon.json` holds the port the listener bound once the daemon answers a handshake. The listener
+binds before the unix socket, so a bind that fails, such as on a port another socket holds, refuses
+the start with the address and the error code before any client connects, and releases the lock.
 
 The listener applies no source-address allow-list: the bearer token is the gate. The token file
 holds one or two tokens, one per line, each at least 32 bytes once whitespace around it is trimmed.
