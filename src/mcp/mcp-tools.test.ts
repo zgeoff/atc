@@ -121,6 +121,12 @@ test("it pins every tool's scope and safety hints", () => {
       destructiveHint: false,
       openWorldHint: false,
     },
+    atc_daemons_list: {
+      scope: 'read',
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     atc_agents_list: {
       scope: 'read',
       readOnlyHint: true,

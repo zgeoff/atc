@@ -1,3 +1,5 @@
+import type { DaemonFeature } from '../protocol/daemon-features';
+
 /**
  * One daemon the gateway routes to: its logical name, the TCP address it
  * listens on, the state identity pinned behind the name, the incarnation
@@ -22,3 +24,10 @@ export interface GatewayRegistry {
   readonly daemons: ReadonlyMap<string, RegistryDaemon>;
   readonly defaultDaemon: string;
 }
+
+/**
+ * A feature the gateway announces to the tool layer: every feature an up
+ * daemon announces, plus `fleet.daemons`, which marks a caller that routes
+ * across named daemons and offers the tools and inputs that pick one.
+ */
+export type GatewayFeature = DaemonFeature | 'fleet.daemons';

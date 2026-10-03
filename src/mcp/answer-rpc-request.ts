@@ -143,8 +143,12 @@ async function answerToolCall(
   }
 }
 
+// A daemon's error, or any other error that holds a lowercase protocol-style
+// code, such as a router's refusal about a daemon, reads as
+// `<code>: <message>`. A system error's uppercase code is already in its
+// message.
 function formatToolError(error: unknown): string {
-  if (error instanceof DaemonError) {
+  if (error instanceof DaemonError || hasErrorCode(error)) {
     return `${error.code}: ${error.message}`;
   }
 
@@ -153,6 +157,15 @@ function formatToolError(error: unknown): string {
   }
 
   return String(error);
+}
+
+function hasErrorCode(error: unknown): error is Error & { readonly code: string } {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    /^[a-z][a-z_]*$/.test(error.code)
+  );
 }
 
 function buildRPCResult(

@@ -1,8 +1,8 @@
-import type { DaemonFeature } from '../protocol/daemon-features';
 import { isRecord } from '../shared/report';
 import { buildSpawnDescriptions } from './build-spawn-descriptions';
 import type { RegisteredAgent } from './build-spawn-descriptions';
 import { MCP_TOOLS } from './mcp-tools';
+import type { FleetFeature } from './types';
 
 interface MCPTool {
   readonly name: string;
@@ -26,7 +26,7 @@ interface MCPTool {
  * agents the host registers or installs.
  */
 export function buildToolList(
-  features: ReadonlySet<DaemonFeature>,
+  features: ReadonlySet<FleetFeature>,
   agents: readonly RegisteredAgent[] | null,
 ): readonly MCPTool[] {
   const spawn = buildSpawnDescriptions(agents);
@@ -45,7 +45,8 @@ export function buildToolList(
 
     return [
       tool.outputSchema === undefined ||
-      (requires.output !== undefined && !features.has(requires.output))
+      (requires.output !== undefined && !features.has(requires.output)) ||
+      (requires.outputUnless !== undefined && features.has(requires.outputUnless))
         ? {
             name: tool.name,
             description,
@@ -65,8 +66,8 @@ export function buildToolList(
 
 function buildInputSchema(
   schema: Readonly<Record<string, unknown>>,
-  inputs: Readonly<Record<string, DaemonFeature>>,
-  features: ReadonlySet<DaemonFeature>,
+  inputs: Readonly<Record<string, FleetFeature>>,
+  features: ReadonlySet<FleetFeature>,
 ): Readonly<Record<string, unknown>> {
   const withheld = Object.entries(inputs).flatMap(([name, feature]) =>
     features.has(feature) ? [] : [name],
