@@ -23,8 +23,11 @@ export function parseHookLine(line: string): HookEvent | null {
     return null;
   }
 
+  const agent = parsed['agent'];
+
   return {
     atcId: toSessionID(parsed['atcId']),
+    ...(typeof agent === 'string' && agent !== '' ? { agent } : {}),
     event: parsed['event'],
     payload: parsed['payload'],
   };

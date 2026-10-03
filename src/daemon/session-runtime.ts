@@ -46,6 +46,11 @@ export class SessionRuntime {
   // later dropped may be restarting, so it keeps the inbox open.
   tapAttached = false;
 
+  // Whether a hook line carrying the session's agent arrived since the
+  // terminal last booted. Once one has, the session's own hooks are known
+  // to carry it, and a line without one comes from another harness.
+  hasAgentHookLines = false;
+
   // Returns the boot-scoped state to how a fresh terminal starts, at the
   // dims it boots with: no SessionStart yet and no tap since. Every path
   // that boots a new terminal for an existing session runs it, so a revived
@@ -54,6 +59,7 @@ export class SessionRuntime {
     this.dims = dims;
     this.startedAt = null;
     this.tapAttached = false;
+    this.hasAgentHookLines = false;
   }
 
   dispose(): void {

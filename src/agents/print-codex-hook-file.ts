@@ -17,7 +17,7 @@ export function printCodexHookFile(): void {
 }
 
 function buildCodexHookFile(): string {
-  const cmd = buildCLICommand('hook-report');
+  const cmd = buildCLICommand('hook-report --agent codex');
   const buildEntry = (timeout: number) => [{ hooks: [{ type: 'command', command: cmd, timeout }] }];
   const hooks = Object.fromEntries(CODEX_HOOK_EVENTS.map((event) => [event, buildEntry(5)]));
 

@@ -89,9 +89,11 @@ installed one.
 Claude sessions are instrumented via a generated settings file passed as `claude --settings`:
 
 - Hooks (`SessionStart`, `Notification`, `Stop`, `UserPromptSubmit`, `SessionEnd`) run
-  `atc hook-report`, which forwards the event JSON to atc's unix socket. `SessionStart` carries the
-  agent session id at spawn/resume time, which is what makes the fleet restorable before any
-  interaction.
+  `atc hook-report --agent <agent id>`, which forwards the event JSON to atc's unix socket. The
+  daemon drops a report whose agent differs from the session's, so a harness nested inside a session
+  never reports as that session ([nested harnesses](../guides/configuration.md#nested-harnesses)).
+  `SessionStart` carries the agent session id at spawn/resume time, which is what makes the fleet
+  restorable before any interaction.
 - The statusline command (`atc statusline`) chains the user's own configured statusline, then
   appends the fleet segment read from `status.json`, so fleet state renders inside Claude Code's own
   status line while attached. Its stdin JSON is also heartbeated to the socket as a second

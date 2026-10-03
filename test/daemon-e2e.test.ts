@@ -92,20 +92,30 @@ function setupDaemonProc(
     const fakeCodex = join(freshHome, 'fake-codex');
     const hookReport = hookReportCommand;
 
+    // The fake Claude reports through the hook command in the settings file
+    // atc passed it, run through a shell as Claude runs it, so a session
+    // reports with the command line atc wrote for its agent.
     writeFileSync(
       fakeClaude,
       `#!/usr/bin/env bash
 echo "FAKE_CLAUDE_UP args: $@"
+settings=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--settings" ]; then settings="$arg"; fi
+  prev="$arg"
+done
+hookReport() { sh -c "$("${process.execPath}" -e 'const s = JSON.parse(require("fs").readFileSync(process.argv.at(-1), "utf8")); console.log(s.hooks.SessionStart[0].hooks[0].command)' "$settings" < /dev/null)"; }
 if [ -f "$HOME/fake-claude-hold-start" ]; then while read -r line; do echo "GOT:$line"; done; sleep 30; exit 0; fi
-printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | ${hookReport}
+printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | hookReport
 if [ -f "$HOME/fake-claude-tap" ]; then ${atcLine} tap --session "$ATC_SESSION_ID" >> "$HOME/tap.jsonl" & fi
 sleep 0.3
-printf '{"hook_event_name":"Notification","session_id":"fake-1","message":"needs permission"}' | ${hookReport}
+printf '{"hook_event_name":"Notification","session_id":"fake-1","message":"needs permission"}' | hookReport
 if [ -f "$HOME/fake-claude-events.jsonl" ]; then
   sleep 0.3
   while IFS= read -r ev; do
     [ -n "$ev" ] || continue
-    printf '%s' "$ev" | ${hookReport}
+    printf '%s' "$ev" | hookReport
     sleep 0.2
   done < "$HOME/fake-claude-events.jsonl"
 fi
@@ -124,17 +134,17 @@ if [ -f "$HOME/fake-grok-hold-start" ]; then
   sleep 30
   exit 0
 fi
-printf '{"hookEventName":"session_start","sessionId":"fake-grok-1","cwd":"%s"}' "$PWD" | ${hookReport}
+printf '{"hookEventName":"session_start","sessionId":"fake-grok-1","cwd":"%s"}' "$PWD" | ${hookReport} --agent grok
 if [ -f "$HOME/fake-grok-events.jsonl" ]; then
   sleep 0.3
   while IFS= read -r ev; do
     [ -n "$ev" ] || continue
-    printf '%s' "$ev" | ${hookReport}
+    printf '%s' "$ev" | ${hookReport} --agent grok
     sleep 0.2
   done < "$HOME/fake-grok-events.jsonl"
 else
   sleep 0.3
-  printf '{"hookEventName":"notification","sessionId":"fake-grok-1","notificationType":"permission_prompt","message":"allow edit?"}' | ${hookReport}
+  printf '{"hookEventName":"notification","sessionId":"fake-grok-1","notificationType":"permission_prompt","message":"allow edit?"}' | ${hookReport} --agent grok
 fi
 echo "FAKE_GROK_HOOKS_DONE"
 exec "${process.execPath}" "$HOME/fake-composer.js"
@@ -146,9 +156,9 @@ exec "${process.execPath}" "$HOME/fake-composer.js"
       fakeCodex,
       `#!/usr/bin/env bash
 echo "FAKE_CODEX_UP args: $@"
-printf '{"hook_event_name":"SessionStart","session_id":"fake-codex-1","transcript_path":"'"$HOME"'/fake-rollout.jsonl","cwd":"%s","source":"startup"}' "$PWD" | ${hookReport}
+printf '{"hook_event_name":"SessionStart","session_id":"fake-codex-1","transcript_path":"'"$HOME"'/fake-rollout.jsonl","cwd":"%s","source":"startup"}' "$PWD" | ${hookReport} --agent codex
 sleep 0.3
-printf '{"hook_event_name":"Stop","session_id":"fake-codex-1","transcript_path":"'"$HOME"'/fake-rollout.jsonl","last_assistant_message":"pong"}' | ${hookReport}
+printf '{"hook_event_name":"Stop","session_id":"fake-codex-1","transcript_path":"'"$HOME"'/fake-rollout.jsonl","last_assistant_message":"pong"}' | ${hookReport} --agent codex
 exec "${process.execPath}" "$HOME/fake-composer.js"
 `,
       { mode: 0o755 },
@@ -393,7 +403,7 @@ test('it keeps a live terminal alive when its session reports an end', async () 
       e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
-  const reporter = Bun.spawn([...atcCommand, 'hook-report'], {
+  const reporter = Bun.spawn([...atcCommand, 'hook-report', '--agent', 'claude'], {
     stdin: new TextEncoder().encode(
       JSON.stringify({ hook_event_name: 'SessionEnd', session_id: 'fake-1' }),
     ),
@@ -1711,7 +1721,7 @@ test('it keeps grok needs_you when idle_prompt follows permission_prompt', async
       e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 
-  const reporter = Bun.spawn([...atcCommand, 'hook-report'], {
+  const reporter = Bun.spawn([...atcCommand, 'hook-report', '--agent', 'grok'], {
     stdin: new TextEncoder().encode(
       JSON.stringify({
         hookEventName: 'notification',
@@ -2598,7 +2608,7 @@ test('it names a message event sent before SessionStart by the restored session'
 
   const messageID = getString(sent, 'message');
 
-  const reporter = Bun.spawn([...atcCommand, 'hook-report'], {
+  const reporter = Bun.spawn([...atcCommand, 'hook-report', '--agent', 'claude'], {
     stdin: new TextEncoder().encode(
       JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'fake-1' }),
     ),
@@ -3058,4 +3068,228 @@ test('it unpacks every tracked file of a local workspace when the daemon env ask
   });
 
   expect(readFileSync(join(dest, 'notes.txt'), 'utf8')).toBe('kept\n');
+});
+
+test('it keeps a nested codex harness from rebinding or answering for the claude session it runs in', async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(join(ctx.home, 'fake-claude-tap'), '');
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const spawned = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(spawned, 'session'), 'id');
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
+
+  const sent = await client.sendRequest('session.message', {
+    session: id,
+    text: 'ping from test',
+    from: 'e2e',
+  });
+
+  const messageID = getString(sent, 'message');
+
+  await waitForEvent(events, (e) => e.ev === 'SessionMessage' && e['status'] === 'delivered');
+
+  const childStart = Bun.spawn([...atcCommand, 'hook-report', '--agent', 'codex'], {
+    stdin: new TextEncoder().encode(
+      JSON.stringify({
+        hook_event_name: 'SessionStart',
+        session_id: 'nested-codex-1',
+        transcript_path: `${ctx.home}/nested-rollout.jsonl`,
+        source: 'startup',
+      }),
+    ),
+    env: collectEnv({ HOME: ctx.home, ATC_SESSION_ID: id, ATC_SOCKET: join(ctx.home, 'atc.sock') }),
+  });
+
+  const childStartCode = await childStart.exited;
+
+  const childStop = Bun.spawn([...atcCommand, 'hook-report', '--agent', 'codex'], {
+    stdin: new TextEncoder().encode(
+      JSON.stringify({
+        hook_event_name: 'Stop',
+        session_id: 'nested-codex-1',
+        last_assistant_message: 'nested codex output',
+      }),
+    ),
+    env: collectEnv({ HOME: ctx.home, ATC_SESSION_ID: id, ATC_SOCKET: join(ctx.home, 'atc.sock') }),
+  });
+
+  const childStopCode = await childStop.exited;
+  const record = await client.sendRequest('session.get', { session: id });
+  const message = await client.sendRequest('message.get', { message: messageID });
+
+  expect(childStartCode).toBe(0);
+  expect(childStopCode).toBe(0);
+
+  expect(record).toMatchObject({
+    session: { agentSessionID: 'fake-1', state: 'needs_you', lastMsg: 'needs permission' },
+    result: null,
+  });
+
+  expect(message).toMatchObject({ session: id, status: 'delivered' });
+  expect(message['answer']).toBeUndefined();
+});
+
+test('it drops a hook line without an agent at a session whose own hooks carry one', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const spawned = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(spawned, 'session'), 'id');
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
+
+  const child = Bun.spawn([...atcCommand, 'hook-report'], {
+    stdin: new TextEncoder().encode(
+      JSON.stringify({
+        hook_event_name: 'Stop',
+        session_id: 'nested-codex-1',
+        last_assistant_message: 'nested codex output',
+      }),
+    ),
+    env: collectEnv({ HOME: ctx.home, ATC_SESSION_ID: id, ATC_SOCKET: join(ctx.home, 'atc.sock') }),
+  });
+
+  const childCode = await child.exited;
+  const record = await client.sendRequest('session.get', { session: id });
+
+  expect(childCode).toBe(0);
+
+  expect(record).toMatchObject({
+    session: { agentSessionID: 'fake-1', state: 'needs_you' },
+    result: null,
+  });
+});
+
+test.each(['resume', 'clear', 'compact'])(
+  'it rebinds a claude session to the agent session its own %s starts',
+  async (source) => {
+    const ctx = setupDaemonProc();
+
+    const client = await ctx.openClient();
+
+    const events: EventMsg[] = [];
+
+    client.onEvent = (e) => {
+      events.push(e);
+    };
+
+    await client.sendHello('atc/test');
+
+    const spawned = await client.sendRequest('session.spawn', {
+      cwd: ctx.home,
+      cols: 80,
+      rows: 24,
+    });
+
+    const id = getString(getRecord(spawned, 'session'), 'id');
+
+    await waitForEvent(
+      events,
+      (e) =>
+        e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+    );
+
+    const own = Bun.spawn([...atcCommand, 'hook-report', '--agent', 'claude'], {
+      stdin: new TextEncoder().encode(
+        JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'fake-2', source }),
+      ),
+      env: collectEnv({
+        HOME: ctx.home,
+        ATC_SESSION_ID: id,
+        ATC_SOCKET: join(ctx.home, 'atc.sock'),
+      }),
+    });
+
+    const ownCode = await own.exited;
+    const record = await client.sendRequest('session.get', { session: id });
+
+    expect(ownCode).toBe(0);
+    expect(record).toMatchObject({ session: { agentSessionID: 'fake-2' } });
+  },
+);
+
+test('it binds a gateway session through the hook command atc wrote for it', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+  await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24, agent: 'zai' });
+
+  const started = await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
+
+  expect(started).toMatchObject({ session: { agent: 'zai', agentSessionID: 'fake-1' } });
+});
+
+test('it binds a session from a hook line without an agent while none of its own carried one', async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(join(ctx.home, 'fake-grok-hold-start'), '');
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const spawned = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    cols: 80,
+    rows: 24,
+    agent: 'grok',
+  });
+
+  const id = getString(getRecord(spawned, 'session'), 'id');
+
+  const reporter = Bun.spawn([...atcCommand, 'hook-report'], {
+    stdin: new TextEncoder().encode(
+      JSON.stringify({ hookEventName: 'session_start', sessionId: 'fake-grok-1' }),
+    ),
+    env: collectEnv({ HOME: ctx.home, ATC_SESSION_ID: id, ATC_SOCKET: join(ctx.home, 'atc.sock') }),
+  });
+
+  const code = await reporter.exited;
+  const record = await client.sendRequest('session.get', { session: id });
+
+  expect(code).toBe(0);
+  expect(record).toMatchObject({ session: { agent: 'grok', agentSessionID: 'fake-grok-1' } });
 });

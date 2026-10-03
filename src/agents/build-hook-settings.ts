@@ -20,7 +20,9 @@ export interface HookSettingsProfile {
  * The settings object injected into wrangled sessions via
  * `claude --settings`. The user's own settings are untouched; these hooks
  * only exist in sessions atc spawns, and identify themselves via
- * ATC_SESSION_ID in the env.
+ * ATC_SESSION_ID in the env and the agent id on their command line. A
+ * nested harness inherits the env but not the command line, so the agent id
+ * keeps its reports from passing as the session's own.
  *
  * A settings-file env block outranks a shell export of the same variable, so
  * a session's backend is decided here rather than by whatever the terminal
@@ -37,7 +39,13 @@ export function buildHookSettings(
 ): Record<string, unknown> {
   const entry = [
     {
-      hooks: [{ type: 'command', command: buildCLICommand('hook-report', cliArgv), timeout: 5 }],
+      hooks: [
+        {
+          type: 'command',
+          command: buildCLICommand(`hook-report --agent ${profile.id}`, cliArgv),
+          timeout: 5,
+        },
+      ],
     },
   ];
 
@@ -61,7 +69,7 @@ export function buildHookSettings(
     // padding.
     statusLine: {
       type: 'command',
-      command: buildCLICommand('statusline', cliArgv),
+      command: buildCLICommand(`statusline --agent ${profile.id}`, cliArgv),
       padding: statuslinePadding,
     },
     ...(profile.env === undefined || Object.keys(profile.env).length === 0

@@ -19,7 +19,7 @@ export function printGrokHookFile(): void {
 }
 
 function buildGrokHookFile(): string {
-  const cmd = buildCLICommand('hook-report');
+  const cmd = buildCLICommand('hook-report --agent grok');
   const entry = [{ hooks: [{ type: 'command', command: cmd, timeout: 5 }] }];
   const hooks = Object.fromEntries(GROK_HOOK_EVENTS.map((event) => [event, entry]));
 

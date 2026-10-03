@@ -23,7 +23,7 @@ test('it prints the Grok hook file and writes nothing under GROK_HOME', async ()
   expect(out).toInclude('StopFailure');
   expect(out).toInclude('StopCancelled');
   expect(out).toInclude('Notification');
-  expect(out).toInclude('hook-report');
+  expect(out).toInclude('hook-report --agent grok');
 
   expect(JSON.parse(out)).toMatchObject({
     hooks: {
