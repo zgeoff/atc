@@ -450,6 +450,11 @@ reach does not exist:
   it refuses one for an unknown id, with the same code, message, and `data`.
 - `agents.list` lists only the targets the principal may use, and `spawnDefaults.target` is null
   when the principal may not use the default.
+- A session within reach whose parent is out of reach shows as top-level: no answer or event the
+  principal gets holds that parent. A spawn under such a session starts top-level.
+- Events and messages belong to the session they were recorded under. A session within reach that
+  resumes the same agent session as one out of reach never shows the other's events, messages, or
+  activity time.
 - `dirs.list` lists only the directories of spawns on targets the principal may use. A directory
   recorded before atc recorded each spawn's target counts as a spawn on a `local` target with no
   options.
