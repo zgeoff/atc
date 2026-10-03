@@ -45,6 +45,10 @@ interface MaterializeDeps {
   // it, once the source has resolved.
   readonly readyHost: () => Promise<string>;
 
+  // Whether a failure may remove the directory this call claimed: false
+  // when the directory holds another session's.
+  readonly canRemoveClaim: () => Promise<boolean>;
+
   // The directory on the daemon's host that holds each clone's staging
   // directory while the workspace is built.
   readonly stagingRoot: string;
@@ -599,6 +603,12 @@ async function tryRemoveClaimedDir(
   const host = progress.host;
 
   try {
+    const removable = await deps.canRemoveClaim();
+
+    if (!removable) {
+      throw new Error("another session's directory lies inside it");
+    }
+
     const removed = await deps
       .requireProvider('run')
       .runCommand({ argv: ['rm', '-rf', '--', request.dir], cwd: '/', host });

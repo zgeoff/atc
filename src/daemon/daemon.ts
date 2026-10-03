@@ -933,14 +933,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const materialize =
       source === null
         ? null
-        : async (readyHost: () => Promise<SessionID>, targetIdentity: string) => {
-            const prepared = await materializeSpawnWorkspace(
-              p,
-              id,
-              source,
-              readyHost,
-              targetIdentity,
-            );
+        : async (
+            host: Readonly<{
+              readyHost: () => Promise<SessionID>;
+              canRemoveClaim: () => Promise<boolean>;
+            }>,
+            targetIdentity: string,
+          ) => {
+            const prepared = await materializeSpawnWorkspace(p, id, source, host, targetIdentity);
 
             if (prepared.kind !== 'ready') {
               return null;
@@ -956,6 +956,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return warnings.length === 0 ? { session } : { session, warnings };
     } catch (error) {
+      // A failed spawn gives back the workspace directory it reserved,
+      // unless what it did may still stand: its key then stays held as
+      // outcome_unknown, and so does its directory.
+      if (!(error instanceof EffectRemainsError)) {
+        mgr.releaseWorkspace(id);
+      }
+
       try {
         await mgr.removeFailedSpawn(id);
       } catch (cleanupError) {
@@ -978,7 +985,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     p: SpawnParams,
     id: SessionID,
     source: SpawnWorkspaceSource,
-    readyHost: () => Promise<SessionID>,
+    host: Readonly<{ readyHost: () => Promise<SessionID>; canRemoveClaim: () => Promise<boolean> }>,
     targetIdentity: string,
   ) => {
     const binding = { target: p.target, targetIdentity };
@@ -998,7 +1005,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         log: (line) => {
           mgr.log(line);
         },
-        readyHost,
+        readyHost: host.readyHost,
+        canRemoveClaim: host.canRemoveClaim,
         stagingRoot: tmpdir(),
         gitTransports,
       },
@@ -1010,7 +1018,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     id: SessionID,
     materialize:
       | ((
-          readyHost: () => Promise<SessionID>,
+          host: Readonly<{
+            readyHost: () => Promise<SessionID>;
+            canRemoveClaim: () => Promise<boolean>;
+          }>,
           targetIdentity: string,
         ) => Promise<Readonly<{
           workspace: SessionWorkspace;

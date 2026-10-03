@@ -247,9 +247,17 @@ starts, and runs on the session's host. Materialization starts only after every 
 has passed, its runtime auth checks included. The daemon resolves the source first, then readies the
 host the workspace lands on: the session's own host, or its parent's when the two share one. A
 materialization that fails once the host is ready takes back a host of the session's own, with the
-imp and binding its spawn provisioned, and leaves a parent's host running. The
-`workspace_materialization` table holds one row per materialization, keyed by the session id, and
-the daemon records each phase in it before the phase starts:
+imp and binding its spawn provisioned, and leaves a parent's host running.
+
+On a shared host, a workspace spawn claims its `cwd` against every session listed there and every
+other workspace spawn in flight there, in the same step that checks it, so two concurrent spawns
+never both take nested directories. The claim holds until the session lists or the spawn fails; a
+spawn that fails as `outcome_unknown` keeps it, since its directory may still hold what it left.
+Once the host is ready, and before `cwd` is created, the daemon checks again with each directory as
+the host resolves it, symlinks and relative directories included. A failure removes the directory it
+created only while no other session's directory lies inside it. The `workspace_materialization`
+table holds one row per materialization, keyed by the session id, and the daemon records each phase
+in it before the phase starts:
 
 | Phase          | What the daemon does                                                                                                                   |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |

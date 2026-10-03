@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
+import { posix } from 'node:path';
 import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
 import type {
@@ -130,6 +131,21 @@ export class FixtureImpPort implements ImpPort {
 
   // The lease acquisitions wait for this hold to end, while one is held.
   private leaseHold: PromiseWithResolvers<void> | null = null;
+
+  // The directory a relative or missing working directory resolves
+  // against inside every imp, as a guest's home does; null for the test's
+  // own working directory.
+  private homeDir: string | null = null;
+
+  // Commands whose argv holds this text wait for the hold to stop, while
+  // one is held.
+  private commandHold: {
+    readonly match: string;
+    readonly done: PromiseWithResolvers<void>;
+  } | null = null;
+
+  // Commands whose argv holds this text exit 1 without running, or null.
+  private commandFailure: string | null = null;
 
   // impd's code for every imp destroy while destroys fail, or null.
   private destroyFailure: string | null = null;
@@ -543,8 +559,22 @@ export class FixtureImpPort implements ImpPort {
       });
     }
 
+    const line = command.argv.join(' ');
+
+    if (this.commandHold !== null && line.includes(this.commandHold.match)) {
+      await this.commandHold.done.promise;
+    }
+
+    if (this.commandFailure !== null && line.includes(this.commandFailure)) {
+      const encoder = new TextEncoder();
+
+      return { code: 1, stdout: new Uint8Array(0), stderr: encoder.encode('the command failed\n') };
+    }
+
+    const cwd = this.resolveGuestCwd(command.cwd);
+
     const proc = Bun.spawn([...command.argv], {
-      ...(command.cwd === undefined ? {} : { cwd: command.cwd }),
+      ...(cwd === undefined ? {} : { cwd }),
       env: { PATH: GUEST_PATH },
       stdin: command.stdin ?? 'ignore',
       stdout: 'pipe',
@@ -922,6 +952,37 @@ export class FixtureImpPort implements ImpPort {
   }
 
   /**
+   * Resolves every relative working directory inside an imp against dir,
+   * as impd resolves one against the guest's home.
+   */
+  setHomeDir(dir: string): void {
+    this.homeDir = dir;
+  }
+
+  /**
+   * Holds every command whose argv holds match until the hold stops.
+   */
+  startCommandHold(match: string): void {
+    this.commandHold = { match, done: Promise.withResolvers<void>() };
+  }
+
+  // Lets every held command run, and the next at once.
+  stopCommandHold(): void {
+    const hold = this.commandHold;
+
+    this.commandHold = null;
+    hold?.done.resolve();
+  }
+
+  /**
+   * Exits 1 from every command whose argv holds match, without running
+   * it, until called with null.
+   */
+  setCommandFailure(match: string | null): void {
+    this.commandFailure = match;
+  }
+
+  /**
    * Fails every imp destroy with an impd code, leaving the imp, until
    * called with null.
    */
@@ -1253,6 +1314,16 @@ export class FixtureImpPort implements ImpPort {
       : null;
   }
 
+  // A working directory as impd resolves it inside an imp: a relative one
+  // against the guest's home, when the test gave one.
+  private resolveGuestCwd(cwd: string | undefined): string | undefined {
+    if (this.homeDir === null || (cwd !== undefined && posix.isAbsolute(cwd))) {
+      return cwd;
+    }
+
+    return posix.resolve(this.homeDir, cwd ?? '.');
+  }
+
   private startProcess(imp: FixtureImp, request: ImpSessionRequest): FixtureProcess | null {
     if (request.kind !== 'start') {
       return null;
@@ -1262,7 +1333,7 @@ export class FixtureImpPort implements ImpPort {
       name: 'xterm-256color',
       cols: request.cols,
       rows: request.rows,
-      cwd: request.cwd,
+      cwd: this.resolveGuestCwd(request.cwd) ?? request.cwd,
       env: { ...request.env },
     });
 

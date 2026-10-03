@@ -1,11 +1,12 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { updateEnv } from '../../test/update-env';
+import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { getRecord } from '../shared/get-record';
@@ -575,4 +576,301 @@ test('it materializes a git workspace on an imp host when its credential variabl
     readme: 'hello\n',
     session: { alive: true, workspace: { sha: expect.toBeString() } },
   });
+});
+
+test('it refuses a workspace spawn inside another one still materializing on the shared host before its first mkdir', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const outer = join(daemon.dir, 'box', 'a');
+  const inner = join(outer, 'b');
+
+  daemon.port.startCommandHold('tar -x');
+
+  const outerSpawn = daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls).toContainEqual(expect.toEndWith(`mkdir -- ${outer}`));
+  });
+
+  const settled: unknown[] = [];
+
+  const innerSpawn = daemon.client.sendRequest('session.spawn', {
+    cwd: inner,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  const innerSettled = (async () => {
+    const answer = await innerSpawn.catch((error: unknown) => error);
+
+    settled.push(answer);
+  })();
+
+  await waitFor(() => {
+    expect([
+      ...settled,
+      ...daemon.port.calls.filter((call) => call.endsWith(`mkdir -- ${inner}`)),
+    ]).not.toBeEmpty();
+  });
+
+  daemon.port.stopCommandHold();
+
+  await outerSpawn;
+  await innerSettled;
+
+  expect<Record<string, unknown>>({
+    settled,
+    claims: daemon.port.calls.filter((call) => call.endsWith(`mkdir -- ${inner}`)),
+  }).toMatchObject({
+    settled: [{ code: 'workspace_overlap', data: { dir: inner } }],
+    claims: [],
+  });
+});
+
+test('it materializes concurrent workspace spawns into sibling directories on the shared host', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const first = join(daemon.dir, 'box', 'a');
+  const second = join(daemon.dir, 'box', 'b');
+
+  daemon.port.startCommandHold('tar -x');
+
+  const spawns = [first, second].map((cwd) =>
+    daemon.client.sendRequest('session.spawn', {
+      cwd,
+      agent: 'glm',
+      target: 'box',
+      parent: parentID,
+      workspace: { kind: 'path', path: daemon.work },
+    }),
+  );
+
+  await waitFor(() => {
+    expect(daemon.port.calls.filter((call) => call.includes('tar -x'))).toHaveLength(2);
+  });
+
+  daemon.port.stopCommandHold();
+
+  const spawned = await Promise.all(spawns);
+
+  expect<Record<string, unknown>>({
+    sessions: spawned.map((answer) => getRecord(answer, 'session')['alive']),
+    readmes: [first, second].map((dir) => readFileSync(join(dir, 'README.md'), 'utf8')),
+  }).toStrictEqual({ sessions: [true, true], readmes: ['hello\n', 'hello\n'] });
+});
+
+test("it keeps another session's files inside its directory when a workspace spawn rolls back on the shared host", async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const outer = join(daemon.dir, 'box', 'a');
+
+  daemon.port.startCommandHold('tar -x');
+
+  const outerSpawn = daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls).toContainEqual(expect.toEndWith(`mkdir -- ${outer}`));
+  });
+
+  const nested = daemon.client.sendRequest('session.spawn', {
+    cwd: join(outer, 'b'),
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await nested.catch(() => null);
+
+  mkdirSync(join(outer, 'inner'));
+  writeFileSync(join(outer, 'inner', 'keep.txt'), 'kept\n');
+  symlinkSync(outer, join(daemon.dir, 'alias'));
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'alias', 'inner'),
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  daemon.port.setCommandFailure('tar -x');
+  daemon.port.stopCommandHold();
+
+  expect(outerSpawn).rejects.toMatchObject({ code: 'transfer_failed' });
+
+  await outerSpawn.catch(() => null);
+
+  expect(readFileSync(join(outer, 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
+});
+
+test('it removes the directory it claimed and gives it back when a workspace spawn rolls back on the shared host', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const outer = join(daemon.dir, 'box', 'a');
+
+  daemon.port.setCommandFailure('tar -x');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: getRecord(parent, 'session')['id'],
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'transfer_failed' });
+
+  await spawn.catch(() => null);
+
+  const removed = !existsSync(outer);
+
+  daemon.port.setCommandFailure(null);
+
+  const retried = await daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: getRecord(parent, 'session')['id'],
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  expect({ removed, alive: getRecord(retried, 'session')['alive'] }).toStrictEqual({
+    removed: true,
+    alive: true,
+  });
+});
+
+test("it refuses a workspace destination that a symlink places inside its parent's directory before claiming it", async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  symlinkSync(daemon.work, join(daemon.dir, 'alias'));
+
+  const dest = join(daemon.dir, 'alias', 'new');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    agent: 'glm',
+    target: 'box',
+    parent: getRecord(parent, 'session')['id'],
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: dest } });
+
+  await spawn.catch(() => null);
+
+  expect(
+    daemon.port.calls.filter(
+      (call) => call.endsWith(`mkdir -- ${dest}`) || call.includes('tar -x'),
+    ),
+  ).toStrictEqual([]);
+});
+
+test("it refuses a workspace destination inside its parent's relative directory as the host resolves it", async () => {
+  await using daemon = await setupTest();
+
+  const home = join(daemon.dir, 'home');
+
+  mkdirSync(join(home, 'proj'), { recursive: true });
+
+  daemon.port.setHomeDir(home);
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: 'proj',
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const dest = join(home, 'proj', 'new');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    agent: 'glm',
+    target: 'box',
+    parent: getRecord(parent, 'session')['id'],
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: dest } });
+
+  await spawn.catch(() => null);
+
+  expect(
+    daemon.port.calls.filter(
+      (call) => call.endsWith(`mkdir -- ${dest}`) || call.includes('tar -x'),
+    ),
+  ).toStrictEqual([]);
+});
+
+test('it materializes a workspace through a symlinked directory that leads away from its parent', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  mkdirSync(join(daemon.dir, 'elsewhere'));
+  symlinkSync(join(daemon.dir, 'elsewhere'), join(daemon.dir, 'link'));
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'link', 'new'),
+    agent: 'glm',
+    target: 'box',
+    parent: getRecord(parent, 'session')['id'],
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  expect<Record<string, unknown>>({
+    alive: getRecord(spawned, 'session')['alive'],
+    readme: readFileSync(join(daemon.dir, 'elsewhere', 'new', 'README.md'), 'utf8'),
+  }).toStrictEqual({ alive: true, readme: 'hello\n' });
 });
