@@ -181,8 +181,8 @@ interface MaterializedSpawn {
 // stored identity ran on.
 const LOCAL_TARGET_IDENTITY = buildTargetIdentity('local-pty', {});
 
-// How long a failed spawn's rollback waits for the killed process to exit
-// before it leaves the spawn's outcome unknown.
+// How long a failed spawn's rollback waits for the killed process to exit,
+// once after its kill and once more after a forced kill.
 const FAILED_SPAWN_EXIT_WAIT_MS = 2000;
 
 // The target a session runs on and the identity it is bound to there; null
@@ -236,9 +236,12 @@ export class SessionManager {
   // of the same session does not start a second harness.
   private readonly adopting = new Set<SessionID>();
 
-  // Failed spawns whose rollback is still waiting on the killed process, so
-  // no revive starts a harness the rollback would then drop untracked.
+  // Failed spawns whose rollback is running, and those whose killed process
+  // it could not confirm gone, each with the harness it ran in, so no revive
+  // starts a second harness while the first may still run.
   private readonly rollingBack = new Set<SessionID>();
+
+  private readonly unconfirmedKills = new Map<SessionID, HarnessHandle>();
 
   // The epoch the next harness start or attach takes, unique across every
   // session this manager holds.
@@ -475,13 +478,13 @@ export class SessionManager {
   async adoptTerminal(id: SessionID, cols: number, rows: number): Promise<Session | null> {
     const s = this.sessions.find((x) => x.id === id);
 
-    if (
-      !s ||
-      s.pty !== null ||
-      s.agentSessionID === undefined ||
-      this.adopting.has(id) ||
-      this.rollingBack.has(id)
-    ) {
+    if (!s || s.pty !== null || s.agentSessionID === undefined || this.adopting.has(id)) {
+      return null;
+    }
+
+    const settled = await this.isRollbackSettled(id);
+
+    if (!settled) {
       return null;
     }
 
@@ -510,7 +513,12 @@ export class SessionManager {
 
     // A kill, a second adopt, or a failed spawn's rollback can land while
     // the host wakes.
-    if (s.pty !== null || !this.sessions.includes(s) || this.rollingBack.has(id)) {
+    if (
+      s.pty !== null ||
+      !this.sessions.includes(s) ||
+      this.rollingBack.has(id) ||
+      this.unconfirmedKills.has(id)
+    ) {
       return null;
     }
 
@@ -907,8 +915,9 @@ export class SessionManager {
   // nothing behind. It resolves only once the process has exited and the
   // fleet without the session is durable, and throws when the kill, the
   // exit, or that write cannot be confirmed. A session whose exit is not
-  // confirmed stays listed, so the spawn's caller can still find it. A
-  // session that never registered is left alone.
+  // confirmed stays listed, so the spawn's caller can still find it, and
+  // no revive starts it until its process is found gone. A session that
+  // never registered is left alone.
   async removeFailedSpawn(id: SessionID): Promise<void> {
     const s = this.sessions.find((x) => x.id === id);
 
@@ -916,19 +925,13 @@ export class SessionManager {
       return;
     }
 
+    const pty = s.pty;
+
     this.rollingBack.add(id);
 
     try {
-      const pty = s.pty;
-
       if (pty !== null) {
-        pty.kill();
-
-        if (!(await pty.waitForExit(FAILED_SPAWN_EXIT_WAIT_MS))) {
-          throw new Error(
-            `session ${id} did not exit within ${FAILED_SPAWN_EXIT_WAIT_MS}ms of its kill`,
-          );
-        }
+        await this.killFailedSpawn(id, pty);
       }
 
       // A harness other than the killed one would outlive the rollback.
@@ -945,6 +948,64 @@ export class SessionManager {
     } finally {
       this.rollingBack.delete(id);
     }
+  }
+
+  // Kills a failed spawn's harness and waits for its exit. A kill that
+  // throws or an exit it cannot confirm leaves the harness recorded as
+  // possibly running, which blocks revives of the session.
+  private async killFailedSpawn(id: SessionID, pty: HarnessHandle): Promise<void> {
+    this.unconfirmedKills.set(id, pty);
+    pty.kill();
+
+    const exited = await this.waitForKilledExit(pty);
+
+    if (!exited) {
+      throw new Error(`session ${id} did not exit after its kill`);
+    }
+
+    this.unconfirmedKills.delete(id);
+  }
+
+  // Waits for a killed harness to exit, ending it with a signal it cannot
+  // ignore when the first wait runs out and its provider can send one.
+  private async waitForKilledExit(pty: HarnessHandle): Promise<boolean> {
+    const exited = await pty.waitForExit(FAILED_SPAWN_EXIT_WAIT_MS);
+
+    if (exited) {
+      return true;
+    }
+
+    if (pty.killForced === undefined) {
+      return false;
+    }
+
+    pty.killForced();
+
+    return pty.waitForExit(FAILED_SPAWN_EXIT_WAIT_MS);
+  }
+
+  // Whether a failed spawn's rollback leaves the session free to revive:
+  // none is running, and any process it killed is gone now. A session whose
+  // killed process may still run stays blocked until a later check finds it
+  // gone.
+  private async isRollbackSettled(id: SessionID): Promise<boolean> {
+    if (this.rollingBack.has(id)) {
+      return false;
+    }
+
+    const killed = this.unconfirmedKills.get(id);
+
+    if (killed !== undefined) {
+      const gone = await killed.waitForExit(0);
+
+      if (!gone) {
+        return false;
+      }
+
+      this.unconfirmedKills.delete(id);
+    }
+
+    return true;
   }
 
   collectDescriptors(): SessionDescriptor[] {

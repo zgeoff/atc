@@ -172,6 +172,10 @@ export interface HarnessHandle {
   // waiting for it to exit.
   readonly kill: () => void;
 
+  // Ends the harness's process with a signal it cannot catch or ignore, on
+  // a provider that can send one; absent on a provider that cannot.
+  readonly killForced?: () => void;
+
   // Resolves true once the harness's process has exited, and false when the
   // wait runs out first or the harness stops being followed without an
   // exit, such as a host that went to sleep with the process inside.

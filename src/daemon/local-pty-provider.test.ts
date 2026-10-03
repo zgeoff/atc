@@ -141,6 +141,42 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
   expect(process.kill(pid, 0)).toBeTrue();
 });
 
+test('it ends a harness that ignores its kill with a forced kill', async () => {
+  using local = setupTest();
+
+  const output: string[] = [];
+
+  const harness = local.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'bash',
+    args: ['-c', `trap '' HUP; echo READY; exec sleep 10`],
+    cwd: local.dir,
+    env: { PATH: '/usr/bin:/bin' },
+    cols: 80,
+    rows: 24,
+  });
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('READY');
+  });
+
+  harness.kill();
+
+  const survived = await harness.waitForExit(200);
+
+  harness.killForced?.();
+
+  const exited = await harness.waitForExit(2000);
+
+  expect(survived).toBeFalse();
+  expect(exited).toBeTrue();
+});
+
 test('it resizes the terminal a running harness reads its size from', async () => {
   using local = setupTest();
 

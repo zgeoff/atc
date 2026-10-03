@@ -573,11 +573,12 @@ keys under that principal, whatever principal it acts as.
 The daemon records the key before it checks any param. A refused request drops the key again, so a
 retry runs fresh. A spawn that fails after its process starts kills that process and drops its
 session first. The daemon drops the key only once the process has exited and the fleet without that
-session is written. When the process outlives a 2 s wait after the kill, or the fleet write fails,
-the session may still stand, so the daemon keeps the key as `outcome_unknown` and answers the spawn
-with that error. A session whose process outlived the wait stays listed. While the daemon waits for
-the exit, it refuses a `session.adopt` of that session as `no_such_session`, so no revived process
-outlives the rollback.
+session is written. The kill sends SIGHUP and waits 2 s for the exit. On a `local-pty` target, a
+process still running then gets SIGKILL and 2 s more. When the process outlives those waits, or the
+fleet write fails, the session may still stand, so the daemon keeps the key as `outcome_unknown` and
+answers the spawn with that error. A session whose process outlived the waits stays listed. The
+daemon refuses a `session.adopt` of that session as `no_such_session` while it waits for the exit,
+and after it until it finds the process gone, so no revived process runs beside the first.
 
 A spawn whose process started but whose fleet write fails gets `outcome_unknown` too, and its
 session stays listed and running. A request whose key the daemon cannot mark completed gets
