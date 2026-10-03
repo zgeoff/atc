@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.10.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.10.2...@zgeoff/atc@2.10.3) (2026-10-03)
+
+### Bug Fixes
+
+- **agents:** keep test runs out of the real state directory
+  ([#151](https://github.com/zgeoff/atc/issues/151))
+  ([986fb9d](https://github.com/zgeoff/atc/commit/986fb9de459df0af630e2c01eb43c2e423d94070))
+
 ## [2.10.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.10.1...@zgeoff/atc@2.10.2) (2026-10-02)
 
 ### Bug Fixes
