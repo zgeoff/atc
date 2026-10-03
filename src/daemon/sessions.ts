@@ -181,6 +181,10 @@ interface MaterializedSpawn {
 // stored identity ran on.
 const LOCAL_TARGET_IDENTITY = buildTargetIdentity('local-pty', {});
 
+// How long a failed spawn's rollback waits for the killed process to exit
+// before it leaves the spawn's outcome unknown.
+const FAILED_SPAWN_EXIT_WAIT_MS = 2000;
+
 // The target a session runs on and the identity it is bound to there; null
 // binds a new session to the target as it stands now.
 interface TargetBinding {
@@ -893,9 +897,11 @@ export class SessionManager {
 
   // Takes back a spawn that failed after its process started: the process
   // dies and the session leaves the list and the fleet, so the spawn leaves
-  // nothing behind. It resolves only once the fleet without the session is
-  // durable, and throws when the kill or that write fails. A session that
-  // never registered is left alone.
+  // nothing behind. It resolves only once the process has exited and the
+  // fleet without the session is durable, and throws when the kill, the
+  // exit, or that write cannot be confirmed. A session whose exit is not
+  // confirmed stays listed, so the spawn's caller can still find it. A
+  // session that never registered is left alone.
   async removeFailedSpawn(id: SessionID): Promise<void> {
     const s = this.sessions.find((x) => x.id === id);
 
@@ -903,7 +909,18 @@ export class SessionManager {
       return;
     }
 
-    s.pty?.kill();
+    const pty = s.pty;
+
+    if (pty !== null) {
+      pty.kill();
+
+      if (!(await pty.waitForExit(FAILED_SPAWN_EXIT_WAIT_MS))) {
+        throw new Error(
+          `session ${id} did not exit within ${FAILED_SPAWN_EXIT_WAIT_MS}ms of its kill`,
+        );
+      }
+    }
+
     s.pty = null;
 
     this.remove(s);

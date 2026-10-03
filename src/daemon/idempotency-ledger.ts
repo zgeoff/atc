@@ -23,7 +23,9 @@ interface IdempotentCall<T> {
   // effect may still stand, so the claim is kept as outcome_unknown.
   readonly start: () => T | Promise<T>;
 
-  // Resolves once the effect is durable; the claim completes only after.
+  // Resolves once the effect is durable; the claim completes only after. A
+  // settle that throws leaves the effect standing, so the answer is
+  // outcome_unknown and the claim stays held.
   readonly settle: () => Promise<void>;
 
   // The answer to a retry of a completed key.
@@ -43,19 +45,27 @@ interface IdempotentCall<T> {
  * answer; one with a different payload is `idempotency_conflict`; one whose
  * effect a stopped daemon may or may not have run is `outcome_unknown` with
  * the effect id in `data.effectRef`, and never starts the effect again.
+ * An effect that may still stand once its request fails is answered with
+ * `outcome_unknown` and its effect id even when recording that outcome
+ * fails: the claim stays held either way, and the failed write goes to the
+ * log.
  */
 export class IdempotencyLedger {
   private readonly store: StateStore;
 
   private readonly principal: string;
 
+  // Where a failed write to the ledger is reported, one line at a time.
+  private readonly log: (line: string) => void;
+
   // One promise chain per key, so two requests under the same key never
   // interleave their claim and completion on one daemon.
   private readonly locks = new Map<string, Promise<void>>();
 
-  constructor(store: StateStore, principal: string) {
+  constructor(store: StateStore, principal: string, log: (line: string) => void) {
     this.store = store;
     this.principal = principal;
+    this.log = log;
   }
 
   async run<T extends Readonly<Record<string, unknown>>>(call: IdempotentCall<T>): Promise<T> {
@@ -114,13 +124,11 @@ export class IdempotencyLedger {
       result = await call.start();
     } catch (error) {
       if (error instanceof EffectRemainsError) {
-        await this.store.updateIdempotencyOutcomeUnknown(id, Date.now());
+        this.logFailure(call, 'start', error);
 
-        throw new DaemonError(
-          'outcome_unknown',
-          `the ${call.operation} under idempotency key '${call.keyed.key}' failed and its effect may still stand; check ${call.effectRef} before retrying under a new key`,
-          { effectRef: call.effectRef },
-        );
+        await this.tryRecordOutcomeUnknown(call, id);
+
+        throw buildOutcomeUnknownError(call, 'failed');
       }
 
       await this.store.removeIdempotencyKey(id);
@@ -128,20 +136,72 @@ export class IdempotencyLedger {
       throw error;
     }
 
-    // A settle that fails leaves the claim in progress: the effect started,
-    // so the next daemon start marks its outcome unknown rather than letting
-    // a retry run it again.
-    await call.settle();
+    // From here the effect stands. A settle or completion that fails keeps
+    // the claim in progress, so a retry answers outcome_unknown rather than
+    // running the effect again.
+    try {
+      await call.settle();
+    } catch (error) {
+      this.logFailure(call, 'settle', error);
 
-    await this.store.updateIdempotencyCompleted(
-      id,
-      JSON.stringify(result),
-      Date.now(),
-      call.findEffectTarget?.(result) ?? null,
-    );
+      await this.tryRecordOutcomeUnknown(call, id);
+
+      throw buildOutcomeUnknownError(call, 'could not be made durable');
+    }
+
+    try {
+      await this.store.updateIdempotencyCompleted(
+        id,
+        JSON.stringify(result),
+        Date.now(),
+        call.findEffectTarget?.(result) ?? null,
+      );
+    } catch (error) {
+      this.logFailure(call, 'completion write', error);
+      throw buildOutcomeUnknownError(call, 'could not be recorded as completed');
+    }
 
     return result;
   }
+
+  // A claim this write fails to update stays in progress, which a retry
+  // answers the same way, so the failure is logged and not thrown.
+  private async tryRecordOutcomeUnknown(
+    call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
+    id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
+  ): Promise<void> {
+    try {
+      await this.store.updateIdempotencyOutcomeUnknown(id, Date.now());
+    } catch (error) {
+      this.logFailure(call, 'outcome_unknown write', error);
+    }
+  }
+
+  // The line holds the operation, key, effect id, the step that failed, and
+  // the error, never the request's payload or the effect's result.
+  private logFailure(
+    call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
+    step: string,
+    error: unknown,
+  ): void {
+    const cause =
+      error instanceof Error && error.cause instanceof Error ? ` (${String(error.cause)})` : '';
+
+    this.log(
+      `atc ${call.operation} under idempotency key '${call.keyed.key}' (effect ${call.effectRef}): ${step} failed: ${String(error)}${cause}`,
+    );
+  }
+}
+
+function buildOutcomeUnknownError(
+  call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
+  what: string,
+): DaemonError {
+  return new DaemonError(
+    'outcome_unknown',
+    `the ${call.operation} under idempotency key '${call.keyed.key}' ${what} and its effect may still stand; check ${call.effectRef} before retrying under a new key`,
+    { effectRef: call.effectRef },
+  );
 }
 
 function answerHeldKey<T>(call: IdempotentCall<T>, held: IdempotencyRecord): T | Promise<T> {

@@ -332,6 +332,36 @@ test('it reports a harness whose imp another owner put to sleep as suspended, wi
   expect(fixture.port.findState('imp-a')).toBe('sleeping');
 });
 
+test('it confirms the exit of a killed harness once impd reports its process exited', async () => {
+  using fixture = await setupTest();
+
+  fixture.harness.kill();
+
+  const exited = await fixture.harness.waitForExit(5000);
+
+  expect(exited).toBeTrue();
+});
+
+test('it reports no exit for a running harness whose wait runs out', async () => {
+  using fixture = await setupTest();
+
+  const exited = await fixture.harness.waitForExit(50);
+
+  expect(exited).toBeFalse();
+});
+
+test('it reports no exit for a harness whose imp went to sleep with the process inside', async () => {
+  using fixture = await setupTest();
+
+  const waited = fixture.harness.waitForExit(5000);
+
+  fixture.port.suspendWithForce('imp-a');
+
+  const exited = await waited;
+
+  expect(exited).toBeFalse();
+});
+
 test('it counts connections impd drops before they start, and ends once its reconnects run out', async () => {
   using fixture = await setupTest();
 

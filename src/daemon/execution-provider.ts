@@ -167,7 +167,15 @@ export interface HarnessHandle {
   ) => HarnessSubscription;
   readonly write: (data: string) => void;
   readonly resize: (cols: number, rows: number) => void;
+
+  // Sends the harness's process the signal that ends it, and returns without
+  // waiting for it to exit.
   readonly kill: () => void;
+
+  // Resolves true once the harness's process has exited, and false when the
+  // wait runs out first or the harness stops being followed without an
+  // exit, such as a host that went to sleep with the process inside.
+  readonly waitForExit: (timeoutMs: number) => Promise<boolean>;
 
   // Stops following the harness and leaves its process running, for a host
   // that keeps it after the daemon lets go; on a host that cannot keep it,
