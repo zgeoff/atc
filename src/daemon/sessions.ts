@@ -479,8 +479,15 @@ export class SessionManager {
   // Adopts a headless session back into a terminal: a fresh PTY resumes the
   // same agent session id. On a remote host the host wakes first, and a
   // harness still running inside it is attached rather than started again;
-  // every other session left asleep on that host comes back with it.
-  async adoptTerminal(id: SessionID, cols: number, rows: number): Promise<Session | null> {
+  // every other session left asleep on that host comes back with it. The
+  // caller's check runs again after each await, and a failed check leaves
+  // the session as it was.
+  async adoptTerminal(
+    id: SessionID,
+    cols: number,
+    rows: number,
+    canProceed: () => boolean = () => true,
+  ): Promise<Session | null> {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s || s.pty !== null || s.agentSessionID === undefined || this.adopting.has(id)) {
@@ -489,7 +496,7 @@ export class SessionManager {
 
     const settled = await this.isRollbackSettled(id);
 
-    if (!settled) {
+    if (!settled || !canProceed()) {
       return null;
     }
 
@@ -516,9 +523,11 @@ export class SessionManager {
       this.adopting.delete(id);
     }
 
-    // A kill, a second adopt, or a failed spawn's rollback can land while
-    // the host wakes.
+    // A kill, a second adopt, a failed spawn's rollback, or a change that
+    // takes the session out of the caller's reach can land while the host
+    // wakes.
     if (
+      !canProceed() ||
       s.pty !== null ||
       !this.sessions.includes(s) ||
       this.rollingBack.has(id) ||
@@ -729,6 +738,7 @@ export class SessionManager {
     id: SessionID = mintSessionID(),
     target = 'local',
     materialized: MaterializedSpawn | null = null,
+    requireInReach: () => void = () => {},
   ): Promise<Session> {
     const adapter = this.findAdapter(agent);
 
@@ -750,6 +760,10 @@ export class SessionManager {
       resume,
       ...overrides,
     });
+
+    // The caller's check runs again once the host is ready, before the
+    // harness starts.
+    requireInReach();
 
     const binding = this.mintBridgeBinding(id, target, execution.identity, hostKey);
 
@@ -1248,7 +1262,8 @@ export class SessionManager {
   // every harness on it kept inside, and fails whole when the host stays
   // awake. A dead session on a target that can destroy its host is not
   // forgotten by a kill: forgetting it destroys the host, which takes a
-  // confirmed forget.
+  // confirmed forget. The set is taken before the first await, so a
+  // sub-session spawned while the kill waits on a host is not part of it.
   async kill(id: SessionID): Promise<void> {
     const s = this.sessions.find((x) => x.id === id);
 
@@ -1256,11 +1271,15 @@ export class SessionManager {
       return;
     }
 
+    const children = this.collectChildren(id);
+
     if (s.pty) {
       await this.stopHarness(s);
 
-      for (const child of this.collectChildren(id)) {
-        await this.tryStopHarness(child);
+      for (const child of children) {
+        if (this.sessions.includes(child) && child.parent === id) {
+          await this.tryStopHarness(child);
+        }
       }
     } else {
       if (this.findProvider(s)?.capabilities.destroy === true) {
@@ -1271,8 +1290,7 @@ export class SessionManager {
         );
       }
 
-      this.updateForgottenChildren(id);
-      this.remove(s);
+      this.removeWithChildren(s, children);
     }
 
     await this.writeFleet();
@@ -1288,7 +1306,9 @@ export class SessionManager {
    * kept asleep in that host is refused until the host wakes. Its dead
    * sub-sessions on other hosts go with it, unless their own target can
    * destroy their host, and its live ones become top-level. A failed destroy
-   * throws before anything is forgotten.
+   * throws before anything is forgotten. The sub-sessions it may forget are
+   * taken before the first await; one spawned while the forget waits on a
+   * host becomes top-level.
    */
   async forget(id: SessionID): Promise<boolean> {
     const s = this.sessions.find((x) => x.id === id);
@@ -1297,6 +1317,7 @@ export class SessionManager {
       return false;
     }
 
+    const children = this.collectChildren(id);
     const provider = this.findProvider(s);
     const destroys = provider !== null && provider.capabilities.destroy && s.hostKey === s.id;
 
@@ -1330,8 +1351,7 @@ export class SessionManager {
       this.killTerminal(s);
     }
 
-    this.updateForgottenChildren(id);
-    this.remove(s);
+    this.removeWithChildren(s, children);
 
     await this.writeFleet();
 
@@ -1340,21 +1360,41 @@ export class SessionManager {
     return destroys;
   }
 
-  // A forgotten parent's dead sub-sessions go with it, except one whose own
-  // target can destroy its host: forgetting that one destroys the host, which
-  // takes its own confirmed forget. Every sub-session that stays becomes
-  // top-level.
-  private updateForgottenChildren(id: SessionID): void {
-    for (const child of this.collectChildren(id)) {
+  // Removes a forgotten session and its dead sub-sessions, except one whose
+  // own target can destroy its host: forgetting that one destroys the host,
+  // which takes its own confirmed forget. Only a sub-session among the given
+  // ones may go. Every sub-session that stays becomes top-level before the
+  // session's removal is announced, and is announced after it, so no
+  // announcement ever finds a sub-session whose parent is gone or a parent
+  // standing without the sub-sessions that leave with it.
+  private removeWithChildren(s: Session, forgettable: readonly Session[]): void {
+    const kept: Session[] = [];
+    const dropped: Session[] = [];
+
+    for (const child of this.collectChildren(s.id)) {
       const live = child.pty !== null || (child.kind === 'headless' && child.state !== 'exited');
 
-      if (live || this.findProvider(child)?.capabilities.destroy === true) {
+      if (
+        live ||
+        !forgettable.includes(child) ||
+        this.findProvider(child)?.capabilities.destroy === true
+      ) {
         child.parent = null;
 
-        this.onEvent('state', child);
+        kept.push(child);
       } else {
-        this.remove(child);
+        dropped.push(child);
       }
+    }
+
+    this.remove(s);
+
+    for (const child of kept) {
+      this.onEvent('state', child);
+    }
+
+    for (const child of dropped) {
+      this.remove(child);
     }
   }
 

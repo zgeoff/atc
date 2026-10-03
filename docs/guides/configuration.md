@@ -182,8 +182,19 @@ that gives no principal, may use every target and is never limited by this key.
 A principal reaches a session only on a target it may use, and only while that target holds the
 identity the session is bound to. To the principal, every other session does not exist: lists and
 the event trail leave it out, and a request for it gets the answer a session that never existed
-gets. A spawn to a target the principal may not use fails with `target_forbidden`. A principal may
+gets. The spawn directory list leaves out the directories of spawns on targets the principal may not
+use. A spawn to a target the principal may not use fails with `target_forbidden`. A principal may
 not stop the daemon or restore the fleet.
+
+A principal sees a session tree, a top-level session with its sub-sessions, only when it may use the
+target of every session in it. Adding a sub-session on a target the principal may not use removes
+the whole tree from its view, the parent included, as if the tree had been forgotten. Removing that
+sub-session brings the tree back.
+
+Event ids number the daemon's whole trail, so a principal's `events.read` shows gaps where the
+events of sessions out of its reach sit. atc makes no claim of confidentiality against traffic
+analysis: the gaps and the timing of what a principal sees can reveal that other sessions are
+active.
 
 Without a `principals` key, every principal may use the implicit `local` target alone: the target
 named `local` whose provider is `local-pty` with no options. Such a principal never reaches another

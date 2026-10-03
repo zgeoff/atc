@@ -21,6 +21,7 @@ import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';
+import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import type { DaemonContext, SpawnParams } from './daemon-context';
 import type { TranscriptPosition } from './load-transcript-page';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
@@ -34,6 +35,13 @@ interface RequestScope {
 
 // The requests that act on the whole daemon, which only its owner may make.
 const OWNER_METHODS: ReadonlySet<string> = new Set(['daemon.quit', 'fleet.restore']);
+
+// What a limited connection is sent for one event, and the sessions that
+// event moved out of its view.
+interface ViewUpdate {
+  readonly events: readonly EventMsg[];
+  readonly withdrawn: readonly SessionID[];
+}
 
 interface PeerSocket extends SocketWriter {
   readonly end: () => void;
@@ -64,9 +72,15 @@ export class DaemonConnection {
 
   private access: TargetAccess | null = null;
 
-  // The sessions and permission requests this limited connection was shown,
-  // so the events that end them reach it after the session is gone.
-  private readonly shown = new Set<string>();
+  // The sessions in this limited connection's view, the sessions the daemon
+  // holds that the view leaves out, and the permission requests the
+  // connection was shown, so the events that end them reach it after the
+  // session is gone.
+  private readonly shownSessions = new Set<SessionID>();
+
+  private readonly withheldSessions = new Set<SessionID>();
+
+  private readonly shownRequests = new Set<string>();
 
   constructor(peer: PeerSocket, ctx: DaemonContext) {
     this.peer = peer;
@@ -83,12 +97,30 @@ export class DaemonConnection {
   }
 
   sendEvent(event: EventMsg): void {
-    if (!this.helloed || !this.canSeeEvent(event)) {
+    if (!this.helloed) {
       return;
     }
 
-    if (!this.queue.send(encodeMessage(event))) {
-      this.peer.end();
+    const view =
+      this.access === null
+        ? { events: [event], withdrawn: [] }
+        : this.updateView(event, this.access);
+
+    for (const visible of view.events) {
+      if (!this.queue.send(encodeMessage(visible))) {
+        this.peer.end();
+
+        return;
+      }
+    }
+
+    // Output and inbox messages of a session that left the view stop with
+    // it. The detach runs once the view is settled, since it emits an event
+    // of its own.
+    for (const id of view.withdrawn) {
+      this.desynced.delete(id);
+      this.ctx.detachSession(this, id);
+      this.ctx.detachTap(this, id);
     }
   }
 
@@ -97,7 +129,7 @@ export class DaemonConnection {
   // intermediate chunk is never dropped without that resync, because a byte
   // stream cut mid-escape corrupts the client's terminal state.
   sendOutput(sessionID: SessionID, event: EventMsg, byteLength: number): void {
-    if (!this.helloed) {
+    if (!this.helloed || !this.canSeeOutput(sessionID)) {
       return;
     }
 
@@ -147,9 +179,19 @@ export class DaemonConnection {
 
     for (const [sessionID, dropped] of this.desynced) {
       this.desynced.delete(sessionID);
-      this.sendEvent({ v: PROTOCOL_V, ev: 'SessionDesync', s: sessionID, dropped });
-      void this.ctx.resyncClient(sessionID, this);
+
+      if (this.canSeeOutput(sessionID)) {
+        this.sendEvent({ v: PROTOCOL_V, ev: 'SessionDesync', s: sessionID, dropped });
+        void this.ctx.resyncClient(sessionID, this);
+      }
     }
+  }
+
+  // Whether this connection may receive the session's output: always for
+  // the daemon's owner, and otherwise only while its view holds the
+  // session's whole tree.
+  private canSeeOutput(sessionID: SessionID): boolean {
+    return this.access === null || this.ctx.canSeeSession(sessionID, this.access);
   }
 
   // false: the connection is beyond recovery and gets closed.
@@ -218,34 +260,99 @@ export class DaemonConnection {
     return { access: this.access.merge(access), keyNamespace: `client:${this.principal}` };
   }
 
-  // Whether this connection may see an event: always for the daemon's
-  // owner, and otherwise only for an event of a session the connection may
-  // see or was already shown.
-  private canSeeEvent(event: EventMsg): boolean {
-    if (this.access === null) {
-      return true;
-    }
-
+  // Brings this limited connection's view up to date for an event and
+  // returns what the connection is sent for it, and the sessions that left
+  // the view. A session whose tree moved out of reach leaves the view as a
+  // removed session does; one whose tree came back into reach joins it as
+  // an added session does. The event itself reaches the connection when its
+  // session is in the view, or is gone from the daemon after the connection
+  // was shown it.
+  private updateView(event: EventMsg, access: TargetAccess): ViewUpdate {
     const sessionID = findEventSession(event);
     const request = typeof event['request'] === 'string' ? event['request'] : null;
+    const sent: EventMsg[] = [];
+    const withdrawn: SessionID[] = [];
+
+    for (const id of this.shownSessions) {
+      if (id !== sessionID && this.isWithheld(id, access)) {
+        this.shownSessions.delete(id);
+        this.withheldSessions.add(id);
+        withdrawn.push(id);
+        sent.push({ v: PROTOCOL_V, ev: 'SessionRemoved', s: id });
+      }
+    }
+
+    for (const id of this.withheldSessions) {
+      if (this.ctx.findSessionGrant(id) === null) {
+        this.withheldSessions.delete(id);
+      } else if (id !== sessionID && this.ctx.canSeeSession(id, access)) {
+        this.withheldSessions.delete(id);
+        this.shownSessions.add(id);
+        sent.push(...this.buildSessionAdded(id));
+      }
+    }
 
     if (sessionID === null) {
-      return request !== null && this.shown.has(`request:${request}`);
+      if (request !== null && this.shownRequests.has(request)) {
+        sent.push(event);
+      }
+
+      return { events: sent, withdrawn };
     }
 
-    const grant = this.ctx.findSessionGrant(sessionID);
+    if (this.ctx.canSeeSession(sessionID, access)) {
+      if (this.withheldSessions.delete(sessionID) && event.ev !== 'SessionAdded') {
+        sent.push(...this.buildSessionAdded(sessionID));
+      }
 
-    if (grant === null || !this.access.canUse(grant)) {
-      return this.shown.has(`session:${sessionID}`);
+      this.shownSessions.add(sessionID);
+
+      if (request !== null) {
+        this.shownRequests.add(request);
+      }
+
+      sent.push(event);
+
+      return { events: sent, withdrawn };
     }
 
-    this.shown.add(`session:${sessionID}`);
+    if (this.isWithheld(sessionID, access)) {
+      this.withheldSessions.add(sessionID);
 
-    if (request !== null) {
-      this.shown.add(`request:${request}`);
+      if (this.shownSessions.delete(sessionID)) {
+        withdrawn.push(sessionID);
+        sent.push({ v: PROTOCOL_V, ev: 'SessionRemoved', s: sessionID });
+      }
+
+      return { events: sent, withdrawn };
     }
 
-    return true;
+    // The session is gone from the daemon.
+    this.withheldSessions.delete(sessionID);
+
+    if (this.shownSessions.has(sessionID)) {
+      sent.push(event);
+    }
+
+    if (event.ev === 'SessionRemoved') {
+      this.shownSessions.delete(sessionID);
+    }
+
+    return { events: sent, withdrawn };
+  }
+
+  // Whether the daemon holds the session but the access does not reach its
+  // whole tree.
+  private isWithheld(id: SessionID, access: TargetAccess): boolean {
+    return this.ctx.findSessionGrant(id) !== null && !this.ctx.canSeeSession(id, access);
+  }
+
+  // The event that adds the session to a view, or none when the daemon no
+  // longer lists it.
+  private buildSessionAdded(id: SessionID): EventMsg[] {
+    const session = this.ctx.collectSessions().find((x) => x.id === id);
+
+    return session === undefined ? [] : [{ v: PROTOCOL_V, ev: 'SessionAdded', session }];
   }
 
   // A store query that rejects must end one request, never the daemon: a
@@ -289,12 +396,16 @@ export class DaemonConnection {
         return;
       }
       case 'dirs.list': {
-        this.sendOk(req.id, { dirs: await ctx.collectSpawnDirs() });
+        this.sendOk(req.id, { dirs: await ctx.collectSpawnDirs(null) });
 
         return;
       }
       case 'fleet.list': {
-        this.sendOk(req.id, { fleet: await ctx.collectFleet() });
+        const fleet = await ctx.collectFleet();
+
+        this.sendOk(req.id, {
+          fleet: fleet.filter((entry) => ctx.isSessionVisible(entry.sessionID)),
+        });
 
         return;
       }
@@ -356,7 +467,7 @@ export class DaemonConnection {
 
         const id = parsed.data.session;
 
-        const forgotten = await this.ctx.forgetSession(id, parsed.data.confirmToken);
+        const forgotten = await ctx.forgetSession(id, parsed.data.confirmToken);
 
         if (forgotten === 'missing') {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
@@ -399,7 +510,7 @@ export class DaemonConnection {
 
         const screen = await ctx.readSessionScreen(id);
 
-        if (screen === 'missing') {
+        if (screen === 'missing' || !ctx.isSessionVisible(id)) {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
         } else if (screen === 'no_screen') {
           this.sendErr(req.id, 'session_dead', `session '${id}' has no captured screen`);
@@ -452,7 +563,12 @@ export class DaemonConnection {
 
         const sessionID = parsed.data.session;
 
-        const adoptResult = await ctx.adoptSession(sessionID, parsed.data.cols, parsed.data.rows);
+        const adoptResult = await ctx.adoptSession(
+          sessionID,
+          parsed.data.cols,
+          parsed.data.rows,
+          null,
+        );
 
         if (adoptResult === 'ok') {
           this.sendOk(req.id, {});
@@ -616,7 +732,7 @@ export class DaemonConnection {
       // Checked before the spawn starts, so a target that cannot take a
       // workspace refuses it before any git command runs.
       if (data.workspace !== undefined) {
-        this.ctx.requireWorkspaceTarget(target);
+        ctx.requireWorkspaceTarget(target);
       }
 
       // A workspace is materialized at cwd on the target, which only an
@@ -628,15 +744,13 @@ export class DaemonConnection {
       let parent: SessionID | null = null;
 
       if (data.parent !== undefined) {
-        const owner = ctx.collectSessions().find((s) => s.id === data.parent);
+        const resolved = ctx.resolveSpawnParent(data.parent);
 
-        if (owner === undefined) {
+        if (resolved === 'missing') {
           throw new DaemonError('no_such_session', `no session '${data.parent}'`);
         }
 
-        // A sub-session spawning a sub-session of its own lands beside it,
-        // so a set stays one level deep.
-        parent = owner.parent ?? owner.id;
+        parent = resolved;
       }
 
       return {
@@ -661,6 +775,21 @@ export class DaemonConnection {
         : { key: data.idempotencyKey, payloadHash: buildPayloadHash(data) };
 
     const spawned = await ctx.spawnSession(plan, keyed, null);
+
+    const session = spawned['session'];
+
+    const sessionID =
+      isRecord(session) && typeof session['id'] === 'string' ? toSessionID(session['id']) : null;
+
+    const grant = sessionID === null ? null : ctx.findSessionGrant(sessionID);
+
+    // A live session whose tree left the view before the answer goes out
+    // gets the refusal a replay out of reach gets, holding no part of it.
+    // A replayed session no longer live was checked against its fleet row
+    // by the replay itself.
+    if (sessionID !== null && grant !== null && !ctx.isSessionVisible(sessionID)) {
+      throw buildTargetForbiddenError(grant.target);
+    }
 
     this.sendOk(req.id, spawned);
   }
@@ -822,9 +951,9 @@ export class DaemonConnection {
 
     const id = parsed.data.session;
 
-    const record = await ctx.readSessionRecord(id);
+    const record = await ctx.readSessionRecord(id, null);
 
-    if (record === 'missing') {
+    if (record === 'missing' || !ctx.isSessionVisible(id)) {
       this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
 
       return;
@@ -859,7 +988,7 @@ export class DaemonConnection {
 
     const read = await ctx.loadSessionTranscript(id, from, parsed.data.limit);
 
-    if (read === 'missing') {
+    if (read === 'missing' || !ctx.isSessionVisible(id)) {
       this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
     } else if (read === 'unsupported') {
       this.sendErr(
@@ -907,11 +1036,14 @@ export class DaemonConnection {
       null,
     );
 
-    const last = page.events.at(-1);
+    // An event of a session that left the view while the read waited is
+    // left out, as the read leaves out every event out of reach.
+    const events = page.events.filter((event) => ctx.isSessionVisible(toSessionID(event.session)));
+    const last = events.at(-1);
 
     // A cursor always comes back so a client can long-poll from an empty trail.
     this.sendOk(req.id, {
-      events: page.events,
+      events,
       cursor: last === undefined ? encodeCursor({ kind: 'events', id: afterID ?? 0 }) : last.cursor,
       more: page.more,
     });
@@ -931,16 +1063,18 @@ export class DaemonConnection {
 
     const decoded = decodeCursor(parsed.data.report);
 
-    const view =
+    const read =
       decoded === null || decoded.kind !== 'events' ? null : await ctx.readReport(decoded.id, null);
 
-    if (view === null) {
+    // Reach is checked against the session that sent the report, never the
+    // session its view is named by.
+    if (read === null || !ctx.isSessionVisible(read.owner)) {
       this.sendErr(req.id, 'bad_args', `no report '${parsed.data.report}'`);
 
       return;
     }
 
-    this.sendOk(req.id, { ...view });
+    this.sendOk(req.id, { ...read.view });
   }
 
   private async applySessionMessage(req: RequestMsg, ctx: DaemonContext): Promise<void> {
@@ -964,9 +1098,10 @@ export class DaemonConnection {
       parsed.data.from,
       parsed.data.text,
       keyed,
+      null,
     );
 
-    if (result === 'missing') {
+    if (result === 'missing' || !ctx.isSessionVisible(sessionID)) {
       this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
 
       return;
@@ -1007,7 +1142,7 @@ export class DaemonConnection {
     }
 
     const sessionID = parsed.data.session;
-    const result = ctx.attachTap(this, sessionID);
+    const result = ctx.attachTap(this, sessionID, null);
 
     if (result === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
@@ -1037,13 +1172,19 @@ export class DaemonConnection {
 
     const view = await ctx.readMessage(messageID, parsed.data.waitMs);
 
-    if (view === null) {
+    if (view === null || !ctx.isSessionVisible(view.session)) {
       this.sendErr(req.id, 'bad_args', `no message '${messageID}'`);
 
       return;
     }
 
     const record = view.record;
+
+    // A message the turn also answered is listed only while the session it
+    // was sent to is in view, checked in the step that sends.
+    const answeredWith = view.answeredWith
+      .filter((sibling) => ctx.isSessionVisible(sibling.atcID))
+      .map((sibling) => sibling.id);
 
     this.sendOk(req.id, {
       message: record.id,
@@ -1056,7 +1197,7 @@ export class DaemonConnection {
       ...(record.answeredAt === undefined ? {} : { answeredAt: record.answeredAt }),
       ...(record.answer === undefined ? {} : { answer: record.answer }),
       turn: record.turn ?? null,
-      answeredWith: view.answeredWith,
+      answeredWith,
     });
   }
 
@@ -1072,7 +1213,7 @@ export class DaemonConnection {
     const sessionID = parsed.data.session;
     const messageID = parsed.data.message;
 
-    const result = await ctx.ackMessage(this, sessionID, messageID);
+    const result = await ctx.ackMessage(this, sessionID, messageID, null);
 
     if (result === 'not_tapping') {
       this.sendErr(req.id, 'bad_args', `this connection is not tapping session '${sessionID}'`);
@@ -1080,7 +1221,7 @@ export class DaemonConnection {
       return;
     }
 
-    if (result === 'unknown') {
+    if (result === 'unknown' || !ctx.isSessionVisible(sessionID)) {
       this.sendErr(req.id, 'bad_args', `no message '${messageID}' for session '${sessionID}'`);
 
       return;
@@ -1128,8 +1269,18 @@ export class DaemonConnection {
     const principal = parsedHello.ok ? (parsedHello.data.principal ?? null) : null;
 
     if (principal !== null) {
+      const access = this.ctx.buildTargetAccess(principal);
+
       this.principal = principal;
-      this.access = this.ctx.buildTargetAccess(principal);
+      this.access = access;
+
+      for (const session of this.ctx.collectSessions()) {
+        const view = this.ctx.canSeeSession(session.id, access)
+          ? this.shownSessions
+          : this.withheldSessions;
+
+        view.add(session.id);
+      }
     }
 
     if (req.v !== PROTOCOL_V) {

@@ -8,6 +8,7 @@ import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { MessageRecord } from '../store/message-record';
+import type { TurnSibling } from '../store/state-store';
 import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
@@ -93,11 +94,12 @@ interface EventsPage {
 }
 
 // One message as `message.get` reports it: the session it belongs to now,
-// every field of the record, and the other messages its turn answered.
+// every field of the record, and the other messages its turn answered with
+// the atc id each was sent to.
 interface MessageView {
   readonly session: SessionID;
   readonly record: MessageRecord;
-  readonly answeredWith: readonly MessageID[];
+  readonly answeredWith: readonly TurnSibling[];
 }
 
 // Why a session refuses a message before the daemon accepts it.
@@ -112,7 +114,10 @@ export interface DaemonContext {
   readonly build: string;
   readonly daemonID: DaemonID;
   readonly collectSessions: () => SessionDescriptor[];
-  readonly collectSpawnDirs: () => Promise<string[]>;
+
+  // The directories spawns ran in, most recent first, leaving out each one
+  // spawned only on targets outside the access when there is one.
+  readonly collectSpawnDirs: (access: TargetAccess | null) => Promise<string[]>;
   readonly collectAgents: () => AgentList;
   readonly collectFleet: () => Promise<FleetEntry[]>;
   readonly loadLastUsedAgent: () => Promise<AgentID>;
@@ -129,12 +134,25 @@ export interface DaemonContext {
   // target.
   readonly findTargetIdentity: (target: string) => string | null;
 
-  // The ids of a session's sub-sessions.
-  readonly collectChildIDs: (id: SessionID) => SessionID[];
+  // Whether the access reaches every session in the given session's tree:
+  // its top-level session and each sub-session of that one. False for an
+  // unknown session.
+  readonly canSeeSession: (id: SessionID, access: TargetAccess) => boolean;
+
+  // Whether the request this context serves may still see the session: any
+  // session for the daemon's owner, and for a principal only a session whose
+  // whole tree it reaches. A read answers only after asking this, in the
+  // same step as it sends, so no await lies between the check and the send.
+  readonly isSessionVisible: (id: SessionID) => boolean;
 
   // The session a permission request belongs to, answered or not, or null
   // for an unknown request.
   readonly findPermissionSession: (request: string) => SessionID | null;
+
+  // The session a spawn under the given session lands under: that session,
+  // or its own parent for a sub-session, so a set stays one level deep.
+  // Null spawns the session top-level; 'missing' for an unknown session.
+  readonly resolveSpawnParent: (id: SessionID) => SessionID | null | 'missing';
 
   // The target a spawn runs on: the one it names, else the default. Throws
   // the refusal for a target the spawn cannot run on, and for a spawn
@@ -191,16 +209,26 @@ export interface DaemonContext {
     id: SessionID,
     prompt: string,
   ) => 'ok' | 'missing' | 'unsupported' | 'no_transcript';
+
+  // Starts a harness for a dead or headless session. Under an access, the
+  // adopt answers 'missing' once the session's tree leaves it, however late.
   readonly adoptSession: (
     id: SessionID,
     cols: number,
     rows: number,
+    access: TargetAccess | null,
   ) => Promise<'ok' | 'missing' | 'no_transcript'>;
   readonly resizeSession: (client: OutputClient, sessionID: SessionID, dims: Dims) => boolean;
   readonly resyncClient: (sessionID: SessionID, client: OutputClient) => Promise<void>;
   readonly queueBytes?: number;
   readonly getEffectiveDims: (sessionID: SessionID) => Dims;
-  readonly readSessionRecord: (id: SessionID) => Promise<SessionRecord | 'missing'>;
+
+  // The session's record. Its activity time counts only the session's own
+  // trail rows when there is an access.
+  readonly readSessionRecord: (
+    id: SessionID,
+    access: TargetAccess | null,
+  ) => Promise<SessionRecord | 'missing'>;
   readonly loadSessionTranscript: (
     id: SessionID,
     from: TranscriptPosition | null,
@@ -217,24 +245,47 @@ export interface DaemonContext {
     access: TargetAccess | null,
   ) => Promise<EventsPage>;
 
-  // One report by the trail id of its event, or null for a trail id that
-  // holds no report, or whose report's session is outside the access when
-  // there is one.
-  readonly readReport: (id: number, access: TargetAccess | null) => Promise<ReportView | null>;
+  // One report by the trail id of its event, with the atc id of the session
+  // that sent it, or null for a trail id that holds no report, or whose
+  // report's session is outside the access when there is one. The view may
+  // name the report by another session; who may read it is checked against
+  // the sender.
+  readonly readReport: (
+    id: number,
+    access: TargetAccess | null,
+  ) => Promise<{ readonly owner: SessionID; readonly view: ReportView } | null>;
 
   // Answers with the `session.message` ok payload, which a keyed retry
-  // replays with the message's current status, or with the refusal.
+  // replays with the message's current status, or with the refusal. Under
+  // an access, a session whose tree leaves it before the write refuses as
+  // 'missing'.
   readonly writeSessionMessage: (
     sessionID: SessionID,
     from: string,
     text: string,
     keyed: KeyedRequest | null,
+    access: TargetAccess | null,
   ) => Promise<Readonly<Record<string, unknown>> | MessageRefusal>;
   readonly readMessage: (messageID: MessageID, waitMs: number) => Promise<MessageView | null>;
-  readonly attachTap: (client: TapClient, sessionID: SessionID) => 'ok' | 'missing' | 'unsupported';
+
+  // Makes the client the session's inbox tap. Under an access, the tap
+  // takes only the messages sent to the session's atc id.
+  readonly attachTap: (
+    client: TapClient,
+    sessionID: SessionID,
+    access: TargetAccess | null,
+  ) => 'ok' | 'missing' | 'unsupported';
+
+  // Lets go of the session's inbox tap when the client holds it, so its
+  // messages wait for another tap.
+  readonly detachTap: (client: TapClient, sessionID: SessionID) => void;
+
+  // Marks a tapped message delivered. Under an access, only a message sent
+  // to the session's atc id counts as the session's.
   readonly ackMessage: (
     client: TapClient,
     sessionID: SessionID,
     messageID: MessageID,
+    access: TargetAccess | null,
   ) => Promise<MessageRecord | 'not_tapping' | 'unknown'>;
 }

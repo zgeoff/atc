@@ -5,6 +5,8 @@ import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import type { HeadlessRunner } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
+import { DaemonError } from '../protocol/daemon-error';
+import { collectPrincipals } from '../shared/collect-principals';
 import { getRecord } from '../shared/get-record';
 import { startDaemon } from './daemon';
 import type { ExecutionProvider } from './execution-provider';
@@ -12,11 +14,13 @@ import { LocalPTYProvider } from './local-pty-provider';
 
 // A real daemon whose one target runs on the provider the test hands it,
 // with a fake claude that idles, confirm tokens that live as long as the
-// test asks, and the headless runner the test hands it, if any.
+// test asks, the headless runner the test hands it, if any, and the raw
+// `principals` config the test hands it, if any.
 async function setupTest(
   provider: ExecutionProvider,
   forgetConfirmMs?: number,
   headlessRunner: HeadlessRunner | null = null,
+  principals?: unknown,
 ) {
   const tmp = setupTempDir('atc-daemon-forget-');
   const sockPath = join(tmp.dir, 'daemon.sock');
@@ -44,6 +48,7 @@ async function setupTest(
     targets: [{ id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider }],
     ...(forgetConfirmMs === undefined ? {} : { forgetConfirmMs }),
     ejectSettleMs: 30,
+    principals: collectPrincipals(principals).principals,
   });
 
   const client = await DaemonClient.open(sockPath);
@@ -393,4 +398,137 @@ test('it keeps a headless run going when the forget of its session fails to dest
   expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [{ id, kind: 'headless' }],
   });
+});
+
+test.each([
+  ['without a token', false],
+  ['with the token the owner was handed', true],
+])(
+  'it answers a principal forget %s of a session on a target it may not use as for a session that does not exist, destroying nothing',
+  async (_label, withToken) => {
+    const local = new LocalPTYProvider();
+
+    const destroyed: string[] = [];
+
+    await using daemon = await setupTest(
+      {
+        kind: 'imp-like',
+        remote: false,
+        prepareHost: local.prepareHost,
+        dispose: local.dispose,
+        capabilities: { ...local.capabilities, suspend: true, destroy: true },
+        spawnHarness: local.spawnHarness,
+        transferArchive: local.transferArchive,
+        runCommand: local.runCommand,
+        suspendHost: () => Promise.resolve(),
+        destroyHost: (host) => {
+          destroyed.push(host);
+
+          return Promise.resolve();
+        },
+      },
+      undefined,
+      null,
+      { outsider: { targets: [] } },
+    );
+
+    const spawned = await daemon.client.sendRequest('session.spawn', {
+      cwd: daemon.dir,
+      cols: 80,
+      rows: 24,
+    });
+
+    const id = String(getRecord(spawned, 'session')['id']);
+    const missing = 'no-such-session';
+
+    await daemon.client.sendRequest('session.kill', { session: id });
+
+    const offered = await daemon.client.sendRequest('session.forget', { session: id });
+
+    const token = withToken ? { confirmToken: offered['confirmToken'] } : {};
+
+    const answered = await daemon.client
+      .sendRequest('session.forget', { session: id, ...token }, 'outsider')
+      .then(
+        (ok) => ({ ok }),
+        (error: unknown) => ({
+          error:
+            error instanceof DaemonError
+              ? { code: error.code, message: error.message, data: error.data ?? null }
+              : error,
+        }),
+      );
+
+    const unknown = await daemon.client
+      .sendRequest('session.forget', { session: missing, ...token }, 'outsider')
+      .then(
+        (ok) => ({ ok }),
+        (error: unknown) => ({
+          error:
+            error instanceof DaemonError
+              ? { code: error.code, message: error.message, data: error.data ?? null }
+              : error,
+        }),
+      );
+
+    expect(JSON.parse(JSON.stringify(answered).replaceAll(id, '<session>'))).toStrictEqual(
+      JSON.parse(JSON.stringify(unknown).replaceAll(missing, '<session>')),
+    );
+
+    expect(destroyed).toBeEmpty();
+
+    expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+      sessions: [expect.objectContaining({ id })],
+    });
+  },
+);
+
+test('it destroys the host when a principal that may use its target forgets with the token', async () => {
+  const local = new LocalPTYProvider();
+
+  const destroyed: string[] = [];
+
+  await using daemon = await setupTest(
+    {
+      kind: 'imp-like',
+      remote: false,
+      prepareHost: local.prepareHost,
+      dispose: local.dispose,
+      capabilities: { ...local.capabilities, suspend: true, destroy: true },
+      spawnHarness: local.spawnHarness,
+      transferArchive: local.transferArchive,
+      runCommand: local.runCommand,
+      suspendHost: () => Promise.resolve(),
+      destroyHost: (host) => {
+        destroyed.push(host);
+
+        return Promise.resolve();
+      },
+    },
+    undefined,
+    null,
+    { insider: { targets: ['local'] } },
+  );
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  const offered = await daemon.client.sendRequest('session.forget', { session: id }, 'insider');
+
+  const forgotten = await daemon.client.sendRequest(
+    'session.forget',
+    { session: id, confirmToken: offered['confirmToken'] },
+    'insider',
+  );
+
+  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: true });
+  expect<readonly unknown[]>(destroyed).toStrictEqual([id]);
+  expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
 });

@@ -22,8 +22,10 @@ test('it hands a message to the tap only once', () => {
 
   taps.attach(session, client);
 
-  expect(taps.claimDelivery(session, toMessageID('m-1'))).toBe(client);
-  expect(taps.claimDelivery(session, toMessageID('m-1'))).toBeNull();
+  const generation = taps.findTap(session)?.generation ?? 0;
+
+  expect(taps.claimDelivery(session, toMessageID('m-1'), generation)).toBe(client);
+  expect(taps.claimDelivery(session, toMessageID('m-1'), generation)).toBeNull();
 });
 
 test('it hands every message again to a tap that replaces the previous one', () => {
@@ -33,10 +35,27 @@ test('it hands every message again to a tap that replaces the previous one', () 
   const replacement = { name: 'b' };
 
   taps.attach(session, { name: 'a' });
-  taps.claimDelivery(session, toMessageID('m-1'));
+  taps.claimDelivery(session, toMessageID('m-1'), taps.findTap(session)?.generation ?? 0);
   taps.attach(session, replacement);
 
-  expect(taps.claimDelivery(session, toMessageID('m-1'))).toBe(replacement);
+  expect(
+    taps.claimDelivery(session, toMessageID('m-1'), taps.findTap(session)?.generation ?? 0),
+  ).toBe(replacement);
+});
+
+test('it refuses a delivery made for a tap that another attach replaced', () => {
+  const taps = new TapRegistry<{ name: string }>();
+
+  const session = toSessionID('s1');
+
+  taps.attach(session, { name: 'a' }, true);
+
+  const stale = taps.findTap(session)?.generation ?? 0;
+
+  taps.attach(session, { name: 'b' }, false);
+
+  expect(taps.claimDelivery(session, toMessageID('m-1'), stale)).toBeNull();
+  expect(taps.findTap(session)).toStrictEqual({ generation: stale + 1, linked: false });
 });
 
 test('it gives a session to the latest tapping client', () => {
@@ -72,7 +91,7 @@ test('it drops every tap a closing client held', () => {
 test('it returns no client to claim for an untapped session', () => {
   const taps = new TapRegistry<{ name: string }>();
 
-  expect(taps.claimDelivery(toSessionID('s1'), toMessageID('m-1'))).toBeNull();
+  expect(taps.claimDelivery(toSessionID('s1'), toMessageID('m-1'), 1)).toBeNull();
 });
 
 test('it forgets the tap of a removed session', () => {

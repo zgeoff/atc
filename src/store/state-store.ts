@@ -64,6 +64,27 @@ export interface StoredEvent {
   readonly label?: string;
 }
 
+// The target a spawn ran on: its name and the identity the spawned session
+// was bound to there.
+interface SpawnTarget {
+  readonly target: string;
+  readonly targetIdentity: string;
+}
+
+// A directory a spawn ran in and the target it ran on.
+export interface SpawnDir {
+  readonly cwd: string;
+  readonly grant: SpawnTarget;
+}
+
+/**
+ * Another message one turn answered, and the atc id it was sent to.
+ */
+export interface TurnSibling {
+  readonly id: MessageID;
+  readonly atcID: SessionID;
+}
+
 /**
  * One report as the trail holds it. A report recorded before the trail kept
  * whole texts has only its preview, so its text is that preview and
@@ -513,24 +534,38 @@ export class StateStore {
     return row?.ts === null || row?.ts === undefined ? null : Date.parse(row.ts);
   }
 
-  async recordSpawnDir(cwd: string): Promise<void> {
+  async recordSpawnDir(cwd: string, grant: SpawnTarget): Promise<void> {
     await this.db
       .insertInto('spawn_history')
-      .values({ cwd, last_spawn: Date.now() })
+      .values({
+        cwd,
+        target: grant.target,
+        target_identity: grant.targetIdentity,
+        last_spawn: Date.now(),
+      })
       .onConflict((oc) =>
-        oc.column('cwd').doUpdateSet((eb) => ({ last_spawn: eb.ref('excluded.last_spawn') })),
+        oc
+          .columns(['cwd', 'target', 'target_identity'])
+          .doUpdateSet((eb) => ({ last_spawn: eb.ref('excluded.last_spawn') })),
       )
       .execute();
   }
 
-  async collectSpawnDirs(): Promise<string[]> {
+  /**
+   * Each directory a spawn ran in, with the target it ran on, most recent
+   * first. A directory spawned on several targets has one entry for each.
+   */
+  async collectSpawnDirs(): Promise<SpawnDir[]> {
     const rows = await this.db
       .selectFrom('spawn_history')
-      .select('cwd')
+      .select(['cwd', 'target', 'target_identity'])
       .orderBy('last_spawn', 'desc')
       .execute();
 
-    return rows.map((row) => row.cwd);
+    return rows.map((row) => ({
+      cwd: row.cwd,
+      grant: { target: row.target, targetIdentity: row.target_identity },
+    }));
   }
 
   async loadLastUsedAgent(): Promise<AgentID> {
@@ -607,7 +642,7 @@ export class StateStore {
 
   // The other messages of the same session the given message's turn
   // answered, oldest first; none when the message has no turn.
-  async collectTurnSiblings(record: MessageRecord): Promise<MessageID[]> {
+  async collectTurnSiblings(record: MessageRecord): Promise<TurnSibling[]> {
     if (record.turn === undefined) {
       return [];
     }
@@ -619,7 +654,7 @@ export class StateStore {
 
     const rows = await this.db
       .selectFrom('messages')
-      .select('id')
+      .select(['id', 'atc_id'])
       .where('turn_id', '=', record.turn)
       .where('id', '!=', record.id)
       .where((eb) => buildOwnerFilter(eb, owner))
@@ -627,7 +662,7 @@ export class StateStore {
       .orderBy(sql`rowid`, 'asc')
       .execute();
 
-    return rows.map((row) => toMessageID(row.id));
+    return rows.map((row) => ({ id: toMessageID(row.id), atcID: toSessionID(row.atc_id) }));
   }
 
   async updateMessageDelivered(

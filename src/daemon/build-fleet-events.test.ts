@@ -207,3 +207,111 @@ test('it carries the label on a report event', () => {
     },
   ]);
 });
+
+test('it names an event by the session holding its atc id ahead of one sharing its agent session id', () => {
+  const events = buildFleetEvents(
+    [
+      {
+        id: 1,
+        at: 1000,
+        atcID: toSessionID('s-own'),
+        agentSessionID: toAgentSessionID('c1'),
+        kind: 'turn-done',
+        detail: null,
+      },
+    ],
+    [
+      {
+        id: toSessionID('s-other'),
+        name: 'other',
+        cwd: '/tmp',
+        state: 'done',
+        unread: false,
+        lastMsg: 'turn done',
+        agentSessionID: toAgentSessionID('c1'),
+        agent: 'claude',
+        pinned: false,
+        lastAttachedAt: 1,
+        repoRoot: '/tmp',
+        namedBy: 'user',
+        createdAt: 1,
+        kind: 'pty',
+        alive: true,
+        canEject: false,
+        locator: { daemonID: toDaemonID('d-1'), targetID: 'box' },
+        lifecycle: { desired: 'run', vm: 'none', harness: 'running', attachment: 'local' },
+      },
+      {
+        id: toSessionID('s-own'),
+        name: 'own',
+        cwd: '/tmp',
+        state: 'exited',
+        unread: false,
+        lastMsg: 'killed',
+        agentSessionID: toAgentSessionID('c1'),
+        agent: 'claude',
+        pinned: false,
+        lastAttachedAt: 1,
+        repoRoot: '/tmp',
+        namedBy: 'user',
+        createdAt: 1,
+        kind: 'pty',
+        alive: false,
+        canEject: false,
+        locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
+        lifecycle: { desired: 'stop', vm: 'none', harness: 'exited', attachment: 'local' },
+      },
+    ],
+  );
+
+  expect(events).toStrictEqual([
+    {
+      cursor: expect.toBeString(),
+      at: 1000,
+      session: 's-own',
+      name: 'own',
+      kind: 'turn-done',
+      detail: null,
+    },
+  ]);
+});
+
+test('it keeps an event on its own atc id when it may take no alias', () => {
+  const [event] = buildFleetEvents(
+    [
+      {
+        id: 1,
+        at: 1000,
+        atcID: toSessionID('s-hidden'),
+        agentSessionID: toAgentSessionID('c1'),
+        kind: 'turn-done',
+        detail: null,
+      },
+    ],
+    [
+      {
+        id: toSessionID('s-shown'),
+        name: 'worker',
+        cwd: '/tmp',
+        state: 'done',
+        unread: false,
+        lastMsg: 'turn done',
+        agentSessionID: toAgentSessionID('c1'),
+        agent: 'claude',
+        pinned: false,
+        lastAttachedAt: 1,
+        repoRoot: '/tmp',
+        namedBy: 'user',
+        createdAt: 1,
+        kind: 'pty',
+        alive: true,
+        canEject: false,
+        locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
+        lifecycle: { desired: 'run', vm: 'none', harness: 'running', attachment: 'local' },
+      },
+    ],
+    [],
+  );
+
+  expect(event).toMatchObject({ session: 's-hidden', name: null });
+});

@@ -18,18 +18,24 @@ export interface FleetEvent {
   readonly label?: string;
 }
 
+/**
+ * Builds the events from the sessions that may name them. Rows written
+ * before atc session ids stayed stable across restores carry an earlier atc
+ * id, so a session of `aliases` that holds a row's agent session id names
+ * it when no session holds the atc id; every session that may name a row
+ * may alias it unless the caller gives fewer.
+ */
 export function buildFleetEvents(
   rows: readonly StoredEvent[],
   sessions: readonly SessionDescriptor[],
+  aliases: readonly SessionDescriptor[] = sessions,
 ): FleetEvent[] {
   return rows.map((row) => {
-    // Rows written before atc session ids stayed stable across restores
-    // carry an earlier atc id, so the agent session id links them.
     const live =
+      sessions.find((s) => s.id === row.atcID) ??
       (row.agentSessionID === null
         ? undefined
-        : sessions.find((s) => s.agentSessionID === row.agentSessionID)) ??
-      sessions.find((s) => s.id === row.atcID);
+        : aliases.find((s) => s.agentSessionID === row.agentSessionID));
 
     return {
       cursor: encodeCursor({ kind: 'events', id: row.id }),

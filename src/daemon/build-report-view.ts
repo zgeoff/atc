@@ -17,17 +17,23 @@ export interface ReportView {
   readonly complete: boolean;
 }
 
+/**
+ * Builds the view from the sessions that may name it. A row written before
+ * atc session ids stayed stable across restores carries an earlier atc id,
+ * so a session of `aliases` that holds its agent session id names it when
+ * no session holds the atc id. The alias only names the report: whoever
+ * checks who may read it checks the row's own atc id.
+ */
 export function buildReportView(
   stored: StoredReport,
   sessions: readonly SessionDescriptor[],
+  aliases: readonly SessionDescriptor[],
 ): ReportView {
-  // A row written before atc session ids stayed stable across restores
-  // carries an earlier atc id, so the agent session id links it.
   const live =
+    sessions.find((s) => s.id === stored.atcID) ??
     (stored.agentSessionID === null
       ? undefined
-      : sessions.find((s) => s.agentSessionID === stored.agentSessionID)) ??
-    sessions.find((s) => s.id === stored.atcID);
+      : aliases.find((s) => s.agentSessionID === stored.agentSessionID));
 
   return {
     report: encodeCursor({ kind: 'events', id: stored.id }),

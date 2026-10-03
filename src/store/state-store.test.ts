@@ -3,6 +3,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { buildTargetIdentity } from '../daemon/build-target-identity';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -623,17 +624,73 @@ test('it lists spawn directories most recent first without duplicates', async ()
     await store.stop();
   });
 
-  await store.recordSpawnDir('/a');
+  await store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' });
 
   // The recency ordering key has millisecond resolution.
   await Bun.sleep(2);
-  await store.recordSpawnDir('/b');
+  await store.recordSpawnDir('/b', { target: 'local', targetIdentity: 'local-pty:x' });
   await Bun.sleep(2);
-  await store.recordSpawnDir('/a');
+  await store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' });
 
   const dirs = await store.collectSpawnDirs();
 
-  expect(dirs).toStrictEqual(['/a', '/b']);
+  expect(dirs).toStrictEqual([
+    { cwd: '/a', grant: { target: 'local', targetIdentity: 'local-pty:x' } },
+    { cwd: '/b', grant: { target: 'local', targetIdentity: 'local-pty:x' } },
+  ]);
+});
+
+test('it lists a spawn directory once for each target it was spawned on', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' });
+
+  // The recency ordering key has millisecond resolution.
+  await Bun.sleep(2);
+  await store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'imp:y' });
+  await Bun.sleep(2);
+  await store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'imp:z' });
+
+  const dirs = await store.collectSpawnDirs();
+
+  expect(dirs).toStrictEqual([
+    { cwd: '/a', grant: { target: 'box', targetIdentity: 'imp:z' } },
+    { cwd: '/a', grant: { target: 'box', targetIdentity: 'imp:y' } },
+    { cwd: '/a', grant: { target: 'local', targetIdentity: 'local-pty:x' } },
+  ]);
+});
+
+test('it carries spawn directories from before their target was recorded over as spawns on the default local target', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const db = new Database(dbPath);
+
+  db.run('CREATE TABLE spawn_history (cwd TEXT PRIMARY KEY, last_spawn INTEGER NOT NULL);');
+  db.run("INSERT INTO spawn_history (cwd, last_spawn) VALUES ('/old', 1000), ('/older', 500);");
+  db.close();
+
+  const store = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const dirs = await store.collectSpawnDirs();
+
+  expect(dirs).toStrictEqual([
+    {
+      cwd: '/old',
+      grant: { target: 'local', targetIdentity: buildTargetIdentity('local-pty', {}) },
+    },
+    {
+      cwd: '/older',
+      grant: { target: 'local', targetIdentity: buildTargetIdentity('local-pty', {}) },
+    },
+  ]);
 });
 
 test('it round-trips a grok fleet row', async () => {
@@ -1252,6 +1309,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '021_add_fleet_lifecycle',
     '022_add_events_report_id',
     '023_add_events_report_text',
+    '024_rebuild_spawn_history_keyed_by_target',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -2535,7 +2593,7 @@ test('it answers every message of one turn in one call and returns them oldest f
     [toMessageID('m-2'), 't-1'],
   ]);
 
-  expect(siblings).toStrictEqual([toMessageID('m-2')]);
+  expect(siblings).toStrictEqual([{ id: toMessageID('m-2'), atcID: toSessionID('s1') }]);
 });
 
 test('it lists the other messages of one turn in send order when they share a send time', async () => {
@@ -2574,7 +2632,10 @@ test('it lists the other messages of one turn in send order when they share a se
 
   const siblings = await store.collectTurnSiblings(first);
 
-  expect(siblings).toStrictEqual([toMessageID('m-b'), toMessageID('m-a')]);
+  expect(siblings).toStrictEqual([
+    { id: toMessageID('m-b'), atcID: toSessionID('s1') },
+    { id: toMessageID('m-a'), atcID: toSessionID('s1') },
+  ]);
 });
 
 test('it links a legacy fleet.json sub-session to its parent by the minted session id', async () => {
