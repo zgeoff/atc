@@ -30,6 +30,7 @@
     "lint:fix": "oxlint --type-aware --type-check --report-unused-disable-directives-severity error --fix",
     "test": "bash scripts/with-test-home.sh bun test",
     "test:binary": "bash scripts/with-test-home.sh bun test --timeout 20000 test/daemon-e2e.test.ts",
+    "test:gateway-binary": "bash scripts/with-test-home.sh bun test --timeout 20000 src/gateway.test.ts",
     "test:atc-bridge": "bash scripts/with-test-home.sh bash scripts/test-atc-bridge.sh",
     "test:isolation": "bash scripts/check-test-isolation.sh",
     "typecheck": "tsc -p tsconfig.json --noEmit",

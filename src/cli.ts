@@ -101,8 +101,12 @@ const main = defineCommand({
               meta: { name: 'list', description: 'List the clients', hidden: true },
               async run() {
                 const clients = await import('./clients');
+                const config = await import('./shared/config');
 
-                await clients.runClients({ kind: 'list' });
+                await clients.runClients(
+                  { kind: 'list' },
+                  { dbPath: config.mcpAuthDBFile, command: 'atc clients' },
+                );
               },
             }),
           add: () =>
@@ -118,12 +122,16 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const clients = await import('./clients');
+                const config = await import('./shared/config');
 
-                await clients.runClients({
-                  kind: 'add',
-                  name: ctx.args.name,
-                  redirectURIs: collectRedirectURIs(ctx.rawArgs),
-                });
+                await clients.runClients(
+                  {
+                    kind: 'add',
+                    name: ctx.args.name,
+                    redirectURIs: collectRedirectURIs(ctx.rawArgs),
+                  },
+                  { dbPath: config.mcpAuthDBFile, command: 'atc clients' },
+                );
               },
             }),
           remove: () =>
@@ -137,8 +145,12 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const clients = await import('./clients');
+                const config = await import('./shared/config');
 
-                await clients.runClients({ kind: 'remove', clientID: ctx.args.id });
+                await clients.runClients(
+                  { kind: 'remove', clientID: ctx.args.id },
+                  { dbPath: config.mcpAuthDBFile, command: 'atc clients' },
+                );
               },
             }),
         },

@@ -46,6 +46,8 @@ function main(): void {
     findings.push(...checkDirection(file, targets));
   }
 
+  findings.push(...checkReach(graph));
+
   const cycles = collectCycles(graph);
 
   for (const cycle of cycles) {
@@ -390,7 +392,7 @@ function checkConfinement(file: string, specifier: string): string[] {
 
 // The entrypoints that wire concrete modules together, exempt from the
 // direction rules.
-const COMPOSITION_ROOTS: ReadonlySet<string> = new Set(['src/cli.ts']);
+const COMPOSITION_ROOTS: ReadonlySet<string> = new Set(['src/cli.ts', 'src/gateway.ts']);
 
 const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   shared: [],
@@ -404,8 +406,8 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   mcp: ['shared', 'protocol'],
   federation: ['shared', 'protocol'],
 
-  // modules at the src/ root: the subcommand modules beside the entrypoint
-  root: ['shared', 'protocol', 'agents', 'client', 'mcp'],
+  // modules at the src/ root: the subcommand modules beside the entrypoints
+  root: ['shared', 'protocol', 'agents', 'client', 'mcp', 'federation'],
 };
 
 function checkDirection(file: string, targets: readonly string[]): string[] {
@@ -429,6 +431,49 @@ function checkDirection(file: string, targets: readonly string[]): string[] {
 
     if (to !== from && !allowed.includes(to)) {
       findings.push(`forbidden edge: ${file} imports ${target} (${from} -> ${to})`);
+    }
+  }
+
+  return findings;
+}
+
+// The entrypoints whose binary must never run a daemon or a session on its
+// own machine, and the path prefixes nothing they import may reach, however
+// indirectly.
+const UNREACHABLE: Readonly<Record<string, readonly string[]>> = {
+  'src/gateway.ts': [
+    'src/cli.ts',
+    'src/daemon/',
+    'src/agents/',
+    'src/store/',
+    'src/workspace/',
+    'src/sources/',
+    'src/client/boot-daemon.ts',
+    'src/client/index.ts',
+  ],
+};
+
+function checkReach(graph: ReadonlyMap<string, readonly string[]>): string[] {
+  const findings: string[] = [];
+
+  for (const [entry, prefixes] of Object.entries(UNREACHABLE)) {
+    const seen = new Set<string>();
+
+    const pending = [entry];
+
+    for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
+      for (const target of graph.get(file) ?? []) {
+        if (!seen.has(target)) {
+          seen.add(target);
+          pending.push(target);
+        }
+      }
+    }
+
+    for (const file of [...seen].toSorted()) {
+      if (prefixes.some((prefix) => file.startsWith(prefix))) {
+        findings.push(`unreachable module: ${entry} reaches ${file}`);
+      }
     }
   }
 

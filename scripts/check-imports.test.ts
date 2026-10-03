@@ -152,6 +152,28 @@ test('it lets the composition root and a test file import any directory', async 
   });
 });
 
+test('it fails on a gateway entry that reaches an agent adapter through an allowed edge', async () => {
+  await using tree = await setupTest();
+
+  await Bun.write(join(tree.dir, 'src/agents/claude-adapter.ts'), 'export const CLAUDE = 1;\n');
+
+  await Bun.write(
+    join(tree.dir, 'src/run-gateway.ts'),
+    "import { CLAUDE } from './agents/claude-adapter';\n\nexport const GATEWAY = CLAUDE;\n",
+  );
+
+  await Bun.write(
+    join(tree.dir, 'src/gateway.ts'),
+    "const gateway = await import('./run-gateway');\n\nexport const LOADED = gateway;\n",
+  );
+
+  expect(tree.run()).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-imports: 3 files, 0 cycles, 1 other findings\n',
+    stderr: 'unreachable module: src/gateway.ts reaches src/agents/claude-adapter.ts\n',
+  });
+});
+
 test('it fails on a confined package imported outside the file that owns it', async () => {
   await using tree = await setupTest();
 

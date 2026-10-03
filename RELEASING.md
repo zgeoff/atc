@@ -20,10 +20,11 @@ publish step in `.github/workflows/main.yml`. No npm tokens live in CI. The setu
 
 `binaries.yml` compiles one static binary per platform (`bun run build:binaries`, cross-compiled
 from one Linux runner) and runs the daemon suite through each binary on its own platform
-(`bun run test:binary`, with `ATC_BIN` pointing the suite at the binary under test). The PR workflow
-runs it as a check. The main workflow runs it before the release job, which uploads `dist/atc-*` and
-`dist/SHA256SUMS` to the GitHub release with `--clobber`, so a re-run replaces what a failed run
-left behind.
+(`bun run test:binary`, with `ATC_BIN` pointing the suite at the binary under test). It also
+compiles `atc-gateway-linux-x64` from `src/gateway.ts` and runs the gateway suite through it on
+Linux (`bun run test:gateway-binary`, with `ATC_GATEWAY_BIN`). The PR workflow runs it as a check.
+The main workflow runs it before the release job, which uploads `dist/atc-*` and `dist/SHA256SUMS`
+to the GitHub release with `--clobber`, so a re-run replaces what a failed run left behind.
 
 A compiled binary carries no `node_modules`, so two things differ from a source run. The build
 identity in the protocol handshake falls back to the binary's mtime, which is what makes a client

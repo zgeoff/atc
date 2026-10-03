@@ -188,7 +188,8 @@ resolves a spawn's workspace source and clones, sanitizes, and archives it; `sou
 spawn picker's discovery sources, the directories, GitHub, and git URL sources the daemon offers;
 `protocol/` is the wire format, the transport it rides, and the types both ends of it share;
 `shared/` holds id types, config, and other utilities used across the rest of `src/`. `cli.ts` is
-the CLI entrypoint. A module that exists only to back one of its subcommands stays beside it at
+the CLI entrypoint, and `gateway.ts` is the entrypoint of the separate `atc-gateway` binary, which
+must never reach `daemon/`, `agents/`, or any module that starts a daemon. A module that exists only to back one of its subcommands stays beside it at
 `src/` root, while the `tui` and `daemon` subcommands load their subsystems from `client/` and
 `daemon/`. `bun run check:imports` fails on an import cycle and on an import a directory's rule
 forbids; the rules live in `scripts/check-imports.ts`. `mcp/` holds the MCP tool definitions and
