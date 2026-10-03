@@ -66,7 +66,10 @@ test('it restores an entry whose agent id is unregistered without reviving it as
   });
 
   expect(session.lastMsg).toBe("no adapter for 'zai'");
-  expect(mgr.adoptTerminal(session.id, 80, 24)).toBeNull();
+
+  const adopted = await mgr.adoptTerminal(session.id, 80, 24);
+
+  expect(adopted).toBeNull();
 });
 
 test('it resolves an agent id to the adapter that declares it, not to the default', async () => {
@@ -156,7 +159,7 @@ test('it persists a sub-session link by the parent atc session id', async () => 
     agent: 'claude',
   });
 
-  const child = mgr.spawn(
+  const child = await mgr.spawn(
     '/tmp',
     'worker',
     '',
@@ -169,7 +172,7 @@ test('it persists a sub-session link by the parent atc session id', async () => 
   );
 
   onTestFinished(() => {
-    mgr.killAll();
+    mgr.detachAll();
   });
 
   await mgr.writeFleet();
@@ -228,12 +231,11 @@ test('it refuses to pin a sub-session', async () => {
 
 test('it kills a live sub-session along with its parent', async () => {
   const mgr = await setupManager();
-
-  const parent = mgr.spawn('/tmp', 'wrangler', '', 80, 24, false, 'user', 'claude');
-  const child = mgr.spawn('/tmp', 'worker', '', 80, 24, false, 'user', 'claude', parent.id);
+  const parent = await mgr.spawn('/tmp', 'wrangler', '', 80, 24, false, 'user', 'claude');
+  const child = await mgr.spawn('/tmp', 'worker', '', 80, 24, false, 'user', 'claude', parent.id);
 
   onTestFinished(() => {
-    mgr.killAll();
+    mgr.detachAll();
   });
 
   await mgr.kill(parent.id);
@@ -265,10 +267,20 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
     parent: toSessionID('s-c-parent'),
   });
 
-  const live = mgr.spawn('/tmp', 'live worker', '', 80, 24, false, 'user', 'claude', parent.id);
+  const live = await mgr.spawn(
+    '/tmp',
+    'live worker',
+    '',
+    80,
+    24,
+    false,
+    'user',
+    'claude',
+    parent.id,
+  );
 
   onTestFinished(() => {
-    mgr.killAll();
+    mgr.detachAll();
   });
 
   await mgr.kill(parent.id);
@@ -303,12 +315,15 @@ test('it keeps an exited sub-session on a host-destroying target when a second k
         identity: 'imp-like:test',
         provider: {
           kind: 'imp-like',
+          remote: false,
           capabilities: { ...local.capabilities, suspend: true, destroy: true },
+          prepareHost: () => Promise.resolve(),
           spawnHarness: local.spawnHarness,
           transferArchive: local.transferArchive,
           runCommand: local.runCommand,
           suspendHost: () => Promise.resolve(),
           destroyHost: () => Promise.resolve(),
+          dispose: () => {},
         },
       },
     ],
@@ -368,12 +383,15 @@ test("it refuses to forget a session kept asleep inside its parent's host and ke
         identity: 'imp-like:test',
         provider: {
           kind: 'imp-like',
+          remote: false,
           capabilities: { ...local.capabilities, suspend: true, destroy: true },
+          prepareHost: () => Promise.resolve(),
           spawnHarness: local.spawnHarness,
           transferArchive: local.transferArchive,
           runCommand: local.runCommand,
           suspendHost: () => Promise.resolve(),
           destroyHost: () => Promise.resolve(),
+          dispose: () => {},
         },
       },
     ],
@@ -444,12 +462,15 @@ test("it forgets an exited session on its parent's host while that host is not a
         identity: 'imp-like:test',
         provider: {
           kind: 'imp-like',
+          remote: false,
           capabilities: { ...local.capabilities, suspend: true, destroy: true },
+          prepareHost: () => Promise.resolve(),
           spawnHarness: local.spawnHarness,
           transferArchive: local.transferArchive,
           runCommand: local.runCommand,
           suspendHost: () => Promise.resolve(),
           destroyHost: () => Promise.resolve(),
+          dispose: () => {},
         },
       },
     ],
@@ -503,10 +524,10 @@ test("it keeps a finished turn's last message as the session result", async () =
 
   const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), [finishing]);
 
-  const s = mgr.spawn('/tmp', 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
+  const s = await mgr.spawn('/tmp', 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
 
   onTestFinished(() => {
-    mgr.killAll();
+    mgr.detachAll();
   });
 
   mgr.applyHook({ atcId: s.id, event: 'Stop', payload: {} });
@@ -547,10 +568,10 @@ test('it truncates a stored result past 16 KiB', async () => {
 
   const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), [finishing]);
 
-  const s = mgr.spawn('/tmp', 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
+  const s = await mgr.spawn('/tmp', 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
 
   onTestFinished(() => {
-    mgr.killAll();
+    mgr.detachAll();
   });
 
   mgr.applyHook({ atcId: s.id, event: 'Stop', payload: {} });
@@ -586,10 +607,10 @@ test('it persists the transcript path its hooks report', async () => {
 
   const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), [starting]);
 
-  const s = mgr.spawn('/tmp', 'worker', '', 80, 24);
+  const s = await mgr.spawn('/tmp', 'worker', '', 80, 24);
 
   onTestFinished(() => {
-    mgr.killAll();
+    mgr.detachAll();
   });
 
   mgr.applyHook({ atcId: s.id, event: 'SessionStart', payload: {} });
@@ -647,11 +668,11 @@ test('it keeps a crashed sibling restorable as live when another session finishe
 
   const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), [finishing]);
 
-  const finisher = mgr.spawn('/tmp', 'finisher', 'go', 80, 24, toAgentSessionID('c-1'));
-  const crasher = mgr.spawn('/tmp', 'crasher', 'go', 80, 24, toAgentSessionID('c-2'));
+  const finisher = await mgr.spawn('/tmp', 'finisher', 'go', 80, 24, toAgentSessionID('c-1'));
+  const crasher = await mgr.spawn('/tmp', 'crasher', 'go', 80, 24, toAgentSessionID('c-2'));
 
   onTestFinished(() => {
-    mgr.killAll();
+    mgr.detachAll();
   });
 
   await mgr.writeFleet();
@@ -741,10 +762,10 @@ test('it persists a session the agent has not yet given a session id', async () 
 
   const mgr = new SessionManager(idleAdapter, store, join(dir, 'status.json'), []);
 
-  const s = mgr.spawn('/tmp', 'booting', '', 80, 24);
+  const s = await mgr.spawn('/tmp', 'booting', '', 80, 24);
 
   onTestFinished(() => {
-    mgr.killAll();
+    mgr.detachAll();
   });
 
   await mgr.writeFleet();
@@ -923,7 +944,7 @@ test('it refuses a spawn whose repository root cannot be read before it starts a
 
   const mgr = new SessionManager(counting, store, join(dir, 'status.json'));
 
-  expect(() => mgr.spawn(cwd, 'sealed', '', 80, 24)).toThrow(/EACCES/);
+  expect(mgr.spawn(cwd, 'sealed', '', 80, 24)).rejects.toThrow(/EACCES/);
   expect(planned).toBe(0);
   expect(mgr.sessions).toStrictEqual([]);
 });

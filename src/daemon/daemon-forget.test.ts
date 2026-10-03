@@ -70,6 +70,9 @@ test('it answers a forget on a host-destroying target with a token and destroys 
 
   await using daemon = await setupTest({
     kind: 'imp-like',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, suspend: true, destroy: true },
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
@@ -115,6 +118,9 @@ test('it destroys the host and forgets the session when the forget carries its t
 
   await using daemon = await setupTest({
     kind: 'imp-like',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, suspend: true, destroy: true },
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
@@ -157,6 +163,9 @@ test('it refuses a confirm token a forget already took', async () => {
 
   await using daemon = await setupTest({
     kind: 'imp-like',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, suspend: true, destroy: true },
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
@@ -212,6 +221,9 @@ test('it refuses a confirm token past its lifetime', async () => {
   await using daemon = await setupTest(
     {
       kind: 'imp-like',
+      remote: false,
+      prepareHost: local.prepareHost,
+      dispose: local.dispose,
       capabilities: { ...local.capabilities, suspend: true, destroy: true },
       spawnHarness: local.spawnHarness,
       transferArchive: local.transferArchive,
@@ -257,6 +269,9 @@ test('it refuses a confirm token handed out for another session', async () => {
 
   await using daemon = await setupTest({
     kind: 'imp-like',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, suspend: true, destroy: true },
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
@@ -322,12 +337,15 @@ test('it keeps a headless run going when the forget of its session fails to dest
   await using daemon = await setupTest(
     {
       kind: 'imp-like',
+      remote: false,
       capabilities: { ...local.capabilities, suspend: true, destroy: true },
+      prepareHost: () => Promise.resolve(),
       spawnHarness: local.spawnHarness,
       transferArchive: local.transferArchive,
       runCommand: local.runCommand,
       suspendHost: () => Promise.resolve(),
       destroyHost: () => Promise.reject(new Error('impd is unreachable')),
+      dispose: () => {},
     },
     undefined,
     (_opts, hooks) => {

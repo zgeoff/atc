@@ -256,6 +256,12 @@ export class FixtureImpPort implements ImpPort {
           connection.process.pty.resize(cols, rows);
         }
       },
+      sendSignal: (signal) => {
+        if (!connection.finished && connection.process !== null) {
+          tryKill(connection.process.pty, 'SIGCONT');
+          tryKill(connection.process.pty, toSignal(signal));
+        }
+      },
       close: () => {
         connection.finish({ kind: 'closed', reason: 'closed by the client', closeCode: 1000 });
       },
@@ -798,6 +804,10 @@ function findSessionName(imp: FixtureImp, proc: FixtureProcess): string {
   }
 
   return '';
+}
+
+function toSignal(name: string): NodeJS.Signals {
+  return name === 'SIGKILL' || name === 'SIGTERM' || name === 'SIGINT' ? name : 'SIGHUP';
 }
 
 function tryKill(pty: IPty, signal: NodeJS.Signals): void {

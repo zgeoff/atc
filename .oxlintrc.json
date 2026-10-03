@@ -90,6 +90,10 @@
           { "from": "file", "name": "FixtureImp" },
           { "from": "file", "name": "FixtureProcess" },
           { "from": "file", "name": "FixtureConnection" },
+          // the imp provider's record of one imp, and a live connection to
+          // an imp session, both changed in place as the imp runs
+          { "from": "file", "name": "ImpHost" },
+          { "from": "file", "name": "ImpSessionConnection" },
           // a configured execution target: it holds its live provider
           { "from": "file", "name": "ExecutionTarget" },
           // a principal's grants, held privately and never mutated

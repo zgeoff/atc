@@ -38,7 +38,7 @@ async function setupTest() {
     statusPath,
     findRuntime: (id: string) => runtimes.get(id),
     async [Symbol.asyncDispose]() {
-      mgr.killAll();
+      mgr.detachAll();
 
       await store.stop();
 
@@ -76,7 +76,7 @@ test('it lists every restored session under the session id its row holds', async
 test('it revives a listed dead session in place instead of listing its id twice', async () => {
   await using ctx = await setupTest();
 
-  const s = ctx.mgr.spawn('/tmp', 'worker', '', 80, 24, toAgentSessionID('c-1'));
+  const s = await ctx.mgr.spawn('/tmp', 'worker', '', 80, 24, toAgentSessionID('c-1'));
 
   await ctx.mgr.writeFleet();
 
@@ -112,7 +112,7 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
     exited: true,
   });
 
-  const child = ctx.mgr.spawn(
+  const child = await ctx.mgr.spawn(
     '/tmp',
     'worker',
     '',
@@ -124,14 +124,14 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
     parent.id,
   );
 
-  const resumed = ctx.mgr.spawn('/tmp', 'wrangler', '', 80, 24, toAgentSessionID('c-parent'));
+  const resumed = await ctx.mgr.spawn('/tmp', 'wrangler', '', 80, 24, toAgentSessionID('c-parent'));
 
   await ctx.mgr.writeFleet();
 
   const restarted = new SessionManager(idleAdapter, ctx.store, ctx.statusPath, []);
 
   onTestFinished(() => {
-    restarted.killAll();
+    restarted.detachAll();
   });
 
   await restoreFleet({
@@ -168,7 +168,7 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
     exited: true,
   });
 
-  const child = ctx.mgr.spawn(
+  const child = await ctx.mgr.spawn(
     '/tmp',
     'worker',
     '',
@@ -182,7 +182,7 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
 
   // Spawned under the session whose agent session it resumes, so the row
   // it replaces is its own parent.
-  const resumed = ctx.mgr.spawn(
+  const resumed = await ctx.mgr.spawn(
     '/tmp',
     'wrangler',
     '',
@@ -206,7 +206,7 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
   const restarted = new SessionManager(idleAdapter, ctx.store, ctx.statusPath, []);
 
   onTestFinished(() => {
-    restarted.killAll();
+    restarted.detachAll();
   });
 
   await restoreFleet({
@@ -253,7 +253,7 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
     exited: true,
   });
 
-  const resumedFirst = ctx.mgr.spawn(
+  const resumedFirst = await ctx.mgr.spawn(
     '/tmp',
     'r',
     '',
@@ -265,7 +265,7 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
     second.id,
   );
 
-  const resumedSecond = ctx.mgr.spawn(
+  const resumedSecond = await ctx.mgr.spawn(
     '/tmp',
     's',
     '',
@@ -282,7 +282,7 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
   const restarted = new SessionManager(idleAdapter, ctx.store, ctx.statusPath, []);
 
   onTestFinished(() => {
-    restarted.killAll();
+    restarted.detachAll();
   });
 
   await restoreFleet({

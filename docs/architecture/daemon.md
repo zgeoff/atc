@@ -104,6 +104,30 @@ without `resize` keeps its terminal at the size it started with, while the sessi
 follows the attached clients. `local-pty` declares every capability except `suspend` and `destroy`:
 its host is the daemon's own machine.
 
+A provider is local or remote. A local harness inherits the daemon's environment around the
+variables atc sets for it. A remote harness gets only those variables and the host's own terminal,
+locale, and `PATH`, so nothing from the daemon's environment reaches the remote host. Before a
+harness starts, the daemon asks the provider to prepare its host, which creates, wakes, or holds a
+remote host and refuses with `host_unavailable` when it cannot. The daemon awaits that step, then
+starts the harness and follows its output from the first byte.
+
+### The imp provider
+
+The `imp` provider runs each top-level session in an imp of its own, a VM that impd hosts, and each
+sub-session on the same target in its parent's imp. It declares every capability except `headless`.
+The daemon reaches impd only through an imp port, the interface in `src/daemon/imp-port.ts`, and the
+tests drive a fixture port that runs real pseudo-terminals.
+
+The daemon holds an imp with a lease labelled `atc-<daemonID>`, renews it at a third of its length
+while a harness runs there, and gives it back when the imp's last harness ends. A kill gives the
+lease back first, then asks impd to sleep the imp without force. When another owner's lease refuses
+the sleep, the daemon takes its own lease back and the kill fails with `host_leased`. A confirmed
+`session.forget` destroys the imp, which ends every lease on it.
+
+Each harness is an imp session named after its atc session, and the daemon is its one attacher. A
+kill of a sub-session sends its process `SIGHUP`. When the daemon stops, it closes its connections
+and leaves every imp session running for the next daemon to attach.
+
 ## Workspace materialization
 
 The daemon builds a spawn's [workspace](./protocol.md#workspaces) on the session's target through

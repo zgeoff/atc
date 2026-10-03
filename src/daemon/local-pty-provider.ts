@@ -1,5 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { spawn } from 'bun-pty';
+import { collectCleanEnv } from '../shared/collect-clean-env';
 import type {
   CommandResult,
   CommandSpec,
@@ -18,6 +19,8 @@ import type {
 export class LocalPTYProvider implements ExecutionProvider {
   readonly kind = 'local-pty';
 
+  readonly remote = false;
+
   readonly capabilities: ExecutionCapabilities = {
     spawn: true,
     attach: true,
@@ -31,6 +34,9 @@ export class LocalPTYProvider implements ExecutionProvider {
     destroy: false,
   };
 
+  // The daemon's own machine is always ready.
+  readonly prepareHost = (): Promise<void> => Promise.resolve();
+
   // The daemon's machine keeps no process the daemon lets go of, so a
   // detach ends the harness as a kill does, after dropping every listener.
   readonly spawnHarness = (spec: HarnessSpec): HarnessHandle => {
@@ -39,7 +45,7 @@ export class LocalPTYProvider implements ExecutionProvider {
       cols: spec.cols,
       rows: spec.rows,
       cwd: spec.cwd,
-      env: { ...spec.env },
+      env: collectCleanEnv(spec.env, spec.withheldEnv),
     });
 
     const subscriptions = new Set<{ readonly dispose: () => void }>();
@@ -106,6 +112,8 @@ export class LocalPTYProvider implements ExecutionProvider {
 
   readonly destroyHost = (host: string): Promise<void> =>
     Promise.reject(new Error(`the local-pty provider cannot destroy host ${host}`));
+
+  readonly dispose = (): void => {};
 
   private async runCommandWithInput(
     argv: readonly string[],

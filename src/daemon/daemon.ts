@@ -608,6 +608,20 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
+  // A spawned terminal starts on a fresh screen; a revived one keeps the
+  // screen its session already had.
+  mgr.onBoot = (s, cols, rows) => {
+    const runtime = runtimes.get(s.id);
+
+    if (runtime === undefined) {
+      return;
+    }
+
+    runtime.resetBoot({ cols, rows });
+
+    runtime.screen ??= new ScreenModel(cols, rows);
+  };
+
   mgr.onOutput = (s, data) => {
     const runtime = runtimes.get(s.id);
 
@@ -799,7 +813,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const warnings = materialized === null ? [] : materialized.warnings;
 
     try {
-      const session = startSpawnedSession(p, id, materialized);
+      const session = await startSpawnedSession(p, id, materialized);
 
       return warnings.length === 0 ? { session } : { session, warnings };
     } catch (error) {
@@ -847,15 +861,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
-  const startSpawnedSession = (
+  const startSpawnedSession = async (
     p: SpawnParams,
     id: SessionID,
     materialized: Readonly<{
       workspace: SessionWorkspace;
       withheldEnv: readonly string[];
     }> | null,
-  ): SessionDescriptor => {
-    const s = mgr.spawn(
+  ): Promise<SessionDescriptor> => {
+    const s = await mgr.spawn(
       p.cwd,
       p.name,
       p.prompt,
@@ -875,9 +889,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     if (runtime !== undefined) {
       runtime.pendingLastUsed = true;
-      runtime.dims = { cols: p.cols, rows: p.rows };
-
-      runtime.screen = new ScreenModel(p.cols, p.rows);
     }
 
     void store.recordSpawnDir(p.cwd);
@@ -1262,7 +1273,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return 'ok';
     },
-    adoptSession: (id, cols, rows) => {
+    adoptSession: async (id, cols, rows) => {
       if (!hasResumableTranscript(mgr, id)) {
         return 'no_transcript';
       }
@@ -1270,16 +1281,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       const runtime = runtimes.get(id);
 
       runtime?.stopHeadlessRun();
-      const adopted = mgr.adoptTerminal(id, cols, rows);
+
+      const adopted = await mgr.adoptTerminal(id, cols, rows);
 
       if (adopted === null) {
         return 'missing';
-      }
-
-      if (runtime !== undefined) {
-        runtime.resetBoot({ cols, rows });
-
-        runtime.screen ??= new ScreenModel(cols, rows);
       }
 
       scheduleResize(id);
@@ -1654,7 +1660,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     server.stop(true);
     eventsServer?.stop();
     reporter.stop(true);
-    mgr.killAll();
+    mgr.detachAll();
+
+    for (const target of targets) {
+      target.provider?.dispose();
+    }
 
     for (const runtime of runtimes.values()) {
       runtime.dispose();

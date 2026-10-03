@@ -206,6 +206,9 @@ export interface ImpSessionConnection {
   readonly write: (data: Uint8Array) => void;
   readonly resize: (cols: number, rows: number) => void;
 
+  // Sends the process a signal by name, such as `SIGHUP`.
+  readonly sendSignal: (signal: string) => void;
+
   // Closes the connection; the process runs on under its session name.
   readonly close: () => void;
 }

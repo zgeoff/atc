@@ -4,7 +4,6 @@ import { truncateDetail } from '../agents/truncate-detail';
 import { DaemonError } from '../protocol/daemon-error';
 import type { ErrorCode } from '../protocol/protocol';
 import type { AgentSessionID } from '../shared/agent-session-id';
-import { collectCleanEnv } from '../shared/collect-clean-env';
 import type { TargetConfigError } from '../shared/collect-targets';
 import { socketPath, statusFile } from '../shared/config';
 import type { DaemonID } from '../shared/daemon-id';
@@ -144,6 +143,10 @@ export interface Session {
   vm: SessionLifecycle['vm'];
   attachment: SessionLifecycle['attachment'];
 
+  // Whether the harness is kept inside a sleeping host, for a revive to
+  // find as it was.
+  suspended: boolean;
+
   // The session whose host the harness runs on: its own id, or its
   // parent's when the parent runs on the same target, so one host serves a
   // top-level session and the sub-sessions beside it.
@@ -176,6 +179,10 @@ export class SessionManager {
 
   onChange: () => void = () => {};
 
+  // Called as a harness starts, before its first output can arrive, with
+  // the terminal size it starts at.
+  onBoot: (s: Session, cols: number, rows: number) => void = () => {};
+
   onEvent: (kind: SessionEventKind, s: Session) => void = () => {};
 
   // Where a background failure is reported, one line at a time: stderr,
@@ -198,6 +205,10 @@ export class SessionManager {
   private readonly targets: ReadonlyMap<string, ExecutionTarget>;
 
   private readonly targetErrors: readonly TargetConfigError[];
+
+  // Sessions whose revive waits on their host waking, so a second revive
+  // of the same session does not start a second harness.
+  private readonly adopting = new Set<SessionID>();
 
   constructor(
     fallback: AgentAdapter,
@@ -368,6 +379,7 @@ export class SessionManager {
       ...(entry.workspace === undefined ? {} : { workspace: entry.workspace }),
       withheldEnv: entry.withheldEnv ?? [],
       desired: entry.desired ?? 'run',
+      suspended: exited && entry.desired === 'sleep',
       vm: this.pickRestoredVM(target, entry.desired),
       attachment: this.hasHostLifecycle(target) ? 'detached' : 'local',
       hostKey: entry.hostKey ?? entry.sessionID,
@@ -404,11 +416,13 @@ export class SessionManager {
   }
 
   // Adopts a headless session back into a terminal: a fresh PTY resumes the
-  // same agent session id.
-  adoptTerminal(id: SessionID, cols: number, rows: number): Session | null {
+  // same agent session id. On a remote host the host wakes first, and a
+  // harness still running inside it is attached rather than started again;
+  // every other session left asleep on that host comes back with it.
+  async adoptTerminal(id: SessionID, cols: number, rows: number): Promise<Session | null> {
     const s = this.sessions.find((x) => x.id === id);
 
-    if (!s || s.pty !== null || s.agentSessionID === undefined) {
+    if (!s || s.pty !== null || s.agentSessionID === undefined || this.adopting.has(id)) {
       return null;
     }
 
@@ -419,19 +433,36 @@ export class SessionManager {
     }
 
     const provider = this.requireExecution(s, 'spawn').provider;
+    const resume = s.agentSessionID;
+
+    this.adopting.add(id);
+
+    try {
+      await provider.prepareHost({ host: s.hostKey, daemonID: this.store.daemonID });
+    } finally {
+      this.adopting.delete(id);
+    }
+
+    // A kill or a second adopt can land while the host wakes.
+    if (s.pty !== null || !this.sessions.includes(s)) {
+      return null;
+    }
 
     const plan = adapter.planSpawn({
       prompt: '',
-      resume: s.agentSessionID,
+      resume,
       ...(s.model === undefined ? {} : { model: s.model }),
       ...(s.effort === undefined ? {} : { effort: s.effort }),
     });
 
     const pty = provider.spawnHarness({
+      session: s.id,
+      host: s.hostKey,
       bin: plan.bin,
       args: plan.args,
       cwd: s.cwd,
-      env: collectCleanEnv({ ATC_SESSION_ID: s.id, ATC_SOCKET: socketPath }, s.withheldEnv),
+      env: { ATC_SESSION_ID: s.id, ATC_SOCKET: socketPath },
+      withheldEnv: s.withheldEnv,
       cols,
       rows,
     });
@@ -441,29 +472,61 @@ export class SessionManager {
     s.state = 'running';
     s.lastMsg = 'revived';
     s.desired = 'run';
+    s.suspended = false;
+
+    this.attachHarness(s, pty, this.hasHostLifecycle(s.target));
+    this.onBoot(s, cols, rows);
+    void this.tryWriteFleet(s.id);
+    this.onEvent('state', s);
+    this.emitChange();
+
+    for (const asleep of this.sessions) {
+      if (asleep.hostKey === s.hostKey && asleep.target === s.target && asleep.suspended) {
+        await this.adoptTerminal(asleep.id, cols, rows);
+      }
+    }
+
+    return s;
+  }
+
+  // Follows a harness's output and its end. An exit, or a host that lost the
+  // process, leaves the session exited; a host that went to sleep with the
+  // process inside leaves it suspended, for a revive to find. A session
+  // mid-handoff keeps its headless state, since the terminal dying is
+  // expected there.
+  private attachHarness(s: Session, pty: HarnessHandle, hostLifecycle: boolean): void {
+    s.vm = hostLifecycle ? 'awake' : 'none';
+    s.attachment = hostLifecycle ? 'attached' : 'local';
 
     pty.onData((d) => {
       this.onOutput(s, d);
     });
 
-    pty.onExit(() => {
+    pty.onExit((exit) => {
+      if (s.pty !== pty) {
+        return;
+      }
+
       s.pty = null;
+
+      if (hostLifecycle) {
+        s.attachment = 'detached';
+      }
 
       if (s.kind === 'pty' && s.state !== 'exited') {
         s.state = 'exited';
         s.unread = this.focusedId !== s.id;
-        s.lastMsg = 'process exited';
+        s.lastMsg = pickExitMessage(exit);
+      }
+
+      if (exit.reason === 'suspended') {
+        s.vm = 'asleep';
+        s.suspended = true;
       }
 
       this.onEvent('state', s);
       this.emitChange();
     });
-
-    void this.tryWriteFleet(s.id);
-    this.onEvent('state', s);
-    this.emitChange();
-
-    return s;
   }
 
   /**
@@ -563,7 +626,7 @@ export class SessionManager {
   // refuses the spawn before anything starts. materialized holds what cwd
   // was materialized from, when it was, and the variables the session's
   // harnesses go without.
-  spawn(
+  async spawn(
     cwd: string,
     name: string,
     prompt: string,
@@ -577,7 +640,7 @@ export class SessionManager {
     id: SessionID = mintSessionID(),
     target = 'local',
     materialized: MaterializedSpawn | null = null,
-  ): Session {
+  ): Promise<Session> {
     const adapter = this.findAdapter(agent);
 
     if (adapter === null) {
@@ -588,18 +651,22 @@ export class SessionManager {
     const provider = execution.provider;
 
     // The repository root resolves before the process starts: resolving it
-    // can throw, and a spawn that throws must leave nothing running.
-    const repoRoot = resolveRepoRoot(cwd);
+    // can throw, and a spawn that throws must leave nothing running. A
+    // remote directory is not on the daemon's machine, so it is its own root.
+    const repoRoot = provider.remote ? cwd : resolveRepoRoot(cwd);
     const plan = adapter.planSpawn({ prompt, resume, ...overrides });
+    const hostKey = this.pickHostKey(id, parent, target);
+
+    await provider.prepareHost({ host: hostKey, daemonID: this.store.daemonID });
 
     const pty = provider.spawnHarness({
+      session: id,
+      host: hostKey,
       bin: plan.bin,
       args: plan.args,
       cwd,
-      env: collectCleanEnv(
-        { ATC_SESSION_ID: id, ATC_SOCKET: socketPath },
-        materialized?.withheldEnv ?? [],
-      ),
+      env: { ATC_SESSION_ID: id, ATC_SOCKET: socketPath },
+      withheldEnv: materialized?.withheldEnv ?? [],
       cols,
       rows,
     });
@@ -635,34 +702,18 @@ export class SessionManager {
       ...(materialized === null ? {} : { workspace: materialized.workspace }),
       withheldEnv: materialized?.withheldEnv ?? [],
       desired: 'run',
-      vm: this.hasHostLifecycle(target) ? 'unknown' : 'none',
-      attachment: this.hasHostLifecycle(target) ? 'attached' : 'local',
-      hostKey: this.pickHostKey(id, parent, target),
+      vm: 'none',
+      attachment: 'local',
+      suspended: false,
+      hostKey,
     };
 
-    pty.onData((d) => {
-      this.onOutput(session, d);
-    });
-
-    pty.onExit(() => {
-      session.pty = null;
-
-      // A session mid-handoff keeps its headless state; the terminal dying
-      // is expected there, not an exit.
-      if (session.kind === 'pty' && session.state !== 'exited') {
-        session.state = 'exited';
-        session.unread = this.focusedId !== session.id;
-        session.lastMsg = 'process exited';
-      }
-
-      this.onEvent('state', session);
-      this.emitChange();
-    });
-
+    this.attachHarness(session, pty, this.hasHostLifecycle(target));
     this.sessions.push(session);
     void this.tryWriteFleet(session.id);
     this.writeStatus();
     this.onEvent('added', session);
+    this.onBoot(session, cols, rows);
 
     return session;
   }
@@ -1118,6 +1169,7 @@ export class SessionManager {
     s.lastMsg = 'asleep';
     s.desired = 'sleep';
     s.attachment = 'detached';
+    s.suspended = true;
 
     this.onEvent('state', s);
   }
@@ -1150,9 +1202,12 @@ export class SessionManager {
     this.onEvent('removed', s);
   }
 
-  killAll() {
+  // Lets go of every harness as the daemon stops: one on the daemon's own
+  // machine ends with it, and one on a remote host runs on for the next
+  // daemon to attach.
+  detachAll() {
     for (const s of this.sessions) {
-      s.pty?.kill();
+      s.pty?.detach();
     }
   }
 
@@ -1351,10 +1406,24 @@ function buildLifecycle(s: Session): SessionLifecycle {
     desired: s.desired,
     vm: s.vm,
     attachment: s.attachment,
+    suspended: s.suspended,
     hasHarness: s.pty !== null,
     kind: s.kind,
     state: s.state,
   });
+}
+
+// Why a harness stopped, as a session's last message.
+function pickExitMessage(exit: Readonly<{ reason?: string; detail?: string }>): string {
+  if (exit.reason === 'suspended') {
+    return 'asleep';
+  }
+
+  if (exit.reason === 'ended') {
+    return exit.detail ?? 'host lost the process';
+  }
+
+  return 'process exited';
 }
 
 // A target refusal as a session's last message, short enough for a list row.

@@ -58,6 +58,7 @@ function buildGhostSession(): Session {
     desired: 'run',
     vm: 'none',
     attachment: 'local',
+    suspended: false,
     hostKey: toSessionID('ghost-session'),
   };
 }

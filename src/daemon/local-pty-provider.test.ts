@@ -21,6 +21,8 @@ test('it runs a harness in a pseudo-terminal that echoes typed input back', asyn
   const output: string[] = [];
 
   const harness = local.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
     bin: 'bash',
     args: ['-c', 'echo READY; read -r line; echo "GOT:$line"; sleep 30'],
     cwd: local.dir,
@@ -54,6 +56,8 @@ test('it reports the exit of a killed harness', async () => {
   const exited = Promise.withResolvers<number>();
 
   const harness = local.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
     bin: 'sleep',
     args: ['30'],
     cwd: local.dir,
@@ -77,6 +81,8 @@ test('it resizes the terminal a running harness reads its size from', async () =
   const output: string[] = [];
 
   const harness = local.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
     bin: 'bash',
     args: ['-c', 'echo READY; read -r line; echo "SIZE:$(stty size)"; sleep 30'],
     cwd: local.dir,
