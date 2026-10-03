@@ -732,7 +732,9 @@ export class FixtureImpPort implements ImpPort {
       if (connection !== null) {
         connection.sent = proc.end;
 
-        connection.handlers.onOutput(data);
+        tryEmit(connection, () => {
+          connection.handlers.onOutput(data);
+        });
       }
     });
 
@@ -822,33 +824,43 @@ export class FixtureImpPort implements ImpPort {
 
     const previous = imp.previous.get(request.session);
 
-    connection.handlers.onStarted({
-      created,
-      output:
-        this.continuity === 'none'
-          ? { continuity: 'none' }
-          : {
-              continuity: 'offsets',
-              bootId: imp.bootId,
-              executionGeneration: proc.generation,
-              bufferStart,
-              end: proc.end,
-              offset: from,
-              prelude: preludeBytes.length,
-              coldBoots: imp.coldBoots,
-              ...(previous === undefined ? {} : { previous }),
-              ...(resume === undefined ? {} : { resume }),
-            },
+    const started = tryEmit(connection, () => {
+      connection.handlers.onStarted({
+        created,
+        output:
+          this.continuity === 'none'
+            ? { continuity: 'none' }
+            : {
+                continuity: 'offsets',
+                bootId: imp.bootId,
+                executionGeneration: proc.generation,
+                bufferStart,
+                end: proc.end,
+                offset: from,
+                prelude: preludeBytes.length,
+                coldBoots: imp.coldBoots,
+                ...(previous === undefined ? {} : { previous }),
+                ...(resume === undefined ? {} : { resume }),
+              },
+      });
     });
 
-    if (preludeBytes.length > 0) {
-      connection.handlers.onOutput(preludeBytes);
+    if (!started) {
+      return;
     }
 
     const backlog = proc.ring.subarray(from - bufferStart);
 
-    if (backlog.length > 0) {
-      connection.handlers.onOutput(backlog);
+    for (const bytes of [preludeBytes, backlog]) {
+      const sent =
+        bytes.length === 0 ||
+        tryEmit(connection, () => {
+          connection.handlers.onOutput(bytes);
+        });
+
+      if (!sent) {
+        return;
+      }
     }
 
     if (proc.exited !== null) {
@@ -920,6 +932,23 @@ function mergeTail(ring: Uint8Array, data: Uint8Array, limit: number): Uint8Arra
   joined.set(data, ring.length);
 
   return joined.length > limit ? joined.slice(joined.length - limit) : joined;
+}
+
+// Calls a connection's handler as the imp client does: a handler that
+// throws ends the connection with a local error and closes it.
+function tryEmit(connection: FixtureConnection, emit: () => void): boolean {
+  try {
+    emit();
+
+    return true;
+  } catch (error) {
+    connection.finish({
+      kind: 'local_error',
+      detail: error instanceof Error ? error.message : String(error),
+    });
+
+    return false;
+  }
 }
 
 function findSessionName(imp: FixtureImp, proc: FixtureProcess): string {

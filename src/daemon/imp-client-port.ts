@@ -261,14 +261,15 @@ function toPortError(error: unknown): ImpPortError {
   return new ImpPortError('UNREACHABLE', message);
 }
 
-// A failure on the daemon's side of the socket reads as a closed connection,
-// which the harness reconnects after.
 // oxlint-disable-next-line prefer-readonly-parameter-types -- a promise is a live handle
 async function waitForSessionOutcome(outcome: Promise<ExecOutcome>): Promise<ImpSessionOutcome> {
   const ended = await outcome;
 
   if (ended.kind === 'local_error') {
-    return { kind: 'closed', reason: String(ended.error) };
+    return {
+      kind: 'local_error',
+      detail: ended.error instanceof Error ? ended.error.message : String(ended.error),
+    };
   }
 
   if (ended.kind === 'unauthorized') {

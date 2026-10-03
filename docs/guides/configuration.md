@@ -111,6 +111,11 @@ covers the lifecycle. Its options:
 | `guestDir`  | `/tmp/atc` | The folder inside each imp that atc's files go under.                      |
 | `guestATC`  | unset      | An atc binary already installed in the image, for hooks to report through. |
 
+A target that sets `tokenEnv` to a variable that is unset or empty when the daemon starts is a
+config error. The daemon prints the variable's name at startup, never a value, lists the error in
+`targetErrors`, and refuses each spawn on the target until the variable is set and the daemon
+restarts. A target without `tokenEnv` calls impd with no token.
+
 A Claude session on an imp target reports through an atc inside the imp. A compiled atc daemon on
 Linux copies itself in; a daemon run from source needs `guestATC`, and refuses the spawn without it.
 

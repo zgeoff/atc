@@ -93,6 +93,10 @@ export class ImpHarness implements HarnessHandle {
 
   private failures = 0;
 
+  // Connections in a row that a handler of ours ended. A start never clears
+  // it, since the next start can fail the same way.
+  private localErrors = 0;
+
   private killPending = false;
 
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -328,6 +332,14 @@ export class ImpHarness implements HarnessHandle {
   // A drop resumes at once only on a connection that had started, so a
   // connection impd drops before it answers counts as a failed reconnect.
   private applyOutcome(outcome: ImpSessionOutcome, wasStarted: boolean): void {
+    if (outcome.kind === 'local_error') {
+      this.applyLocalError(outcome);
+
+      return;
+    }
+
+    this.localErrors = 0;
+
     if (outcome.kind === 'exit') {
       this.emitExit({ exitCode: outcome.code ?? 1, reason: 'exited' });
 
@@ -353,6 +365,23 @@ export class ImpHarness implements HarnessHandle {
       (outcome.kind === 'detached' && outcome.reason === 'slow');
 
     const delay = isDropped && wasStarted ? 0 : null;
+
+    this.scheduleReconnect(outcome, delay);
+  }
+
+  // A handler that throws on every connection would reconnect without end,
+  // so these failures take the host's delays on their own count and end the
+  // harness once they run out.
+  private applyLocalError(outcome: Extract<ImpSessionOutcome, { kind: 'local_error' }>): void {
+    const delay = this.host.reconnectDelaysMs[this.localErrors];
+
+    if (delay === undefined) {
+      this.emitExit({ exitCode: 1, reason: 'ended', detail: formatOutcome(outcome) });
+
+      return;
+    }
+
+    this.localErrors += 1;
 
     this.scheduleReconnect(outcome, delay);
   }
@@ -579,6 +608,10 @@ function formatOutcome(outcome: Exclude<ImpSessionOutcome, { kind: 'exit' }>): s
 
   if (outcome.kind === 'unauthorized') {
     return 'imp refused the token';
+  }
+
+  if (outcome.kind === 'local_error') {
+    return `imp connection failed in the daemon (${outcome.detail})`;
   }
 
   return 'imp sent a bad message';

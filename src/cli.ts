@@ -166,8 +166,10 @@ const main = defineCommand({
           // deterministically; unset means the production default.
           const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
           const cfg = config.loadConfig();
+          const built = targets.buildExecutionTargets(cfg.targets);
+          const targetErrors = [...cfg.targetErrors, ...built.errors];
 
-          for (const error of cfg.targetErrors) {
+          for (const error of targetErrors) {
             const line =
               error.scope === 'config'
                 ? `${error.path} cannot be used (${error.problem}: ${error.detail}); every spawn is refused, local ones included, until it is fixed`
@@ -214,9 +216,9 @@ const main = defineCommand({
               legacyFleetPath: config.legacyFleetFile,
               pidPath: config.daemonPidFile,
               hooks: cfg.hooks,
-              targets: targets.buildExecutionTargets(cfg.targets),
+              targets: built.targets,
               defaultTarget: cfg.defaultTarget,
-              targetErrors: cfg.targetErrors,
+              targetErrors,
               principals: cfg.principals,
               restoreBootTimeoutMs,
               ...(Number.isFinite(graceOverride) && graceOverride >= 0

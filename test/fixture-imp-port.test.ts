@@ -499,6 +499,36 @@ test('it closes a connection with the close code a test drops it with', async ()
   });
 });
 
+test('it ends a connection whose output handler throws with a local error and keeps the process', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'imp-a' });
+
+  const opened = fixture.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['bash', '-c', 'echo hi; sleep 30'],
+      env: {},
+      cwd: fixture.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      onStarted: () => {},
+      onOutput: () => {
+        throw new Error('write EPIPE');
+      },
+    },
+  );
+
+  const ended = await opened.outcome;
+
+  expect(ended).toStrictEqual({ kind: 'local_error', detail: 'write EPIPE' });
+  expect(fixture.port.getEnd('imp-a', 's1')).toBeGreaterThan(0);
+});
+
 test('it detaches the earlier connection when a second one attaches', async () => {
   using fixture = setupTest();
 
