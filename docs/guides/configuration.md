@@ -182,7 +182,8 @@ that gives no principal, may use every target and is never limited by this key.
 A principal reaches a session only on a target it may use, and only while that target holds the
 identity the session is bound to. To the principal, every other session does not exist: lists and
 the event trail leave it out, and a request for it gets the answer a session that never existed
-gets. A spawn to a target the principal may not use fails with `target_forbidden`. A principal may
+gets. The spawn directory list leaves out the directories of spawns on targets the principal may not
+use. A spawn to a target the principal may not use fails with `target_forbidden`. A principal may
 not stop the daemon or restore the fleet.
 
 Without a `principals` key, every principal may use the implicit `local` target alone: the target

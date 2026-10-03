@@ -483,8 +483,9 @@ const PROVIDER: MigrationProvider = {
  * `Migrator`, one additive step at a time. A database from before the
  * ladder existed is recognized at whichever shape it stopped at by a
  * baselining pass that records the steps its columns already satisfy, so
- * only what is genuinely missing runs. One step rebuilds the fleet table
- * under a new key and carries every row across; no step drops a row.
+ * only what is genuinely missing runs. Two steps rebuild a table under a
+ * new key, the fleet and the spawn history, and carry every row across; no
+ * step drops a row.
  */
 export async function runMigrations(db: Kysely<StateStoreSchema>): Promise<void> {
   // A baselined step can land out of order relative to a step that turned

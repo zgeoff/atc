@@ -462,6 +462,28 @@ test('it lists a principal only the directories of spawns on targets it may use'
   expect(listed).toStrictEqual({ dirs: ['/tmp'] });
 });
 
+test('it lists a principal only the fleet entries of sessions on targets it may use', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const shown = await daemon.spawnOn('local');
+  const hidden = await daemon.spawnOn('box');
+
+  await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('fleet.list');
+
+    expect(owner).toMatchObject({
+      fleet: expect.toIncludeSameMembers([
+        expect.objectContaining({ sessionID: shown }),
+        expect.objectContaining({ sessionID: hidden }),
+      ]),
+    });
+  });
+
+  const listed = await daemon.client.sendRequest('fleet.list', {}, 'narrow');
+
+  expect(listed).toStrictEqual({ fleet: [expect.objectContaining({ sessionID: shown })] });
+});
+
 test('it lets a principal forget a session on a target it may use', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
