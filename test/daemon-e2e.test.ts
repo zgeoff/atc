@@ -1838,10 +1838,15 @@ test('it submits a line to a codex session as one submission', async () => {
 
   await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
 
-  await waitForEvent(
-    events,
-    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('FAKE_COMPOSER_READY'),
-  );
+  // The client sees output before the daemon's screen model has parsed it,
+  // and a submit reads the paste mode from that model. A screen read waits
+  // for the parse, so once it shows the banner, the paste mode the composer
+  // turned on just before it is in force.
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
 
   await client.sendRequest('session.submit', { session: id, text: 'hello' });
 
@@ -1875,10 +1880,15 @@ test('it submits a multi-line text to a codex session as one submission', async 
 
   await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
 
-  await waitForEvent(
-    events,
-    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('FAKE_COMPOSER_READY'),
-  );
+  // The client sees output before the daemon's screen model has parsed it,
+  // and a submit reads the paste mode from that model. A screen read waits
+  // for the parse, so once it shows the banner, the paste mode the composer
+  // turned on just before it is in force.
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
 
   await client.sendRequest('session.submit', { session: id, text: 'first\nsecond' });
 
@@ -1912,10 +1922,15 @@ test('it submits a line to a grok session as one submission', async () => {
 
   await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
 
-  await waitForEvent(
-    events,
-    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('FAKE_COMPOSER_READY'),
-  );
+  // The client sees output before the daemon's screen model has parsed it,
+  // and a submit reads the paste mode from that model. A screen read waits
+  // for the parse, so once it shows the banner, the paste mode the composer
+  // turned on just before it is in force.
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
 
   await client.sendRequest('session.submit', { session: id, text: 'hello' });
 
