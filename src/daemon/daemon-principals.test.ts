@@ -75,6 +75,9 @@ async function setupTest(raw: RawConfig) {
         identity: buildTargetIdentity(target.provider, target.options),
         provider: {
           kind: target.provider,
+          remote: false,
+          prepareHost: local.prepareHost,
+          dispose: local.dispose,
           capabilities: local.capabilities,
           spawnHarness: (spec) => {
             harnesses.push(target.id);

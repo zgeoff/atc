@@ -160,7 +160,7 @@ export interface DaemonContext {
     id: SessionID,
     cols: number,
     rows: number,
-  ) => 'ok' | 'missing' | 'no_transcript';
+  ) => Promise<'ok' | 'missing' | 'no_transcript'>;
   readonly resizeSession: (client: OutputClient, sessionID: SessionID, dims: Dims) => boolean;
   readonly resyncClient: (sessionID: SessionID, client: OutputClient) => Promise<void>;
   readonly queueBytes?: number;
@@ -682,7 +682,8 @@ export class DaemonConnection {
         }
 
         const sessionID = parsed.data.session;
-        const adoptResult = ctx.adoptSession(sessionID, parsed.data.cols, parsed.data.rows);
+
+        const adoptResult = await ctx.adoptSession(sessionID, parsed.data.cols, parsed.data.rows);
 
         if (adoptResult === 'ok') {
           this.sendOk(req.id, {});

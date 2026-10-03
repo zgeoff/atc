@@ -247,10 +247,13 @@ not app code.
 ## Function naming — project verbs
 
 Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
-`.oxlintrc.json`): `ack`, `adopt`, `answer`, `attach`, `boot`, `copy`, `destroy`, `detach`,
-`dispose`, `draw`, `forget`, `jiggle`, `kill`, `log`, `materialize`, `mint`, `open`, `quit`,
-`reconcile`, `record`, `refresh`, `restart`, `restore`, `revoke`, `sanitize`, `schedule`, `spawn`,
-`suspend`, `transfer`, `truncate`, `yank`.
+`.oxlintrc.json`): `ack`, `acquire`, `adopt`, `answer`, `attach`, `boot`, `copy`, `destroy`,
+`detach`, `dispose`, `draw`, `forget`, `jiggle`, `kill`, `log`, `materialize`, `mint`, `open`,
+`quit`, `reconcile`, `record`, `refresh`, `release`, `renew`, `restart`, `restore`, `revoke`,
+`sanitize`, `schedule`, `spawn`, `suspend`, `transfer`, `truncate`, `yank`.
+
+`acquire`, `renew`, and `release` take, extend, and give back a lease that keeps a remote host awake
+(`acquireLease`), as opposed to `claim`, which takes exclusive ownership.
 
 `destroy` deletes an execution host and everything on it, which nothing brings back (`destroyHost`),
 as opposed to `remove`, which deletes one record or file.

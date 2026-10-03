@@ -79,6 +79,9 @@ function setupTest() {
           target.provider === 'local-pty'
             ? {
                 kind: target.provider,
+                remote: false,
+                prepareHost: local.prepareHost,
+                dispose: local.dispose,
                 capabilities: local.capabilities,
                 spawnHarness: (spec) => {
                   harnesses.push(target.id);

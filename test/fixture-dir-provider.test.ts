@@ -95,7 +95,17 @@ test('it starts a harness on a local terminal and records its spec', async () =>
 
   const provider = new FixtureDirProvider();
 
-  const spec = { bin: 'true', args: [], cwd: tmp.dir, env: { A: '1' }, cols: 80, rows: 24 };
+  const spec = {
+    session: 's1',
+    host: 's1',
+    bin: 'true',
+    args: [],
+    cwd: tmp.dir,
+    env: { A: '1' },
+    cols: 80,
+    rows: 24,
+  };
+
   const exited = Promise.withResolvers<number>();
 
   provider.spawnHarness(spec).onExit((exit) => {

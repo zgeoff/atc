@@ -84,6 +84,9 @@ async function setupTest(fleet: readonly FleetEntry[] = []) {
           target.provider === 'local-pty' || target.provider === 'no-headless'
             ? {
                 kind: target.provider,
+                remote: false,
+                prepareHost: local.prepareHost,
+                dispose: local.dispose,
                 capabilities: {
                   ...local.capabilities,
                   spawn: target.provider === 'local-pty',

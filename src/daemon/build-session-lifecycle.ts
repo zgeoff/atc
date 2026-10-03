@@ -25,6 +25,9 @@ interface LifecycleFacts {
   readonly desired: SessionLifecycle['desired'];
   readonly vm: SessionLifecycle['vm'];
   readonly attachment: SessionLifecycle['attachment'];
+
+  // Whether the harness is kept inside a sleeping host.
+  readonly suspended: boolean;
   readonly hasHarness: boolean;
   readonly kind: 'pty' | 'headless';
   readonly state: 'running' | 'needs_you' | 'done' | 'exited';
@@ -33,8 +36,7 @@ interface LifecycleFacts {
 /**
  * Builds the four layers from a session's facts. The harness runs while the
  * session holds a terminal or a live headless run. A harness without one is
- * suspended while the operator keeps its host asleep and the host is
- * asleep, and exited otherwise.
+ * suspended while it is kept inside a sleeping host, and exited otherwise.
  */
 export function buildSessionLifecycle(facts: Readonly<LifecycleFacts>): SessionLifecycle {
   const running = facts.hasHarness || (facts.kind === 'headless' && facts.state !== 'exited');
@@ -42,7 +44,7 @@ export function buildSessionLifecycle(facts: Readonly<LifecycleFacts>): SessionL
 
   if (running) {
     harness = 'running';
-  } else if (facts.desired === 'sleep' && facts.vm === 'asleep') {
+  } else if (facts.suspended && facts.vm === 'asleep') {
     harness = 'suspended';
   }
 

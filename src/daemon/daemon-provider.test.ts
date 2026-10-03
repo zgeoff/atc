@@ -130,6 +130,9 @@ test('it refuses a spawn with unsupported_operation when the provider cannot spa
 
   await using daemon = await setupTest({
     kind: 'no-spawn',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, spawn: false },
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
@@ -156,6 +159,9 @@ test('it refuses input with unsupported_operation when the provider takes no inp
 
   await using daemon = await setupTest({
     kind: 'no-input',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, input: false },
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
@@ -183,6 +189,9 @@ test('it refuses a kill with unsupported_operation when the provider cannot end 
 
   await using daemon = await setupTest({
     kind: 'no-kill',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, kill: false },
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
@@ -213,6 +222,9 @@ test('it refuses an attach with unsupported_operation when the provider streams 
 
   await using daemon = await setupTest({
     kind: 'no-attach',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, attach: false },
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
@@ -241,6 +253,9 @@ test('it takes a resize from an attached client on a provider that cannot resize
 
   await using daemon = await setupTest({
     kind: 'no-resize',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, resize: false },
     spawnHarness: local.spawnHarness,
     transferArchive: local.transferArchive,
@@ -279,6 +294,9 @@ test('it puts the host of a killed session to sleep on a provider that can suspe
 
   await using daemon = await setupTest({
     kind: 'sleepy',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, suspend: true, destroy: true },
     suspendHost: (host) => {
       suspended.push(host);
@@ -321,6 +339,9 @@ test('it refuses a second kill with confirmation_required on a provider that can
 
   await using daemon = await setupTest({
     kind: 'sleepy',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, suspend: true, destroy: true },
     suspendHost: () => Promise.resolve(),
     spawnHarness: local.spawnHarness,
@@ -358,6 +379,9 @@ test('it keeps a session running when its host refuses to sleep', async () => {
 
   await using daemon = await setupTest({
     kind: 'sleepy',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
     capabilities: { ...local.capabilities, suspend: true, destroy: true },
     suspendHost: () =>
       Promise.reject(
@@ -394,7 +418,7 @@ test('it keeps a session running when its host refuses to sleep', async () => {
         id,
         state: 'running',
         alive: true,
-        lifecycle: { desired: 'run', vm: 'unknown', harness: 'running', attachment: 'attached' },
+        lifecycle: { desired: 'run', vm: 'awake', harness: 'running', attachment: 'attached' },
       }),
     ],
   });

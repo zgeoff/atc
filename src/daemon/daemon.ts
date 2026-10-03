@@ -57,6 +57,7 @@ import type { HookScope } from './make-hook-runner';
 import { materializeWorkspace } from './materialize-workspace';
 import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
+import { parseHookLine } from './parse-hook-line';
 import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
 import { restoreFleet } from './restore-fleet';
@@ -608,6 +609,20 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
+  // A spawned terminal starts on a fresh screen; a revived one keeps the
+  // screen its session already had.
+  mgr.onBoot = (s, cols, rows) => {
+    const runtime = runtimes.get(s.id);
+
+    if (runtime === undefined) {
+      return;
+    }
+
+    runtime.resetBoot({ cols, rows });
+
+    runtime.screen ??= new ScreenModel(cols, rows);
+  };
+
   mgr.onOutput = (s, data) => {
     const runtime = runtimes.get(s.id);
 
@@ -733,7 +748,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
-  const reporter = startHookServer((e) => {
+  const applyHookEvent = (e: HookEvent) => {
     if (e.event === 'Report') {
       void applyReport(e);
 
@@ -780,7 +795,19 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         void store.writeLastUsedAgent(started.agent);
       }
     }
-  }, opts.reporterSocketPath);
+  };
+
+  const reporter = startHookServer(applyHookEvent, opts.reporterSocketPath);
+
+  // A remote harness reports through a socket that serves it alone, so a
+  // line that names any other session is dropped.
+  mgr.onReport = (sessionID, line) => {
+    const e = parseHookLine(line);
+
+    if (e !== null && e.atcId === sessionID) {
+      applyHookEvent(e);
+    }
+  };
 
   // A spawn with a workspace source materializes it first, and the session
   // registers only once its workspace is ready, so no session ever lists
@@ -799,7 +826,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const warnings = materialized === null ? [] : materialized.warnings;
 
     try {
-      const session = startSpawnedSession(p, id, materialized);
+      const session = await startSpawnedSession(p, id, materialized);
 
       return warnings.length === 0 ? { session } : { session, warnings };
     } catch (error) {
@@ -847,15 +874,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
-  const startSpawnedSession = (
+  const startSpawnedSession = async (
     p: SpawnParams,
     id: SessionID,
     materialized: Readonly<{
       workspace: SessionWorkspace;
       withheldEnv: readonly string[];
     }> | null,
-  ): SessionDescriptor => {
-    const s = mgr.spawn(
+  ): Promise<SessionDescriptor> => {
+    const s = await mgr.spawn(
       p.cwd,
       p.name,
       p.prompt,
@@ -875,9 +902,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     if (runtime !== undefined) {
       runtime.pendingLastUsed = true;
-      runtime.dims = { cols: p.cols, rows: p.rows };
-
-      runtime.screen = new ScreenModel(p.cols, p.rows);
     }
 
     void store.recordSpawnDir(p.cwd);
@@ -1262,7 +1286,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return 'ok';
     },
-    adoptSession: (id, cols, rows) => {
+    adoptSession: async (id, cols, rows) => {
       if (!hasResumableTranscript(mgr, id)) {
         return 'no_transcript';
       }
@@ -1270,16 +1294,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       const runtime = runtimes.get(id);
 
       runtime?.stopHeadlessRun();
-      const adopted = mgr.adoptTerminal(id, cols, rows);
+
+      const adopted = await mgr.adoptTerminal(id, cols, rows);
 
       if (adopted === null) {
         return 'missing';
-      }
-
-      if (runtime !== undefined) {
-        runtime.resetBoot({ cols, rows });
-
-        runtime.screen ??= new ScreenModel(cols, rows);
       }
 
       scheduleResize(id);
@@ -1654,7 +1673,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     server.stop(true);
     eventsServer?.stop();
     reporter.stop(true);
-    mgr.killAll();
+    mgr.detachAll();
+
+    for (const target of targets) {
+      target.provider?.dispose();
+    }
 
     for (const runtime of runtimes.values()) {
       runtime.dispose();
@@ -1716,6 +1739,12 @@ function hasResumableTranscript(mgr: SessionManager, id: SessionID): boolean {
 
   if (adapter === null) {
     return false;
+  }
+
+  // A remote session's transcript lives in its host, out of the daemon's
+  // reach, so the agent's session id alone makes it resumable.
+  if (mgr.findProvider(s)?.remote === true) {
+    return s.agentSessionID !== undefined;
   }
 
   return adapter.canResume({

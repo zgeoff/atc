@@ -104,6 +104,73 @@ without `resize` keeps its terminal at the size it started with, while the sessi
 follows the attached clients. `local-pty` declares every capability except `suspend` and `destroy`:
 its host is the daemon's own machine.
 
+A provider is local or remote. A local harness inherits the daemon's environment around the
+variables atc sets for it. A remote harness gets only those variables and the host's own terminal,
+locale, and `PATH`, so nothing from the daemon's environment reaches the remote host. Before a
+harness starts, the daemon asks the provider to prepare its host, which creates, wakes, or holds a
+remote host and refuses with `host_unavailable` when it cannot. The daemon awaits that step, then
+starts the harness and follows its output from the first byte.
+
+### The imp provider
+
+The `imp` provider runs each top-level session in an imp of its own, a VM that impd hosts, and each
+sub-session on the same target in its parent's imp. It declares every capability except `headless`.
+The daemon reaches impd only through an imp port, the interface in `src/daemon/imp-port.ts`, and the
+tests drive a fixture port that runs real pseudo-terminals.
+
+A sub-session joins its parent's imp only when its resolved target matches the parent's binding, in
+both name and identity. A nested spawn without a target resolves to `defaultTarget` like any other
+spawn, so it joins only when that default is the parent's target. Any other sub-session gets a host
+of its own. Inside the parent's imp, the sub-session is one more imp session:
+
+- Its spawn takes the daemon's lease, which wakes the imp when the parent left it asleep.
+- A kill of the sub-session ends its own harness alone and never sleeps the imp.
+- Sleep and destroy follow the parent: a kill of the parent sleeps every session in the imp, and a
+  confirmed forget of the parent destroys them all.
+
+The daemon holds an imp with a lease labelled `atc-<daemonID>`, renews it at a third of its length
+while a harness runs there, and gives it back when the imp's last harness ends. A kill gives the
+lease back first, then asks impd to sleep the imp without force. When another owner's lease refuses
+the sleep, the daemon takes its own lease back and the kill fails with `host_leased`. A confirmed
+`session.forget` destroys the imp, which ends every lease on it. A start that fails while it readies
+the imp takes back only what it did: it destroys an imp it created, since no session holds it, and
+on an imp that existed before, it gives back the lease it took and leaves the imp. A fleet restore
+logs a session whose revive fails, the first one included, and goes on to the next.
+
+Each harness is an imp session named after its atc session, and the daemon is its one attacher. A
+kill of a sub-session sends its process `SIGHUP`. When the daemon stops, it closes its connections,
+leaves every imp session running, and gives its leases back, so an idle imp sleeps after impd's idle
+timeout. The next daemon's revive wakes the imp from memory and attaches to the session again.
+
+Each session's files live under the target's `guestDir` inside the imp, `/tmp/atc` by default. A
+Claude session there reports through an atc inside the imp: the one the target's `guestATC` names,
+or a copy of the daemon's own binary at `bin/atc`, which a compiled daemon on Linux installs when
+the imp lacks it. A daemon run from source has no binary to copy, so without `guestATC` it refuses a
+remote Claude spawn with `unsupported_operation`. The session's settings and its copy of the
+`atc-bridge` mod unpack into `sessions/<id>/`, and the settings hold no statusline, since the fleet
+status lives on the daemon's machine. A gateway session never runs remotely: its credential helper
+runs on the daemon's machine.
+
+A harness's hooks report to a socket inside the imp under `run/`, named for its session, which
+`ATC_SOCKET` points at. impd forwards each connection there to the daemon, and the daemon takes only
+lines for that harness's own session; it never exposes its own sockets to the imp. An agent with a
+sign-in check runs it inside the imp before its harness starts, and a failed check refuses the spawn
+with `auth_not_configured`.
+
+A connection that ends without an exit reconnects without waking the imp, and the session lists as
+`reattaching` until it does. Where impd carries offsets, the daemon resumes after the last byte it
+has, at the generation it last saw, and drops any byte below that offset, since impd may repeat
+bytes across connections. A resume that finds a gap, an offset impd refuses, or an imp without
+offsets gets a fresh attach instead: the daemon clears the screen, then takes impd's replay. impd's
+answer to the reconnect decides how the harness ended:
+
+- A sleeping imp leaves the session asleep, for a revive to find.
+- A process impd no longer holds in the same boot ended with the exit code impd kept for its
+  generation.
+- A process lost to a cold boot ended with the cause of the first boot after the daemon's own, such
+  as `imp rebooted (watchdog)`. Without the daemon's boot among impd's last four cold boots, it
+  ended with the cause unknown.
+
 ## Workspace materialization
 
 The daemon builds a spawn's [workspace](./protocol.md#workspaces) on the session's target through

@@ -12,12 +12,29 @@ export interface ExecutionProvider {
   readonly kind: string;
   readonly capabilities: ExecutionCapabilities;
 
-  // Starts a process in a pseudo-terminal of the given size.
+  // Whether the host is a machine other than the daemon's own. A remote
+  // harness's files, transcripts included, live on that machine, and its
+  // environment holds only what atc sets for it.
+  readonly remote: boolean;
+
+  // Where a remote host keeps atc's files: the folder each session's own
+  // files unpack under, and the atc binary inside the host, null when the
+  // host has none. Absent on the daemon's own machine.
+  readonly guest?: GuestLayout;
+
+  // Readies the host a harness is about to start on: a remote host is
+  // created when missing, woken when asleep, and held awake while its
+  // harnesses run. Rejects with the refusal before any harness starts.
+  readonly prepareHost: (request: HostRequest) => Promise<void>;
+
+  // Starts a process in a pseudo-terminal of the given size, on the host the
+  // spec holds, which a prepare readied first.
   readonly spawnHarness: (spec: HarnessSpec) => HarnessHandle;
 
-  // Unpacks a tar archive into a directory, creating the directory first.
+  // Unpacks a tar archive into a directory on a host, creating the directory
+  // first. The daemon's own machine takes no host.
   // oxlint-disable-next-line prefer-readonly-parameter-types -- archive bytes have no readonly form
-  readonly transferArchive: (archive: Uint8Array, dir: string) => Promise<void>;
+  readonly transferArchive: (archive: Uint8Array, dir: string, host?: string) => Promise<void>;
 
   // Runs a command to completion and returns what it printed.
   readonly runCommand: (spec: CommandSpec) => Promise<CommandResult>;
@@ -30,6 +47,29 @@ export interface ExecutionProvider {
   // Deletes a host and everything on it, harnesses included. Nothing brings
   // a destroyed host back.
   readonly destroyHost: (host: string) => Promise<void>;
+
+  // Stops the provider's own background work when the daemon stops, and
+  // leaves every remote harness running for the next daemon to find.
+  readonly dispose: () => void;
+}
+
+/**
+ * The host a harness is about to start on, and the daemon that holds it:
+ * a remote host is held per daemon, so two daemons never release each
+ * other's hold.
+ */
+export interface HostRequest {
+  readonly host: string;
+  readonly daemonID: string;
+
+  // Whether the harness about to start needs atc inside the host, which a
+  // provider that ships its own binary installs when missing.
+  readonly installATC?: boolean;
+}
+
+export interface GuestLayout {
+  readonly dir: string;
+  readonly atc: string | null;
 }
 
 /**
@@ -72,12 +112,30 @@ export interface ExecutionCapabilities {
 export type ExecutionCapability = keyof ExecutionCapabilities;
 
 export interface HarnessSpec {
+  // The atc session the harness belongs to, and the host it runs on: the
+  // session's own id, or its parent's when the two share a host.
+  readonly session: string;
+  readonly host: string;
   readonly bin: string;
   readonly args: readonly string[];
   readonly cwd: string;
+
+  // The variables atc sets for the harness. A provider for the daemon's
+  // own machine adds the daemon's environment around them; a remote one
+  // passes only these and its own.
   readonly env: Readonly<Record<string, string>>;
+
+  // The variable names the harness goes without even when the daemon's
+  // environment holds them, such as a workspace's credential; none of the
+  // variables atc sets is withheld.
+  readonly withheldEnv?: readonly string[];
   readonly cols: number;
   readonly rows: number;
+
+  // Takes each line the harness's hooks report. A remote provider relays
+  // them from a socket inside the host that serves this harness alone, and
+  // points the harness's ATC_SOCKET at it.
+  readonly onReport?: (line: string) => void;
 }
 
 /**
@@ -87,6 +145,12 @@ export interface HarnessSpec {
 export interface HarnessHandle {
   readonly onData: (listener: (data: string) => void) => HarnessSubscription;
   readonly onExit: (listener: (exit: HarnessExit) => void) => HarnessSubscription;
+
+  // Follows a remote harness's connection: lost and being restored, or
+  // restored. A harness on the daemon's own machine has no connection.
+  readonly onAttachment?: (
+    listener: (attachment: HarnessAttachment) => void,
+  ) => HarnessSubscription;
   readonly write: (data: string) => void;
   readonly resize: (cols: number, rows: number) => void;
   readonly kill: () => void;
@@ -97,17 +161,30 @@ export interface HarnessHandle {
   readonly detach: () => void;
 }
 
+export type HarnessAttachment = 'attached' | 'reattaching';
+
 interface HarnessSubscription {
   readonly dispose: () => void;
 }
 
-interface HarnessExit {
+export interface HarnessExit {
   readonly exitCode: number;
+
+  // Why the harness stopped: its process exited, its host went to sleep
+  // with the process inside, or the host lost it without an exit, such as
+  // a cold boot. Absent is an exit.
+  readonly reason?: 'exited' | 'suspended' | 'ended';
+
+  // What ended it, for a reason other than an exit.
+  readonly detail?: string;
 }
 
 export interface CommandSpec {
   readonly argv: readonly string[];
   readonly cwd: string;
+
+  // The host the command runs on; the daemon's own machine takes none.
+  readonly host?: string;
 }
 
 export interface CommandResult {

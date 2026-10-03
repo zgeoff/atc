@@ -115,6 +115,12 @@ export class GatewayAdapter implements AgentAdapter {
     };
   }
 
+  // The credential helper runs on the daemon's machine, so a gateway
+  // session never runs on a remote host.
+  planGuestSpawn(): null {
+    return null;
+  }
+
   normalizeHook(e: HookEvent): AdapterEvent {
     return this.claude.normalizeHook(e);
   }

@@ -2,7 +2,6 @@ import { DaemonError } from '../protocol/daemon-error';
 import type { SessionID } from '../shared/session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { StateStore } from '../store/state-store';
-import { ScreenModel } from './screen-model';
 import type { SessionRuntime } from './session-runtime';
 import type { Session, SessionManager } from './sessions';
 
@@ -86,26 +85,24 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
 
   // A session whose target refuses to start a terminal stays listed without
   // one, and the restore moves on to the next.
-  const adoptQueued = (s: Session): boolean => {
-    if (tryAdoptTerminal(mgr, s.id, cols, rows) === null) {
-      return false;
-    }
+  const adoptQueued = async (s: Session): Promise<boolean> => {
+    const adopted = await tryAdoptTerminal(mgr, s.id, cols, rows);
 
-    const runtime = findRuntime(s.id);
-
-    if (runtime !== undefined) {
-      runtime.resetBoot({ cols, rows });
-
-      runtime.screen ??= new ScreenModel(cols, rows);
-    }
-
-    return true;
+    return adopted !== null;
   };
 
+  // A session that announced itself, or whose terminal died, before the
+  // wait began has nothing left to wait for.
   const waitForBoot = (sessionID: SessionID): Promise<void> => {
     const runtime = findRuntime(sessionID);
+    const session = mgr.sessions.find((s) => s.id === sessionID);
 
-    if (runtime === undefined) {
+    if (
+      runtime === undefined ||
+      runtime.startedAt !== null ||
+      session === undefined ||
+      session.pty === null
+    ) {
       return Promise.resolve();
     }
 
@@ -134,11 +131,26 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
     return registered.length;
   }
 
-  // The first terminal attaches synchronously so a caller can attach at
-  // once; each later one waits for the previous session to report it has
+  // The first terminal attaches before the restore answers so a caller can
+  // attach at once; each later one waits for the previous session to report it has
   // booted, so a heavy fleet comes up one process at a time instead of all
   // at once. A per-session cap keeps a session that never reports from
   // stalling the rest.
+  // A session whose revive fails is logged and left without a terminal,
+  // and the restore moves on: one host's failure never keeps the sessions on
+  // other hosts down, and a later one's runs where nothing awaits it.
+  const tryAdoptQueued = async (s: Session): Promise<boolean> => {
+    try {
+      return await adoptQueued(s);
+    } catch (error) {
+      mgr.log(
+        `atc could not revive session ${s.id} (${error instanceof Error ? error.message : String(error)})`,
+      );
+
+      return false;
+    }
+  };
+
   const adoptRest = async (previous: Session | null) => {
     let prev = previous;
 
@@ -147,11 +159,15 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
         await waitForBoot(prev.id);
       }
 
-      prev = adoptQueued(s) ? s : null;
+      const booted = await tryAdoptQueued(s);
+
+      prev = booted ? s : null;
     }
   };
 
-  const firstBooted = adoptQueued(first) ? first : null;
+  const firstAdopted = await tryAdoptQueued(first);
+
+  const firstBooted = firstAdopted ? first : null;
 
   void adoptRest(firstBooted);
 
@@ -176,16 +192,18 @@ const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'target_unavailable',
   'target_changed',
   'target_config_invalid',
+  'host_unavailable',
+  'auth_not_configured',
 ]);
 
-function tryAdoptTerminal(
+async function tryAdoptTerminal(
   mgr: SessionManager,
   id: SessionID,
   cols: number,
   rows: number,
-): Session | null {
+): Promise<Session | null> {
   try {
-    return mgr.adoptTerminal(id, cols, rows);
+    return await mgr.adoptTerminal(id, cols, rows);
   } catch (error) {
     if (error instanceof DaemonError && REFUSED_ADOPT_CODES.has(error.code)) {
       return null;

@@ -36,6 +36,8 @@ interface FixtureDirOptions {
 export class FixtureDirProvider implements ExecutionProvider {
   readonly kind = 'fixture-dir';
 
+  readonly remote = false;
+
   readonly capabilities: ExecutionCapabilities;
 
   readonly calls: FixtureCall[] = [];
@@ -65,6 +67,8 @@ export class FixtureDirProvider implements ExecutionProvider {
 
     this.afterTransfer = options.afterTransfer;
   }
+
+  readonly prepareHost = (): Promise<void> => Promise.resolve();
 
   readonly spawnHarness = (spec: HarnessSpec): HarnessHandle => {
     this.harnesses.push(spec);
@@ -122,4 +126,6 @@ export class FixtureDirProvider implements ExecutionProvider {
 
   readonly destroyHost = (host: string): Promise<void> =>
     Promise.reject(new Error(`the fixture-dir provider cannot destroy host ${host}`));
+
+  readonly dispose = (): void => {};
 }
