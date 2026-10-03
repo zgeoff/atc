@@ -189,11 +189,10 @@ fails with `host_unavailable`.
 
 Each imp name is `impPrefix` followed by the first 20 letters and digits of the id of the session
 that owns the imp. Give atc a namespace of its own on a shared impd by setting `impPrefix`, such as
-`harness-`, and scope the impd token's imp patterns to it (`harness-*`). The checks before atc
-grants a brokered credential refuse a token whose patterns reach any imp outside that prefix. The
-prefix is a lowercase letter followed by up to 10 lowercase letters, digits or hyphens, so every
-name it builds is one impd accepts. Any other value is a config error the daemon handles like an
-unset `tokenEnv` variable.
+`harness-`, and scope the impd token's imp patterns to it (`harness-*`). The prefix is a lowercase
+letter followed by up to 10 lowercase letters, digits or hyphens, so every name it builds is one
+impd accepts. Any other value is a config error the daemon handles like an unset `tokenEnv`
+variable.
 
 A Claude session on an imp target reports through an atc inside the imp. A compiled atc daemon on
 Linux copies itself in; a daemon run from source needs `guestATC`, and refuses the spawn without it.
@@ -358,9 +357,8 @@ as that flag when it restores a session, and in the resume command it builds.
 
 ### Brokered credentials
 
-A gateway with `auth` gets its credential from impd's credential broker, which adds it on the host's
-side to each request the imp sends to the backend. The session itself holds only a placeholder, and
-atc stores secret names, never a value:
+A gateway with `auth` selects the credentials that impd's credential broker adds, on the host's
+side, to requests an imp sends to the backend. The config holds secret names, never a value:
 
 ```json
 {
@@ -398,10 +396,10 @@ with it:
 | `kind`         | The kind of secret impd holds. atc binds `custom` only, the default.                      |
 | `dependencies` | Profiles a session selecting this one needs beside it, such as a permission classifier's. |
 
-A gateway's `auth.profiles` selects profiles, and atc adds each one's dependencies. Every value in
-`auth.placeholderEnv` is `imp-broker-placeholder`, and the session gets those variables where a
-credential would go. atc refuses a gateway, leaves it out of the picker, and prints the reason when
-the daemon starts, when any of these holds:
+A gateway's `auth.profiles` selects profiles, and atc adds each one's dependencies.
+`auth.placeholderEnv` lists the variables that stand in for the credential, each holding
+`imp-broker-placeholder`. atc refuses a gateway, leaves it out of the picker, and prints the reason
+when the daemon starts, when any of these holds:
 
 - A selected profile or one of its dependencies is missing or refused, or the dependencies form a
   cycle.
