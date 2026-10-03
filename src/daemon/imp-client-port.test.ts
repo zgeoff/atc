@@ -34,7 +34,7 @@ function setupTest() {
   };
 }
 
-test('it calls impd with the token its token file holds, without the trailing newline', async () => {
+test('it calls impd with the token its token file holds', async () => {
   await using impd = setupTest();
 
   const tokenPath = join(impd.dir, 'imp-token');
