@@ -1,3 +1,4 @@
+import type { SocketHandler } from 'bun';
 import type { DaemonChannel } from '../protocol/daemon-channel';
 import { DaemonError } from '../protocol/daemon-error';
 import { LineDecoder } from '../protocol/line-decoder';
@@ -34,25 +35,30 @@ export class DaemonClient implements DaemonChannel {
   // once instead of waiting on a response that can never arrive.
   private closedReason: string | null = null;
 
-  static async open(socketPath: string): Promise<DaemonClient> {
+  // Connects to the daemon at a unix socket path, or at a TCP address.
+  static async open(
+    address: string | { readonly hostname: string; readonly port: number },
+  ): Promise<DaemonClient> {
     const client = new DaemonClient();
 
-    const socket = await Bun.connect({
-      unix: socketPath,
-      socket: {
-        data(_s, buf) {
-          client.applyChunk(buf);
-        },
-        drain() {
-          client.queue?.drain();
-        },
-        close() {
-          client.drainPending('connection closed');
-          client.onClose();
-        },
-        error() {},
+    const handlers: SocketHandler = {
+      data(_s, buf) {
+        client.applyChunk(buf);
       },
-    });
+      drain() {
+        client.queue?.drain();
+      },
+      close() {
+        client.drainPending('connection closed');
+        client.onClose();
+      },
+      error() {},
+    };
+
+    const socket =
+      typeof address === 'string'
+        ? await Bun.connect({ unix: address, socket: handlers })
+        : await Bun.connect({ hostname: address.hostname, port: address.port, socket: handlers });
 
     client.socket = socket;
 
@@ -61,8 +67,13 @@ export class DaemonClient implements DaemonChannel {
     return client;
   }
 
-  sendHello(build: string): Promise<Readonly<Record<string, unknown>>> {
-    return this.sendRequest('daemon.hello', { client: build, auth: { scheme: 'none' } });
+  // A handshake with a token presents it as a bearer token, which a TCP
+  // listener requires.
+  sendHello(build: string, token?: string): Promise<Readonly<Record<string, unknown>>> {
+    return this.sendRequest('daemon.hello', {
+      client: build,
+      auth: token === undefined ? { scheme: 'none' } : { scheme: 'bearer', token },
+    });
   }
 
   // A request with a principal acts as that principal, within what the

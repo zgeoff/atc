@@ -51,6 +51,7 @@ function setupConnection(queueBytes: number, principal = false): ConnectionHarne
   const ctx: DaemonContext = {
     build: 'atc/test',
     daemonID: toDaemonID('d-1'),
+    idempotencyRetentionMs: 86_400_000,
     collectSessions: () => [],
     collectSpawnDirs: assertUnreachable,
     collectAgents: assertUnreachable,
@@ -59,6 +60,7 @@ function setupConnection(queueBytes: number, principal = false): ConnectionHarne
     findAdapter: assertUnreachable,
     buildTargetAccess: () => new TargetAccess([]),
     findSessionGrant: () => ({ target: 'local', targetIdentity: 'local-pty' }),
+    hasListedPrincipal: assertUnreachable,
     findTargetIdentity: assertUnreachable,
     canSeeSession: () => visible,
     isSessionVisible: assertUnreachable,

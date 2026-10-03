@@ -232,7 +232,9 @@ active.
 Without a `principals` key, every principal may use the implicit `local` target alone: the target
 named `local` whose provider is `local-pty` with no options. Such a principal never reaches another
 target, nor a `local` that now holds another provider or other options. Its spawn without a target
-fails with `target_forbidden` when `defaultTarget` is another target.
+fails with `target_forbidden` when `defaultTarget` is another target. A request over the daemon's
+[TCP listener](../architecture/daemon.md#the-tcp-listener) never gets these rights: it may act only
+as a principal the `principals` key lists, so a config without the key admits no TCP request.
 
 These legacy rights need a config that atc can read, or no config file at all. An existing
 config.json that atc cannot use, because it is not valid JSON, its root is not an object, or atc
