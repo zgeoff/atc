@@ -4,8 +4,9 @@
  *
  * - `auth_impd_too_old`: impd lacks grantable tokens or secret rebinds.
  * - `auth_token_scope`: the token's scope is below `manage`.
- * - `auth_token_too_broad`: the token reaches every imp on the host,
- *   through no imp patterns or a pattern of `*` alone.
+ * - `auth_token_too_broad`: the token can reach imps outside atc's
+ *   namespace, through no imp patterns or a pattern whose literal text
+ *   before its first `*` does not start with the namespace prefix.
  * - `auth_imp_out_of_scope`: an imp the call touches is outside the
  *   token's patterns.
  * - `auth_secret_not_grantable`: a bound secret is not on the token's

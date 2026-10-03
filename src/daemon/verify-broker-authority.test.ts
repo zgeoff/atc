@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
+import { BrokerAuthorityError } from './broker-authority-error';
 import { ImpClientPort } from './imp-client-port';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
@@ -44,7 +45,7 @@ test('it lets a scoped token that may grant every bound secret activate the brok
     grantable: ['glm', 'judge'],
   });
 
-  await verifyBrokerAuthority(gate.port, { impNames: ['atc-s1'], secrets: ['glm'] });
+  await verifyBrokerAuthority(gate.port, { impNames: ['atc-s1'], secrets: ['glm'] }, 'atc-');
 
   expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
@@ -62,10 +63,14 @@ test('it refuses an impd without grantable tokens and secret rebinds after readi
     grantable: ['glm'],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(gate.port, {
-    impNames: ['atc-s1'],
-    secrets: ['glm'],
-  }).catch((error: unknown) => error);
+  const refusal: unknown = await verifyBrokerAuthority(
+    gate.port,
+    {
+      impNames: ['atc-s1'],
+      secrets: ['glm'],
+    },
+    'atc-',
+  ).catch((error: unknown) => error);
 
   expect(refusal).toMatchObject({
     code: 'auth_impd_too_old',
@@ -83,10 +88,14 @@ test.each([
 
   gate.port.features = { sessionOffsets: true, leases: true, ...flags };
 
-  const refusal: unknown = await verifyBrokerAuthority(gate.port, {
-    impNames: ['atc-s1'],
-    secrets: ['glm'],
-  }).catch((error: unknown) => error);
+  const refusal: unknown = await verifyBrokerAuthority(
+    gate.port,
+    {
+      impNames: ['atc-s1'],
+      secrets: ['glm'],
+    },
+    'atc-',
+  ).catch((error: unknown) => error);
 
   expect(refusal).toMatchObject({ code: 'auth_impd_too_old' });
   expect(gate.port.calls).toStrictEqual(['system.info']);
@@ -105,10 +114,14 @@ test.each([
 
     const port = new ImpClientPort({ url: gate.impd.url, readToken: () => 'token' });
 
-    const refusal: unknown = await verifyBrokerAuthority(port, {
-      impNames: ['atc-s1'],
-      secrets: ['glm'],
-    }).catch((error: unknown) => error);
+    const refusal: unknown = await verifyBrokerAuthority(
+      port,
+      {
+        impNames: ['atc-s1'],
+        secrets: ['glm'],
+      },
+      'atc-',
+    ).catch((error: unknown) => error);
 
     expect(refusal).toMatchObject({ code: 'auth_impd_too_old' });
     expect(gate.impd.paths).toStrictEqual(['/rpc/system/info']);
@@ -126,10 +139,14 @@ test('it refuses a token below manage scope', async () => {
     grantable: [],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(gate.port, {
-    impNames: ['atc-s1'],
-    secrets: ['glm'],
-  }).catch((error: unknown) => error);
+  const refusal: unknown = await verifyBrokerAuthority(
+    gate.port,
+    {
+      impNames: ['atc-s1'],
+      secrets: ['glm'],
+    },
+    'atc-',
+  ).catch((error: unknown) => error);
 
   expect(refusal).toMatchObject({ code: 'auth_token_scope', data: { scope: 'exec' } });
   expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
@@ -146,18 +163,87 @@ test('it refuses a token that reaches every imp on the host', async () => {
     grantable: [],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(gate.port, {
-    impNames: ['atc-s1'],
-    secrets: ['glm'],
-  }).catch((error: unknown) => error);
+  const refusal: unknown = await verifyBrokerAuthority(
+    gate.port,
+    {
+      impNames: ['atc-s1'],
+      secrets: ['glm'],
+    },
+    'atc-',
+  ).catch((error: unknown) => error);
 
   expect(refusal).toMatchObject({ code: 'auth_token_too_broad', data: { imps: null } });
   expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
 
-test.each([[['*']], [['**']], [['atc-*', '*']]])(
-  'it refuses a token whose patterns %p match every imp',
-  async (imps) => {
+test.each([
+  [['*'], ['*']],
+  [['**'], ['**']],
+  [['atc-*', '*'], ['*']],
+  [
+    [
+      'a*',
+      'b*',
+      'c*',
+      'd*',
+      'e*',
+      'f*',
+      'g*',
+      'h*',
+      'i*',
+      'j*',
+      'k*',
+      'l*',
+      'm*',
+      'n*',
+      'o*',
+      'p*',
+      'q*',
+      'r*',
+      's*',
+      't*',
+      'u*',
+      'v*',
+      'w*',
+      'x*',
+      'y*',
+      'z*',
+    ],
+    [
+      'a*',
+      'b*',
+      'c*',
+      'd*',
+      'e*',
+      'f*',
+      'g*',
+      'h*',
+      'i*',
+      'j*',
+      'k*',
+      'l*',
+      'm*',
+      'n*',
+      'o*',
+      'p*',
+      'q*',
+      'r*',
+      's*',
+      't*',
+      'u*',
+      'v*',
+      'w*',
+      'x*',
+      'y*',
+      'z*',
+    ],
+  ],
+  [['atc-*', 'prod-*'], ['prod-*']],
+  [['atc-s1', 'prod'], ['prod']],
+  [['atc*'], ['atc*']],
+])(
+  'it refuses a token whose patterns %p reach imps outside the namespace',
+  async (imps, offending) => {
     await using gate = setupTest();
 
     gate.port.setIdentity({
@@ -168,15 +254,63 @@ test.each([[['*']], [['**']], [['atc-*', '*']]])(
       grantable: ['glm'],
     });
 
-    const refusal: unknown = await verifyBrokerAuthority(gate.port, {
-      impNames: ['atc-s1'],
-      secrets: ['glm'],
-    }).catch((error: unknown) => error);
+    const refusal: unknown = await verifyBrokerAuthority(
+      gate.port,
+      {
+        impNames: ['atc-s1'],
+        secrets: ['glm'],
+      },
+      'atc-',
+    ).catch((error: unknown) => error);
 
-    expect(refusal).toMatchObject({ code: 'auth_token_too_broad', data: { imps } });
+    expect(refusal).toMatchObject({
+      code: 'auth_token_too_broad',
+      data: { token: 'wide', imps, offending },
+    });
+
     expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
   },
 );
+
+test('it lets a token whose literal imp names sit inside the namespace activate the broker', async () => {
+  await using gate = setupTest();
+
+  gate.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-s1', 'atc-s2'],
+    grantable: ['glm'],
+  });
+
+  await verifyBrokerAuthority(gate.port, { impNames: ['atc-s1'], secrets: ['glm'] }, 'atc-');
+
+  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+});
+
+test('it rejects an empty namespace prefix as a broken invariant', async () => {
+  await using gate = setupTest();
+
+  gate.port.setIdentity({
+    kind: 'token',
+    name: 'wide',
+    scope: 'manage',
+    imps: ['*'],
+    grantable: ['glm'],
+  });
+
+  const refusal: unknown = await verifyBrokerAuthority(
+    gate.port,
+    {
+      impNames: ['atc-s1'],
+      secrets: ['glm'],
+    },
+    '',
+  ).catch((error: unknown) => error);
+
+  expect(refusal).toBeInstanceOf(Error);
+  expect(refusal).not.toBeInstanceOf(BrokerAuthorityError);
+});
 
 test('it refuses a token whose patterns do not cover the imp the call touches', async () => {
   await using gate = setupTest();
@@ -185,14 +319,18 @@ test('it refuses a token whose patterns do not cover the imp the call touches', 
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['harness-*'],
+    imps: ['atc-other-*'],
     grantable: ['glm'],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(gate.port, {
-    impNames: ['atc-s1'],
-    secrets: ['glm'],
-  }).catch((error: unknown) => error);
+  const refusal: unknown = await verifyBrokerAuthority(
+    gate.port,
+    {
+      impNames: ['atc-s1'],
+      secrets: ['glm'],
+    },
+    'atc-',
+  ).catch((error: unknown) => error);
 
   expect(refusal).toMatchObject({
     code: 'auth_imp_out_of_scope',
@@ -213,7 +351,11 @@ test('it checks the imp names of the target namespace rather than a fixed prefix
     grantable: ['glm'],
   });
 
-  await verifyBrokerAuthority(gate.port, { impNames: ['harness-s1'], secrets: ['glm'] });
+  await verifyBrokerAuthority(
+    gate.port,
+    { impNames: ['harness-s1'], secrets: ['glm'] },
+    'harness-',
+  );
 
   expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
@@ -229,10 +371,14 @@ test('it refuses when any one of the imps the call touches is outside the patter
     grantable: ['glm'],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(gate.port, {
-    impNames: ['atc-s1', 'prod-db'],
-    secrets: ['glm'],
-  }).catch((error: unknown) => error);
+  const refusal: unknown = await verifyBrokerAuthority(
+    gate.port,
+    {
+      impNames: ['atc-s1', 'prod-db'],
+      secrets: ['glm'],
+    },
+    'atc-',
+  ).catch((error: unknown) => error);
 
   expect(refusal).toMatchObject({
     code: 'auth_imp_out_of_scope',
@@ -251,10 +397,14 @@ test('it refuses a token that may not grant every bound secret', async () => {
     grantable: ['glm'],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(gate.port, {
-    impNames: ['atc-s1'],
-    secrets: ['glm', 'judge'],
-  }).catch((error: unknown) => error);
+  const refusal: unknown = await verifyBrokerAuthority(
+    gate.port,
+    {
+      impNames: ['atc-s1'],
+      secrets: ['glm', 'judge'],
+    },
+    'atc-',
+  ).catch((error: unknown) => error);
 
   expect(refusal).toMatchObject({
     code: 'auth_secret_not_grantable',

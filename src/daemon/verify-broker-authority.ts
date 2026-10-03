@@ -17,12 +17,14 @@ export interface BrokerActivation {
  * impd's features, then the token's identity, and writes nothing, so a
  * refusal leaves impd as it was. It rejects unless impd has both grantable
  * tokens and secret rebinds, the token may manage each imp and reaches no
- * imp beyond its own patterns, and the token may grant every bound secret.
+ * imp outside the namespace whose imp names start with the prefix, and the
+ * token may grant every bound secret.
  * Whether each secret's rules match the binding is a separate comparison.
  */
 export async function verifyBrokerAuthority(
   port: Pick<ImpPort, 'readFeatures' | 'readIdentity'>,
   activation: BrokerActivation,
+  impPrefix: string,
 ): Promise<void> {
   const features = await port.readFeatures();
 
@@ -36,7 +38,7 @@ export async function verifyBrokerAuthority(
 
   const identity = await port.readIdentity();
 
-  verifyTokenImpAuthority(identity, activation.impNames);
+  verifyTokenImpAuthority(identity, activation.impNames, impPrefix);
 
   const missing = activation.secrets.filter((secret) => !identity.grantable.includes(secret));
 
