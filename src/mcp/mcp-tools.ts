@@ -132,7 +132,11 @@ const MESSAGE_GET_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
 
 const REPORT_GET_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   z.strictObject({
-    report: z.string().describe("The cursor of the report's event, from atc_events_read"),
+    report: z
+      .string()
+      .describe(
+        "The report handle of the report's event from atc_events_read, or the event's cursor when it carries no report handle",
+      ),
   }),
   { io: 'input' },
 );
@@ -514,7 +518,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-accepted, message-delivered, message-answered), and reports (report) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A report event carries its label and a preview of its text; read the full text with atc_report_get, passing the cursor of that event. Without a cursor it returns the most recent events. Pass the returned cursor next time; more is true when the page stopped before the newest event, so read again at once. session limits the read to one session. waitMs holds the call open until an event arrives; pass it instead of polling in a tight loop.',
+      'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-accepted, message-delivered, message-answered), and reports (report) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A report event carries its label and a preview of its text; read the full text with atc_report_get, passing the report handle of that event when it carries one, else its cursor. Without a cursor it returns the most recent events. Pass the returned cursor next time; more is true when the page stopped before the newest event, so read again at once. session limits the read to one session. waitMs holds the call open until an event arrives; pass it instead of polling in a tight loop.',
     inputSchema: EVENTS_READ_INPUT,
     outputSchema: EVENTS_OUTPUT,
     requires: { output: 'events.more', inputs: { session: 'events.session' } },
@@ -524,7 +528,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      "Read one report's full text without messaging the session that sent it. Pass the cursor of the report's event from atc_events_read. Returns the report cursor, at, the session id and name, the label, the text (up to 64 KiB, as the session sent it), and complete, which is false for a report recorded before atc kept full texts: its text is then only the preview the event held. A cursor of an event that is not a report answers as an unknown report.",
+      "Read one report's full text without messaging the session that sent it. Pass the report handle of the report's event from atc_events_read, or the event's cursor when it carries none. Returns the report cursor, at, the session id and name, the label, the text (up to 64 KiB, as the session sent it), and complete, which is false for a report recorded before atc kept full texts: its text is then only the preview the event held. A cursor of an event that is not a report answers as an unknown report.",
     inputSchema: REPORT_GET_INPUT,
     outputSchema: REPORT_OUTPUT,
     requires: { tool: 'report.get' },

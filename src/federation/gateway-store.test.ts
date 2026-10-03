@@ -71,7 +71,7 @@ test('it keeps the first binding of a key and returns it to a later claim for an
     claimID: 'claim',
     outcome: 'pending',
     outcomeAt: 10,
-    claimedAt: 10,
+    sentAt: null,
     effectRef: null,
   });
 });
@@ -264,4 +264,81 @@ test('it accepts a retry whose payload holds two keys a locale comparison ties i
   );
 
   expect(retried.daemon).toBe('cloud');
+});
+
+test('it marks a binding sent for exactly one call, across a gateway restart too', () => {
+  using gateway = setupTest();
+
+  gateway.store.claimBinding(
+    {
+      principal: 'c1',
+      operation: 'session.spawn',
+      key: 'k',
+      daemon: 'cloud',
+      daemonID: 'd1',
+      retentionMs: 1000,
+      payloadHash: 'h',
+      claimID: 'claim',
+    },
+    10,
+  );
+
+  const first = gateway.store.claimFirstSend('c1', 'session.spawn', 'k', 20);
+  const second = gateway.store.claimFirstSend('c1', 'session.spawn', 'k', 30);
+
+  gateway.reopen();
+
+  const restarted = gateway.store.claimFirstSend('c1', 'session.spawn', 'k', 40);
+
+  expect([first, second, restarted]).toStrictEqual([true, false, false]);
+  expect(gateway.store.findBinding('c1', 'session.spawn', 'k')).toMatchObject({ sentAt: 20 });
+});
+
+test('it keeps a sent binding when its claim is withdrawn', () => {
+  using gateway = setupTest();
+
+  gateway.store.claimBinding(
+    {
+      principal: 'c1',
+      operation: 'session.spawn',
+      key: 'k',
+      daemon: 'cloud',
+      daemonID: 'd1',
+      retentionMs: 1000,
+      payloadHash: 'h',
+      claimID: 'claim',
+    },
+    10,
+  );
+
+  gateway.store.claimFirstSend('c1', 'session.spawn', 'k', 20);
+  gateway.store.removeBinding('c1', 'session.spawn', 'k', 'claim');
+
+  expect(gateway.store.findBinding('c1', 'session.spawn', 'k')).toMatchObject({ sentAt: 20 });
+});
+
+test('it keeps a completed outcome when a later request under the key goes unanswered', () => {
+  using gateway = setupTest();
+
+  gateway.store.claimBinding(
+    {
+      principal: 'c1',
+      operation: 'session.spawn',
+      key: 'k',
+      daemon: 'cloud',
+      daemonID: 'd1',
+      retentionMs: 1000,
+      payloadHash: 'h',
+      claimID: 'claim',
+    },
+    10,
+  );
+
+  gateway.store.updateOutcome('c1', 'session.spawn', 'k', 'completed', 20);
+  gateway.store.updateOutcome('c1', 'session.spawn', 'k', 'uncertain', 30, 'effect');
+
+  expect(gateway.store.findBinding('c1', 'session.spawn', 'k')).toMatchObject({
+    outcome: 'completed',
+    outcomeAt: 20,
+  });
 });

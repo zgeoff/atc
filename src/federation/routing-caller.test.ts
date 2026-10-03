@@ -10,6 +10,7 @@ import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle } from '../daemon/daemon';
 import { getRecord } from '../shared/get-record';
+import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import type { GatewayChannel } from './daemon-caller';
 import { DaemonPool } from './daemon-pool';
 import { GatewayStore } from './gateway-store';
@@ -24,7 +25,6 @@ interface RouterOptions {
 
   // The address the registry holds for each daemon, by name.
   readonly addresses?: ReadonlyMap<string, RegistryDaemon['address']>;
-  readonly now?: () => number;
 
   // The binding store's file, for routers that share one; absent opens a
   // store of the router's own.
@@ -150,7 +150,6 @@ async function setupTest() {
         registry,
         pool,
         store,
-        ...(options.now === undefined ? {} : { now: options.now }),
       });
     },
     async [Symbol.asyncDispose]() {
@@ -298,56 +297,6 @@ test('it refuses a keyed spawn whose key another router bound to another daemon 
   });
 });
 
-test("it answers outcome_unknown instead of resending an uncertain keyed spawn once the daemon's retention may have lapsed", async () => {
-  await using daemons = await setupTest();
-
-  const cloud = daemons.daemon('cloud');
-
-  const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: cloud.address.port },
-    method: 'session.spawn',
-    cuts: 2,
-    mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
-  });
-
-  let now = 1_000_000;
-
-  const router = daemons.startRouter({
-    addresses: new Map([['cloud', { host: '127.0.0.1', port: proxy.port }]]),
-    now: () => now,
-  });
-
-  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-late' };
-  const first = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
-
-  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
-
-  await Promise.allSettled([first]);
-
-  // The daemon's ledger drops the completed key, as its sweep does once
-  // the retention passes.
-  const ledger = new Database(daemons.stateDB('cloud'));
-
-  ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
-  ledger.close();
-
-  now += 24 * 60 * 60 * 1000 + 1;
-
-  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
-
-  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
-
-  await Promise.allSettled([retried]);
-
-  const listed = await daemons.owner('cloud').sendRequest('session.list');
-
-  expect(listed['sessions']).toHaveLength(1);
-});
-
 test("it keeps another call's completed binding when a call that found none is refused before sending", async () => {
   await using daemons = await setupTest();
 
@@ -413,7 +362,16 @@ test("it keeps another call's completed binding when a call that found none is r
   expect(pcList['sessions']).toStrictEqual([]);
 });
 
-test("it answers outcome_unknown without sending when the daemon's retention lapses while the retry waits for its handshake", async () => {
+// Drops every completed key from a daemon's ledger, as its sweep does once
+// the retention passes.
+function removeCompletedKeys(stateDB: string): void {
+  const ledger = new Database(stateDB);
+
+  ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
+  ledger.close();
+}
+
+test('it resends an uncertain keyed spawn replay-only, so a retry after the daemon swept the key spawns nothing and answers outcome_unknown', async () => {
   await using daemons = await setupTest();
 
   const cloud = daemons.daemon('cloud');
@@ -429,15 +387,53 @@ test("it answers outcome_unknown without sending when the daemon's retention lap
     proxy.stop();
   });
 
-  const retention = 24 * 60 * 60 * 1000;
+  const router = daemons.startRouter({
+    addresses: new Map([['cloud', { host: '127.0.0.1', port: proxy.port }]]),
+  });
+
+  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-late' };
+  const first = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await Promise.allSettled([first]);
+
+  removeCompletedKeys(daemons.stateDB('cloud'));
+
+  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await Promise.allSettled([retried]);
+
+  const listed = await daemons.owner('cloud').sendRequest('session.list');
+
+  expect(proxy.countRequests()).toBe(3);
+  expect(listed['sessions']).toHaveLength(1);
+});
+
+test('it spawns nothing for a queued keyed resend that reaches the daemon after its sweep', async () => {
+  await using daemons = await setupTest();
+
+  const cloud = daemons.daemon('cloud');
+
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: cloud.address.port },
+    method: 'session.spawn',
+    cuts: 2,
+    mode: 'close',
+  });
+
+  onTestFinished(() => {
+    proxy.stop();
+  });
+
   const dialed = Promise.withResolvers<void>();
   const released = Promise.withResolvers<void>();
-  let now = 1_000_000;
   let opened = 0;
 
   const router = daemons.startRouter({
     addresses: new Map([['cloud', { host: '127.0.0.1', port: proxy.port }]]),
-    now: () => now,
     openChannel: async (address) => {
       opened++;
 
@@ -451,27 +447,19 @@ test("it answers outcome_unknown without sending when the daemon's retention lap
     },
   });
 
-  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-expiring' };
+  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-queued' };
   const first = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
 
   expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
 
   await Promise.allSettled([first]);
 
-  now += retention - 1;
-
   const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
 
   await dialed.promise;
 
-  // The retention passes and the daemon drops the completed key while the
-  // retry still waits for its handshake.
-  now += 2;
+  removeCompletedKeys(daemons.stateDB('cloud'));
 
-  const ledger = new Database(daemons.stateDB('cloud'));
-
-  ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
-  ledger.close();
   released.resolve();
 
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
@@ -480,6 +468,293 @@ test("it answers outcome_unknown without sending when the daemon's retention lap
 
   const listed = await daemons.owner('cloud').sendRequest('session.list');
 
-  expect(proxy.countRequests()).toBe(2);
+  expect(proxy.countRequests()).toBe(3);
+  expect(listed['sessions']).toHaveLength(1);
+});
+
+test('it spawns nothing for a keyed spawn whose first send never reached the daemon, and keeps its binding uncertain', async () => {
+  await using daemons = await setupTest();
+
+  const cloud = daemons.daemon('cloud');
+  const storePath = join(daemons.dir, 'shared-gateway.db');
+
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: cloud.address.port },
+    method: 'session.spawn',
+    cuts: 1,
+    mode: 'drop',
+  });
+
+  onTestFinished(() => {
+    proxy.stop();
+  });
+
+  const router = daemons.startRouter({
+    storePath,
+    addresses: new Map([['cloud', { host: '127.0.0.1', port: proxy.port }]]),
+  });
+
+  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-dropped' };
+  const first = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await Promise.allSettled([first]);
+
+  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await Promise.allSettled([retried]);
+
+  const listed = await daemons.owner('cloud').sendRequest('session.list');
+
+  const store = GatewayStore.open(storePath);
+  const binding = store.findBinding('gw', 'session.spawn', 'spawn-dropped');
+
+  store.stop();
+
+  expect(proxy.countRequests()).toBe(3);
+  expect(listed['sessions']).toStrictEqual([]);
+  expect(binding).toMatchObject({ outcome: 'uncertain', sentAt: expect.toBeNumber() });
+});
+
+test('it runs one of two concurrent keyed spawns with one key from two routers on one gateway store', async () => {
+  await using daemons = await setupTest();
+
+  const storePath = join(daemons.dir, 'shared-gateway.db');
+  const first = daemons.startRouter({ storePath });
+  const second = daemons.startRouter({ storePath });
+  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-racing' };
+
+  const outcomes = await Promise.allSettled([
+    first.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
+    second.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
+  ]);
+
+  const listed = await daemons.owner('cloud').sendRequest('session.list');
+
+  const answered = outcomes.filter((outcome) => outcome.status === 'fulfilled');
+
+  expect(listed['sessions']).toHaveLength(1);
+  expect(answered.length).toBeGreaterThanOrEqual(1);
+});
+
+test('it makes the first send of a binding a gateway restart left claimed but unsent, and replays it after', async () => {
+  await using daemons = await setupTest();
+
+  const cloud = daemons.daemon('cloud');
+  const storePath = join(daemons.dir, 'shared-gateway.db');
+  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-unsent' };
+  const store = GatewayStore.open(storePath);
+
+  store.claimBinding(
+    {
+      principal: 'gw',
+      operation: 'session.spawn',
+      key: 'spawn-unsent',
+      daemon: 'cloud',
+      daemonID: cloud.daemonID,
+      retentionMs: 86_400_000,
+      payloadHash: buildBindingPayloadHash(params),
+      claimID: randomUUID(),
+    },
+    Date.now(),
+  );
+
+  store.stop();
+
+  const router = daemons.startRouter({ storePath });
+
+  const spawned = await router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  const replayed = await router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  const listed = await daemons.owner('cloud').sendRequest('session.list');
+
+  expect(listed['sessions']).toHaveLength(1);
+  expect(getRecord(replayed, 'session')['id']).toBe(getRecord(spawned, 'session')['id']);
+});
+
+test('it spawns nothing for a binding a gateway restart left sent but unanswered when the daemon holds no key, and returns its effectRef', async () => {
+  await using daemons = await setupTest();
+
+  const cloud = daemons.daemon('cloud');
+  const storePath = join(daemons.dir, 'shared-gateway.db');
+  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-sent' };
+  const store = GatewayStore.open(storePath);
+
+  store.claimBinding(
+    {
+      principal: 'gw',
+      operation: 'session.spawn',
+      key: 'spawn-sent',
+      daemon: 'cloud',
+      daemonID: cloud.daemonID,
+      retentionMs: 86_400_000,
+      payloadHash: buildBindingPayloadHash(params),
+      claimID: randomUUID(),
+    },
+    Date.now(),
+  );
+
+  store.claimFirstSend('gw', 'session.spawn', 'spawn-sent', Date.now());
+  store.updateOutcome('gw', 'session.spawn', 'spawn-sent', 'uncertain', Date.now(), 's-lost');
+  store.stop();
+
+  const router = daemons.startRouter({ storePath });
+  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  expect(retried).rejects.toMatchObject({
+    code: 'outcome_unknown',
+    data: { effectRef: `cloud.${cloud.incarnation}.s-lost` },
+  });
+
+  await Promise.allSettled([retried]);
+
+  const listed = await daemons.owner('cloud').sendRequest('session.list');
+
+  expect(listed['sessions']).toStrictEqual([]);
+});
+
+test('it replays a keyed spawn sent before a gateway restart from the key the daemon holds, with no idempotency_conflict', async () => {
+  await using daemons = await setupTest();
+
+  const cloud = daemons.daemon('cloud');
+  const storePath = join(daemons.dir, 'shared-gateway.db');
+
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: cloud.address.port },
+    method: 'session.spawn',
+    cuts: 2,
+    mode: 'close',
+  });
+
+  onTestFinished(() => {
+    proxy.stop();
+  });
+
+  const before = daemons.startRouter({
+    storePath,
+    addresses: new Map([['cloud', { host: '127.0.0.1', port: proxy.port }]]),
+  });
+
+  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-restart' };
+  const first = before.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await Promise.allSettled([first]);
+
+  const after = daemons.startRouter({ storePath });
+
+  const replayed = await after.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  const listed = await daemons.owner('cloud').sendRequest('session.list');
+
+  const sessions: unknown[] = [listed['sessions']].flat();
+  const listedID = String(getRecord({ listed: sessions.at(0) }, 'listed')['id']);
+
+  expect(sessions).toHaveLength(1);
+  expect(getRecord(replayed, 'session')['id']).toBe(`cloud.${cloud.incarnation}.${listedID}`);
+});
+
+test('it answers outcome_unknown for a keyed spawn sent before a gateway restart once the daemon swept its key', async () => {
+  await using daemons = await setupTest();
+
+  const cloud = daemons.daemon('cloud');
+  const storePath = join(daemons.dir, 'shared-gateway.db');
+
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: cloud.address.port },
+    method: 'session.spawn',
+    cuts: 2,
+    mode: 'close',
+  });
+
+  onTestFinished(() => {
+    proxy.stop();
+  });
+
+  const before = daemons.startRouter({
+    storePath,
+    addresses: new Map([['cloud', { host: '127.0.0.1', port: proxy.port }]]),
+  });
+
+  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' };
+  const first = before.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await Promise.allSettled([first]);
+
+  removeCompletedKeys(daemons.stateDB('cloud'));
+
+  const after = daemons.startRouter({ storePath });
+  const retried = after.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await Promise.allSettled([retried]);
+
+  const listed = await daemons.owner('cloud').sendRequest('session.list');
+
+  expect(listed['sessions']).toHaveLength(1);
+});
+
+test('it sends no resend of a keyed spawn to a daemon that does not announce replay-only requests', async () => {
+  await using daemons = await setupTest();
+
+  const cloud = daemons.daemon('cloud');
+
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: cloud.address.port },
+    method: 'session.spawn',
+    cuts: 1,
+    mode: 'close',
+  });
+
+  const legacy = startLegacyDaemon(join(daemons.dir, 'legacy.sock'), {
+    replies: {
+      'daemon.hello': {
+        daemon: 'atc/legacy-build',
+        daemonID: cloud.daemonID,
+        features: ['transport.tcp', 'daemon.id', 'spawn.idempotency', 'request.principal'],
+        idempotency: { completedRetentionMs: 86_400_000 },
+      },
+    },
+  });
+
+  onTestFinished(() => {
+    proxy.stop();
+    legacy.stop();
+  });
+
+  let opened = 0;
+
+  const router = daemons.startRouter({
+    addresses: new Map([['cloud', { host: '127.0.0.1', port: proxy.port }]]),
+    openChannel: (address) => {
+      opened++;
+
+      return opened === 1
+        ? DaemonClient.open({ hostname: address.host, port: address.port })
+        : DaemonClient.open(join(daemons.dir, 'legacy.sock'));
+    },
+  });
+
+  const params = { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-legacy' };
+  const first = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await Promise.allSettled([first]);
+
+  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await Promise.allSettled([retried]);
+
+  const listed = await daemons.owner('cloud').sendRequest('session.list');
+
+  expect(legacy.requests.map((request) => request.m)).toStrictEqual(['daemon.hello']);
   expect(listed['sessions']).toHaveLength(1);
 });

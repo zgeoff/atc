@@ -5,6 +5,7 @@ import { readJSONRecord } from '../../test/read-json-record';
 import { runMCPAuthorization } from '../../test/run-mcp-authorization';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { startLegacyDaemon } from '../../test/start-legacy-daemon';
+import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle } from '../daemon/daemon';
@@ -12,7 +13,7 @@ import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { getRecord } from '../shared/get-record';
-import { isRecord } from '../shared/report';
+import { isRecord, sendReport } from '../shared/report';
 import { openGatewayCaller } from './open-gateway-caller';
 import { parseGatewayRegistry } from './parse-gateway-registry';
 
@@ -40,7 +41,8 @@ interface GatewaySetupOptions {
  * the OAuth code flow with PKCE for a client and returns an MCP client
  * holding its access token: `callTool` returns a tool call's result, and
  * `sendRPC` any JSON-RPC request's. `owner` is a daemon owner's own
- * connection on its local socket, and `stopDaemon` stops a daemon.
+ * connection on its local socket, `reporterPath` the socket its sessions'
+ * reporters send to, and `stopDaemon` stops a daemon.
  */
 async function setupTest(options: GatewaySetupOptions = {}) {
   const tmp = setupTempDir('atc-gateway-');
@@ -196,6 +198,7 @@ async function setupTest(options: GatewaySetupOptions = {}) {
 
       return owner;
     },
+    reporterPath: (name: string) => join(tmp.dir, name, 'reporter.sock'),
     async stopDaemon(name: string): Promise<void> {
       await handles.get(name)?.stop();
 
@@ -538,4 +541,56 @@ test('it holds a waiting events read open until one daemon has an event and retu
   ]);
 
   expect(Date.now() - started).toBeWithin(300, 5000);
+});
+
+test('it reads a report from either daemon through the report handle of its event and refuses a stale incarnation', async () => {
+  await using gateway = await setupTest();
+
+  const client = await gateway.connect('Claude');
+
+  for (const daemon of ['cloud', 'pc']) {
+    const spawned = await client.callTool('atc_session_spawn', { cwd: '/tmp', daemon });
+
+    const session = String(getRecord(spawned, 'structuredContent')['id']);
+
+    await sendReport(
+      gateway.reporterPath(daemon),
+      `${JSON.stringify({ atcId: session.split('.').at(-1), event: 'Report', payload: { kind: 'note', label: daemon, text: `from ${daemon}` } })}\n`,
+      2000,
+    );
+  }
+
+  const reports = await waitFor(async () => {
+    const read = await client.callTool('atc_events_read');
+
+    const found = [getRecord(read, 'structuredContent')['events']]
+      .flat()
+      .filter((event) => isRecord(event) && event['kind'] === 'report');
+
+    if (found.length < 2) {
+      throw new Error('both reports have not arrived yet');
+    }
+
+    return found.filter((event) => isRecord(event));
+  });
+
+  const texts: unknown[] = [];
+
+  for (const event of reports) {
+    const got = await client.callTool('atc_report_get', { report: event['report'] });
+
+    texts.push(getRecord(got, 'structuredContent')['text']);
+  }
+
+  const handle = String(reports[0]?.['report']);
+  const [name, , local] = handle.split('.');
+
+  const stale = await client.callTool('atc_report_get', { report: `${name}.ffffffff.${local}` });
+
+  expect(texts).toIncludeSameMembers(['from cloud', 'from pc']);
+
+  expect(stale).toStrictEqual({
+    content: [{ type: 'text', text: `bad_args: no report '${name}.ffffffff.${local}'` }],
+    isError: true,
+  });
 });
