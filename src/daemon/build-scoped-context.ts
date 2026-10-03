@@ -253,12 +253,14 @@ export function buildScopedContext(
       canSee(id) ? ctx.adoptSession(id, cols, rows) : Promise.resolve('missing' as const),
     resizeSession: (client, sessionID, dims) =>
       canSee(sessionID) && ctx.resizeSession(client, sessionID, dims),
-    readSessionRecord: async (id) => {
+    readSessionRecord: async (id, outer) => {
       if (!canSee(id)) {
         return 'missing';
       }
 
-      const record = await ctx.readSessionRecord(id);
+      const merged = outer === null ? access : outer.merge(access);
+
+      const record = await ctx.readSessionRecord(id, merged);
 
       return record === 'missing'
         ? record

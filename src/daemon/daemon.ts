@@ -1519,7 +1519,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       runtimes.get(sessionID)?.dims ?? { cols: 80, rows: 24 },
     restoreFleet: (cols, rows) =>
       restoreFleet({ mgr, store, findRuntime, cols, rows, capMs: opts.restoreBootTimeoutMs ?? 0 }),
-    readSessionRecord: async (id) => {
+    readSessionRecord: async (id, access) => {
       const s = mgr.sessions.find((x) => x.id === id);
 
       if (s === undefined) {
@@ -1536,14 +1536,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       // The agent session id links rows from before atc ids stayed stable,
       // unless a session on another target resumed the same agent session,
-      // whose rows it would match too.
+      // whose rows it would match too. Under an access it links nothing: a
+      // session that shared it may be gone, its rows still in the trail.
       const shared = mgr.sessions.some(
         (x) =>
           x.agentSessionID === s.agentSessionID &&
           (x.target !== s.target || x.targetIdentity !== s.targetIdentity),
       );
 
-      const linked = shared ? undefined : s.agentSessionID;
+      const linked = access !== null || shared ? undefined : s.agentSessionID;
 
       const lastEventAt = await store.loadLastActivityAt(s.id, linked);
 

@@ -841,7 +841,7 @@ export class DaemonConnection {
 
     const id = parsed.data.session;
 
-    const record = await ctx.readSessionRecord(id);
+    const record = await ctx.readSessionRecord(id, null);
 
     if (record === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${id}'`);

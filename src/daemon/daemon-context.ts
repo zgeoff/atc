@@ -208,7 +208,13 @@ export interface DaemonContext {
   readonly resyncClient: (sessionID: SessionID, client: OutputClient) => Promise<void>;
   readonly queueBytes?: number;
   readonly getEffectiveDims: (sessionID: SessionID) => Dims;
-  readonly readSessionRecord: (id: SessionID) => Promise<SessionRecord | 'missing'>;
+
+  // The session's record. Its activity time counts only the session's own
+  // trail rows when there is an access.
+  readonly readSessionRecord: (
+    id: SessionID,
+    access: TargetAccess | null,
+  ) => Promise<SessionRecord | 'missing'>;
   readonly loadSessionTranscript: (
     id: SessionID,
     from: TranscriptPosition | null,

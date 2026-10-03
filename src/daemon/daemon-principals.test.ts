@@ -610,6 +610,50 @@ test('it keeps the events and messages of a hidden session from a principal whos
   expect(got['lastActivityAt']).toBe(getRecord(own, 'session')['createdAt']);
 });
 
+test('it keeps the activity of a forgotten hidden session out of a principal session that shares its agent session id', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const agentSessionID = `a-${randomUUID()}`;
+
+  const earlier = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'local',
+    resume: agentSessionID,
+  });
+
+  const shown = String(getRecord(earlier, 'session')['id']);
+
+  await daemon.client.sendRequest('session.kill', { session: shown });
+
+  const moved = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'box',
+    resume: agentSessionID,
+  });
+
+  const hidden = String(getRecord(moved, 'session')['id']);
+
+  const before = await daemon.client.sendRequest('session.get', { session: shown }, 'narrow');
+
+  // The trail stores times to the millisecond, so the hidden session's
+  // event lands at a later time than anything the shown session holds.
+  await Bun.sleep(20);
+  await daemon.sendHookEvent(hidden, 'Notification', { session_id: agentSessionID });
+
+  await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
+
+    expect(JSON.stringify(owner)).toContain(hidden);
+  });
+
+  await daemon.client.sendRequest('session.kill', { session: hidden });
+  await daemon.client.sendRequest('session.kill', { session: hidden });
+
+  const after = await daemon.client.sendRequest('session.get', { session: shown }, 'narrow');
+
+  expect(after['lastActivityAt']).toBe(before['lastActivityAt']);
+});
+
 test('it lists a principal a sub-session of a hidden parent as a top-level session', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
