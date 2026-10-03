@@ -130,8 +130,8 @@ type SessionOutput =
       readonly offset: number;
       readonly prelude: number;
       readonly coldBoots: readonly ColdBoot[];
-      readonly previous?: PreviousGeneration;
-      readonly resume?: ResumeResult;
+      readonly previous?: PreviousGeneration | undefined;
+      readonly resume?: ResumeResult | undefined;
     };
 
 export type ImpSessionRequest =
@@ -173,8 +173,9 @@ export interface ImpSessionStarted {
 
 /**
  * How a connection ended: the process exited, impd refused or failed the
- * request, impd detached the connection while the process ran on, or the
- * socket closed, with its close code once it had opened.
+ * request, impd detached the connection while the process ran on, the
+ * socket closed, with its close code once it had opened, or a handler on
+ * the daemon's side threw and the client closed the socket.
  */
 export type ImpSessionOutcome =
   | {
@@ -197,7 +198,8 @@ export type ImpSessionOutcome =
   | { readonly kind: 'closed'; readonly reason: string; readonly closeCode?: number }
   | { readonly kind: 'unreachable'; readonly detail: string }
   | { readonly kind: 'unauthorized' }
-  | { readonly kind: 'bad_message'; readonly detail: string };
+  | { readonly kind: 'bad_message'; readonly detail: string }
+  | { readonly kind: 'local_error'; readonly detail: string };
 
 export interface ImpSessionConnection {
   readonly outcome: Promise<ImpSessionOutcome>;

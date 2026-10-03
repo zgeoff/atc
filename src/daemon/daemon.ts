@@ -222,7 +222,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   idempotencySweep.unref();
 
   const targets =
-    opts.targets ?? buildExecutionTargets([{ id: 'local', provider: 'local-pty', options: {} }]);
+    opts.targets ??
+    buildExecutionTargets([{ id: 'local', provider: 'local-pty', options: {} }]).targets;
 
   const targetErrors = opts.targetErrors ?? [];
   const principals = opts.principals ?? null;
