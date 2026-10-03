@@ -437,6 +437,15 @@ function checkDirection(file: string, targets: readonly string[]): string[] {
   return findings;
 }
 
+/**
+ * The first directory under src/, or `root` for a module at the src/ root.
+ */
+function getLayer(file: string): string {
+  const parts = file.split('/');
+
+  return parts.length > 2 ? (parts[1] ?? 'root') : 'root';
+}
+
 // The entrypoints whose binary must never run a daemon or a session on its
 // own machine, and the path prefixes nothing they import may reach, however
 // indirectly.
@@ -478,15 +487,6 @@ function checkReach(graph: ReadonlyMap<string, readonly string[]>): string[] {
   }
 
   return findings;
-}
-
-/**
- * The first directory under src/, or `root` for a module at the src/ root.
- */
-function getLayer(file: string): string {
-  const parts = file.split('/');
-
-  return parts.length > 2 ? (parts[1] ?? 'root') : 'root';
 }
 
 /**

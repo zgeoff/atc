@@ -4,6 +4,7 @@ import { DaemonClient } from './client/daemon-client';
 import { loadGatewayRegistry } from './federation/load-gateway-registry';
 import { openGatewayCaller } from './federation/open-gateway-caller';
 import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
+import type { MCPHTTPServer } from './mcp/start-mcp-http-server';
 
 interface GatewayFlags {
   readonly host: string;
@@ -42,7 +43,7 @@ export async function runGateway(build: string, flags: GatewayFlags): Promise<vo
     gatewayDBPath: join(flags.stateDir, 'gateway.db'),
   });
 
-  let server: Awaited<ReturnType<typeof startMCPHTTPServer>>;
+  let server: MCPHTTPServer;
 
   try {
     server = await startMCPHTTPServer({

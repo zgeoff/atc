@@ -17,8 +17,8 @@ const gatewayCommand =
  * an address nothing listens on, and a free port for the gateway. `env`
  * holds `PATH` and a `HOME` inside the temp directory that nothing creates,
  * so a write under it shows in the directory listing. `start` runs
- * `atc-gateway serve` with the given extra arguments and waits until it
- * answers on the port; disposal kills it and removes the directory.
+ * `atc-gateway serve` with the given extra arguments and waits until its
+ * readiness probe returns 200; disposal kills it and removes the directory.
  */
 async function setupTest() {
   const tmp = setupTempDir('atc-gateway-bin-');
@@ -62,7 +62,11 @@ async function setupTest() {
 
       await waitFor(
         async () => {
-          await fetch(`http://127.0.0.1:${port}/healthz`);
+          const ready = await fetch(`http://127.0.0.1:${port}/readyz`);
+
+          if (ready.status !== 200) {
+            throw new Error(`readyz returned ${ready.status}`);
+          }
         },
         { timeoutMs: 15_000 },
       );

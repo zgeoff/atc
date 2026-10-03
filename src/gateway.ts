@@ -13,6 +13,8 @@ const STATE_DIR_ARG = {
   },
 } as const;
 
+const NO_STATE_DIR = 'atc-gateway: give --state-dir or set ATC_GATEWAY_STATE_DIR';
+
 // atc-gateway entry: serves the MCP tools over HTTP for the daemons a
 // registry lists, and manages the clients that may connect to it. It loads
 // nothing that starts a daemon or a session on this machine.
@@ -45,6 +47,13 @@ const main = defineCommand({
             process.exit(1);
           }
 
+          const stateDir = findStateDir(ctx.args['state-dir'], process.env);
+
+          if (stateDir === null) {
+            console.error(NO_STATE_DIR);
+            process.exit(1);
+          }
+
           const gateway = await import('./run-gateway');
 
           await gateway.runGateway(`atc-gateway/${pkg.version}`, {
@@ -52,7 +61,7 @@ const main = defineCommand({
             port: port === null ? 8414 : port.port,
             publicURL: ctx.args['public-url'],
             registryPath: ctx.args.registry,
-            stateDir: resolveStateDir(ctx.args['state-dir']),
+            stateDir,
           });
         },
       }),
@@ -69,12 +78,19 @@ const main = defineCommand({
               meta: { name: 'list', description: 'List the clients', hidden: true },
               args: STATE_DIR_ARG,
               async run(ctx) {
+                const stateDir = findStateDir(ctx.args['state-dir'], process.env);
+
+                if (stateDir === null) {
+                  console.error(NO_STATE_DIR);
+                  process.exit(1);
+                }
+
                 const clients = await import('./clients');
 
                 await clients.runClients(
                   { kind: 'list' },
                   {
-                    dbPath: join(resolveStateDir(ctx.args['state-dir']), 'mcp-auth.db'),
+                    dbPath: join(stateDir, 'mcp-auth.db'),
                     command: 'atc-gateway clients',
                   },
                 );
@@ -93,6 +109,13 @@ const main = defineCommand({
                 ...STATE_DIR_ARG,
               },
               async run(ctx) {
+                const stateDir = findStateDir(ctx.args['state-dir'], process.env);
+
+                if (stateDir === null) {
+                  console.error(NO_STATE_DIR);
+                  process.exit(1);
+                }
+
                 const clients = await import('./clients');
 
                 await clients.runClients(
@@ -102,7 +125,7 @@ const main = defineCommand({
                     redirectURIs: collectRedirectURIs(ctx.rawArgs),
                   },
                   {
-                    dbPath: join(resolveStateDir(ctx.args['state-dir']), 'mcp-auth.db'),
+                    dbPath: join(stateDir, 'mcp-auth.db'),
                     command: 'atc-gateway clients',
                   },
                 );
@@ -119,12 +142,19 @@ const main = defineCommand({
                 ...STATE_DIR_ARG,
               },
               async run(ctx) {
+                const stateDir = findStateDir(ctx.args['state-dir'], process.env);
+
+                if (stateDir === null) {
+                  console.error(NO_STATE_DIR);
+                  process.exit(1);
+                }
+
                 const clients = await import('./clients');
 
                 await clients.runClients(
                   { kind: 'remove', clientID: ctx.args.id },
                   {
-                    dbPath: join(resolveStateDir(ctx.args['state-dir']), 'mcp-auth.db'),
+                    dbPath: join(stateDir, 'mcp-auth.db'),
                     command: 'atc-gateway clients',
                   },
                 );
@@ -135,17 +165,15 @@ const main = defineCommand({
   },
 });
 
-// `--state-dir`, else `$ATC_GATEWAY_STATE_DIR`; the gateway has no default,
-// so it never writes under a home directory.
-function resolveStateDir(flag: string | undefined): string {
-  const dir = flag ?? process.env['ATC_GATEWAY_STATE_DIR'];
+// `--state-dir`, else `$ATC_GATEWAY_STATE_DIR`, else null: the gateway has
+// no default, so it never writes under a home directory.
+function findStateDir(
+  flag: string | undefined,
+  env: Readonly<Record<string, string | undefined>>,
+): string | null {
+  const dir = flag ?? env['ATC_GATEWAY_STATE_DIR'];
 
-  if (dir === undefined || dir === '') {
-    console.error('atc-gateway: give --state-dir or set ATC_GATEWAY_STATE_DIR');
-    process.exit(1);
-  }
-
-  return dir;
+  return dir === undefined || dir === '' ? null : dir;
 }
 
 await runMain(main);
