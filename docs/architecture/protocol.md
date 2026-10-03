@@ -88,11 +88,11 @@ exists, `events.read` returns `more` and takes `session`, and `message.get` retu
 returns `spawnOptions`, `daemon.hello` returns `daemonID`, every session descriptor holds a
 `locator`, `session.spawn` and `session.message` each take `idempotencyKey`, `session.spawn` takes
 `target` while `agents.list` returns `targets`, a request takes `as` while `daemon.hello` takes
-`principal`, `session.spawn` takes `workspace`, `session.forget`, `session.submit`, and
-`report.get` exist, and `repos.list` exists, and `repos.probe` exists while a git `workspace`
-takes both `ref` and `sha`. A daemon from before the list existed sends none, and it ignores the
-parameters it does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the
-list rather than the build string to learn what the running daemon honours.
+`principal`, `session.spawn` takes `workspace`, `session.forget`, `session.submit`, `report.get`,
+and `repos.list` exist, and `repos.probe` exists while a git `workspace` takes both `ref` and `sha`.
+A daemon from before the list existed sends none, and it ignores the parameters it does not know. A
+client that outlives a daemon upgrade, such as `atc mcp`, reads the list rather than the build
+string to learn what the running daemon honours.
 
 `daemonID` is the id the daemon minted into its state store the first time it opened it, so it stays
 the same across daemon restarts. Every session descriptor holds a `locator` of
