@@ -216,3 +216,38 @@ test('it refuses a key reused with another payload as idempotency_conflict befor
     }),
   );
 });
+
+test('it accepts a retry whose payload holds two keys a locale comparison ties in the other order', () => {
+  using gateway = setupTest();
+
+  const binding = {
+    principal: 'c1',
+    operation: 'session.spawn',
+    key: 'k',
+    daemon: 'cloud',
+    daemonID: 'd1',
+    retentionMs: 1000,
+  };
+
+  gateway.store.claimBinding(
+    {
+      ...binding,
+      payloadHash: buildBindingPayloadHash({
+        env: { é: 'precomposed', é: 'decomposed' },
+      }),
+    },
+    0,
+  );
+
+  const retried = gateway.store.claimBinding(
+    {
+      ...binding,
+      payloadHash: buildBindingPayloadHash({
+        env: { é: 'decomposed', é: 'precomposed' },
+      }),
+    },
+    10,
+  );
+
+  expect(retried.daemon).toBe('cloud');
+});
