@@ -817,6 +817,36 @@ test('it shows a principal a parent leaving when an out-of-reach sub-session joi
   expect(JSON.stringify(joinedSeen)).not.toInclude(child);
 });
 
+test('it pushes a principal that sees the whole tree only the removal of a forgotten parent', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const parent = await daemon.spawnOn('local');
+  const child = await daemon.spawnOn('box', parent);
+  const client = await daemon.openClientAs('wide');
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await daemon.client.sendRequest('session.forget', { session: parent });
+
+  const listed = await client.sendRequest('session.list');
+
+  await waitFor(() => {
+    expect(events).toPartiallyContain({ ev: 'SessionRemoved', s: parent });
+  });
+
+  expect(events.filter((event) => event.ev === 'SessionRemoved')).toStrictEqual([
+    { v: PROTOCOL_V, ev: 'SessionRemoved', s: parent },
+  ]);
+
+  expect(events.filter((event) => event.ev === 'SessionAdded')).toBeEmpty();
+  expect(listed).toMatchObject({ sessions: [{ id: child, alive: true }] });
+  expect(JSON.stringify(listed)).not.toInclude(parent);
+});
+
 test('it hides from a principal a restored sub-session of a hidden parent', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 

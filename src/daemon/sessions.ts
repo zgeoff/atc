@@ -1276,8 +1276,7 @@ export class SessionManager {
         );
       }
 
-      this.remove(s);
-      this.updateForgottenChildren(id, children);
+      this.removeWithChildren(s, children);
     }
 
     await this.writeFleet();
@@ -1338,8 +1337,7 @@ export class SessionManager {
       this.killTerminal(s);
     }
 
-    this.remove(s);
-    this.updateForgottenChildren(id, children);
+    this.removeWithChildren(s, children);
 
     await this.writeFleet();
 
@@ -1348,14 +1346,18 @@ export class SessionManager {
     return destroys;
   }
 
-  // A forgotten parent's dead sub-sessions go with it, except one whose own
-  // target can destroy its host: forgetting that one destroys the host, which
-  // takes its own confirmed forget. Only a sub-session among the given ones
-  // may go. Every sub-session that stays becomes top-level. It runs after the
-  // parent is removed, so no sub-session ever stands as the whole of its
-  // parent's set while the parent is still held.
-  private updateForgottenChildren(id: SessionID, forgettable: readonly Session[]): void {
-    for (const child of this.collectChildren(id)) {
+  // Removes a forgotten session and its dead sub-sessions, except one whose
+  // own target can destroy its host: forgetting that one destroys the host,
+  // which takes its own confirmed forget. Only a sub-session among the given
+  // ones may go. Every sub-session that stays becomes top-level before the
+  // session's removal is announced, and is announced after it, so no
+  // announcement ever finds a sub-session whose parent is gone or a parent
+  // standing without the sub-sessions that leave with it.
+  private removeWithChildren(s: Session, forgettable: readonly Session[]): void {
+    const kept: Session[] = [];
+    const dropped: Session[] = [];
+
+    for (const child of this.collectChildren(s.id)) {
       const live = child.pty !== null || (child.kind === 'headless' && child.state !== 'exited');
 
       if (
@@ -1365,10 +1367,20 @@ export class SessionManager {
       ) {
         child.parent = null;
 
-        this.onEvent('state', child);
+        kept.push(child);
       } else {
-        this.remove(child);
+        dropped.push(child);
       }
+    }
+
+    this.remove(s);
+
+    for (const child of kept) {
+      this.onEvent('state', child);
+    }
+
+    for (const child of dropped) {
+      this.remove(child);
     }
   }
 
