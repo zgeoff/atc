@@ -33,6 +33,7 @@ import { buildConfigRevision } from './build-config-revision';
 import { buildExecutionTargets } from './build-execution-targets';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildFleetEvents } from './build-fleet-events';
+import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 import { buildReportTrailEntry } from './build-report-trail-entry';
 import { buildReportView } from './build-report-view';
@@ -1021,6 +1022,38 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
+  // Throws the refusal of a replay out of reach when a held spawn key's
+  // session is no longer live and the access does not reach the whole tree
+  // its fleet rows hold, as the live check refuses a live tree. A session
+  // with no fleet row has no tree left to check.
+  const requireStoredTreeInReach = async (
+    record: IdempotencyRecord,
+    access: TargetAccess,
+  ): Promise<void> => {
+    if (mgr.sessions.some((x) => x.id === record.effectRef)) {
+      return;
+    }
+
+    const fleet = await store.loadFleet();
+
+    const members = fleet.map((entry) => {
+      const grant = buildGrantFromFleetEntry(entry);
+
+      return {
+        id: entry.sessionID,
+        parent: entry.parent ?? null,
+        target: grant.target,
+        targetIdentity: grant.targetIdentity,
+      };
+    });
+
+    const own = members.find((member) => member.id === record.effectRef);
+
+    if (own !== undefined && !isTreeInReach(members, own.id, access)) {
+      throw buildTargetForbiddenError(record.effectTarget?.target ?? findReplayTarget(record));
+    }
+  };
+
   // Each confirm token a forget handed out, by token: the session it
   // forgets, when it stops being taken, and whether a forget took it. A
   // token stays known for one more lifetime after it expires, so a late
@@ -1105,7 +1138,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     from: string,
     text: string,
     id: MessageID,
-    requireInReach: () => void,
+    requireWriteInReach: () => void,
   ): Promise<MessageRecord> => {
     const s = mgr.sessions.find((x) => x.id === sessionID);
     const previousWrite = lastMessageWrite;
@@ -1126,7 +1159,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     };
 
     try {
-      requireInReach();
+      // The write boundary: the reach check and the start of the row write
+      // run in one synchronous step, so no wait lets the session's tree
+      // leave the access between the check and the write it allows.
+      requireWriteInReach();
 
       await store.writeMessage(record);
 
@@ -1267,10 +1303,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         effectRef,
         start: () => startInReach(plan(), effectRef),
         settle: () => mgr.writeFleet(),
-        replay: (record) => {
-          if (access !== null) {
-            requireReplayInReach(record, access);
+        replay: async (record) => {
+          if (access === null) {
+            return loadSpawnReplay(record);
           }
+
+          requireReplayInReach(record, access);
+
+          await requireStoredTreeInReach(record, access);
+
+          // The tree may change while the fleet is read, so the live check
+          // runs again in the step that answers.
+          requireReplayInReach(record, access);
 
           return loadSpawnReplay(record);
         },

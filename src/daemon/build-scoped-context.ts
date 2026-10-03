@@ -1,8 +1,8 @@
 import { DaemonError } from '../protocol/daemon-error';
 import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
+import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
-import { buildTargetIdentity } from './build-target-identity';
 import type { DaemonContext } from './daemon-context';
 import type { KeyedRequest } from './idempotency-ledger';
 import type { TargetAccess, TargetGrant } from './target-access';
@@ -59,10 +59,7 @@ export function buildScopedContext(
       return null;
     }
 
-    return {
-      target: entry.target ?? 'local',
-      targetIdentity: entry.targetIdentity ?? buildTargetIdentity('local-pty', {}),
-    };
+    return buildGrantFromFleetEntry(entry);
   };
 
   // Throws the refusal a fresh spawn to the session's target gets when a

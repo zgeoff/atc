@@ -1511,6 +1511,42 @@ test("it refuses the replay of a held spawn key once its session's tree leaves t
   expect(daemon.harnesses).toStrictEqual(['local', 'box']);
 });
 
+test("it refuses the replay of a held spawn key after a restart once its stored tree leaves the principal's reach", async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const spawn = () =>
+    daemon.client.sendRequest(
+      'session.spawn',
+      { cwd: '/tmp', target: 'local', idempotencyKey: 'k-1' },
+      'narrow',
+    );
+
+  const spawned = await spawn();
+
+  const parent = String(getRecord(spawned, 'session')['id']);
+
+  const child = await daemon.spawnOn('box', parent);
+
+  await daemon.restart(SPLIT_CONFIG);
+
+  const listed = await daemon.client.sendRequest('session.list', {});
+  const replayed = await readAnswer(spawn, 'k-1');
+
+  expect(listed).toStrictEqual({ sessions: [] });
+
+  expect(replayed).toStrictEqual({
+    error: {
+      code: 'target_forbidden',
+      message: expect.toInclude("'local'"),
+      data: { target: 'local' },
+    },
+  });
+
+  expect(JSON.stringify(replayed)).not.toInclude(parent);
+  expect(JSON.stringify(replayed)).not.toInclude(child);
+  expect(daemon.harnesses).toStrictEqual(['local', 'box']);
+});
+
 test("it answers a principal's long poll on a session whose tree leaves its reach as a poll on a session that never existed", async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
