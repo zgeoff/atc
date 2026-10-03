@@ -10,8 +10,9 @@ interface CutProxyOptions {
 
   // `close` ends both sides where the response would pass; `hold`
   // swallows it and every later byte from the target, leaving the
-  // connection open.
-  readonly mode: 'close' | 'hold';
+  // connection open; `drop` ends both sides in place of forwarding the
+  // request, so the target never sees it.
+  readonly mode: 'close' | 'hold' | 'drop';
 }
 
 export interface CutProxy {
@@ -70,6 +71,8 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
 
         client.data.lineBuffer = lines.pop() ?? '';
 
+        let dropped = false;
+
         for (const line of lines) {
           if (!line.includes(`"m":"${options.method}"`)) {
             continue;
@@ -79,8 +82,18 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
 
           if (cutsLeft > 0) {
             cutsLeft--;
-            client.data.cutting = true;
+            client.data.cutting = options.mode !== 'drop';
+            dropped = options.mode === 'drop';
           }
+        }
+
+        // A dropped request ends the link with nothing of its chunk
+        // forwarded.
+        if (dropped) {
+          client.end();
+          client.data.upstream?.end();
+
+          return;
         }
 
         if (client.data.upstream === null) {

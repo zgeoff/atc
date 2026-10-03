@@ -81,8 +81,11 @@ const RESPONSE_TIMEOUT_MS = 30_000;
  * `daemon_unavailable`, or `daemon_unauthorized` for a refused token. A
  * request sent whose response never arrives, because the connection ended
  * or 30 s passed, is never a failure: a keyed or read-only request is sent
- * once more on a fresh connection to the same daemon, with the same key,
- * while that connection still announces the feature the key relies on.
+ * once more on a fresh connection to the same daemon. A keyed retry goes
+ * out replay-only, under the same key, and only while that connection
+ * announces both the key's feature and replay-only requests; a daemon that
+ * holds no such key answers it `idempotency_key_unknown`, which ends as
+ * `outcome_unknown`.
  * Any other request, a reconnect without that feature, or a second loss is
  * `outcome_unknown`. A daemon's
  * own error passes through as it came.
@@ -128,13 +131,31 @@ export class DaemonCaller {
       throw this.buildOutcomeUnknown(m);
     }
 
-    // A daemon that no longer takes the key could run the effect a second
-    // time, so the retry goes out only while it still announces it does.
-    if (keyFeature !== undefined && !fresh.hello.features.has(keyFeature)) {
+    // A keyed retry only ever replays: it goes out replay-only, and only to
+    // a daemon that announces it takes the key and replay-only requests, so
+    // a daemon whose first send never arrived, or that has dropped the key
+    // since, runs nothing a second time.
+    const replays =
+      keyFeature !== undefined &&
+      fresh.hello.features.has(keyFeature) &&
+      fresh.hello.features.has('idempotency.replayOnly');
+
+    if (keyFeature !== undefined && !replays) {
       throw this.buildOutcomeUnknown(m);
     }
 
-    const second = await this.trySend(fresh.channel, m, p, as);
+    const retryParams = replays ? { ...p, replayOnly: true } : p;
+    let second: Awaited<ReturnType<DaemonCaller['trySend']>>;
+
+    try {
+      second = await this.trySend(fresh.channel, m, retryParams, as);
+    } catch (error) {
+      if (error instanceof DaemonError && error.code === 'idempotency_key_unknown') {
+        throw this.buildOutcomeUnknown(m);
+      }
+
+      throw error;
+    }
 
     if (second.kind === 'answered') {
       return second.ok;

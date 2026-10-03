@@ -174,3 +174,35 @@ test('it swallows the answer to a cut request and leaves the connection open in 
   expect(closed).toBeFalse();
   expect(target.seen).toStrictEqual(['session.spawn']);
 });
+
+test('it closes the connection in place of forwarding a cut request in drop mode, so the target never sees it', async () => {
+  using target = setupTest();
+
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: target.port },
+    method: 'session.spawn',
+    cuts: 1,
+    mode: 'drop',
+  });
+
+  onTestFinished(() => {
+    proxy.stop();
+  });
+
+  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
+  const pinged = await client.sendRequest('daemon.ping');
+
+  const closed = Promise.withResolvers<void>();
+
+  client.onClose = () => {
+    closed.resolve();
+  };
+
+  expect(client.sendRequest('session.spawn')).rejects.toMatchObject({ code: 'internal' });
+
+  await closed.promise;
+
+  expect(pinged).toStrictEqual({ m: 'daemon.ping' });
+  expect(target.seen).toStrictEqual(['daemon.ping']);
+  expect(proxy.countRequests()).toBe(1);
+});
