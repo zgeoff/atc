@@ -80,12 +80,12 @@ const RESPONSE_TIMEOUT_MS = 30_000;
  * than the registry pins. A failure before the request leaves is
  * `daemon_unavailable`, or `daemon_unauthorized` for a refused token. A
  * request sent whose response never arrives, because the connection ended
- * or 30 s passed, is never a failure: a keyed or read-only request is sent
- * once more on a fresh connection to the same daemon. A keyed retry goes
- * out replay-only, under the same key, and only while that connection
- * announces both the key's feature and replay-only requests; a daemon that
- * holds no such key answers it `idempotency_key_unknown`, which ends as
- * `outcome_unknown`.
+ * or 30 s passed beyond the request's own `waitMs`, is never a failure: a
+ * keyed or read-only request is sent once more on a fresh connection to
+ * the same daemon. A keyed retry goes out replay-only, under the same key,
+ * and only while that connection announces both the key's feature and
+ * replay-only requests; a daemon that holds no such key answers it
+ * `idempotency_key_unknown`, which ends as `outcome_unknown`.
  * Any other request, a reconnect without that feature, or a second loss is
  * `outcome_unknown`. A daemon's
  * own error passes through as it came.
@@ -205,9 +205,16 @@ export class DaemonCaller {
   > {
     const timeout = Promise.withResolvers<'timeout'>();
 
-    const timer = setTimeout(() => {
-      timeout.resolve('timeout');
-    }, this.opts.responseTimeoutMs ?? RESPONSE_TIMEOUT_MS);
+    // A request that waits for a change on the daemon, such as a long poll,
+    // gets its own wait on top of the response time.
+    const waitMs = typeof p['waitMs'] === 'number' && p['waitMs'] > 0 ? p['waitMs'] : 0;
+
+    const timer = setTimeout(
+      () => {
+        timeout.resolve('timeout');
+      },
+      (this.opts.responseTimeoutMs ?? RESPONSE_TIMEOUT_MS) + waitMs,
+    );
 
     // Settles as a value either way, so a response that rejects after the
     // timeout won never goes unhandled.
