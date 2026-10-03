@@ -1,4 +1,8 @@
 import { expect, test } from 'bun:test';
+import { encodeCursor } from '../protocol/encode-cursor';
+import { buildEventsFilterHash } from './build-events-filter-hash';
+import { decodeGatewayCursor } from './decode-gateway-cursor';
+import { encodeGatewayCursor } from './encode-gateway-cursor';
 import { parseGatewayRegistry } from './parse-gateway-registry';
 
 test('it parses a registry with its pins, incarnations, and tokens', () => {
@@ -161,5 +165,75 @@ test('it refuses a registry that is not an object', () => {
   expect(parseGatewayRegistry([], {})).toStrictEqual({
     ok: false,
     errors: ['the registry must be an object whose daemons is an object'],
+  });
+});
+
+test('it takes a registry of 34 daemons with the longest names, whose worst-case events cursor still decodes', () => {
+  const names = Array.from(
+    { length: 34 },
+    (_, i) => `${'d'.repeat(29)}${String(i).padStart(2, '0')}`,
+  );
+
+  const parsed = parseGatewayRegistry(
+    {
+      daemons: Object.fromEntries(
+        names.map((name, i) => [
+          name,
+          {
+            address: `100.64.0.${i + 1}:8415`,
+            daemonID: `${String(i).padStart(8, 'f')}-0000-4000-8000-000000000000`,
+          },
+        ]),
+      ),
+      defaultDaemon: names[0],
+    },
+    Object.fromEntries(names.map((name) => [`ATC_GATEWAY_TOKEN_${name.toUpperCase()}`, 't'])),
+  );
+
+  if (!parsed.ok) {
+    throw new Error(parsed.errors.join('; '));
+  }
+
+  const filter = buildEventsFilterHash('x'.repeat(200), null);
+  const worst = encodeCursor({ kind: 'events', id: Number.MAX_SAFE_INTEGER });
+
+  const cursor = encodeGatewayCursor(
+    filter,
+    new Map(
+      [...parsed.registry.daemons.values()].map((d) => [`${d.name}.${d.incarnation}`, worst]),
+    ),
+  );
+
+  expect(Buffer.byteLength(cursor)).toBeLessThanOrEqual(4096);
+  expect(decodeGatewayCursor(cursor, filter, parsed.registry).size).toBe(34);
+});
+
+test('it refuses a registry of 35 daemons as over the limit of 34', () => {
+  const names = Array.from(
+    { length: 35 },
+    (_, i) => `${'d'.repeat(29)}${String(i).padStart(2, '0')}`,
+  );
+
+  const parsed = parseGatewayRegistry(
+    {
+      daemons: Object.fromEntries(
+        names.map((name, i) => [
+          name,
+          {
+            address: `100.64.0.${i + 1}:8415`,
+            daemonID: `${String(i).padStart(8, 'f')}-0000-4000-8000-000000000000`,
+          },
+        ]),
+      ),
+      defaultDaemon: names[0],
+    },
+    Object.fromEntries(names.map((name) => [`ATC_GATEWAY_TOKEN_${name.toUpperCase()}`, 't'])),
+  );
+
+  expect(parsed).toStrictEqual({
+    ok: false,
+    errors: [
+      'the registry lists 35 daemons, over the limit of 34, the most whose events cursor fits 4096 bytes',
+    ],
   });
 });

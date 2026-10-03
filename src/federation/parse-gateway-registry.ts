@@ -1,4 +1,6 @@
 import { isRecord } from '../shared/report';
+import { MAX_EVENTS_CURSOR_BYTES } from './max-events-cursor-bytes';
+import { MAX_REGISTRY_DAEMONS } from './max-registry-daemons';
 import type { GatewayRegistry, RegistryDaemon } from './types';
 
 // A daemon name: never a `.`, which separates the parts of a gateway id.
@@ -19,7 +21,8 @@ type ParsedGatewayRegistry =
  * Every daemon needs a name matching `^[a-z][a-z0-9-]{0,30}$`, an address,
  * a pinned `daemonID`, and a non-empty token in `ATC_GATEWAY_TOKEN_<NAME>`
  * (the name upper-cased, `-` as `_`). `defaultDaemon` is required and must
- * be one of the daemons. Any problem refuses the whole registry, so the
+ * be one of the daemons. A registry lists at most as many daemons as an
+ * events cursor across all of them can hold. Any problem refuses the whole registry, so the
  * gateway never starts with part of its fleet.
  */
 export function parseGatewayRegistry(
@@ -44,8 +47,16 @@ export function parseGatewayRegistry(
     }
   }
 
-  if (Object.keys(raw['daemons']).length === 0) {
+  const count = Object.keys(raw['daemons']).length;
+
+  if (count === 0) {
     errors.push('the registry lists no daemon');
+  }
+
+  if (count > MAX_REGISTRY_DAEMONS) {
+    errors.push(
+      `the registry lists ${count} daemons, over the limit of ${MAX_REGISTRY_DAEMONS}, the most whose events cursor fits ${MAX_EVENTS_CURSOR_BYTES} bytes`,
+    );
   }
 
   const defaultDaemon = raw['defaultDaemon'];

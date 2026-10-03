@@ -1,9 +1,7 @@
 import { DaemonError } from '../protocol/daemon-error';
 import { isRecord } from '../shared/report';
+import { MAX_EVENTS_CURSOR_BYTES } from './max-events-cursor-bytes';
 import type { GatewayRegistry } from './types';
-
-// The largest gateway cursor the gateway reads.
-const MAX_CURSOR_BYTES = 4096;
 
 /**
  * Each registry daemon's position in a gateway events cursor, by daemon
@@ -19,8 +17,8 @@ export function decodeGatewayCursor(
   filter: string,
   registry: GatewayRegistry,
 ): ReadonlyMap<string, string | null> {
-  if (Buffer.byteLength(raw) > MAX_CURSOR_BYTES) {
-    throw new DaemonError('bad_args', `cursor exceeds ${MAX_CURSOR_BYTES} bytes`);
+  if (Buffer.byteLength(raw) > MAX_EVENTS_CURSOR_BYTES) {
+    throw new DaemonError('bad_args', `cursor exceeds ${MAX_EVENTS_CURSOR_BYTES} bytes`);
   }
 
   let wire: unknown;
