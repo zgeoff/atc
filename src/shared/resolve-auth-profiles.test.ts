@@ -277,3 +277,27 @@ test('it merges two profiles that hold the same rule for one host into one rule'
     },
   });
 });
+
+test('it resolves a deep chain of shared dependencies in one visit per profile', () => {
+  const names = Array.from({ length: 40 }, (_, i) => `p${String(i).padStart(2, '0')}`);
+
+  const result = resolveAuthProfiles(
+    new Map(
+      names.map((name, i) => [
+        name,
+        {
+          name,
+          secret: name,
+          kind: 'custom' as const,
+          host: `${name}.example.com`,
+          header: 'authorization',
+          scheme: 'bearer' as const,
+          dependencies: names.slice(0, i),
+        },
+      ]),
+    ),
+    [names.at(-1) ?? ''],
+  );
+
+  expect(result).toMatchObject({ resolved: { profiles: names } });
+});

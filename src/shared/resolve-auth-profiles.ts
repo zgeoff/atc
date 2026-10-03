@@ -59,18 +59,16 @@ export function resolveAuthProfiles(
   profiles: ReadonlyMap<string, AuthProfile>,
   selected: readonly string[],
 ): AuthProfileResolution {
-  const reached = new Map<string, AuthProfile>();
+  let reached: ReadonlyMap<string, AuthProfile> = new Map();
 
   for (const name of selected) {
-    const closure = collectClosure(profiles, name, null, []);
+    const next = collectReached(profiles, name, null, [], reached);
 
-    if (!Array.isArray(closure)) {
-      return { problem: closure };
+    if (isAuthProfileProblem(next)) {
+      return { problem: next };
     }
 
-    for (const profile of closure) {
-      reached.set(profile.name, profile);
-    }
+    reached = next;
   }
 
   const ordered = [...reached.values()].toSorted((a, b) => (a.name < b.name ? -1 : 1));
@@ -101,20 +99,28 @@ export function resolveAuthProfiles(
   };
 }
 
-// Depth-first over the dependencies from one name: every profile it
-// reaches, itself first. `path` holds the names on the way here, so a name
-// already on it closes a cycle.
-function collectClosure(
+// Depth-first over the dependencies from one name: returns `reached` plus
+// every profile this name reaches, each added once its own dependencies are
+// done. A profile already reached is not walked again, so a shared
+// dependency costs one visit.
+// `path` holds the names on the way here, so a name already on it closes a
+// cycle.
+function collectReached(
   profiles: ReadonlyMap<string, AuthProfile>,
   name: string,
   from: string | null,
   path: readonly string[],
-): AuthProfile[] | AuthProfileProblem {
+  reached: ReadonlyMap<string, AuthProfile>,
+): ReadonlyMap<string, AuthProfile> | AuthProfileProblem {
   if (path.includes(name)) {
     return {
       code: 'auth_dependency_cycle',
       message: `profile dependencies form a cycle: ${[...path.slice(path.indexOf(name)), name].join(' -> ')}`,
     };
+  }
+
+  if (reached.has(name)) {
+    return reached;
   }
 
   const profile = profiles.get(name);
@@ -129,19 +135,25 @@ function collectClosure(
     };
   }
 
-  const closure = [profile];
+  let next = reached;
 
   for (const dependency of profile.dependencies) {
-    const reached = collectClosure(profiles, dependency, name, [...path, name]);
+    const after = collectReached(profiles, dependency, name, [...path, name], next);
 
-    if (!Array.isArray(reached)) {
-      return reached;
+    if (isAuthProfileProblem(after)) {
+      return after;
     }
 
-    closure.push(...reached);
+    next = after;
   }
 
-  return closure;
+  return new Map([...next, [name, profile]]);
+}
+
+function isAuthProfileProblem(
+  value: ReadonlyMap<string, AuthProfile> | AuthProfileProblem,
+): value is AuthProfileProblem {
+  return 'code' in value;
 }
 
 function hasSameRule(left: AuthProfile, right: AuthProfile): boolean {
