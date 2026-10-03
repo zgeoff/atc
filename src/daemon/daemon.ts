@@ -945,7 +945,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       runtime.pendingLastUsed = true;
     }
 
-    void store.recordSpawnDir(p.cwd);
+    void store.recordSpawnDir(p.cwd, { target: s.target, targetIdentity: s.targetIdentity });
 
     return getDescriptor(mgr, s.id);
   };
@@ -1148,7 +1148,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     build: opts.build,
     daemonID: store.daemonID,
     collectSessions: () => mgr.collectDescriptors(),
-    collectSpawnDirs: () => store.collectSpawnDirs(),
+    collectSpawnDirs: async (access) => {
+      const dirs = await store.collectSpawnDirs();
+
+      const reached = dirs.filter((dir) => access === null || access.canUse(dir.grant));
+
+      return [...new Set(reached.map((dir) => dir.cwd))];
+    },
     collectAgents: () => ({
       daemon: {
         hostname: hostname(),

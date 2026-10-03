@@ -14,9 +14,10 @@ import type { TargetAccess, TargetGrant } from './target-access';
  * not exist here: every lookup of it answers as a lookup of an unknown
  * session does, so the request's own handling refuses it with the words
  * and data it gives a session that never existed. Lists leave such
- * sessions out, and a spawn may use only a target the access holds, a
- * spawn's replayed answer included. A kill, a forget, or a pin of a
- * session whose sub-sessions reach past the access is refused whole,
+ * sessions out, the directory list leaves out directories spawned only on
+ * targets outside the access, and a spawn may use only a target the access
+ * holds, a spawn's replayed answer included. A kill, a forget, or a pin of
+ * a session whose sub-sessions reach past the access is refused whole,
  * before anything changes.
  */
 export function buildScopedContext(
@@ -114,6 +115,11 @@ export function buildScopedContext(
           return error.target === undefined || canUseTarget(error.target);
         }),
       };
+    },
+    collectSpawnDirs: (outer) => {
+      const merged = outer === null ? access : outer.merge(access);
+
+      return ctx.collectSpawnDirs(merged);
     },
     collectFleet: async () => {
       const fleet = await ctx.collectFleet();

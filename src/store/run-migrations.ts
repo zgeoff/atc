@@ -56,6 +56,8 @@ interface EventsTable {
 
 interface SpawnHistoryTable {
   cwd: string;
+  target: string;
+  target_identity: string;
   last_spawn: number;
 }
 
@@ -152,8 +154,9 @@ export interface StateStoreSchema {
 // agent_session_id under its Claude-era name plus name and cwd, and each
 // later step adds one column the daemon grew to depend on, until the
 // rebuild that keys the table by the atc session id. events later gains
-// columns of its own, as does messages, while spawn_history and prefs have
-// carried one shape since they were added.
+// columns of its own, as does messages, spawn_history is rebuilt to key each
+// directory by the target it was spawned on, and prefs has carried one shape
+// since it was added.
 const MIGRATIONS: Record<string, Migration> = {
   '001_create_initial_schema': {
     async up(db: Kysely<StateStoreSchema>) {
@@ -446,6 +449,29 @@ const MIGRATIONS: Record<string, Migration> = {
       await db.schema.alterTable('events').addColumn('report_text', 'text').execute();
     },
   },
+  '024_rebuild_spawn_history_keyed_by_target': {
+    async up(db: Kysely<StateStoreSchema>) {
+      // The ledger records this step only after it returns, so a crash in
+      // between leaves a rebuilt table behind a ledger that still lacks it.
+      const columns = await sql<ColumnInfoRow>`PRAGMA table_info(spawn_history)`.execute(db);
+
+      if (columns.rows.some((column) => column.name === 'target')) {
+        return;
+      }
+
+      await sql`BEGIN IMMEDIATE`.execute(db);
+
+      try {
+        await updateSpawnHistoryKeyToTarget(db);
+
+        await sql`COMMIT`.execute(db);
+      } catch (error) {
+        await sql`ROLLBACK`.execute(db);
+
+        throw error;
+      }
+    },
+  },
 };
 
 const PROVIDER: MigrationProvider = {
@@ -650,6 +676,30 @@ async function updateFleetKeyToSessionID(db: Kysely<StateStoreSchema>): Promise<
 interface ColumnInfoRow {
   name: string;
   type: string;
+}
+
+// The identity of the local target with no options. Every spawn from before
+// spawns recorded their target ran there.
+const LEGACY_SPAWN_TARGET_IDENTITY = 'local-pty:44136fa355b3678a';
+
+async function updateSpawnHistoryKeyToTarget(db: Kysely<StateStoreSchema>): Promise<void> {
+  await sql`
+    CREATE TABLE spawn_history_rebuilt (
+      cwd TEXT NOT NULL,
+      target TEXT NOT NULL,
+      target_identity TEXT NOT NULL,
+      last_spawn INTEGER NOT NULL,
+      PRIMARY KEY (cwd, target, target_identity)
+    )
+  `.execute(db);
+
+  await sql`
+    INSERT INTO spawn_history_rebuilt (cwd, target, target_identity, last_spawn)
+    SELECT cwd, 'local', ${LEGACY_SPAWN_TARGET_IDENTITY}, last_spawn FROM spawn_history
+  `.execute(db);
+
+  await sql`DROP TABLE spawn_history`.execute(db);
+  await sql`ALTER TABLE spawn_history_rebuilt RENAME TO spawn_history`.execute(db);
 }
 
 async function collectFleetColumns(db: Kysely<StateStoreSchema>): Promise<ReadonlySet<string>> {

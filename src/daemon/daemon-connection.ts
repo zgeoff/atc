@@ -289,7 +289,7 @@ export class DaemonConnection {
         return;
       }
       case 'dirs.list': {
-        this.sendOk(req.id, { dirs: await ctx.collectSpawnDirs() });
+        this.sendOk(req.id, { dirs: await ctx.collectSpawnDirs(null) });
 
         return;
       }

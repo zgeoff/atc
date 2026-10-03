@@ -450,6 +450,9 @@ reach does not exist:
   it refuses one for an unknown id, with the same code, message, and `data`.
 - `agents.list` lists only the targets the principal may use, and `spawnDefaults.target` is null
   when the principal may not use the default.
+- `dirs.list` lists only the directories of spawns on targets the principal may use. A directory
+  recorded before atc recorded each spawn's target counts as a spawn on a `local` target with no
+  options.
 - A connection that acts as a principal is pushed only the events of sessions within reach, and a
   permission request's resolution only when it was pushed the request.
 

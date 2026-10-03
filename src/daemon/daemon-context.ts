@@ -112,7 +112,10 @@ export interface DaemonContext {
   readonly build: string;
   readonly daemonID: DaemonID;
   readonly collectSessions: () => SessionDescriptor[];
-  readonly collectSpawnDirs: () => Promise<string[]>;
+
+  // The directories spawns ran in, most recent first, leaving out each one
+  // spawned only on targets outside the access when there is one.
+  readonly collectSpawnDirs: (access: TargetAccess | null) => Promise<string[]>;
   readonly collectAgents: () => AgentList;
   readonly collectFleet: () => Promise<FleetEntry[]>;
   readonly loadLastUsedAgent: () => Promise<AgentID>;
