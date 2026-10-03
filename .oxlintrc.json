@@ -80,6 +80,8 @@
           { "from": "file", "name": "SessionRuntime" },
           // a configured execution target: it holds its live provider
           { "from": "file", "name": "ExecutionTarget" },
+          // a principal's grants, held privately and never mutated
+          { "from": "file", "name": "TargetAccess" },
           // wraps a live db connection; not meaningfully freezable
           { "from": "file", "name": "StateStore" },
           // wraps a live db connection; not meaningfully freezable

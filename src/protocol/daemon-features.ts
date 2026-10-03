@@ -38,6 +38,10 @@ export const DAEMON_FEATURES = [
   // `session.spawn` takes `target`, and `agents.list` returns `targets`,
   // `spawnDefaults`, `configRevision`, and `targetErrors`.
   'spawn.target',
+
+  // A request takes `as`, the principal it acts as, and `daemon.hello`
+  // takes `principal`, the principal the whole connection acts as.
+  'request.principal',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

@@ -42,6 +42,8 @@ test('it lists only the agents whose configured binary resolves', () => {
       targets: [{ id: 'local', provider: 'local-pty', options: {} }],
       defaultTarget: 'local',
       targetErrors: [],
+      principals: null,
+      principalErrors: [],
     }),
   ).toStrictEqual([
     { agent: 'claude', label: 'Claude' },
@@ -74,6 +76,8 @@ test('it resolves a bare binary name off PATH', () => {
       targets: [{ id: 'local', provider: 'local-pty', options: {} }],
       defaultTarget: 'local',
       targetErrors: [],
+      principals: null,
+      principalErrors: [],
     }),
   ).toStrictEqual([{ agent: 'grok', label: 'Grok' }]);
 });
@@ -96,6 +100,8 @@ test('it leaves out a binary that exists without the executable bit', () => {
       targets: [{ id: 'local', provider: 'local-pty', options: {} }],
       defaultTarget: 'local',
       targetErrors: [],
+      principals: null,
+      principalErrors: [],
     }),
   ).toStrictEqual([]);
 });
@@ -128,6 +134,8 @@ test('it lists a configured backend after the built-in agents', () => {
       targets: [{ id: 'local', provider: 'local-pty', options: {} }],
       defaultTarget: 'local',
       targetErrors: [],
+      principals: null,
+      principalErrors: [],
     }),
   ).toStrictEqual([
     { agent: 'claude', label: 'Claude' },
@@ -163,6 +171,8 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
       targets: [{ id: 'local', provider: 'local-pty', options: {} }],
       defaultTarget: 'local',
       targetErrors: [],
+      principals: null,
+      principalErrors: [],
     }),
   ).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
 });

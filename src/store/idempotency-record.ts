@@ -20,8 +20,21 @@ export interface IdempotencyRecord {
 
   // The effect's answer as JSON, once completed by the daemon that ran it.
   readonly result: string | null;
+
+  // The target the completed effect's session was bound to, as it stood
+  // then; null for a key completed without one.
+  readonly effectTarget: EffectTarget | null;
   readonly createdAt: number;
   readonly updatedAt: number;
+}
+
+/**
+ * A target name and the identity it held, which a replay of the key is
+ * authorized against.
+ */
+export interface EffectTarget {
+  readonly target: string;
+  readonly targetIdentity: string;
 }
 
 // The claim a keyed request makes before its effect runs.

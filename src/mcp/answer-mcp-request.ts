@@ -4,6 +4,7 @@ import type { GrantScope } from '../shared/grant-scope';
 import { normalizeClientName } from '../shared/normalize-client-name';
 import { isRecord } from '../shared/report';
 import { answerRPCRequest } from './answer-rpc-request';
+import { buildPrincipalCaller } from './build-principal-caller';
 import { deriveTokenHash } from './derive-token-hash';
 import { findClientName } from './find-client-name';
 import { isSupportedProtocolVersion } from './is-supported-protocol-version';
@@ -21,7 +22,8 @@ interface MCPHTTPRequest {
  * database, so a revoked grant loses access at once, and a token bound to any
  * other resource is refused. A tool call outside the token's scopes is a 403
  * that names the missing scope. A message the client sends is always from the
- * client's own name.
+ * client's own name, and every request acts as the client's id, so the
+ * daemon limits it to the targets that principal may use.
  */
 export async function answerMCPRequest(
   ctx: HTTPServerContext,
@@ -65,7 +67,7 @@ export async function answerMCPRequest(
   }
 
   const outcome = await answerRPCRequest(message, {
-    caller: ctx.caller,
+    caller: buildPrincipalCaller(ctx.caller, access.clientID),
     build: ctx.build,
     toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: access.clientName } },
     scopes: access.scopes,
@@ -95,12 +97,13 @@ export async function answerMCPRequest(
 }
 
 interface VerifiedAccess {
+  readonly clientID: string;
   readonly clientName: string;
   readonly scopes: readonly GrantScope[];
 }
 
-// An inactive, unknown, or revoked token, or one bound to another resource,
-// verifies to null. Verifying stamps when the token's grant was last used.
+// An inactive, unknown, or revoked token, one bound to another resource, or
+// one without a client id verifies to null. Verifying stamps when the token's grant was last used.
 async function verifyAccessToken(
   ctx: HTTPServerContext,
   token: string,
@@ -124,11 +127,16 @@ async function verifyAccessToken(
   const granted = typeof payload['scope'] === 'string' ? payload['scope'].split(' ') : [];
   const clientID = typeof payload['client_id'] === 'string' ? payload['client_id'] : '';
 
+  if (clientID === '') {
+    return null;
+  }
+
   await upsertGrantUse(ctx, token);
 
   const storedName = await findClientName(ctx.store.db, clientID);
 
   return {
+    clientID,
     clientName: normalizeClientName(storedName, 'remote'),
     scopes: GRANT_SCOPES.filter((scope) => granted.includes(scope)),
   };

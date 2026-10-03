@@ -42,6 +42,8 @@ function buildGrokConfig(): Config {
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
     defaultTarget: 'local',
     targetErrors: [],
+    principals: null,
+    principalErrors: [],
   };
 }
 

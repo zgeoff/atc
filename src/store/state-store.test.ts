@@ -1053,6 +1053,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '016_create_session_owner',
     '017_create_idempotency',
     '018_add_fleet_target',
+    '019_add_idempotency_effect_target',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -2622,8 +2623,40 @@ test('it claims a free idempotency key and hands back the record of a held one',
     state: 'in_progress',
     effectRef: 's-1',
     result: null,
+    effectTarget: null,
     createdAt: 1000,
     updatedAt: 1000,
+  });
+});
+
+test("it keeps the target a completed key's effect was bound to", async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const claim = {
+    principal: 'local',
+    operation: 'session.spawn',
+    key: 'k-1',
+    payloadHash: 'h-1',
+    effectRef: 's-1',
+    at: 1000,
+  };
+
+  await store.claimIdempotencyKey(claim);
+
+  await store.updateIdempotencyCompleted(claim, '{}', 2000, {
+    target: 'box',
+    targetIdentity: 'local-pty:0123456789abcdef',
+  });
+
+  const held = await store.claimIdempotencyKey(claim);
+
+  expect(held).toMatchObject({
+    state: 'completed',
+    effectTarget: { target: 'box', targetIdentity: 'local-pty:0123456789abcdef' },
   });
 });
 

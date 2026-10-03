@@ -96,3 +96,20 @@ test('it round-trips a message through encode and decode', () => {
     msg: { v: 1, id: 9, m: 'daemon.hello', p: { client: 'atc/0.1.0' } },
   });
 });
+
+test('it decodes the principal a request acts as', () => {
+  expect(decodeMessage('{"v":4,"id":3,"m":"session.list","as":"client-a"}')).toStrictEqual({
+    kind: 'request',
+    msg: { v: 4, id: 3, m: 'session.list', as: 'client-a' },
+  });
+});
+
+test.each([['5'], ['""'], ['null']])(
+  'it reads a request whose principal is %s as malformed',
+  (as) => {
+    expect(decodeMessage(`{"v":4,"id":3,"m":"session.list","as":${as}}`)).toStrictEqual({
+      kind: 'malformed',
+      reason: 'as must be a non-empty string',
+    });
+  },
+);

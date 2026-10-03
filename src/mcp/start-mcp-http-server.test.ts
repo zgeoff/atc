@@ -201,6 +201,66 @@ test('it runs a tool call whose scope the token holds', async () => {
   });
 });
 
+test.each([
+  ['the client id it holds', true],
+  ['another client id', false],
+])(
+  'it shows a remote MCP client the sessions of the targets the principals grant to %s',
+  async (_label, granted) => {
+    await using server = await setupMCPHTTP();
+
+    const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+    await server.restartDaemon(new Map([[granted ? clientID : 'someone-else', ['local']]]));
+
+    const spawned = await server.caller.sendRequest('session.spawn', { cwd: '/tmp' });
+
+    const session = spawned['session'];
+
+    const authorized = await runMCPAuthorization(server, {
+      clientID,
+      redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+      scope: 'read',
+      ticked: ['read'],
+    });
+
+    const exchanged = await fetch(`${server.url}/oauth2/token`, {
+      method: 'POST',
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: authorized.code,
+        redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+        client_id: clientID,
+        code_verifier: authorized.verifier,
+      }),
+    });
+
+    const tokens = await readJSONRecord(exchanged);
+
+    const listed = await fetch(`${server.url}/mcp`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${String(tokens['access_token'])}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'atc_session_list', arguments: {} },
+      }),
+    });
+
+    const body: unknown = await listed.json();
+
+    expect(body).toMatchObject({
+      jsonrpc: '2.0',
+      id: 1,
+      result: { structuredContent: { sessions: granted ? [session] : [] } },
+    });
+  },
+);
+
 test('it refuses a tool call for a scope the operator left unticked with insufficient_scope', async () => {
   await using server = await setupMCPHTTP();
 

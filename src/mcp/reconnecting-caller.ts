@@ -63,6 +63,7 @@ export class ReconnectingCaller implements FleetCaller {
     m: string,
     p?: Readonly<Record<string, unknown>>,
     required: readonly DaemonFeature[] = [],
+    principal?: string,
   ): Promise<Readonly<Record<string, unknown>>> {
     const opened = await this.openClient();
 
@@ -73,7 +74,7 @@ export class ReconnectingCaller implements FleetCaller {
     const params = keyed ? buildKeyedParams(p) : p;
 
     try {
-      return await opened.client.sendRequest(m, params);
+      return await opened.client.sendRequest(m, params, principal);
     } catch (error) {
       if (!this.closed.has(opened.client) || !(keyed || RETRYABLE_METHODS.has(m))) {
         throw error;
@@ -87,7 +88,7 @@ export class ReconnectingCaller implements FleetCaller {
 
       requireDaemonFeatures(fresh.features, retryRequired);
 
-      return fresh.client.sendRequest(m, params);
+      return fresh.client.sendRequest(m, params, principal);
     }
   }
 

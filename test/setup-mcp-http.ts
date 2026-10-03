@@ -37,7 +37,7 @@ interface MCPHTTPSetupOptions {
  * `atc clients` and `atc grants` open it, and `addClient` adds a client
  * through it and returns the client id. `restartDaemon` stops the daemon and
  * starts a fresh one on the same socket and database, the way an operator
- * restarts it; `countDaemonClients` reads how many connections the current
+ * restarts it, with the principals it is given; `countDaemonClients` reads how many connections the current
  * daemon holds open. Hold the result with `await using`.
  */
 export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
@@ -51,7 +51,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   const approvals: string[] = [];
   const requests: string[] = [];
 
-  const startTestDaemon = () =>
+  const startTestDaemon = (principals: ReadonlyMap<string, readonly string[]> | null = null) =>
     startDaemon({
       socketPath,
       reporterSocketPath: join(tmp.dir, 'reporter.sock'),
@@ -59,6 +59,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
       adapter: SLEEP_ADAPTER,
       dbPath: join(tmp.dir, 'state.db'),
       statusPath: join(tmp.dir, 'status.json'),
+      principals,
     });
 
   let daemon: DaemonHandle = await startTestDaemon();
@@ -105,10 +106,10 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
     countDaemonClients() {
       return daemon.countClients();
     },
-    async restartDaemon() {
+    async restartDaemon(principals: ReadonlyMap<string, readonly string[]> | null = null) {
       await daemon.stop();
 
-      daemon = await startTestDaemon();
+      daemon = await startTestDaemon(principals);
     },
     async [Symbol.asyncDispose]() {
       await server.stop();

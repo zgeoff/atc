@@ -92,6 +92,7 @@ function setupTest() {
       })),
       defaultTarget: config.defaultTarget,
       targetErrors: config.targetErrors,
+      principals: config.principals,
     });
 
     const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
@@ -465,5 +466,50 @@ test.each([
         sessions,
       ]),
     ).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
+  },
+);
+
+test.each([
+  ['holds invalid JSON', 'file', '{ "claudeBin": ', false],
+  ['holds an array', 'file', '[]', false],
+  ['holds a number', 'file', '42', false],
+  ['holds null', 'file', 'null', false],
+  ['is a directory', 'directory', '', false],
+  ['holds a principals section that is not an object', 'file', '{ "principals": "all" }', false],
+  ['does not exist', 'absent', '', true],
+])(
+  'it gives a principal legacy rights over a restored local session only for an absent config: the config %s',
+  async (_label, kind, text, shown) => {
+    await using daemon = setupTest();
+
+    const store = await StateStore.open(daemon.dbPath);
+
+    await store.writeFleet([
+      {
+        sessionID: toSessionID('s-old'),
+        name: 'old work',
+        cwd: '/tmp',
+        agentSessionID: toAgentSessionID('a-old'),
+        agent: 'claude',
+      },
+    ]);
+
+    await store.stop();
+
+    if (kind === 'file') {
+      writeFileSync(daemon.configPath, text);
+    }
+
+    if (kind === 'directory') {
+      mkdirSync(daemon.configPath);
+    }
+
+    const client = await daemon.openDaemon();
+
+    await client.sendRequest('fleet.restore', { cols: 1, rows: 1 });
+
+    const listed = await client.sendRequest('session.list', {}, 'client-a');
+
+    expect(listed).toMatchObject({ sessions: shown ? [{ id: 's-old' }] : [] });
   },
 );

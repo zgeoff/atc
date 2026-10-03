@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { parseConfig, renderDefaultConfig } from './config';
 
-test('it leaves every target unusable, local included, when the root is not an object', () => {
+test('it leaves every target unusable, local included, and grants no principal a target when the root is not an object', () => {
   expect(parseConfig(null, '/home/u/.config/atc/config.json')).toStrictEqual({
     claudeBin: 'claude',
     claudeArgs: [],
@@ -25,6 +25,8 @@ test('it leaves every target unusable, local included, when the root is not an o
         detail: 'the root is null, not an object',
       },
     ],
+    principals: new Map(),
+    principalErrors: [],
   });
 });
 
@@ -62,6 +64,8 @@ test('it falls back field by field when a field is wrong-typed instead of failin
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
     defaultTarget: 'local',
     targetErrors: [],
+    principals: null,
+    principalErrors: [],
   });
 });
 
@@ -123,6 +127,18 @@ test('it reads the targets and default target a config sets', () => {
     ],
     defaultTarget: 'box',
     targetErrors: [],
+  });
+});
+
+test('it reads the principals a config sets', () => {
+  const config = parseConfig({ principals: { 'client-a': { targets: ['local'] } } });
+
+  expect({
+    principals: config.principals,
+    principalErrors: config.principalErrors,
+  }).toStrictEqual({
+    principals: new Map([['client-a', ['local']]]),
+    principalErrors: [],
   });
 });
 

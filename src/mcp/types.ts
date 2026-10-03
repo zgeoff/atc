@@ -6,11 +6,13 @@ import type { openMCPAuth } from './open-mcp-auth';
 // features the connected daemon announced at its handshake. A request that
 // lists required features is checked against the connection it is about to
 // ride, every time it is sent, and refused unsent when that daemon lacks one.
+// A request with a principal acts as that principal.
 export interface FleetCaller {
   readonly sendRequest: (
     m: string,
     p?: Readonly<Record<string, unknown>>,
     required?: readonly DaemonFeature[],
+    principal?: string,
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly readFeatures: () => Promise<ReadonlySet<DaemonFeature>>;
 }
