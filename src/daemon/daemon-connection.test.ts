@@ -61,6 +61,7 @@ function setupConnection(queueBytes: number, principal = false): ConnectionHarne
     findSessionGrant: () => ({ target: 'local', targetIdentity: 'local-pty' }),
     findTargetIdentity: assertUnreachable,
     canSeeSession: () => visible,
+    isSessionVisible: assertUnreachable,
     findPermissionSession: assertUnreachable,
     resolveSpawnParent: assertUnreachable,
     resolveSpawnTarget: assertUnreachable,

@@ -77,6 +77,7 @@ export function buildScopedContext(
 
   return {
     ...ctx,
+    isSessionVisible: canSee,
     collectSessions: () => ctx.collectSessions().filter((session) => canSee(session.id)),
     collectAgents: () => {
       const list = ctx.collectAgents();
@@ -105,11 +106,6 @@ export function buildScopedContext(
       const merged = outer === null ? access : outer.merge(access);
 
       return ctx.collectSpawnDirs(merged);
-    },
-    collectFleet: async () => {
-      const fleet = await ctx.collectFleet();
-
-      return fleet.filter((entry) => canSee(entry.sessionID));
     },
     resolveSpawnParent: (id) => (canSee(id) ? ctx.resolveSpawnParent(id) : 'missing'),
     resolveSpawnTarget: (requested) => {
@@ -149,17 +145,8 @@ export function buildScopedContext(
     updateSession: (id, name, pinned) => canSee(id) && ctx.updateSession(id, name, pinned),
     ackSession: (id) => canSee(id) && ctx.ackSession(id),
     buildResumeCommand: (id) => (canSee(id) ? ctx.buildResumeCommand(id) : null),
-    readSessionScreen: async (id) => {
-      if (!canSee(id)) {
-        return 'missing';
-      }
-
-      const screen = await ctx.readSessionScreen(id);
-
-      // The tree may leave the access during the read, so the reach is
-      // checked again before the answer goes out.
-      return canSee(id) ? screen : 'missing';
-    },
+    readSessionScreen: (id) =>
+      canSee(id) ? ctx.readSessionScreen(id) : Promise.resolve('missing' as const),
     answerPermission: (request, decision) => {
       const owner = ctx.findPermissionSession(request);
 
@@ -183,44 +170,18 @@ export function buildScopedContext(
         : Promise.resolve('missing' as const),
     resizeSession: (client, sessionID, dims) =>
       canSee(sessionID) && ctx.resizeSession(client, sessionID, dims),
-    readSessionRecord: async (id, outer) => {
-      if (!canSee(id)) {
-        return 'missing';
-      }
-
-      const merged = outer === null ? access : outer.merge(access);
-
-      const record = await ctx.readSessionRecord(id, merged);
-
-      // The tree may leave the access during the read, so the reach is
-      // checked again before the answer goes out.
-      return canSee(id) ? record : 'missing';
-    },
-    loadSessionTranscript: async (id, from, limit) => {
-      if (!canSee(id)) {
-        return 'missing';
-      }
-
-      const page = await ctx.loadSessionTranscript(id, from, limit);
-
-      // The tree may leave the access during the read, so the reach is
-      // checked again before the answer goes out.
-      return canSee(id) ? page : 'missing';
-    },
+    readSessionRecord: (id, outer) =>
+      canSee(id)
+        ? ctx.readSessionRecord(id, mergeAccess(outer))
+        : Promise.resolve('missing' as const),
+    loadSessionTranscript: (id, from, limit) =>
+      canSee(id) ? ctx.loadSessionTranscript(id, from, limit) : Promise.resolve('missing' as const),
     readEvents: (afterID, limit, waitMs, sessionID, outer) => {
       const merged = outer === null ? access : outer.merge(access);
 
       return ctx.readEvents(afterID, limit, waitMs, sessionID, merged);
     },
-    readReport: async (id, outer) => {
-      const merged = outer === null ? access : outer.merge(access);
-
-      const view = await ctx.readReport(id, merged);
-
-      // The tree may leave the access during the read, so the reach is
-      // checked again before the answer goes out.
-      return view !== null && canSee(toSessionID(view.session)) ? view : null;
-    },
+    readReport: (id, outer) => ctx.readReport(id, mergeAccess(outer)),
     writeSessionMessage: (sessionID, from, text, keyed, outer) =>
       canSee(sessionID)
         ? ctx.writeSessionMessage(
@@ -246,13 +207,11 @@ export function buildScopedContext(
         return view;
       }
 
-      // The wait may outlast the session's reach, so the reach is checked
-      // again before the answer goes out.
+      // The message may move to another session that holds its agent
+      // session id while the read waits.
       const waited = await ctx.readMessage(messageID, waitMs);
 
-      return waited !== null && waited.session === waited.record.atcID && canSee(waited.session)
-        ? waited
-        : null;
+      return waited !== null && waited.session === waited.record.atcID ? waited : null;
     },
     attachTap: (client, sessionID, outer) =>
       canSee(sessionID) ? ctx.attachTap(client, sessionID, mergeAccess(outer)) : 'missing',

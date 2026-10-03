@@ -137,6 +137,12 @@ export interface DaemonContext {
   // unknown session.
   readonly canSeeSession: (id: SessionID, access: TargetAccess) => boolean;
 
+  // Whether the request this context serves may still see the session: any
+  // session for the daemon's owner, and for a principal only a session whose
+  // whole tree it reaches. A read answers only after asking this, in the
+  // same step as it sends, so no await lies between the check and the send.
+  readonly isSessionVisible: (id: SessionID) => boolean;
+
   // The session a permission request belongs to, answered or not, or null
   // for an unknown request.
   readonly findPermissionSession: (request: string) => SessionID | null;

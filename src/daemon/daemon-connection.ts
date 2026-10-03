@@ -21,6 +21,7 @@ import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';
+import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import type { DaemonContext, SpawnParams } from './daemon-context';
 import type { TranscriptPosition } from './load-transcript-page';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
@@ -400,7 +401,11 @@ export class DaemonConnection {
         return;
       }
       case 'fleet.list': {
-        this.sendOk(req.id, { fleet: await ctx.collectFleet() });
+        const fleet = await ctx.collectFleet();
+
+        this.sendOk(req.id, {
+          fleet: fleet.filter((entry) => ctx.isSessionVisible(entry.sessionID)),
+        });
 
         return;
       }
@@ -505,7 +510,7 @@ export class DaemonConnection {
 
         const screen = await ctx.readSessionScreen(id);
 
-        if (screen === 'missing') {
+        if (screen === 'missing' || !ctx.isSessionVisible(id)) {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
         } else if (screen === 'no_screen') {
           this.sendErr(req.id, 'session_dead', `session '${id}' has no captured screen`);
@@ -771,6 +776,21 @@ export class DaemonConnection {
 
     const spawned = await ctx.spawnSession(plan, keyed, null);
 
+    const session = spawned['session'];
+
+    const sessionID =
+      isRecord(session) && typeof session['id'] === 'string' ? toSessionID(session['id']) : null;
+
+    const grant = sessionID === null ? null : ctx.findSessionGrant(sessionID);
+
+    // A live session whose tree left the view before the answer goes out
+    // gets the refusal a replay out of reach gets, holding no part of it.
+    // A replayed session no longer live was checked against its fleet row
+    // by the replay itself.
+    if (sessionID !== null && grant !== null && !ctx.isSessionVisible(sessionID)) {
+      throw buildTargetForbiddenError(grant.target);
+    }
+
     this.sendOk(req.id, spawned);
   }
 
@@ -933,7 +953,7 @@ export class DaemonConnection {
 
     const record = await ctx.readSessionRecord(id, null);
 
-    if (record === 'missing') {
+    if (record === 'missing' || !ctx.isSessionVisible(id)) {
       this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
 
       return;
@@ -968,7 +988,7 @@ export class DaemonConnection {
 
     const read = await ctx.loadSessionTranscript(id, from, parsed.data.limit);
 
-    if (read === 'missing') {
+    if (read === 'missing' || !ctx.isSessionVisible(id)) {
       this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
     } else if (read === 'unsupported') {
       this.sendErr(
@@ -1016,11 +1036,14 @@ export class DaemonConnection {
       null,
     );
 
-    const last = page.events.at(-1);
+    // An event of a session that left the view while the read waited is
+    // left out, as the read leaves out every event out of reach.
+    const events = page.events.filter((event) => ctx.isSessionVisible(toSessionID(event.session)));
+    const last = events.at(-1);
 
     // A cursor always comes back so a client can long-poll from an empty trail.
     this.sendOk(req.id, {
-      events: page.events,
+      events,
       cursor: last === undefined ? encodeCursor({ kind: 'events', id: afterID ?? 0 }) : last.cursor,
       more: page.more,
     });
@@ -1043,7 +1066,7 @@ export class DaemonConnection {
     const view =
       decoded === null || decoded.kind !== 'events' ? null : await ctx.readReport(decoded.id, null);
 
-    if (view === null) {
+    if (view === null || !ctx.isSessionVisible(toSessionID(view.session))) {
       this.sendErr(req.id, 'bad_args', `no report '${parsed.data.report}'`);
 
       return;
@@ -1076,7 +1099,7 @@ export class DaemonConnection {
       null,
     );
 
-    if (result === 'missing') {
+    if (result === 'missing' || !ctx.isSessionVisible(sessionID)) {
       this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
 
       return;
@@ -1147,7 +1170,7 @@ export class DaemonConnection {
 
     const view = await ctx.readMessage(messageID, parsed.data.waitMs);
 
-    if (view === null) {
+    if (view === null || !ctx.isSessionVisible(view.session)) {
       this.sendErr(req.id, 'bad_args', `no message '${messageID}'`);
 
       return;
@@ -1190,7 +1213,7 @@ export class DaemonConnection {
       return;
     }
 
-    if (result === 'unknown') {
+    if (result === 'unknown' || !ctx.isSessionVisible(sessionID)) {
       this.sendErr(req.id, 'bad_args', `no message '${messageID}' for session '${sessionID}'`);
 
       return;

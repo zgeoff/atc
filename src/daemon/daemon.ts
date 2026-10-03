@@ -1211,6 +1211,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     },
     findTargetIdentity: (target) => targets.find((x) => x.id === target)?.identity ?? null,
     canSeeSession: (id, access) => isTreeInReach(mgr.sessions, id, access),
+    isSessionVisible: () => true,
     findPermissionSession: (request) => registry.findSessionID(request),
     resolveSpawnParent: (id) => {
       const owner = mgr.sessions.find((x) => x.id === id);
