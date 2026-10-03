@@ -6,10 +6,10 @@ import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { DaemonClient } from '../client/daemon-client';
+import { openBridgeSocket } from '../protocol/open-bridge-socket';
 import type { EventMsg } from '../protocol/protocol';
+import { sendBridgeRequest } from '../protocol/send-bridge-request';
 import { getRecord } from '../shared/get-record';
-import { openBridgeSocket } from '../shared/open-bridge-socket';
-import { sendBridgeRequest } from '../shared/send-bridge-request';
 import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
 

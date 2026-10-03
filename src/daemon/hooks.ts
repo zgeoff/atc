@@ -1,4 +1,5 @@
 import { unlinkSync } from 'node:fs';
+import { LineDecoder } from '../protocol/line-decoder';
 import { socketPath } from '../shared/config';
 import type { SessionID } from '../shared/session-id';
 import { parseHookLine } from './parse-hook-line';
@@ -9,12 +10,9 @@ export interface HookEvent {
   payload: Record<string, unknown>;
 }
 
-// Per-connection read state: the unterminated tail of the line in progress,
-// and a streaming decoder so a multi-byte character split across two reads
-// decodes whole.
+// Per-connection read state: the connection's own line framing.
 interface HookConnection {
-  pending: string;
-  readonly decoder: TextDecoder;
+  readonly lines: LineDecoder;
 }
 
 export function startHookServer(onEvent: (e: HookEvent) => void, path: string = socketPath) {
@@ -26,17 +24,7 @@ export function startHookServer(onEvent: (e: HookEvent) => void, path: string = 
     unix: path,
     socket: {
       data(socket, buf) {
-        const conn = socket.data;
-        const buffered = conn.pending + conn.decoder.decode(buf, { stream: true });
-        const lines = buffered.split('\n');
-
-        conn.pending = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (line.trim() === '') {
-            continue;
-          }
-
+        for (const line of socket.data.lines.splitChunk(buf)) {
           const event = parseHookLine(line);
 
           if (event !== null) {
@@ -45,7 +33,7 @@ export function startHookServer(onEvent: (e: HookEvent) => void, path: string = 
         }
       },
       open(socket) {
-        socket.data = { pending: '', decoder: new TextDecoder() };
+        socket.data = { lines: new LineDecoder() };
       },
       error() {},
     },

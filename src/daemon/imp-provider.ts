@@ -1,4 +1,5 @@
 import { DaemonError } from '../protocol/daemon-error';
+import { LineDecoder } from '../protocol/line-decoder';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
 import { buildTarArchive } from './build-tar-archive';
 import type {
@@ -523,22 +524,15 @@ function buildSocketName(sessionID: string): string {
 
 // Frames a guest connection's bytes into lines, both ways.
 function toHarnessRelay(connection: ImpRelayConnection): HarnessRelay {
-  const decoder = new TextDecoder();
+  const decoder = new LineDecoder();
   const encoder = new TextEncoder();
 
   const lineListeners: ((line: string) => void)[] = [];
-  let pending = '';
 
   connection.onData((data) => {
-    const lines = `${pending}${decoder.decode(data, { stream: true })}`.split('\n');
-
-    pending = lines.pop() ?? '';
-
-    for (const line of lines) {
-      if (line.trim() !== '') {
-        for (const listener of lineListeners) {
-          listener(line);
-        }
+    for (const line of decoder.splitChunk(data)) {
+      for (const listener of lineListeners) {
+        listener(line);
       }
     }
   });
