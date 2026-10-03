@@ -51,7 +51,10 @@ const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
  * dropped sockets through the controls. Grants follow impd 0.27: the
  * caller's identity must reach the imp and, under imp patterns, list the
  * secret as grantable; a grant is idempotent, one secret per host, and a
- * destroyed imp or a rebound or removed secret takes its grants with it.
+ * destroyed imp or a rebound or removed secret takes its grants with it. A
+ * start that requires the broker is refused with `PRECONDITION_FAILED`
+ * and reason `broker_not_ready`, and runs nothing, while the broker fails
+ * or the imp holds no grant.
  */
 export class FixtureImpPort implements ImpPort {
   // Every port call, in order, as `<call> <imp> [<detail>]`.
@@ -65,6 +68,7 @@ export class FixtureImpPort implements ImpPort {
     leases: true,
     grantableTokens: true,
     secretRebind: true,
+    execRequire: true,
   };
 
   // Who the port calls impd as.
@@ -109,6 +113,10 @@ export class FixtureImpPort implements ImpPort {
 
   // Whether every reverse forward closes each new guest connection at once.
   private refusingRelays = false;
+
+  // Whether the broker fails in every imp, as a CA that did not install
+  // leaves it.
+  private brokerFailing = false;
 
   // Whether every relayed connection drops what the guest writes, while
   // what the daemon writes still reaches the guest.
@@ -571,8 +579,8 @@ export class FixtureImpPort implements ImpPort {
   }
 
   /**
-   * Gives impd the features of a daemon from before grantable tokens and
-   * secret rebinds, which has neither flag.
+   * Gives impd the features of a daemon from before grantable tokens,
+   * secret rebinds and exec requirements, which has none of those flags.
    */
   setOldDaemonFeatures(): void {
     this.features = {
@@ -580,6 +588,7 @@ export class FixtureImpPort implements ImpPort {
       leases: true,
       grantableTokens: false,
       secretRebind: false,
+      execRequire: false,
     };
   }
 
@@ -688,6 +697,19 @@ export class FixtureImpPort implements ImpPort {
 
   stopRelayRefusal(): void {
     this.refusingRelays = false;
+  }
+
+  /**
+   * Fails the broker in every imp, as a CA install that failed on boot
+   * does, so every start that requires it is refused, until the failure
+   * stops.
+   */
+  startBrokerFailure(): void {
+    this.brokerFailing = true;
+  }
+
+  stopBrokerFailure(): void {
+    this.brokerFailing = false;
   }
 
   /**
@@ -975,6 +997,19 @@ export class FixtureImpPort implements ImpPort {
 
     this.updateAwake(imp);
 
+    const brokerProblem = this.findBrokerProblem(imp, request);
+
+    if (brokerProblem !== null) {
+      connection.finish({
+        kind: 'failed',
+        code: 'PRECONDITION_FAILED',
+        message: `the broker is not ready in imp ${imp.name}`,
+        data: { reason: 'broker_not_ready', detail: brokerProblem },
+      });
+
+      return;
+    }
+
     const running = imp.sessions.get(request.session);
 
     if (running === undefined && request.kind === 'attach') {
@@ -1001,6 +1036,20 @@ export class FixtureImpPort implements ImpPort {
     }
 
     this.attachProcess(imp, proc, request, connection, running === undefined);
+  }
+
+  // Why the broker a start requires is not ready, or null when it is or
+  // the request requires nothing.
+  private findBrokerProblem(imp: FixtureImp, request: ImpSessionRequest): string | null {
+    if (request.kind !== 'start' || request.require?.includes('broker') !== true) {
+      return null;
+    }
+
+    if (this.brokerFailing) {
+      return 'the broker CA did not install';
+    }
+
+    return imp.grants.size === 0 ? 'the imp holds no grant' : null;
   }
 
   private startProcess(imp: FixtureImp, request: ImpSessionRequest): FixtureProcess | null {

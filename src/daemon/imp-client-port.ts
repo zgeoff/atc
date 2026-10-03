@@ -1,10 +1,11 @@
 import { createImpClient, openExecSession, openReverseForward } from '@zgeoff/imp-client';
-import type { ExecOutcome, ImpClient } from '@zgeoff/imp-client';
+import type { ExecOutcome, ExecSessionOptions, ImpClient } from '@zgeoff/imp-client';
 import { isRecord } from '../shared/report';
 import type {
   ImpCommand,
   ImpCommandResult,
   ImpCreateSpec,
+  ImpExecRequirement,
   ImpFeatures,
   ImpIdentity,
   ImpLease,
@@ -63,6 +64,7 @@ export class ImpClientPort implements ImpPort {
       leases: features?.['leases'] === true,
       grantableTokens: features?.['grantableTokens'] === true,
       secretRebind: features?.['secretRebind'] === true,
+      execRequire: features?.['execRequire'] === true,
     };
   };
 
@@ -217,27 +219,7 @@ export class ImpClientPort implements ImpPort {
     const session = openExecSession({
       baseUrl: this.url,
       token,
-      start:
-        request.kind === 'start'
-          ? {
-              name: request.name,
-              session: request.session,
-              argv: request.argv,
-              tty: true,
-              env: request.env,
-              cwd: request.cwd,
-              cols: request.cols,
-              rows: request.rows,
-              ...(request.resumeFrom === undefined ? {} : { resumeFrom: request.resumeFrom }),
-            }
-          : {
-              name: request.name,
-              session: request.session,
-              cols: request.cols,
-              rows: request.rows,
-              wake: request.wake,
-              ...(request.resumeFrom === undefined ? {} : { resumeFrom: request.resumeFrom }),
-            },
+      start: buildExecStart(request),
       onStarted: (started) => {
         handlers.onStarted({ created: started.created, output: started.output });
       },
@@ -387,6 +369,42 @@ function toPortError(error: unknown): ImpPortError {
   const message = error instanceof Error ? error.message : String(error);
 
   return new ImpPortError('UNREACHABLE', message);
+}
+
+// A start as the client takes it, with the requirements impd checks before
+// the command runs.
+type ExecStartWithRequire = Extract<ExecSessionOptions['start'], { readonly argv: unknown }> & {
+  readonly require?: readonly ImpExecRequirement[];
+};
+
+// The client sends every field of a start as it is, so a list of
+// requirements reaches impd though the client's start type lacks it.
+function buildExecStart(
+  request: ImpSessionRequest,
+): ExecStartWithRequire | ExecSessionOptions['start'] {
+  if (request.kind === 'attach') {
+    return {
+      name: request.name,
+      session: request.session,
+      cols: request.cols,
+      rows: request.rows,
+      wake: request.wake,
+      ...(request.resumeFrom === undefined ? {} : { resumeFrom: request.resumeFrom }),
+    };
+  }
+
+  return {
+    name: request.name,
+    session: request.session,
+    argv: request.argv,
+    tty: true,
+    env: request.env,
+    cwd: request.cwd,
+    cols: request.cols,
+    rows: request.rows,
+    ...(request.resumeFrom === undefined ? {} : { resumeFrom: request.resumeFrom }),
+    ...(request.require === undefined ? {} : { require: request.require }),
+  };
 }
 
 // oxlint-disable-next-line prefer-readonly-parameter-types -- a promise is a live handle

@@ -50,7 +50,7 @@ test('it lets a scoped token that may grant every bound secret activate the brok
   expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
 
-test('it refuses an impd without grantable tokens and secret rebinds after reading only its features', async () => {
+test('it refuses an impd without grantable tokens, secret rebinds and exec requirements after reading only its features', async () => {
   await using gate = setupTest();
 
   gate.port.setOldDaemonFeatures();
@@ -74,15 +74,20 @@ test('it refuses an impd without grantable tokens and secret rebinds after readi
 
   expect(refusal).toMatchObject({
     code: 'auth_impd_too_old',
-    data: { grantableTokens: false, secretRebind: false },
+    data: { grantableTokens: false, secretRebind: false, execRequire: false },
   });
 
   expect(gate.port.calls).toStrictEqual(['system.info']);
 });
 
 test.each([
-  ['grantable tokens', { grantableTokens: true, secretRebind: false }],
-  ['secret rebinds', { grantableTokens: false, secretRebind: true }],
+  ['grantable tokens', { grantableTokens: true, secretRebind: false, execRequire: false }],
+  ['secret rebinds', { grantableTokens: false, secretRebind: true, execRequire: false }],
+  ['exec requirements', { grantableTokens: false, secretRebind: false, execRequire: true }],
+  [
+    'grantable tokens and secret rebinds',
+    { grantableTokens: true, secretRebind: true, execRequire: false },
+  ],
 ])('it refuses an impd that has only %s', async (_flag, flags) => {
   await using gate = setupTest();
 

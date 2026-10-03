@@ -13,7 +13,8 @@ import { readImpToken } from './read-imp-token';
 // each RPC call. It answers a call with the answer a test set for its
 // path, or else as system info, and answers a tunnel listen as listening,
 // keeping that control socket so a test can announce a guest connection on
-// it. Plus a temp directory for the token file.
+// it. It records each exec open message and refuses it as a start whose
+// broker is not ready. Plus a temp directory for the token file.
 function setupTest() {
   const tmp = setupTempDir('atc-imp-client-port-');
   const authorizations: (string | null)[] = [];
@@ -22,6 +23,7 @@ function setupTest() {
   const answers = new Map<string, { status: number; json: unknown }>();
 
   const controls: ServerWebSocket[] = [];
+  const execOpens: unknown[] = [];
 
   const server = Bun.serve({
     port: 0,
@@ -31,7 +33,7 @@ function setupTest() {
 
       const path = new URL(request.url).pathname;
 
-      const isUpgraded = path === '/tunnel' && bunServer.upgrade(request);
+      const isUpgraded = (path === '/tunnel' || path === '/exec') && bunServer.upgrade(request);
       const text = isUpgraded ? '' : await request.text();
       const body: unknown = text === '' ? null : JSON.parse(text);
 
@@ -52,6 +54,19 @@ function setupTest() {
       message: (socket, message) => {
         const parsed: unknown = JSON.parse(String(message));
 
+        if (isRecord(parsed) && (parsed['type'] === 'start' || parsed['type'] === 'attach')) {
+          execOpens.push(parsed);
+
+          socket.send(
+            JSON.stringify({
+              type: 'error',
+              code: 'PRECONDITION_FAILED',
+              message: 'the broker is not ready',
+              data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
+            }),
+          );
+        }
+
         if (isRecord(parsed) && parsed['type'] === 'listen') {
           controls.push(socket);
 
@@ -70,6 +85,7 @@ function setupTest() {
     calls,
     answers,
     controls,
+    execOpens,
     async [Symbol.asyncDispose]() {
       await server.stop(true);
 
@@ -94,6 +110,7 @@ test('it calls impd with the token its token file holds', async () => {
     leases: true,
     grantableTokens: false,
     secretRebind: false,
+    execRequire: false,
   });
 
   expect(impd.authorizations).toStrictEqual(['Bearer file-token']);
@@ -209,15 +226,37 @@ test.each([
   [
     'false',
     false,
-    { sessionOffsets: true, leases: true, grantableTokens: false, secretRebind: false },
+    {
+      sessionOffsets: true,
+      leases: true,
+      grantableTokens: false,
+      secretRebind: false,
+      execRequire: false,
+    },
   ],
   [
     'strings',
     false,
-    { sessionOffsets: true, leases: true, grantableTokens: 'true', secretRebind: 'true' },
+    {
+      sessionOffsets: true,
+      leases: true,
+      grantableTokens: 'true',
+      secretRebind: 'true',
+      execRequire: 'true',
+    },
   ],
-  ['true', true, { sessionOffsets: true, leases: true, grantableTokens: true, secretRebind: true }],
-])('it reads grant flags sent as %s as %p', async (_kind, flag, sent) => {
+  [
+    'true',
+    true,
+    {
+      sessionOffsets: true,
+      leases: true,
+      grantableTokens: true,
+      secretRebind: true,
+      execRequire: true,
+    },
+  ],
+])('it reads grant and exec requirement flags sent as %s as %p', async (_kind, flag, sent) => {
   await using impd = setupTest();
 
   impd.answers.set('/rpc/system/info', { status: 200, json: { features: sent } });
@@ -231,6 +270,7 @@ test.each([
     leases: true,
     grantableTokens: flag,
     secretRebind: flag,
+    execRequire: flag,
   });
 });
 
@@ -473,4 +513,86 @@ test('it reads the id of the imp it creates', async () => {
     leases: [],
     otherLeaseCount: 0,
   });
+});
+
+test('it sends the requirements of a start to impd and ends the connection with its refusal', async () => {
+  await using impd = setupTest();
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const connection = port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect({ opens: impd.execOpens, outcome }).toStrictEqual({
+    opens: [
+      {
+        type: 'start',
+        name: 'atc-s1',
+        session: 'atc-s1',
+        argv: ['claude'],
+        tty: true,
+        env: {},
+        cwd: '/work',
+        cols: 80,
+        rows: 24,
+        require: ['broker'],
+      },
+    ],
+    outcome: {
+      kind: 'failed',
+      code: 'PRECONDITION_FAILED',
+      message: 'the broker is not ready',
+      data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
+    },
+  });
+});
+
+test('it sends a start without requirements when the request holds none', async () => {
+  await using impd = setupTest();
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const connection = port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await connection.outcome;
+
+  expect(impd.execOpens).toStrictEqual([
+    {
+      type: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      tty: true,
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+    },
+  ]);
 });

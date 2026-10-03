@@ -773,7 +773,7 @@ test('it gives each imp made under a name a new id', async () => {
   expect(view).toMatchObject({ id: second.id });
 });
 
-test('it reports the features of an old daemon without the grant flags', async () => {
+test('it reports the features of an old daemon without the grant and exec requirement flags', async () => {
   using fixture = setupTest();
 
   fixture.port.setOldDaemonFeatures();
@@ -785,6 +785,7 @@ test('it reports the features of an old daemon without the grant flags', async (
     leases: true,
     grantableTokens: false,
     secretRebind: false,
+    execRequire: false,
   });
 });
 
@@ -1002,4 +1003,161 @@ test('it drops the grants of a destroyed imp', async () => {
   const grants = await fixture.port.readGrants('atc-s1');
 
   expect(grants).toStrictEqual([]);
+});
+
+test('it refuses a start that requires the broker on an imp without a grant and runs nothing', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+
+  const started: ImpSessionStarted[] = [];
+
+  const connection = fixture.port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 's1',
+      argv: ['touch', join(fixture.dir, 'ran')],
+      env: {},
+      cwd: fixture.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    {
+      onStarted: (s) => {
+        started.push(s);
+      },
+      onOutput: () => {},
+    },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect({
+    outcome,
+    started,
+    ran: await Bun.file(join(fixture.dir, 'ran')).exists(),
+  }).toStrictEqual({
+    outcome: {
+      kind: 'failed',
+      code: 'PRECONDITION_FAILED',
+      message: 'the broker is not ready in imp atc-s1',
+      data: { reason: 'broker_not_ready', detail: 'the imp holds no grant' },
+    },
+    started: [],
+    ran: false,
+  });
+});
+
+test('it refuses a start that requires the broker while the broker fails, though the imp holds a grant', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+  await fixture.port.createGrant('atc-s1', 'glm');
+
+  fixture.port.startBrokerFailure();
+
+  const connection = fixture.port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 's1',
+      argv: ['touch', join(fixture.dir, 'ran')],
+      env: {},
+      cwd: fixture.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect({ outcome, ran: await Bun.file(join(fixture.dir, 'ran')).exists() }).toStrictEqual({
+    outcome: {
+      kind: 'failed',
+      code: 'PRECONDITION_FAILED',
+      message: 'the broker is not ready in imp atc-s1',
+      data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
+    },
+    ran: false,
+  });
+});
+
+test('it runs a start that requires the broker on an imp with a grant and a working broker', async () => {
+  using fixture = setupTest();
+
+  fixture.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  fixture.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+  await fixture.port.createGrant('atc-s1', 'glm');
+
+  const connection = fixture.port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 's1',
+      argv: ['printf', 'ran'],
+      env: {},
+      cwd: fixture.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect(outcome).toStrictEqual({ kind: 'exit', code: 0, signal: null, offset: 3 });
+});
+
+test('it runs a start that requires nothing while the broker fails', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'atc-s1' });
+
+  fixture.port.startBrokerFailure();
+
+  const connection = fixture.port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 's1',
+      argv: ['printf', 'ran'],
+      env: {},
+      cwd: fixture.dir,
+      cols: 80,
+      rows: 24,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect(outcome).toStrictEqual({ kind: 'exit', code: 0, signal: null, offset: 3 });
 });

@@ -2,7 +2,8 @@
  * Why impd's credential broker may not be used for a session, or why atc
  * may not clean up after one:
  *
- * - `auth_impd_too_old`: impd lacks grantable tokens or secret rebinds.
+ * - `auth_impd_too_old`: impd lacks grantable tokens, secret rebinds or
+ *   exec requirements.
  * - `auth_token_scope`: the token's scope is below `manage`.
  * - `auth_token_too_broad`: the token can reach imps outside atc's
  *   namespace, through no imp patterns or a pattern whose literal text

@@ -77,7 +77,18 @@ export interface ImpFeatures {
   // A rebound or recreated secret drops its grants and leaves a token's
   // list of grantable secrets behind.
   readonly secretRebind: boolean;
+
+  // A start may list what must be ready before the command runs, and impd
+  // refuses the start without running it when one is not.
+  readonly execRequire: boolean;
 }
+
+/**
+ * What a start can ask impd to have ready before its command runs:
+ * `broker` is the credential broker, with its CA installed in the imp and
+ * a grant behind its variables.
+ */
+export type ImpExecRequirement = 'broker';
 
 type ImpScope = 'read' | 'exec' | 'manage';
 
@@ -207,6 +218,10 @@ export type ImpSessionRequest =
       readonly cols: number;
       readonly rows: number;
       readonly resumeFrom?: ResumeFrom;
+
+      // impd refuses the start with `PRECONDITION_FAILED` and runs nothing
+      // when any of these is not ready.
+      readonly require?: readonly ImpExecRequirement[];
     }
   | {
       readonly kind: 'attach';

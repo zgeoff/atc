@@ -15,8 +15,9 @@ export interface BrokerActivation {
 /**
  * The gate before atc grants or relies on a brokered credential. It reads
  * impd's features, then the token's identity, and writes nothing, so a
- * refusal leaves impd as it was. It rejects unless impd has both grantable
- * tokens and secret rebinds, the token may manage each imp and reaches no
+ * refusal leaves impd as it was. It rejects unless impd has grantable
+ * tokens, secret rebinds and exec requirements, so a start can refuse to
+ * run without a ready broker, the token may manage each imp and reaches no
  * imp outside the namespace whose imp names start with the prefix, and the
  * token may grant every bound secret.
  * Whether each secret's rules match the binding is a separate comparison.
@@ -28,11 +29,15 @@ export async function verifyBrokerAuthority(
 ): Promise<void> {
   const features = await port.readFeatures();
 
-  if (!features.grantableTokens || !features.secretRebind) {
+  if (!features.grantableTokens || !features.secretRebind || !features.execRequire) {
     throw new BrokerAuthorityError(
       'auth_impd_too_old',
-      'impd lacks grantable tokens or secret rebinds; it must be 0.27.0 or later',
-      { grantableTokens: features.grantableTokens, secretRebind: features.secretRebind },
+      'impd lacks grantable tokens, secret rebinds or exec requirements; it must be 0.30.0 or later',
+      {
+        grantableTokens: features.grantableTokens,
+        secretRebind: features.secretRebind,
+        execRequire: features.execRequire,
+      },
     );
   }
 
