@@ -834,6 +834,51 @@ test('it gives a principal the report of a session it may see', async () => {
   expect(report).toMatchObject({ session: shown, text: 'open plan', complete: true });
 });
 
+test('it names a report by the session that sent it, never a hidden session that resumes the same agent session', async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const agentSessionID = `a-${randomUUID()}`;
+
+  const moved = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'box',
+    resume: agentSessionID,
+  });
+
+  const hidden = String(getRecord(moved, 'session')['id']);
+
+  const own = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp', target: 'local', resume: agentSessionID },
+    'narrow',
+  );
+
+  const shown = String(getRecord(own, 'session')['id']);
+
+  await daemon.sendNote(shown, 'open plan');
+
+  const event = await waitFor(async () => {
+    const read = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'narrow');
+
+    const first: unknown = Array.isArray(read['events']) ? read['events'][0] : undefined;
+
+    if (!isRecord(first)) {
+      throw new TypeError('no event yet');
+    }
+
+    return first;
+  });
+
+  const report = await daemon.client.sendRequest(
+    'report.get',
+    { report: event['cursor'] },
+    'narrow',
+  );
+
+  expect(report).toMatchObject({ session: shown, text: 'open plan' });
+  expect(JSON.stringify(report)).not.toInclude(hidden);
+});
+
 test('it narrows a request on an owner connection to the principal it acts as', async () => {
   await using daemon = await setupTest({
     targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },

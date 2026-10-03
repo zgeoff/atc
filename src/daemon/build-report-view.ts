@@ -22,12 +22,13 @@ export function buildReportView(
   sessions: readonly SessionDescriptor[],
 ): ReportView {
   // A row written before atc session ids stayed stable across restores
-  // carries an earlier atc id, so the agent session id links it.
+  // carries an earlier atc id, so the agent session id links it when no
+  // session holds the atc id.
   const live =
+    sessions.find((s) => s.id === stored.atcID) ??
     (stored.agentSessionID === null
       ? undefined
-      : sessions.find((s) => s.agentSessionID === stored.agentSessionID)) ??
-    sessions.find((s) => s.id === stored.atcID);
+      : sessions.find((s) => s.agentSessionID === stored.agentSessionID));
 
   return {
     report: encodeCursor({ kind: 'events', id: stored.id }),

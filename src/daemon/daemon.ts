@@ -350,6 +350,16 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     return { atcIDs: visible.map((x) => x.id), agentSessionIDs: [] };
   };
 
+  // The sessions that may name a trail row: under an access, only those on
+  // targets it holds.
+  const collectNamingDescriptors = (access: TargetAccess | null): SessionDescriptor[] => {
+    const reached = new Set(
+      mgr.sessions.filter((x) => access === null || access.canUse(x)).map((x) => x.id),
+    );
+
+    return mgr.collectDescriptors().filter((d) => reached.has(d.id));
+  };
+
   // A message belongs to the live session holding its atc id, else to the
   // one holding its agent session id, else to the atc id it was sent to.
   const readMessageView = async (messageID: MessageID) => {
@@ -1589,16 +1599,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         const remaining = deadline - Date.now();
 
         if (rows.length > 0 || remaining <= 0 || eventSignal.disposed) {
-          // Under an access, an event is named only by a session the
-          // access reaches.
-          const reached = new Set(
-            mgr.sessions.filter((x) => access === null || access.canUse(x)).map((x) => x.id),
-          );
-
-          const named = mgr.collectDescriptors().filter((d) => reached.has(d.id));
-
           return {
-            events: buildFleetEvents(rows.slice(0, limit), named),
+            events: buildFleetEvents(rows.slice(0, limit), collectNamingDescriptors(access)),
             more: rows.length > limit,
           };
         }
@@ -1609,7 +1611,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     readReport: async (id, access) => {
       const stored = await store.findReport(id, buildEventScope(null, access));
 
-      return stored === null ? null : buildReportView(stored, mgr.collectDescriptors());
+      if (stored === null) {
+        return null;
+      }
+
+      return buildReportView(stored, collectNamingDescriptors(access));
     },
     writeSessionMessage: async (sessionID, from, text, keyed) => {
       if (keyed === null) {
