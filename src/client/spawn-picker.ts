@@ -295,10 +295,19 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
+    const tab = buf.length === 1 && buf[0] === KEY.tab;
+
+    // A tab to a source of directories waits for its listing on the step it
+    // left. Any other key there acts on that step, so the flow stays on it
+    // and the listing no longer opens its step.
+    if (!tab && (this.step === 'dir' || this.step === 'source')) {
+      this.pathListingSeq = null;
+    }
+
     // Tab moves a spawn to the next source the daemon offers. Adopt resumes
     // a session in a directory that already holds one, so it stays on its
     // directories.
-    if (buf.length === 1 && buf[0] === KEY.tab) {
+    if (tab) {
       if (!this.resume && (this.step === 'dir' || this.step === 'source')) {
         this.openNextSource();
       }
@@ -1054,7 +1063,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       failure = error;
     }
 
-    if (this.listingSeq !== seq) {
+    if (this.listingSeq !== seq || this.findSource()?.id !== source.id) {
       return;
     }
 

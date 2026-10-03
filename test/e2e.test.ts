@@ -3104,6 +3104,97 @@ test('it stays where the user moved when a directory listing answers late', asyn
   expect(ctx.read()).not.toInclude('directory on the daemon host');
 }, 20_000);
 
+test('it keeps a probe started on a git source after a tab in that flow, spawning one git workspace', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  // Every directory listing takes a second, and every authenticated git
+  // request 1.5 seconds, so the tab's listing answers before the probe.
+  writeFileSync(join(ctx.home, 'bin', 'zoxide'), '#!/bin/sh\nsleep 1\n', { mode: 0o755 });
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const server = startGitHTTPServer(ctx.home, fixture.env, { delayMs: 1500 });
+
+  onTestFinished(async () => {
+    await server.stop();
+  });
+
+  writeFileSync(
+    join(ctx.home, '.gitconfig'),
+    '[credential]\n\thelper = "!f() { echo username=atc; echo password=fixture; }; f"\n',
+  );
+
+  const url = `${server.url}upstream.git`;
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory on the daemon host');
+
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: GitHub repository');
+
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: git URL');
+
+  ctx.reset();
+  pty.write(url);
+
+  await ctx.waitFor(`> ${url}`);
+
+  pty.write('\t');
+
+  // The tab draws nothing until its listing answers, so a short pause keeps
+  // it and the enter in separate reads.
+  await Bun.sleep(200);
+
+  pty.write('\r');
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`, 10_000);
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('raced\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP', 20_000);
+
+  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  await daemon.sendHello('atc/test');
+
+  const listed = await daemon.sendRequest('session.list');
+
+  expect(listed['sessions']).toBeArrayOfSize(1);
+
+  expect(listed['sessions']).toMatchObject([
+    { name: 'raced', workspace: { repoURL: url, sha: fixture.sha, ref: 'main' } },
+  ]);
+}, 60_000);
+
 test('it offers an adopt only the targets that run on this host', async () => {
   await using ctx = setupTest();
 
