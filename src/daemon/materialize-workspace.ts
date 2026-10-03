@@ -443,6 +443,17 @@ function toDaemonError(error: unknown, code: ErrorCode, phase: MaterializationPh
 const VERIFY_ENV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
 const VERIFY_ARGV = ['git', 'rev-parse', '--verify', 'HEAD^{commit}'];
 
+// Lists every tracked file whose content differs from HEAD, so a file the
+// unpack left out or changed refuses the checkout whatever tar did there.
+const STATUS_ARGV = [
+  'git',
+  '-c',
+  'core.fsmonitor=false',
+  'status',
+  '--porcelain',
+  '--untracked-files=no',
+];
+
 async function verifyTargetHead(
   request: MaterializeRequest,
   deps: MaterializeDeps,
@@ -458,6 +469,20 @@ async function verifyTargetHead(
     throw new DaemonError(
       'workspace_mismatch',
       `the checkout on target '${request.target}' is at ${actual ?? 'no commit'}, not ${sha}`,
+      { phase: 'verifying', expected: sha, actual },
+    );
+  }
+
+  const status = await deps
+    .requireProvider('run')
+    .runCommand({ argv: [...VERIFY_ENV, ...STATUS_ARGV], cwd: request.dir });
+
+  const changed = status.stdout.split('\n').filter((line) => line !== '');
+
+  if (status.exitCode !== 0 || changed.length > 0) {
+    throw new DaemonError(
+      'workspace_mismatch',
+      `the checkout on target '${request.target}' does not match ${sha} in its tracked files: ${changed.slice(0, 5).join('; ') || status.stderr.trim()}`,
       { phase: 'verifying', expected: sha, actual },
     );
   }

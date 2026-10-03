@@ -112,14 +112,14 @@ call passes the execution check against the target identity the session binds to
 materialization starts. The `workspace_materialization` table holds one row per materialization,
 keyed by the session id, and the daemon records each phase in it before the phase starts:
 
-| Phase          | What the daemon does                                                                       |
-| -------------- | ------------------------------------------------------------------------------------------ |
-| `resolving`    | resolves the source to a URL and commit, checks the URL, and creates `cwd` with `mkdir`    |
-| `cloning`      | clones the commit into a staging directory on its own host, sanitizes it, and tars it      |
-| `transferring` | unpacks the archive into `cwd` through `transfer`                                          |
-| `verifying`    | runs `git rev-parse` in `cwd` through `run` and compares the result with the pinned commit |
-| `ready`        | starts the session in `cwd`                                                                |
-| `failed`       | holds the refusal code, after removing a `cwd` the materialization created                 |
+| Phase          | What the daemon does                                                                                                                   |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolving`    | resolves the source to a URL and commit, checks the URL, and creates `cwd` with `mkdir`                                                |
+| `cloning`      | clones the commit into a staging directory on its own host, sanitizes it, and tars it                                                  |
+| `transferring` | unpacks the archive into `cwd` through `transfer`                                                                                      |
+| `verifying`    | runs `git rev-parse` and `git status` in `cwd` through `run`, and checks HEAD is the pinned commit with every tracked file matching it |
+| `ready`        | starts the session in `cwd`                                                                                                            |
+| `failed`       | holds the refusal code, after removing a `cwd` the materialization created                                                             |
 
 The session registers only once its workspace is ready, so no client lists a session over a partial
 checkout. The row holds the URL without its credential, the commit, and the ref, and never a

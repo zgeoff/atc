@@ -122,8 +122,8 @@ async function setupTest() {
 }
 
 // The verify unsets every variable that could point git at another
-// repository before it reads the checkout's HEAD.
-const VERIFY_ARGV = [
+// repository before it reads the checkout's HEAD and status.
+const VERIFY_ENV = [
   'env',
   '-u',
   'GIT_ALTERNATE_OBJECT_DIRECTORIES',
@@ -155,10 +155,18 @@ const VERIFY_ARGV = [
   'GIT_SHALLOW_FILE',
   '-u',
   'GIT_WORK_TREE',
+];
+
+const VERIFY_ARGV = [...VERIFY_ENV, 'git', 'rev-parse', '--verify', 'HEAD^{commit}'];
+
+const STATUS_ARGV = [
+  ...VERIFY_ENV,
   'git',
-  'rev-parse',
-  '--verify',
-  'HEAD^{commit}',
+  '-c',
+  'core.fsmonitor=false',
+  'status',
+  '--porcelain',
+  '--untracked-files=no',
 ];
 
 test('it materializes a path source at its pushed HEAD on the target and verifies it there', async () => {
@@ -197,6 +205,7 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
     { op: 'run', argv: ['mkdir', '--', dest], cwd: '/' },
     { op: 'transfer', dir: dest },
     { op: 'run', argv: VERIFY_ARGV, cwd: dest },
+    { op: 'run', argv: STATUS_ARGV, cwd: dest },
   ]);
 });
 
@@ -237,6 +246,52 @@ test('it verifies the target checkout itself when the daemon env points git at a
   expect(getRecord(getRecord(spawned, 'session'), 'workspace')).toMatchObject({
     sha: sha.trim(),
   });
+});
+
+test('it fails the spawn when the target checkout lacks a tracked file, and removes it', async () => {
+  await using ctx = await setupTest();
+
+  const sha = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
+
+  // The unpack on the host leaves one tracked file out.
+  const box = new FixtureDirProvider({
+    afterTransfer: async (dir) => {
+      await rm(join(dir, 'README.md'));
+    },
+  });
+
+  const booted = await ctx.boot(box);
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  const refused = await booted.client
+    .sendRequest('session.spawn', {
+      cwd: dest,
+      target: 'box',
+      workspace: { kind: 'path', path: ctx.work },
+    })
+    .then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+  if (!(refused instanceof DaemonError)) {
+    throw new TypeError('the spawn over a checkout missing a tracked file was not refused');
+  }
+
+  expect(refused.code).toBe('workspace_mismatch');
+  expect(refused.message).toInclude('README.md');
+
+  expect(refused.data).toStrictEqual({
+    phase: 'verifying',
+    expected: sha.trim(),
+    actual: sha.trim(),
+  });
+
+  const listed = await booted.client.sendRequest('session.list');
+
+  expect(listed).toStrictEqual({ sessions: [] });
+  expect(existsSync(dest)).toBeFalse();
 });
 
 test('it records a ready workspace and lists it again on the session after a restart', async () => {
