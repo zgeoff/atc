@@ -1,4 +1,5 @@
 import type { AdapterEvent } from '../protocol/adapter-event';
+import { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
 import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
@@ -39,7 +40,8 @@ export class GatewayAdapter implements AgentAdapter {
   readonly id: AgentID;
 
   // A headless turn carries the same settings file the terminal spawn does,
-  // so it reaches this backend rather than the default one.
+  // so it reaches this backend rather than the default one. A gateway whose
+  // credential comes through impd's broker runs no headless turn.
   readonly headlessRunner: HeadlessRunner | null;
 
   // The CLI's hooks are authoritative; no screen heuristics needed.
@@ -90,7 +92,7 @@ export class GatewayAdapter implements AgentAdapter {
     this.claude = new ClaudeAdapter(config);
 
     this.headlessRunner =
-      headlessRun === null
+      headlessRun === null || gateway.auth !== undefined
         ? null
         : makeClaudeHeadlessRunner(headlessRun, {
             claudeBin: gateway.bin,
@@ -98,6 +100,21 @@ export class GatewayAdapter implements AgentAdapter {
             pluginDir: () => this.writeBridge(),
             settings: () => this.writeSettings(),
           });
+  }
+
+  // A gateway whose credential comes through impd's broker never starts
+  // until the broker path exists: started without it, the CLI would send
+  // whatever credential it holds to the gateway's host.
+  findSpawnRefusal(): DaemonError | null {
+    if (this.gateway.auth === undefined) {
+      return null;
+    }
+
+    return new DaemonError(
+      'auth_target_unsupported',
+      `gateway '${this.id}' takes its credential from impd's broker, and brokered credentials are not wired yet`,
+      { agent: this.id },
+    );
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
@@ -142,7 +159,13 @@ export class GatewayAdapter implements AgentAdapter {
   // explicit flag, so that mode overrides the one the CLI would restore, and
   // the generated settings file, because
   // without it the CLI would resume the session against the default backend.
+  // A gateway whose credential comes through impd's broker has none, since
+  // outside atc the broker never reaches it.
   buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
+    if (this.gateway.auth !== undefined) {
+      return null;
+    }
+
     const args = [
       ...this.gateway.args,
       ...buildRestoreModeArgs(this.gateway.args, this.gateway.settings),

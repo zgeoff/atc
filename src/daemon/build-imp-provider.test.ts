@@ -144,3 +144,43 @@ test('it reports a target whose tokenFile is not a non-empty string, without a p
     problem: 'target "box" must give tokenFile as a non-empty string',
   });
 });
+
+test('it builds an imp provider that names imps under atc- when the target sets no impPrefix', () => {
+  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9' }, {});
+
+  if (built.provider === null) {
+    throw new Error('expected an imp provider');
+  }
+
+  expect(built.provider.impPrefix).toBe('atc-');
+});
+
+test("it builds an imp provider that names imps under the target's impPrefix", () => {
+  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9', impPrefix: 'harness-' }, {});
+
+  if (built.provider === null) {
+    throw new Error('expected an imp provider');
+  }
+
+  expect({ prefix: built.provider.impPrefix, name: built.provider.getImpName('s1') }).toStrictEqual(
+    { prefix: 'harness-', name: 'harness-s1' },
+  );
+});
+
+test.each([
+  [''],
+  ['*'],
+  ['atc-*'],
+  ['Atc-'],
+  ['1atc-'],
+  ['atc_'],
+  ['atc.'],
+  ['harnessatc-x'],
+  [42],
+])('it reports a target whose impPrefix is %p, without a provider', (impPrefix) => {
+  expect(buildImpProvider('box', { url: 'http://127.0.0.1:9', impPrefix }, {})).toStrictEqual({
+    provider: null,
+    problem:
+      'target "box" must give impPrefix as a lowercase letter followed by up to 10 lowercase letters, digits or hyphens, so every imp name it builds is one impd accepts',
+  });
+});

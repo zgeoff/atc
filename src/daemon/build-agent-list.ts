@@ -1,7 +1,8 @@
 import type { AgentAdapter, SpawnOptionSpec } from '../agents/agent-adapter';
 
 interface AgentCapabilities {
-  // Only an installed agent can start a session.
+  // Only an installed agent whose starts are not all refused can start a
+  // session.
   readonly spawn: boolean;
   readonly readTranscript: boolean;
 
@@ -51,6 +52,7 @@ export function buildAgentList(
   return adapters.map((adapter) => {
     const profile = adapter.profile;
     const installed = profile === undefined ? false : isInstalled(profile.bin);
+    const spawnable = installed && (adapter.findSpawnRefusal?.() ?? null) === null;
 
     return {
       id: adapter.id,
@@ -58,7 +60,7 @@ export function buildAgentList(
       kind: profile?.kind ?? adapter.id,
       installed,
       capabilities: {
-        spawn: installed,
+        spawn: spawnable,
         readTranscript: adapter.parseTranscriptLine !== undefined,
         message: adapter.takesMessages,
         attach: true,
@@ -67,8 +69,8 @@ export function buildAgentList(
       },
       models: profile?.models ?? null,
       spawnOptions: {
-        model: buildSpawnOptionEntry(profile?.spawnOptions.model, installed),
-        effort: buildSpawnOptionEntry(profile?.spawnOptions.effort, installed),
+        model: buildSpawnOptionEntry(profile?.spawnOptions.model, spawnable),
+        effort: buildSpawnOptionEntry(profile?.spawnOptions.effort, spawnable),
       },
     };
   });
@@ -86,9 +88,9 @@ const NO_SPAWN_OPTION: SpawnOptionSpec = {
 
 function buildSpawnOptionEntry(
   spec: SpawnOptionSpec | undefined,
-  installed: boolean,
+  spawnable: boolean,
 ): SpawnOptionEntry {
   const resolved = spec ?? NO_SPAWN_OPTION;
 
-  return { ...resolved, available: installed && resolved.supported };
+  return { ...resolved, available: spawnable && resolved.supported };
 }

@@ -1,4 +1,5 @@
 import type { AdapterEvent } from '../protocol/adapter-event';
+import type { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
 import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
@@ -204,6 +205,10 @@ export interface AgentAdapter {
   // such as one whose instrumentation needs atc on a host without it.
   // Absent: the agent runs there as a local spawn plans it, with no files.
   readonly planGuestSpawn?: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
+
+  // The refusal every start of this agent's harness gets, on any target,
+  // or null when it may start. Absent: no start is refused.
+  readonly findSpawnRefusal?: () => DaemonError | null;
 
   // The command that exits 0 inside a remote host when the agent there can
   // sign in without a person. Absent: atc runs no check.

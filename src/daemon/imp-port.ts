@@ -19,8 +19,10 @@ export interface ImpPort {
   // The names of the secrets granted to an imp.
   readonly readGrants: (name: string) => Promise<readonly string[]>;
 
-  // Grants a secret to an imp; granting one it already holds changes
-  // nothing, and nothing in the result distinguishes the two.
+  // Grants a secret to an imp. impd's grant add is idempotent: granting one
+  // the imp already holds changes nothing, and impd returns no creation or
+  // ownership receipt, so nothing in the result tells a new grant from an
+  // existing one or shows who added it.
   readonly createGrant: (name: string, secret: string) => Promise<void>;
 
   // Revokes a secret from an imp, and reports whether impd held the grant.

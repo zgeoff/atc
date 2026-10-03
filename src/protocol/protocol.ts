@@ -48,6 +48,7 @@ const ERROR_CODES = [
   'github_unavailable',
   'host_unavailable',
   'auth_not_configured',
+  'auth_target_unsupported',
   'host_leased',
   'confirmation_required',
   'confirm_token_invalid',

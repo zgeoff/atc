@@ -20,6 +20,9 @@ test('it leaves every target unusable, local included, and grants no principal a
       targetRoots: new Map(),
     },
     gateways: [],
+    gatewayErrors: [],
+    authProfiles: new Map(),
+    authProfileErrors: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
     targets: [],
@@ -74,6 +77,9 @@ test('it falls back field by field when a field is wrong-typed instead of failin
       targetRoots: new Map(),
     },
     gateways: [],
+    gatewayErrors: [],
+    authProfiles: new Map(),
+    authProfileErrors: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
@@ -182,4 +188,83 @@ test('it reads the config a first run writes back as the defaults, without targe
 
   expect(config).toStrictEqual(parseConfig({}));
   expect(config.targetErrors).toStrictEqual([]);
+});
+
+test('it reads the auth profiles a config sets and registers a gateway whose auth selects them', () => {
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    gateways: {
+      glm: {
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  expect({
+    authProfiles: config.authProfiles,
+    authProfileErrors: config.authProfileErrors,
+    gateways: config.gateways,
+    gatewayErrors: config.gatewayErrors,
+  }).toStrictEqual({
+    authProfiles: new Map([
+      [
+        'glm',
+        {
+          name: 'glm',
+          secret: 'glm',
+          kind: 'custom',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+          dependencies: [],
+        },
+      ],
+    ]),
+    authProfileErrors: [],
+    gateways: [
+      {
+        id: 'glm',
+        label: 'glm',
+        mark: 'g',
+        bin: 'claude',
+        args: [],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        env: {},
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    ],
+    gatewayErrors: [],
+  });
+});
+
+test('it refuses a gateway whose auth selects a profile the config refused, and reports both', () => {
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'raw' },
+    },
+    gateways: {
+      glm: { baseURL: 'https://api.z.ai/api/anthropic', auth: { profiles: ['glm'] } },
+    },
+  });
+
+  expect({
+    authProfileErrors: config.authProfileErrors,
+    gateways: config.gateways,
+    gatewayErrors: config.gatewayErrors,
+  }).toStrictEqual({
+    authProfileErrors: ['authProfiles.glm: scheme must be bearer, the one scheme atc binds'],
+    gateways: [],
+    gatewayErrors: [
+      'gateways.glm: profile glm is selected, but authProfiles has no usable profile by that name',
+    ],
+  });
 });

@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import { buildOptionalString } from './build-optional-string';
 import { buildOptionalStringArray } from './build-optional-string-array';
+import { collectAuthProfiles } from './collect-auth-profiles';
+import type { AuthProfile } from './collect-auth-profiles';
 import { collectDirRoots } from './collect-dir-roots';
 import { collectGateways } from './collect-gateways';
 import type { GatewayConfig } from './collect-gateways';
@@ -28,6 +30,14 @@ export interface Config {
   dirs: DirsConfig;
   workspaces: WorkspacesConfig;
   gateways: GatewayConfig[];
+
+  // The problems that kept a gateway with auth out of the gateways.
+  gatewayErrors: readonly string[];
+
+  // The credential references a gateway's auth selects from, by profile
+  // name, and the problems that kept a profile out.
+  authProfiles: ReadonlyMap<string, AuthProfile>;
+  authProfileErrors: readonly string[];
   hooks: HooksConfig;
   leader: LeaderKey;
 
@@ -78,6 +88,9 @@ const DEFAULTS: Config = {
     targetRoots: new Map(),
   },
   gateways: [],
+  gatewayErrors: [],
+  authProfiles: new Map(),
+  authProfileErrors: [],
   hooks: {},
   leader: { code: 0, label: '^Space' },
   targets: [{ id: 'local', provider: 'local-pty', options: {} }],
@@ -118,6 +131,7 @@ const CONFIG_SCHEMA = z.object({
   dirs: z.unknown().optional(),
   workspaces: z.unknown().optional(),
   gateways: z.unknown().optional(),
+  authProfiles: z.unknown().optional(),
   hooks: z.unknown().optional(),
   leader: buildOptionalString(),
   targets: z.unknown().optional(),
@@ -206,11 +220,14 @@ function tryWriteDefaultConfig(file: string): void {
 /**
  * The config.json text a first run writes. It leaves out the targets and
  * principals, so the file holds the one implicit `local` target and no
- * principals until the user sets their own, and the errors a parse
- * reports, which belong to no file.
+ * principals until the user sets their own, no auth profiles, and the
+ * errors a parse reports, which belong to no file.
  */
 export function renderDefaultConfig(): string {
   const {
+    gatewayErrors: _gatewayErrors,
+    authProfiles: _authProfiles,
+    authProfileErrors: _authProfileErrors,
     targets: _targets,
     defaultTarget: _default,
     targetErrors: _errors,
@@ -266,7 +283,15 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
   const codexArgs = parsed.data.codexArgs ?? DEFAULTS.codexArgs;
   const dirs = { roots: collectDirRoots(parsed.data.dirs) };
   const workspaces = collectWorkspacesConfig(parsed.data.workspaces);
-  const gateways = collectGateways(parsed.data.gateways, claudeBin, claudeArgs);
+  const authProfiles = collectAuthProfiles(parsed.data.authProfiles);
+
+  const gateways = collectGateways(
+    parsed.data.gateways,
+    claudeBin,
+    claudeArgs,
+    authProfiles.profiles,
+  );
+
   const hooks = collectHooks(parsed.data.hooks);
   const targets = collectTargets(parsed.data.targets, parsed.data.defaultTarget);
   const principals = collectPrincipals(parsed.data.principals);
@@ -283,7 +308,10 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     codexArgs,
     dirs,
     workspaces: workspaces.workspaces,
-    gateways,
+    gateways: gateways.gateways,
+    gatewayErrors: gateways.errors,
+    authProfiles: authProfiles.profiles,
+    authProfileErrors: authProfiles.errors,
     hooks,
     leader,
     targets: targets.targets,

@@ -26,6 +26,9 @@ function buildGatewayAdapter(): GatewayAdapter {
       targetRoots: new Map(),
     },
     gateways: [],
+    gatewayErrors: [],
+    authProfiles: new Map(),
+    authProfileErrors: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
@@ -130,6 +133,9 @@ test("it runs a headless turn through the gateway's binary and settings file und
         targetRoots: new Map(),
       },
       gateways: [],
+      gatewayErrors: [],
+      authProfiles: new Map(),
+      authProfileErrors: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
       targets: [{ id: 'local', provider: 'local-pty', options: {} }],
@@ -196,6 +202,9 @@ test('it profiles a gateway with only the model names its env sets', () => {
         targetRoots: new Map(),
       },
       gateways: [],
+      gatewayErrors: [],
+      authProfiles: new Map(),
+      authProfileErrors: [],
       hooks: {},
       leader: { code: 0, label: '^Space' },
       targets: [{ id: 'local', provider: 'local-pty', options: {} }],
@@ -467,4 +476,70 @@ test('it restores and resumes a gateway in its explicit permission-mode argument
   expect(plan.args).not.toContain('default');
   expect(command).toInclude("'--permission-mode' 'plan'");
   expect(command).not.toInclude("'default'");
+});
+
+test('it refuses every spawn of a gateway with auth, since brokered credentials are not wired', () => {
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    parseConfig({}),
+  );
+
+  const refusal = adapter.findSpawnRefusal();
+
+  expect(refusal).toMatchObject({
+    code: 'auth_target_unsupported',
+    message:
+      "gateway 'glm' takes its credential from impd's broker, and brokered credentials are not wired yet",
+  });
+});
+
+test('it gives a gateway with auth no headless runner and no resume command', () => {
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: { profiles: ['glm'], placeholderEnv: {} },
+    },
+    parseConfig({}),
+    () => ({ stop: () => {} }),
+  );
+
+  expect({
+    headless: adapter.headlessRunner,
+    resume: adapter.buildResumeCommand('/work', toAgentSessionID('a1')),
+  }).toStrictEqual({ headless: null, resume: null });
+});
+
+test('it refuses no spawn of a gateway without auth', () => {
+  const adapter = new GatewayAdapter(
+    {
+      id: 'zai',
+      label: 'zai',
+      mark: 'z',
+      bin: 'claude',
+      args: [],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+    },
+    parseConfig({}),
+  );
+
+  expect(adapter.findSpawnRefusal()).toBeNull();
 });

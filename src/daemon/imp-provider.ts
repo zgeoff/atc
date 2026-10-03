@@ -1,6 +1,7 @@
 import { DaemonError } from '../protocol/daemon-error';
 import { LineDecoder } from '../protocol/line-decoder';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
+import { buildImpName } from './build-imp-name';
 import { buildTarArchive } from './build-tar-archive';
 import type {
   CommandResult,
@@ -20,10 +21,12 @@ import { ImpPortError } from './imp-port-error';
 /**
  * The options an `imp` target takes beside its provider: the image a new
  * imp boots, the memory it gets, the folder inside each imp that atc's
- * files go under, and the path of an atc binary already installed in the
- * image. None holds a credential.
+ * files go under, the path of an atc binary already installed in the
+ * image, and the prefix every imp name the target builds starts with.
+ * None holds a credential.
  */
 export interface ImpTargetOptions {
+  readonly impPrefix?: string;
   readonly image?: string;
   readonly memoryMib?: number;
   readonly guestDir?: string;
@@ -47,6 +50,9 @@ interface ImpProviderOptions {
 // The folder inside an imp that atc's files go under when the target sets
 // none.
 const GUEST_DIR = '/tmp/atc';
+
+// The start of every imp name when the target sets no prefix.
+const IMP_PREFIX = 'atc-';
 
 // impd takes a lease of 10 to 3600 seconds; the daemon renews at a third of it.
 const LEASE_SECONDS = 600;
@@ -86,6 +92,10 @@ export class ImpProvider implements ExecutionProvider {
 
   readonly guest: GuestLayout;
 
+  // The literal start of every imp name this provider builds: the runtime
+  // namespace an impd token's imp patterns are checked against.
+  readonly impPrefix: string;
+
   private readonly port: ImpPort;
 
   private readonly target: ImpTargetOptions;
@@ -109,6 +119,7 @@ export class ImpProvider implements ExecutionProvider {
   constructor(port: ImpPort, target: ImpTargetOptions, options: ImpProviderOptions = {}) {
     this.port = port;
     this.target = target;
+    this.impPrefix = target.impPrefix ?? IMP_PREFIX;
     this.leaseSeconds = options.leaseSeconds ?? LEASE_SECONDS;
     this.reconnectDelaysMs = options.reconnectDelaysMs ?? RECONNECT_DELAYS_MS;
 
@@ -123,10 +134,15 @@ export class ImpProvider implements ExecutionProvider {
     };
   }
 
+  // The imp a host key runs on, under this provider's prefix.
+  getImpName(hostKey: string): string {
+    return buildImpName(this.impPrefix, hostKey);
+  }
+
   // Creates the host's imp when impd holds none, then takes the daemon's
   // lease, which boots or wakes the imp.
   readonly prepareHost = async (request: HostRequest): Promise<void> => {
-    const name = buildImpName(request.host);
+    const name = this.getImpName(request.host);
     const label = `atc-${request.daemonID}`;
 
     this.label = label;
@@ -181,7 +197,7 @@ export class ImpProvider implements ExecutionProvider {
 
   readonly spawnHarness = (spec: HarnessSpec): HarnessHandle => {
     const host = this.hosts.get(spec.host) ?? {
-      name: buildImpName(spec.host),
+      name: this.getImpName(spec.host),
       harnesses: 0,
       renewTimer: null,
       suspending: false,
@@ -257,7 +273,7 @@ export class ImpProvider implements ExecutionProvider {
   // carries what impd showed of the other leases.
   readonly suspendHost = async (hostKey: string): Promise<void> => {
     const host = this.hosts.get(hostKey) ?? {
-      name: buildImpName(hostKey),
+      name: this.getImpName(hostKey),
       harnesses: 0,
       renewTimer: null,
       suspending: false,
@@ -290,7 +306,7 @@ export class ImpProvider implements ExecutionProvider {
   // A destroy ends every lease on the imp with it.
   readonly destroyHost = async (hostKey: string): Promise<void> => {
     const host = this.hosts.get(hostKey);
-    const name = buildImpName(hostKey);
+    const name = this.getImpName(hostKey);
 
     if (host !== undefined) {
       this.stopRenewal(host);
@@ -405,9 +421,9 @@ export class ImpProvider implements ExecutionProvider {
     }
 
     try {
-      return await this.port.runCommand(buildImpName(hostKey), command);
+      return await this.port.runCommand(this.getImpName(hostKey), command);
     } catch (error) {
-      throw toHostRefusal(error, buildImpName(hostKey));
+      throw toHostRefusal(error, this.getImpName(hostKey));
     }
   }
 
@@ -494,17 +510,6 @@ interface ImpHost {
   harnesses: number;
   renewTimer: ReturnType<typeof setInterval> | null;
   suspending: boolean;
-}
-
-/**
- * The imp a host key runs on: `atc-` and the first 20 letters and digits of
- * the key, which is the atc session id of the session that owns the host.
- */
-function buildImpName(hostKey: string): string {
-  return `atc-${hostKey
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]/g, '')
-    .slice(0, 20)}`;
 }
 
 function buildImpSessionName(sessionID: string): string {

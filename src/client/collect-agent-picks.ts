@@ -9,7 +9,8 @@ export interface AgentPick {
 /**
  * The agent choices the spawn and adopt flows offer, in menu order. An agent
  * whose configured binary does not resolve is left out, so every row in the
- * menu is a session that can start. Resolution follows the rule a spawn
+ * menu is a session that can start. A gateway with auth is left out too, since
+ * every start of one is refused. Resolution follows the rule a spawn
  * follows: a bare name comes off PATH, a name carrying a separator is taken
  * as a path, and either way it has to be executable.
  */
@@ -22,7 +23,9 @@ export function collectAgentPicks(config: Config): AgentPick[] {
     { agent: 'claude', label: 'Claude', bin: config.claudeBin },
     { agent: 'grok', label: 'Grok', bin: config.grokBin },
     { agent: 'codex', label: 'Codex', bin: config.codexBin },
-    ...config.gateways.map((g) => ({ agent: g.id, label: g.label, bin: g.bin })),
+    ...config.gateways
+      .filter((g) => g.auth === undefined)
+      .map((g) => ({ agent: g.id, label: g.label, bin: g.bin })),
   ];
 
   return candidates

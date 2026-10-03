@@ -751,6 +751,13 @@ export class DaemonConnection {
         );
       }
 
+      // Checked before any workspace is materialized for the spawn.
+      const refusal = adapter.findSpawnRefusal?.() ?? null;
+
+      if (refusal !== null) {
+        throw refusal;
+      }
+
       const overrides = parseSpawnOverrides(entry, { model: data.model, effort: data.effort });
 
       if (!overrides.ok) {
