@@ -17,7 +17,7 @@ function buildCodexConfig(): Config {
     codexBin: 'codex',
     codexArgs: [],
     dirs: { roots: [] },
-    workspaces: { githubOwner: null },
+    workspaces: { githubOwner: null, root: null, targetRoots: new Map() },
     gateways: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
