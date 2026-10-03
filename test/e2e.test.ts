@@ -702,6 +702,8 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   await ctx.waitFor('spawn: name');
 
+  // The first spawn's prompt step is still in the buffer.
+  ctx.reset();
   pty.write('second\r');
 
   await ctx.waitFor('spawn: initial prompt');
@@ -793,6 +795,8 @@ test('it preselects the focused session when the overlay opens', async () => {
 
   await ctx.waitFor('spawn: name');
 
+  // The first spawn's prompt step is still in the buffer.
+  ctx.reset();
   pty.write('second\r');
 
   await ctx.waitFor('spawn: initial prompt');
@@ -1729,89 +1733,6 @@ test('it keeps the target step open on a target the directory cannot run on', as
   await ctx.waitFor('spawn: directory');
 }, 15_000);
 
-test('it sends a local directory to a target off the daemon machine as a path workspace without allowDirty', async () => {
-  await using ctx = setupTest();
-
-  const env = {
-    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_AUTHOR_NAME: 'atc',
-    GIT_AUTHOR_EMAIL: 'atc@example.com',
-    GIT_COMMITTER_NAME: 'atc',
-    GIT_COMMITTER_EMAIL: 'atc@example.com',
-  };
-
-  const project = join(ctx.home, 'proj');
-
-  await $`git init --quiet --template= --initial-branch=main ${project}`.env(env).quiet();
-
-  writeFileSync(join(project, 'README.md'), 'hello\n');
-
-  await $`git add README.md`.env(env).cwd(project).quiet();
-  await $`git commit --quiet --no-gpg-sign -m initial`.env(env).cwd(project).quiet();
-
-  writeFileSync(join(project, 'scratch.txt'), 'uncommitted\n');
-
-  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
-  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
-
-  // An imp target with a url and no token has a provider that can take a
-  // workspace. The path source is refused before the daemon calls impd.
-  writeFileSync(
-    configPath,
-    JSON.stringify({
-      ...(isRecord(config) ? config : {}),
-      targets: {
-        local: { provider: 'local-pty' },
-        box: { provider: 'imp', url: 'http://127.0.0.1:9' },
-      },
-      defaultTarget: 'local',
-    }),
-  );
-
-  const pty = ctx.boot();
-
-  await ctx.waitFor('atc — control tower');
-
-  pty.write('n');
-
-  await ctx.waitFor('spawn: agent');
-
-  pty.write('\r');
-
-  await ctx.waitFor('spawn: directory');
-
-  pty.write(project);
-
-  await ctx.waitFor(`> ${project}`);
-
-  pty.write('\r');
-
-  await ctx.waitFor('spawn: target');
-
-  ctx.reset();
-  pty.write('\u001B[B');
-
-  await ctx.waitFor('\u001B[7mbox  imp');
-
-  pty.write('\r');
-
-  await ctx.waitFor('spawn: name');
-
-  pty.write('\r');
-
-  await ctx.waitFor('spawn: initial prompt');
-
-  ctx.reset();
-  pty.write('\r');
-
-  // Without the path workspace the spawn would reach impd; with
-  // allowDirty: 'warn' it would get past the uncommitted file.
-  await ctx.waitFor('workspace_dirty', 10_000);
-
-  expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
-||||||| parent of d4acbc9 (feat(#192): spawn sessions from github repositories in the picker)
 test('it spawns a session from a git repository at the commit the confirm screen shows, keeping choices across esc', async () => {
   await using ctx = setupTest();
 
@@ -2205,19 +2126,41 @@ test('it keeps paths and slash filters in the local directory step and switches 
   expect(ctx.read()).toInclude('> https://github.com/acme/app.git');
 }, 20_000);
 
-test('it offers an adopt only the targets that run on this host', async () => {
+test('it sends a local directory to a target off the daemon machine as a path workspace without allowDirty', async () => {
   await using ctx = setupTest();
+
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_AUTHOR_NAME: 'atc',
+    GIT_AUTHOR_EMAIL: 'atc@example.com',
+    GIT_COMMITTER_NAME: 'atc',
+    GIT_COMMITTER_EMAIL: 'atc@example.com',
+  };
+
+  const project = join(ctx.home, 'proj');
+
+  await $`git init --quiet --template= --initial-branch=main ${project}`.env(env).quiet();
+
+  writeFileSync(join(project, 'README.md'), 'hello\n');
+
+  await $`git add README.md`.env(env).cwd(project).quiet();
+  await $`git commit --quiet --no-gpg-sign -m initial`.env(env).cwd(project).quiet();
+
+  writeFileSync(join(project, 'scratch.txt'), 'uncommitted\n');
 
   const configPath = join(ctx.home, '.config', 'atc', 'config.json');
   const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
 
+  // An imp target with a url and no token has a provider that can take a
+  // workspace. The path source is refused before the daemon calls impd.
   writeFileSync(
     configPath,
     JSON.stringify({
       ...(isRecord(config) ? config : {}),
       targets: {
         local: { provider: 'local-pty' },
-        alt: { provider: 'local-pty', tag: 'alt' },
         box: { provider: 'imp', url: 'http://127.0.0.1:9' },
       },
       defaultTarget: 'local',
@@ -2228,22 +2171,41 @@ test('it offers an adopt only the targets that run on this host', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  pty.write('r');
+  pty.write('n');
 
-  await ctx.waitFor('adopt: agent');
+  await ctx.waitFor('spawn: agent');
 
   pty.write('\r');
 
-  await ctx.waitFor('adopt: directory');
+  await ctx.waitFor('spawn: directory');
+
+  pty.write(project);
+
+  await ctx.waitFor(`> ${project}`);
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7mbox  imp');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
 
   ctx.reset();
   pty.write('\r');
 
-  await ctx.waitFor('adopt: target');
+  // Without the path workspace the spawn would reach impd; with
+  // allowDirty: 'warn' it would get past the uncommitted file.
+  await ctx.waitFor('workspace_dirty', 10_000);
 
-  const menu = ctx.read();
-
-  expect(menu).toInclude('local  local-pty · default');
-  expect(menu).toInclude('alt  local-pty');
-  expect(menu).not.toInclude('box  imp');
-}, 15_000);
+  expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
+}, 20_000);

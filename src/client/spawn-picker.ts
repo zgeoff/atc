@@ -77,20 +77,33 @@ interface ChosenRef {
 const FULL_SHA_PATTERN = /^(?:[\da-f]{40}|[\da-f]{64})$/u;
 const SHORT_SHA_PATTERN = /^[\da-f]{7,63}$/u;
 
+// A request the step waits on, and the number that tells its answer from a
+// cancelled one's.
+interface PendingRequest {
+  readonly label: string;
+  readonly seq: number;
+  readonly kind: 'probe' | 'spawn';
+}
+
 /**
- * The modal flow behind n and r: agent, then source, then execution target
- * when the daemon has more than one, then name, then an optional first
- * prompt. The source is a local directory, or, after Tab in a spawn, a git
- * repository: the repository, then its ref, then a confirm screen with the
- * destination the checkout lands in. Every path out of the flow either
- * attaches the new session or returns the client to the screen it came
- * from. A spawn the daemon refuses is no path out: the flow returns to the
- * step that can fix the cause and shows why.
+ * The modal flow behind n and r: agent, then source, then name, then an
+ * optional first prompt. A local directory source is followed by the
+ * execution target when the daemon has more than one. Tab in a spawn
+ * switches to a git repository source: the target first, then the
+ * repository, its ref, and a confirm screen with the destination the
+ * checkout lands in, so every request about the repository is made for
+ * the target the spawn runs on. Every path out of the flow either attaches
+ * the new session or returns the client to the screen it came from. A spawn
+ * the daemon refuses is no path out: the flow returns to the step that can
+ * fix the cause and shows why. Esc cancels a request in flight and drops
+ * its late answer.
  */
 export class SpawnPicker<TMirror extends { readonly id: string }> {
   private readonly deps: SpawnPickerDeps<TMirror>;
 
   private step: PickerStep = 'agent';
+
+  private source: 'github' | 'local' = 'local';
 
   private input = '';
 
@@ -117,17 +130,25 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private target: TargetPick | null = null;
 
   // The listed repositories and whose they are, or the notice that stands
-  // in for a list the daemon could not give; read once per open, and again
-  // for each `owner/` asked for.
+  // in for a list the daemon could not give, with the target they were
+  // listed for. A listing runs behind the step, so typing goes on.
   private repos: ListedRepo[] = [];
 
   private reposOwner: string | null = null;
 
   private reposNotice: string | null = null;
 
-  private reposListed = false;
+  private reposTarget: string | null = null;
+
+  private listingSeq: number | null = null;
 
   private gitProtocol: 'https' | 'ssh' = 'https';
+
+  // The repository step's text while the flow is on another step, and
+  // whether the step submits it as soon as it opens.
+  private repoDraft = '';
+
+  private repoAutoSubmit = false;
 
   // The other URL form of a repository whose probe failed, offered as the
   // repository step's one item until the input changes.
@@ -137,11 +158,14 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private ref: ChosenRef | null = null;
 
-  // The destination the user accepted on the confirm screen, before any
-  // suffix a refused spawn adds, and that suffix's number.
+  // The destination on the confirm screen, before any suffix a refused
+  // spawn adds, that suffix's number, and whether the user typed the
+  // destination rather than taking the default.
   private destination = '';
 
   private destinationAttempt = 1;
+
+  private destinationEdited = false;
 
   private name = '';
 
@@ -153,8 +177,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // next key.
   private refusal: string | null = null;
 
-  // What an in-flight request is doing, shown in place of the hint.
-  private pending: string | null = null;
+  private pending: PendingRequest | null = null;
+
+  private requestSeq = 0;
 
   constructor(deps: SpawnPickerDeps<TMirror>) {
     this.deps = deps;
@@ -169,11 +194,17 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.roots = config.dirs.roots;
     this.workspaces = config.workspaces;
     this.input = '';
+    this.source = 'local';
     this.target = null;
     this.repo = null;
     this.ref = null;
-    this.reposListed = false;
+    this.repoDraft = '';
+    this.repoAutoSubmit = false;
+    this.reposTarget = null;
+    this.listingSeq = null;
     this.alternateURL = null;
+    this.destination = '';
+    this.destinationEdited = false;
 
     // A last-used agent that is no longer installed is not in the menu, so
     // the selection falls to the first one that is.
@@ -192,25 +223,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   applyKey(buf: Buffer) {
-    // A request in flight owns the step until it answers.
-    if (this.pending !== null) {
-      return;
-    }
-
     this.refusal = null;
-
-    // Tab switches the source of a spawn between a local directory and a
-    // git repository. Adopt resumes a session in a directory that already
-    // holds one, so it stays local.
-    if (buf.length === 1 && buf[0] === KEY.tab) {
-      if (!this.resume && (this.step === 'dir' || this.step === 'repo')) {
-        const other = this.step === 'dir' ? 'repo' : 'dir';
-
-        this.openSourceStep(other, '');
-      }
-
-      return;
-    }
 
     const edit = planTextEdit(buf, this.input, {
       isLeaderKey: this.deps.isLeaderKey,
@@ -221,6 +234,33 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         this.step === 'ref' ||
         this.step === 'target',
     });
+
+    // A request in flight owns the step: Esc cancels it, the leader leaves,
+    // and every other key waits for the answer.
+    if (this.pending !== null) {
+      if (edit.kind === 'cancel') {
+        this.applyPendingCancel();
+      } else if (edit.kind === 'leader') {
+        this.pending = null;
+
+        this.deps.toBase();
+      }
+
+      return;
+    }
+
+    // Tab switches the source of a spawn between a local directory and a
+    // git repository. Adopt resumes a session in a directory that already
+    // holds one, so it stays local.
+    if (buf.length === 1 && buf[0] === KEY.tab) {
+      if (!this.resume && this.step === 'dir') {
+        this.openGitHubSource('', false);
+      } else if (!this.resume && this.step === 'repo') {
+        this.openLocalSource();
+      }
+
+      return;
+    }
 
     switch (edit.kind) {
       case 'none': {
@@ -293,28 +333,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     } else if (this.step === 'ref') {
       this.renderRefStep();
     } else if (this.step === 'target') {
-      this.selected = Math.min(this.selected, this.targets.length - 1);
-
-      const github = this.repo !== null;
-
-      drawPicker({
-        title: `${verb}: target`,
-        items: this.targets.map((t) => formatTargetPick(t)),
-        selected: this.selected,
-        input: '',
-        hint:
-          this.refusal ??
-          `where ${github ? this.repo?.label : formatDir(this.dir)} runs · ↑↓ move · ⏎ select · esc back`,
-        dimmed: new Set(
-          this.targets.flatMap((t, i) =>
-            t.takesWorkspace || (!github && t.available && t.inPlace) ? [] : [i],
-          ),
-        ),
-      });
+      this.renderTargetStep(verb);
     } else if (this.step === 'confirm') {
       this.renderConfirmStep();
     } else if (this.step === 'name') {
-      const where = this.repo === null ? formatDir(this.dir) : this.formatDestination();
+      const where = this.source === 'github' ? this.formatDestination() : formatDir(this.dir);
 
       drawPicker({
         title: `${verb}: name`,
@@ -331,11 +354,34 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         selected: -1,
         input: this.input,
         placeholder: 'optional — ⏎ to start interactive',
-        hint: this.pending ?? this.refusal ?? 'first message for the session · ⏎ spawn · esc back',
+        hint:
+          this.pending?.label ??
+          this.refusal ??
+          'first message for the session · ⏎ spawn · esc back',
       });
     }
 
     this.deps.scheduleStatus();
+  }
+
+  private renderTargetStep(verb: string) {
+    this.selected = Math.min(this.selected, this.targets.length - 1);
+
+    const github = this.source === 'github';
+    const what = github ? 'the repository' : formatDir(this.dir);
+
+    drawPicker({
+      title: `${verb}: target`,
+      items: this.targets.map((t) => formatTargetPick(t)),
+      selected: this.selected,
+      input: '',
+      hint: this.refusal ?? `where ${what} runs · ↑↓ move · ⏎ select · esc back`,
+      dimmed: new Set(
+        this.targets.flatMap((t, i) =>
+          t.takesWorkspace || (!github && t.available && t.inPlace) ? [] : [i],
+        ),
+      ),
+    });
   }
 
   private renderRepoStep() {
@@ -344,6 +390,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.selected = Math.min(this.selected, Math.max(0, Math.min(items.length, 10) - 1));
 
     const owner = this.reposOwner === null ? '' : ` · ${this.reposOwner}`;
+    const listing = this.listingSeq === null ? null : 'listing repositories… · esc stops';
 
     drawPicker({
       title: `spawn: repository${owner}`,
@@ -351,8 +398,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       selected: items.length === 0 || items[0]?.notice === true ? -1 : this.selected,
       input: this.input,
       hint:
-        this.pending ??
+        this.pending?.label ??
         this.refusal ??
+        listing ??
         'owner/repo, a git URL, or owner/ to list · ↑↓ move · ⏎ select · tab local · esc back',
       dimmed: new Set(items.flatMap((item, i) => (item.notice === true ? [i] : []))),
     });
@@ -369,7 +417,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       selected: items.length === 0 ? -1 : this.selected,
       input: this.input,
       hint:
-        this.pending ??
+        this.pending?.label ??
         this.refusal ??
         'branch, tag, or full commit id · ↑↓ move · ⏎ select · esc back',
     });
@@ -419,11 +467,28 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       parseRepoInput(value).kind === 'url' &&
       !value.startsWith('/')
     ) {
-      this.openSourceStep('repo', value);
+      this.openGitHubSource(value, false);
 
       return;
     }
 
+    this.render();
+  }
+
+  // Stops waiting on the request in flight. Its answer, when it comes, is
+  // dropped. A spawn goes on on the daemon, which lists the session once
+  // it starts.
+  private applyPendingCancel() {
+    const cancelled = this.pending;
+
+    this.pending = null;
+
+    this.refusal =
+      cancelled?.kind === 'spawn'
+        ? 'stopped waiting; the daemon finishes the spawn and lists the session · esc back'
+        : 'cancelled · esc back';
+
+    process.stdout.write(ansi.clear);
     this.render();
   }
 
@@ -434,37 +499,49 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
+    // Esc first stops a listing in flight, keeping the step.
+    if (this.step === 'repo' && this.listingSeq !== null) {
+      this.listingSeq = null;
+      this.reposTarget = null;
+      this.reposNotice = 'listing stopped — type owner/repo or a git URL';
+
+      this.render();
+
+      return;
+    }
+
+    const typed = this.input;
+
     this.input = '';
 
-    if (this.step === 'dir' || this.step === 'repo') {
+    if (this.step === 'dir') {
       this.selected = Math.max(
         0,
         this.picks.findIndex((p) => p.agent === this.agent),
       );
 
       this.step = 'agent';
+    } else if (this.step === 'repo') {
+      this.repoDraft = typed;
+
+      this.applyRepoCancel();
     } else if (this.step === 'ref') {
       this.input = this.repo?.label ?? '';
       this.repo = null;
       this.step = 'repo';
     } else if (this.step === 'target') {
-      if (this.repo === null) {
-        this.step = 'dir';
-      } else {
-        this.openRefStep();
-      }
+      this.source = 'local';
+      this.step = 'dir';
     } else if (this.step === 'confirm') {
-      this.openTargetOr(() => {
-        this.openRefStep();
-      });
+      this.openRefStep();
     } else if (this.step === 'name') {
-      if (this.repo === null) {
-        this.openTargetOr(() => {
-          this.step = 'dir';
-        });
-      } else {
+      if (this.source === 'github') {
         this.input = this.buildDestination();
         this.step = 'confirm';
+      } else {
+        this.openTargetStep(() => {
+          this.step = 'dir';
+        });
       }
     } else {
       this.input = this.name;
@@ -473,6 +550,25 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     process.stdout.write(ansi.clear);
     this.render();
+  }
+
+  // Leaves the repository step backwards: to the target step when the
+  // daemon has more than one target, else to the agent.
+  private applyRepoCancel() {
+    if (this.targets.length >= 2) {
+      this.openTargetStep(() => {});
+
+      return;
+    }
+
+    this.source = 'local';
+
+    this.selected = Math.max(
+      0,
+      this.picks.findIndex((p) => p.agent === this.agent),
+    );
+
+    this.step = 'agent';
   }
 
   private applySubmit() {
@@ -509,8 +605,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
       // A typed `owner/repo` that matches no directory is a repository.
       if (!this.resume && items.length === 0 && typed.kind === 'repo') {
-        this.openSourceStep('repo', this.input, false);
-        void this.applyRepoSubmit();
+        this.openGitHubSource(this.input, true);
 
         return;
       }
@@ -525,34 +620,13 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.dir = chosen;
       this.input = '';
 
-      this.openTargetOr(() => {
+      this.openTargetStep(() => {
         this.step = 'name';
       });
     } else if (this.step === 'target') {
-      const pick = this.targets[this.selected];
+      this.applyTargetSubmit();
 
-      if (pick === undefined) {
-        return;
-      }
-
-      const refusal = findTargetRefusal(pick, this.repo !== null);
-
-      if (refusal !== null) {
-        this.refusal = refusal;
-
-        this.render();
-
-        return;
-      }
-
-      this.target = pick;
-      this.input = '';
-
-      if (this.repo === null) {
-        this.step = 'name';
-      } else {
-        this.openConfirmStep();
-      }
+      return;
     } else if (this.step === 'confirm') {
       if (!this.applyDestination(this.input.trim())) {
         this.render();
@@ -580,6 +654,43 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
       return;
     }
+
+    process.stdout.write(ansi.clear);
+    this.render();
+  }
+
+  private applyTargetSubmit() {
+    const pick = this.targets[this.selected];
+
+    if (pick === undefined) {
+      return;
+    }
+
+    const refusal = findTargetRefusal(pick, this.source === 'github');
+
+    if (refusal !== null) {
+      this.refusal = refusal;
+
+      this.render();
+
+      return;
+    }
+
+    // A default destination belongs to the target it was built for.
+    if (pick.id !== this.target?.id && !this.destinationEdited) {
+      this.destination = '';
+    }
+
+    this.target = pick;
+    this.input = '';
+
+    if (this.source === 'github') {
+      this.openRepoStep();
+
+      return;
+    }
+
+    this.step = 'name';
 
     process.stdout.write(ansi.clear);
     this.render();
@@ -634,7 +745,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   // The ref step's rows: the default branch first, then every branch and
-  // tag in the order the upstream lists them, filtered by the input.
+  // tag in the order the upstream lists them, filtered by name.
   private collectRefItems(): ProbedRef[] {
     const refs = this.repo?.refs ?? [];
     const head = this.repo?.head ?? null;
@@ -649,36 +760,102 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     return names.flatMap((name) => ordered.filter((ref) => ref.name === name));
   }
 
-  // Switches the source step, carrying the typed text across and reading
-  // the repository list the first time the repository step opens.
-  private openSourceStep(step: 'dir' | 'repo', input: string, list = true) {
-    this.step = step;
-    this.input = input;
+  private openLocalSource() {
+    this.source = 'local';
+    this.listingSeq = null;
+    this.step = 'dir';
+    this.input = '';
+    this.selected = 0;
+
+    process.stdout.write(ansi.clear);
+    this.render();
+  }
+
+  // Switches to a git repository source, carrying the typed text across:
+  // the target step first when the daemon has more than one target, then
+  // the repository step, which submits the text at once when asked to.
+  private openGitHubSource(input: string, submit: boolean) {
+    this.source = 'github';
+    this.repoDraft = input;
+    this.repoAutoSubmit = submit;
+
+    if (this.targets.length >= 2) {
+      this.openTargetStep(() => {});
+      process.stdout.write(ansi.clear);
+      this.render();
+
+      return;
+    }
+
+    this.target = null;
+
+    this.openRepoStep();
+  }
+
+  // Opens the repository step with its draft, reading the list again when
+  // the target changed since the last listing.
+  private openRepoStep() {
+    this.step = 'repo';
+    this.input = this.repoDraft;
     this.selected = 0;
     this.alternateURL = null;
 
     process.stdout.write(ansi.clear);
     this.render();
 
-    if (step === 'repo' && list && !this.reposListed) {
-      this.reposListed = true;
+    const target = this.target?.id ?? '';
+
+    if (this.reposTarget !== target) {
+      this.reposTarget = target;
       void this.loadRepos(this.workspaces.githubOwner);
+    }
+
+    if (this.repoAutoSubmit) {
+      this.repoAutoSubmit = false;
+      void this.applyRepoSubmit();
     }
   }
 
-  // Reads one owner's repositories from the daemon; null reads its default
-  // owner's. A daemon that cannot list them leaves a notice row, and typed
-  // input still works.
+  // The target every repository request is made for: the chosen one, or
+  // none for the daemon's default when there is no choice to make.
+  private buildTargetParam(): Readonly<Record<string, string>> {
+    return this.target === null ? {} : { target: this.target.id };
+  }
+
+  // Reads one owner's repositories from the daemon behind the step; null
+  // reads its default owner's. A daemon that cannot list them leaves a
+  // notice row. Typing goes on meanwhile, and Esc stops the listing.
   private async loadRepos(owner: string | null) {
-    this.pending = 'listing repositories…';
+    this.requestSeq += 1;
+
+    const seq = this.requestSeq;
+
+    this.listingSeq = seq;
 
     this.render();
 
+    let answer: Readonly<Record<string, unknown>> | null = null;
+    let failure: unknown = null;
+
     try {
-      const params = owner === null ? {} : { owner };
+      const params = { ...(owner === null ? {} : { owner }), ...this.buildTargetParam() };
 
-      const answer = await this.deps.sendRequest('repos.list', params);
+      answer = await this.deps.sendRequest('repos.list', params);
+    } catch (error) {
+      failure = error;
+    }
 
+    if (this.listingSeq !== seq) {
+      return;
+    }
+
+    this.listingSeq = null;
+
+    if (answer === null) {
+      this.repos = [];
+      this.reposOwner = owner;
+      this.reposNotice = `${formatListFailure(failure)} — type owner/repo or a git URL`;
+    } else {
       this.repos = parseListedRepos(answer['repos']);
       this.reposOwner = typeof answer['owner'] === 'string' ? answer['owner'] : owner;
       this.gitProtocol = answer['gitProtocol'] === 'ssh' ? 'ssh' : 'https';
@@ -687,13 +864,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         this.repos.length === 0
           ? `no repositories listed for ${this.reposOwner ?? 'this account'}`
           : null;
-    } catch (error) {
-      this.repos = [];
-      this.reposOwner = owner;
-      this.reposNotice = `${formatListFailure(error)} — type owner/repo or a git URL`;
     }
 
-    this.pending = null;
     this.selected = 0;
 
     if (this.step === 'repo') {
@@ -742,23 +914,63 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
   }
 
-  // Checks that the daemon's host can read the repository at this URL, and
-  // opens the ref step with its refs. A failure stays on the repository
-  // step with git's error and offers the other URL form when there is one.
-  private async checkRepoAccess(label: string, url: string) {
-    this.pending = `checking access to ${url}…`;
+  // Sends a request the step waits on, and answers with its result, or
+  // null when Esc cancelled it before the answer came.
+  private async sendPending(
+    kind: PendingRequest['kind'],
+    label: string,
+    m: string,
+    p: Readonly<Record<string, unknown>>,
+  ): Promise<
+    | { readonly ok: true; readonly answer: Readonly<Record<string, unknown>> }
+    | { readonly ok: false; readonly error: unknown }
+    | null
+  > {
+    this.requestSeq += 1;
+
+    const seq = this.requestSeq;
+
+    this.pending = { label: `${label} · esc cancels`, seq, kind };
 
     this.render();
 
-    let answer: Readonly<Record<string, unknown>>;
+    let result:
+      | { readonly ok: true; readonly answer: Readonly<Record<string, unknown>> }
+      | { readonly ok: false; readonly error: unknown };
 
     try {
-      answer = await this.deps.sendRequest('repos.probe', { url });
+      result = { ok: true, answer: await this.deps.sendRequest(m, p) };
     } catch (error) {
-      this.pending = null;
+      result = { ok: false, error };
+    }
+
+    if (this.pending?.seq !== seq) {
+      return null;
+    }
+
+    this.pending = null;
+
+    return result;
+  }
+
+  // Checks that the daemon's host can read the repository at this URL for
+  // the spawn's target, and opens the ref step with its refs. A failure
+  // stays on the repository step with git's error and offers the other URL
+  // form when there is one.
+  private async checkRepoAccess(label: string, url: string) {
+    const probed = await this.sendPending('probe', `checking access to ${url}…`, 'repos.probe', {
+      url,
+      ...this.buildTargetParam(),
+    });
+
+    if (probed === null) {
+      return;
+    }
+
+    if (!probed.ok) {
       this.alternateURL = findAlternateGitURL(url);
       this.selected = 0;
-      this.refusal = `${formatError(error)} · esc back`;
+      this.refusal = `${formatError(probed.error)} · esc back`;
       this.input = label;
 
       process.stdout.write(ansi.clear);
@@ -767,18 +979,46 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    this.pending = null;
-
-    this.repo = {
-      label,
-      url: typeof answer['url'] === 'string' ? answer['url'] : url,
-      head: typeof answer['head'] === 'string' ? answer['head'] : null,
-      refs: parseProbedRefs(answer['refs']),
-    };
-
+    this.repo = buildProbedRepo(label, url, probed.answer);
     this.ref = null;
 
     this.openRefStep();
+    process.stdout.write(ansi.clear);
+    this.render();
+  }
+
+  // Reads the repository's refs again after the commit the spawn pinned
+  // left the upstream, and opens the ref step on them with the refusal.
+  private async refreshRefs(reason: string) {
+    const repo = this.repo;
+
+    if (repo === null) {
+      return;
+    }
+
+    this.openRefStep();
+
+    const probed = await this.sendPending(
+      'probe',
+      `re-reading refs of ${repo.url}…`,
+      'repos.probe',
+      {
+        url: repo.url,
+        ...this.buildTargetParam(),
+      },
+    );
+
+    if (probed === null) {
+      return;
+    }
+
+    if (probed.ok) {
+      this.repo = buildProbedRepo(repo.label, repo.url, probed.answer);
+      this.refusal = `${reason} · refs re-read · esc back`;
+    } else {
+      this.refusal = `${reason} · ${formatError(probed.error)} · esc back`;
+    }
+
     process.stdout.write(ansi.clear);
     this.render();
   }
@@ -828,42 +1068,43 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     // A ref the listing leaves out, such as `refs/tags/v1`, is resolved by
     // the daemon the way the spawn would resolve it.
-    this.pending = `resolving ${typed}…`;
+    const probed = await this.sendPending('probe', `resolving ${typed}…`, 'repos.probe', {
+      url: this.repo.url,
+      ref: typed,
+      ...this.buildTargetParam(),
+    });
 
-    this.render();
-
-    try {
-      const answer = await this.deps.sendRequest('repos.probe', { url: this.repo.url, ref: typed });
-
-      const resolved = isRecord(answer['resolved']) ? answer['resolved'] : {};
-
-      this.pending = null;
-
-      if (typeof resolved['sha'] === 'string') {
-        this.applyRef({ ref: typed, sha: resolved['sha'] });
-
-        return;
-      }
-
-      this.refusal = `the daemon resolved no commit for ${typed} · esc back`;
-    } catch (error) {
-      this.pending = null;
-      this.refusal = `${formatError(error)} · esc back`;
+    if (probed === null) {
+      return;
     }
+
+    const resolved =
+      probed.ok && isRecord(probed.answer['resolved']) ? probed.answer['resolved'] : {};
+
+    if (typeof resolved['sha'] === 'string') {
+      this.applyRef({ ref: typed, sha: resolved['sha'] });
+
+      return;
+    }
+
+    this.refusal = probed.ok
+      ? `the daemon resolved no commit for ${typed} · esc back`
+      : `${formatError(probed.error)} · esc back`;
 
     process.stdout.write(ansi.clear);
     this.render();
   }
 
   private applyRef(ref: ChosenRef) {
+    // A default destination belongs to the commit it was built for.
+    if (!this.destinationEdited) {
+      this.destination = '';
+    }
+
     this.ref = ref;
     this.input = '';
-    this.destination = '';
 
-    this.openTargetOr(() => {
-      this.openConfirmStep();
-    });
-
+    this.openConfirmStep();
     process.stdout.write(ansi.clear);
     this.render();
   }
@@ -920,6 +1161,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     if (dir !== this.buildDestination()) {
       this.destination = dir;
       this.destinationAttempt = 1;
+      this.destinationEdited = true;
     }
 
     this.dir = this.buildDestination();
@@ -944,9 +1186,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     return this.target ?? this.targets.find((t) => t.isDefault) ?? null;
   }
 
-  // Opens the target step when the daemon has more than one target, with
-  // the chosen or default target selected, and the fallback step otherwise.
-  private openTargetOr(fallback: () => void) {
+  // Opens the target step when the daemon has more than one target, and
+  // the fallback step otherwise. The chosen target is selected, else for a
+  // repository the default when it takes a workspace and the first target
+  // that does when it does not, else the default.
+  private openTargetStep(fallback: () => void) {
     if (this.targets.length < 2) {
       this.target = null;
 
@@ -955,11 +1199,17 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    const preferred = this.target?.id;
+    const preferred =
+      this.target ??
+      (this.source === 'github'
+        ? (this.targets.find((t) => t.isDefault && t.takesWorkspace) ??
+          this.targets.find((t) => t.takesWorkspace))
+        : undefined) ??
+      this.targets.find((t) => t.isDefault);
 
     this.selected = Math.max(
       0,
-      this.targets.findIndex((t) => (preferred === undefined ? t.isDefault : t.id === preferred)),
+      this.targets.findIndex((t) => t.id === preferred?.id),
     );
 
     this.input = '';
@@ -1002,51 +1252,49 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.input = '';
     this.selected = 0;
     this.step = 'dir';
-    this.repo = null;
+    this.source = 'local';
 
     process.stdout.write(ansi.clear);
     this.render();
   }
 
   private async spawn(prompt: string) {
-    if (this.repo !== null) {
-      this.pending = 'materializing the workspace…';
+    const params = {
+      cwd: this.dir,
+      name: this.name,
+      prompt,
+      cols: cols(),
+      rows: this.deps.ptyRows(),
+      ...(this.resume ? { resume: true } : {}),
+      agent: this.agent,
+      ...this.buildSourceParams(),
+    };
 
-      this.render();
+    const label = this.source === 'github' ? 'materializing the workspace…' : 'spawning…';
+
+    const spawned = await this.sendPending('spawn', label, 'session.spawn', params);
+
+    if (spawned === null) {
+      return;
     }
 
-    try {
-      const ok = await this.deps.sendRequest('session.spawn', {
-        cwd: this.dir,
-        name: this.name,
-        prompt,
-        cols: cols(),
-        rows: this.deps.ptyRows(),
-        ...(this.resume ? { resume: true } : {}),
-        agent: this.agent,
-        ...this.buildSourceParams(),
-      });
-
-      this.pending = null;
-
-      const spawned = this.deps.toMirrorSession(ok['session']);
-
-      if (spawned !== null) {
-        this.deps.upsertMirror(spawned);
-
-        await this.deps.attach(spawned.id);
-
-        return;
-      }
-    } catch (error) {
-      this.pending = null;
-
-      this.applySpawnRefusal(error, prompt);
+    if (!spawned.ok) {
+      this.applySpawnRefusal(spawned.error, prompt);
 
       return;
     }
 
-    this.deps.toBase();
+    const session = this.deps.toMirrorSession(spawned.answer['session']);
+
+    if (session === null) {
+      this.deps.toBase();
+
+      return;
+    }
+
+    this.deps.upsertMirror(session);
+
+    await this.deps.attach(session.id);
   }
 
   // A refused git workspace spawn returns to the step that can fix it. Any
@@ -1056,17 +1304,19 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private applySpawnRefusal(error: unknown, prompt: string) {
     const reason = formatError(error);
     const code = error instanceof DaemonError ? error.code : 'internal';
-    const step = this.repo === null ? null : pickRefusalStep(code);
+    const step = this.source === 'github' ? pickRefusalStep(code) : null;
+
+    if (step === 'ref') {
+      void this.refreshRefs(reason);
+
+      return;
+    }
 
     if (step === 'destination') {
       this.destinationAttempt += 1;
       this.step = 'confirm';
       this.input = this.buildDestination();
       this.refusal = `${reason} · ⏎ use ${this.buildDestination()} · esc back`;
-    } else if (step === 'ref') {
-      this.openRefStep();
-
-      this.refusal = `${reason} · esc back`;
     } else if (step === 'repo') {
       this.input = this.repo?.label ?? '';
       this.repo = null;
@@ -1096,9 +1346,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // in place on a target on the daemon's own machine, and is materialized
   // at the same path from its pushed HEAD on any other.
   private buildSourceParams(): Readonly<Record<string, unknown>> {
-    const target = this.target === null ? {} : { target: this.target.id };
+    const target = this.buildTargetParam();
 
-    if (this.repo !== null && this.ref !== null) {
+    if (this.source === 'github' && this.repo !== null && this.ref !== null) {
       return {
         ...target,
         workspace: {
@@ -1116,6 +1366,19 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     return { ...target, workspace: { kind: 'path', path: this.dir } };
   }
+}
+
+function buildProbedRepo(
+  label: string,
+  url: string,
+  answer: Readonly<Record<string, unknown>>,
+): ProbedRepo {
+  return {
+    label,
+    url: typeof answer['url'] === 'string' ? answer['url'] : url,
+    head: typeof answer['head'] === 'string' ? answer['head'] : null,
+    refs: parseProbedRefs(answer['refs']),
+  };
 }
 
 function formatTargetPick(pick: TargetPick): string {
