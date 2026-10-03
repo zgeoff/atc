@@ -9,10 +9,13 @@ import type {
   ImpCommandResult,
   ImpCreateSpec,
   ImpFeatures,
+  ImpIdentity,
   ImpLease,
   ImpPort,
   ImpRelayConnection,
   ImpReverseForward,
+  ImpSecret,
+  ImpSecretRule,
   ImpSessionConnection,
   ImpSessionHandlers,
   ImpSessionOutcome,
@@ -23,6 +26,7 @@ import type {
   ResumeResult,
 } from '../src/daemon/imp-port';
 import { ImpPortError } from '../src/daemon/imp-port-error';
+import { isImpNameAllowed } from '../src/daemon/is-imp-name-allowed';
 
 // impd keeps exactly this many bytes of each generation's output.
 const RING_BYTES = 262_144;
@@ -41,9 +45,13 @@ const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
  * and its generation. Every session keeps an exact 262144-byte ring with
  * offsets, a fresh attach skips to the next line and sends a mode prelude,
  * and impd's refusals carry its codes and data: `LEASED`, `LEASE_NOT_HELD`,
- * `NO_SESSION`, `INVALID_STATE`, `INVALID_RESUME`, and `NOT_FOUND`. Leases
- * belong to principals; the port acts as `principal`, and a test adds other
- * owners' leases, cold boots, and dropped sockets through the controls.
+ * `NO_SESSION`, `INVALID_STATE`, `INVALID_RESUME`, `NOT_FOUND`, `CONFLICT`,
+ * and `FORBIDDEN`. Leases belong to principals; the port acts as
+ * `principal`, and a test adds other owners' leases, cold boots, and
+ * dropped sockets through the controls. Grants follow impd 0.27: the
+ * caller's identity must reach the imp and, under imp patterns, list the
+ * secret as grantable; a grant is idempotent, one secret per host, and a
+ * destroyed imp or a rebound or removed secret takes its grants with it.
  */
 export class FixtureImpPort implements ImpPort {
   // Every port call, in order, as `<call> <imp> [<detail>]`.
@@ -52,7 +60,29 @@ export class FixtureImpPort implements ImpPort {
   // Every session request the port received, in order.
   readonly sessionRequests: ImpSessionRequest[] = [];
 
-  features: ImpFeatures = { sessionOffsets: true, leases: true };
+  features: ImpFeatures = {
+    sessionOffsets: true,
+    leases: true,
+    grantableTokens: true,
+    secretRebind: true,
+  };
+
+  // Who the port calls impd as.
+  private identity: ImpIdentity = {
+    kind: 'token',
+    name: 'atc',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: [],
+  };
+
+  // Grantable secrets rebound or removed since the identity was set, which
+  // its list no longer covers, as a secret's new generation leaves a
+  // token's list behind.
+  private readonly staleGrantable = new Set<string>();
+
+  // The secrets impd holds, by name; which imps hold each is the grants'.
+  private readonly secrets = new Map<string, Omit<ImpSecret, 'imps'>>();
 
   // What a session's agent carries: `none` replays on every connection and
   // ignores resumes.
@@ -100,6 +130,84 @@ export class FixtureImpPort implements ImpPort {
     return Promise.resolve(this.features);
   }
 
+  readIdentity(): Promise<ImpIdentity> {
+    this.calls.push('tokens.whoami');
+
+    return Promise.resolve(this.identity);
+  }
+
+  readSecrets(): Promise<readonly ImpSecret[]> {
+    this.calls.push('secrets.list');
+
+    return Promise.resolve(
+      [...this.secrets.values()].map((secret) => ({
+        name: secret.name,
+        kind: secret.kind,
+        rules: secret.rules,
+        imps: [...this.imps.values()]
+          .filter((imp) => imp.grants.has(secret.name))
+          .map((imp) => imp.name),
+      })),
+    );
+  }
+
+  readGrants(name: string): Promise<readonly string[]> {
+    this.calls.push(`grants.list ${name}`);
+
+    const imp = this.imps.get(name);
+
+    if (imp === undefined) {
+      return Promise.reject(buildNotFound(name));
+    }
+
+    return Promise.resolve([...imp.grants]);
+  }
+
+  createGrant(name: string, secret: string): Promise<void> {
+    this.calls.push(`grants.add ${name} ${secret}`);
+
+    const refusal = this.findGrantRefusal(name, secret);
+
+    if (refusal !== null) {
+      return Promise.reject(refusal);
+    }
+
+    const imp = this.getImp(name);
+
+    const hosts = new Set(this.secrets.get(secret)?.rules.map((rule) => rule.host));
+
+    const clash = [...imp.grants].find(
+      (held) =>
+        held !== secret &&
+        (this.secrets.get(held)?.rules ?? []).some((rule) => hosts.has(rule.host)),
+    );
+
+    if (clash !== undefined) {
+      return Promise.reject(
+        new ImpPortError('CONFLICT', `grant ${clash} covers a host of ${secret}`, {
+          kind: 'grant',
+          name: `${name}/${clash}`,
+        }),
+      );
+    }
+
+    imp.grants.add(secret);
+
+    return Promise.resolve();
+  }
+
+  removeGrant(name: string, secret: string): Promise<boolean> {
+    this.calls.push(`grants.delete ${name} ${secret}`);
+
+    const refusal = this.findGrantRefusal(name, secret);
+
+    if (refusal !== null) {
+      return Promise.reject(refusal);
+    }
+
+    return Promise.resolve(this.getImp(name).grants.delete(secret));
+  }
+
   readImp(name: string): Promise<ImpView | null> {
     this.calls.push(`imps.get ${name}`);
 
@@ -119,6 +227,7 @@ export class FixtureImpPort implements ImpPort {
     }
 
     const imp: FixtureImp = {
+      id: randomUUID(),
       name: spec.name,
       state: 'stopped',
       bootId: '',
@@ -126,6 +235,7 @@ export class FixtureImpPort implements ImpPort {
       leases: new Map(),
       sessions: new Map(),
       previous: new Map(),
+      grants: new Set(),
     };
 
     this.imps.set(spec.name, imp);
@@ -461,6 +571,62 @@ export class FixtureImpPort implements ImpPort {
   }
 
   /**
+   * Gives impd the features of a daemon from before grantable tokens and
+   * secret rebinds, which has neither flag.
+   */
+  setOldDaemonFeatures(): void {
+    this.features = {
+      sessionOffsets: true,
+      leases: true,
+      grantableTokens: false,
+      secretRebind: false,
+    };
+  }
+
+  /**
+   * Sets who the port calls impd as, as a new token in the token file
+   * does; its grantable list covers each secret as it is now.
+   */
+  setIdentity(identity: ImpIdentity): void {
+    this.identity = identity;
+
+    this.staleGrantable.clear();
+  }
+
+  /**
+   * Adds a secret to impd, as `imp secret add` does, with its rules.
+   */
+  createSecret(name: string, kind: ImpSecret['kind'], rules: readonly ImpSecretRule[]): void {
+    this.secrets.set(name, { name, kind, rules });
+  }
+
+  /**
+   * Changes a secret's rules, as a rebind does: every imp loses its grant
+   * of the secret, and no token's grantable list covers it any longer.
+   */
+  updateSecret(name: string, rules: readonly ImpSecretRule[]): void {
+    const secret = this.secrets.get(name);
+
+    if (secret === undefined) {
+      throw new Error(`no secret ${name}`);
+    }
+
+    this.secrets.set(name, { ...secret, rules });
+    this.removeGrants(name);
+    this.staleGrantable.add(name);
+  }
+
+  /**
+   * Deletes a secret, as `imp secret rm` does, with every grant of it; a
+   * secret made again under the name is one no token's list covers.
+   */
+  removeSecret(name: string): void {
+    this.secrets.delete(name);
+    this.removeGrants(name);
+    this.staleGrantable.add(name);
+  }
+
+  /**
    * Adds a lease another principal holds on an imp, so it refuses to sleep.
    */
   acquireOtherLease(name: string, principal: string, label: string, ttlSeconds: number): void {
@@ -633,6 +799,48 @@ export class FixtureImpPort implements ImpPort {
     this.imps.clear();
   }
 
+  // impd's refusal of a grant or revoke: the scope and pattern checks run
+  // before anything is looked up, then a missing imp or secret.
+  private findGrantRefusal(name: string, secret: string): ImpPortError | null {
+    const identity = this.identity;
+    const patterns = identity.imps;
+
+    if (identity.scope !== 'manage') {
+      return new ImpPortError('FORBIDDEN', 'the caller cannot manage grants', { reason: 'scope' });
+    }
+
+    if (patterns !== null && !isImpNameAllowed(patterns, name)) {
+      return new ImpPortError('FORBIDDEN', `imp ${name} is outside the caller's patterns`, {
+        reason: 'imp_out_of_scope',
+      });
+    }
+
+    if (
+      patterns !== null &&
+      (!identity.grantable.includes(secret) || this.staleGrantable.has(secret))
+    ) {
+      return new ImpPortError('FORBIDDEN', `the caller cannot grant ${secret}`, {
+        reason: 'not_grantable',
+      });
+    }
+
+    if (!this.imps.has(name)) {
+      return buildNotFound(name);
+    }
+
+    if (!this.secrets.has(secret)) {
+      return new ImpPortError('NOT_FOUND', `no secret ${secret}`, { kind: 'secret', name: secret });
+    }
+
+    return null;
+  }
+
+  private removeGrants(secret: string): void {
+    for (const imp of this.imps.values()) {
+      imp.grants.delete(secret);
+    }
+  }
+
   private getImp(name: string): FixtureImp {
     const imp = this.imps.get(name);
 
@@ -649,6 +857,7 @@ export class FixtureImpPort implements ImpPort {
     const others = live.filter((lease) => lease.principal !== this.principal);
 
     return {
+      id: imp.id,
       name: imp.name,
       state: imp.state,
       leases: own.map((lease) => buildLease(imp.name, lease.principal, lease.label, lease.until)),
@@ -979,6 +1188,7 @@ interface FixtureLease {
 }
 
 interface FixtureImp {
+  readonly id: string;
   readonly name: string;
   state: ImpState;
   bootId: string;
@@ -986,6 +1196,9 @@ interface FixtureImp {
   readonly leases: Map<string, FixtureLease>;
   readonly sessions: Map<string, FixtureProcess>;
   readonly previous: Map<string, PreviousGeneration>;
+
+  // The secrets granted to the imp.
+  readonly grants: Set<string>;
 }
 
 interface FixtureProcess {
