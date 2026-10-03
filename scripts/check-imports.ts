@@ -3,40 +3,15 @@
 // packages that belong to one owner are imported nowhere else. Modules at the
 // src/ root have a row of their own. The composition root may import any
 // directory, and test files are exempt from the direction rules. An import
-// whose specifier is not a literal is a finding, since no rule can check it.
-// Imports are read with the TypeScript scanner, so comments, strings, and
-// template literals never hide or invent one. Prints every finding and exits
-// 1 when there is one.
+// or module reference whose specifier is not a literal is a finding, since no
+// rule can check it. Imports are read from the TypeScript scanner's tokens, so
+// comments, strings, and template literals never hide or invent one. The
+// tokens before a slash decide whether it starts a regular expression, so a
+// slash right after a class body or a function expression's closing brace can
+// be misread. Prints every finding and exits 1 when there is one.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { SyntaxKind, createScanner, tokenIsIdentifierOrKeyword } from 'typescript/unstable/ast';
-
-const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
-  shared: [],
-  protocol: ['shared'],
-  agents: ['shared', 'protocol'],
-  workspace: ['shared', 'protocol'],
-  store: ['shared', 'protocol'],
-  daemon: ['shared', 'protocol', 'agents', 'workspace', 'store'],
-  client: ['shared', 'protocol'],
-  mcp: ['shared', 'protocol'],
-
-  // modules at the src/ root: the subcommand modules beside the entrypoint
-  root: ['shared', 'protocol', 'agents', 'client', 'mcp'],
-};
-
-// The entrypoints that wire concrete modules together, exempt from the
-// direction rules.
-const COMPOSITION_ROOTS: ReadonlySet<string> = new Set(['src/cli.ts']);
-
-const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
-  'bun-pty': ['src/daemon/local-pty-provider.ts'],
-  '@zgeoff/imp-client': ['src/daemon/imp-client-port.ts'],
-  '@anthropic-ai/claude-agent-sdk': [
-    'src/agents/build-claude-query-options.ts',
-    'src/agents/start-claude-headless-run.ts',
-  ],
-};
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
@@ -107,15 +82,17 @@ function collectSourceFiles(root: string, dir: string): string[] {
 }
 
 // What a module imports: every literal specifier, and the line of each
-// import or require whose specifier is computed.
+// module reference whose specifier is computed.
 interface ImportList {
   readonly specifiers: readonly string[];
   readonly nonLiteralLines: readonly number[];
 }
 
 // Static imports and re-exports, type-only ones included, side-effect
-// imports, `import x = require(...)`, `require(...)`, and dynamic imports,
-// import types among them.
+// imports, and every call that loads or resolves a module: `import(...)`,
+// import types among them, `require(...)` and `import x = require(...)`,
+// `import.meta.resolve(...)`, `Bun.resolve(...)` and `Bun.resolveSync(...)`,
+// and `new URL(..., import.meta.url)`.
 function collectImports(source: string): ImportList {
   const tokens = collectTokens(source);
 
@@ -125,15 +102,16 @@ function collectImports(source: string): ImportList {
 
   for (const [i, token] of tokens.entries()) {
     const next = tokens[i + 1];
+    const open = findLoadParen(tokens, i);
 
     if (
       (token.kind === SyntaxKind.FromKeyword || token.kind === SyntaxKind.ImportKeyword) &&
       next?.kind === SyntaxKind.StringLiteral
     ) {
       specifiers.add(next.value);
-    } else if (isLoadCall(tokens, i)) {
-      const argument = tokens[i + 2];
-      const after = tokens[i + 3];
+    } else if (open !== null) {
+      const argument = tokens[open + 1];
+      const after = tokens[open + 2];
 
       const isLiteral =
         (argument?.kind === SyntaxKind.StringLiteral ||
@@ -153,9 +131,36 @@ function collectImports(source: string): ImportList {
 
 interface Token {
   readonly kind: SyntaxKind;
+  readonly text: string;
   readonly value: string;
   readonly start: number;
 }
+
+// What an open brace began: a block, an object literal or type, or a
+// template substitution.
+type BraceKind = 'block' | 'object' | 'substitution';
+
+// Keywords whose parenthesized condition a statement follows, so a slash
+// after the closing parenthesis starts a regular expression.
+const CONTROL_KEYWORDS: ReadonlySet<SyntaxKind> = new Set([
+  SyntaxKind.ForKeyword,
+  SyntaxKind.IfKeyword,
+  SyntaxKind.WhileKeyword,
+  SyntaxKind.WithKeyword,
+]);
+
+// Tokens after which an open brace begins a block rather than an object.
+const BLOCK_OPENERS: ReadonlySet<SyntaxKind> = new Set([
+  SyntaxKind.CloseBraceToken,
+  SyntaxKind.CloseParenToken,
+  SyntaxKind.DoKeyword,
+  SyntaxKind.ElseKeyword,
+  SyntaxKind.EqualsGreaterThanToken,
+  SyntaxKind.FinallyKeyword,
+  SyntaxKind.OpenBraceToken,
+  SyntaxKind.SemicolonToken,
+  SyntaxKind.TryKeyword,
+]);
 
 // The module's tokens, with the two context-dependent ones settled the way
 // the parser settles them: a slash where an expression can start begins a
@@ -165,35 +170,58 @@ function collectTokens(source: string): Token[] {
   const scanner = createScanner(true, undefined, source);
   const tokens: Token[] = [];
 
-  // the brace depth at which each open template substitution started
-  const substitutions: number[] = [];
-  let braces = 0;
+  // whether each open parenthesis holds a control statement's condition
+  const parens: boolean[] = [];
+  const braces: BraceKind[] = [];
+  let slashStartsRegex = true;
 
   for (let kind = scanner.scan(); kind !== SyntaxKind.EndOfFile; kind = scanner.scan()) {
+    const previous = tokens.at(-1)?.kind;
+    let closedControl = false;
+    let closedBlock = false;
+
     if (
       (kind === SyntaxKind.SlashToken || kind === SyntaxKind.SlashEqualsToken) &&
-      canStartRegex(tokens.at(-1)?.kind)
+      slashStartsRegex
     ) {
       kind = scanner.reScanSlashToken();
+    } else if (kind === SyntaxKind.OpenParenToken) {
+      parens.push(previous !== undefined && CONTROL_KEYWORDS.has(previous));
+    } else if (kind === SyntaxKind.CloseParenToken) {
+      closedControl = parens.pop() ?? false;
     } else if (kind === SyntaxKind.OpenBraceToken) {
-      braces += 1;
-    } else if (kind === SyntaxKind.CloseBraceToken) {
-      if (substitutions.at(-1) === braces) {
-        kind = scanner.reScanTemplateToken(false);
+      const opened: BraceKind =
+        previous === undefined || BLOCK_OPENERS.has(previous) ? 'block' : 'object';
 
-        if (kind === SyntaxKind.TemplateTail) {
-          substitutions.pop();
-        }
-      } else {
-        braces -= 1;
+      braces.push(opened);
+    } else if (kind === SyntaxKind.CloseBraceToken) {
+      const closed = braces.pop();
+
+      closedBlock = closed === 'block';
+
+      if (closed === 'substitution') {
+        kind = scanner.reScanTemplateToken(false);
       }
     }
 
-    if (kind === SyntaxKind.TemplateHead) {
-      substitutions.push(braces);
+    if (kind === SyntaxKind.TemplateHead || kind === SyntaxKind.TemplateMiddle) {
+      braces.push('substitution');
     }
 
-    tokens.push({ kind, value: scanner.getTokenValue(), start: scanner.getTokenStart() });
+    tokens.push({
+      kind,
+      text: scanner.getTokenText(),
+      value: scanner.getTokenValue(),
+      start: scanner.getTokenStart(),
+    });
+
+    if (kind === SyntaxKind.CloseParenToken) {
+      slashStartsRegex = closedControl;
+    } else if (kind === SyntaxKind.CloseBraceToken) {
+      slashStartsRegex = closedBlock;
+    } else {
+      slashStartsRegex = canStartRegex(kind);
+    }
   }
 
   return tokens;
@@ -218,12 +246,11 @@ const EXPRESSION_KEYWORDS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.YieldKeyword,
 ]);
 
-// Tokens that end a value, so a slash after one divides.
+// Tokens other than closing brackets of statements that end a value, so a
+// slash after one divides.
 const VALUE_ENDS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.BigIntLiteral,
-  SyntaxKind.CloseBraceToken,
   SyntaxKind.CloseBracketToken,
-  SyntaxKind.CloseParenToken,
   SyntaxKind.MinusMinusToken,
   SyntaxKind.NoSubstitutionTemplateLiteral,
   SyntaxKind.NumericLiteral,
@@ -233,11 +260,7 @@ const VALUE_ENDS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.TemplateTail,
 ]);
 
-function canStartRegex(previous: SyntaxKind | undefined): boolean {
-  if (previous === undefined) {
-    return true;
-  }
-
+function canStartRegex(previous: SyntaxKind): boolean {
   if (tokenIsIdentifierOrKeyword(previous)) {
     return EXPRESSION_KEYWORDS.has(previous);
   }
@@ -245,26 +268,83 @@ function canStartRegex(previous: SyntaxKind | undefined): boolean {
   return !VALUE_ENDS.has(previous);
 }
 
-// `import(` or a bare `require(`; a property such as `module.require(` is
-// not one.
-function isLoadCall(tokens: readonly Token[], i: number): boolean {
+/**
+ * The index of the parenthesis that opens a module-loading call starting at
+ * token i, or null when none starts there. A property such as
+ * `module.require(` is not one, and a `new URL(` counts only when its
+ * arguments hold `import.meta.url`.
+ */
+function findLoadParen(tokens: readonly Token[], i: number): number | null {
   const token = tokens[i];
+  const previous = tokens[i - 1]?.kind;
 
-  if (tokens[i + 1]?.kind !== SyntaxKind.OpenParenToken || token === undefined) {
-    return false;
+  if (
+    token === undefined ||
+    previous === SyntaxKind.DotToken ||
+    previous === SyntaxKind.QuestionDotToken
+  ) {
+    return null;
   }
 
   if (token.kind === SyntaxKind.ImportKeyword) {
-    return true;
+    if (tokens[i + 1]?.kind === SyntaxKind.OpenParenToken) {
+      return i + 1;
+    }
+
+    return hasTexts(tokens, i + 1, ['.', 'meta', '.', 'resolve', '(']) ? i + 5 : null;
   }
 
-  const previous = tokens[i - 1]?.kind;
+  if (token.kind === SyntaxKind.RequireKeyword) {
+    return tokens[i + 1]?.kind === SyntaxKind.OpenParenToken ? i + 1 : null;
+  }
 
-  return (
-    token.kind === SyntaxKind.RequireKeyword &&
-    previous !== SyntaxKind.DotToken &&
-    previous !== SyntaxKind.QuestionDotToken
-  );
+  if (
+    token.text === 'Bun' &&
+    (hasTexts(tokens, i + 1, ['.', 'resolveSync', '(']) ||
+      hasTexts(tokens, i + 1, ['.', 'resolve', '(']))
+  ) {
+    return i + 3;
+  }
+
+  if (token.kind === SyntaxKind.NewKeyword && hasTexts(tokens, i + 1, ['URL', '('])) {
+    const close = findCloseParen(tokens, i + 2);
+
+    for (let j = i + 3; j < close; j += 1) {
+      if (hasTexts(tokens, j, ['import', '.', 'meta', '.', 'url'])) {
+        return i + 2;
+      }
+    }
+  }
+
+  return null;
+}
+
+function hasTexts(tokens: readonly Token[], start: number, texts: readonly string[]): boolean {
+  return texts.every((text, offset) => tokens[start + offset]?.text === text);
+}
+
+/**
+ * The index of the parenthesis that closes the one at `open`, or the token
+ * count when the module ends first.
+ */
+function findCloseParen(tokens: readonly Token[], open: number): number {
+  let depth = 0;
+
+  for (let j = open; j < tokens.length; j += 1) {
+    const kind = tokens[j]?.kind;
+
+    if (kind === SyntaxKind.OpenParenToken) {
+      depth += 1;
+    } else if (kind === SyntaxKind.CloseParenToken) {
+      depth -= 1;
+
+      if (depth === 0) {
+        return j;
+      }
+    }
+  }
+
+  return tokens.length;
 }
 
 function getLineNumber(source: string, offset: number): number {
@@ -283,6 +363,15 @@ function resolveImport(file: string, specifier: string, known: ReadonlySet<strin
   return null;
 }
 
+const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
+  'bun-pty': ['src/daemon/local-pty-provider.ts'],
+  '@zgeoff/imp-client': ['src/daemon/imp-client-port.ts'],
+  '@anthropic-ai/claude-agent-sdk': [
+    'src/agents/build-claude-query-options.ts',
+    'src/agents/start-claude-headless-run.ts',
+  ],
+};
+
 function checkConfinement(file: string, specifier: string): string[] {
   const findings: string[] = [];
 
@@ -298,6 +387,24 @@ function checkConfinement(file: string, specifier: string): string[] {
 
   return findings;
 }
+
+// The entrypoints that wire concrete modules together, exempt from the
+// direction rules.
+const COMPOSITION_ROOTS: ReadonlySet<string> = new Set(['src/cli.ts']);
+
+const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
+  shared: [],
+  protocol: ['shared'],
+  agents: ['shared', 'protocol'],
+  workspace: ['shared', 'protocol'],
+  store: ['shared', 'protocol'],
+  daemon: ['shared', 'protocol', 'agents', 'workspace', 'store'],
+  client: ['shared', 'protocol'],
+  mcp: ['shared', 'protocol'],
+
+  // modules at the src/ root: the subcommand modules beside the entrypoint
+  root: ['shared', 'protocol', 'agents', 'client', 'mcp'],
+};
 
 function checkDirection(file: string, targets: readonly string[]): string[] {
   // a test wires real modules from several directories together, so only
