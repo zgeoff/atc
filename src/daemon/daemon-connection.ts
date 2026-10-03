@@ -558,7 +558,12 @@ export class DaemonConnection {
 
         const sessionID = parsed.data.session;
 
-        const adoptResult = await ctx.adoptSession(sessionID, parsed.data.cols, parsed.data.rows);
+        const adoptResult = await ctx.adoptSession(
+          sessionID,
+          parsed.data.cols,
+          parsed.data.rows,
+          null,
+        );
 
         if (adoptResult === 'ok') {
           this.sendOk(req.id, {});
@@ -1068,6 +1073,7 @@ export class DaemonConnection {
       parsed.data.from,
       parsed.data.text,
       keyed,
+      null,
     );
 
     if (result === 'missing') {
@@ -1111,7 +1117,7 @@ export class DaemonConnection {
     }
 
     const sessionID = parsed.data.session;
-    const result = ctx.attachTap(this, sessionID);
+    const result = ctx.attachTap(this, sessionID, null);
 
     if (result === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
@@ -1176,7 +1182,7 @@ export class DaemonConnection {
     const sessionID = parsed.data.session;
     const messageID = parsed.data.message;
 
-    const result = await ctx.ackMessage(this, sessionID, messageID);
+    const result = await ctx.ackMessage(this, sessionID, messageID, null);
 
     if (result === 'not_tapping') {
       this.sendErr(req.id, 'bad_args', `this connection is not tapping session '${sessionID}'`);

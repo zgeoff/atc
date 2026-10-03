@@ -16,7 +16,8 @@ function assertUnreachable(): never {
  * deferred promise the test settles. `visible` holds the sessions whose
  * whole tree the principal reaches. `readMessage` answers a wait of zero at
  * once from `messages`, and holds a longer wait on `message`, settling
- * `waiting` when that wait starts.
+ * `waiting` when that wait starts. `readReport` holds trail id 1 on
+ * `report` and misses every other id.
  */
 function setupTest() {
   const visible = new Set<SessionID>();
@@ -29,6 +30,7 @@ function setupTest() {
     Promise.withResolvers<Awaited<ReturnType<DaemonContext['loadSessionTranscript']>>>();
 
   const message = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readMessage']>>>();
+  const report = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readReport']>>>();
   const waiting = Promise.withResolvers<void>();
 
   const ctx: DaemonContext = {
@@ -59,7 +61,7 @@ function setupTest() {
     readSessionRecord: () => record.promise,
     loadSessionTranscript: () => transcript.promise,
     readEvents: assertUnreachable,
-    readReport: assertUnreachable,
+    readReport: (id) => (id === 1 ? report.promise : Promise.resolve(null)),
     answerPermission: assertUnreachable,
     restoreFleet: assertUnreachable,
     attachSession: assertUnreachable,
@@ -95,6 +97,7 @@ function setupTest() {
     screen,
     transcript,
     message,
+    report,
     waiting,
   };
 }
@@ -211,6 +214,33 @@ test('it answers message.get whose session leaves the view during the wait as fo
   scoped.message.resolve({ ...view, record: { ...view.record, status: 'delivered' } });
 
   const unknown = await scoped.context.readMessage(toMessageID('m-missing'), 0);
+  const answered = await answer;
+
+  expect(answered).toBe(unknown);
+  expect(unknown).toBeNull();
+});
+
+test('it answers report.get for a report whose session leaves the view during the read as for a report that does not exist', async () => {
+  const scoped = setupTest();
+  const id = toSessionID('s-1');
+
+  scoped.visible.add(id);
+
+  const answer = scoped.context.readReport(1, null);
+
+  scoped.visible.delete(id);
+
+  scoped.report.resolve({
+    report: 'r-1',
+    at: 0,
+    session: id,
+    name: 'secret',
+    label: 'l',
+    text: 'secret',
+    complete: true,
+  });
+
+  const unknown = await scoped.context.readReport(2, null);
   const answered = await answer;
 
   expect(answered).toBe(unknown);

@@ -454,8 +454,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return;
     }
 
+    // A tap a principal holds takes only the messages sent to this atc id:
+    // another session that shares the agent session id may be out of its
+    // reach.
+    const owner = taps.isLinked(sessionID) ? buildMessageOwner(s) : { atcID: s.id };
+
     try {
-      const pending = await store.collectPendingMessages(buildMessageOwner(s));
+      const pending = await store.collectPendingMessages(owner);
 
       for (const record of pending) {
         if (sendInboxMessage(sessionID, record)) {
@@ -853,8 +858,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
         return true;
       },
-      attachTap: (client, sessionID) => ctx.attachTap(client, sessionID),
-      ackMessage: (client, sessionID, messageID) => ctx.ackMessage(client, sessionID, messageID),
+      attachTap: (client, sessionID) => ctx.attachTap(client, sessionID, null),
+      ackMessage: (client, sessionID, messageID) =>
+        ctx.ackMessage(client, sessionID, messageID, null),
       detachTap: (client) => {
         taps.detachAll(client);
       },
@@ -870,6 +876,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const startSpawn = async (
     p: SpawnParams,
     id: SessionID,
+    requireInReach: () => void = () => {},
   ): Promise<Readonly<Record<string, unknown>>> => {
     const prepared =
       p.workspace === null ? null : await materializeSpawnWorkspace(p, id, p.workspace);
@@ -878,7 +885,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const warnings = materialized === null ? [] : materialized.warnings;
 
     try {
-      const session = await startSpawnedSession(p, id, materialized);
+      const session = await startSpawnedSession(p, id, materialized, requireInReach);
 
       return warnings.length === 0 ? { session } : { session, warnings };
     } catch (error) {
@@ -934,6 +941,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       workspace: SessionWorkspace;
       withheldEnv: readonly string[];
     }> | null,
+    requireInReach: () => void,
   ): Promise<SessionDescriptor> => {
     const s = await mgr.spawn(
       p.cwd,
@@ -949,6 +957,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       id,
       p.target,
       materialized,
+      requireInReach,
     );
 
     const runtime = runtimes.get(s.id);
@@ -1089,11 +1098,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // it to the session's tap when one is attached. Only the write itself can
   // reject: every later step swallows its own failure, so a rejection means
   // no message was written.
+  // The caller's check runs again once the writes ahead of this one land,
+  // before anything is written; a failed check writes nothing.
   const writeAcceptedMessage = async (
     sessionID: SessionID,
     from: string,
     text: string,
     id: MessageID,
+    requireInReach: () => void,
   ): Promise<MessageRecord> => {
     const s = mgr.sessions.find((x) => x.id === sessionID);
     const previousWrite = lastMessageWrite;
@@ -1114,6 +1126,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     };
 
     try {
+      requireInReach();
+
       await store.writeMessage(record);
 
       await recordMessageStatus(sessionID, record);
@@ -1226,8 +1240,22 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       mgr.requireExecution({ target, targetIdentity: null }, 'run');
     },
     spawnSession: (plan, keyed, access) => {
+      // Under an access, a spawn under a parent whose tree leaves the access
+      // before the harness starts is refused as a spawn under an unknown
+      // parent.
+      const startInReach = (p: SpawnParams, id: SessionID) =>
+        startSpawn(p, id, () => {
+          if (
+            access !== null &&
+            p.parent !== null &&
+            !isTreeInReach(mgr.sessions, p.parent, access)
+          ) {
+            throw new DaemonError('no_such_session', `no session '${p.parent}'`);
+          }
+        });
+
       if (keyed === null) {
-        return startSpawn(plan(), mintSessionID());
+        return startInReach(plan(), mintSessionID());
       }
 
       const effectRef = mintSessionID();
@@ -1236,7 +1264,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         operation: 'session.spawn',
         keyed,
         effectRef,
-        start: () => startSpawn(plan(), effectRef),
+        start: () => startInReach(plan(), effectRef),
         settle: () => mgr.writeFleet(),
         replay: (record) => {
           if (access !== null) {
@@ -1362,7 +1390,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return 'ok';
     },
-    adoptSession: async (id, cols, rows) => {
+    adoptSession: async (id, cols, rows, access) => {
       if (!hasResumableTranscript(mgr, id)) {
         return 'no_transcript';
       }
@@ -1371,7 +1399,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       runtime?.stopHeadlessRun();
 
-      const adopted = await mgr.adoptTerminal(id, cols, rows);
+      const adopted = await mgr.adoptTerminal(
+        id,
+        cols,
+        rows,
+        () => access === null || isTreeInReach(mgr.sessions, id, access),
+      );
 
       if (adopted === null) {
         return 'missing';
@@ -1637,7 +1670,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return buildReportView(stored, collectNamingDescriptors(access));
     },
-    writeSessionMessage: async (sessionID, from, text, keyed) => {
+    writeSessionMessage: async (sessionID, from, text, keyed, access) => {
+      // Under an access, a session whose tree leaves the access before the
+      // message is written refuses it as an unknown session does.
+      const requireInReach = () => {
+        if (access !== null && !isTreeInReach(mgr.sessions, sessionID, access)) {
+          throw new MessageRefusedError('missing');
+        }
+      };
+
       if (keyed === null) {
         const refusal = findMessageRefusal(sessionID);
 
@@ -1645,9 +1686,23 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           return refusal;
         }
 
-        const record = await writeAcceptedMessage(sessionID, from, text, mintMessageID());
+        try {
+          const record = await writeAcceptedMessage(
+            sessionID,
+            from,
+            text,
+            mintMessageID(),
+            requireInReach,
+          );
 
-        return { message: record.id, status: record.status };
+          return { message: record.id, status: record.status };
+        } catch (error) {
+          if (error instanceof MessageRefusedError) {
+            return error.refusal;
+          }
+
+          throw error;
+        }
       }
 
       const effectRef = mintMessageID();
@@ -1660,13 +1715,21 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
           // A refusal throws, so the claim drops and a retry runs fresh.
           start: async () => {
+            requireInReach();
+
             const refusal = findMessageRefusal(sessionID);
 
             if (refusal !== null) {
               throw new MessageRefusedError(refusal);
             }
 
-            const record = await writeAcceptedMessage(sessionID, from, text, effectRef);
+            const record = await writeAcceptedMessage(
+              sessionID,
+              from,
+              text,
+              effectRef,
+              requireInReach,
+            );
 
             return { message: record.id, status: record.status };
           },
@@ -1683,7 +1746,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         throw error;
       }
     },
-    attachTap: (client, sessionID) => {
+    attachTap: (client, sessionID, access) => {
       const s = mgr.sessions.find((x) => x.id === sessionID);
 
       if (s === undefined) {
@@ -1694,7 +1757,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'unsupported';
       }
 
-      emitInboxClosed(taps.attach(sessionID, client), sessionID, 'replaced');
+      emitInboxClosed(taps.attach(sessionID, client, access === null), sessionID, 'replaced');
 
       const runtime = runtimes.get(sessionID);
 
@@ -1744,14 +1807,16 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         await eventSignal.waitForNext(generation, remaining);
       }
     },
-    ackMessage: async (client, sessionID, messageID) => {
+    ackMessage: async (client, sessionID, messageID, access) => {
       const s = mgr.sessions.find((x) => x.id === sessionID);
 
       if (s === undefined || !taps.isTap(sessionID, client)) {
         return 'not_tapping';
       }
 
-      const owner = buildMessageOwner(s);
+      // Under an access, only a message sent to this atc id is the
+      // session's to ack, as with the inbox drain.
+      const owner = access === null ? buildMessageOwner(s) : { atcID: s.id };
 
       const delivered = await store.updateMessageDelivered(messageID, owner, Date.now());
 

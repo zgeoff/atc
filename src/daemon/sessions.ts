@@ -479,8 +479,15 @@ export class SessionManager {
   // Adopts a headless session back into a terminal: a fresh PTY resumes the
   // same agent session id. On a remote host the host wakes first, and a
   // harness still running inside it is attached rather than started again;
-  // every other session left asleep on that host comes back with it.
-  async adoptTerminal(id: SessionID, cols: number, rows: number): Promise<Session | null> {
+  // every other session left asleep on that host comes back with it. The
+  // caller's check runs again after each await, and a failed check leaves
+  // the session as it was.
+  async adoptTerminal(
+    id: SessionID,
+    cols: number,
+    rows: number,
+    canProceed: () => boolean = () => true,
+  ): Promise<Session | null> {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s || s.pty !== null || s.agentSessionID === undefined || this.adopting.has(id)) {
@@ -489,7 +496,7 @@ export class SessionManager {
 
     const settled = await this.isRollbackSettled(id);
 
-    if (!settled) {
+    if (!settled || !canProceed()) {
       return null;
     }
 
@@ -516,9 +523,11 @@ export class SessionManager {
       this.adopting.delete(id);
     }
 
-    // A kill, a second adopt, or a failed spawn's rollback can land while
-    // the host wakes.
+    // A kill, a second adopt, a failed spawn's rollback, or a change that
+    // takes the session out of the caller's reach can land while the host
+    // wakes.
     if (
+      !canProceed() ||
       s.pty !== null ||
       !this.sessions.includes(s) ||
       this.rollingBack.has(id) ||
@@ -729,6 +738,7 @@ export class SessionManager {
     id: SessionID = mintSessionID(),
     target = 'local',
     materialized: MaterializedSpawn | null = null,
+    requireInReach: () => void = () => {},
   ): Promise<Session> {
     const adapter = this.findAdapter(agent);
 
@@ -750,6 +760,10 @@ export class SessionManager {
       resume,
       ...overrides,
     });
+
+    // The caller's check runs again once the host is ready, before the
+    // harness starts.
+    requireInReach();
 
     const binding = this.mintBridgeBinding(id, target, execution.identity, hostKey);
 

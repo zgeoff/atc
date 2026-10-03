@@ -32,6 +32,10 @@ export function buildScopedContext(
 
   const canSee = (id: SessionID): boolean => ctx.canSeeSession(id, access);
 
+  // A request's own access narrowed to this one.
+  const mergeAccess = (outer: TargetAccess | null): TargetAccess =>
+    outer === null ? access : outer.merge(access);
+
   const canUseTarget = (target: string): boolean => {
     const targetIdentity = ctx.findTargetIdentity(target);
 
@@ -173,8 +177,10 @@ export function buildScopedContext(
     writeSessionLine: (sessionID, text) =>
       canSee(sessionID) ? ctx.writeSessionLine(sessionID, text) : 'missing',
     ejectSession: (id, prompt) => (canSee(id) ? ctx.ejectSession(id, prompt) : 'missing'),
-    adoptSession: (id, cols, rows) =>
-      canSee(id) ? ctx.adoptSession(id, cols, rows) : Promise.resolve('missing' as const),
+    adoptSession: (id, cols, rows, outer) =>
+      canSee(id)
+        ? ctx.adoptSession(id, cols, rows, mergeAccess(outer))
+        : Promise.resolve('missing' as const),
     resizeSession: (client, sessionID, dims) =>
       canSee(sessionID) && ctx.resizeSession(client, sessionID, dims),
     readSessionRecord: async (id, outer) => {
@@ -206,14 +212,24 @@ export function buildScopedContext(
 
       return ctx.readEvents(afterID, limit, waitMs, sessionID, merged);
     },
-    readReport: (id, outer) => {
+    readReport: async (id, outer) => {
       const merged = outer === null ? access : outer.merge(access);
 
-      return ctx.readReport(id, merged);
+      const view = await ctx.readReport(id, merged);
+
+      // The tree may leave the access during the read, so the reach is
+      // checked again before the answer goes out.
+      return view !== null && canSee(toSessionID(view.session)) ? view : null;
     },
-    writeSessionMessage: (sessionID, from, text, keyed) =>
+    writeSessionMessage: (sessionID, from, text, keyed, outer) =>
       canSee(sessionID)
-        ? ctx.writeSessionMessage(sessionID, from, text, buildPrincipalKey(keyed))
+        ? ctx.writeSessionMessage(
+            sessionID,
+            from,
+            text,
+            buildPrincipalKey(keyed),
+            mergeAccess(outer),
+          )
         : Promise.resolve('missing' as const),
     readMessage: async (messageID, waitMs) => {
       // The owner is checked before any wait, so a message outside the
@@ -238,11 +254,11 @@ export function buildScopedContext(
         ? waited
         : null;
     },
-    attachTap: (client, sessionID) =>
-      canSee(sessionID) ? ctx.attachTap(client, sessionID) : 'missing',
-    ackMessage: (client, sessionID, messageID) =>
+    attachTap: (client, sessionID, outer) =>
+      canSee(sessionID) ? ctx.attachTap(client, sessionID, mergeAccess(outer)) : 'missing',
+    ackMessage: (client, sessionID, messageID, outer) =>
       canSee(sessionID)
-        ? ctx.ackMessage(client, sessionID, messageID)
+        ? ctx.ackMessage(client, sessionID, messageID, mergeAccess(outer))
         : Promise.resolve('unknown' as const),
   };
 }

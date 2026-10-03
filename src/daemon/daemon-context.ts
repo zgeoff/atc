@@ -201,10 +201,14 @@ export interface DaemonContext {
     id: SessionID,
     prompt: string,
   ) => 'ok' | 'missing' | 'unsupported' | 'no_transcript';
+
+  // Starts a harness for a dead or headless session. Under an access, the
+  // adopt answers 'missing' once the session's tree leaves it, however late.
   readonly adoptSession: (
     id: SessionID,
     cols: number,
     rows: number,
+    access: TargetAccess | null,
   ) => Promise<'ok' | 'missing' | 'no_transcript'>;
   readonly resizeSession: (client: OutputClient, sessionID: SessionID, dims: Dims) => boolean;
   readonly resyncClient: (sessionID: SessionID, client: OutputClient) => Promise<void>;
@@ -239,22 +243,36 @@ export interface DaemonContext {
   readonly readReport: (id: number, access: TargetAccess | null) => Promise<ReportView | null>;
 
   // Answers with the `session.message` ok payload, which a keyed retry
-  // replays with the message's current status, or with the refusal.
+  // replays with the message's current status, or with the refusal. Under
+  // an access, a session whose tree leaves it before the write refuses as
+  // 'missing'.
   readonly writeSessionMessage: (
     sessionID: SessionID,
     from: string,
     text: string,
     keyed: KeyedRequest | null,
+    access: TargetAccess | null,
   ) => Promise<Readonly<Record<string, unknown>> | MessageRefusal>;
   readonly readMessage: (messageID: MessageID, waitMs: number) => Promise<MessageView | null>;
-  readonly attachTap: (client: TapClient, sessionID: SessionID) => 'ok' | 'missing' | 'unsupported';
+
+  // Makes the client the session's inbox tap. Under an access, the tap
+  // takes only the messages sent to the session's atc id.
+  readonly attachTap: (
+    client: TapClient,
+    sessionID: SessionID,
+    access: TargetAccess | null,
+  ) => 'ok' | 'missing' | 'unsupported';
 
   // Lets go of the session's inbox tap when the client holds it, so its
   // messages wait for another tap.
   readonly detachTap: (client: TapClient, sessionID: SessionID) => void;
+
+  // Marks a tapped message delivered. Under an access, only a message sent
+  // to the session's atc id counts as the session's.
   readonly ackMessage: (
     client: TapClient,
     sessionID: SessionID,
     messageID: MessageID,
+    access: TargetAccess | null,
   ) => Promise<MessageRecord | 'not_tapping' | 'unknown'>;
 }

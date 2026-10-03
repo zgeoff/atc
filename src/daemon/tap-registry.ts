@@ -4,6 +4,10 @@ import type { SessionID } from '../shared/session-id';
 interface TapEntry<TClient> {
   readonly client: TClient;
   readonly claimed: Set<MessageID>;
+
+  // Whether the tap also takes messages held under the session's agent
+  // session id, as opposed to its atc id alone.
+  readonly linked: boolean;
 }
 
 /**
@@ -15,12 +19,13 @@ export class TapRegistry<TClient> {
 
   /**
    * Makes the client the session's tap and returns the client it displaced,
-   * or null when there was none or it is the same connection.
+   * or null when there was none or it is the same connection. A linked tap
+   * also takes the messages held under the session's agent session id.
    */
-  attach(sessionID: SessionID, client: TClient): TClient | null {
+  attach(sessionID: SessionID, client: TClient, linked = true): TClient | null {
     const previous = this.bySession.get(sessionID)?.client ?? null;
 
-    this.bySession.set(sessionID, { client, claimed: new Set() });
+    this.bySession.set(sessionID, { client, claimed: new Set(), linked });
 
     return previous === client ? null : previous;
   }
@@ -43,6 +48,10 @@ export class TapRegistry<TClient> {
     this.bySession.delete(sessionID);
 
     return previous;
+  }
+
+  isLinked(sessionID: SessionID): boolean {
+    return this.bySession.get(sessionID)?.linked === true;
   }
 
   hasTap(sessionID: SessionID): boolean {

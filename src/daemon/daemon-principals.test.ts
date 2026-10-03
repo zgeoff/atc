@@ -25,9 +25,10 @@ interface RawConfig {
 }
 
 // What a target's provider does in place of the local one's: the
-// capabilities it adds and the host sleep and destroy it runs.
+// capabilities it adds and the host preparation, sleep, and destroy it runs.
 interface HostOverride {
   readonly capabilities?: Partial<ExecutionCapabilities>;
+  readonly prepareHost?: () => Promise<void>;
   readonly suspendHost?: (host: string) => Promise<void>;
   readonly destroyHost?: (host: string) => Promise<void>;
 }
@@ -40,7 +41,7 @@ interface HostOverride {
  * principal. `restart` stops the daemon and starts it again on the same
  * state with another config, running `whileStopped` in between, and
  * `dbPath` is that state. `hosts` gives a target, by its id, capabilities
- * and a host sleep or destroy of its own.
+ * and a host preparation, sleep, or destroy of its own.
  */
 async function setupTest(raw: RawConfig, hosts: Readonly<Record<string, HostOverride>> = {}) {
   const tmp = setupTempDir('atc-daemon-principals-');
@@ -91,7 +92,7 @@ async function setupTest(raw: RawConfig, hosts: Readonly<Record<string, HostOver
         provider: {
           kind: target.provider,
           remote: false,
-          prepareHost: local.prepareHost,
+          prepareHost: hosts[target.id]?.prepareHost ?? local.prepareHost,
           dispose: local.dispose,
           capabilities: { ...local.capabilities, ...hosts[target.id]?.capabilities },
           spawnHarness: (spec) => {
@@ -1558,6 +1559,199 @@ test("it answers a principal's long poll on a session whose tree leaves its reac
   expect(pending).toBe('pending');
   expect(answered).toStrictEqual(unknown);
   expect(JSON.stringify(answered)).not.toInclude('hidden message');
+});
+
+test("it keeps a hidden session's messages from a principal tapping a session that shares its agent session id", async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const agentSessionID = `a-${randomUUID()}`;
+
+  const hiddenSpawn = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'box',
+    resume: agentSessionID,
+  });
+
+  const shownSpawn = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    target: 'local',
+    resume: agentSessionID,
+  });
+
+  const hidden = String(getRecord(hiddenSpawn, 'session')['id']);
+  const shown = String(getRecord(shownSpawn, 'session')['id']);
+
+  await daemon.client.sendRequest('session.tap', { session: hidden });
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: hidden,
+    from: 'owner',
+    text: 'hidden message',
+  });
+
+  const message = String(sent['message']);
+
+  const client = await daemon.openClientAs('narrow');
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendRequest('session.tap', { session: shown });
+
+  await daemon.client.sendRequest('session.message', {
+    session: shown,
+    from: 'owner',
+    text: 'shown message',
+  });
+
+  await waitFor(() => {
+    expect(events).toPartiallyContain({ ev: 'InboxMessage' });
+  });
+
+  const acked = await readAnswer(
+    () => client.sendRequest('message.ack', { session: shown, message }),
+    message,
+  );
+
+  const unknown = await readAnswer(
+    () => client.sendRequest('message.ack', { session: shown, message: 'm-unknown' }),
+    'm-unknown',
+  );
+
+  const owner = await daemon.client.sendRequest('message.get', { message });
+
+  expect(events.filter((event) => event.ev === 'InboxMessage')).toMatchObject([
+    { s: shown, text: 'shown message' },
+  ]);
+
+  expect(acked).toStrictEqual(unknown);
+  expect(owner).toMatchObject({ status: 'accepted' });
+});
+
+test('it refuses a principal an adopt of a session whose tree leaves its reach while the host wakes', async () => {
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let held: Promise<void> = Promise.resolve();
+  let onPrepare: (() => void) | null = null;
+
+  await using daemon = await setupTest(SPLIT_CONFIG, {
+    local: {
+      prepareHost: () => {
+        onPrepare?.();
+
+        return held;
+      },
+    },
+  });
+
+  const parent = await daemon.spawnOn('local');
+
+  const missing = randomUUID();
+
+  await daemon.client.sendRequest('session.kill', { session: parent });
+
+  held = release.promise;
+  onPrepare = entered.resolve;
+
+  const adopted = readAnswer(
+    () =>
+      daemon.client.sendRequest('session.adopt', { session: parent, cols: 80, rows: 24 }, 'narrow'),
+    parent,
+  );
+
+  await entered.promise;
+
+  const child = await daemon.spawnOn('box', parent);
+
+  release.resolve();
+
+  const answered = await adopted;
+
+  const unknown = await readAnswer(
+    () =>
+      daemon.client.sendRequest(
+        'session.adopt',
+        { session: missing, cols: 80, rows: 24 },
+        'narrow',
+      ),
+    missing,
+  );
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(answered).toStrictEqual(unknown);
+  expect(daemon.harnesses).toStrictEqual(['local', 'box']);
+
+  expect(listed).toMatchObject({
+    sessions: expect.toIncludeAllPartialMembers([
+      { id: parent, alive: false, lastMsg: 'killed' },
+      { id: child, alive: true },
+    ]),
+  });
+});
+
+test('it refuses a principal a spawn under a parent whose tree leaves its reach while the host wakes', async () => {
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let held: Promise<void> = Promise.resolve();
+  let onPrepare: (() => void) | null = null;
+
+  await using daemon = await setupTest(SPLIT_CONFIG, {
+    local: {
+      prepareHost: () => {
+        onPrepare?.();
+
+        return held;
+      },
+    },
+  });
+
+  const parent = await daemon.spawnOn('local');
+
+  const missing = randomUUID();
+
+  held = release.promise;
+  onPrepare = entered.resolve;
+
+  const spawned = readAnswer(
+    () =>
+      daemon.client.sendRequest(
+        'session.spawn',
+        { cwd: '/tmp', target: 'local', parent, resume: `a-${randomUUID()}` },
+        'narrow',
+      ),
+    parent,
+  );
+
+  await entered.promise;
+
+  await daemon.spawnOn('box', parent);
+
+  release.resolve();
+
+  const answered = await spawned;
+
+  held = Promise.resolve();
+  onPrepare = null;
+
+  const unknown = await readAnswer(
+    () =>
+      daemon.client.sendRequest(
+        'session.spawn',
+        { cwd: '/tmp', target: 'local', parent: missing, resume: `a-${randomUUID()}` },
+        'narrow',
+      ),
+    missing,
+  );
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(answered).toStrictEqual(unknown);
+  expect(daemon.harnesses).toStrictEqual(['local', 'box']);
+  expect(getRecord(listed, 'sessions')).toHaveLength(2);
 });
 
 test('it answers the replay of a held spawn key with its session while the grant still reaches it', async () => {
