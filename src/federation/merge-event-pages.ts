@@ -24,13 +24,16 @@ type DaemonEventPage =
 
 /**
  * One daemon's part of a merge: the daemon, where its part of the cursor
- * stood before the read (absent for a daemon the cursor left out), and
- * what it gave.
+ * stood before the read (absent for a daemon the cursor left out, null for
+ * a read of its latest events), and what it gave. `unstarted` marks a page
+ * of the latest events of a daemon that had not answered since the read
+ * that started the cursor, and whether older events precede that page.
  */
 export interface MergeSource {
   readonly daemon: Pick<RegistryDaemon, 'name' | 'incarnation'>;
   readonly before: { readonly cursor: string | null } | null;
   readonly page: DaemonEventPage;
+  readonly unstarted?: { readonly olderUnread: boolean };
 }
 
 interface MergedEvents {
@@ -39,6 +42,7 @@ interface MergedEvents {
   readonly more: boolean;
   readonly unavailable: readonly string[];
   readonly started: readonly string[];
+  readonly truncated: readonly string[];
 }
 
 // The id fields of one event, relative to the event.
@@ -56,8 +60,12 @@ const EVENT_RULES: ReadonlyMap<string, IDRule> = new Map([
  * Each daemon's part of the returned cursor advances only past its events
  * that made it into the page, which are always a prefix of what it gave,
  * so an event read but cut is read again next time. A daemon that did not
- * answer keeps its part and is listed under `unavailable`; a daemon that
- * started at its newest event is listed under `started`. Every event's
+ * answer keeps its part and is listed under `unavailable`, and one that had
+ * no position yet keeps a null part, so the next read starts it at its
+ * latest events rather than skipping what it queued meanwhile. A daemon
+ * that started at its newest event, or at its latest events after such a
+ * gap, is listed under `started`, and under `truncated` too when older
+ * events precede the latest page and went unread. Every event's
  * ids are rewritten for its daemon, and its `cursor` is the gateway cursor
  * that resumes right after it.
  */
@@ -66,7 +74,7 @@ export function mergeEventPages(
   filter: string,
   limit: number,
 ): MergedEvents {
-  const parts = new Map<string, string>();
+  const parts = new Map<string, string | null>();
 
   const queues: {
     readonly source: MergeSource;
@@ -76,6 +84,7 @@ export function mergeEventPages(
 
   const unavailable: string[] = [];
   const started: string[] = [];
+  const truncated: string[] = [];
 
   for (const source of sources) {
     const key = `${source.daemon.name}.${source.daemon.incarnation}`;
@@ -84,13 +93,21 @@ export function mergeEventPages(
     if (page.kind === 'unavailable') {
       unavailable.push(source.daemon.name);
 
-      if (source.before?.cursor !== null && source.before?.cursor !== undefined) {
+      if (source.before !== null) {
         parts.set(key, source.before.cursor);
       }
     } else if (page.kind === 'started') {
       started.push(source.daemon.name);
       parts.set(key, page.cursor);
     } else {
+      if (source.unstarted !== undefined) {
+        started.push(source.daemon.name);
+      }
+
+      if (source.unstarted?.olderUnread === true) {
+        truncated.push(source.daemon.name);
+      }
+
       // An empty page's cursor is where the daemon stands. Until one of a
       // page's events goes out, its daemon resumes right before the first
       // one, a position the daemon reads as concrete, unlike no cursor,
@@ -135,7 +152,14 @@ export function mergeEventPages(
       (queue.source.page.kind === 'read' && queue.source.page.more),
   );
 
-  return { events, cursor: encodeGatewayCursor(filter, parts), more, unavailable, started };
+  return {
+    events,
+    cursor: encodeGatewayCursor(filter, parts),
+    more,
+    unavailable,
+    started,
+    truncated,
+  };
 }
 
 // The queue whose next event goes out next: the one with the earliest

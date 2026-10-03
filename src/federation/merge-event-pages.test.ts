@@ -9,6 +9,7 @@ import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { mergeEventPages } from './merge-event-pages';
+import { planEventReads } from './plan-event-reads';
 
 /**
  * Two real daemons, `cloud` and `pc`, each with one session and its owner
@@ -665,4 +666,105 @@ test('it pins a daemon the cursor leaves out at its newest event and reads only 
       .filter((event) => isRecord(event))
       .map((event) => event['detail']),
   ).toStrictEqual(['new']);
+});
+
+test('it reads the events a daemon queued while it was down on the first page once it answers', async () => {
+  await using daemons = await setupTest();
+
+  const registry = {
+    daemons: new Map([
+      [
+        'cloud',
+        {
+          name: 'cloud',
+          address: { host: 'h', port: 1 },
+          daemonID: 'd1',
+          incarnation: '0f6c2a8e',
+          token: 't',
+        },
+      ],
+      [
+        'pc',
+        {
+          name: 'pc',
+          address: { host: 'h', port: 2 },
+          daemonID: 'd2',
+          incarnation: '9a1b2c3d',
+          token: 't',
+        },
+      ],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const cloudFirst = await daemons.client('cloud').sendRequest('events.read', {});
+
+  const first = mergeEventPages(
+    [
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [cloudFirst['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(cloudFirst['cursor']),
+          more: false,
+        },
+      },
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: { kind: 'unavailable' },
+      },
+    ],
+    'f',
+    50,
+  );
+
+  await daemons.sendMessage('pc', 'queued');
+
+  const plan = planEventReads(first.cursor, 'f', null, registry);
+
+  const pcLatest = await daemons.client('pc').sendRequest('events.read', {});
+
+  const second = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [pcLatest['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(pcLatest['cursor']),
+          more: false,
+        },
+        unstarted: { olderUnread: false },
+      },
+    ],
+    'f',
+    50,
+  );
+
+  expect(plan.get('pc')).toStrictEqual({ kind: 'latest' });
+  expect(second.events.map((event) => event['detail'])).toContain('queued');
+  expect(second.started).toStrictEqual(['pc']);
+  expect(second.truncated).toStrictEqual([]);
+});
+
+test('it lists a daemon whose latest page after a gap left older events unread as truncated', () => {
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: { kind: 'read', events: [], cursor: 'p9', more: false },
+        unstarted: { olderUnread: true },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.started).toStrictEqual(['pc']);
+  expect(merged.truncated).toStrictEqual(['pc']);
 });
