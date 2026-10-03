@@ -105,8 +105,9 @@ for arg in "$@"; do
   if [ "$prev" = "--settings" ]; then settings="$arg"; fi
   prev="$arg"
 done
-hookReport() { sh -c "$("${process.execPath}" -e 'const s = JSON.parse(require("fs").readFileSync(process.argv.at(-1), "utf8")); console.log(s.hooks.SessionStart[0].hooks[0].command)' "$settings" < /dev/null)"; }
 if [ -f "$HOME/fake-claude-hold-start" ]; then while read -r line; do echo "GOT:$line"; done; sleep 30; exit 0; fi
+hookCommand="$("${process.execPath}" -e 'const s = JSON.parse(require("fs").readFileSync(process.argv.at(-1), "utf8")); console.log(s.hooks.SessionStart[0].hooks[0].command)' "$settings" < /dev/null)"
+hookReport() { sh -c "$hookCommand"; }
 printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | hookReport
 if [ -f "$HOME/fake-claude-tap" ]; then ${atcLine} tap --session "$ATC_SESSION_ID" >> "$HOME/tap.jsonl" & fi
 sleep 0.3
@@ -2118,12 +2119,25 @@ test('it keeps the spawn prompt and latest result across a daemon restart', asyn
 
   await client.sendHello('atc/test');
 
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
   await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     prompt: 'fix the auth bug',
     cols: 80,
     rows: 24,
   });
+
+  // The turn's end reaching the daemon is waited for on its own, so a slow
+  // hook delivery and a lost fleet write fail at different lines.
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'done',
+  );
 
   await waitFor(async () => {
     const listed = await client.sendRequest('fleet.list');
