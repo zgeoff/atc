@@ -72,9 +72,6 @@ interface KeyedRoute {
 export class RoutingCaller {
   private readonly opts: RoutingCallerOptions;
 
-  // The last keyed call holding each key's lock.
-  private readonly keyLocks = new Map<string, Promise<void>>();
-
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the options hold the live daemon pool and binding store
   constructor(opts: RoutingCallerOptions) {
     this.opts = opts;
@@ -197,30 +194,34 @@ export class RoutingCaller {
 
     const keyed: KeyedRoute = { m, params: route.params, key, picked, named, required, principal };
 
-    // Keyed requests with one key run one at a time, so a second waits for
-    // the first's binding and outcome instead of racing it to a daemon.
-    return this.withKeyLock(JSON.stringify([principal, m, key]), async () => {
-      const claimed = await this.claimRoute(keyed);
+    return this.sendKeyed(keyed, route);
+  }
 
-      try {
-        return await this.sendToRoute({
-          m,
-          route,
-          daemon: claimed.daemon,
-          required,
-          principal,
-          key,
-        });
-      } catch (error) {
-        // A refusal about the daemon comes before anything is sent, so a
-        // binding this call made leaves no trace of the key.
-        if (claimed.created && error instanceof GatewayError) {
-          this.opts.store.removeBinding(principal, m, key);
-        }
+  // Sends a keyed request to the daemon its binding holds. A refusal about
+  // the daemon comes before anything is sent, so a binding this call made
+  // leaves no trace of the key.
+  private async sendKeyed(
+    keyed: KeyedRoute,
+    route: RoutedSend['route'],
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const claimed = await this.claimRoute(keyed);
 
-        throw error;
+    try {
+      return await this.sendToRoute({
+        m: keyed.m,
+        route,
+        daemon: claimed.daemon,
+        required: keyed.required,
+        principal: keyed.principal,
+        key: keyed.key,
+      });
+    } catch (error) {
+      if (claimed.created && error instanceof GatewayError) {
+        this.opts.store.removeBinding(keyed.principal, keyed.m, keyed.key);
       }
-    });
+
+      throw error;
+    }
   }
 
   // Sends one routed request to its daemon on a connection whose handshake
@@ -253,28 +254,6 @@ export class RoutingCaller {
       }
 
       throw error;
-    }
-  }
-
-  // Runs `run` once every earlier call holding the same lock has settled.
-  private async withKeyLock<T>(lock: string, run: () => Promise<T>): Promise<T> {
-    const before = this.keyLocks.get(lock);
-    const turn = Promise.withResolvers<void>();
-
-    this.keyLocks.set(lock, turn.promise);
-
-    if (before !== undefined) {
-      await before;
-    }
-
-    try {
-      return await run();
-    } finally {
-      turn.resolve();
-
-      if (this.keyLocks.get(lock) === turn.promise) {
-        this.keyLocks.delete(lock);
-      }
     }
   }
 
