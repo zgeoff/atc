@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import type { DaemonFeature } from '../protocol/daemon-features';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import type { GrantScope } from '../shared/grant-scope';
 import { buildSpawnDescriptions } from './build-spawn-descriptions';
 import { IDEMPOTENCY_KEY_FIELD } from './parse-idempotency-key';
+import type { FleetFeature } from './types';
 
 const NO_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(z.strictObject({}));
 
@@ -27,8 +27,23 @@ const { $schema: _, ...IDEMPOTENCY_KEY_INPUT } = z.toJSONSchema(IDEMPOTENCY_KEY_
   io: 'input',
 });
 
+// The daemon a call goes to, offered only by a caller that routes across
+// named daemons.
+const DAEMON_FIELD = z
+  .string()
+  .optional()
+  .describe(
+    'The atc daemon to run on, one of the names atc_daemons_list returns. Omit it to use the default daemon. A daemon that is down answers daemon_unavailable; atc never runs the call on another daemon instead.',
+  );
+
+const DIRS_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
+  z.strictObject({ daemon: DAEMON_FIELD }),
+  { io: 'input' },
+);
+
 const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   z.strictObject({
+    daemon: DAEMON_FIELD,
     cwd: SPAWN_SCHEMA.shape.cwd.describe('Absolute path of the working directory'),
     name: SPAWN_SCHEMA.shape.name.describe('Session name; defaults to the directory basename'),
     prompt: SPAWN_SCHEMA.shape.prompt.describe('First message for the session'),
@@ -316,10 +331,13 @@ interface MCPToolDefinition {
   // What the connected daemon has to announce for the tool to be listed at
   // all, for its output schema to be declared, and for each listed input
   // property to be offered. An older daemon gets the tool without them.
+  // `outputUnless` leaves the output schema out when the caller announces
+  // that feature, for a tool whose result takes another shape there.
   readonly requires?: {
-    readonly tool?: DaemonFeature;
-    readonly output?: DaemonFeature;
-    readonly inputs?: Readonly<Record<string, DaemonFeature>>;
+    readonly tool?: FleetFeature;
+    readonly output?: FleetFeature;
+    readonly outputUnless?: FleetFeature;
+    readonly inputs?: Readonly<Record<string, FleetFeature>>;
   };
   readonly scope: GrantScope;
 }
@@ -373,6 +391,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     inputSchema: SPAWN_INPUT,
     requires: {
       inputs: {
+        daemon: 'fleet.daemons',
         model: 'spawn.options',
         effort: 'spawn.options',
         idempotencyKey: 'spawn.idempotency',
@@ -452,7 +471,17 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description: 'List directories sessions were previously spawned from, most recent first.',
+    inputSchema: DIRS_INPUT,
+    requires: { inputs: { daemon: 'fleet.daemons' } },
+  },
+  {
+    name: 'atc_daemons_list',
+    annotations: READ_ONLY,
+    scope: 'read',
+    description:
+      "List the atc daemons this server routes to: each one's name, state (up, down, unauthorized, changed, or outdated), build, daemonID, and features, plus defaultDaemon, the daemon a spawn or directory listing without daemon goes to. Session and message ids start with the name of the daemon that holds them.",
     inputSchema: NO_INPUT,
+    requires: { tool: 'fleet.daemons' },
   },
   {
     name: 'atc_agents_list',
@@ -462,7 +491,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       "List the agents this atc host can run sessions under, plus the host itself (daemon: hostname, platform, arch, build). Each agent has its id (pass it as atc_session_spawn's agent), label, kind (the agent CLI family it runs), installed (whether its binary resolves on this host; a registered agent that is not installed cannot spawn), capabilities (spawn, readTranscript, message, attach, screen, input), models (the model names the config sets for it, or null), and spawnOptions when the daemon supports spawn options. spawnOptions holds model and effort, each with supported (whether atc passes it to the agent CLI), available (whether a spawn on this host can pass it now), values (the accepted set, or null for any alias or model name), examples (each with the provider model it resolves to, when the config maps one), default (the configured value, or null for the CLI's own), backendEffect (applied, or unverified when the backend may ignore it), and a note. atc_session_spawn accepts exactly the available options. When the daemon supports targets, it also returns targets (each with its id, provider kind, identity, available, default, and capabilities), spawnDefaults (the agent and target a spawn without either runs with; a null target means such a spawn is refused), configRevision (a digest that changes whenever the target config does), and targetErrors (config problems that leave a target, or every target, unusable; a config file that exists but cannot be read or parsed is scope config, problem config_malformed or config_unreadable, with its path and detail, and refuses every spawn, local included). It never includes credentials, environment values, or endpoints, and holds nothing about which plans or subscriptions an agent's account has.",
     inputSchema: NO_INPUT,
     outputSchema: AGENTS_OUTPUT,
-    requires: { tool: 'agents.list', output: 'spawn.options' },
+    requires: { tool: 'agents.list', output: 'spawn.options', outputUnless: 'fleet.daemons' },
   },
   {
     name: 'atc_session_get',

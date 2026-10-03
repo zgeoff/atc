@@ -2,6 +2,13 @@ import type { DaemonFeature } from '../protocol/daemon-features';
 import type { ApprovalState } from './approval-state';
 import type { openMCPAuth } from './open-mcp-auth';
 
+/**
+ * A feature the tool list can depend on: one a daemon announces, or
+ * `fleet.daemons`, which only a caller that routes across named daemons
+ * announces, for the tools and inputs that pick a daemon.
+ */
+export type FleetFeature = DaemonFeature | 'fleet.daemons';
+
 // The slice of the daemon client the tool handlers need: requests, and the
 // features the connected daemon announced at its handshake. A request that
 // lists required features is checked against the connection it is about to
@@ -14,7 +21,7 @@ export interface FleetCaller {
     required?: readonly DaemonFeature[],
     principal?: string,
   ) => Promise<Readonly<Record<string, unknown>>>;
-  readonly readFeatures: () => Promise<ReadonlySet<DaemonFeature>>;
+  readonly readFeatures: () => Promise<ReadonlySet<FleetFeature>>;
 }
 
 export interface ToolContext {
