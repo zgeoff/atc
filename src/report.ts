@@ -56,9 +56,9 @@ export async function runReport(kind: string, options: ReportOptions): Promise<v
 }
 
 // Inside a remote host, a report goes to the session bridge under an id of
-// its own, and waits in the outbox until the bridge answers it, so the
-// session's tap sends it again after a dropped connection. A resent report
-// lands once.
+// its own, and waits in the outbox until the bridge takes or refuses it, so
+// the session's tap sends it again after a dropped connection. A resent
+// report lands once, and a refused one is never resent.
 async function sendBridgeReport(
   sock: string,
   outbox: string,
@@ -76,7 +76,9 @@ async function sendBridgeReport(
 
   const answer = await sendBridgeRequest(sock, 'report', { reportID, payload }, 2000);
 
-  if (answer?.['ok'] === true && file !== null) {
+  const isFinal = answer?.['ok'] === true || answer?.['code'] === 'forbidden';
+
+  if (isFinal && file !== null) {
     rmSync(file, { force: true });
   }
 }

@@ -79,6 +79,9 @@ async function runTapConnection(
   let printing: Promise<void> = Promise.resolve();
   let socket: BridgeSocket;
 
+  // The outbox file behind each report this connection sent, by request id.
+  let sent = new Map<string, string>();
+
   const onLine = (line: Readonly<Record<string, unknown>>) => {
     if (line['ev'] === 'InboxClosed') {
       ended.resolve('closed');
@@ -94,17 +97,21 @@ async function runTapConnection(
       }
 
       opened = true;
-
-      sendOutboxReports(socket, outbox);
+      sent = sendOutboxReports(socket, outbox);
 
       return;
     }
 
     // A report the bridge took, or one it refuses outright, leaves the
-    // outbox: no resend would change the answer.
+    // outbox: no resend would change the answer. Only the file this
+    // connection sent under the answered id is removed.
     if (typeof line['id'] === 'string' && line['id'].startsWith('report:')) {
-      if (line['ok'] === true || line['code'] === 'forbidden') {
-        rmSync(join(outbox, `${line['id'].slice('report:'.length)}.json`), { force: true });
+      const path = sent.get(line['id']);
+
+      if (path !== undefined && (line['ok'] === true || line['code'] === 'forbidden')) {
+        sent.delete(line['id']);
+
+        rmSync(path, { force: true });
       }
 
       return;
@@ -174,16 +181,19 @@ async function runTapConnection(
   return end;
 }
 
-// Sends every report the outbox holds; a file that is no report is
-// removed, since no answer would ever clear it.
+// Sends every report the outbox holds, and returns the file behind each
+// request id it sent; a file that is no report is removed, since no answer
+// would ever clear it.
 // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket is a live handle
-function sendOutboxReports(socket: BridgeSocket, outbox: string): void {
+function sendOutboxReports(socket: BridgeSocket, outbox: string): Map<string, string> {
+  const sent = new Map<string, string>();
+
   let files: string[];
 
   try {
     files = readdirSync(outbox).filter((file) => file.endsWith('.json'));
   } catch {
-    return;
+    return sent;
   }
 
   for (const file of files) {
@@ -201,14 +211,20 @@ function sendOutboxReports(socket: BridgeSocket, outbox: string): void {
       continue;
     }
 
+    const id = `report:${report.reportID}`;
+
+    sent.set(id, path);
+
     socket.writeLine({
       v: 1,
-      id: `report:${report.reportID}`,
+      id,
       op: 'report',
       reportID: report.reportID,
       payload: report.payload,
     });
   }
+
+  return sent;
 }
 
 // oxlint-disable-next-line prefer-readonly-parameter-types -- the set grows in place

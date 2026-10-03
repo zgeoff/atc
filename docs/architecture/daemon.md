@@ -170,9 +170,11 @@ inside the same imp.
 The guest tap reconnects after every dropped connection, as a sleep or a daemon restart leaves it,
 with a wait that grows to 5 seconds and never ends. Each new connection replays the messages not yet
 acked; the tap prints each message once and acks a repeat again. `atc report` keeps each report in
-an outbox beside the socket until the bridge answers it, and the tap sends the outbox again on every
-connection. A resent note lands once, under the id the reporter gave it, and a resent answer changes
-nothing. A harness restart leaves delivered messages delivered, as a local session does.
+an outbox beside the socket until the bridge takes it or refuses it as `forbidden`, and the tap
+sends the outbox again on every connection. The tap removes only the outbox file behind a report it
+sent on that connection, whatever id an answer holds. A resent note lands once, under the id the
+reporter gave it, and a resent answer changes nothing. A harness restart leaves delivered messages
+delivered, as a local session does.
 
 A connection that ends without an exit reconnects without waking the imp, and the session lists as
 `reattaching` until it does. Where impd carries offsets, the daemon resumes after the last byte it
