@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
 import { collectRedirectURIs } from './collect-redirect-uris';
+import { parseGatewayStateDir } from './parse-gateway-state-dir';
 import { parsePort } from './parse-port';
 
 // The flag every subcommand takes for the directory holding `gateway.db` and
@@ -13,6 +14,23 @@ const STATE_DIR_ARG = {
   },
 } as const;
 
+// Every flag a subcommand declares, so a flag in any position, or one no
+// subcommand declares, is caught before a subcommand runs.
+const GATEWAY_FLAGS = {
+  values: new Set(['host', 'port', 'public-url', 'registry', 'redirect-uri', 'state-dir']),
+  switches: new Set(['help', 'h', 'version']),
+};
+
+// The state directory comes from the whole command line, since the argument
+// parser hands a subcommand only the arguments after its name.
+const parsedStateDir = parseGatewayStateDir(process.argv.slice(2), process.env, GATEWAY_FLAGS);
+
+if (!parsedStateDir.ok) {
+  console.error(`atc-gateway: ${parsedStateDir.message}`);
+  process.exit(1);
+}
+
+const stateDir = parsedStateDir.stateDir;
 const NO_STATE_DIR = 'atc-gateway: give --state-dir or set ATC_GATEWAY_STATE_DIR';
 
 // atc-gateway entry: serves the MCP tools over HTTP for the daemons a
@@ -24,6 +42,10 @@ const main = defineCommand({
     version: pkg.version,
     description: 'Serve the atc MCP tools over HTTP for the daemons a registry lists',
   },
+
+  // Declared at every level, so the argument parser reads `--state-dir <dir>`
+  // before a subcommand as a flag and its value, not as a subcommand name.
+  args: STATE_DIR_ARG,
   subCommands: {
     serve: () =>
       defineCommand({
@@ -47,8 +69,6 @@ const main = defineCommand({
             process.exit(1);
           }
 
-          const stateDir = findStateDir(ctx.args['state-dir'], process.env);
-
           if (stateDir === null) {
             console.error(NO_STATE_DIR);
             process.exit(1);
@@ -65,33 +85,20 @@ const main = defineCommand({
           });
         },
       }),
-    clients: () => {
-      // The parent parses the whole command line, so it holds `--state-dir`
-      // whether the flag comes before or after the subcommand name, while a
-      // subcommand sees only the arguments after its name.
-      let parentStateDir: string | undefined;
-
-      return defineCommand({
+    clients: () =>
+      defineCommand({
         meta: {
           name: 'clients',
           description: 'List, add, or remove the clients that may connect to the gateway',
         },
-
-        // Declared here too, so `clients --state-dir <dir>` reads `<dir>` as
-        // the flag's value rather than a subcommand name.
         args: STATE_DIR_ARG,
-        setup(ctx) {
-          parentStateDir = ctx.args['state-dir'];
-        },
         default: 'list',
         subCommands: {
           list: () =>
             defineCommand({
               meta: { name: 'list', description: 'List the clients', hidden: true },
               args: STATE_DIR_ARG,
-              async run(ctx) {
-                const stateDir = findStateDir(ctx.args['state-dir'] ?? parentStateDir, process.env);
-
+              async run() {
                 if (stateDir === null) {
                   console.error(NO_STATE_DIR);
                   process.exit(1);
@@ -121,8 +128,6 @@ const main = defineCommand({
                 ...STATE_DIR_ARG,
               },
               async run(ctx) {
-                const stateDir = findStateDir(ctx.args['state-dir'] ?? parentStateDir, process.env);
-
                 if (stateDir === null) {
                   console.error(NO_STATE_DIR);
                   process.exit(1);
@@ -154,8 +159,6 @@ const main = defineCommand({
                 ...STATE_DIR_ARG,
               },
               async run(ctx) {
-                const stateDir = findStateDir(ctx.args['state-dir'] ?? parentStateDir, process.env);
-
                 if (stateDir === null) {
                   console.error(NO_STATE_DIR);
                   process.exit(1);
@@ -173,20 +176,8 @@ const main = defineCommand({
               },
             }),
         },
-      });
-    },
+      }),
   },
 });
-
-// `--state-dir`, else `$ATC_GATEWAY_STATE_DIR`, else null: the gateway has
-// no default, so it never writes under a home directory.
-function findStateDir(
-  flag: string | undefined,
-  env: Readonly<Record<string, string | undefined>>,
-): string | null {
-  const dir = flag ?? env['ATC_GATEWAY_STATE_DIR'];
-
-  return dir === undefined || dir === '' ? null : dir;
-}
 
 await runMain(main);

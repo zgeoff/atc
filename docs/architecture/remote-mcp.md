@@ -102,6 +102,15 @@ and messages, and `mcp-auth.db` the authorization server. With neither `--state-
 `ATC_GATEWAY_STATE_DIR`, it exits 1. It has no default under a home directory, so one volume holds
 all its state.
 
+The gateway reads `--state-dir` anywhere on its command line: before the subcommand, between
+`clients` and its subcommand, or after it. A flag beats `ATC_GATEWAY_STATE_DIR`. The gateway exits 1
+before it opens a database in 3 cases:
+
+- two `--state-dir` flags give different directories
+- a flag it does not know appears anywhere, such as `--stat-dir`
+- a flag's separate value is missing or starts with `-`, as in `--redirect-uri --state-dir <dir>`;
+  write such a value as `--<flag>=<value>`
+
 `/healthz` and `/readyz` are always on. Each returns 200 for a request whose `Host` header is the
 public URL's host, such as `atc.example.com`, and 403 for any other host, so an orchestrator's probe
 sets that header. Approval lines go to stdout and request lines to stderr, so you read the approval
