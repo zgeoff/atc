@@ -3235,10 +3235,14 @@ test.each(['resume', 'clear', 'compact'])(
     });
 
     const ownCode = await own.exited;
-    const record = await client.sendRequest('session.get', { session: id });
 
     expect(ownCode).toBe(0);
-    expect(record).toMatchObject({ session: { agentSessionID: 'fake-2' } });
+
+    await waitFor(async () => {
+      const record = await client.sendRequest('session.get', { session: id });
+
+      expect(record).toMatchObject({ session: { agentSessionID: 'fake-2' } });
+    });
   },
 );
 
@@ -3291,8 +3295,12 @@ test('it binds a session from a hook line without an agent while none of its own
   });
 
   const code = await reporter.exited;
-  const record = await client.sendRequest('session.get', { session: id });
 
   expect(code).toBe(0);
-  expect(record).toMatchObject({ session: { agent: 'grok', agentSessionID: 'fake-grok-1' } });
+
+  await waitFor(async () => {
+    const record = await client.sendRequest('session.get', { session: id });
+
+    expect(record).toMatchObject({ session: { agent: 'grok', agentSessionID: 'fake-grok-1' } });
+  });
 });
