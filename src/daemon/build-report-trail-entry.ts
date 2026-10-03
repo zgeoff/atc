@@ -5,8 +5,9 @@ import type { TrailEntry } from '../store/trail-entry';
 import type { NoteReport } from './parse-report';
 
 /**
- * The trail entry for one note a session reported, carrying its label, a
- * preview of its text, and the id its reporter gave it, when it gave one.
+ * The trail entry for one note a session reported, carrying its label, its
+ * text and a preview of it, and the id its reporter gave it, when it gave
+ * one.
  */
 export function buildReportTrailEntry(
   sessionID: SessionID,
@@ -22,6 +23,7 @@ export function buildReportTrailEntry(
     kind: 'report',
     label: report.label,
     detail: truncateDetail(report.text),
+    text: report.text,
     ...(reportID === undefined ? {} : { reportID }),
   };
 }

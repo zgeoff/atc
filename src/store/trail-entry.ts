@@ -19,6 +19,9 @@ interface ReportTrailEntry extends TrailEntryBase {
   readonly kind: 'report';
   readonly label: string;
 
+  // The report's whole text, which the detail previews.
+  readonly text: string;
+
   // The id a remote session's reporter gave the report, so a resent
   // report is stored once; absent for a report that carries none.
   readonly reportID?: string;

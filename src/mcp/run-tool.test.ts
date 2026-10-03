@@ -469,3 +469,54 @@ test('it refuses a session input line unsent when the daemon predates line submi
 
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
+
+test('it reads a report through a daemon that serves report reads', async () => {
+  const sent: unknown[] = [];
+
+  await runTool(
+    {
+      sendRequest: (m, p, required) => {
+        sent.push({ m, p, required });
+
+        return Promise.resolve({});
+      },
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
+    },
+    'atc_report_get',
+    { report: 'r1' },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(sent).toStrictEqual([{ m: 'report.get', p: { report: 'r1' }, required: ['report.get'] }]);
+});
+
+test('it refuses a report read unsent when the daemon predates report reads', async () => {
+  using tmp = setupTempDir('atc-run-tool-');
+
+  const socketPath = join(tmp.dir, 'daemon.sock');
+
+  const legacy = startLegacyDaemon(socketPath, {
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'report.get'),
+  });
+
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
+
+  onTestFinished(async () => {
+    await caller.stop();
+
+    legacy.stop();
+  });
+
+  const read = runTool(
+    caller,
+    'atc_report_get',
+    { report: 'r1' },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(read).rejects.toThrow(/^daemon_outdated: .*atc_report_get/);
+
+  await read.catch(() => null);
+
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});

@@ -21,16 +21,28 @@ test('it lists each tool with only its name, description, schemas, and annotatio
   );
 });
 
-test('it lists an output schema for the agent, message, and event tools', () => {
+test('it lists an output schema for the agent, message, event, and report tools', () => {
   expect(
     buildToolList(new Set(DAEMON_FEATURES), null)
       .filter((tool) => tool.outputSchema !== undefined)
       .map((tool) => tool.name),
-  ).toStrictEqual(['atc_agents_list', 'atc_events_read', 'atc_session_message', 'atc_message_get']);
+  ).toStrictEqual([
+    'atc_agents_list',
+    'atc_events_read',
+    'atc_report_get',
+    'atc_session_message',
+    'atc_message_get',
+  ]);
 });
 
 test('it leaves out the agents tool for a daemon that announces no features', () => {
   expect(buildToolList(new Set(), null).map((tool) => tool.name)).not.toContain('atc_agents_list');
+});
+
+test('it leaves out the report tool for a daemon that does not announce report reads', () => {
+  const features = new Set(DAEMON_FEATURES.filter((feature) => feature !== 'report.get'));
+
+  expect(buildToolList(features, null).map((tool) => tool.name)).not.toContain('atc_report_get');
 });
 
 test('it lists the message and event tools in their older form for a daemon that announces no features', () => {

@@ -70,6 +70,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     readSessionRecord: assertUnreachable,
     loadSessionTranscript: assertUnreachable,
     readEvents: assertUnreachable,
+    readReport: assertUnreachable,
     answerPermission: assertUnreachable,
     restoreFleet: assertUnreachable,
     attachSession: assertUnreachable,

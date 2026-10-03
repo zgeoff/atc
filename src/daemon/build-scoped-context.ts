@@ -203,6 +203,11 @@ export function buildScopedContext(
 
       return ctx.readEvents(afterID, limit, waitMs, sessionID, merged);
     },
+    readReport: (id, outer) => {
+      const merged = outer === null ? access : outer.merge(access);
+
+      return ctx.readReport(id, merged);
+    },
     writeSessionMessage: (sessionID, from, text, keyed) =>
       canSee(sessionID)
         ? ctx.writeSessionMessage(sessionID, from, text, buildPrincipalKey(keyed))

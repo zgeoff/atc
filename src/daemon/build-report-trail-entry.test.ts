@@ -18,6 +18,7 @@ test('it builds a report entry carrying the note label and a text preview', () =
     kind: 'report',
     label: 'blocked',
     detail: 'need review',
+    text: 'need review',
   });
 });
 
@@ -36,5 +37,17 @@ test('it holds no agent session id for a session that has not reported one', () 
     kind: 'report',
     label: 'blocked',
     detail: 'need review',
+    text: 'need review',
   });
+});
+
+test('it keeps the whole text beside a preview cut at 600 characters', () => {
+  const entry = buildReportTrailEntry(
+    toSessionID('s1'),
+    undefined,
+    { kind: 'note', label: 'decision', text: 'x'.repeat(700) },
+    1000,
+  );
+
+  expect(entry).toMatchObject({ detail: `${'x'.repeat(599)}…`, text: 'x'.repeat(700) });
 });

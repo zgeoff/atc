@@ -172,6 +172,11 @@ export function runTool(
 
       return buildObjectResult(ok);
     })
+    .with('atc_report_get', async () => {
+      const ok = await caller.sendRequest('report.get', { report: args['report'] }, ['report.get']);
+
+      return buildObjectResult(ok);
+    })
     .with('atc_session_message', async () => {
       const given = args['from'];
 

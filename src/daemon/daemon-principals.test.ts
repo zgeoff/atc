@@ -6,10 +6,12 @@ import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
 import { DaemonError } from '../protocol/daemon-error';
+import { encodeCursor } from '../protocol/encode-cursor';
 import type { EventMsg } from '../protocol/protocol';
 import { collectPrincipals } from '../shared/collect-principals';
 import { collectTargets } from '../shared/collect-targets';
 import { getRecord } from '../shared/get-record';
+import { isRecord } from '../shared/report';
 import { buildTargetIdentity } from './build-target-identity';
 import { startDaemon } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';
@@ -128,6 +130,35 @@ async function setupTest(raw: RawConfig) {
     async sendHookEvent(sessionID: string): Promise<void> {
       const closed = Promise.withResolvers<void>();
       const line = { atcId: sessionID, event: 'UserPromptSubmit', payload: {} };
+
+      await Bun.connect({
+        unix: join(tmp.dir, 'reporter.sock'),
+        socket: {
+          open(socket) {
+            socket.write(`${JSON.stringify(line)}\n`);
+            socket.end();
+          },
+          close() {
+            closed.resolve();
+          },
+          data() {},
+          error() {},
+        },
+      });
+
+      await closed.promise;
+    },
+
+    // Reports one note for the session, which the daemon records in its
+    // trail as a report.
+    async sendNote(sessionID: string, text: string): Promise<void> {
+      const closed = Promise.withResolvers<void>();
+
+      const line = {
+        atcId: sessionID,
+        event: 'Report',
+        payload: { kind: 'note', label: 'l', text },
+      };
 
       await Bun.connect({
         unix: join(tmp.dir, 'reporter.sock'),
@@ -339,6 +370,78 @@ test('it leaves the events of a session outside the principal out of an unfilter
 
   expect(JSON.stringify(read)).not.toContain(hidden);
   expect(JSON.stringify(read)).toContain(shown);
+});
+
+test('it answers a report of a session outside the principal as a report that does not exist', async () => {
+  await using daemon = await setupTest({
+    targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+    principals: { 'client-a': { targets: ['local'] } },
+  });
+
+  const hidden = await daemon.spawnOn('box');
+
+  await daemon.sendNote(hidden, 'secret plan');
+
+  const event = await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
+
+    const first: unknown = Array.isArray(owner['events']) ? owner['events'][0] : undefined;
+
+    if (!isRecord(first)) {
+      throw new TypeError('no event yet');
+    }
+
+    return first;
+  });
+
+  const cursor = String(event['cursor']);
+  const missing = encodeCursor({ kind: 'events', id: 999_999 });
+
+  const owner = await daemon.client.sendRequest('report.get', { report: cursor });
+
+  const answered = await readAnswer(
+    () => daemon.client.sendRequest('report.get', { report: cursor }, 'client-a'),
+    cursor,
+  );
+
+  const unknown = await readAnswer(
+    () => daemon.client.sendRequest('report.get', { report: missing }, 'client-a'),
+    missing,
+  );
+
+  expect(owner).toMatchObject({ session: hidden, text: 'secret plan' });
+  expect(answered).toStrictEqual(unknown);
+});
+
+test('it gives a principal the report of a session it may see', async () => {
+  await using daemon = await setupTest({
+    targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+    principals: { 'client-a': { targets: ['local'] } },
+  });
+
+  const shown = await daemon.spawnOn('local');
+
+  await daemon.sendNote(shown, 'open plan');
+
+  const event = await waitFor(async () => {
+    const read = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'client-a');
+
+    const first: unknown = Array.isArray(read['events']) ? read['events'][0] : undefined;
+
+    if (!isRecord(first)) {
+      throw new TypeError('no event yet');
+    }
+
+    return first;
+  });
+
+  const report = await daemon.client.sendRequest(
+    'report.get',
+    { report: event['cursor'] },
+    'client-a',
+  );
+
+  expect(report).toMatchObject({ session: shown, text: 'open plan', complete: true });
 });
 
 test('it narrows a request on an owner connection to the principal it acts as', async () => {

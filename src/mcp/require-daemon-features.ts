@@ -16,6 +16,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'spawn.idempotency': "atc_session_spawn's idempotencyKey",
   'spawn.options': "atc_session_spawn's model and effort",
   'spawn.target': "atc_session_spawn's target",
+  'report.get': 'atc_report_get',
   'request.principal': 'the target limits of a remote MCP client',
   'spawn.workspace': "atc_session_spawn's workspace",
 };

@@ -7,6 +7,7 @@ import { subscribeToSocketLines } from '../../test/subscribe-to-socket-lines';
 import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
+import { encodeCursor } from '../protocol/encode-cursor';
 import type { EventMsg } from '../protocol/protocol';
 import { isRecord, sendReport } from '../shared/report';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
@@ -1494,6 +1495,111 @@ test('it records a note in events.read with its label', async () => {
     cursor: expect.toBeString(),
     more: false,
   });
+});
+
+test("it returns a report's whole text by the cursor of its event", async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'decision', text: 'y'.repeat(700) } })}\n`,
+    2000,
+  );
+
+  const event = await waitFor(async () => {
+    const answer = await daemon.actor.sendRequest('events.read', {});
+
+    if (!Array.isArray(answer['events']) || !isRecord(answer['events'][0])) {
+      throw new TypeError('no event yet');
+    }
+
+    return answer['events'][0];
+  });
+
+  const report = await daemon.actor.sendRequest('report.get', { report: event['cursor'] });
+
+  expect({ preview: event['detail'], report }).toStrictEqual({
+    preview: `${'y'.repeat(599)}…`,
+    report: {
+      report: event['cursor'],
+      at: event['at'],
+      session: id,
+      name: 'one',
+      label: 'decision',
+      text: 'y'.repeat(700),
+      complete: true,
+    },
+  });
+});
+
+test("it returns a report's text cut at 64 KiB", async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'evidence', text: 'z'.repeat(70_000) } })}\n`,
+    2000,
+  );
+
+  const event = await waitFor(async () => {
+    const answer = await daemon.actor.sendRequest('events.read', {});
+
+    if (!Array.isArray(answer['events']) || !isRecord(answer['events'][0])) {
+      throw new TypeError('no event yet');
+    }
+
+    return answer['events'][0];
+  });
+
+  const report = await daemon.actor.sendRequest('report.get', { report: event['cursor'] });
+
+  expect({ preview: event['detail'], text: report['text'] }).toStrictEqual({
+    preview: `${'z'.repeat(599)}…`,
+    text: `${'z'.repeat(65_533)}…`,
+  });
+});
+
+test('it refuses a cursor at no trail row as an unknown report', async () => {
+  await using daemon = await setupTest();
+
+  const cursor = encodeCursor({ kind: 'events', id: 999_999 });
+
+  expect(daemon.actor.sendRequest('report.get', { report: cursor })).rejects.toMatchObject({
+    code: 'bad_args',
+    message: `no report '${cursor}'`,
+  });
+});
+
+test('it refuses the cursor of an event that is not a report as an unknown report', async () => {
+  await using daemon = await setupTest();
+
+  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+
+  await sendReport(
+    daemon.reporterPath,
+    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'c-1' } })}\n`,
+    2000,
+  );
+
+  const event = await waitFor(async () => {
+    const answer = await daemon.actor.sendRequest('events.read', {});
+
+    if (!Array.isArray(answer['events']) || !isRecord(answer['events'][0])) {
+      throw new TypeError('no event yet');
+    }
+
+    return answer['events'][0];
+  });
+
+  expect(event['kind']).toBe('started');
+
+  expect(daemon.actor.sendRequest('report.get', { report: event['cursor'] })).rejects.toMatchObject(
+    { code: 'bad_args', message: `no report '${String(event['cursor'])}'` },
+  );
 });
 
 test('it leaves a note from an unknown session out of the trail', async () => {

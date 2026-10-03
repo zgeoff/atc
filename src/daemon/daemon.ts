@@ -32,6 +32,7 @@ import type { ExecutionTarget } from './build-execution-targets';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 import { buildReportTrailEntry } from './build-report-trail-entry';
+import { buildReportView } from './build-report-view';
 import { buildSessionEvent } from './build-session-event';
 import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionReportEvent } from './build-session-report-event';
@@ -1568,6 +1569,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
         await eventSignal.waitForNext(generation, remaining);
       }
+    },
+    readReport: async (id, access) => {
+      const stored = await store.findReport(id, buildEventScope(null, access));
+
+      return stored === null ? null : buildReportView(stored, mgr.collectDescriptors());
     },
     writeSessionMessage: async (sessionID, from, text, keyed) => {
       if (keyed === null) {

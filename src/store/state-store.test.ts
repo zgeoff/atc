@@ -1113,6 +1113,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '020_create_workspace_materialization',
     '021_add_fleet_lifecycle',
     '022_add_events_report_id',
+    '023_add_events_report_text',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -2022,6 +2023,7 @@ test('it records a report into the trail with its label', async () => {
     kind: 'report',
     label: 'blocked',
     detail: 'need review',
+    text: 'need review',
   });
 
   const events = await store.collectLatestEvents(10);
@@ -2053,6 +2055,7 @@ test('it stores a report resent under the same report id once', async () => {
     kind: 'report',
     label: 'blocked',
     detail: 'need review',
+    text: 'need review',
     reportID: 'r-1',
   });
 
@@ -2063,6 +2066,7 @@ test('it stores a report resent under the same report id once', async () => {
     kind: 'report',
     label: 'blocked',
     detail: 'need review',
+    text: 'need review',
     reportID: 'r-1',
   });
 
@@ -2099,6 +2103,7 @@ test('it stores every report that carries no report id', async () => {
     kind: 'report',
     label: 'blocked',
     detail: 'need review',
+    text: 'need review',
   });
 
   const second = await store.recordTrailEntry({
@@ -2108,11 +2113,144 @@ test('it stores every report that carries no report id', async () => {
     kind: 'report',
     label: 'blocked',
     detail: 'need review',
+    text: 'need review',
   });
 
   const events = await store.collectLatestEvents(10);
 
   expect({ second, count: events.length }).toStrictEqual({ second: true, count: 2 });
+});
+
+test("it finds a report's whole text by its trail id", async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordTrailEntry({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: toAgentSessionID('c1'),
+    kind: 'report',
+    label: 'decision',
+    detail: 'pick one…',
+    text: 'pick one of three options',
+  });
+
+  const [event] = await store.collectLatestEvents(1);
+
+  if (event === undefined) {
+    throw new Error('no event');
+  }
+
+  const report = await store.findReport(event.id);
+
+  expect(report).toStrictEqual({
+    id: event.id,
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: toAgentSessionID('c1'),
+    label: 'decision',
+    text: 'pick one of three options',
+    complete: true,
+  });
+});
+
+test('it misses a trail id whose row is not a report', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
+    { kind: 'started' },
+  );
+
+  const [event] = await store.collectLatestEvents(1);
+
+  if (event === undefined) {
+    throw new Error('no event');
+  }
+
+  const report = await store.findReport(event.id);
+
+  expect(report).toBeNull();
+});
+
+test('it misses a report of a session outside the scope', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.recordTrailEntry({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'report',
+    label: 'decision',
+    detail: 'hidden',
+    text: 'hidden',
+  });
+
+  const [event] = await store.collectLatestEvents(1);
+
+  if (event === undefined) {
+    throw new Error('no event');
+  }
+
+  const report = await store.findReport(event.id, {
+    atcIDs: [toSessionID('s2')],
+    agentSessionIDs: [],
+  });
+
+  expect(report).toBeNull();
+});
+
+test('it finds the preview of a report recorded without its whole text', async () => {
+  const dbPath = join(setupDir(), 'state.db');
+
+  const first = await StateStore.open(dbPath);
+
+  await first.recordTrailEntry({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'report',
+    label: 'decision',
+    detail: 'the preview',
+    text: 'the preview and the rest',
+  });
+
+  await first.stop();
+
+  const db = new Database(dbPath);
+
+  db.run('UPDATE events SET report_text = NULL');
+  db.close();
+
+  const store = await StateStore.open(dbPath);
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const [event] = await store.collectLatestEvents(1);
+
+  if (event === undefined) {
+    throw new Error('no event');
+  }
+
+  const report = await store.findReport(event.id);
+
+  expect(report).toMatchObject({
+    text: 'the preview',
+    complete: false,
+  });
 });
 
 test('it reads the trail in order across hook events and message entries', async () => {
@@ -2169,6 +2307,7 @@ test('it stamps trail entries recorded before the agent session id was known', a
     kind: 'report',
     label: 'blocked',
     detail: 'other session',
+    text: 'other session',
   });
 
   await store.updateTrailOwner(toSessionID('s1'), toAgentSessionID('c1'));
@@ -2211,6 +2350,7 @@ test("it counts a trail entry toward its session's last activity time", async ()
     kind: 'report',
     label: 'blocked',
     detail: 'need review',
+    text: 'need review',
   });
 
   const at = await store.loadLastActivityAt(toSessionID('s-new'), toAgentSessionID('c1'));

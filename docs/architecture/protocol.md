@@ -77,7 +77,7 @@ says to restart the daemon. The client never restarts the daemon on its own; the
                                         "daemon.id", "session.locator", "spawn.idempotency",
                                         "message.idempotency", "spawn.target",
                                         "request.principal", "spawn.workspace", "session.forget",
-                                        "session.submit"],
+                                        "session.submit", "report.get"],
                            "lastUsedAgent": "claude" } }
 ```
 
@@ -87,10 +87,10 @@ exists, `events.read` returns `more` and takes `session`, and `message.get` retu
 returns `spawnOptions`, `daemon.hello` returns `daemonID`, every session descriptor holds a
 `locator`, `session.spawn` and `session.message` each take `idempotencyKey`, `session.spawn` takes
 `target` while `agents.list` returns `targets`, a request takes `as` while `daemon.hello` takes
-`principal`, `session.spawn` takes `workspace`, `session.forget` exists, and `session.submit`
-exists. A daemon from before the list existed sends none, and it ignores the parameters it does not
-know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the list rather than the
-build string to learn what the running daemon honours.
+`principal`, `session.spawn` takes `workspace`, and `session.forget`, `session.submit`, and
+`report.get` exist. A daemon from before the list existed sends none, and it ignores the parameters
+it does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the list rather
+than the build string to learn what the running daemon honours.
 
 `daemonID` is the id the daemon minted into its state store the first time it opened it, so it stays
 the same across daemon restarts. Every session descriptor holds a `locator` of
@@ -138,6 +138,7 @@ semantics.
 | `session.get`           | one session's descriptor plus its spawn prompt, last activity, pending prompt, and latest result (`{ session }`)                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `session.read`          | a Claude session's transcript, a page at a time from a cursor (`{ session, cursor?, limit? }`)                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `events.read`           | fleet events from the hook-event trail since a cursor (`{ cursor?, limit?, waitMs?, session? }`)                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `report.get`            | one report with its whole text, by the cursor of its event (`{ report }`). [Cursor reads](#cursor-reads) covers it                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `session.message`       | queue a message for a session (`{ session, from, text, idempotencyKey? }`); the ok holds the message id. [Messages](#messages) covers refusals, and [idempotent requests](#idempotent-requests) covers `idempotencyKey`                                                                                                                                                                                                                                                                                                                        |
 | `session.tap`           | subscribe to a session's inbox; messages arrive as `InboxMessage` events                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `message.ack`           | mark a tapped message delivered (`{ session, message }`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -261,7 +262,7 @@ session id and name, kind, and a short detail. The trail holds three groups of k
   `message` field holds the message id, which `message.get` takes. The detail previews the answer
   once there is one, else the text.
 - Reports: `report`. A `label` field holds the report's label, and the detail holds the first 600
-  characters of its text.
+  characters of its text. `report.get` returns the whole text.
 
 Without a cursor, `events.read` returns the most recent `limit` events. `waitMs` holds the request
 open until an event arrives or the wait ends, for at most 30 seconds. The answer holds `more`, which
@@ -275,6 +276,13 @@ atc id, plus, for a live session, the rows under its agent session id, so rows w
 atc id for the same agent session stay in the session's slice. The daemon refuses no id: an id no
 live session holds matches only the rows under it. Cursors are global trail positions, so a filtered
 read and an unfiltered read take each other's cursors.
+
+`report.get` takes the cursor of a report's event as `report` and returns one report: `report` (that
+cursor), `at`, `session`, `name`, `label`, `text`, and `complete`. The text is the whole text the
+session sent, cut at 64 KiB. A report recorded before the daemon kept whole texts holds only its
+preview, so `report.get` returns that preview as its text, with `complete` false. A cursor of an
+event that is not a report, or of no event at all, gets `bad_args` with `no report '<cursor>'`, the
+same refusal a report out of a principal's reach gets.
 
 `session.read` returns a Claude session's transcript as user and assistant rows with tool uses
 summarised, oldest first. A page holds at most `limit` rows and about 256 KiB. Without a cursor, it
@@ -437,6 +445,7 @@ reach does not exist:
 
 - `session.list`, `fleet.list`, and `events.read` leave it out, and the daemon reads `events.read`
   filtered to it as a filter on a session the trail never held.
+- `report.get` refuses each of its reports as it refuses a cursor of no report.
 - The daemon refuses every request that takes its session id, or the id of one of its messages, as
   it refuses one for an unknown id, with the same code, message, and `data`.
 - `agents.list` lists only the targets the principal may use, and `spawnDefaults.target` is null
