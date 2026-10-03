@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.15.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.15.1...@zgeoff/atc@2.15.2) (2026-10-03)
+
+### Bug Fixes
+
+- **#206:** scope every request to the session trees a principal may reach
+  ([#226](https://github.com/zgeoff/atc/issues/226))
+  ([603045c](https://github.com/zgeoff/atc/commit/603045c1820445b086921ea0af37aeae82a05c76))
+
 ## [2.15.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.15.0...@zgeoff/atc@2.15.1) (2026-10-03)
 
 ### Bug Fixes
