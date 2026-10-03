@@ -1,3 +1,4 @@
+import type { DaemonError } from '../protocol/daemon-error';
 import type { BrokerAuthHost } from './broker-auth-host';
 
 /**
@@ -146,8 +147,13 @@ export interface HarnessSpec {
 
   // Admits each start or attach of a harness that requires the broker by
   // calling send, which hands the request to the host, or rejects with the
-  // refusal that ends the harness instead, sending nothing.
-  readonly admit?: (kind: 'start' | 'attach', send: () => void) => Promise<void>;
+  // refusal that ends the harness instead, sending nothing. send gets a
+  // gate to check just before the request goes out: a refusal from it
+  // stops the request unsent.
+  readonly admit?: (
+    kind: 'start' | 'attach',
+    send: (gate: () => DaemonError | null) => void,
+  ) => Promise<void>;
 
   // Takes each connection a process of the harness opens to the daemon. A
   // remote provider relays them from a socket inside the host that serves

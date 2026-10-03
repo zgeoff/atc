@@ -32,8 +32,13 @@ interface ImpHarnessHost {
   readonly ready?: Promise<void>;
 
   // Admits each request that has requirements by calling send, or rejects
-  // with the refusal that ends the harness, sending nothing.
-  readonly admit?: (kind: 'start' | 'attach', send: () => void) => Promise<void>;
+  // with the refusal that ends the harness, sending nothing. The gate send
+  // gets runs just before the request goes out, and a refusal from it
+  // ends the harness with nothing sent.
+  readonly admit?: (
+    kind: 'start' | 'attach',
+    send: (gate: () => DaemonError | null) => void,
+  ) => Promise<void>;
 }
 
 // The bytes a fresh attach sends listeners ahead of its replay: reset the
@@ -342,9 +347,9 @@ export class ImpHarness implements HarnessHandle {
     }
 
     try {
-      await admit(request.kind, () => {
+      await admit(request.kind, (gate) => {
         if (!this.done && !this.host.isSuspending()) {
-          this.openConnection(request);
+          this.openConnection(request, () => this.checkGate(gate));
         }
       });
     } catch (error) {
@@ -352,6 +357,27 @@ export class ImpHarness implements HarnessHandle {
         this.applyAdmissionRefusal(error);
       }
     }
+  }
+
+  // Whether an admitted request may still go out as its connection opens.
+  // A refusal there closes the connection unsent and ends the harness
+  // with it, once the port has returned to the caller.
+  private checkGate(gate: () => DaemonError | null): boolean {
+    const refusal = gate();
+
+    if (refusal === null) {
+      return true;
+    }
+
+    queueMicrotask(() => {
+      if (!this.done) {
+        this.connection = null;
+
+        this.applyAdmissionRefusal(refusal);
+      }
+    });
+
+    return false;
   }
 
   // A launch the host's binding no longer admits ends the harness with
@@ -367,19 +393,23 @@ export class ImpHarness implements HarnessHandle {
     this.emitExit({ exitCode: 1, reason: 'ended', detail: `launch refused (${detail})` });
   }
 
-  private openConnection(request: ImpSessionRequest): void {
-    const connection = this.port.openSession(request, {
-      onStarted: (started) => {
-        if (this.connection === connection) {
-          this.applyStarted(connection, started);
-        }
+  private openConnection(request: ImpSessionRequest, gate?: () => boolean): void {
+    const connection = this.port.openSession(
+      request,
+      {
+        onStarted: (started) => {
+          if (this.connection === connection) {
+            this.applyStarted(connection, started);
+          }
+        },
+        onOutput: (data) => {
+          if (this.connection === connection) {
+            this.applyOutput(data);
+          }
+        },
       },
-      onOutput: (data) => {
-        if (this.connection === connection) {
-          this.applyOutput(data);
-        }
-      },
-    });
+      gate,
+    );
 
     this.connection = connection;
     this.started = false;

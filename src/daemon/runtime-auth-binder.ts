@@ -70,6 +70,11 @@ export class RuntimeAuthBinder {
   // The tail of each host's chain of calls, which never rejects.
   private readonly locks = new Map<SessionID, Promise<void>>();
 
+  // The admissions on each host whose request has not gone out yet. A
+  // revoke, a rebind or a forget cancels them before it writes anything,
+  // so a request still opening its connection closes it unsent.
+  private readonly pending = new Map<SessionID, Set<{ refusal: DaemonError | null }>>();
+
   constructor(store: RuntimeAuthStore, now: () => number = Date.now) {
     this.store = store;
     this.now = now;
@@ -226,16 +231,19 @@ export class RuntimeAuthBinder {
    * which hands the request to impd's client, under the host's lock and
    * only while the binding is still launchable: ready, or still being
    * provisioned by the attempt that launches. A start also needs the
-   * revision and hash its launch was planned under. A revoke, a rebind or
-   * a forget either waits for the handoff or refuses it, so none of them
-   * interleaves with an admission. The lock is held only for one read and
-   * the handoff, never across impd's answer.
+   * revision and hash its launch was planned under. send gets a gate that
+   * the client calls once its connection to impd opens, just before the
+   * request goes out: null lets it go, and the refusal of a revoke, a
+   * rebind or a forget that came first stops it unsent. A revoke, a rebind
+   * or a forget therefore either refuses the admission or cancels it, or
+   * comes after the request went out. The lock is held only for one read
+   * and the handoff, never across the network.
    */
   withLaunchAdmission(
     hostKey: SessionID,
     admission: LaunchAdmission,
     kind: 'start' | 'attach',
-    send: () => void,
+    send: (gate: () => DaemonError | null) => void,
   ): Promise<void> {
     return this.withHostLock(hostKey, async () => {
       const row = await this.store.findAuthBinding(hostKey);
@@ -265,8 +273,34 @@ export class RuntimeAuthBinder {
         );
       }
 
-      send();
+      const ticket: { refusal: DaemonError | null } = { refusal: null };
+      const tickets = this.pending.get(hostKey) ?? new Set();
+
+      tickets.add(ticket);
+      this.pending.set(hostKey, tickets);
+
+      send(() => {
+        tickets.delete(ticket);
+
+        return ticket.refusal;
+      });
     });
+  }
+
+  // Stops every admitted request on a host that has not gone out yet,
+  // with the block the caller is about to record.
+  private revokeAdmissions(hostKey: SessionID, state: string): void {
+    const tickets = this.pending.get(hostKey);
+
+    this.pending.delete(hostKey);
+
+    for (const ticket of tickets ?? []) {
+      ticket.refusal = new DaemonError(
+        'auth_blocked',
+        `the runtime auth of host ${hostKey} is ${state}; nothing launches on it until a rebind`,
+        { host: hostKey, state },
+      );
+    }
   }
 
   /**
@@ -290,6 +324,8 @@ export class RuntimeAuthBinder {
    */
   async revokeBinding(host: BrokerAuthHost | null, hostKey: SessionID): Promise<void> {
     await this.withHostLock(hostKey, async () => {
+      this.revokeAdmissions(hostKey, 'revocation_pending');
+
       const row = await this.requireBinding(hostKey);
 
       await this.store.updateAuthBinding(hostKey, { state: 'revocation_pending' }, this.now());
@@ -317,6 +353,8 @@ export class RuntimeAuthBinder {
    */
   updateBinding(host: BrokerAuthHost, hostKey: SessionID, binding: AuthBinding): Promise<number> {
     return this.withHostLock(hostKey, async () => {
+      this.revokeAdmissions(hostKey, 'provisioning');
+
       const row = await this.requireBinding(hostKey);
 
       // A spawn whose session listed but never recorded its start leaves a
@@ -413,6 +451,8 @@ export class RuntimeAuthBinder {
    */
   forgetBinding(host: BrokerAuthHost | null, hostKey: SessionID): Promise<boolean> {
     return this.withHostLock(hostKey, async () => {
+      this.revokeAdmissions(hostKey, 'revocation_pending');
+
       const row = await this.store.findAuthBinding(hostKey);
 
       if (row === null) {

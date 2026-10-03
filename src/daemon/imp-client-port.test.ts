@@ -561,6 +561,64 @@ test('it sends the requirements of a start to impd and ends the connection with 
   });
 });
 
+test('it closes a session connection whose gate shuts as it opens, sending impd nothing', async () => {
+  await using impd = setupTest();
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const gates: string[] = [];
+
+  const connection = port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+    () => {
+      gates.push('checked');
+
+      return false;
+    },
+  );
+
+  await connection.outcome;
+
+  expect({ gates, opens: impd.execOpens }).toStrictEqual({ gates: ['checked'], opens: [] });
+});
+
+test('it sends the request of a session connection whose gate stays open as it opens', async () => {
+  await using impd = setupTest();
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const connection = port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+    () => true,
+  );
+
+  await connection.outcome;
+
+  expect(impd.execOpens).toMatchObject([{ type: 'start', name: 'atc-s1' }]);
+});
+
 test('it sends the requirements of an attach to impd', async () => {
   await using impd = setupTest();
 

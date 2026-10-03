@@ -934,13 +934,17 @@ export class SessionManager {
     this.onBoot(session, cols, rows);
 
     // A start impd refuses throws here, after the session listed, so the
-    // caller takes the failed spawn back with its binding.
-    if (auth !== null) {
+    // caller takes the failed spawn back with its binding. A shared host
+    // that nothing else runs on goes back to sleep first; a host of its
+    // own goes with the take-back.
+    if (auth !== null && hostKey === id) {
       await pty.waitForStart?.();
+    } else if (auth !== null) {
+      await this.waitForAuthStart(session, provider, pty);
+    }
 
-      if (setup.attemptID !== null) {
-        await this.requireAuthBinder().updateReady(hostKey, setup.attemptID);
-      }
+    if (setup.attemptID !== null) {
+      await this.requireAuthBinder().updateReady(hostKey, setup.attemptID);
     }
 
     return session;

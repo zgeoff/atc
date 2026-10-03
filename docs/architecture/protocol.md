@@ -589,12 +589,13 @@ impd's own client refuses an outdated impd.
   never adds a missing grant back. A sub-session joins only a host bound to the same binding as its
   own: `auth_binding_mismatch` otherwise. A selection the auth profiles cannot bind is
   `auth_binding_invalid`.
-- Each start and attach of such a harness is admitted under the host's binding lock at the moment
-  its request goes out to impd: the binding must still be `ready`, or still provisioning under the
-  spawn that launches, and a start must match the revision and hash it was planned under. A revoke,
-  a rebind, or a forget is ordered entirely before or after an admission, so a block recorded while
-  a host wakes refuses the launch with `auth_blocked` and sends nothing. An admission holds the lock
-  only for one store read and the handoff, so a revoke never waits on impd's answer to a start.
+- Each start and attach of such a harness is admitted under the host's binding lock: the binding
+  must still be `ready`, or still provisioning under the spawn that launches, and a start must match
+  the revision and hash it was planned under. An admitted request goes out only once its connection
+  to impd opens, and a revoke, a rebind, or a forget cancels every admission still waiting there
+  before it records anything, so the connection closes with nothing sent. A launch a block refuses
+  ends with `auth_blocked`, and a host that nothing else runs on goes back to sleep. The lock never
+  spans the network, so a revoke never waits on a connection or on impd's answer.
 - `session.auth.revoke` (`{ session }`) blocks every launch on the session's host first, then
   removes each grant and answers `{ revoked: true }`. A running harness keeps running, and impd
   fails its later requests. A grant atc cannot confirm gone leaves the launch block in place and

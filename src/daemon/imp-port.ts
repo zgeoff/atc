@@ -48,10 +48,13 @@ export interface ImpPort {
 
   // Opens one connection to a session's terminal, as impd's single
   // attacher: a start runs the command under the session name, or attaches
-  // when it already runs; an attach only attaches.
+  // when it already runs; an attach only attaches. gate runs once the
+  // connection to impd is open, just before the request goes out; false
+  // closes the connection with nothing sent.
   readonly openSession: (
     request: ImpSessionRequest,
     handlers: ImpSessionHandlers,
+    gate?: () => boolean,
   ) => ImpSessionConnection;
 
   // Runs a command in the imp to its exit, without a terminal.

@@ -763,6 +763,103 @@ test('it refuses a sub-session spawn that a revoke blocks while it readies the s
   expect(daemon.port.sessionRequests).toHaveLength(1);
 });
 
+test('it puts a shared host back to sleep when a revoke refuses the sub-session that woke it, keeping the imp and its grant', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+  const imp = `atc-${parentID.replaceAll('-', '').slice(0, 20)}`;
+
+  await daemon.client.sendRequest('session.kill', { session: parentID });
+
+  await waitFor(() => {
+    expect(daemon.port.findState(imp)).toBe('sleeping');
+  });
+
+  daemon.port.startLeaseHold();
+
+  daemon.port.calls.length = 0;
+
+  const child = daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls.some((call) => call.startsWith(`leases.acquire ${imp} `))).toBeTrue();
+  });
+
+  daemon.port.setGrantRemovalFailure('UNREACHABLE');
+
+  await daemon.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
+
+  daemon.port.stopLeaseHold();
+
+  expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
+
+  await child.catch(() => null);
+
+  await waitFor(() => {
+    expect(daemon.port.findState(imp)).toBe('sleeping');
+  });
+
+  expect<Record<string, unknown>>({
+    destroyed: daemon.port.calls.filter((call) => call.startsWith('imps.destroy')),
+    grants: await daemon.port.readGrants(imp),
+  }).toStrictEqual({ destroyed: [], grants: ['glm'] });
+});
+
+test('it keeps a shared host awake when a revoke refuses a sub-session while another harness runs there', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+  const imp = `atc-${parentID.replaceAll('-', '').slice(0, 20)}`;
+
+  daemon.port.startLeaseHold();
+
+  daemon.port.calls.length = 0;
+
+  const child = daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls.some((call) => call.startsWith(`leases.acquire ${imp} `))).toBeTrue();
+  });
+
+  daemon.port.setGrantRemovalFailure('UNREACHABLE');
+
+  await daemon.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
+
+  daemon.port.stopLeaseHold();
+
+  expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
+
+  await child.catch(() => null);
+
+  expect<Record<string, unknown>>({
+    state: daemon.port.findState(imp),
+    sleeps: daemon.port.calls.filter((call) => call.startsWith('imps.sleep')),
+  }).toStrictEqual({ state: 'running', sleeps: [] });
+});
+
 test('it spawns a sub-session on the shared host while it readies when no revoke comes between', async () => {
   await using daemon = await setupTest();
 
@@ -793,6 +890,81 @@ test('it spawns a sub-session on the shared host while it readies when no revoke
   daemon.port.stopLeaseHold();
 
   await child;
+
+  expect(daemon.port.sessionRequests).toHaveLength(2);
+});
+
+test('it sends no start for a revive that a revoke blocks while its connection to impd opens', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  daemon.port.startUpgradeHold();
+
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  await waitFor(() => {
+    expect(daemon.port.countHeldUpgrades()).toBe(1);
+  });
+
+  daemon.port.setGrantRemovalFailure('UNREACHABLE');
+
+  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: id });
+
+  expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
+
+  await revoke.catch(() => null);
+
+  daemon.port.stopUpgradeHold();
+
+  expect(adopt).rejects.toMatchObject({
+    code: 'auth_blocked',
+    data: { state: 'revocation_pending' },
+  });
+
+  await adopt.catch(() => null);
+
+  expect<Record<string, unknown>>({
+    starts: daemon.port.sessionRequests.length,
+    grants: await daemon.port.readGrants(imp),
+  }).toStrictEqual({ starts: 1, grants: ['glm'] });
+});
+
+test('it sends the start of a revive whose connection to impd opens late when no revoke comes between', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  daemon.port.startUpgradeHold();
+
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  await waitFor(() => {
+    expect(daemon.port.countHeldUpgrades()).toBe(1);
+  });
+
+  daemon.port.stopUpgradeHold();
+
+  await adopt;
 
   expect(daemon.port.sessionRequests).toHaveLength(2);
 });

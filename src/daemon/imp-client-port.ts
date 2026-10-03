@@ -201,6 +201,7 @@ export class ImpClientPort implements ImpPort {
   readonly openSession = (
     request: ImpSessionRequest,
     handlers: ImpSessionHandlers,
+    gate?: () => boolean,
   ): ImpSessionConnection => {
     const token = this.tryReadToken();
 
@@ -226,7 +227,7 @@ export class ImpClientPort implements ImpPort {
       onOutput: (_channel, data) => {
         handlers.onOutput(data);
       },
-      connect: (url, headers) => new WebSocket(url, { headers }),
+      connect: (url, headers) => openGatedSocket(url, headers, gate),
     });
 
     return {
@@ -485,4 +486,26 @@ function openRelay(accept: RelayAccept): ImpRelayConnection {
       relay.close();
     },
   };
+}
+
+// The client sends its request from the socket's open listener. The gate
+// listens first, so a closed gate stops that listener and closes the
+// socket before anything goes out.
+function openGatedSocket(
+  url: string,
+  headers: Readonly<Record<string, string>>,
+  gate: (() => boolean) | undefined,
+): WebSocket {
+  const socket = new WebSocket(url, { headers });
+
+  if (gate !== undefined) {
+    socket.addEventListener('open', (event) => {
+      if (!gate()) {
+        event.stopImmediatePropagation();
+        socket.close(1000, 'closed before sending');
+      }
+    });
+  }
+
+  return socket;
 }

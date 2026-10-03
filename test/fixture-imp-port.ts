@@ -117,6 +117,10 @@ export class FixtureImpPort implements ImpPort {
   // Feature reads still to fail as an unreachable impd before they answer.
   private featureFailures = 0;
 
+  // The connections still opening while upgrades are held, each sending
+  // its request once it opens; null while connections open at once.
+  private upgrades: (() => void)[] | null = null;
+
   // The lease acquisitions wait for this hold to end, while one is held.
   private leaseHold: PromiseWithResolvers<void> | null = null;
 
@@ -406,10 +410,11 @@ export class FixtureImpPort implements ImpPort {
     return Promise.resolve();
   }
 
-  openSession(request: ImpSessionRequest, handlers: ImpSessionHandlers): ImpSessionConnection {
-    this.calls.push(`exec.${request.kind} ${request.name} ${request.session}`);
-    this.sessionRequests.push(request);
-
+  openSession(
+    request: ImpSessionRequest,
+    handlers: ImpSessionHandlers,
+    gate?: () => boolean,
+  ): ImpSessionConnection {
     const outcome = Promise.withResolvers<ImpSessionOutcome>();
 
     const connection: FixtureConnection = {
@@ -432,17 +437,36 @@ export class FixtureImpPort implements ImpPort {
       },
     };
 
-    // impd answers over the network: nothing reaches the caller before
-    // openSession returns.
-    setTimeout(() => {
-      if (this.held === null) {
-        this.answerSession(request, connection);
-      } else {
-        this.held.push(() => {
-          this.answerSession(request, connection);
-        });
+    // The request reaches impd once the connection opens, after the gate
+    // lets it go; a closed gate sends nothing.
+    const sendToImpd = () => {
+      if (gate !== undefined && !gate()) {
+        connection.finish({ kind: 'closed', reason: 'closed before sending', closeCode: 1000 });
+
+        return;
       }
-    }, 0);
+
+      this.calls.push(`exec.${request.kind} ${request.name} ${request.session}`);
+      this.sessionRequests.push(request);
+
+      // impd answers over the network: nothing reaches the caller before
+      // openSession returns.
+      setTimeout(() => {
+        if (this.held === null) {
+          this.answerSession(request, connection);
+        } else {
+          this.held.push(() => {
+            this.answerSession(request, connection);
+          });
+        }
+      }, 0);
+    };
+
+    if (this.upgrades === null) {
+      sendToImpd();
+    } else {
+      this.upgrades.push(sendToImpd);
+    }
 
     return {
       outcome: outcome.promise,
@@ -796,6 +820,32 @@ export class FixtureImpPort implements ImpPort {
    */
   setSessionDrops(count: number, closeCode: number): void {
     this.drops = { count, closeCode };
+  }
+
+  /**
+   * Holds every session connection open, as a slow WebSocket upgrade does,
+   * so its request reaches impd only once the hold stops.
+   */
+  startUpgradeHold(): void {
+    this.upgrades ??= [];
+  }
+
+  // How many connections wait for the upgrade hold to stop.
+  countHeldUpgrades(): number {
+    return this.upgrades?.length ?? 0;
+  }
+
+  /**
+   * Opens every held connection, in order, and the next at once.
+   */
+  stopUpgradeHold(): void {
+    const upgrades = this.upgrades ?? [];
+
+    this.upgrades = null;
+
+    for (const send of upgrades) {
+      send();
+    }
   }
 
   /**
