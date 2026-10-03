@@ -1510,6 +1510,56 @@ test("it refuses the replay of a held spawn key once its session's tree leaves t
   expect(daemon.harnesses).toStrictEqual(['local', 'box']);
 });
 
+test("it answers a principal's long poll on a session whose tree leaves its reach as a poll on a session that never existed", async () => {
+  await using daemon = await setupTest(SPLIT_CONFIG);
+
+  const parent = await daemon.spawnOn('local');
+
+  const missing = randomUUID();
+
+  await daemon.client.sendRequest('session.tap', { session: parent });
+
+  const first = await daemon.client.sendRequest(
+    'events.read',
+    { session: parent, waitMs: 0 },
+    'narrow',
+  );
+
+  const cursor = first['cursor'];
+
+  const poll = readAnswer(
+    () =>
+      daemon.client.sendRequest('events.read', { session: parent, cursor, waitMs: 1000 }, 'narrow'),
+    parent,
+  );
+
+  // No signal shows the poll waiting on the trail; this waits out its
+  // first read so the poll blocks before the sub-session joins.
+  await Bun.sleep(100);
+
+  const pending = Bun.peek.status(poll);
+
+  await daemon.spawnOn('box', parent);
+
+  await daemon.client.sendRequest('session.message', {
+    session: parent,
+    from: 'owner',
+    text: 'hidden message',
+  });
+
+  const answered = await poll;
+
+  const unknown = await readAnswer(
+    () =>
+      daemon.client.sendRequest('events.read', { session: missing, cursor, waitMs: 0 }, 'narrow'),
+    missing,
+  );
+
+  expect(pending).toBe('pending');
+  expect(answered).toStrictEqual(unknown);
+  expect(JSON.stringify(answered)).not.toInclude('hidden message');
+});
+
 test('it answers the replay of a held spawn key with its session while the grant still reaches it', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 

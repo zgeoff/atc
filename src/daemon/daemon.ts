@@ -1592,13 +1592,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     },
     readEvents: async (afterID, limit, waitMs, sessionID, access) => {
       const deadline = Date.now() + waitMs;
-      const scope = buildEventScope(sessionID, access);
 
       // A wake for an event the read leaves out (a heartbeat, or another
       // session's event under a session filter) loops back to wait out the
-      // rest of the window.
+      // rest of the window. The scope is built again after every await, so
+      // a session whose tree left the access while the read waited matches
+      // nothing, and a read whose scope changed under its query runs again.
       for (;;) {
         const generation = eventSignal.generation;
+        const scope = buildEventScope(sessionID, access);
 
         // A read from a cursor takes one row past the limit to learn whether
         // more follow; the latest events have nothing after them.
@@ -1606,6 +1608,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           afterID === null
             ? await store.collectLatestEvents(limit, scope)
             : await store.collectEventsAfter(afterID, limit + 1, scope);
+
+        if (
+          access !== null &&
+          JSON.stringify(buildEventScope(sessionID, access)) !== JSON.stringify(scope)
+        ) {
+          continue;
+        }
 
         const remaining = deadline - Date.now();
 
