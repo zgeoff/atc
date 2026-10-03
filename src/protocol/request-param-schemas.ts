@@ -23,6 +23,10 @@ const IDEMPOTENCY_KEY = z
   .max(200, 'idempotencyKey must be at most 200 characters')
   .optional();
 
+// With a key, only replays what the key already holds: a key the daemon
+// does not hold is refused and nothing runs.
+const REPLAY_ONLY = z.boolean({ error: 'replayOnly must be a boolean' }).optional();
+
 // A full commit id, SHA-1 or SHA-256.
 const COMMIT_ID = /^(?:[\da-f]{40}|[\da-f]{64})$/u;
 
@@ -168,6 +172,7 @@ export const REQUEST_PARAM_SCHEMAS = {
     // A retry carrying the same key replays the first spawn's answer instead
     // of spawning again.
     idempotencyKey: IDEMPOTENCY_KEY,
+    replayOnly: REPLAY_ONLY,
 
     // The execution target the session runs on; absent runs on the default
     // target, and a target the daemon cannot use refuses the spawn.
@@ -260,6 +265,7 @@ export const REQUEST_PARAM_SCHEMAS = {
     // A retry carrying the same key replays the first send's message
     // instead of sending another.
     idempotencyKey: IDEMPOTENCY_KEY,
+    replayOnly: REPLAY_ONLY,
   }).refine((v) => v.text !== '', { message: 'session.message requires text' }),
   'session.tap': SESSION_DEFAULTED,
   'message.get': z

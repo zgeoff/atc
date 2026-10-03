@@ -6,6 +6,9 @@ export interface DaemonRecord {
   readonly socketPath: string;
   readonly reporterSocketPath: string;
   readonly eventsSocketPath: string | null;
+
+  // The port the TCP listener bound, or null without one.
+  readonly listenPort: number | null;
 }
 
 const RECORD_SCHEMA = z.object({
@@ -13,12 +16,14 @@ const RECORD_SCHEMA = z.object({
   socketPath: z.string().min(1),
   reporterSocketPath: z.string().min(1),
   eventsSocketPath: z.string().min(1).nullable(),
+  listenPort: z.number().int().min(1).max(65_535).nullable().default(null),
 });
 
 /**
- * Reads the record a running daemon keeps in its state directory: its pid
- * and the socket paths it listens on, which a client whose environment
- * computes other socket paths uses to find it. A missing, torn, or
+ * Reads the record a running daemon keeps in its state directory: its pid,
+ * the socket paths it listens on, which a client whose environment
+ * computes other socket paths uses to find it, and the port its TCP
+ * listener bound. A missing, torn, or
  * malformed record reads as null; a record left by a crashed daemon still
  * parses, so a caller proves liveness by connecting.
  */

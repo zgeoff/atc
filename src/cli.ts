@@ -3,9 +3,22 @@
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
 import { collectRedirectURIs } from './collect-redirect-uris';
+import { parseListenAddress } from './daemon/parse-listen-address';
 import { normalizeCLIArgs } from './normalize-cli-args';
 import { parsePort } from './parse-port';
 import { getBuild } from './shared/get-build';
+
+// The flags `atc daemon` takes.
+const DAEMON_ARGS = {
+  listen: {
+    type: 'string',
+    description: 'Serve the client protocol on <host>:<port> too, a loopback or tailnet address',
+  },
+  'token-file': {
+    type: 'string',
+    description: 'File holding the one or two bearer tokens a --listen handshake must present',
+  },
+} as const;
 
 const main = defineCommand({
   meta: {
@@ -152,127 +165,36 @@ const main = defineCommand({
           name: 'daemon',
           description: 'Run the atc daemon in the foreground',
         },
-        async run() {
-          const daemon = await import('./daemon/daemon');
-          const config = await import('./shared/config');
-          const claude = await import('./agents/claude-adapter');
-          const grok = await import('./agents/grok-adapter');
-          const codex = await import('./agents/codex-adapter');
-          const gateway = await import('./agents/gateway-adapter');
-          const headless = await import('./agents/start-claude-headless-run');
-          const targets = await import('./daemon/build-execution-targets');
-          const sourceOrder = await import('./sources/build-sources');
-          const builtinSources = await import('./sources/collect-builtin-sources');
-          const zoxide = await import('./shared/collect-zoxide-dirs');
-          const home = await import('./shared/resolve-home-dir');
 
-          // Test harnesses shrink the outbound queue to force overflow
-          // deterministically; unset means the production default.
-          const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
-          const cfg = config.loadConfig();
-          const built = targets.buildExecutionTargets(cfg.targets);
-          const targetErrors = [...cfg.targetErrors, ...built.errors];
-
-          for (const error of targetErrors) {
-            const line =
-              error.scope === 'config'
-                ? `${error.path} cannot be used (${error.problem}: ${error.detail}); every spawn is refused, local ones included, until it is fixed`
-                : error.problem;
-
-            console.error(`atc daemon: config: ${line}`);
-          }
-
-          for (const problem of [
-            ...cfg.principalErrors,
-            ...cfg.workspaceErrors,
-            ...cfg.authProfileErrors,
-            ...cfg.gatewayErrors,
-          ]) {
-            console.error(`atc daemon: config: ${problem}`);
-          }
-
-          const sources = sourceOrder.buildSources(
-            builtinSources.collectBuiltinSources({
-              roots: cfg.dirs.roots,
-              githubOwner: cfg.workspaces.githubOwner,
-              ghBin: 'gh',
-              homeDir: home.resolveHomeDir(),
-              collectZoxideDirs: zoxide.collectZoxideDirs,
+        // Declared here as well as on `serve`, so the parser skips their
+        // values when it looks for a subcommand name.
+        args: DAEMON_ARGS,
+        default: 'serve',
+        subCommands: {
+          serve: () =>
+            defineCommand({
+              meta: {
+                name: 'serve',
+                description: 'Run the atc daemon in the foreground',
+                hidden: true,
+              },
+              args: DAEMON_ARGS,
+              async run(ctx) {
+                await runDaemon(ctx.args.listen ?? null, ctx.args['token-file'] ?? null);
+              },
             }),
-            cfg.workspaces.sources,
-          );
+          id: () =>
+            defineCommand({
+              meta: {
+                name: 'id',
+                description: "Print the running daemon's daemonID",
+              },
+              async run() {
+                const id = await import('./run-daemon-id');
 
-          for (const id of sources.missing) {
-            console.error(
-              `atc daemon: config: workspaces.sources holds '${id}', which this daemon cannot offer; the picker leaves it out`,
-            );
-          }
-
-          // Cap on how long a fleet restore waits for one revived session to
-          // report it has booted before moving to the next. Tests pin it to
-          // keep timing deterministic; unset means the production default.
-          const capOverride = Number(process.env['ATC_RESTORE_BOOT_TIMEOUT_MS']);
-
-          const restoreBootTimeoutMs =
-            Number.isFinite(capOverride) && capOverride >= 0 ? capOverride : 15_000;
-
-          // How long a started session may go without a tap before a message
-          // to it is refused. Tests pin it to 0 to reach the refusal at once.
-          const graceOverride = Number(process.env['ATC_TAP_GRACE_MS']);
-
-          const claudeAdapter = new claude.ClaudeAdapter(cfg, headless.startClaudeHeadlessRun);
-          const grokAdapter = new grok.GrokAdapter(cfg);
-          const codexAdapter = new codex.CodexAdapter(cfg);
-
-          const gatewayAdapters = cfg.gateways.map(
-            (entry) => new gateway.GatewayAdapter(entry, cfg, headless.startClaudeHeadlessRun),
-          );
-
-          let handle: Awaited<ReturnType<typeof daemon.startDaemon>>;
-
-          try {
-            handle = await daemon.startDaemon({
-              socketPath: config.daemonSocketPath,
-              reporterSocketPath: config.socketPath,
-              eventsSocketPath: config.eventsSocketPath,
-              build: getBuild(),
-              adapter: claudeAdapter,
-              adapters: [claudeAdapter, grokAdapter, codexAdapter, ...gatewayAdapters],
-              dbPath: config.dbFile,
-              legacyFleetPath: config.legacyFleetFile,
-              pidPath: config.daemonPidFile,
-              hooks: cfg.hooks,
-              targets: built.targets,
-              defaultTarget: cfg.defaultTarget,
-              targetErrors,
-              principals: cfg.principals,
-              sources: sources.sources,
-              gitTransports: cfg.workspaces.gitTransports,
-              restoreBootTimeoutMs,
-              ...(Number.isFinite(graceOverride) && graceOverride >= 0
-                ? { tapGraceMs: graceOverride }
-                : {}),
-              ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
-              onQuit: () => process.exit(0),
-            });
-          } catch (error) {
-            // A second daemon on the same state directory refuses to start
-            // and touches nothing; any other startup failure stays a crash.
-            if (error instanceof Error && Reflect.get(error, 'code') === 'daemon_locked') {
-              console.error(error.message);
-              process.exit(1);
-            }
-
-            throw error;
-          }
-
-          process.on('SIGTERM', () => {
-            void (async () => {
-              await handle.stop();
-
-              process.exit(0);
-            })();
-          });
+                await id.runDaemonID(getBuild());
+              },
+            }),
         },
       }),
     events: () =>
@@ -399,5 +321,152 @@ const main = defineCommand({
       }),
   },
 });
+
+// Runs the daemon in the foreground until SIGTERM, with a TCP listener when
+// --listen and --token-file are given.
+async function runDaemon(listenArg: string | null, tokenFile: string | null): Promise<void> {
+  if ((listenArg === null) !== (tokenFile === null)) {
+    console.error('atc daemon: --listen and --token-file go together');
+    process.exit(1);
+  }
+
+  const listen = listenArg === null ? null : parseListenAddress(listenArg);
+
+  if (listen !== null && !listen.ok) {
+    console.error(`atc daemon: ${listen.message}`);
+    process.exit(1);
+  }
+
+  const daemon = await import('./daemon/daemon');
+  const config = await import('./shared/config');
+  const claude = await import('./agents/claude-adapter');
+  const grok = await import('./agents/grok-adapter');
+  const codex = await import('./agents/codex-adapter');
+  const gateway = await import('./agents/gateway-adapter');
+  const headless = await import('./agents/start-claude-headless-run');
+  const targets = await import('./daemon/build-execution-targets');
+  const sourceOrder = await import('./sources/build-sources');
+  const builtinSources = await import('./sources/collect-builtin-sources');
+  const zoxide = await import('./shared/collect-zoxide-dirs');
+  const home = await import('./shared/resolve-home-dir');
+
+  // Test harnesses shrink the outbound queue to force overflow
+  // deterministically; unset means the production default.
+  const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
+  const cfg = config.loadConfig();
+  const built = targets.buildExecutionTargets(cfg.targets);
+  const targetErrors = [...cfg.targetErrors, ...built.errors];
+
+  for (const error of targetErrors) {
+    const line =
+      error.scope === 'config'
+        ? `${error.path} cannot be used (${error.problem}: ${error.detail}); every spawn is refused, local ones included, until it is fixed`
+        : error.problem;
+
+    console.error(`atc daemon: config: ${line}`);
+  }
+
+  for (const problem of [
+    ...cfg.principalErrors,
+    ...cfg.workspaceErrors,
+    ...cfg.authProfileErrors,
+    ...cfg.gatewayErrors,
+  ]) {
+    console.error(`atc daemon: config: ${problem}`);
+  }
+
+  const sources = sourceOrder.buildSources(
+    builtinSources.collectBuiltinSources({
+      roots: cfg.dirs.roots,
+      githubOwner: cfg.workspaces.githubOwner,
+      ghBin: 'gh',
+      homeDir: home.resolveHomeDir(),
+      collectZoxideDirs: zoxide.collectZoxideDirs,
+    }),
+    cfg.workspaces.sources,
+  );
+
+  for (const id of sources.missing) {
+    console.error(
+      `atc daemon: config: workspaces.sources holds '${id}', which this daemon cannot offer; the picker leaves it out`,
+    );
+  }
+
+  // Cap on how long a fleet restore waits for one revived session to
+  // report it has booted before moving to the next. Tests pin it to
+  // keep timing deterministic; unset means the production default.
+  const capOverride = Number(process.env['ATC_RESTORE_BOOT_TIMEOUT_MS']);
+
+  const restoreBootTimeoutMs =
+    Number.isFinite(capOverride) && capOverride >= 0 ? capOverride : 15_000;
+
+  // How long a started session may go without a tap before a message
+  // to it is refused. Tests pin it to 0 to reach the refusal at once.
+  const graceOverride = Number(process.env['ATC_TAP_GRACE_MS']);
+
+  const claudeAdapter = new claude.ClaudeAdapter(cfg, headless.startClaudeHeadlessRun);
+  const grokAdapter = new grok.GrokAdapter(cfg);
+  const codexAdapter = new codex.CodexAdapter(cfg);
+
+  const gatewayAdapters = cfg.gateways.map(
+    (entry) => new gateway.GatewayAdapter(entry, cfg, headless.startClaudeHeadlessRun),
+  );
+
+  let handle: Awaited<ReturnType<typeof daemon.startDaemon>>;
+
+  try {
+    handle = await daemon.startDaemon({
+      socketPath: config.daemonSocketPath,
+      reporterSocketPath: config.socketPath,
+      eventsSocketPath: config.eventsSocketPath,
+      build: getBuild(),
+      adapter: claudeAdapter,
+      adapters: [claudeAdapter, grokAdapter, codexAdapter, ...gatewayAdapters],
+      dbPath: config.dbFile,
+      legacyFleetPath: config.legacyFleetFile,
+      pidPath: config.daemonPidFile,
+      hooks: cfg.hooks,
+      targets: built.targets,
+      defaultTarget: cfg.defaultTarget,
+      targetErrors,
+      principals: cfg.principals,
+      sources: sources.sources,
+      gitTransports: cfg.workspaces.gitTransports,
+      ...(listen === null || tokenFile === null
+        ? {}
+        : { listen: { host: listen.host, port: listen.port, tokenFile } }),
+      restoreBootTimeoutMs,
+      ...(Number.isFinite(graceOverride) && graceOverride >= 0
+        ? { tapGraceMs: graceOverride }
+        : {}),
+      ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
+      onQuit: () => process.exit(0),
+    });
+  } catch (error) {
+    // A second daemon on the same state directory, or a listener whose
+    // address or token file is refused or whose bind fails, stops the start
+    // with nothing left held; any other startup failure stays a crash.
+    const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : null;
+
+    if (error instanceof Error && (code === 'daemon_locked' || code === 'listen_refused')) {
+      console.error(error.message);
+      process.exit(1);
+    }
+
+    throw error;
+  }
+
+  process.on('SIGHUP', () => {
+    handle.refreshTokens();
+  });
+
+  process.on('SIGTERM', () => {
+    void (async () => {
+      await handle.stop();
+
+      process.exit(0);
+    })();
+  });
+}
 
 await runMain(main, { rawArgs: normalizeCLIArgs(process.argv.slice(2)) });

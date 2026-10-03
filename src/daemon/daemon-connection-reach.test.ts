@@ -56,6 +56,7 @@ function setupTest() {
   const ctx: DaemonContext = {
     build: 'atc/test',
     daemonID: toDaemonID('d-1'),
+    idempotencyRetentionMs: 86_400_000,
     collectSessions: () => [],
     collectSpawnDirs: assertUnreachable,
     collectAgents: assertUnreachable,
@@ -63,6 +64,7 @@ function setupTest() {
     loadLastUsedAgent: () => Promise.resolve('claude'),
     findAdapter: assertUnreachable,
     buildTargetAccess: () => new TargetAccess([]),
+    hasListedPrincipal: assertUnreachable,
     findSessionGrant: () => ({ target: 'local', targetIdentity: 'local-pty' }),
     findTargetIdentity: assertUnreachable,
     canSeeSession: (id) => visible && !hidden.has(id),

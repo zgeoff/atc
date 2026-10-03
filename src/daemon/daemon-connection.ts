@@ -26,7 +26,7 @@ import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import type { DaemonContext, SpawnParams } from './daemon-context';
 import type { TranscriptPosition } from './load-transcript-page';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
-import type { TargetAccess } from './target-access';
+import { TargetAccess } from './target-access';
 
 // The targets a request may use and the namespace of its idempotency keys.
 interface RequestScope {
@@ -58,6 +58,19 @@ interface ResolvedSourceRequest {
 
 interface PeerSocket extends SocketWriter {
   readonly end: () => void;
+}
+
+/**
+ * What a connection accepted over TCP needs from its listener: the check of
+ * the bearer token its handshake presents, which answers with the matched
+ * token's fingerprint, or null for a missing or wrong token.
+ */
+export interface TCPPeer {
+  readonly verifyHandshake: (presented: string | null) => Promise<string | null>;
+
+  // Counts a line other than a handshake, sent before one passed, as a
+  // failed handshake from the peer's address.
+  readonly recordFailure: () => void;
 }
 
 export class DaemonConnection {
@@ -95,11 +108,37 @@ export class DaemonConnection {
 
   private readonly shownRequests = new Set<string>();
 
-  constructor(peer: PeerSocket, ctx: DaemonContext) {
+  // The listener of a connection accepted over TCP, null on the local
+  // socket.
+  private readonly tcp: TCPPeer | null;
+
+  // The fingerprint of the token a TCP handshake presented, set once the
+  // handshake passes; null before then and on the local socket.
+  private fingerprint: string | null = null;
+
+  // Whether this TCP connection has sent its one handshake.
+  private tcpHelloSent = false;
+
+  constructor(peer: PeerSocket, ctx: DaemonContext, tcp: TCPPeer | null = null) {
     this.peer = peer;
     this.ctx = ctx;
+    this.tcp = tcp;
 
     this.queue = new OutboundQueue(peer, ctx.queueBytes);
+
+    // A TCP connection acts only as the principals its requests give, so
+    // the events pushed to it are limited from the first byte.
+    if (tcp !== null) {
+      this.access = new TargetAccess([]);
+    }
+  }
+
+  /**
+   * The fingerprint of the token this connection's TCP handshake presented,
+   * or null for a connection that has not passed one.
+   */
+  get tokenFingerprint(): string | null {
+    return this.fingerprint;
   }
 
   /**
@@ -110,7 +149,7 @@ export class DaemonConnection {
   }
 
   sendEvent(event: EventMsg): void {
-    if (!this.helloed) {
+    if (!this.hasPassedHello()) {
       return;
     }
 
@@ -142,7 +181,7 @@ export class DaemonConnection {
   // intermediate chunk is never dropped without that resync, because a byte
   // stream cut mid-escape corrupts the client's terminal state.
   sendOutput(sessionID: SessionID, event: EventMsg, byteLength: number): void {
-    if (!this.helloed || !this.canSeeOutput(sessionID)) {
+    if (!this.hasPassedHello() || !this.canSeeOutput(sessionID)) {
       return;
     }
 
@@ -159,6 +198,11 @@ export class DaemonConnection {
     }
   }
 
+  // Whether the handshake has passed: on TCP, only once its token checked out.
+  private hasPassedHello(): boolean {
+    return this.helloed && (this.tcp === null || this.fingerprint !== null);
+  }
+
   // Decodes with state kept across reads, so a multi-byte character split
   // between two reads decodes whole.
   // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket read buffer has no readonly form
@@ -167,7 +211,16 @@ export class DaemonConnection {
   }
 
   applyChunk(chunk: string): void {
-    if (this.lines.pendingLength + chunk.length > MAX_LINE) {
+    const oversized = this.lines.pendingLength + chunk.length > MAX_LINE;
+
+    if (oversized && this.isUnauthenticatedTCP()) {
+      this.tcp?.recordFailure();
+      this.peer.end();
+
+      return;
+    }
+
+    if (oversized) {
       this.sendErr(0, 'bad_args', `line exceeds ${MAX_LINE} bytes`);
       this.peer.end();
 
@@ -209,6 +262,14 @@ export class DaemonConnection {
 
   // false: the connection is beyond recovery and gets closed.
   private applyLine(line: string): boolean {
+    if (this.tcp !== null) {
+      const refused = this.findTCPLineRefusal(line);
+
+      if (refused === 'close') {
+        return false;
+      }
+    }
+
     const decoded = decodeMessage(line);
 
     if (decoded.kind === 'malformed') {
@@ -226,13 +287,19 @@ export class DaemonConnection {
     const req = decoded.msg;
 
     if (req.m === 'daemon.hello') {
-      return this.applyHello(req);
+      return this.tcp === null ? this.applyHello(req) : this.applyTCPHello(req, this.tcp);
     }
 
     if (!this.helloed) {
       this.sendErr(req.id, 'unauthorized', 'daemon.hello must be the first request');
 
       return false;
+    }
+
+    if (this.tcp !== null) {
+      this.answerAsync(req.id, () => this.applyTCPRequest(req));
+
+      return true;
     }
 
     const scope = this.findRequestScope(req);
@@ -249,6 +316,82 @@ export class DaemonConnection {
     this.answerAsync(req.id, () => this.applyRequest(req, ctx));
 
     return true;
+  }
+
+  // Whether a line ends this TCP connection before any answer to it. Until
+  // its token checks out, a connection gets nothing but the answer to one
+  // handshake: any other line, or a line while that handshake is still
+  // checked, counts as a failed handshake and closes it without a reply,
+  // so a peer learns nothing and floods nothing past the delay. Once in,
+  // a second handshake, which could change the principal under kept
+  // attachments, gets `unauthorized` and closes it.
+  private findTCPLineRefusal(line: string): 'close' | null {
+    if (this.isUnauthenticatedTCP()) {
+      const decoded = decodeMessage(line);
+      const isHello = decoded.kind === 'request' && decoded.msg.m === 'daemon.hello';
+
+      if (this.tcpHelloSent || !isHello) {
+        this.tcp?.recordFailure();
+
+        return 'close';
+      }
+
+      this.tcpHelloSent = true;
+
+      return null;
+    }
+
+    const decoded = decodeMessage(line);
+
+    if (decoded.kind === 'request' && decoded.msg.m === 'daemon.hello') {
+      this.sendErr(decoded.msg.id, 'unauthorized', 'a TCP connection takes one handshake');
+
+      return 'close';
+    }
+
+    return null;
+  }
+
+  // Whether this is a TCP connection whose handshake has not passed.
+  private isUnauthenticatedTCP(): boolean {
+    return this.tcp !== null && this.fingerprint === null;
+  }
+
+  // A request over TCP runs only once the handshake has passed, only as a
+  // principal the config lists, and never as the daemon's owner, so it
+  // always runs on the context scoped to that principal.
+  private async applyTCPRequest(req: RequestMsg): Promise<void> {
+    await this.helloAnswered;
+
+    if (this.fingerprint === null) {
+      return;
+    }
+
+    if (OWNER_METHODS.has(req.m)) {
+      this.sendErr(req.id, 'unauthorized', `${req.m} is open to the daemon's owner only`);
+
+      return;
+    }
+
+    if (req.as === undefined) {
+      this.sendErr(req.id, 'unauthorized', 'a request over TCP must act as a principal with as');
+
+      return;
+    }
+
+    if (!this.ctx.hasListedPrincipal(req.as)) {
+      this.sendErr(req.id, 'unauthorized', `principal '${req.as}' is not listed in principals`);
+
+      return;
+    }
+
+    const scope = this.findRequestScope(req);
+
+    if (scope === null) {
+      throw new DaemonError('internal', 'a request over TCP resolved to the owner scope');
+    }
+
+    await this.applyRequest(req, buildScopedContext(this.ctx, scope.access, scope.keyNamespace));
   }
 
   // The targets a request may use and the namespace its idempotency keys
@@ -804,10 +947,20 @@ export class DaemonConnection {
       };
     };
 
+    if (data.replayOnly === true && data.idempotencyKey === undefined) {
+      this.sendErr(req.id, 'bad_args', 'replayOnly needs an idempotencyKey');
+
+      return;
+    }
+
     const keyed =
       data.idempotencyKey === undefined
         ? null
-        : { key: data.idempotencyKey, payloadHash: buildPayloadHash(data) };
+        : {
+            key: data.idempotencyKey,
+            payloadHash: buildPayloadHash(data),
+            replayOnly: data.replayOnly === true,
+          };
 
     const spawned = await ctx.spawnSession(plan, keyed, null);
 
@@ -1224,10 +1377,20 @@ export class DaemonConnection {
 
     const sessionID = parsed.data.session;
 
+    if (parsed.data.replayOnly === true && parsed.data.idempotencyKey === undefined) {
+      this.sendErr(req.id, 'bad_args', 'replayOnly needs an idempotencyKey');
+
+      return;
+    }
+
     const keyed =
       parsed.data.idempotencyKey === undefined
         ? null
-        : { key: parsed.data.idempotencyKey, payloadHash: buildPayloadHash(parsed.data) };
+        : {
+            key: parsed.data.idempotencyKey,
+            payloadHash: buildPayloadHash(parsed.data),
+            replayOnly: parsed.data.replayOnly === true,
+          };
 
     const result = await ctx.writeSessionMessage(
       sessionID,
@@ -1405,18 +1568,7 @@ export class DaemonConnection {
     const principal = parsedHello.ok ? (parsedHello.data.principal ?? null) : null;
 
     if (principal !== null) {
-      const access = this.ctx.buildTargetAccess(principal);
-
-      this.principal = principal;
-      this.access = access;
-
-      for (const session of this.ctx.collectSessions()) {
-        const view = this.ctx.canSeeSession(session.id, access)
-          ? this.shownSessions
-          : this.withheldSessions;
-
-        view.add(session.id);
-      }
+      this.setPrincipal(principal);
     }
 
     if (req.v !== PROTOCOL_V) {
@@ -1437,12 +1589,98 @@ export class DaemonConnection {
     return true;
   }
 
+  // A TCP handshake must carry a bearer token the listener holds, checked
+  // before anything else in it, so a peer without one learns nothing about
+  // the daemon. A wrong or missing token, or a principal the config does
+  // not list, gets `unauthorized` and the connection closes. Requests that
+  // arrive while the check runs wait behind it.
+  private applyTCPHello(req: RequestMsg, tcp: TCPPeer): boolean {
+    this.helloed = true;
+
+    this.helloAnswered = (async () => {
+      const fingerprint = await tcp.verifyHandshake(findBearerToken(req.p));
+
+      if (fingerprint === null) {
+        this.sendErr(req.id, 'unauthorized', 'daemon.hello over TCP needs a valid bearer token');
+        this.peer.end();
+
+        return;
+      }
+
+      const parsedHello = parseRequestParams('daemon.hello', req.p);
+
+      if (!parsedHello.ok) {
+        this.sendErr(req.id, 'bad_args', parsedHello.message);
+        this.peer.end();
+
+        return;
+      }
+
+      const principal = parsedHello.data.principal ?? null;
+
+      if (principal !== null && !this.ctx.hasListedPrincipal(principal)) {
+        this.sendErr(
+          req.id,
+          'unauthorized',
+          `principal '${principal}' is not listed in principals`,
+        );
+
+        this.peer.end();
+
+        return;
+      }
+
+      if (req.v !== PROTOCOL_V) {
+        this.sendErr(
+          req.id,
+          'protocol_mismatch',
+          `${parsedHello.data.client} speaks protocol v${req.v}, daemon ${this.ctx.build} speaks v${PROTOCOL_V}; restart the daemon so both run the same build`,
+        );
+
+        this.peer.end();
+
+        return;
+      }
+
+      if (principal !== null) {
+        this.setPrincipal(principal);
+      }
+
+      this.fingerprint = fingerprint;
+
+      await this.sendHelloOk(req.id);
+    })();
+
+    this.answerAsync(req.id, () => this.helloAnswered);
+
+    return true;
+  }
+
+  // Makes the connection act as the principal, its view starting as the
+  // sessions the principal may see now, so one that leaves its reach later
+  // is pushed as removed.
+  private setPrincipal(principal: string): void {
+    const access = this.ctx.buildTargetAccess(principal);
+
+    this.principal = principal;
+    this.access = access;
+
+    for (const session of this.ctx.collectSessions()) {
+      const view = this.ctx.canSeeSession(session.id, access)
+        ? this.shownSessions
+        : this.withheldSessions;
+
+      view.add(session.id);
+    }
+  }
+
   private async sendHelloOk(id: number): Promise<void> {
     this.sendOk(id, {
       daemon: this.ctx.build,
       daemonID: this.ctx.daemonID,
       limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
       features: DAEMON_FEATURES,
+      idempotency: { completedRetentionMs: this.ctx.idempotencyRetentionMs },
       lastUsedAgent: await this.ctx.loadLastUsedAgent(),
     });
   }
@@ -1465,6 +1703,18 @@ export class DaemonConnection {
       }),
     );
   }
+}
+
+// The token of a handshake's `auth: { scheme: "bearer", token }`, or null
+// when its params hold none.
+function findBearerToken(p: Readonly<Record<string, unknown>> | undefined): string | null {
+  const auth = p?.['auth'];
+
+  if (!isRecord(auth) || auth['scheme'] !== 'bearer' || typeof auth['token'] !== 'string') {
+    return null;
+  }
+
+  return auth['token'];
 }
 
 // The session an event belongs to, from its session id or the session it

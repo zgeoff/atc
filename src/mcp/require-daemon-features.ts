@@ -21,6 +21,8 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'spawn.workspace': "atc_session_spawn's workspace",
   sources: 'sources.list and sources.interpret',
   'git.probe': 'git.probe',
+  'transport.tcp': 'a TCP connection to the daemon',
+  'idempotency.replayOnly': 'a resend that only replays a held idempotency key',
 };
 
 /**
