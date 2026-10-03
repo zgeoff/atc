@@ -63,8 +63,12 @@ const READ_ONLY_METHODS: ReadonlySet<string> = new Set([
   'session.screen',
 ]);
 
-// The requests a daemon runs at most once under an idempotency key.
-const KEYED_METHODS: ReadonlySet<string> = new Set(['session.spawn', 'session.message']);
+// The requests a daemon runs at most once under an idempotency key, and the
+// feature a daemon announces when it does.
+const KEYED_METHODS: ReadonlyMap<string, DaemonFeature> = new Map<string, DaemonFeature>([
+  ['session.spawn', 'spawn.idempotency'],
+  ['session.message', 'message.idempotency'],
+]);
 
 const CONNECT_TIMEOUT_MS = 10_000;
 const RESPONSE_TIMEOUT_MS = 30_000;
@@ -78,7 +82,9 @@ const RESPONSE_TIMEOUT_MS = 30_000;
  * request sent whose response never arrives, because the connection ended
  * or 30 s passed, is never a failure: a keyed or read-only request is sent
  * once more on a fresh connection to the same daemon, with the same key,
- * and any other request, or a second loss, is `outcome_unknown`. A daemon's
+ * while that connection still announces the feature the key relies on.
+ * Any other request, a reconnect without that feature, or a second loss is
+ * `outcome_unknown`. A daemon's
  * own error passes through as it came.
  */
 export class DaemonCaller {
@@ -107,8 +113,8 @@ export class DaemonCaller {
       return first.ok;
     }
 
-    const repeatable =
-      READ_ONLY_METHODS.has(m) || (KEYED_METHODS.has(m) && typeof p['idempotencyKey'] === 'string');
+    const keyFeature = typeof p['idempotencyKey'] === 'string' ? KEYED_METHODS.get(m) : undefined;
+    const repeatable = READ_ONLY_METHODS.has(m) || keyFeature !== undefined;
 
     if (!repeatable) {
       throw this.buildOutcomeUnknown(m);
@@ -119,6 +125,12 @@ export class DaemonCaller {
     try {
       fresh = await this.openConnection();
     } catch {
+      throw this.buildOutcomeUnknown(m);
+    }
+
+    // A daemon that no longer takes the key could run the effect a second
+    // time, so the retry goes out only while it still announces it does.
+    if (keyFeature !== undefined && !fresh.hello.features.has(keyFeature)) {
       throw this.buildOutcomeUnknown(m);
     }
 

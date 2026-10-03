@@ -4,6 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { startCutProxy } from '../../test/start-cut-proxy';
+import { startLegacyDaemon } from '../../test/start-legacy-daemon';
 import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import { getRecord } from '../shared/get-record';
@@ -405,4 +406,64 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
   });
 
   expect(Date.now() - started).toBeWithin(250, 5000);
+});
+
+test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnect that no longer takes keys', async () => {
+  await using daemon = await setupTest();
+  await using tmp = setupTempDir('atc-daemon-caller-legacy-');
+
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: daemon.port },
+    method: 'session.spawn',
+    cuts: 1,
+    mode: 'close',
+  });
+
+  const legacy = startLegacyDaemon(join(tmp.dir, 'legacy.sock'), {
+    features: ['transport.tcp', 'request.principal'],
+    replies: {
+      'daemon.hello': {
+        daemon: 'atc/legacy-build',
+        daemonID: daemon.daemonID,
+        features: ['transport.tcp'],
+      },
+    },
+  });
+
+  onTestFinished(() => {
+    proxy.stop();
+    legacy.stop();
+  });
+
+  let opened = 0;
+
+  const caller = new DaemonCaller({
+    daemon: {
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: proxy.port },
+      daemonID: daemon.daemonID,
+      incarnation: daemon.daemonID.slice(0, 8),
+      token: TOKEN,
+    },
+    build: 'atc-gateway/test',
+    openChannel: (address) => {
+      opened++;
+
+      return opened === 1
+        ? DaemonClient.open({ hostname: address.host, port: address.port })
+        : DaemonClient.open(join(tmp.dir, 'legacy.sock'));
+    },
+  });
+
+  onTestFinished(() => caller.stop());
+
+  expect(
+    caller.sendRequest(
+      'session.spawn',
+      { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-4' },
+      'gw',
+    ),
+  ).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
+
+  expect(legacy.requests.map((request) => request.m)).toStrictEqual(['daemon.hello']);
 });
