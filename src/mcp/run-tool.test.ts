@@ -416,3 +416,56 @@ test('it refuses a spawn with a workspace unsent when the daemon predates worksp
 
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
+
+test('it submits a session input line and needs a daemon that submits lines', async () => {
+  const sent: unknown[] = [];
+
+  await runTool(
+    {
+      sendRequest: (m, p, required) => {
+        sent.push({ m, p, required });
+
+        return Promise.resolve({});
+      },
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
+    },
+    'atc_session_input',
+    { session: 's1', text: 'hello' },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(sent).toStrictEqual([
+    { m: 'session.submit', p: { session: 's1', text: 'hello' }, required: ['session.submit'] },
+  ]);
+});
+
+test('it refuses a session input line unsent when the daemon predates line submission', async () => {
+  using tmp = setupTempDir('atc-run-tool-');
+
+  const socketPath = join(tmp.dir, 'daemon.sock');
+
+  const legacy = startLegacyDaemon(socketPath, {
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.submit'),
+  });
+
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
+
+  onTestFinished(async () => {
+    await caller.stop();
+
+    legacy.stop();
+  });
+
+  const input = runTool(
+    caller,
+    'atc_session_input',
+    { session: 's1', text: 'hello' },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(input).rejects.toThrow(/^daemon_outdated: .*atc_session_input/);
+
+  await input.catch(() => null);
+
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});

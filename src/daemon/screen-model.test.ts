@@ -201,3 +201,24 @@ test('it renders only the alternate buffer as text for a session on the alternat
 
   expect(screen.text).toBe('alternate screen');
 });
+
+test('it reports bracketed paste on once the tui turns it on', async () => {
+  const ctx = setupModel();
+
+  ctx.model.record('\u001B[?2004h');
+
+  const bracketed = await ctx.model.hasBracketedPaste();
+
+  expect(bracketed).toBeTrue();
+});
+
+test('it reports bracketed paste off once the tui turns it off', async () => {
+  const ctx = setupModel();
+
+  ctx.model.record('\u001B[?2004h');
+  ctx.model.record('\u001B[?2004l');
+
+  const bracketed = await ctx.model.hasBracketedPaste();
+
+  expect(bracketed).toBeFalse();
+});

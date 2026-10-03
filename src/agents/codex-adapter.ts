@@ -20,6 +20,7 @@ import type {
 } from './agent-adapter';
 import { buildArgsWithoutFlags } from './build-args-without-flags';
 import { findFlagValue } from './find-flag-value';
+import { planPastedLineInput } from './plan-pasted-line-input';
 import { resolveAgentHome } from './resolve-agent-home';
 import { truncateDetail } from './truncate-detail';
 
@@ -57,6 +58,10 @@ export class CodexAdapter implements AgentAdapter {
   readonly profile: AgentProfile;
 
   readonly takesMessages = false;
+
+  // Codex's TUI keeps a newline that arrives inside a burst of input, so a
+  // line is pasted and then submitted.
+  readonly planLineInput = planPastedLineInput;
 
   private readonly config: Config;
 

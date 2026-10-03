@@ -23,6 +23,7 @@ import { findFlagValue } from './find-flag-value';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
+import { planTypedLineInput } from './plan-typed-line-input';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
 import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
@@ -46,6 +47,9 @@ export class GatewayAdapter implements AgentAdapter {
 
   // The gateway runs the Claude CLI, which writes the same transcript.
   readonly parseTranscriptLine = parseClaudeTranscriptLine;
+
+  // The gateway runs the Claude CLI, whose TUI takes a line the same way.
+  readonly planLineInput = planTypedLineInput;
 
   readonly takesMessages = true;
 

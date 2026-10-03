@@ -152,6 +152,13 @@ export interface DaemonContext {
     sessionID: SessionID,
     data: string,
   ) => 'busy' | 'ok' | 'missing' | 'dead';
+
+  // Types a line into the session and submits it the way the session's
+  // agent accepts a line, as opposed to the raw bytes the input write takes.
+  readonly writeSessionLine: (
+    sessionID: SessionID,
+    text: string,
+  ) => Promise<'busy' | 'ok' | 'missing' | 'dead'>;
   readonly ejectSession: (
     id: SessionID,
     prompt: string,
@@ -727,6 +734,11 @@ export class DaemonConnection {
 
         return;
       }
+      case 'session.submit': {
+        await this.applySubmit(req, ctx);
+
+        return;
+      }
       case 'session.resize': {
         this.applyResize(req, ctx);
 
@@ -929,8 +941,31 @@ export class DaemonConnection {
     }
 
     const sessionID = parsed.data.session;
-    const result = ctx.writeSessionInput(sessionID, parsed.data.d);
 
+    this.sendInputResult(req, sessionID, ctx.writeSessionInput(sessionID, parsed.data.d));
+  }
+
+  private async applySubmit(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('session.submit', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const sessionID = parsed.data.session;
+
+    const result = await ctx.writeSessionLine(sessionID, parsed.data.text);
+
+    this.sendInputResult(req, sessionID, result);
+  }
+
+  private sendInputResult(
+    req: RequestMsg,
+    sessionID: SessionID,
+    result: 'busy' | 'ok' | 'missing' | 'dead',
+  ): void {
     if (result === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
 

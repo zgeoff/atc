@@ -83,10 +83,16 @@ export function runTool(
       return buildObjectResult(session);
     })
     .with('atc_session_input', async () => {
-      await caller.sendRequest('session.input', {
-        session: args['session'],
-        d: `${typeof args['text'] === 'string' ? args['text'] : ''}\n`,
-      });
+      // An older daemon would take the line as raw input, which some agents
+      // never submit.
+      await caller.sendRequest(
+        'session.submit',
+        {
+          session: args['session'],
+          text: typeof args['text'] === 'string' ? args['text'] : '',
+        },
+        ['session.submit'],
+      );
 
       return { text: 'sent', structured: null };
     })

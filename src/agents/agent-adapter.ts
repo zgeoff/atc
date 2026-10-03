@@ -201,6 +201,16 @@ export interface SpawnOptionSpecs {
 }
 
 /**
+ * The input modes the agent's TUI has switched on, as the session's screen
+ * model last saw them.
+ */
+export interface TerminalInputModes {
+  // Whether the TUI asked for pasted text to arrive between bracketed paste
+  // markers (DEC mode 2004).
+  readonly bracketedPaste: boolean;
+}
+
+/**
  * Everything specific to one agent CLI: how to spawn it, how to read its
  * hook payloads, where its session names come from, and how to resume a
  * session outside atc. The session core never sees past this interface.
@@ -248,4 +258,8 @@ export interface AgentAdapter {
   // null for a line that is not one. Absent: atc cannot read this agent's
   // transcript.
   readonly parseTranscriptLine?: (line: string) => TranscriptRow | null;
+
+  // The PTY writes, in order, that type a line into the agent's TUI and
+  // submit it. Absent: the line and a trailing newline go as one write.
+  readonly planLineInput?: (text: string, modes: TerminalInputModes) => readonly string[];
 }

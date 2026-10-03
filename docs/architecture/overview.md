@@ -47,13 +47,13 @@ request. The tool definitions live in `src/mcp/mcp-tools.ts`, and each tool decl
 beside its schema:
 
 - Safety annotations, which `tools/list` returns. A read-scoped tool sets `readOnlyHint`. A tool
-  that can end a session or type raw keystrokes into one sets `destructiveHint`. A tool that starts
-  an agent or puts text in front of one sets `openWorldHint`, because the agent acts on that text
-  outside atc's control.
+  that can end a session or type into one sets `destructiveHint`. A tool that starts an agent or
+  puts text in front of one sets `openWorldHint`, because the agent acts on that text outside atc's
+  control.
 - One scope out of `read`, `message`, `spawn`, and `kill`, which groups the tool by the access it
-  needs. `atc_session_input` takes `spawn`, because raw keystrokes can do anything a new session
-  can. The stdio server serves every scope to its caller; `atc mcp --http` serves only the scopes a
-  client's grant holds, as [Remote MCP](./remote-mcp.md) describes.
+  needs. `atc_session_input` takes `spawn`, because a line typed into a session can do anything a
+  new session can. The stdio server serves every scope to its caller; `atc mcp --http` serves only
+  the scopes a client's grant holds, as [Remote MCP](./remote-mcp.md) describes.
 
 Every tool result holds its output as text. A result that is data also holds it as
 `structuredContent`, an object, and the message and event tools declare an `outputSchema` for it. A

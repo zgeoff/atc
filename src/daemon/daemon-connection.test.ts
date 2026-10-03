@@ -76,6 +76,7 @@ function setupConnection(queueBytes: number): ConnectionHarness {
     detachSession: assertUnreachable,
     detachClient: assertUnreachable,
     writeSessionInput: assertUnreachable,
+    writeSessionLine: assertUnreachable,
     ejectSession: assertUnreachable,
     adoptSession: assertUnreachable,
     resizeSession: assertUnreachable,
