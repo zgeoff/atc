@@ -36,6 +36,15 @@ interface BindingRequest {
   readonly binding: AuthBinding;
 }
 
+// What a launch was planned under: the binding's revision and hash, and
+// the spawn attempt still provisioning the host, or null for a launch on a
+// host already ready.
+interface LaunchAdmission {
+  readonly revision: number;
+  readonly hash: string;
+  readonly attemptID: string | null;
+}
+
 /**
  * Binds a host's runtime auth through impd's credential broker and keeps
  * the binding's record in the store, one host at a time: every call on a
@@ -49,7 +58,9 @@ interface BindingRequest {
  * forget first record the block that stops every launch, then check only
  * that the token may manage the recorded imp and that the imp is still
  * the one recorded, never a secret's rules or a complete grant set.
- * Nothing here falls back to a broader token or to a local launch.
+ * Every harness start and attach is admitted under the same lock, so a
+ * block recorded before the admission refuses it. Nothing here falls back
+ * to a broader token or to a local launch.
  */
 export class RuntimeAuthBinder {
   private readonly store: RuntimeAuthStore;
@@ -207,6 +218,54 @@ export class RuntimeAuthBinder {
       }
 
       return row;
+    });
+  }
+
+  /**
+   * Admits one start or attach of a harness on a host, by calling send,
+   * which hands the request to impd's client, under the host's lock and
+   * only while the binding is still launchable: ready, or still being
+   * provisioned by the attempt that launches. A start also needs the
+   * revision and hash its launch was planned under. A revoke, a rebind or
+   * a forget either waits for the handoff or refuses it, so none of them
+   * interleaves with an admission. The lock is held only for one read and
+   * the handoff, never across impd's answer.
+   */
+  withLaunchAdmission(
+    hostKey: SessionID,
+    admission: LaunchAdmission,
+    kind: 'start' | 'attach',
+    send: () => void,
+  ): Promise<void> {
+    return this.withHostLock(hostKey, async () => {
+      const row = await this.store.findAuthBinding(hostKey);
+
+      const isProvisioning =
+        admission.attemptID !== null &&
+        row?.state === 'provisioning' &&
+        row.attemptID === admission.attemptID &&
+        row.rebind === null;
+
+      if (row === null || (row.state !== 'ready' && !isProvisioning)) {
+        throw new DaemonError(
+          'auth_blocked',
+          `the runtime auth of host ${hostKey} is ${row?.state ?? 'gone'}; nothing launches on it until a rebind`,
+          { host: hostKey, state: row?.state ?? null },
+        );
+      }
+
+      if (
+        kind === 'start' &&
+        (row.revision !== admission.revision || row.bindingHash !== admission.hash)
+      ) {
+        throw new DaemonError(
+          'auth_rebind_required',
+          `the runtime auth of host ${hostKey} moved to revision ${String(row.revision)} after this launch was planned`,
+          { host: hostKey, revision: row.revision },
+        );
+      }
+
+      send();
     });
   }
 

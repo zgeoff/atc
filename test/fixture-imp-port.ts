@@ -117,6 +117,12 @@ export class FixtureImpPort implements ImpPort {
   // Feature reads still to fail as an unreachable impd before they answer.
   private featureFailures = 0;
 
+  // The lease acquisitions wait for this hold to end, while one is held.
+  private leaseHold: PromiseWithResolvers<void> | null = null;
+
+  // impd's code for every grant removal while removals fail, or null.
+  private grantRemovalFailure: string | null = null;
+
   // Whether every reverse forward closes each new guest connection at once.
   private refusingRelays = false;
 
@@ -219,6 +225,12 @@ export class FixtureImpPort implements ImpPort {
   removeGrant(name: string, secret: string): Promise<boolean> {
     this.calls.push(`grants.delete ${name} ${secret}`);
 
+    if (this.grantRemovalFailure !== null) {
+      return Promise.reject(
+        new ImpPortError(this.grantRemovalFailure, 'impd did not remove the grant'),
+      );
+    }
+
     const refusal = this.findGrantRefusal(name, secret);
 
     if (refusal !== null) {
@@ -267,6 +279,18 @@ export class FixtureImpPort implements ImpPort {
   acquireLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
     this.calls.push(`leases.acquire ${name} ${label}`);
 
+    return this.leaseHold === null
+      ? this.applyLease(name, label, ttlSeconds)
+      : this.waitForLease(name, label, ttlSeconds);
+  }
+
+  private async waitForLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
+    await this.leaseHold?.promise;
+
+    return this.applyLease(name, label, ttlSeconds);
+  }
+
+  private applyLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
     const failure = this.acquireFailure;
 
     if (failure !== null) {
@@ -772,6 +796,29 @@ export class FixtureImpPort implements ImpPort {
    */
   setSessionDrops(count: number, closeCode: number): void {
     this.drops = { count, closeCode };
+  }
+
+  /**
+   * Holds every lease acquisition, as an imp that takes long to wake does,
+   * until the hold stops.
+   */
+  startLeaseHold(): void {
+    this.leaseHold ??= Promise.withResolvers<void>();
+  }
+
+  /**
+   * Lets every held lease acquisition go through, and the next at once.
+   */
+  stopLeaseHold(): void {
+    this.leaseHold?.resolve();
+    this.leaseHold = null;
+  }
+
+  /**
+   * Fails every grant removal with an impd code until called with null.
+   */
+  setGrantRemovalFailure(code: string | null): void {
+    this.grantRemovalFailure = code;
   }
 
   /**

@@ -30,6 +30,10 @@ interface ImpHarnessHost {
   // Settles once the harness may start, such as when its report socket
   // listens; a rejection ends the harness before it starts.
   readonly ready?: Promise<void>;
+
+  // Admits each request that has requirements by calling send, or rejects
+  // with the refusal that ends the harness, sending nothing.
+  readonly admit?: (kind: 'start' | 'attach', send: () => void) => Promise<void>;
 }
 
 // The bytes a fresh attach sends listeners ahead of its replay: reset the
@@ -329,7 +333,38 @@ export class ImpHarness implements HarnessHandle {
       return;
     }
 
-    this.openConnection(request);
+    const admit = this.host.admit;
+
+    if (admit === undefined) {
+      this.openConnection(request);
+
+      return;
+    }
+
+    try {
+      await admit(request.kind, () => {
+        if (!this.done && !this.host.isSuspending()) {
+          this.openConnection(request);
+        }
+      });
+    } catch (error) {
+      if (!this.done) {
+        this.applyAdmissionRefusal(error);
+      }
+    }
+  }
+
+  // A launch the host's binding no longer admits ends the harness with
+  // that refusal; nothing went out to impd.
+  private applyAdmissionRefusal(error: unknown): void {
+    const detail = error instanceof Error ? error.message : String(error);
+
+    this.startRefusal =
+      error instanceof DaemonError
+        ? error
+        : new DaemonError('internal', `imp ${this.name} could not admit the harness: ${detail}`);
+
+    this.emitExit({ exitCode: 1, reason: 'ended', detail: `launch refused (${detail})` });
   }
 
   private openConnection(request: ImpSessionRequest): void {

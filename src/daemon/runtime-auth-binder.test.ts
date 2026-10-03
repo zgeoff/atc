@@ -1454,3 +1454,143 @@ test('it retries the removal of the grants a failed rebind added on a later star
     binding: { state: 'rebind_failed', revision: 1 },
   });
 });
+
+test('it hands a launch over before a revoke that arrives during its admission, which then completes', async () => {
+  await using auth = await setupTest();
+
+  const attemptID = await auth.binder.createBinding(auth.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: {
+      agent: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      placeholderEnv: {},
+      hash: 'h1',
+    },
+  });
+
+  await auth.binder.updateReady(toSessionID('s1'), attemptID);
+
+  const order: string[] = [];
+  const revoked: Promise<void>[] = [];
+
+  await auth.binder.withLaunchAdmission(
+    toSessionID('s1'),
+    { revision: 1, hash: 'h1', attemptID: null },
+    'start',
+    () => {
+      revoked.push(auth.binder.revokeBinding(auth.host, toSessionID('s1')));
+      order.push('sent');
+    },
+  );
+
+  await Promise.all(revoked);
+
+  order.push('revoked');
+
+  expect<Record<string, unknown>>({
+    order,
+    binding: await auth.store.findAuthBinding(toSessionID('s1')),
+  }).toStrictEqual({
+    order: ['sent', 'revoked'],
+    binding: expect.objectContaining({ state: 'revoked' }),
+  });
+});
+
+test('it refuses a launch whose admission waits behind a revoke, handing nothing over', async () => {
+  await using auth = await setupTest();
+
+  const attemptID = await auth.binder.createBinding(auth.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: {
+      agent: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      placeholderEnv: {},
+      hash: 'h1',
+    },
+  });
+
+  await auth.binder.updateReady(toSessionID('s1'), attemptID);
+
+  const sent: string[] = [];
+  const revoked = auth.binder.revokeBinding(auth.host, toSessionID('s1'));
+
+  const admitted = auth.binder.withLaunchAdmission(
+    toSessionID('s1'),
+    { revision: 1, hash: 'h1', attemptID: null },
+    'start',
+    () => {
+      sent.push('start');
+    },
+  );
+
+  expect(admitted).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'revoked' } });
+
+  await admitted.catch(() => null);
+
+  await revoked;
+
+  expect(sent).toStrictEqual([]);
+});
+
+test('it refuses a start planned under another binding hash than the ready one', async () => {
+  await using auth = await setupTest();
+
+  const attemptID = await auth.binder.createBinding(auth.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: {
+      agent: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      placeholderEnv: {},
+      hash: 'h1',
+    },
+  });
+
+  await auth.binder.updateReady(toSessionID('s1'), attemptID);
+
+  const sent: string[] = [];
+
+  const admitted = auth.binder.withLaunchAdmission(
+    toSessionID('s1'),
+    { revision: 1, hash: 'h0', attemptID: null },
+    'start',
+    () => {
+      sent.push('start');
+    },
+  );
+
+  expect(admitted).rejects.toMatchObject({ code: 'auth_rebind_required' });
+
+  await admitted.catch(() => null);
+
+  expect(sent).toStrictEqual([]);
+});

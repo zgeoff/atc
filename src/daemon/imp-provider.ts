@@ -247,6 +247,7 @@ export class ImpProvider implements ExecutionProvider {
         offsets: this.offsets,
         reconnectDelaysMs: this.reconnectDelaysMs,
         ...(reporter === null ? {} : { ready: reporter.forward.listening }),
+        ...(spec.admit === undefined ? {} : { admit: spec.admit }),
         isSuspending: () => host.suspending,
         onDone: () => {
           reporter?.forward.stop();

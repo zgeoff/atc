@@ -38,6 +38,7 @@ import type {
   ExecutionProvider,
   HarnessHandle,
   HarnessRelay,
+  HarnessSpec,
 } from './execution-provider';
 import { findExecutionRefusal } from './find-execution-refusal';
 import type { BridgeBinding } from './is-binding-current';
@@ -211,6 +212,15 @@ interface HarnessAuthSetup extends HarnessAuth {
 // adds overrides.
 interface HarnessPlan extends SpawnPlan {
   readonly env: Readonly<Record<string, string>>;
+
+  // What a launch behind the broker was planned under, which its host's
+  // binding must still admit when each request goes out; null without
+  // runtime auth.
+  readonly admission: {
+    readonly revision: number;
+    readonly hash: string;
+    readonly attemptID: string | null;
+  } | null;
 }
 
 // The target a session runs on and the identity it is bound to there; null
@@ -612,7 +622,7 @@ export class SessionManager {
       withheldEnv: s.withheldEnv,
       cols,
       rows,
-      ...(auth === null ? {} : { requireBroker: true }),
+      ...this.buildBrokerSpec(s.hostKey, plan.admission),
       onRelay: (relay) => {
         this.onRelay(binding, relay);
       },
@@ -872,7 +882,7 @@ export class SessionManager {
       withheldEnv: materialized?.withheldEnv ?? [],
       cols,
       rows,
-      ...(auth === null ? {} : { requireBroker: true }),
+      ...this.buildBrokerSpec(hostKey, plan.admission),
       onRelay: (relay) => {
         this.onRelay(binding, relay);
       },
@@ -1098,7 +1108,10 @@ export class SessionManager {
     if (!provider.remote) {
       await provider.prepareHost({ host: hostKey, daemonID: this.store.daemonID });
 
-      return { plan: { ...adapter.planSpawn(options), env: {} }, attemptID: null };
+      return {
+        plan: { ...adapter.planSpawn(options), env: {}, admission: null },
+        attemptID: null,
+      };
     }
 
     const guest = provider.guest ?? { dir: '/tmp/atc', atc: null };
@@ -1142,7 +1155,31 @@ export class SessionManager {
       throw error;
     }
 
-    return { plan: { bin: plan.bin, args: plan.args, env }, attemptID };
+    const admission =
+      auth === null || paths.auth === undefined
+        ? null
+        : { revision: paths.auth.revision, hash: auth.binding.hash, attemptID };
+
+    return { plan: { bin: plan.bin, args: plan.args, env, admission }, attemptID };
+  }
+
+  // The part of a harness spec that keeps a launch behind the broker: the
+  // requirement impd checks, and the admission each request needs from
+  // the host's binding when it goes out.
+  private buildBrokerSpec(
+    hostKey: SessionID,
+    admission: HarnessPlan['admission'],
+  ): Pick<HarnessSpec, 'requireBroker' | 'admit'> {
+    if (admission === null) {
+      return {};
+    }
+
+    const binder = this.requireAuthBinder();
+
+    return {
+      requireBroker: true,
+      admit: (kind, send) => binder.withLaunchAdmission(hostKey, admission, kind, send),
+    };
   }
 
   // A launch without runtime auth never starts on a host that holds a

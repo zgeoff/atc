@@ -144,6 +144,11 @@ export interface HarnessSpec {
   // every start, a revive's included.
   readonly requireBroker?: boolean;
 
+  // Admits each start or attach of a harness that requires the broker by
+  // calling send, which hands the request to the host, or rejects with the
+  // refusal that ends the harness instead, sending nothing.
+  readonly admit?: (kind: 'start' | 'attach', send: () => void) => Promise<void>;
+
   // Takes each connection a process of the harness opens to the daemon. A
   // remote provider relays them from a socket inside the host that serves
   // this harness alone, and points the harness's ATC_SOCKET at it.
