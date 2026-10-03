@@ -22,7 +22,6 @@ export type Refusal =
   | {
       readonly event: 'principal_refused';
       readonly peer: string;
-      readonly principal: string;
     };
 
 interface RefusalLogOptions {
@@ -33,35 +32,40 @@ interface RefusalLogOptions {
   // logged again.
   readonly intervalMs: number;
 
-  // How many windows are tracked at once; a new one past the cap ends the
-  // oldest early.
+  // How many windows are tracked at once; a refusal that would start one
+  // past the cap counts toward one overflow window instead.
   readonly maxWindows: number;
 }
 
 interface RefusalWindow {
-  // The window's line without its count.
-  readonly line: string;
   readonly startedAt: number;
 
   // The refusals in the window after the first, which no line holds yet.
   pending: number;
 }
 
+// The line of the window that counts refusals past the cap of windows.
+const OVERFLOW_LINE = 'atc tcp event=refused peer=overflow';
+
 /**
  * Logs TCP listener refusals as `key=value` lines, at most one per window
  * for each peer and kind of refusal: a handshake refusal per reason, and a
- * principal refusal whatever principal it gave, whose line holds the first
- * principal of the window. The first refusal of a window logs at once with
- * `count=1`; later ones in the window are counted, and a line with their
- * `count` follows once the window ends, so the counts of every line sum to
- * every refusal. Ended windows are logged on the next refusal from any
- * peer and on a drain.
+ * principal refusal, which never holds the principal it gave. The first
+ * refusal of a window logs at once with `count=1`; later ones in the window
+ * are counted, and a line with their `count` follows once the window ends,
+ * so the counts of every line sum to every refusal. While the cap of
+ * windows is full, a refusal that would start a new window counts toward
+ * one overflow window with `peer=overflow` instead, so a flood across many
+ * peers logs no more lines than the cap allows. Ended windows are logged on
+ * the next refusal from any peer and on a drain.
  */
 export class RefusalLog {
   private readonly opts: RefusalLogOptions;
 
-  // Keyed by the peer and kind of refusal, in the order the windows started.
+  // Keyed by the line without its count, in the order the windows started.
   private readonly windows = new Map<string, RefusalWindow>();
+
+  private overflow: RefusalWindow | null = null;
 
   constructor(opts: RefusalLogOptions) {
     this.opts = opts;
@@ -72,8 +76,8 @@ export class RefusalLog {
 
     this.drainEnded(now);
 
-    const key = buildWindowKey(refusal);
-    const window = this.windows.get(key);
+    const line = formatRefusal(refusal);
+    const window = this.windows.get(line);
 
     if (window !== undefined) {
       window.pending++;
@@ -82,12 +86,12 @@ export class RefusalLog {
     }
 
     if (this.windows.size >= this.opts.maxWindows) {
-      this.drainOldest();
+      this.recordOverflow(now);
+
+      return;
     }
 
-    const line = formatRefusal(refusal);
-
-    this.windows.set(key, { line, startedAt: now, pending: 0 });
+    this.windows.set(line, { startedAt: now, pending: 0 });
     this.opts.log(`${line} count=1`);
   }
 
@@ -95,52 +99,59 @@ export class RefusalLog {
    * Logs the pending count of every window and forgets them all.
    */
   drain(): void {
-    for (const window of this.windows.values()) {
-      this.logPending(window);
+    for (const [line, window] of this.windows) {
+      this.logPending(line, window);
     }
 
     this.windows.clear();
+
+    if (this.overflow !== null) {
+      this.logPending(OVERFLOW_LINE, this.overflow);
+
+      this.overflow = null;
+    }
   }
 
   // Windows start in map order and all last the same interval, so the
   // ended ones lead the map.
   private drainEnded(now: number): void {
-    for (const [key, window] of this.windows) {
-      if (now - window.startedAt < this.opts.intervalMs) {
+    if (this.overflow !== null && this.hasEnded(this.overflow, now)) {
+      this.logPending(OVERFLOW_LINE, this.overflow);
+
+      this.overflow = null;
+    }
+
+    for (const [line, window] of this.windows) {
+      if (!this.hasEnded(window, now)) {
         return;
       }
 
-      this.windows.delete(key);
-      this.logPending(window);
+      this.windows.delete(line);
+      this.logPending(line, window);
     }
   }
 
-  private drainOldest(): void {
-    const oldest = this.windows.entries().next();
+  private hasEnded(window: Readonly<RefusalWindow>, now: number): boolean {
+    return now - window.startedAt >= this.opts.intervalMs;
+  }
 
-    if (oldest.done === true) {
+  private logPending(line: string, window: Readonly<RefusalWindow>): void {
+    if (window.pending > 0) {
+      this.opts.log(`${line} count=${window.pending}`);
+    }
+  }
+
+  private recordOverflow(now: number): void {
+    if (this.overflow !== null) {
+      this.overflow.pending++;
+
       return;
     }
 
-    const [key, window] = oldest.value;
+    this.overflow = { startedAt: now, pending: 0 };
 
-    this.windows.delete(key);
-    this.logPending(window);
+    this.opts.log(`${OVERFLOW_LINE} count=1`);
   }
-
-  private logPending(window: Readonly<RefusalWindow>): void {
-    if (window.pending > 0) {
-      this.opts.log(`${window.line} count=${window.pending}`);
-    }
-  }
-}
-
-// A NUL never appears in an address or a reason, so the parts cannot run
-// together into another key.
-function buildWindowKey(refusal: Refusal): string {
-  return refusal.event === 'handshake_refused'
-    ? `${refusal.event}\u0000${refusal.peer}\u0000${refusal.reason}`
-    : `${refusal.event}\u0000${refusal.peer}`;
 }
 
 function formatRefusal(refusal: Refusal): string {
@@ -148,5 +159,5 @@ function formatRefusal(refusal: Refusal): string {
 
   return refusal.event === 'handshake_refused'
     ? `atc tcp event=handshake_refused peer=${peer} reason=${refusal.reason}`
-    : `atc tcp event=principal_refused peer=${peer} principal=${formatLogField(refusal.principal)}`;
+    : `atc tcp event=principal_refused peer=${peer} principal=unlisted`;
 }

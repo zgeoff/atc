@@ -52,12 +52,12 @@ test('it logs the count of an ended window on the next refusal from another peer
   refusals.log.record({ event: 'handshake_refused', peer: '10.0.0.1', reason: 'unauthorized' });
   refusals.log.record({ event: 'handshake_refused', peer: '10.0.0.1', reason: 'unauthorized' });
   refusals.advanceClock(60_000);
-  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.2', principal: 'ops' });
+  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.2' });
 
   expect(refusals.logged).toStrictEqual([
     'atc tcp event=handshake_refused peer=10.0.0.1 reason=unauthorized count=1',
     'atc tcp event=handshake_refused peer=10.0.0.1 reason=unauthorized count=2',
-    'atc tcp event=principal_refused peer=10.0.0.2 principal=ops count=1',
+    'atc tcp event=principal_refused peer=10.0.0.2 principal=unlisted count=1',
   ]);
 });
 
@@ -76,34 +76,67 @@ test('it keeps separate windows for each reason from one peer', () => {
 test('it folds refusals of different principals from one peer within the window into one line', () => {
   const refusals = setupTest(16);
 
-  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1', principal: 'p1' });
-  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1', principal: 'p2' });
-  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1', principal: 'p3' });
+  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1' });
+  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1' });
+  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1' });
   refusals.advanceClock(60_000);
-  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1', principal: 'p4' });
+  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.1' });
 
   expect(refusals.logged).toStrictEqual([
-    'atc tcp event=principal_refused peer=10.0.0.1 principal=p1 count=1',
-    'atc tcp event=principal_refused peer=10.0.0.1 principal=p1 count=2',
-    'atc tcp event=principal_refused peer=10.0.0.1 principal=p4 count=1',
+    'atc tcp event=principal_refused peer=10.0.0.1 principal=unlisted count=1',
+    'atc tcp event=principal_refused peer=10.0.0.1 principal=unlisted count=2',
+    'atc tcp event=principal_refused peer=10.0.0.1 principal=unlisted count=1',
   ]);
 });
 
-test('it ends the oldest window early, with its count, once the cap of windows is full', () => {
-  const refusals = setupTest(2);
+test('it starts a window for each new peer while the cap of windows has room', () => {
+  const refusals = setupTest(3);
 
-  refusals.log.record({ event: 'handshake_refused', peer: '10.0.0.1', reason: 'unauthorized' });
-  refusals.log.record({ event: 'handshake_refused', peer: '10.0.0.1', reason: 'unauthorized' });
-  refusals.log.record({ event: 'handshake_refused', peer: '10.0.0.2', reason: 'unauthorized' });
-  refusals.log.record({ event: 'handshake_refused', peer: '10.0.0.3', reason: 'unauthorized' });
-  refusals.log.record({ event: 'handshake_refused', peer: '10.0.0.1', reason: 'unauthorized' });
+  for (const peer of ['10.0.0.1', '10.0.0.2', '10.0.0.3', '10.0.0.1', '10.0.0.2', '10.0.0.3']) {
+    refusals.log.record({ event: 'handshake_refused', peer, reason: 'unauthorized' });
+  }
 
   expect(refusals.logged).toStrictEqual([
     'atc tcp event=handshake_refused peer=10.0.0.1 reason=unauthorized count=1',
     'atc tcp event=handshake_refused peer=10.0.0.2 reason=unauthorized count=1',
-    'atc tcp event=handshake_refused peer=10.0.0.1 reason=unauthorized count=1',
     'atc tcp event=handshake_refused peer=10.0.0.3 reason=unauthorized count=1',
+  ]);
+});
+
+test('it folds every peer past the cap of windows into one overflow window', () => {
+  const refusals = setupTest(2);
+
+  for (const peer of Array.from({ length: 5 }, () => [
+    '10.0.0.1',
+    '10.0.0.2',
+    '10.0.0.3',
+    '10.0.0.4',
+  ]).flat()) {
+    refusals.log.record({ event: 'handshake_refused', peer, reason: 'unauthorized' });
+  }
+
+  expect(refusals.logged).toStrictEqual([
     'atc tcp event=handshake_refused peer=10.0.0.1 reason=unauthorized count=1',
+    'atc tcp event=handshake_refused peer=10.0.0.2 reason=unauthorized count=1',
+    'atc tcp event=refused peer=overflow count=1',
+  ]);
+});
+
+test('it logs the count of the overflow window once it ends', () => {
+  const refusals = setupTest(1);
+
+  for (const peer of ['10.0.0.1', '10.0.0.2', '10.0.0.3', '10.0.0.4']) {
+    refusals.log.record({ event: 'handshake_refused', peer, reason: 'unauthorized' });
+  }
+
+  refusals.advanceClock(60_000);
+  refusals.log.record({ event: 'handshake_refused', peer: '10.0.0.5', reason: 'unauthorized' });
+
+  expect(refusals.logged).toStrictEqual([
+    'atc tcp event=handshake_refused peer=10.0.0.1 reason=unauthorized count=1',
+    'atc tcp event=refused peer=overflow count=1',
+    'atc tcp event=refused peer=overflow count=2',
+    'atc tcp event=handshake_refused peer=10.0.0.5 reason=unauthorized count=1',
   ]);
 });
 
@@ -112,12 +145,12 @@ test('it logs every pending count on a drain', () => {
 
   refusals.log.record({ event: 'handshake_refused', peer: '10.0.0.1', reason: 'unauthorized' });
   refusals.log.record({ event: 'handshake_refused', peer: '10.0.0.1', reason: 'unauthorized' });
-  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.2', principal: 'ops' });
+  refusals.log.record({ event: 'principal_refused', peer: '10.0.0.2' });
   refusals.log.drain();
 
   expect(refusals.logged).toStrictEqual([
     'atc tcp event=handshake_refused peer=10.0.0.1 reason=unauthorized count=1',
-    'atc tcp event=principal_refused peer=10.0.0.2 principal=ops count=1',
+    'atc tcp event=principal_refused peer=10.0.0.2 principal=unlisted count=1',
     'atc tcp event=handshake_refused peer=10.0.0.1 reason=unauthorized count=1',
   ]);
 });

@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
+import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
@@ -25,6 +26,7 @@ interface TCPDaemonOptions {
   readonly principals: ReadonlyMap<string, readonly string[]> | null;
   readonly failureDelayMs?: number;
   readonly maxDelayedHandshakes?: number;
+  readonly maxRefusalWindows?: number;
 }
 
 /**
@@ -37,7 +39,9 @@ interface TCPDaemonOptions {
  * handshake, and `openTCPAs` dials it and handshakes with a token.
  * `writeTokens` rewrites the token file. `logged` holds every line the
  * daemon logs, and `advanceClock` moves the clock the listener's refusal
- * log reads, whose window lasts a minute.
+ * log reads, whose window lasts a minute. `refuseFrom` dials the listener
+ * from a loopback source address, sends a line before any handshake, and
+ * resolves once the listener closes the connection.
  */
 async function setupTest(options: TCPDaemonOptions) {
   const tmp = setupTempDir('atc-daemon-tcp-');
@@ -93,6 +97,9 @@ async function setupTest(options: TCPDaemonOptions) {
       ...(options.maxDelayedHandshakes === undefined
         ? {}
         : { maxDelayedHandshakes: options.maxDelayedHandshakes }),
+      ...(options.maxRefusalWindows === undefined
+        ? {}
+        : { maxRefusalWindows: options.maxRefusalWindows }),
       now: () => clock,
       refusalLogIntervalMs: 60_000,
     },
@@ -130,6 +137,23 @@ async function setupTest(options: TCPDaemonOptions) {
     openTCP,
     advanceClock(ms: number): void {
       clock += ms;
+    },
+    async refuseFrom(localAddress: string): Promise<void> {
+      const closed = Promise.withResolvers<void>();
+
+      const socket = createConnection({
+        host: '127.0.0.1',
+        port: daemon.listenPort ?? 0,
+        localAddress,
+      });
+
+      socket.on('close', () => {
+        closed.resolve();
+      });
+
+      socket.write('not a handshake\n');
+
+      await closed.promise;
     },
     async openTCPAs(token: string): Promise<DaemonClient> {
       const client = await openTCP();
@@ -690,7 +714,7 @@ test('it logs no part of the token a refused handshake presents', async () => {
   ).toSatisfyAll((part: string) => !daemon.logged.join('\n').includes(part));
 });
 
-test('it logs a refused principal with the principal and the peer', async () => {
+test('it logs a refused principal as unlisted with the peer', async () => {
   await using daemon = await setupTest({
     tokens: `${TOKEN_A}\n`,
     principals: new Map([['gw', ['local']]]),
@@ -707,7 +731,7 @@ test('it logs a refused principal with the principal and the peer', async () => 
   ).rejects.toMatchObject({ code: 'unauthorized' });
 
   expect(daemon.logged.slice(1)).toStrictEqual([
-    'atc tcp event=principal_refused peer=127.0.0.1 principal=other count=1',
+    'atc tcp event=principal_refused peer=127.0.0.1 principal=unlisted count=1',
   ]);
 });
 
@@ -724,15 +748,15 @@ test('it logs a principal refused on a request after the handshake', async () =>
   });
 
   expect(daemon.logged.slice(1)).toStrictEqual([
-    'atc tcp event=principal_refused peer=127.0.0.1 principal=other count=1',
+    'atc tcp event=principal_refused peer=127.0.0.1 principal=unlisted count=1',
   ]);
 });
 
-test('it withholds a refused principal that holds part of a token from the token file', async () => {
-  const held = randomBytes(24).toString('hex');
+test('it logs no part of a token sent in pieces as a refused principal', async () => {
+  const token = randomBytes(24).toString('hex');
 
   await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n${held}\n`,
+    tokens: `${token}\n`,
     principals: new Map([['gw', ['local']]]),
   });
 
@@ -741,17 +765,38 @@ test('it withholds a refused principal that holds part of a token from the token
   expect(
     client.sendRequest('daemon.hello', {
       client: 'atc/test-gateway',
-      principal: `ops-${held.slice(10, 22)}`,
-      auth: { scheme: 'bearer', token: TOKEN_A },
+      principal: Array.from({ length: 7 }, (_, at) => token.slice(at * 7, at * 7 + 7)).join('.'),
+      auth: { scheme: 'bearer', token },
     }),
   ).rejects.toMatchObject({ code: 'unauthorized' });
 
   expect(daemon.logged.slice(1)).toStrictEqual([
-    'atc tcp event=principal_refused peer=127.0.0.1 principal=[redacted] count=1',
+    'atc tcp event=principal_refused peer=127.0.0.1 principal=unlisted count=1',
   ]);
+
+  expect(Array.from({ length: token.length - 3 }, (_, at) => token.slice(at, at + 4))).toSatisfyAll(
+    (part: string) => !daemon.logged.slice(1).join('\n').includes(part),
+  );
 });
 
-test('it escapes the control characters of a refused principal in its log line', async () => {
+test('it logs no principal line for a listed principal', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map([['gw', ['local']]]),
+  });
+
+  const client = await daemon.openTCP();
+
+  await client.sendRequest('daemon.hello', {
+    client: 'atc/test-gateway',
+    principal: 'gw',
+    auth: { scheme: 'bearer', token: TOKEN_A },
+  });
+
+  expect(daemon.logged.slice(1)).toStrictEqual([]);
+});
+
+test('it logs no control character of a refused principal', async () => {
   await using daemon = await setupTest({
     tokens: `${TOKEN_A}\n`,
     principals: new Map([['gw', ['local']]]),
@@ -768,10 +813,8 @@ test('it escapes the control characters of a refused principal in its log line',
   ).rejects.toMatchObject({ code: 'unauthorized' });
 
   expect(daemon.logged.slice(1)).toStrictEqual([
-    String.raw`atc tcp event=principal_refused peer=127.0.0.1 principal=ops\u{1b}[2J\u{d}\u{a}atc\u{20}tcp\u{20}event\u{3d}listening\u{9b} count=1`,
+    'atc tcp event=principal_refused peer=127.0.0.1 principal=unlisted count=1',
   ]);
-
-  expect(daemon.logged[1]).not.toMatch(/\p{Cc}/u);
 });
 
 test('it folds repeated refusals from one peer within the window into one line', async () => {
@@ -821,6 +864,55 @@ test('it logs a refusal after the window as a new line after the count of the fo
     'atc tcp event=handshake_refused peer=127.0.0.1 reason=unauthorized count=1',
     'atc tcp event=handshake_refused peer=127.0.0.1 reason=unauthorized count=2',
     'atc tcp event=handshake_refused peer=127.0.0.1 reason=unauthorized count=1',
+  ]);
+});
+
+test('it logs a line for each new peer while the cap of refusal windows has room', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map(),
+    maxRefusalWindows: 4,
+  });
+
+  for (const peer of [
+    '127.0.0.2',
+    '127.0.0.3',
+    '127.0.0.4',
+    '127.0.0.5',
+    '127.0.0.2',
+    '127.0.0.3',
+  ]) {
+    await daemon.refuseFrom(peer);
+  }
+
+  expect(daemon.logged.slice(1)).toStrictEqual([
+    'atc tcp event=handshake_refused peer=127.0.0.2 reason=unexpected_line count=1',
+    'atc tcp event=handshake_refused peer=127.0.0.3 reason=unexpected_line count=1',
+    'atc tcp event=handshake_refused peer=127.0.0.4 reason=unexpected_line count=1',
+    'atc tcp event=handshake_refused peer=127.0.0.5 reason=unexpected_line count=1',
+  ]);
+});
+
+test('it folds refusals from peers past the cap of refusal windows into one overflow line', async () => {
+  await using daemon = await setupTest({
+    tokens: `${TOKEN_A}\n`,
+    principals: new Map(),
+    maxRefusalWindows: 2,
+  });
+
+  for (const peer of Array.from({ length: 4 }, () => [
+    '127.0.0.2',
+    '127.0.0.3',
+    '127.0.0.4',
+    '127.0.0.5',
+  ]).flat()) {
+    await daemon.refuseFrom(peer);
+  }
+
+  expect(daemon.logged.slice(1)).toStrictEqual([
+    'atc tcp event=handshake_refused peer=127.0.0.2 reason=unexpected_line count=1',
+    'atc tcp event=handshake_refused peer=127.0.0.3 reason=unexpected_line count=1',
+    'atc tcp event=refused peer=overflow count=1',
   ]);
 });
 

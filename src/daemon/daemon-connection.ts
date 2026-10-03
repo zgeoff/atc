@@ -74,8 +74,9 @@ export interface TCPPeer {
   readonly recordFailure: (reason: 'unexpected_line' | 'line_too_long') => void;
 
   // Records a handshake or a request refused for a principal the config
-  // does not list.
-  readonly recordRefusedPrincipal: (principal: string) => void;
+  // does not list. The principal itself is never logged: an unlisted one
+  // is whatever the peer sent, a credential included.
+  readonly recordRefusedPrincipal: () => void;
 }
 
 export class DaemonConnection {
@@ -385,7 +386,7 @@ export class DaemonConnection {
     }
 
     if (!this.ctx.hasListedPrincipal(req.as)) {
-      this.tcp?.recordRefusedPrincipal(req.as);
+      this.tcp?.recordRefusedPrincipal();
       this.sendErr(req.id, 'unauthorized', `principal '${req.as}' is not listed in principals`);
 
       return;
@@ -1625,7 +1626,7 @@ export class DaemonConnection {
       const principal = parsedHello.data.principal ?? null;
 
       if (principal !== null && !this.ctx.hasListedPrincipal(principal)) {
-        tcp.recordRefusedPrincipal(principal);
+        tcp.recordRefusedPrincipal();
 
         this.sendErr(
           req.id,

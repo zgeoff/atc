@@ -93,20 +93,27 @@ The listener logs to stderr, one `key=value` line per event, for a journal alert
 ```text
 atc tcp event=listening host=127.0.0.1 port=8415
 atc tcp event=handshake_refused peer=100.64.0.7 reason=unauthorized count=1
-atc tcp event=principal_refused peer=100.64.0.7 principal=ops count=1
+atc tcp event=principal_refused peer=100.64.0.7 principal=unlisted count=1
+atc tcp event=refused peer=overflow count=1
+atc log dropped=212
 ```
 
 The `reason` is one of `missing_token`, `unauthorized`, `delay_cap_full`, `closed_during_delay`,
-`unexpected_line`, and `line_too_long`. A principal refusal covers a handshake and a request alike.
-A line never holds a token or any part of one: a principal that shares 8 or more characters in a row
-with a token from the file is logged as `[redacted]`. Each field from the network is cut to 64
-characters, and every control character, space, `=`, `"`, `\`, and non-ASCII character in it is
-written as a `\u{hex}` escape. The first refusal of one kind from one peer logs at once with
-`count=1`: a handshake refusal per reason, and a principal refusal whatever principal it gave, so
-its line holds the first principal. Later ones within a minute are counted, and a line with their
-count follows at the first refusal from any peer after the minute ends, or when the daemon stops, so
-the counts of every line sum to every refusal. The daemon tracks at most 1024 such windows, and a
-new one past that ends the oldest early.
+`unexpected_line`, and `line_too_long`. A principal refusal covers a handshake and a request alike,
+and its line never holds the principal the peer sent, which could hold a token. No line holds a
+token or any part of one. The peer address is cut to 64 characters, and every control character,
+space, `=`, `"`, `\`, and non-ASCII character in it is written as a `\u{hex}` escape.
+
+The first refusal of one kind from one peer logs at once with `count=1`. Later ones within a minute
+are counted, and a line with their count follows at the first refusal from any peer after the minute
+ends, or when the daemon stops, so the counts of every line sum to every refusal. The daemon tracks
+at most 1024 such windows. While all 1024 are open, a refusal that would open another counts toward
+one window with `peer=overflow` instead, so a flood from many addresses logs at most about 1024
+lines a minute.
+
+The listener's writes to stderr never block the daemon. Up to 64 KiB of lines wait while stderr
+takes no more; past that a line is dropped, and once stderr takes lines again, an
+`atc log dropped=N` line holds how many were lost.
 
 `atc daemon id` prints the running daemon's `daemonID` over the owner's unix socket, for a client
 that pins the daemon's identity. It exits with status 1 when no daemon answers.

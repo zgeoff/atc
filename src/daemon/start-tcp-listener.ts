@@ -35,6 +35,9 @@ interface TCPListenerOptions {
   readonly log: (line: string) => void;
   readonly now: () => number;
   readonly refusalLogIntervalMs: number;
+
+  // How many peers and kinds of refusal the refusal log tracks at once.
+  readonly maxRefusalWindows: number;
 }
 
 export interface TCPListener {
@@ -48,9 +51,6 @@ export interface TCPListener {
   readonly setTokens: (tokens: readonly string[] | null) => void;
   readonly stop: () => void;
 }
-
-// How many peers and kinds of refusal the refusal log tracks at once.
-const MAX_REFUSAL_WINDOWS = 1024;
 
 /**
  * Starts the TCP listener for the client protocol. Every connection must
@@ -71,7 +71,7 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
     log: opts.log,
     now: opts.now,
     intervalMs: opts.refusalLogIntervalMs,
-    maxWindows: MAX_REFUSAL_WINDOWS,
+    maxWindows: opts.maxRefusalWindows,
   });
 
   let delayed = 0;
@@ -152,12 +152,8 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
             throttle.recordFailure(address, Date.now());
             refusals.record({ event: 'handshake_refused', peer: address, reason });
           },
-          recordRefusedPrincipal: (principal) => {
-            refusals.record({
-              event: 'principal_refused',
-              peer: address,
-              principal: hasTokenFragment(principal, tokens ?? []) ? '[redacted]' : principal,
-            });
+          recordRefusedPrincipal: () => {
+            refusals.record({ event: 'principal_refused', peer: address });
           },
         };
 
@@ -212,22 +208,4 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
       refusals.drain();
     },
   };
-}
-
-// The shortest run of a token's characters a principal may share with it
-// before the log holds the principal back.
-const MIN_TOKEN_FRAGMENT = 8;
-
-// Whether the value holds any run of one of the tokens' characters at
-// least as long as the shortest fragment the log withholds.
-function hasTokenFragment(value: string, tokens: readonly string[]): boolean {
-  return tokens.some((token) => {
-    for (let at = 0; at + MIN_TOKEN_FRAGMENT <= token.length; at++) {
-      if (value.includes(token.slice(at, at + MIN_TOKEN_FRAGMENT))) {
-        return true;
-      }
-    }
-
-    return false;
-  });
 }
