@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { $ } from 'bun';
 import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
 import { DaemonClient } from '../src/client/daemon-client';
@@ -1533,4 +1534,267 @@ test('it shows a refused spawn in the picker and keeps the entered prompt', asyn
   expect(screen).toInclude('spawn: initial prompt');
   expect(screen).toInclude('> hello');
   expect(screen).not.toInclude('FAKE_CLAUDE_UP');
+}, 15_000);
+
+test('it spawns on the target chosen in the target step, keeping the choice across esc', async () => {
+  await using ctx = setupTest();
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: {
+        local: { provider: 'local-pty' },
+        alt: { provider: 'local-pty', tag: 'alt' },
+        far: { provider: 'nowhere' },
+      },
+      defaultTarget: 'local',
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: target');
+
+  const menu = ctx.read();
+
+  expect(menu).toInclude('\u001B[7mlocal  local-pty · default');
+  expect(menu).toInclude('\u001B[90mfar  nowhere · unavailable');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7malt  local-pty');
+
+  pty.write('x');
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  expect(ctx.read()).not.toInclude('> x');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('\u001B[7malt  local-pty');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('elsewhere\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP');
+
+  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  await daemon.sendHello('atc/test');
+
+  const listed = await daemon.sendRequest('session.list');
+
+  expect(listed['sessions']).toMatchObject([
+    { name: 'elsewhere', cwd: ctx.home, locator: { targetID: 'alt' } },
+  ]);
+}, 20_000);
+
+test('it keeps the target step open on a target the directory cannot run on', async () => {
+  await using ctx = setupTest();
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: { local: { provider: 'local-pty' }, far: { provider: 'nowhere' } },
+      defaultTarget: 'local',
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7mfar  nowhere');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor("target 'far' is unavailable on this daemon");
+
+  expect(ctx.read()).not.toInclude('spawn: name');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: directory');
+}, 15_000);
+
+test('it sends a local directory to a target off the daemon machine as a path workspace without allowDirty', async () => {
+  await using ctx = setupTest();
+
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_AUTHOR_NAME: 'atc',
+    GIT_AUTHOR_EMAIL: 'atc@example.com',
+    GIT_COMMITTER_NAME: 'atc',
+    GIT_COMMITTER_EMAIL: 'atc@example.com',
+  };
+
+  const project = join(ctx.home, 'proj');
+
+  await $`git init --quiet --template= --initial-branch=main ${project}`.env(env).quiet();
+
+  writeFileSync(join(project, 'README.md'), 'hello\n');
+
+  await $`git add README.md`.env(env).cwd(project).quiet();
+  await $`git commit --quiet --no-gpg-sign -m initial`.env(env).cwd(project).quiet();
+
+  writeFileSync(join(project, 'scratch.txt'), 'uncommitted\n');
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  // An imp target with a url and no token has a provider that can take a
+  // workspace. The path source is refused before the daemon calls impd.
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: {
+        local: { provider: 'local-pty' },
+        box: { provider: 'imp', url: 'http://127.0.0.1:9' },
+      },
+      defaultTarget: 'local',
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  pty.write(project);
+
+  await ctx.waitFor(`> ${project}`);
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7mbox  imp');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  // Without the path workspace the spawn would reach impd; with
+  // allowDirty: 'warn' it would get past the uncommitted file.
+  await ctx.waitFor('workspace_dirty', 10_000);
+
+  expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
+}, 20_000);
+
+test('it offers an adopt only the targets that run on this host', async () => {
+  await using ctx = setupTest();
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: {
+        local: { provider: 'local-pty' },
+        alt: { provider: 'local-pty', tag: 'alt' },
+        box: { provider: 'imp', url: 'http://127.0.0.1:9' },
+      },
+      defaultTarget: 'local',
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('r');
+
+  await ctx.waitFor('adopt: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('adopt: directory');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('adopt: target');
+
+  const menu = ctx.read();
+
+  expect(menu).toInclude('local  local-pty · default');
+  expect(menu).toInclude('alt  local-pty');
+  expect(menu).not.toInclude('box  imp');
 }, 15_000);
