@@ -12,3 +12,7 @@ test('it hashes params with another payload apart', () => {
     buildBindingPayloadHash({ cwd: '/var' }),
   );
 });
+
+test('it hashes params the same in either order of two keys a locale comparison ties', () => {
+  expect(buildBindingPayloadHash({ é: 1, é: 2 })).toBe(buildBindingPayloadHash({ é: 2, é: 1 }));
+});
