@@ -75,6 +75,9 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
 
             return fingerprint;
           },
+          recordFailure: () => {
+            throttle.recordFailure(address, Date.now());
+          },
         };
 
         socket.data = opts.openConnection(socket, peer);
