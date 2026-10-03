@@ -1163,7 +1163,7 @@ export class DaemonConnection {
 
   // A cursor that is not an events cursor, one at a row that holds no
   // report, and one at a report outside the access all get one refusal, so
-  // the refusal never tells a report out of reach from a missing one.
+  // the refusal is the same for a report out of reach and a missing one.
   private async applyReportGet(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('report.get', req.p);
 

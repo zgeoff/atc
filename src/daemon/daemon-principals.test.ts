@@ -409,10 +409,8 @@ test('it answers a report of a session outside the principal as a report that do
     missing,
   );
 
-  expect({ owner, answered }).toMatchObject({
-    owner: { session: hidden, text: 'secret plan' },
-    answered: unknown,
-  });
+  expect(owner).toMatchObject({ session: hidden, text: 'secret plan' });
+  expect(answered).toStrictEqual(unknown);
 });
 
 test('it gives a principal the report of a session it may see', async () => {
