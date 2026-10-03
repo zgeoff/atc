@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.13.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.12.0...@zgeoff/atc@2.13.0) (2026-10-03)
+
+### Features
+
+- **daemon:** drive imp targets through the pinned imp client
+  ([#173](https://github.com/zgeoff/atc/issues/173))
+  ([a4ef780](https://github.com/zgeoff/atc/commit/a4ef7805c7223c0b379c33a269b0a5adb2bf2087))
+- **daemon:** materialize a spawn's workspace through its provider
+  ([#175](https://github.com/zgeoff/atc/issues/175))
+  ([a2c8bb2](https://github.com/zgeoff/atc/commit/a2c8bb2cc18dc18feb77cf66d7637c9857e9e165))
+- **daemon:** run sessions in imps through an imp port
+  ([#172](https://github.com/zgeoff/atc/issues/172))
+  ([5f038ac](https://github.com/zgeoff/atc/commit/5f038ac7b7e3aa8543be8dce00c9c37fc06ae483))
+- **daemon:** serve remote session messages through a session bridge
+  ([#184](https://github.com/zgeoff/atc/issues/184))
+  ([db51d98](https://github.com/zgeoff/atc/commit/db51d98376c17660c43504cf4ca05bb3f51598a2))
+- **daemon:** sleep killed hosts and forget them with a confirm token
+  ([#171](https://github.com/zgeoff/atc/issues/171))
+  ([877e6da](https://github.com/zgeoff/atc/commit/877e6da5174acd2326d8b3cf53677bf4e4dba91f))
+
+### Bug Fixes
+
+- **#174:** submit a typed line the way each agent's tui accepts it
+  ([#182](https://github.com/zgeoff/atc/issues/182))
+  ([5807f22](https://github.com/zgeoff/atc/commit/5807f22fe4047e666734197ab162c92ce886e9d9))
+- **ci:** merge release prs through the release app's ruleset bypass
+  ([#193](https://github.com/zgeoff/atc/issues/193))
+  ([164aeb7](https://github.com/zgeoff/atc/commit/164aeb72cb0a9190c50d6ff2995884d96d955419))
+
 ## [2.12.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.11.0...@zgeoff/atc@2.12.0) (2026-10-03)
 
 ### Features
