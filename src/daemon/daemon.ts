@@ -2,13 +2,16 @@ import { unlinkSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { AdapterEvent, AgentAdapter } from '../agents/agent-adapter';
+import { DaemonError } from '../protocol/daemon-error';
 import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import type { MessageID } from '../shared/message-id';
+import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
+import type { IdempotencyRecord } from '../store/idempotency-record';
 import type { MessageOwner } from '../store/message-owner';
 import type { MessageRecord, MessageStatus } from '../store/message-record';
 import { StateStore } from '../store/state-store';
@@ -25,14 +28,17 @@ import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionReportEvent } from './build-session-report-event';
 import { claimDaemonLock } from './claim-daemon-lock';
 import { DaemonConnection } from './daemon-connection';
-import type { DaemonContext, OutputClient, TapClient } from './daemon-connection';
+import type { DaemonContext, OutputClient, SpawnParams, TapClient } from './daemon-connection';
+import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
 import type { HookEvent } from './hooks';
+import { IdempotencyLedger } from './idempotency-ledger';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
 import { mintMessageID } from './mint-message-id';
+import { mintSessionID } from './mint-session-id';
 import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
 import { restoreFleet } from './restore-fleet';
@@ -109,6 +115,14 @@ export interface DaemonHandle {
 // it is refused.
 const TAP_GRACE_MS = 15_000;
 
+// The principal every request on the local socket acts as.
+const LOCAL_PRINCIPAL = 'local';
+
+// A completed idempotency key is kept this long after it completed, and the
+// sweep that drops older ones runs this often.
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+const IDEMPOTENCY_SWEEP_MS = 60 * 60 * 1000;
+
 // How long startup waits for a daemon that is shutting down to release the
 // state lock before refusing to start.
 const LOCK_WAIT_MS = 2000;
@@ -147,6 +161,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   }
 
   const store = await StateStore.open(opts.dbPath, opts.legacyFleetPath);
+
+  // Before any request is served: a key left in progress by a daemon that
+  // stopped mid-effect is settled first, so no retry can race it.
+  await store.reconcileIdempotencyKeys(Date.now());
+
+  await tryRemoveExpiredIdempotencyKeys(store);
+
+  const idempotencySweep = setInterval(() => {
+    void tryRemoveExpiredIdempotencyKeys(store);
+  }, IDEMPOTENCY_SWEEP_MS);
+
+  idempotencySweep.unref();
 
   const mgr = new SessionManager(opts.adapter, store, opts.statusPath, opts.adapters ?? []);
   const clients = new Set<DaemonConnection>();
@@ -652,6 +678,84 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   }, opts.reporterSocketPath);
 
+  // A spawn that throws once its process has started takes the session back
+  // before it throws, so a failed start leaves nothing running and a keyed
+  // retry spawns once. When taking it back fails too, the session may still
+  // stand, and the throw says so.
+  const startSpawn = async (p: SpawnParams, id: SessionID): Promise<SessionDescriptor> => {
+    try {
+      return startSpawnedSession(p, id);
+    } catch (error) {
+      try {
+        await mgr.removeFailedSpawn(id);
+      } catch (cleanupError) {
+        throw new EffectRemainsError(
+          `spawn of session ${id} failed and taking it back failed too`,
+          {
+            cause: cleanupError,
+          },
+        );
+      }
+
+      throw error;
+    }
+  };
+
+  const startSpawnedSession = (p: SpawnParams, id: SessionID): SessionDescriptor => {
+    const s = mgr.spawn(
+      p.cwd,
+      p.name,
+      p.prompt,
+      p.cols,
+      p.rows,
+      p.resume,
+      p.namedBy,
+      p.agent,
+      p.parent,
+      p.overrides,
+      id,
+    );
+
+    const runtime = runtimes.get(s.id);
+
+    if (runtime !== undefined) {
+      runtime.pendingLastUsed = true;
+      runtime.dims = { cols: p.cols, rows: p.rows };
+
+      runtime.screen = new ScreenModel(p.cols, p.rows);
+    }
+
+    void store.recordSpawnDir(p.cwd);
+
+    return getDescriptor(mgr, s.id);
+  };
+
+  // A retried spawn answers with the session as it stands now when it is
+  // listed, else with the descriptor the first spawn answered. A key that
+  // start-up reconciliation completed has no stored answer, and its session
+  // lists only once the fleet is restored.
+  const loadSpawnReplay = (record: IdempotencyRecord): Readonly<Record<string, unknown>> => {
+    const listed = mgr.collectDescriptors().find((d) => d.id === record.effectRef);
+
+    if (listed !== undefined) {
+      return { session: listed };
+    }
+
+    const stored: unknown = record.result === null ? null : JSON.parse(record.result);
+
+    if (isRecord(stored)) {
+      return stored;
+    }
+
+    throw new DaemonError(
+      'no_such_session',
+      `the spawn under idempotency key '${record.key}' created session '${record.effectRef}', which is not listed; restore the fleet to list it`,
+      { effectRef: record.effectRef },
+    );
+  };
+
+  const ledger = new IdempotencyLedger(store, LOCAL_PRINCIPAL);
+
   const ctx: DaemonContext = {
     build: opts.build,
     daemonID: store.daemonID,
@@ -669,32 +773,21 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     collectFleet: () => store.loadFleet(),
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => mgr.findAdapter(kind),
-    spawnSession: (p) => {
-      const s = mgr.spawn(
-        p.cwd,
-        p.name,
-        p.prompt,
-        p.cols,
-        p.rows,
-        p.resume,
-        p.namedBy,
-        p.agent,
-        p.parent,
-        p.overrides,
-      );
-
-      const runtime = runtimes.get(s.id);
-
-      if (runtime !== undefined) {
-        runtime.pendingLastUsed = true;
-        runtime.dims = { cols: p.cols, rows: p.rows };
-
-        runtime.screen = new ScreenModel(p.cols, p.rows);
+    spawnSession: (plan, keyed) => {
+      if (keyed === null) {
+        return startSpawn(plan(), mintSessionID()).then((session) => ({ session }));
       }
 
-      void store.recordSpawnDir(p.cwd);
+      const effectRef = mintSessionID();
 
-      return getDescriptor(mgr, s.id);
+      return ledger.run({
+        operation: 'session.spawn',
+        keyed,
+        effectRef,
+        start: async () => ({ session: await startSpawn(plan(), effectRef) }),
+        settle: () => mgr.writeFleet(),
+        replay: (record) => loadSpawnReplay(record),
+      });
     },
     updateSession: (id, name, pinned) => mgr.updateSession(id, name, pinned),
     quitDaemon: () => {
@@ -1149,6 +1242,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       client.dispose();
     }
 
+    clearInterval(idempotencySweep);
+
     server.stop(true);
     eventsServer?.stop();
     reporter.stop(true);
@@ -1230,4 +1325,15 @@ function getDescriptor(mgr: SessionManager, id: SessionID): SessionDescriptor {
   }
 
   return d;
+}
+
+// A sweep that fails leaves the keys for the next one.
+async function tryRemoveExpiredIdempotencyKeys(store: StateStore): Promise<boolean> {
+  try {
+    await store.removeExpiredIdempotencyKeys(Date.now() - IDEMPOTENCY_TTL_MS);
+  } catch {
+    return false;
+  }
+
+  return true;
 }

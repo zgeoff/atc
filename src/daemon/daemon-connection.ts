@@ -23,13 +23,15 @@ import type { MessageRecord } from '../store/message-record';
 import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
+import { buildPayloadHash } from './build-payload-hash';
+import type { KeyedRequest } from './idempotency-ledger';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 import type { AnswerResult } from './permission-registry';
 import type { ScreenText } from './screen-model';
 import type { SessionDescriptor } from './sessions';
 
-interface SpawnParams {
+export interface SpawnParams {
   readonly cwd: string;
   readonly name: string;
   readonly prompt: string;
@@ -66,7 +68,14 @@ export interface DaemonContext {
   readonly collectFleet: () => Promise<FleetEntry[]>;
   readonly loadLastUsedAgent: () => Promise<AgentID>;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
-  readonly spawnSession: (p: SpawnParams) => SessionDescriptor;
+
+  // Runs the plan, which throws the refusal for a spawn it refuses, then
+  // spawns. Answers with the `session.spawn` ok payload, which a keyed
+  // retry replays as the first spawn answered it.
+  readonly spawnSession: (
+    plan: () => SpawnParams,
+    keyed: KeyedRequest | null,
+  ) => Promise<Readonly<Record<string, unknown>>>;
   readonly killSession: (id: SessionID) => Promise<boolean>;
   readonly updateSession: (id: SessionID, name?: string, pinned?: boolean) => boolean | 'child_pin';
   readonly quitDaemon: () => void;
@@ -359,7 +368,7 @@ export class DaemonConnection {
         return;
       }
       case 'session.spawn': {
-        this.applySpawn(req);
+        await this.applySpawn(req);
 
         return;
       }
@@ -600,7 +609,7 @@ export class DaemonConnection {
     }
   }
 
-  private applySpawn(req: RequestMsg): void {
+  private async applySpawn(req: RequestMsg): Promise<void> {
     const parsed = parseRequestParams('session.spawn', req.p);
 
     if (!parsed.ok) {
@@ -609,71 +618,71 @@ export class DaemonConnection {
       return;
     }
 
-    const cwd = parsed.data.cwd;
-    const name = parsed.data.name;
-    const agent: AgentID = parsed.data.agent ?? 'claude';
-    const adapter = this.ctx.findAdapter(agent);
-    const entry = this.ctx.collectAgents().agents.find((candidate) => candidate.id === agent);
+    const data = parsed.data;
 
-    if (adapter === null || entry === undefined) {
-      this.sendErr(req.id, 'unsupported', `no adapter for agent '${agent}'`);
+    // Every refusal is thrown from the plan, which runs only once a key is
+    // claimed: a retry of a held key answers from the key without checking
+    // anything again, and a refused spawn drops its claim.
+    const plan = (): SpawnParams => {
+      const agent: AgentID = data.agent ?? 'claude';
+      const adapter = this.ctx.findAdapter(agent);
+      const entry = this.ctx.collectAgents().agents.find((candidate) => candidate.id === agent);
 
-      return;
-    }
-
-    // A stand-in adapter declares no binary to check, so only a profiled
-    // agent's missing binary refuses the spawn.
-    if (adapter.profile !== undefined && !entry.installed) {
-      this.sendErr(
-        req.id,
-        'unsupported',
-        `agent '${agent}' is registered but not installed on this host`,
-      );
-
-      return;
-    }
-
-    const overrides = parseSpawnOverrides(entry, {
-      model: parsed.data.model,
-      effort: parsed.data.effort,
-    });
-
-    if (!overrides.ok) {
-      this.sendErr(req.id, overrides.code, overrides.message);
-
-      return;
-    }
-
-    let parent: SessionID | null = null;
-
-    if (parsed.data.parent !== undefined) {
-      const owner = this.ctx.collectSessions().find((s) => s.id === parsed.data.parent);
-
-      if (owner === undefined) {
-        this.sendErr(req.id, 'no_such_session', `no session '${parsed.data.parent}'`);
-
-        return;
+      if (adapter === null || entry === undefined) {
+        throw new DaemonError('unsupported', `no adapter for agent '${agent}'`);
       }
 
-      // A sub-session spawning a sub-session of its own lands beside it,
-      // so a set stays one level deep.
-      parent = owner.parent ?? owner.id;
-    }
+      // A stand-in adapter declares no binary to check, so only a profiled
+      // agent's missing binary refuses the spawn.
+      if (adapter.profile !== undefined && !entry.installed) {
+        throw new DaemonError(
+          'unsupported',
+          `agent '${agent}' is registered but not installed on this host`,
+        );
+      }
 
-    const session = this.ctx.spawnSession({
-      cwd,
-      name: name === '' ? basename(cwd) : name,
-      prompt: parsed.data.prompt,
-      cols: parsed.data.cols,
-      rows: parsed.data.rows,
-      resume: parsed.data.resume,
-      namedBy: name === '' ? 'auto' : 'user',
-      agent,
-      parent,
-      overrides: overrides.overrides,
-    });
+      const overrides = parseSpawnOverrides(entry, { model: data.model, effort: data.effort });
 
-    this.sendOk(req.id, { session });
+      if (!overrides.ok) {
+        throw new DaemonError(overrides.code, overrides.message);
+      }
+
+      let parent: SessionID | null = null;
+
+      if (data.parent !== undefined) {
+        const owner = this.ctx.collectSessions().find((s) => s.id === data.parent);
+
+        if (owner === undefined) {
+          throw new DaemonError('no_such_session', `no session '${data.parent}'`);
+        }
+
+        // A sub-session spawning a sub-session of its own lands beside it,
+        // so a set stays one level deep.
+        parent = owner.parent ?? owner.id;
+      }
+
+      return {
+        cwd: data.cwd,
+        name: data.name === '' ? basename(data.cwd) : data.name,
+        prompt: data.prompt,
+        cols: data.cols,
+        rows: data.rows,
+        resume: data.resume,
+        namedBy: data.name === '' ? 'auto' : 'user',
+        agent,
+        parent,
+        overrides: overrides.overrides,
+      };
+    };
+
+    const keyed =
+      data.idempotencyKey === undefined
+        ? null
+        : { key: data.idempotencyKey, payloadHash: buildPayloadHash(data) };
+
+    const spawned = await this.ctx.spawnSession(plan, keyed);
+
+    this.sendOk(req.id, spawned);
   }
 
   private applyAttach(req: RequestMsg): void {

@@ -390,6 +390,7 @@ export class SessionManager {
   // resumes that specific session (fleet restore). parent makes the new
   // session a sub-session of that one. overrides hold the model and effort
   // the new process runs with, and the session keeps them for every revive.
+  // id is minted here unless the caller minted it ahead of the spawn.
   spawn(
     cwd: string,
     name: string,
@@ -401,6 +402,7 @@ export class SessionManager {
     agent: AgentID = 'claude',
     parent: SessionID | null = null,
     overrides: SpawnOverrides = {},
+    id: SessionID = mintSessionID(),
   ): Session {
     const adapter = this.findAdapter(agent);
 
@@ -408,7 +410,9 @@ export class SessionManager {
       throw new Error(`no adapter for agent '${agent}'`);
     }
 
-    const id = mintSessionID();
+    // The repository root resolves before the process starts: resolving it
+    // can throw, and a spawn that throws must leave nothing running.
+    const repoRoot = resolveRepoRoot(cwd);
     const plan = adapter.planSpawn({ prompt, resume, ...overrides });
 
     const pty = spawn(plan.bin, plan.args, {
@@ -438,7 +442,7 @@ export class SessionManager {
       agent,
       pinned: false,
       lastAttachedAt: Date.now(),
-      repoRoot: resolveRepoRoot(cwd),
+      repoRoot,
       namedBy,
       createdAt: Date.now(),
       parent,
@@ -472,6 +476,27 @@ export class SessionManager {
     this.onEvent('added', session);
 
     return session;
+  }
+
+  // Takes back a spawn that failed after its process started: the process
+  // dies and the session leaves the list and the fleet, so the spawn leaves
+  // nothing behind. It resolves only once the fleet without the session is
+  // durable, and throws when the kill or that write fails. A session that
+  // never registered is left alone.
+  async removeFailedSpawn(id: SessionID): Promise<void> {
+    const s = this.sessions.find((x) => x.id === id);
+
+    if (s === undefined) {
+      return;
+    }
+
+    s.pty?.kill();
+    s.pty = null;
+
+    this.remove(s);
+    this.emitChange();
+
+    await this.writeFleet();
   }
 
   collectDescriptors(): SessionDescriptor[] {

@@ -247,14 +247,17 @@ not app code.
 
 Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
 `.oxlintrc.json`): `ack`, `adopt`, `answer`, `attach`, `boot`, `copy`, `detach`, `dispose`, `draw`,
-`jiggle`, `kill`, `log`, `mint`, `open`, `quit`, `record`, `refresh`, `restart`, `restore`,
-`revoke`, `schedule`, `spawn`, `truncate`, `yank`.
+`jiggle`, `kill`, `log`, `mint`, `open`, `quit`, `reconcile`, `record`, `refresh`, `restart`,
+`restore`, `revoke`, `schedule`, `spawn`, `truncate`, `yank`.
 
 `dispose` releases every resource an object holds in one call (`SessionRuntime.dispose`), and is
 safe to call more than once.
 
 `mint` generates a new id that atc itself is the sole authority for (`mintSessionID`), as opposed to
 `to<Brand>`, which trusts an id that arrived from outside atc.
+
+`reconcile` settles stored state that a stopped daemon left mid-change against the evidence the
+change leaves behind (`reconcileIdempotencyKeys`).
 
 `revoke` withdraws a credential atc issued so it no longer authorizes anything (`revokeGrant`), as
 opposed to `remove`, which deletes a resource outright.

@@ -97,7 +97,7 @@ test('it rejects session.resize with cols below 1 as bad_args', () => {
 
   expect(parsed).toStrictEqual({
     ok: false,
-    message: 'session.resize requires positive cols and rows',
+    message: 'cols and rows must be whole numbers from 1 to 4096',
   });
 });
 
@@ -106,7 +106,7 @@ test('it rejects session.resize with rows below 1 as bad_args', () => {
 
   expect(parsed).toStrictEqual({
     ok: false,
-    message: 'session.resize requires positive cols and rows',
+    message: 'cols and rows must be whole numbers from 1 to 4096',
   });
 });
 
@@ -299,5 +299,33 @@ test.each([
   expect(parsed).toStrictEqual({
     ok: true,
     data: { message: toMessageID('m-1'), waitMs: expected },
+  });
+});
+
+test.each([
+  ['session.spawn', { cwd: '/tmp', cols: 80, rows: 24.5 }],
+  ['session.spawn', { cwd: '/tmp', cols: 0, rows: 24 }],
+  ['session.spawn', { cwd: '/tmp', cols: 80, rows: 5000 }],
+  ['fleet.restore', { cols: 80.5, rows: 24 }],
+  ['session.attach', { session: 's1', cols: 80, rows: -1 }],
+  ['session.adopt', { session: 's1', cols: 80, rows: Number.NaN }],
+] as const)(
+  'it rejects %s with a terminal size outside whole numbers from 1 to 4096 as bad_args',
+  (method, params) => {
+    const parsed = parseRequestParams(method, params);
+
+    expect(parsed).toStrictEqual({
+      ok: false,
+      message: 'cols and rows must be whole numbers from 1 to 4096',
+    });
+  },
+);
+
+test('it rejects session.resize with fractional rows as bad_args', () => {
+  const parsed = parseRequestParams('session.resize', { session: 's1', cols: 80, rows: 24.5 });
+
+  expect(parsed).toStrictEqual({
+    ok: false,
+    message: 'cols and rows must be whole numbers from 1 to 4096',
   });
 });

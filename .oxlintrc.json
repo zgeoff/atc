@@ -28,6 +28,7 @@
           "mint",
           "open",
           "quit",
+          "reconcile",
           "record",
           "refresh",
           "restart",

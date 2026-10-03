@@ -28,6 +28,9 @@ export const DAEMON_FEATURES = [
 
   // Every session descriptor holds a `locator`.
   'session.locator',
+
+  // `session.spawn` takes `idempotencyKey`.
+  'spawn.idempotency',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

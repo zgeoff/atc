@@ -1003,6 +1003,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '014_add_fleet_model_effort',
     '015_rebuild_fleet_keyed_by_session_id',
     '016_create_session_owner',
+    '017_create_idempotency',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');
@@ -2541,6 +2542,93 @@ test('it rejects a fleet row update for a session whose ownership epoch moved on
   expect(store.updateFleetEntry(toSessionID('s-1'), { result: 'late' })).rejects.toMatchObject({
     code: 'stale_epoch',
   });
+});
+
+test('it claims a free idempotency key and hands back the record of a held one', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const claim = {
+    principal: 'local',
+    operation: 'session.spawn',
+    key: 'k-1',
+    payloadHash: 'h-1',
+    effectRef: 's-1',
+    at: 1000,
+  };
+
+  const first = await store.claimIdempotencyKey(claim);
+  const second = await store.claimIdempotencyKey({ ...claim, effectRef: 's-2', at: 2000 });
+
+  expect(first).toBeNull();
+
+  expect(second).toStrictEqual({
+    principal: 'local',
+    operation: 'session.spawn',
+    key: 'k-1',
+    payloadHash: 'h-1',
+    state: 'in_progress',
+    effectRef: 's-1',
+    result: null,
+    createdAt: 1000,
+    updatedAt: 1000,
+  });
+});
+
+test('it reconciles an interrupted spawn key by whether its session reached the fleet', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const claim = { principal: 'local', operation: 'session.spawn', payloadHash: 'h', at: 1000 };
+
+  await store.claimIdempotencyKey({ ...claim, key: 'landed', effectRef: 's-landed' });
+  await store.claimIdempotencyKey({ ...claim, key: 'lost', effectRef: 's-lost' });
+
+  await store.writeFleet([
+    { sessionID: toSessionID('s-landed'), name: 'landed', cwd: '/x', agent: 'claude' },
+  ]);
+
+  await store.reconcileIdempotencyKeys(5000);
+
+  const landed = await store.claimIdempotencyKey({ ...claim, key: 'landed', effectRef: 'x' });
+  const lost = await store.claimIdempotencyKey({ ...claim, key: 'lost', effectRef: 'x' });
+
+  expect(landed).toMatchObject({ state: 'completed', updatedAt: 5000 });
+  expect(lost).toMatchObject({ state: 'outcome_unknown', updatedAt: 5000 });
+});
+
+test('it expires completed idempotency keys and keeps unknown outcomes of the same age', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  const claim = { principal: 'local', operation: 'session.spawn', payloadHash: 'h', at: 1000 };
+
+  await store.claimIdempotencyKey({ ...claim, key: 'done', effectRef: 's-done' });
+
+  await store.updateIdempotencyCompleted(
+    { principal: 'local', operation: 'session.spawn', key: 'done' },
+    '{}',
+    1000,
+  );
+
+  await store.claimIdempotencyKey({ ...claim, key: 'unknown', effectRef: 's-unknown' });
+  await store.reconcileIdempotencyKeys(1000);
+  await store.removeExpiredIdempotencyKeys(2000);
+
+  const done = await store.claimIdempotencyKey({ ...claim, key: 'done', effectRef: 's-new' });
+  const unknown = await store.claimIdempotencyKey({ ...claim, key: 'unknown', effectRef: 'x' });
+
+  expect(done).toBeNull();
+  expect(unknown).toMatchObject({ state: 'outcome_unknown' });
 });
 
 test('it writes no row as its own parent when every row in a chain shares one agent session id', async () => {
