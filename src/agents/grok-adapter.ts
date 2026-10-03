@@ -20,6 +20,7 @@ import type {
   SpawnPlan,
 } from './agent-adapter';
 import { normalizeHookEventName } from './normalize-hook-event';
+import { planPastedLineInput } from './plan-pasted-line-input';
 import { resolveAgentHome } from './resolve-agent-home';
 import { truncateDetail } from './truncate-detail';
 
@@ -75,6 +76,10 @@ export class GrokAdapter implements AgentAdapter {
   readonly profile: AgentProfile;
 
   readonly takesMessages = false;
+
+  // Grok's TUI keeps a newline that arrives inside a burst of input, so a
+  // line is pasted and then submitted.
+  readonly planLineInput = planPastedLineInput;
 
   private readonly config: Config;
 

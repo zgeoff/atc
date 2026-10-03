@@ -29,6 +29,7 @@ import { findFlagValue } from './find-flag-value';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
+import { planTypedLineInput } from './plan-typed-line-input';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
 import { truncateDetail } from './truncate-detail';
 import { writeATCBridge } from './write-atc-bridge';
@@ -60,6 +61,9 @@ export class ClaudeAdapter implements AgentAdapter {
   readonly screenDetector = null;
 
   readonly parseTranscriptLine = parseClaudeTranscriptLine;
+
+  // Claude's TUI submits a line typed with its newline in one write.
+  readonly planLineInput = planTypedLineInput;
 
   readonly profile: AgentProfile;
 

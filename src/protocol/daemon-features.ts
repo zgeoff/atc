@@ -50,6 +50,9 @@ export const DAEMON_FEATURES = [
   // `session.forget` exists, and a kill of a session asleep on a target that
   // can destroy its host answers `confirmation_required`.
   'session.forget',
+
+  // `session.submit` exists.
+  'session.submit',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

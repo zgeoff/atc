@@ -365,12 +365,15 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: AGENT_FACING_DESTRUCTIVE,
     scope: 'spawn',
     description:
-      'Type a line of text into a running session, as if the operator typed it and pressed enter. Use it to answer a session that is waiting on input.',
+      "Type a line of text into a running session and submit it, as if the operator typed it and pressed enter. atc submits the line the way the session's agent accepts one. Use it to answer a session that is waiting on input. A result of sent means atc wrote the line and its submit key to the session; it does not confirm that the agent took the line or answered it. Read the session's screen or events for that. The tool sends no raw keystrokes.",
     inputSchema: {
       type: 'object',
       properties: {
         session: { type: 'string', description: 'The atc session id' },
-        text: { type: 'string', description: 'The line to type; a newline is appended' },
+        text: {
+          type: 'string',
+          description: "The line to submit; atc adds the submit key the session's agent expects",
+        },
       },
       required: ['session', 'text'],
       additionalProperties: false,

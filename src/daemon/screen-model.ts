@@ -99,6 +99,13 @@ export class ScreenModel {
     return RESET_INPUT_MODES + this.renderVisibleScreen() + this.renderInputModes();
   }
 
+  // Whether the TUI has turned bracketed paste on, as of the output parsed
+  // so far. It reads the mode without waiting, so output still queued for
+  // parsing never delays the caller; a TUI turns the mode on once, at start.
+  hasBracketedPaste(): boolean {
+    return this.term.modes.bracketedPasteMode;
+  }
+
   // The visible rows of whichever buffer the session is showing, as plain
   // text with no escape sequences: one line per row, trailing blanks
   // trimmed from each row, trailing blank rows dropped. Drains pending

@@ -267,6 +267,7 @@ test.each([
   ['session.screen', {}],
   ['session.attach', { cols: 80, rows: 24 }],
   ['session.input', { d: 'go\r' }],
+  ['session.submit', { text: 'go' }],
   ['session.message', { from: 'remote', text: 'hello' }],
   ['session.kill', {}],
   ['session.update', { name: 'renamed' }],

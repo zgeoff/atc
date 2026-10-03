@@ -75,7 +75,8 @@ says to restart the daemon.
                                         "message.turn", "message.wait", "spawn.options",
                                         "daemon.id", "session.locator", "spawn.idempotency",
                                         "message.idempotency", "spawn.target",
-                                        "request.principal", "spawn.workspace", "session.forget"],
+                                        "request.principal", "spawn.workspace", "session.forget",
+                                        "session.submit"],
                            "lastUsedAgent": "claude" } }
 ```
 
@@ -85,10 +86,10 @@ exists, `events.read` returns `more` and takes `session`, and `message.get` retu
 returns `spawnOptions`, `daemon.hello` returns `daemonID`, every session descriptor holds a
 `locator`, `session.spawn` and `session.message` each take `idempotencyKey`, `session.spawn` takes
 `target` while `agents.list` returns `targets`, a request takes `as` while `daemon.hello` takes
-`principal`, `session.spawn` takes `workspace`, and `session.forget` exists. A daemon from before
-the list existed sends none, and it ignores the parameters it does not know. A client that outlives
-a daemon upgrade, such as `atc mcp`, reads the list rather than the build string to learn what the
-running daemon honours.
+`principal`, `session.spawn` takes `workspace`, `session.forget` exists, and `session.submit`
+exists. A daemon from before the list existed sends none, and it ignores the parameters it does not
+know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the list rather than the
+build string to learn what the running daemon honours.
 
 `daemonID` is the id the daemon minted into its state store the first time it opened it, so it stays
 the same across daemon restarts. Every session descriptor holds a `locator` of
@@ -125,6 +126,7 @@ semantics.
 | `session.attach`        | subscribe to a session's output; returns replay + current dims                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `session.detach`        | unsubscribe; session keeps running                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `session.input`         | keyboard input to a session (`{ session, d }`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `session.submit`        | type a line into a session and submit it (`{ session, text }`). [Submitting a line](#submitting-a-line) covers how                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `session.resize`        | client reports its dims; effective size is the min across attached clients (broadcast as `SessionResized`)                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `session.resumeCommand` | build the resume command for that session's agent (`claude --resume`, `grok --resume`, or `codex resume`)                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `session.screen`        | the session's visible screen as plain text (`{ text, cols, rows }`), no attach needed; a killed session keeps its last screen                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -151,9 +153,32 @@ Multi-client rules, chosen to cover the realistic conflicts without a write-lock
   the daemon writes each input payload to the PTY whole, never interleaving bytes from two clients
   inside one payload. Client input is decoded statefully per client so a multi-byte character split
   across reads is never mangled.
+- Line atomicity: the writes that type and submit one `session.submit` line go to the PTY together,
+  so no other client's input lands between the text and its submit key.
 - Resize debounce: the daemon debounces effective-dimension changes (~50 ms) and suppresses PTY
   resizes when the effective size is unchanged, so two clients resizing in opposite directions
   cannot produce a SIGWINCH storm.
+
+## Submitting a line
+
+`session.input` writes its bytes to the PTY exactly as sent. `session.submit` types `text` as one
+line and submits it the way the session's agent accepts a line, which the agent's adapter decides:
+
+- Claude, and a gateway that runs the Claude CLI, get the text and a newline in one write: the same
+  bytes as a `session.input` of the text and a newline.
+- Codex and Grok keep a newline that arrives inside a burst of input as part of the text, so a line
+  typed with its newline stays unsent in the composer. They get the text between bracketed paste
+  markers (`ESC[200~` and `ESC[201~`), then a carriage return as a second write. The markers make
+  the text one paste event, so the carriage return reads as Enter however the two writes arrive.
+  Paste markers inside the text are dropped, so the text cannot end its own paste. The daemon reads
+  from the session's screen model whether the TUI has turned bracketed paste on (DEC mode 2004);
+  until it has, the text goes unmarked. In that case the text and the carriage return go out in the
+  same tick and can arrive as one burst, so the daemon cannot promise that the line is submitted.
+  The daemon reads the mode from the output parsed so far and does not wait for output still queued,
+  so a line sent just as the TUI turns bracketed paste on can go out unmarked too.
+
+A headless session takes the line as the prompt of its next turn, as it takes `session.input`. The
+ok means the daemon wrote the line and its submit key to the PTY, not that the agent answered.
 
 ## Events
 

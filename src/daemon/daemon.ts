@@ -3,6 +3,7 @@ import { unlinkSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { AdapterEvent, AgentAdapter } from '../agents/agent-adapter';
+import { planTypedLineInput } from '../agents/plan-typed-line-input';
 import { DaemonError } from '../protocol/daemon-error';
 import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
@@ -1446,6 +1447,30 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       mgr.requireExecution(s, 'input');
       s.pty.write(data);
+
+      return 'ok';
+    },
+    writeSessionLine: (sessionID, text) => {
+      const s = mgr.sessions.find((x) => x.id === sessionID);
+
+      // A headless turn takes the line as its prompt, and a missing or dead
+      // session refuses a line as it refuses raw input.
+      if (s === undefined || s.kind === 'headless' || s.pty === null) {
+        return ctx.writeSessionInput(sessionID, text);
+      }
+
+      mgr.requireExecution(s, 'input');
+
+      const bracketedPaste = runtimes.get(sessionID)?.screen?.hasBracketedPaste() ?? false;
+      const adapter = mgr.findAdapter(s.agent);
+      const writes = adapter?.planLineInput?.(text, { bracketedPaste }) ?? planTypedLineInput(text);
+
+      // Every write goes out in the tick the request arrives in, so no input
+      // overtakes the line and none lands between the text and its submit
+      // key.
+      for (const data of writes) {
+        s.pty.write(data);
+      }
 
       return 'ok';
     },

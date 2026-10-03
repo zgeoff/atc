@@ -159,6 +159,9 @@ export const REQUEST_PARAM_SCHEMAS = {
   'session.input': SESSION_DEFAULTED.extend({
     d: buildDefaultedString(''),
   }),
+  'session.submit': SESSION_DEFAULTED.extend({
+    text: buildDefaultedString(''),
+  }),
   'session.resize': SESSION_DEFAULTED.extend({
     cols: buildTerminalSize(0),
     rows: buildTerminalSize(0),

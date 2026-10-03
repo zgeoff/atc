@@ -137,8 +137,7 @@ else
   printf '{"hookEventName":"notification","sessionId":"fake-grok-1","notificationType":"permission_prompt","message":"allow edit?"}' | ${hookReport}
 fi
 echo "FAKE_GROK_HOOKS_DONE"
-while read -r line; do echo "GOT:$line"; done
-sleep 30
+exec "${process.execPath}" "$HOME/fake-composer.js"
 `,
       { mode: 0o755 },
     );
@@ -150,10 +149,67 @@ echo "FAKE_CODEX_UP args: $@"
 printf '{"hook_event_name":"SessionStart","session_id":"fake-codex-1","transcript_path":"'"$HOME"'/fake-rollout.jsonl","cwd":"%s","source":"startup"}' "$PWD" | ${hookReport}
 sleep 0.3
 printf '{"hook_event_name":"Stop","session_id":"fake-codex-1","transcript_path":"'"$HOME"'/fake-rollout.jsonl","last_assistant_message":"pong"}' | ${hookReport}
-while read -r line; do echo "GOT:$line"; done
-sleep 30
+exec "${process.execPath}" "$HOME/fake-composer.js"
 `,
       { mode: 0o755 },
+    );
+
+    // The composer the fake Codex and Grok finish in, modelled on the
+    // crossterm TUIs both agents draw: raw mode with bracketed paste on.
+    // Each read is one input event batch. A bracketed paste lands in the
+    // composer whole, newlines kept; a lone CR outside a paste submits; a
+    // lone LF is Ctrl-J and adds a newline; any other read of more than one
+    // byte is a paste burst whose line breaks stay in the composer. A read
+    // that ends partway into a paste marker holds that part for the next
+    // read. After each read it prints every byte received so far as
+    // RECEIVED:<json>, and it prints each submission as SUBMIT:<json>.
+    writeFileSync(
+      join(freshHome, 'fake-composer.js'),
+      String.raw`const OPEN = '\u001B[200~';
+const CLOSE = '\u001B[201~';
+let composer = '';
+let pasting = false;
+let held = '';
+let received = '';
+process.stdin.setRawMode(true);
+process.stdout.write('\u001B[?2004hFAKE_COMPOSER_READY\r\n');
+process.stdin.on('data', (buf) => {
+  const chunk = buf.toString('utf8');
+  received += chunk;
+  process.stdout.write('RECEIVED:' + JSON.stringify(received) + '\r\n');
+  let rest = held + chunk;
+  held = '';
+  const cut = rest.lastIndexOf('\u001B');
+  const tail = cut === -1 ? '' : rest.slice(cut);
+  if (tail !== '' && tail.length < CLOSE.length && (OPEN.startsWith(tail) || CLOSE.startsWith(tail))) {
+    held = tail;
+    rest = rest.slice(0, cut);
+  }
+  while (rest !== '') {
+    if (pasting) {
+      const end = rest.indexOf(CLOSE);
+      composer += (end === -1 ? rest : rest.slice(0, end)).replaceAll('\r', '\n');
+      pasting = end === -1;
+      rest = end === -1 ? '' : rest.slice(end + CLOSE.length);
+      continue;
+    }
+    if (rest.startsWith(OPEN)) {
+      pasting = true;
+      rest = rest.slice(OPEN.length);
+      continue;
+    }
+    const next = rest.indexOf(OPEN);
+    const plain = next === -1 ? rest : rest.slice(0, next);
+    rest = next === -1 ? '' : rest.slice(next);
+    if (plain === '\r') {
+      process.stdout.write('SUBMIT:' + JSON.stringify(composer) + '\r\n');
+      composer = '';
+    } else {
+      composer += plain.replaceAll('\r', '\n');
+    }
+  }
+});
+`,
     );
 
     writeFileSync(
@@ -1302,6 +1358,37 @@ test('it answers session.input on a dead session with session_dead', async () =>
   });
 });
 
+test('it answers session.submit on a dead session with session_dead', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const spawned = getRecord(ok, 'session');
+  const id = getString(spawned, 'id');
+
+  await client.sendRequest('session.kill', { session: id });
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['lastMsg'] === 'killed',
+  );
+
+  expect(client.sendRequest('session.submit', { session: id, text: 'x' })).rejects.toMatchObject({
+    code: 'session_dead',
+  });
+});
+
 test('it answers session.attach on a dead session with session_dead', async () => {
   const ctx = setupDaemonProc();
 
@@ -1725,6 +1812,202 @@ test('it builds codex resume commands and keeps codex in the fleet on kill', asy
   const answer = await client.sendRequest('session.resumeCommand', { session: id });
 
   expect(answer['command']).toBe(`cd '${ctx.home}' && codex resume fake-codex-1`);
+});
+
+test('it submits a line to a codex session as one submission', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'codex',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  // The client sees output before the daemon's screen model has parsed it,
+  // and a submit reads the paste mode from that model. A screen read waits
+  // for the parse, so once it shows the banner, the paste mode the composer
+  // turned on just before it is in force.
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
+
+  await client.sendRequest('session.submit', { session: id, text: 'hello' });
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('SUBMIT:"hello"'),
+  );
+});
+
+test('it submits a multi-line text to a codex session as one submission', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'codex',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  // The client sees output before the daemon's screen model has parsed it,
+  // and a submit reads the paste mode from that model. A screen read waits
+  // for the parse, so once it shows the banner, the paste mode the composer
+  // turned on just before it is in force.
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
+
+  await client.sendRequest('session.submit', { session: id, text: 'first\nsecond' });
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes(String.raw`SUBMIT:"first\nsecond"`),
+  );
+});
+
+test('it submits a line to a grok session as one submission', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'grok',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  // The client sees output before the daemon's screen model has parsed it,
+  // and a submit reads the paste mode from that model. A screen read waits
+  // for the parse, so once it shows the banner, the paste mode the composer
+  // turned on just before it is in force.
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
+
+  await client.sendRequest('session.submit', { session: id, text: 'hello' });
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('SUBMIT:"hello"'),
+  );
+});
+
+test('it submits a line to a claude session as one line', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('FAKE_CLAUDE_UP'),
+  );
+
+  await client.sendRequest('session.submit', { session: id, text: 'hello' });
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('GOT:hello'),
+  );
+});
+
+test('it writes raw input to a codex session byte for byte', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'codex',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('FAKE_COMPOSER_READY'),
+  );
+
+  await client.sendRequest('session.input', { session: id, d: 'abc\u001B[Ax\n' });
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionOutput' && String(e['d']).includes(String.raw`RECEIVED:"abc\u001b[Ax\n"`),
+  );
 });
 
 test("it reports a session's pending prompt through session.get while it needs you", async () => {

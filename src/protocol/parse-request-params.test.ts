@@ -30,6 +30,7 @@ test.each([
   ],
   ['session.detach', { session: 's1' }, { session: toSessionID('s1') }],
   ['session.input', { session: 's1', d: 'x' }, { session: toSessionID('s1'), d: 'x' }],
+  ['session.submit', { session: 's1', text: 'x' }, { session: toSessionID('s1'), text: 'x' }],
   [
     'session.resize',
     { session: 's1', cols: 100, rows: 30 },
