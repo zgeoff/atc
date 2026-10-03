@@ -34,6 +34,11 @@ not app code.
   needs a file outside the bundle at runtime (a package's native binary, the source tree) checks
   `isCompiledBinary()` and takes the path that works without `node_modules`; the daemon suite runs
   through each binary in CI with `ATC_BIN`, so that branch is tested.
+- The live install on a machine runs an installed release: the global MCP server entry, every
+  service unit, and every long-running `atc` process start `~/.local/bin/atc` (or the release's
+  install path), never `bun src/cli.ts` from a checkout. A pull or branch switch in a checkout then
+  never changes the protocol a live client speaks. Run source builds against a daemon of their own,
+  in a state directory of their own.
 
 ## Agent integration contract
 
