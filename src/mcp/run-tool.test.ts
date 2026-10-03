@@ -317,7 +317,10 @@ test('it refuses a spawn on a target unsent when the daemon predates targets', a
   using tmp = setupTempDir('atc-run-tool-');
 
   const socketPath = join(tmp.dir, 'daemon.sock');
-  const legacy = startLegacyDaemon(socketPath, 'pre-spawn-options');
+
+  const legacy = startLegacyDaemon(socketPath, {
+    features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
+  });
 
   const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
 
@@ -387,7 +390,10 @@ test('it refuses a spawn with a workspace unsent when the daemon predates worksp
   using tmp = setupTempDir('atc-run-tool-');
 
   const socketPath = join(tmp.dir, 'daemon.sock');
-  const legacy = startLegacyDaemon(socketPath, 'pre-spawn-options');
+
+  const legacy = startLegacyDaemon(socketPath, {
+    features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
+  });
 
   const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
 
