@@ -439,9 +439,10 @@ nothing to such a daemon. An `as` that is not a non-empty string is a malformed 
 refuses a handshake whose `principal` is not one with `bad_args`.
 
 The [configuration guide](../guides/configuration.md#principals) sets which targets each principal
-may use. Each target grant matches a target name and its identity now, and a session is within the
-principal's reach when its target and bound identity match a grant. To a principal, a session out of
-reach does not exist:
+may use. Each target grant matches a target name and its identity now. A session is within the
+principal's reach when the target and bound identity of every session in its tree match a grant: its
+top-level session and each sub-session of that one. To a principal, a session out of reach does not
+exist:
 
 - `session.list`, `fleet.list`, and `events.read` leave it out, and the daemon reads `events.read`
   filtered to it as a filter on a session the trail never held.
@@ -450,8 +451,11 @@ reach does not exist:
   it refuses one for an unknown id, with the same code, message, and `data`.
 - `agents.list` lists only the targets the principal may use, and `spawnDefaults.target` is null
   when the principal may not use the default.
-- A session within reach whose parent is out of reach shows as top-level: no answer or event the
-  principal gets holds that parent. A spawn under such a session starts top-level.
+- A spawn whose `parent` is out of reach is refused as a spawn under an unknown parent.
+- A session whose tree leaves the principal's reach, such as a parent that gains a sub-session on a
+  target the principal may not use, leaves a principal connection's view: the connection is pushed
+  `SessionRemoved` for it, as for a forgotten session, and its output stops. A session whose tree
+  comes back within reach is pushed as `SessionAdded`.
 - Events and messages belong to the session they were recorded under. A session within reach that
   resumes the same agent session as one out of reach never shows the other's events, messages, or
   activity time.
@@ -466,12 +470,11 @@ with the target as `data.target`. So does the replay of a held spawn key when th
 longer reaches the target, at the identity, that the key recorded for its session, even after the
 session is forgotten; the refusal holds no part of the session. A key that records no target, which
 only a key from before atc recorded them holds, refuses every principal's replay; the daemon's owner
-still gets the session. A kill, a forget, or a pin of a session whose sub-sessions the change would
-reach too fails with `target_forbidden` and the session as `data.session` when any of those
-sub-sessions is out of reach, and changes nothing; the error holds no sub-session's id or count.
-`daemon.quit` and `fleet.restore` act on the whole daemon, and a principal gets `unauthorized` for
-them. The [events socket](#events-socket) has no handshake and streams every event: it is a local
-socket for the daemon's owner alone.
+still gets the session. A kill, a forget, or a pin checks the tree in the same step that starts it,
+and a kill or a forget acts only on the sub-sessions the tree held then. `daemon.quit` and
+`fleet.restore` act on the whole daemon, and a principal gets `unauthorized` for them. The
+[events socket](#events-socket) has no handshake and streams every event: it is a local socket for
+the daemon's owner alone.
 
 ## Workspaces
 
