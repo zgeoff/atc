@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { startGitHTTPServer } from '../../test/start-git-http-server';
+import { updateEnv } from '../../test/update-env';
 import { checkRepositoryAccess } from './check-repository-access';
 
 // A bare upstream with one commit on main, a work clone that pushes to it,
@@ -227,4 +228,52 @@ test('it refuses an upstream that does not answer within its time limit and leav
 
   expect(Date.now() - started).toBeLessThan(5000);
   expect(left).toBe('');
+});
+
+test.each([
+  ['a file URL', 'file:///srv/git/app.git'],
+  ['an ext helper that runs a command', 'ext::sh -c touch% /tmp/atc-ext'],
+  ['an fd helper', 'fd::17'],
+  ['a local path', '/srv/git/app.git'],
+  ['a URL that reads as an option', '-uhttps://example.com/app.git'],
+])('it refuses %s before any git runs', async (_, url) => {
+  await using project = await setupTest();
+
+  // A git first on the PATH records each run, so a refusal that runs git
+  // leaves the record behind.
+  await writeFile(
+    join(project.dir, 'git'),
+    `#!/bin/sh\necho ran >> '${join(project.dir, 'git-ran')}'\n`,
+    {
+      mode: 0o755,
+    },
+  );
+
+  updateEnv('ATC_GIT_ALLOW_PROTOCOL', undefined);
+  updateEnv('PATH', `${project.dir}:${process.env['PATH'] ?? ''}`);
+
+  const access = await checkRepositoryAccess({ url });
+  const ran = await Bun.file(join(project.dir, 'git-ran')).exists();
+
+  expect(access).toMatchObject({ ok: false, code: 'invalid_git_url' });
+  expect(ran).toBeFalse();
+});
+
+test('it refuses an https URL the host git config rewrites to a local repository, in git', async () => {
+  await using project = await setupTest();
+
+  await writeFile(
+    join(project.dir, 'gitconfig'),
+    `[url "file://${project.upstream}"]\n\tinsteadOf = https://example.invalid/upstream.git\n`,
+  );
+
+  updateEnv('ATC_GIT_ALLOW_PROTOCOL', undefined);
+  updateEnv('GIT_CONFIG_GLOBAL', join(project.dir, 'gitconfig'));
+
+  const access = await checkRepositoryAccess({ url: 'https://example.invalid/upstream.git' });
+
+  const message = access.ok ? '' : access.message;
+
+  expect(access).toMatchObject({ ok: false, code: 'clone_failed' });
+  expect(message).toInclude("transport 'file' not allowed");
 });

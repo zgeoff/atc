@@ -390,9 +390,12 @@ test("it refuses a GitHub probe git cannot read with the repository's other URL 
 
   // The rewrite sends the https form to a path that does not exist, so no
   // request reaches GitHub.
-  updateEnv('GIT_CONFIG_COUNT', '1');
-  updateEnv('GIT_CONFIG_KEY_0', `url.file://${join(ctx.dir, 'nowhere')}/.insteadOf`);
-  updateEnv('GIT_CONFIG_VALUE_0', 'https://github.com/');
+  await writeFile(
+    join(ctx.dir, 'gitconfig'),
+    `[url "file://${join(ctx.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
+  );
+
+  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
 
   const probed = ctx.client.sendRequest('git.probe', { url: 'https://github.com/acme/app.git' });
 

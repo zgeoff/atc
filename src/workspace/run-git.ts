@@ -1,4 +1,5 @@
 import { REPOSITORY_ENV_VARS } from './repository-env-vars';
+import { resolveGitProtocols } from './resolve-git-protocols';
 
 interface GitRunOptions {
   readonly cwd?: string;
@@ -24,7 +25,9 @@ interface GitRun {
  * stopped once it passes it, with every process it started, and reported
  * as timed out.
  * git never prompts on a terminal here, since the daemon has none to answer
- * with, and its messages stay in the C locale so callers can read them.
+ * with, its messages stay in the C locale so callers can read them, and it
+ * fetches only over the transports atc allows, whatever URL a host config
+ * rewrite or a submodule hands it.
  * Variables that pin git to some other repository, such as the `GIT_DIR` a
  * git hook exports, are dropped so the command acts on its own directory.
  *
@@ -67,6 +70,7 @@ export async function runGit(
       ...(isolated ? ISOLATED_ENV : {}),
       GIT_TERMINAL_PROMPT: '0',
       LC_ALL: 'C',
+      GIT_ALLOW_PROTOCOL: resolveGitProtocols().join(':'),
     },
     stdin: options.input === undefined ? 'ignore' : Buffer.from(options.input),
     stdout: 'pipe',

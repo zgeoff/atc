@@ -1043,3 +1043,48 @@ test('it checks out the sha of a git source that holds both on the branch its re
   expect(branch.trim()).toBe('refs/heads/main');
   expect(existsSync(join(dest, 'later.txt'))).toBeFalse();
 });
+
+test('it refuses a git source on a local transport before it runs git, transferring nothing', async () => {
+  await using ctx = await setupTest();
+
+  updateEnv('ATC_GIT_ALLOW_PROTOCOL', undefined);
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'invalid_git_url' });
+  expect(spawn).rejects.toThrow("git transport 'file' is not allowed");
+
+  await spawn.catch(() => null);
+
+  expect(box.calls).toStrictEqual([]);
+});
+
+test('it refuses a path source whose origin is a local repository, in git, transferring nothing', async () => {
+  await using ctx = await setupTest();
+
+  updateEnv('ATC_GIT_ALLOW_PROTOCOL', undefined);
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toThrow("transport 'file' not allowed");
+
+  await spawn.catch(() => null);
+
+  expect(box.calls).not.toContainEqual(expect.objectContaining({ op: 'transfer' }));
+});
