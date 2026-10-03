@@ -943,11 +943,28 @@ test('it refuses to run a local repository in place when git does not trust its 
 
   const booted = await ctx.boot(new FixtureDirProvider());
 
-  // git's own switch for treating every repository as another user's.
-  process.env['GIT_TEST_ASSUME_DIFFERENT_OWNER'] = '1';
+  // git's own switch for treating every repository as another user's, with
+  // the host's system and global config kept out, since a host that lists
+  // the repository under safe.directory trusts it whatever its owner.
+  const overrides = {
+    GIT_TEST_ASSUME_DIFFERENT_OWNER: '1',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+  };
+
+  const previous = Object.fromEntries(
+    Object.keys(overrides).map((name) => [name, process.env[name]]),
+  );
+
+  Object.assign(process.env, overrides);
 
   onTestFinished(() => {
-    delete process.env['GIT_TEST_ASSUME_DIFFERENT_OWNER'];
+    for (const [name, value] of Object.entries(previous)) {
+      const restored = value === undefined ? {} : { [name]: value };
+
+      Reflect.deleteProperty(process.env, name);
+      Object.assign(process.env, restored);
+    }
   });
 
   const spawn = booted.client.sendRequest('session.spawn', {
