@@ -336,7 +336,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // the chosen or default target selected, and the fallback step otherwise.
   private openTargetOrDir(fallback: 'dir' | 'name') {
     if (this.targets.length < 2) {
-      this.target = null;
+      // An adopt names its one target, which may not be the default.
+      this.target = this.resume ? (this.targets[0] ?? null) : null;
       this.step = fallback;
 
       return;
@@ -358,7 +359,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     try {
       const listed = await this.deps.sendRequest('agents.list');
 
-      this.targets = collectTargetPicks(listed);
+      const picks = collectTargetPicks(listed);
+
+      // An adopt resumes a session from its history on this host, which a
+      // fresh checkout elsewhere does not hold, so it is offered only the
+      // targets that run here.
+      this.targets = this.resume ? picks.filter((t) => t.available && t.inPlace) : picks;
     } catch {
       this.targets = [];
     }
