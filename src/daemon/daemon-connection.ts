@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import type { AgentAdapter, AgentID, SpawnOptions } from '../agents/agent-adapter';
+import type { AgentAdapter, AgentID, SpawnOptions, SpawnOverrides } from '../agents/agent-adapter';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { decodeCursor } from '../protocol/decode-cursor';
 import { encodeCursor } from '../protocol/encode-cursor';
@@ -22,6 +22,7 @@ import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
+import { parseSpawnOverrides } from './parse-spawn-overrides';
 import type { AnswerResult } from './permission-registry';
 import type { ScreenText } from './screen-model';
 import type { SessionDescriptor } from './sessions';
@@ -36,6 +37,7 @@ interface SpawnParams {
   readonly namedBy: 'user' | 'auto';
   readonly agent: AgentID;
   readonly parent: SessionID | null;
+  readonly overrides: SpawnOverrides;
 }
 
 interface SessionRecord {
@@ -600,9 +602,34 @@ export class DaemonConnection {
     const cwd = parsed.data.cwd;
     const name = parsed.data.name;
     const agent: AgentID = parsed.data.agent ?? 'claude';
+    const adapter = this.ctx.findAdapter(agent);
+    const entry = this.ctx.collectAgents().agents.find((candidate) => candidate.id === agent);
 
-    if (this.ctx.findAdapter(agent) === null) {
+    if (adapter === null || entry === undefined) {
       this.sendErr(req.id, 'unsupported', `no adapter for agent '${agent}'`);
+
+      return;
+    }
+
+    // A stand-in adapter declares no binary to check, so only a profiled
+    // agent's missing binary refuses the spawn.
+    if (adapter.profile !== undefined && !entry.installed) {
+      this.sendErr(
+        req.id,
+        'unsupported',
+        `agent '${agent}' is registered but not installed on this host`,
+      );
+
+      return;
+    }
+
+    const overrides = parseSpawnOverrides(entry, {
+      model: parsed.data.model,
+      effort: parsed.data.effort,
+    });
+
+    if (!overrides.ok) {
+      this.sendErr(req.id, overrides.code, overrides.message);
 
       return;
     }
@@ -633,6 +660,7 @@ export class DaemonConnection {
       namedBy: name === '' ? 'auto' : 'user',
       agent,
       parent,
+      overrides: overrides.overrides,
     });
 
     this.sendOk(req.id, { session });

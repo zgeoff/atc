@@ -95,6 +95,26 @@ test('it lists each registered agent with what it can do and the host it runs on
           input: true,
         },
         models: null,
+        spawnOptions: {
+          model: {
+            supported: true,
+            available: true,
+            values: null,
+            examples: expect.toBeArrayOfSize(8),
+            default: null,
+            backendEffect: 'applied',
+            note: 'An alias or a full model name, passed as --model.',
+          },
+          effort: {
+            supported: true,
+            available: true,
+            values: ['low', 'medium', 'high', 'xhigh', 'max'],
+            examples: [],
+            default: null,
+            backendEffect: 'applied',
+            note: 'Passed as --effort. Which levels a session honours depends on its model.',
+          },
+        },
       },
       {
         id: 'grok',
@@ -110,6 +130,26 @@ test('it lists each registered agent with what it can do and the host it runs on
           input: true,
         },
         models: null,
+        spawnOptions: {
+          model: {
+            supported: false,
+            available: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: 'atc does not pass this option to Grok.',
+          },
+          effort: {
+            supported: false,
+            available: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: 'atc does not pass this option to Grok.',
+          },
+        },
       },
       {
         id: 'codex',
@@ -125,6 +165,26 @@ test('it lists each registered agent with what it can do and the host it runs on
           input: true,
         },
         models: null,
+        spawnOptions: {
+          model: {
+            supported: true,
+            available: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: 'applied',
+            note: 'A model name, passed as -m.',
+          },
+          effort: {
+            supported: false,
+            available: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: 'Codex documents its reasoning effort levels as depending on the model, with no closed list, so atc does not pass one.',
+          },
+        },
       },
       {
         id: 'zai',
@@ -140,6 +200,26 @@ test('it lists each registered agent with what it can do and the host it runs on
           input: true,
         },
         models: { opus: 'glm-4.6' },
+        spawnOptions: {
+          model: {
+            supported: true,
+            available: true,
+            values: null,
+            examples: [{ value: 'opus', resolvesTo: 'glm-4.6' }],
+            default: null,
+            backendEffect: 'applied',
+            note: "A tier alias the gateway's env maps, or a model name the provider accepts, passed as --model.",
+          },
+          effort: {
+            supported: true,
+            available: true,
+            values: ['low', 'medium', 'high', 'xhigh', 'max'],
+            examples: [],
+            default: null,
+            backendEffect: 'unverified',
+            note: "Passed as --effort; the gateway's provider may ignore it.",
+          },
+        },
       },
     ],
   });
@@ -157,4 +237,95 @@ test("it keeps a gateway's env values, helper, and base URL out of the agent lis
   expect(listed).not.toInclude('600000');
   expect(listed).not.toInclude('op read');
   expect(listed).not.toInclude('api.z.ai');
+});
+
+test('it refuses a registered agent whose binary is missing before spawning anything', async () => {
+  await using daemon = await setupTest();
+
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'codex' });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'unsupported',
+    message: "agent 'codex' is registered but not installed on this host",
+  });
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toStrictEqual({ sessions: [] });
+});
+
+test('it neither lists nor spawns an agent id the daemon never registered', async () => {
+  await using daemon = await setupTest();
+
+  const agents = await daemon.client.sendRequest('agents.list');
+
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'gemini' });
+
+  expect(JSON.stringify(agents)).not.toInclude('gemini');
+  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toStrictEqual({ sessions: [] });
+});
+
+test('it refuses a model shaped like a flag before spawning anything', async () => {
+  await using daemon = await setupTest();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    model: '--dangerously-skip-permissions',
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toStrictEqual({ sessions: [] });
+});
+
+test('it refuses a gateway effort outside the levels the CLI accepts', async () => {
+  await using daemon = await setupTest();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'zai',
+    effort: 'ultra',
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toStrictEqual({ sessions: [] });
+});
+
+test('it refuses an option the agent takes no value for', async () => {
+  await using daemon = await setupTest();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'grok',
+    model: 'grok-4',
+  });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'unsupported',
+    message: "agent 'grok' takes no model",
+  });
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toStrictEqual({ sessions: [] });
+});
+
+test('it refuses a model that is not a string', async () => {
+  await using daemon = await setupTest();
+
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: '/tmp', model: 7 });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'bad_args',
+    message: 'session.spawn model must be a string',
+  });
 });

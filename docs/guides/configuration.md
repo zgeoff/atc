@@ -17,18 +17,18 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 }
 ```
 
-| Field        | Default         | Meaning                                                                                                     |
-| ------------ | --------------- | ----------------------------------------------------------------------------------------------------------- |
-| `claudeBin`  | `"claude"`      | The binary spawned for Claude sessions.                                                                     |
-| `claudeArgs` | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`.                                                |
-| `grokBin`    | `"grok"`        | The binary spawned for Grok sessions.                                                                       |
-| `grokArgs`   | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`. |
-| `codexBin`   | `"codex"`       | The binary spawned for Codex sessions.                                                                      |
-| `codexArgs`  | `[]`            | Prepended to every Codex spawn.                                                                             |
-| `dirs`       | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it. |
-| `gateways`   | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                |
-| `hooks`      | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.         |
-| `leader`     | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                       |
+| Field        | Default         | Meaning                                                                                                                |
+| ------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `claudeBin`  | `"claude"`      | The binary spawned for Claude sessions.                                                                                |
+| `claudeArgs` | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`. A spawn's own model or effort replaces the matching flag. |
+| `grokBin`    | `"grok"`        | The binary spawned for Grok sessions.                                                                                  |
+| `grokArgs`   | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`.            |
+| `codexBin`   | `"codex"`       | The binary spawned for Codex sessions.                                                                                 |
+| `codexArgs`  | `[]`            | Prepended to every Codex spawn. A spawn's own model replaces a `-m` or `--model` here.                                 |
+| `dirs`       | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.            |
+| `gateways`   | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                           |
+| `hooks`      | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                    |
+| `leader`     | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                  |
 
 ## Leader
 
@@ -86,6 +86,11 @@ and GLM sessions then sit side by side in one fleet:
 | `apiKeyHelper` | none        | Command the CLI runs to read the credential, so no token is written into atc's state directory.                |
 | `env`          | `{}`        | Extra environment for the session, such as the model each Claude tier maps to.                                 |
 | `settings`     | none        | More Claude Code settings for this gateway's sessions. The [section below](#extra-session-settings) covers it. |
+
+A spawn through `atc_session_spawn` or `session.spawn` can pick a model and an effort per session;
+the [protocol](../architecture/protocol.md#spawn-options) lists what each agent takes. A gateway
+offers each tier its `env` maps as a model, and passes an effort on to the CLI, which its provider
+may ignore.
 
 The id may not be `claude`, `grok`, or `codex`. atc writes one settings file per id and passes it as
 `--settings`, on the terminal spawn and on a headless turn alike, so a gateway session reaches its

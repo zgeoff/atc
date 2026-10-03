@@ -16,7 +16,30 @@ async function setupTest() {
     headlessRunner: null,
     screenDetector: null,
     takesMessages: false,
-    profile: { label: 'Acme Agent', kind: 'acme-cli', bin: 'sleep', models: null },
+    profile: {
+      label: 'Acme Agent',
+      kind: 'acme-cli',
+      bin: 'sleep',
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: true,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: 'applied',
+          note: null,
+        },
+        effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+      },
+    },
     planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
     normalizeHook: () => ({ kind: 'heartbeat' }),
     loadName: () => Promise.resolve(null),
@@ -81,6 +104,26 @@ test('it lists an agent atc has no code for with the kind and label its adapter 
       input: true,
     },
     models: null,
+    spawnOptions: {
+      model: {
+        supported: true,
+        available: true,
+        values: null,
+        examples: [],
+        default: null,
+        backendEffect: 'applied',
+        note: null,
+      },
+      effort: {
+        supported: false,
+        available: false,
+        values: null,
+        examples: [],
+        default: null,
+        backendEffect: null,
+        note: null,
+      },
+    },
   });
 });
 
@@ -100,6 +143,7 @@ test('it spawns a session under an agent atc has no code for', async () => {
   const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: '/tmp',
     agent: 'acme',
+    model: 'acme-large',
     cols: 80,
     rows: 24,
   });

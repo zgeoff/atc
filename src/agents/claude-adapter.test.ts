@@ -107,3 +107,44 @@ test('it hands a headless run the folder of the atc-bridge mod', () => {
 
   expect(received).toMatchObject({ cwd: '/tmp', pluginDir: expect.toEndWith('atc-bridge') });
 });
+
+test('it advertises the documented model aliases and effort levels with the configured defaults', () => {
+  const adapter = new ClaudeAdapter({
+    ...buildClaudeConfig(),
+    claudeArgs: ['--model', 'opus', '--effort=high'],
+  });
+
+  expect(adapter.profile.spawnOptions).toStrictEqual({
+    model: {
+      supported: true,
+      values: null,
+      examples: [
+        { value: 'best', resolvesTo: null },
+        { value: 'fable', resolvesTo: null },
+        { value: 'opus', resolvesTo: null },
+        { value: 'sonnet', resolvesTo: null },
+        { value: 'haiku', resolvesTo: null },
+        { value: 'opus[1m]', resolvesTo: null },
+        { value: 'sonnet[1m]', resolvesTo: null },
+        { value: 'opusplan', resolvesTo: null },
+      ],
+      default: 'opus',
+      backendEffect: 'applied',
+      note: 'An alias or a full model name, passed as --model.',
+    },
+    effort: {
+      supported: true,
+      values: ['low', 'medium', 'high', 'xhigh', 'max'],
+      examples: [],
+      default: 'high',
+      backendEffect: 'applied',
+      note: 'Passed as --effort. Which levels a session honours depends on its model.',
+    },
+  });
+});
+
+test('it advertises no default model or effort when the configured arguments set none', () => {
+  const options = new ClaudeAdapter(buildClaudeConfig()).profile.spawnOptions;
+
+  expect([options.model.default, options.effort.default]).toStrictEqual([null, null]);
+});

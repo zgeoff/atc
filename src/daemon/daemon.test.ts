@@ -133,7 +133,14 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
   expect(ok).toStrictEqual({
     daemon: 'atc/test-build',
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
-    features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
+    features: [
+      'agents.list',
+      'events.more',
+      'events.session',
+      'message.turn',
+      'message.wait',
+      'spawn.options',
+    ],
     lastUsedAgent: 'claude',
   });
 });

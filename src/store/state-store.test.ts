@@ -490,6 +490,38 @@ test('it round-trips a sub-session fleet row', async () => {
   ]);
 });
 
+test('it round-trips a fleet row with its model and effort', async () => {
+  const store = await StateStore.open(join(setupDir(), 'state.db'));
+
+  onTestFinished(async () => {
+    await store.stop();
+  });
+
+  await store.writeFleet([
+    {
+      name: 'tuned',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      model: 'opus[1m]',
+      effort: 'xhigh',
+    },
+  ]);
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    {
+      name: 'tuned',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      model: 'opus[1m]',
+      effort: 'xhigh',
+    },
+  ]);
+});
+
 test('it adds parent to a fleet row that predates it', async () => {
   const dbPath = join(setupDir(), 'state.db');
 
@@ -819,6 +851,7 @@ test('it opens a database twice without re-running migrations or corrupting data
     '011_create_messages',
     '012_index_messages_by_owner',
     '013_add_messages_turn_id',
+    '014_add_fleet_model_effort',
   ]);
 
   updateMigrationLedger(dbPath, 'sentinel');

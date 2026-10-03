@@ -237,6 +237,8 @@ test.each([
   ['atc_message_get', { message: 'm-1', waitMs: 5000 }],
   ['atc_events_read', { session: 's-1' }],
   ['atc_agents_list', {}],
+  ['atc_session_spawn', { cwd: '/tmp', model: 'opus' }],
+  ['atc_session_spawn', { cwd: '/tmp', effort: 'high' }],
 ])(
   'it refuses %p with a restart hint when the connected daemon predates it, sending nothing',
   async (name, args) => {
@@ -313,4 +315,104 @@ test('it reads a message from an older daemon when the call asks for no wait', a
     kind: 'reply',
     body: { result: { structuredContent: { message: 'm-legacy', status: 'accepted' } } },
   });
+});
+
+test('it names the registered agents in the spawn tool to a caller holding the read scope', async () => {
+  await using server = await setupMCPHTTP();
+
+  const outcome = await answerRPCRequest(
+    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    {
+      caller: server.caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      scopes: ['read'],
+    },
+  );
+
+  const listed = JSON.stringify(outcome);
+
+  expect(listed).toInclude('the host registered: claude (not installed).');
+});
+
+test('it names no agent in the spawn tool to a caller without the read scope', async () => {
+  await using server = await setupMCPHTTP();
+
+  const outcome = await answerRPCRequest(
+    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    {
+      caller: server.caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      scopes: ['kill'],
+    },
+  );
+
+  expect(JSON.stringify(outcome)).not.toInclude('the host registered');
+});
+
+test('it advertises an agents output schema that agrees with what a daemon without spawn options returns', async () => {
+  using tmp = setupTempDir('atc-legacy-rpc-');
+
+  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), 'pre-spawn-options');
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+
+  onTestFinished(async () => {
+    await caller.stop();
+
+    legacy.stop();
+  });
+
+  const toolContext = {
+    callerSessionID: null,
+    sender: { kind: 'fixed', name: 'dots' },
+  } as const;
+
+  const listed = await answerRPCRequest(
+    { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+    { caller, build: 'atc/test-build', toolContext },
+  );
+
+  const called = await answerRPCRequest(
+    {
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'atc_agents_list', arguments: {} },
+    },
+    { caller, build: 'atc/test-build', toolContext },
+  );
+
+  if (listed.kind !== 'reply' || called.kind !== 'reply') {
+    throw new Error('expected replies');
+  }
+
+  const result = listed.body['result'];
+  const tools = isRecord(result) ? result['tools'] : undefined;
+
+  if (!Array.isArray(tools)) {
+    throw new TypeError('tools/list returned no tools');
+  }
+
+  const agentsTool: unknown = tools.find(
+    (tool) => isRecord(tool) && tool['name'] === 'atc_agents_list',
+  );
+
+  if (!isRecord(agentsTool)) {
+    throw new Error('atc_agents_list is not listed');
+  }
+
+  expect(agentsTool).not.toContainKey('outputSchema');
+
+  const content = called.body['result'];
+  const structured = isRecord(content) ? content['structuredContent'] : undefined;
+  const agents = isRecord(structured) ? structured['agents'] : undefined;
+
+  if (!Array.isArray(agents)) {
+    throw new TypeError('atc_agents_list returned no agents');
+  }
+
+  expect(agents).toHaveLength(1);
+  expect(agents).toSatisfyAll((agent: unknown) => isRecord(agent) && !('spawnOptions' in agent));
 });

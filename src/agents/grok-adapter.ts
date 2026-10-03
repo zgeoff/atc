@@ -15,6 +15,7 @@ import type {
   AgentProfile,
   NameUpdate,
   ResumeCheck,
+  SpawnOptionSpec,
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
@@ -48,6 +49,16 @@ const GROK_HOOK_PAYLOAD_SCHEMA = z.object({
 
 type GrokHookPayload = z.infer<typeof GROK_HOOK_PAYLOAD_SCHEMA>;
 
+// atc passes Grok neither a model nor an effort; the CLI's own config picks both.
+const GROK_UNSUPPORTED_OPTION: SpawnOptionSpec = {
+  supported: false,
+  values: null,
+  examples: [],
+  default: null,
+  backendEffect: null,
+  note: 'atc does not pass this option to Grok.',
+};
+
 /**
  * The Grok Build adapter: spawn arguments, hook payload mapping,
  * resume semantics, and summary.json name-pulling.
@@ -71,7 +82,14 @@ export class GrokAdapter implements AgentAdapter {
 
   constructor(config: Config) {
     this.config = config;
-    this.profile = { label: 'Grok', kind: 'grok', bin: config.grokBin, models: null };
+
+    this.profile = {
+      label: 'Grok',
+      kind: 'grok',
+      bin: config.grokBin,
+      models: null,
+      spawnOptions: { model: GROK_UNSUPPORTED_OPTION, effort: GROK_UNSUPPORTED_OPTION },
+    };
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {

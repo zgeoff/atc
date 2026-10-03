@@ -62,6 +62,49 @@ test('it spawns fresh, picker-resume, and id-resume codex commands', () => {
   });
 });
 
+test('it keeps the configured codex arguments when a spawn sets no model', () => {
+  const adapter = new CodexAdapter({ ...buildCodexConfig(), codexArgs: ['--model', 'gpt-a'] });
+
+  expect(adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
+    bin: 'codex',
+    args: ['--model', 'gpt-a'],
+  });
+});
+
+test("it replaces the configured codex model with a spawn's model passed as -m", () => {
+  const adapter = new CodexAdapter({
+    ...buildCodexConfig(),
+    codexArgs: ['--model', 'gpt-a', '--search'],
+  });
+
+  expect(
+    adapter.planSpawn({ prompt: 'go', resume: toAgentSessionID('c-1'), model: 'gpt-b' }),
+  ).toStrictEqual({ bin: 'codex', args: ['--search', '-m', 'gpt-b', 'resume', 'c-1', 'go'] });
+});
+
+test('it advertises a codex model with the configured default and no effort', () => {
+  const adapter = new CodexAdapter({ ...buildCodexConfig(), codexArgs: ['-m', 'gpt-a'] });
+
+  expect(adapter.profile.spawnOptions).toStrictEqual({
+    model: {
+      supported: true,
+      values: null,
+      examples: [],
+      default: 'gpt-a',
+      backendEffect: 'applied',
+      note: 'A model name, passed as -m.',
+    },
+    effort: {
+      supported: false,
+      values: null,
+      examples: [],
+      default: null,
+      backendEffect: null,
+      note: 'Codex documents its reasoning effort levels as depending on the model, with no closed list, so atc does not pass one.',
+    },
+  });
+});
+
 test('it maps a codex session start to started with id, name, and transcript sources', () => {
   const adapter = new CodexAdapter(buildCodexConfig());
 

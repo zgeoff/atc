@@ -168,6 +168,27 @@ test('it profiles a gateway with only the model names its env sets', () => {
     kind: 'gateway',
     bin: '/opt/claude/bin/claude',
     models: { opus: 'glm-4.6', haiku: 'glm-4.5-air', default: 'glm-4.6' },
+    spawnOptions: {
+      model: {
+        supported: true,
+        values: null,
+        examples: [
+          { value: 'opus', resolvesTo: 'glm-4.6' },
+          { value: 'haiku', resolvesTo: 'glm-4.5-air' },
+        ],
+        default: 'glm-4.6',
+        backendEffect: 'applied',
+        note: "A tier alias the gateway's env maps, or a model name the provider accepts, passed as --model.",
+      },
+      effort: {
+        supported: true,
+        values: ['low', 'medium', 'high', 'xhigh', 'max'],
+        examples: [],
+        default: null,
+        backendEffect: 'unverified',
+        note: "Passed as --effort; the gateway's provider may ignore it.",
+      },
+    },
   });
 });
 

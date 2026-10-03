@@ -679,6 +679,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         p.namedBy,
         p.agent,
         p.parent,
+        p.overrides,
       );
 
       const runtime = runtimes.get(s.id);

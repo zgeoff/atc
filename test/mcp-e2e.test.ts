@@ -324,8 +324,8 @@ test('it reads a session screen through a tool call', async () => {
   expect(screen).toStartWith('FAKE_CLAUDE_UP args:');
 });
 
-test('it advertises agent on atc_session_spawn as an open string', async () => {
-  const ctx = setupMCP();
+test('it advertises agent on atc_session_spawn as an open string listing the registered agents', async () => {
+  const ctx = setupMCP({ config: { codexBin: '/nonexistent/codex' } });
 
   ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
 
@@ -359,7 +359,8 @@ test('it advertises agent on atc_session_spawn as an open string', async () => {
   expect(properties['agent']).toStrictEqual({
     type: 'string',
     minLength: 1,
-    description: 'Which registered agent id to spawn; defaults to claude',
+    description:
+      'Registered agent id to spawn; defaults to claude. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_agents_list returns the current list.',
   });
 });
 
@@ -1138,4 +1139,79 @@ test('it serves an older daemon over stdio with only what that daemon supports',
   expect(refused['isError']).toBe(true);
   expect(getText(refused)).toStartWith('daemon_outdated: ');
   expect(legacy.requests.map((req) => req.m)).not.toContain('message.get');
+});
+
+test('it passes the model and effort of atc_session_spawn to the agent CLI', async () => {
+  const ctx = setupMCP();
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: {
+      name: 'atc_session_spawn',
+      arguments: { cwd: ctx.home, model: 'opus', effort: 'high' },
+    },
+  });
+
+  const spawnResponse = await ctx.waitForResponse(2);
+
+  const spawned: unknown = JSON.parse(getText(getResult(spawnResponse)));
+
+  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
+    throw new TypeError('spawn answer has no session id');
+  }
+
+  const session = spawned['id'];
+  let rpcID = 3;
+
+  const screen = await waitFor(async () => {
+    const id = rpcID++;
+
+    ctx.sendRPC({
+      jsonrpc: '2.0',
+      id,
+      method: 'tools/call',
+      params: { name: 'atc_session_screen', arguments: { session } },
+    });
+
+    const response = await ctx.waitForResponse(id);
+
+    const result = getResult(response);
+
+    expect(getText(result)).toInclude('FAKE_CLAUDE_UP');
+
+    return getText(result);
+  });
+
+  expect(screen).toStartWith('FAKE_CLAUDE_UP args: --model opus --effort high --settings');
+});
+
+test('it refuses through atc_session_spawn a registered agent that is not installed', async () => {
+  const ctx = setupMCP({ config: { codexBin: '/nonexistent/codex' } });
+
+  ctx.sendRPC({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+
+  await ctx.waitForResponse(1);
+
+  ctx.sendRPC({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home, agent: 'codex' } },
+  });
+
+  const failResponse = await ctx.waitForResponse(2);
+
+  const failed = getResult(failResponse);
+
+  expect(failed['isError']).toBeTrue();
+
+  expect(getText(failed)).toBe(
+    "unsupported: agent 'codex' is registered but not installed on this host",
+  );
 });

@@ -57,15 +57,16 @@ says to restart the daemon.
 { "v": 3, "id": 1, "ok": { "daemon": "atc/0.4.0",
                            "limits": { "maxLine": 1048576, "maxChunk": 65536 },
                            "features": ["agents.list", "events.more", "events.session",
-                                        "message.turn", "message.wait"],
+                                        "message.turn", "message.wait", "spawn.options"],
                            "lastUsedAgent": "claude" } }
 ```
 
 `features` lists the request features the daemon serves beyond the protocol version: `agents.list`
 exists, `events.read` returns `more` and takes `session`, and `message.get` returns `turn` and
-`answeredWith` and takes `waitMs`. A daemon from before the list existed sends none, and it ignores
-the parameters it does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads
-the list rather than the build string to learn what the running daemon honours.
+`answeredWith` and takes `waitMs`, and `session.spawn` takes `model` and `effort` while
+`agents.list` returns `spawnOptions`. A daemon from before the list existed sends none, and it
+ignores the parameters it does not know. A client that outlives a daemon upgrade, such as `atc mcp`,
+reads the list rather than the build string to learn what the running daemon honours.
 
 `lastUsedAgent` is the agent id of the last deliberate spawn that reported SessionStart. The
 built-in ids are `claude`, `grok`, and `codex`. A spawn that never reports SessionStart does not
@@ -79,36 +80,36 @@ semantics.
 
 ## Methods
 
-| Method                  | Purpose                                                                                                                                                                                                            |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `daemon.hello`          | handshake; must be first. The ok includes `lastUsedAgent`, the agent id written on a deliberate-spawn SessionStart.                                                                                                |
-| `daemon.ping`           | liveness / latency probe                                                                                                                                                                                           |
-| `daemon.quit`           | stop the daemon; every hosted session goes down with it                                                                                                                                                            |
-| `session.list`          | fleet listing (descriptors mirror the `Session` shape, minus the PTY handle, plus `kind` and `agent`)                                                                                                              |
-| `dirs.list`             | recent spawn directories, most recent first, for the picker                                                                                                                                                        |
-| `agents.list`           | the registered agents and the host the daemon runs on. [Agents](#agents) covers the answer                                                                                                                         |
-| `fleet.list`            | the persisted fleet rows, independent of which sessions are currently live                                                                                                                                         |
-| `session.spawn`         | spawn (cwd, name, prompt, resume, dims, optional `agent` id, optional `parent` id). Omitted agent is Claude, an empty id is `bad_args`, an unregistered one `unsupported`. An unknown parent is `no_such_session`. |
-| `session.update`        | rename and/or pin a session (`{ session, name?, pinned? }`). Pinning a sub-session is `bad_args`: it pins with its parent.                                                                                         |
-| `session.kill`          | kill process; explicit, never implied by disconnect                                                                                                                                                                |
-| `session.ack`           | clear unread without attaching                                                                                                                                                                                     |
-| `session.attach`        | subscribe to a session's output; returns replay + current dims                                                                                                                                                     |
-| `session.detach`        | unsubscribe; session keeps running                                                                                                                                                                                 |
-| `session.input`         | keyboard input to a session (`{ session, d }`)                                                                                                                                                                     |
-| `session.resize`        | client reports its dims; effective size is the min across attached clients (broadcast as `SessionResized`)                                                                                                         |
-| `session.resumeCommand` | build the resume command for that session's agent (`claude --resume`, `grok --resume`, or `codex resume`)                                                                                                          |
-| `session.screen`        | the session's visible screen as plain text (`{ text, cols, rows }`), no attach needed; a killed session keeps its last screen                                                                                      |
-| `session.eject`         | hand a live session off to a headless run so it keeps working unattended                                                                                                                                           |
-| `session.adopt`         | bring a dead or headless session back onto a live terminal                                                                                                                                                         |
-| `fleet.restore`         | cold-boot recovery: respawn the persisted fleet                                                                                                                                                                    |
-| `permission.respond`    | answer a permission request (`{ request, decision }`)                                                                                                                                                              |
-| `session.get`           | one session's descriptor plus its spawn prompt, last activity, pending prompt, and latest result (`{ session }`)                                                                                                   |
-| `session.read`          | a Claude session's transcript, a page at a time from a cursor (`{ session, cursor?, limit? }`)                                                                                                                     |
-| `events.read`           | fleet events from the hook-event trail since a cursor (`{ cursor?, limit?, waitMs?, session? }`)                                                                                                                   |
-| `session.message`       | queue a message for a session (`{ session, from, text }`); the ok holds the message id. [Messages](#messages) covers refusals                                                                                      |
-| `session.tap`           | subscribe to a session's inbox; messages arrive as `InboxMessage` events                                                                                                                                           |
-| `message.ack`           | mark a tapped message delivered (`{ session, message }`)                                                                                                                                                           |
-| `message.get`           | one message with its status, answer, turn, and timestamps (`{ message, waitMs? }`)                                                                                                                                 |
+| Method                  | Purpose                                                                                                                                                                                                                                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `daemon.hello`          | handshake; must be first. The ok includes `lastUsedAgent`, the agent id written on a deliberate-spawn SessionStart.                                                                                                                                                                                            |
+| `daemon.ping`           | liveness / latency probe                                                                                                                                                                                                                                                                                       |
+| `daemon.quit`           | stop the daemon; every hosted session goes down with it                                                                                                                                                                                                                                                        |
+| `session.list`          | fleet listing (descriptors mirror the `Session` shape, minus the PTY handle, plus `kind` and `agent`)                                                                                                                                                                                                          |
+| `dirs.list`             | recent spawn directories, most recent first, for the picker                                                                                                                                                                                                                                                    |
+| `agents.list`           | the registered agents and the host the daemon runs on. [Agents](#agents) covers the answer                                                                                                                                                                                                                     |
+| `fleet.list`            | the persisted fleet rows, independent of which sessions are currently live                                                                                                                                                                                                                                     |
+| `session.spawn`         | spawn (cwd, name, prompt, resume, dims, optional `agent` id, optional `parent` id, optional `model` and `effort`). Omitted agent is Claude, an empty id is `bad_args`, an unregistered one `unsupported`. An unknown parent is `no_such_session`. [Spawn options](#spawn-options) covers `model` and `effort`. |
+| `session.update`        | rename and/or pin a session (`{ session, name?, pinned? }`). Pinning a sub-session is `bad_args`: it pins with its parent.                                                                                                                                                                                     |
+| `session.kill`          | kill process; explicit, never implied by disconnect                                                                                                                                                                                                                                                            |
+| `session.ack`           | clear unread without attaching                                                                                                                                                                                                                                                                                 |
+| `session.attach`        | subscribe to a session's output; returns replay + current dims                                                                                                                                                                                                                                                 |
+| `session.detach`        | unsubscribe; session keeps running                                                                                                                                                                                                                                                                             |
+| `session.input`         | keyboard input to a session (`{ session, d }`)                                                                                                                                                                                                                                                                 |
+| `session.resize`        | client reports its dims; effective size is the min across attached clients (broadcast as `SessionResized`)                                                                                                                                                                                                     |
+| `session.resumeCommand` | build the resume command for that session's agent (`claude --resume`, `grok --resume`, or `codex resume`)                                                                                                                                                                                                      |
+| `session.screen`        | the session's visible screen as plain text (`{ text, cols, rows }`), no attach needed; a killed session keeps its last screen                                                                                                                                                                                  |
+| `session.eject`         | hand a live session off to a headless run so it keeps working unattended                                                                                                                                                                                                                                       |
+| `session.adopt`         | bring a dead or headless session back onto a live terminal                                                                                                                                                                                                                                                     |
+| `fleet.restore`         | cold-boot recovery: respawn the persisted fleet                                                                                                                                                                                                                                                                |
+| `permission.respond`    | answer a permission request (`{ request, decision }`)                                                                                                                                                                                                                                                          |
+| `session.get`           | one session's descriptor plus its spawn prompt, last activity, pending prompt, and latest result (`{ session }`)                                                                                                                                                                                               |
+| `session.read`          | a Claude session's transcript, a page at a time from a cursor (`{ session, cursor?, limit? }`)                                                                                                                                                                                                                 |
+| `events.read`           | fleet events from the hook-event trail since a cursor (`{ cursor?, limit?, waitMs?, session? }`)                                                                                                                                                                                                               |
+| `session.message`       | queue a message for a session (`{ session, from, text }`); the ok holds the message id. [Messages](#messages) covers refusals                                                                                                                                                                                  |
+| `session.tap`           | subscribe to a session's inbox; messages arrive as `InboxMessage` events                                                                                                                                                                                                                                       |
+| `message.ack`           | mark a tapped message delivered (`{ session, message }`)                                                                                                                                                                                                                                                       |
+| `message.get`           | one message with its status, answer, turn, and timestamps (`{ message, waitMs? }`)                                                                                                                                                                                                                             |
 
 `session.input` is a request (it gets an ok, preserving the rule that state-changing messages are
 acknowledged) but clients need not await it — measured cost of the JSON round trip is ~0.2 µs
@@ -232,9 +233,59 @@ daemon build, plus one entry per registered agent id. An entry holds the id, lab
 - `models` holds the model names the config sets explicitly, keyed by role, and is null otherwise.
   For a gateway, `ANTHROPIC_MODEL` is the `default` role and each `ANTHROPIC_DEFAULT_<TIER>_MODEL`
   is the tier in lower case.
+- `spawnOptions` holds a `model` and an `effort` entry, which [spawn options](#spawn-options)
+  covers.
 
 The answer never holds an environment value, a credential, an `apiKeyHelper` command, or a base URL,
 and no field describes which plans an agent's account holds.
+
+### Spawn options
+
+`session.spawn` takes an optional `model` and `effort` for the new session, and the daemon checks
+both against the `spawnOptions` entry `agents.list` returns for the agent, so a spawn accepts
+exactly what the list advertises. Each entry holds these fields:
+
+| Field           | Holds                                                                                   |
+| --------------- | --------------------------------------------------------------------------------------- |
+| `supported`     | whether atc passes the option to the agent's CLI                                        |
+| `available`     | whether a spawn on this host can pass it now: supported and the agent installed         |
+| `values`        | the closed set a value comes from, or null for any alias or model name                  |
+| `examples`      | values worth offering, each with `resolvesTo`, the provider model the config maps it to |
+| `default`       | the value the configured arguments pass, or null when the CLI picks its own             |
+| `backendEffect` | `applied`, or `unverified` when the backend behind the CLI may ignore the value         |
+| `note`          | one line on how atc passes the value, or why it does not                                |
+
+A gateway whose `args` set no `--model` takes `ANTHROPIC_MODEL` from its `env` as the model
+`default`.
+
+Support follows each CLI's own flags:
+
+| Agent     | `model`                                                                           | `effort`                                              |
+| --------- | --------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `claude`  | `--model`; examples are Claude Code's documented aliases                          | `--effort`: `low`, `medium`, `high`, `xhigh`, `max`   |
+| a gateway | `--model`; examples are the tiers the gateway's `env` maps, with the mapped model | `--effort`, same levels, `backendEffect` `unverified` |
+| `codex`   | `-m`                                                                              | not supported                                         |
+| `grok`    | not supported                                                                     | not supported                                         |
+
+Codex documents its reasoning effort levels as advertised by the selected model, with no closed
+list, so atc passes Codex no effort.
+
+The daemon refuses a spawn before it starts any process:
+
+- An agent whose binary does not resolve is `unsupported`, with or without options.
+- An option whose `available` is false is `unsupported`. atc never drops an option silently.
+- A model longer than 200 characters, empty, starting with `-`, or holding a control character is
+  `bad_args`. Any other alias or full model name passes as given.
+- An effort outside the option's `values` is `bad_args`.
+
+Each value reaches the CLI as its own argument, never through a shell. An override replaces any
+`--model` or `--effort` in `claudeArgs` or a gateway's `args`, value included, for that spawn alone.
+A spawn that sets neither runs with the configured arguments as they stand.
+
+The fleet row stores the session's `model` and `effort`. A fleet restore, an adopt, and a headless
+turn all reuse the stored values. A `session.spawn` that resumes an agent session id with its own
+`model` or `effort` runs with those, and the row stores them for the new process. A row with no
+stored value passes neither flag, so a session spawned without them keeps behaving as it did.
 
 ## Messages
 

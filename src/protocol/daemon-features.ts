@@ -18,6 +18,10 @@ export const DAEMON_FEATURES = [
 
   // `message.get` takes `waitMs`.
   'message.wait',
+
+  // `session.spawn` takes `model` and `effort`, and `agents.list` returns
+  // `spawnOptions`.
+  'spawn.options',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

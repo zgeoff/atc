@@ -16,6 +16,9 @@ const PERMISSION_MODES = [
   'dontAsk',
 ] as const;
 
+// The effort levels the Agent SDK accepts.
+const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+
 interface HeadlessRunOptions {
   readonly claudeBin: string;
   readonly cwd: string;
@@ -25,6 +28,8 @@ interface HeadlessRunOptions {
   readonly settings?: string;
   readonly sessionID?: SessionID;
   readonly pluginDir?: string;
+  readonly model?: string;
+  readonly effort?: string;
 }
 
 interface HeadlessRunHooks {
@@ -52,6 +57,7 @@ export function startHeadlessRun(
   void (async () => {
     try {
       const mode = PERMISSION_MODES.find((m) => m === opts.permissionMode);
+      const effort = EFFORT_LEVELS.find((level) => level === opts.effort);
       let stderrTail = '';
 
       // The SDK is the heaviest module in the daemon's graph, and only a
@@ -74,6 +80,11 @@ export function startHeadlessRun(
           },
           ...(opts.resume === undefined ? {} : { resume: opts.resume }),
           ...(mode === undefined ? {} : { permissionMode: mode }),
+
+          // The session's own model and effort, so the turn runs as its
+          // terminal did.
+          ...(opts.model === undefined ? {} : { model: opts.model }),
+          ...(effort === undefined ? {} : { effort }),
 
           // The same generated file the terminal spawn passes, so the turn
           // runs against the session's own backend and instrumentation.

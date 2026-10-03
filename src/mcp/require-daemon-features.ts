@@ -8,6 +8,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'events.session': "atc_events_read's session filter",
   'message.turn': "atc_message_get's turn and answeredWith",
   'message.wait': "atc_message_get's waitMs",
+  'spawn.options': "atc_session_spawn's model and effort",
 };
 
 /**

@@ -45,6 +45,11 @@ export const REQUEST_PARAM_SCHEMAS = {
       .min(1, 'session.spawn agent must be a non-empty agent id')
       .optional(),
 
+    // Per-session overrides; the daemon checks each against what the agent
+    // advertises before anything spawns.
+    model: z.string({ error: 'session.spawn model must be a string' }).optional(),
+    effort: z.string({ error: 'session.spawn effort must be a string' }).optional(),
+
     // The session the new one is a sub-session of; absent or empty spawns a
     // top-level session.
     parent: z.preprocess(

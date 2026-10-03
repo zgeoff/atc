@@ -2406,3 +2406,238 @@ test('it starts a gateway session with the atc-bridge mod folder', async () => {
     expect(read['text']).toInclude(`--plugin-dir ${bridgeDir}`);
   });
 });
+
+test("it revives a restored session with the spawn's model and effort", async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    model: 'opus[1m]',
+    effort: 'xhigh',
+    cols: 400,
+    rows: 24,
+  });
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('fleet.list');
+
+    expect(getRecords(listed, 'fleet')[0]).toMatchObject({
+      agentSessionID: 'fake-1',
+      model: 'opus[1m]',
+      effort: 'xhigh',
+    });
+  });
+
+  ctx.proc.kill(9);
+
+  await ctx.proc.exited;
+
+  const revived = setupDaemonProc(ctx.home);
+
+  const client2 = await revived.openClient();
+
+  await client2.sendHello('atc/test');
+  await client2.sendRequest('fleet.restore', { cols: 400, rows: 24 });
+
+  const listed = await client2.sendRequest('session.list');
+
+  const id = getString(getRecords(listed, 'sessions')[0] ?? {}, 'id');
+
+  await waitFor(async () => {
+    const read = await client2.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('args: --model opus[1m] --effort xhigh --settings');
+    expect(read['text']).toInclude('--resume fake-1');
+  });
+});
+
+test('it revives a restored session that has no model or effort without either flag', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+  await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 400, rows: 24 });
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('fleet.list');
+
+    expect(getRecords(listed, 'fleet')[0]).toMatchObject({ agentSessionID: 'fake-1' });
+  });
+
+  ctx.proc.kill(9);
+
+  await ctx.proc.exited;
+
+  const revived = setupDaemonProc(ctx.home);
+
+  const client2 = await revived.openClient();
+
+  await client2.sendHello('atc/test');
+
+  const stored = await client2.sendRequest('fleet.list');
+
+  const fleet = getRecords(stored, 'fleet');
+
+  await client2.sendRequest('fleet.restore', { cols: 400, rows: 24 });
+
+  const listed = await client2.sendRequest('session.list');
+
+  const id = getString(getRecords(listed, 'sessions')[0] ?? {}, 'id');
+
+  await waitFor(async () => {
+    const read = await client2.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('args: --settings');
+    expect(read['text']).toInclude('--resume fake-1');
+  });
+
+  expect(fleet[0]).not.toContainAnyKeys(['model', 'effort']);
+});
+
+test('it keeps the configured model and effort when a spawn sets neither', async () => {
+  const first = setupDaemonProc();
+
+  first.proc.kill();
+
+  await first.proc.exited;
+
+  const configPath = join(first.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      claudeArgs: ['--model', 'opus', '--effort', 'low'],
+    }),
+  );
+
+  const ctx = setupDaemonProc(first.home);
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const claude = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 400, rows: 24 });
+
+  const gateway = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'zai',
+    cols: 400,
+    rows: 24,
+  });
+
+  await waitFor(async () => {
+    const screens = await Promise.all(
+      [claude, gateway].map((ok) =>
+        client.sendRequest('session.screen', {
+          session: getString(getRecord(ok, 'session'), 'id'),
+        }),
+      ),
+    );
+
+    expect(screens.map((read) => read['text'])).toSatisfyAll((text: unknown) =>
+      String(text).includes('args: --model opus --effort low --settings'),
+    );
+  });
+});
+
+test("it replaces the configured model and effort with a spawn's overrides", async () => {
+  const first = setupDaemonProc();
+
+  first.proc.kill();
+
+  await first.proc.exited;
+
+  const configPath = join(first.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      claudeArgs: ['--model', 'opus', '--effort', 'low'],
+    }),
+  );
+
+  const ctx = setupDaemonProc(first.home);
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const claude = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    model: 'sonnet',
+    cols: 400,
+    rows: 24,
+  });
+
+  const gateway = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'zai',
+    model: 'haiku',
+    effort: 'max',
+    cols: 400,
+    rows: 24,
+  });
+
+  await waitFor(async () => {
+    const screens = await Promise.all(
+      [claude, gateway].map((ok) =>
+        client.sendRequest('session.screen', {
+          session: getString(getRecord(ok, 'session'), 'id'),
+        }),
+      ),
+    );
+
+    const [claudeScreen, gatewayScreen] = screens.map((read) => String(read['text']));
+
+    if (claudeScreen === undefined || gatewayScreen === undefined) {
+      throw new Error('a spawned session has no screen');
+    }
+
+    expect(claudeScreen).toInclude('args: --effort low --model sonnet --settings');
+    expect(gatewayScreen).toInclude('args: --model haiku --effort max --settings');
+  });
+});
+
+test("it runs and stores a resume request's own model and effort", async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    resume: 'fake-1',
+    model: 'haiku',
+    effort: 'medium',
+    cols: 400,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('args: --model haiku --effort medium --settings');
+  });
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('fleet.list');
+
+    expect(getRecords(listed, 'fleet')[0]).toMatchObject({
+      agentSessionID: 'fake-1',
+      model: 'haiku',
+      effort: 'medium',
+    });
+  });
+});

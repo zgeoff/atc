@@ -16,6 +16,8 @@ interface FleetTable {
   prompt: string | null;
   result: string | null;
   transcript_path: string | null;
+  model: string | null;
+  effort: string | null;
 }
 
 interface EventsTable {
@@ -230,6 +232,12 @@ const MIGRATIONS: Record<string, Migration> = {
         .on('messages')
         .column('turn_id')
         .execute();
+    },
+  },
+  '014_add_fleet_model_effort': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('model', 'text').execute();
+      await db.schema.alterTable('fleet').addColumn('effort', 'text').execute();
     },
   },
 };

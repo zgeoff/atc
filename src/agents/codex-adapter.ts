@@ -14,9 +14,12 @@ import type {
   AgentProfile,
   NameUpdate,
   ResumeCheck,
+  SpawnOptionSpecs,
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
+import { buildArgsWithoutFlags } from './build-args-without-flags';
+import { findFlagValue } from './find-flag-value';
 import { resolveAgentHome } from './resolve-agent-home';
 import { truncateDetail } from './truncate-detail';
 
@@ -32,6 +35,9 @@ const CODEX_HOOK_PAYLOAD_SCHEMA = z.object({
 });
 
 type CodexHookPayload = z.infer<typeof CODEX_HOOK_PAYLOAD_SCHEMA>;
+
+// The spellings of the Codex CLI's model flag.
+const CODEX_MODEL_FLAGS = ['-m', '--model'];
 
 /**
  * The Codex CLI adapter: spawn arguments, hook payload mapping, resume
@@ -56,14 +62,25 @@ export class CodexAdapter implements AgentAdapter {
 
   constructor(config: Config) {
     this.config = config;
-    this.profile = { label: 'Codex', kind: 'codex', bin: config.codexBin, models: null };
+
+    this.profile = {
+      label: 'Codex',
+      kind: 'codex',
+      bin: config.codexBin,
+      models: null,
+      spawnOptions: buildCodexSpawnOptions(config.codexArgs),
+    };
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
     return {
       bin: this.config.codexBin,
       args: [
-        ...this.config.codexArgs,
+        // A model override replaces any model flag the configured arguments
+        // carry, and travels as its own argument.
+        ...(opts.model === undefined
+          ? this.config.codexArgs
+          : [...buildArgsWithoutFlags(this.config.codexArgs, CODEX_MODEL_FLAGS), '-m', opts.model]),
 
         // Bare resume opens Codex's own session picker; an id resumes that
         // session directly. Both accept a prompt afterwards.
@@ -192,4 +209,28 @@ export class CodexAdapter implements AgentAdapter {
 
     return `cd ${toShellArg(cwd)} && ${resume}`;
   }
+}
+
+// What a Codex spawn can override. Codex documents its reasoning effort as
+// whatever the selected model advertises, with no closed list of levels, so
+// atc takes no effort for it.
+function buildCodexSpawnOptions(codexArgs: readonly string[]): SpawnOptionSpecs {
+  return {
+    model: {
+      supported: true,
+      values: null,
+      examples: [],
+      default: findFlagValue(codexArgs, CODEX_MODEL_FLAGS),
+      backendEffect: 'applied',
+      note: 'A model name, passed as -m.',
+    },
+    effort: {
+      supported: false,
+      values: null,
+      examples: [],
+      default: null,
+      backendEffect: null,
+      note: 'Codex documents its reasoning effort levels as depending on the model, with no closed list, so atc does not pass one.',
+    },
+  };
 }

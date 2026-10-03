@@ -11,10 +11,14 @@ import type {
   HeadlessRunner,
   NameUpdate,
   ResumeCheck,
+  SpawnOptionSpecs,
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
+import { buildClaudeOverrideArgs } from './build-claude-override-args';
 import { ClaudeAdapter } from './claude-adapter';
+import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
+import { findFlagValue } from './find-flag-value';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
@@ -65,11 +69,14 @@ export class GatewayAdapter implements AgentAdapter {
     this.gateway = gateway;
     this.id = gateway.id;
 
+    const models = pickModels(gateway.env);
+
     this.profile = {
       label: gateway.label,
       kind: 'gateway',
       bin: gateway.bin,
-      models: pickModels(gateway.env),
+      models,
+      spawnOptions: buildGatewaySpawnOptions(gateway.args, models),
     };
 
     this.claude = new ClaudeAdapter(config);
@@ -88,7 +95,7 @@ export class GatewayAdapter implements AgentAdapter {
     return {
       bin: this.gateway.bin,
       args: [
-        ...this.gateway.args,
+        ...buildClaudeOverrideArgs(this.gateway.args, opts),
         '--settings',
         this.writeSettings(),
         '--plugin-dir',
@@ -161,4 +168,40 @@ function pickModels(
   }
 
   return Object.keys(models).length === 0 ? null : models;
+}
+
+// The Claude tiers a gateway's env can map to a provider model.
+const GATEWAY_TIERS = ['opus', 'sonnet', 'haiku'];
+
+// What a gateway spawn can override. The model examples are the tier aliases
+// the gateway's env maps, each with the provider model it reaches. Effort
+// goes to the CLI unchanged, and whether the provider acts on it is unknown.
+function buildGatewaySpawnOptions(
+  args: readonly string[],
+  models: Readonly<Record<string, string>> | null,
+): SpawnOptionSpecs {
+  const examples = GATEWAY_TIERS.flatMap((tier) => {
+    const mapped = models?.[tier];
+
+    return mapped === undefined ? [] : [{ value: tier, resolvesTo: mapped }];
+  });
+
+  return {
+    model: {
+      supported: true,
+      values: null,
+      examples,
+      default: findFlagValue(args, ['--model']) ?? models?.['default'] ?? null,
+      backendEffect: 'applied',
+      note: "A tier alias the gateway's env maps, or a model name the provider accepts, passed as --model.",
+    },
+    effort: {
+      supported: true,
+      values: CLAUDE_EFFORT_LEVELS,
+      examples: [],
+      default: findFlagValue(args, ['--effort']),
+      backendEffect: 'unverified',
+      note: "Passed as --effort; the gateway's provider may ignore it.",
+    },
+  };
 }

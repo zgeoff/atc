@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
-import type { AdapterEvent, AgentAdapter, AgentID } from '../agents/agent-adapter';
+import type { AdapterEvent, AgentAdapter, AgentID, SpawnOverrides } from '../agents/agent-adapter';
 import { truncateDetail } from '../agents/truncate-detail';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { collectCleanEnv } from '../shared/collect-clean-env';
@@ -87,6 +87,11 @@ export interface Session {
   // the transcript file the agent's hooks last reported. Kept apart from the
   // resume check so a restored path never changes whether a revive is allowed.
   transcriptPath?: string;
+
+  // the model and effort the session was spawned with; absent leaves the
+  // agent's configured default, and every revive passes them again.
+  model?: string;
+  effort?: string;
 }
 
 export class SessionManager {
@@ -200,6 +205,8 @@ export class SessionManager {
       ...(entry.prompt === undefined ? {} : { prompt: entry.prompt }),
       ...(entry.result === undefined ? {} : { result: entry.result }),
       ...(entry.transcriptPath === undefined ? {} : { transcriptPath: entry.transcriptPath }),
+      ...(entry.model === undefined ? {} : { model: entry.model }),
+      ...(entry.effort === undefined ? {} : { effort: entry.effort }),
     };
 
     this.sessions.push(session);
@@ -232,7 +239,12 @@ export class SessionManager {
       return null;
     }
 
-    const plan = adapter.planSpawn({ prompt: '', resume: s.agentSessionID });
+    const plan = adapter.planSpawn({
+      prompt: '',
+      resume: s.agentSessionID,
+      ...(s.model === undefined ? {} : { model: s.model }),
+      ...(s.effort === undefined ? {} : { effort: s.effort }),
+    });
 
     const pty = spawn(plan.bin, plan.args, {
       name: 'xterm-256color',
@@ -364,7 +376,8 @@ export class SessionManager {
 
   // resume: true opens the agent's own session picker; an agent session id
   // resumes that specific session (fleet restore). parent makes the new
-  // session a sub-session of that one.
+  // session a sub-session of that one. overrides hold the model and effort
+  // the new process runs with, and the session keeps them for every revive.
   spawn(
     cwd: string,
     name: string,
@@ -375,6 +388,7 @@ export class SessionManager {
     namedBy: 'user' | 'auto' = 'auto',
     agent: AgentID = 'claude',
     parent: SessionID | null = null,
+    overrides: SpawnOverrides = {},
   ): Session {
     const adapter = this.findAdapter(agent);
 
@@ -383,7 +397,7 @@ export class SessionManager {
     }
 
     const id = mintSessionID();
-    const plan = adapter.planSpawn({ prompt, resume });
+    const plan = adapter.planSpawn({ prompt, resume, ...overrides });
 
     const pty = spawn(plan.bin, plan.args, {
       name: 'xterm-256color',
@@ -417,6 +431,8 @@ export class SessionManager {
       createdAt: Date.now(),
       parent,
       ...(prompt === '' ? {} : { prompt }),
+      ...(overrides.model === undefined ? {} : { model: overrides.model }),
+      ...(overrides.effort === undefined ? {} : { effort: overrides.effort }),
     };
 
     pty.onData((d) => {
@@ -789,6 +805,8 @@ export class SessionManager {
         ...(s.prompt === undefined ? {} : { prompt: s.prompt }),
         ...(s.result === undefined ? {} : { result: s.result }),
         ...(s.transcriptPath === undefined ? {} : { transcriptPath: s.transcriptPath }),
+        ...(s.model === undefined ? {} : { model: s.model }),
+        ...(s.effort === undefined ? {} : { effort: s.effort }),
       });
     }
 

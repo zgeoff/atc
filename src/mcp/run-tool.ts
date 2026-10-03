@@ -39,14 +39,21 @@ export function runTool(
         ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
         ...(typeof args['prompt'] === 'string' ? { prompt: args['prompt'] } : {}),
         ...(rawAgent === undefined ? {} : { agent: rawAgent }),
+        ...(args['model'] === undefined ? {} : { model: args['model'] }),
+        ...(args['effort'] === undefined ? {} : { effort: args['effort'] }),
         cols: 100,
         rows: 30,
       };
 
+      // A model or effort needs a daemon that takes them; the check runs on
+      // every connection the spawn rides.
+      const required: readonly DaemonFeature[] =
+        args['model'] === undefined && args['effort'] === undefined ? [] : ['spawn.options'];
+
       const ok =
         nested && ctx.callerSessionID !== null
-          ? await sendNestedSpawn(caller, params, ctx.callerSessionID)
-          : await caller.sendRequest('session.spawn', params);
+          ? await sendNestedSpawn(caller, params, ctx.callerSessionID, required)
+          : await caller.sendRequest('session.spawn', params, required);
 
       return buildObjectResult(ok['session']);
     })
@@ -182,12 +189,13 @@ async function sendNestedSpawn(
   caller: FleetCaller,
   params: Readonly<Record<string, unknown>>,
   parent: string,
+  required: readonly DaemonFeature[],
 ): Promise<Readonly<Record<string, unknown>>> {
   try {
-    return await caller.sendRequest('session.spawn', { ...params, parent });
+    return await caller.sendRequest('session.spawn', { ...params, parent }, required);
   } catch (error) {
     if (error instanceof DaemonError && error.code === 'no_such_session') {
-      return caller.sendRequest('session.spawn', params);
+      return caller.sendRequest('session.spawn', params, required);
     }
 
     throw error;
