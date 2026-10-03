@@ -1581,9 +1581,12 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
 
   await ctx.waitFor('\u001B[7malt  local-pty');
 
+  pty.write('x');
   pty.write('\r');
 
   await ctx.waitFor('spawn: name');
+
+  expect(ctx.read()).not.toInclude('> x');
 
   ctx.reset();
   pty.write('\u001B');

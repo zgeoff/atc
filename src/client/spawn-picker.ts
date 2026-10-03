@@ -140,6 +140,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         return;
       }
       case 'input': {
+        // The target step takes no text: its list is short and fixed.
+        if (this.step === 'target') {
+          return;
+        }
+
         this.input = edit.value;
 
         this.render();
@@ -292,6 +297,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       }
 
       this.target = pick;
+      this.input = '';
       this.step = 'name';
     } else if (this.step === 'name') {
       this.name = this.input.trim();
