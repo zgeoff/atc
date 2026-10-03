@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { setupMCPHTTP } from '../../test/setup-mcp-http';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { startLegacyDaemon } from '../../test/start-legacy-daemon';
+import { DaemonClient } from '../client/daemon-client';
 import { isRecord } from '../shared/report';
 import { answerRPCRequest } from './answer-rpc-request';
 import { ReconnectingCaller } from './reconnecting-caller';
@@ -191,7 +192,9 @@ test('it lists the agents tool only when the connected daemon announces it', asy
 
   const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();
@@ -246,7 +249,9 @@ test.each([
 
     const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
-    const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+    const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+      DaemonClient.open(path),
+    );
 
     onTestFinished(async () => {
       await caller.stop();
@@ -300,7 +305,9 @@ test('it reads a message from an older daemon when the call asks for no wait', a
     },
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();
@@ -396,7 +403,9 @@ test('it advertises an agents output schema that agrees with what a daemon witho
     },
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build');
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();

@@ -1,3 +1,4 @@
+import type { DaemonChannel } from '../protocol/daemon-channel';
 import { DaemonError } from '../protocol/daemon-error';
 import { OutboundQueue } from '../protocol/outbound-queue';
 import { PROTOCOL_V, decodeMessage, encodeMessage } from '../protocol/protocol';
@@ -13,7 +14,7 @@ interface Pending {
  * event callback. `open` connects the socket; `sendHello` completes the
  * handshake and must come first.
  */
-export class DaemonClient {
+export class DaemonClient implements DaemonChannel {
   onEvent: (event: EventMsg) => void = () => {};
 
   onClose: () => void = () => {};

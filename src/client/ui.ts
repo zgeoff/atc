@@ -1,6 +1,6 @@
-import type { AgentID } from '../agents/agent-adapter';
-import { PINNED_GROUP_KEY } from '../daemon/sessions';
-import type { SessionState } from '../daemon/sessions';
+import { PINNED_GROUP_KEY } from '../protocol/pinned-group-key';
+import type { SessionState } from '../protocol/session-state';
+import type { AgentID } from '../shared/agent-id';
 import { RESET_INPUT_MODES } from '../shared/reset-input-modes';
 import { formatDir } from './dirs';
 import { formatOverlayAgentMark } from './format-overlay-agent-mark';

@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import type { MCPAuthSchema } from './types';
+import type { MCPAuthSchema } from './mcp-auth-schema';
 
 /**
  * The name a client was added under, or null for an unknown client id or a

@@ -2,16 +2,16 @@ import { spawn as spawnChild } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toAgentID } from '../agents/agent-adapter';
-import type { AgentID } from '../agents/agent-adapter';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
+import type { AgentID } from '../shared/agent-id';
 import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '../shared/config';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import { getBuild } from '../shared/get-build';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
 import { makeSingleFlight } from '../shared/make-single-flight';
 import { isRecord } from '../shared/report';
+import { toAgentID } from '../shared/to-agent-id';
 import { DaemonClient } from './daemon-client';
 import { pickStaleDaemonPID } from './pick-stale-daemon-pid';
 

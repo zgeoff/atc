@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
-import type { SessionState } from '../src/daemon/sessions';
-import { sortGroupedSessionViews, sortSessionViews } from '../src/daemon/sessions';
+import type { SessionState } from './session-state';
+import { sortGroupedSessionViews } from './sort-grouped-session-views';
+import { sortSessionViews } from './sort-session-views';
 
 interface View {
   readonly id: string;

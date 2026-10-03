@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { startLegacyDaemon } from '../../test/start-legacy-daemon';
+import { DaemonClient } from '../client/daemon-client';
 import { DaemonError } from '../protocol/daemon-error';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { ReconnectingCaller } from './reconnecting-caller';
@@ -322,7 +323,9 @@ test('it refuses a spawn on a target unsent when the daemon predates targets', a
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
   });
 
-  const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();
@@ -395,7 +398,9 @@ test('it refuses a spawn with a workspace unsent when the daemon predates worksp
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
   });
 
-  const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();
@@ -448,7 +453,9 @@ test('it refuses a session input line unsent when the daemon predates line submi
     features: DAEMON_FEATURES.filter((feature) => feature !== 'session.submit'),
   });
 
-  const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();

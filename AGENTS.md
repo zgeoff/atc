@@ -183,15 +183,18 @@ documents install and keys, and `docs/guides/configuration.md` documents config.
 Single package, no workspaces. `src/` groups its modules by concern, each still one primary export
 per file: `daemon/` owns the fleet and per-session runtime state; `client/` is the TUI and its
 connection to the daemon; `agents/` holds the `AgentAdapter` interface and the Claude, Grok, Codex,
-and gateway implementations; `store/` is the SQLite state store and its migrations; `protocol/` is
-the wire format and the transport it rides; `shared/` holds id types, config, and other utilities
-used across the rest of `src/`. `cli.ts` is the CLI entrypoint. A module that exists only to back
-one of its subcommands stays beside it at `src/` root, while the `tui` and `daemon` subcommands load
-their subsystems from `client/` and `daemon/`. `mcp/` holds the MCP tool definitions and request
-handling that `mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the
-better-auth authorization server and its pages. `test/` holds the PTY-driven e2e suite, `bin/atc` is
-the executable shim. `mods/` holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling,
-not app code.
+and gateway implementations; `store/` is the SQLite state store and its migrations; `workspace/`
+resolves a spawn's workspace source and clones, sanitizes, and archives it; `protocol/` is the wire
+format, the transport it rides, and the types both ends of it share; `shared/` holds id types,
+config, and other utilities used across the rest of `src/`. `cli.ts` is the CLI entrypoint. A module
+that exists only to back one of its subcommands stays beside it at `src/` root, while the `tui` and
+`daemon` subcommands load their subsystems from `client/` and `daemon/`. `bun run check:imports`
+fails on an import cycle and on an import a directory's rule forbids; the rules live in
+`scripts/check-imports.ts`. `mcp/` holds the MCP tool definitions and request handling that
+`mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the better-auth
+authorization server and its pages. `test/` holds the PTY-driven e2e suite, `bin/atc` is the
+executable shim. `mods/` holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling, not
+app code.
 
 ## Runtime rules
 

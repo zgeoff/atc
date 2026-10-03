@@ -3,7 +3,7 @@ import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import { buildTargetIdentity } from './build-target-identity';
-import type { DaemonContext } from './daemon-connection';
+import type { DaemonContext } from './daemon-context';
 import type { KeyedRequest } from './idempotency-ledger';
 import type { TargetAccess, TargetGrant } from './target-access';
 

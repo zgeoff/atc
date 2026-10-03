@@ -1,13 +1,7 @@
 import { unlinkSync } from 'node:fs';
+import type { HookEvent } from '../protocol/hook-event';
 import { socketPath } from '../shared/config';
-import type { SessionID } from '../shared/session-id';
 import { parseHookLine } from './parse-hook-line';
-
-export interface HookEvent {
-  atcId: SessionID;
-  event: string;
-  payload: Record<string, unknown>;
-}
 
 // Per-connection read state: the unterminated tail of the line in progress,
 // and a streaming decoder so a multi-byte character split across two reads

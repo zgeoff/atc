@@ -1,23 +1,8 @@
-import type { HookEvent } from '../daemon/hooks';
+import type { AdapterEvent } from '../protocol/adapter-event';
+import type { HookEvent } from '../protocol/hook-event';
+import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import type { SessionID } from '../shared/session-id';
-
-/**
- * Which agent a session runs under: the key the adapter registry is looked
- * up by. Every agent CLI supplies one, and so does every configured backend
- * that drives a CLI it does not own, so two ids can share one kind.
- */
-export type AgentID = string;
-
-/**
- * Missing and empty values become Claude so a fleet written before the agent
- * column still restores as Claude. Any other string is returned as it stands,
- * registered or not: an id whose adapter is gone must reach the caller intact
- * so the session can be shown and refused, never quietly run as Claude.
- */
-export function toAgentID(raw: unknown): AgentID {
-  return typeof raw === 'string' && raw !== '' ? raw : 'claude';
-}
 
 export interface SpawnOptions {
   readonly prompt: string;
@@ -62,26 +47,6 @@ export interface GuestPaths {
  */
 export interface GuestSpawnPlan extends SpawnPlan {
   readonly files: Readonly<Record<string, string>>;
-}
-
-export interface AdapterEvent {
-  kind: 'started' | 'needs-input' | 'turn-done' | 'prompt-submitted' | 'ended' | 'heartbeat';
-  agentSessionID?: AgentSessionID;
-  message?: string;
-
-  // Fuller activity text than message: what the agent last said or was
-  // asked, for briefing. Bounded by the adapter.
-  detail?: string;
-
-  // Opaque handle the adapter can later pull a session name from.
-  nameSource?: string;
-
-  // Claude resume-existence path. Distinct from nameSource: a naming
-  // handle is not a resume gate.
-  transcriptSource?: string;
-
-  // The agent's whole final message for a finished turn; detail holds a bounded preview of it.
-  result?: string;
 }
 
 export interface TranscriptToolUse {
