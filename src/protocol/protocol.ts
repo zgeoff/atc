@@ -56,6 +56,7 @@ const ERROR_CODES = [
   'stale_epoch',
   'idempotency_conflict',
   'outcome_unknown',
+  'idempotency_key_unknown',
   'internal',
 ] as const;
 

@@ -780,6 +780,22 @@ export class StateStore {
     return toIdempotencyRecord(row);
   }
 
+  // The record a key holds under its principal and operation, or null when
+  // the ledger holds none.
+  async findIdempotencyKey(
+    id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
+  ): Promise<IdempotencyRecord | null> {
+    const row = await this.db
+      .selectFrom('idempotency')
+      .selectAll()
+      .where('principal', '=', id.principal)
+      .where('operation', '=', id.operation)
+      .where('key', '=', id.key)
+      .executeTakeFirst();
+
+    return row === undefined ? null : toIdempotencyRecord(row);
+  }
+
   async updateIdempotencyCompleted(
     record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
     result: string,
