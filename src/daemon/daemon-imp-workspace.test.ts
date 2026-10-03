@@ -314,6 +314,7 @@ test('it destroys the host of its own that a spawn readied when its workspace fa
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: daemon.work },
+    idempotencyKey: 'k-1',
   });
 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_exists' });
@@ -873,4 +874,38 @@ test('it materializes a workspace through a symlinked directory that leads away 
     alive: getRecord(spawned, 'session')['alive'],
     readme: readFileSync(join(daemon.dir, 'elsewhere', 'new', 'README.md'), 'utf8'),
   }).toStrictEqual({ alive: true, readme: 'hello\n' });
+});
+
+test('it keeps the key of a workspace spawn whose own host it cannot destroy as outcome_unknown, so a retry creates no imp', async () => {
+  await using daemon = await setupTest();
+
+  const dest = join(daemon.dir, 'box', 'ws');
+
+  mkdirSync(dest, { recursive: true });
+
+  daemon.port.setDestroyFailure('INTERNAL');
+
+  const params = {
+    cwd: dest,
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+    idempotencyKey: 'k-1',
+  };
+
+  const first = daemon.client.sendRequest('session.spawn', params);
+
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await first.catch(() => null);
+
+  const retried = daemon.client.sendRequest('session.spawn', params);
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await retried.catch(() => null);
+
+  expect(daemon.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([
+    expect.toStartWith('imps.create '),
+  ]);
 });

@@ -34,6 +34,7 @@ import { buildSessionLifecycle } from './build-session-lifecycle';
 import type { SessionLifecycle } from './build-session-lifecycle';
 import { buildTarArchive } from './build-tar-archive';
 import { buildTargetIdentity } from './build-target-identity';
+import { EffectRemainsError } from './effect-remains-error';
 import type {
   ExecutionCapability,
   ExecutionProvider,
@@ -1306,7 +1307,8 @@ export class SessionManager {
   // Takes back the host a spawn readied when the spawn fails before its
   // session lists: an attempt that provisioned the host takes back its imp
   // and binding, and a host of the spawn's own without one is destroyed. A
-  // parent's host stays as it is. A take-back that fails throws.
+  // parent's host stays as it is. A take-back that fails throws, and a
+  // destroy that fails throws that the host may still stand.
   private async destroyFailedSpawnHost(
     provider: ExecutionProvider,
     id: SessionID,
@@ -1320,7 +1322,14 @@ export class SessionManager {
     }
 
     if (hostKey === id && provider.capabilities.destroy) {
-      await provider.destroyHost(hostKey);
+      try {
+        await provider.destroyHost(hostKey);
+      } catch (error) {
+        throw new EffectRemainsError(
+          `spawn of session ${id} failed and destroying its host failed too`,
+          { cause: error },
+        );
+      }
     }
   }
 
