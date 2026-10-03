@@ -596,6 +596,10 @@ impd's own client refuses an outdated impd.
 - `session.auth.rebind` (`{ session }`) binds the host to its agent's current selection at the next
   revision and answers `{ revision }`. A rebind that fails removes only the grants it added, keeps
   the old revision, and blocks launches until a rebind succeeds.
+- A launch whose agent takes no credential from the broker is `auth_rebind_required` while its host
+  holds a binding in any state, with the state as `data.state`, so a config that drops `auth` never
+  reopens a blocked host. A rebind needs the agent's selection back; otherwise a forget of the host
+  clears it.
 - A forget of the host's owner blocks launches, destroys the imp it recorded, and drops the binding.
   An imp with another id under the name stays, and the forget answers `auth_revocation_pending`.
 

@@ -20,7 +20,7 @@ import { RuntimeAuthBinder } from './runtime-auth-binder';
  * `atc-runtime` manages `atc-*` imps and may grant `glm`, and impd holds
  * `glm` for api.z.ai as a custom bearer secret. The agent `glm` takes that
  * credential from the broker and plans a guest spawn that prints the
- * binding revision it launches under, with its placeholder and its own
+ * binding revision it launches under, or a plain one without the broker, with its placeholder and its own
  * config folder in the harness's variables; `proxied` takes the same
  * credential but plans a proxy variable; `plain` takes none. The principal
  * `ops` may use `box`. `restart` stops the daemon and starts another on
@@ -89,7 +89,7 @@ async function setupTest() {
     planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
     planGuestSpawn: (_opts, guest) =>
       guest.auth === undefined
-        ? null
+        ? { bin: 'sleep', args: ['30'], files: {} }
         : {
             bin: 'sh',
             args: ['-c', `echo "revision ${String(guest.auth.revision)}"; exec sleep 30`],
@@ -546,6 +546,122 @@ test('it restores a local session with a workspace without a terminal once its a
     materialization: recorded,
     calls: [],
   });
+});
+
+test('it refuses to revive a session whose agent dropped the broker credential while its host holds a binding', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.auth.revoke', { session: id });
+
+  daemon.setAuthSelected(false);
+
+  daemon.port.calls.length = 0;
+
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  expect(adopt).rejects.toMatchObject({
+    code: 'auth_rebind_required',
+    data: { agent: 'glm', state: 'revoked' },
+  });
+
+  await adopt.catch(() => null);
+
+  expect(daemon.port.calls).toStrictEqual([]);
+});
+
+test('it revives a session whose agent takes no broker credential on a host that holds no binding', async () => {
+  await using daemon = await setupTest();
+
+  daemon.setAuthSelected(false);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  expect(
+    daemon.port.sessionRequests.map((request) =>
+      request.kind === 'start' ? (request.require ?? null) : request.kind,
+    ),
+  ).toStrictEqual([null, null]);
+});
+
+test('it restores a session whose agent dropped the broker credential while its host holds a binding without a terminal', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await daemon.client.sendRequest('session.auth.revoke', { session: id });
+
+  daemon.setAuthSelected(false);
+
+  await daemon.restart();
+
+  const before = daemon.port.sessionRequests.length;
+
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
+  expect<Record<string, unknown>>({
+    sent: daemon.port.sessionRequests.length - before,
+    session: getRecord(got, 'session'),
+  }).toStrictEqual({
+    sent: 0,
+    session: expect.objectContaining({ kind: 'headless', lastMsg: 'waiting to restore' }),
+  });
+});
+
+test('it restores a session whose agent takes no broker credential on a host that holds no binding', async () => {
+  await using daemon = await setupTest();
+
+  daemon.setAuthSelected(false);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await daemon.restart();
+
+  const before = daemon.port.sessionRequests.length;
+
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
+  expect<Record<string, unknown>>({
+    sent: daemon.port.sessionRequests.length - before,
+    session: getRecord(got, 'session'),
+  }).toStrictEqual({ sent: 1, session: expect.objectContaining({ kind: 'pty' }) });
 });
 
 test('it revives a slept session after verifying its binding, granting nothing again', async () => {

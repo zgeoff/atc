@@ -1091,6 +1091,10 @@ export class SessionManager {
       throw refusal;
     }
 
+    if (auth === null) {
+      await this.requireUnboundHost(adapter.id, hostKey);
+    }
+
     if (!provider.remote) {
       await provider.prepareHost({ host: hostKey, daemonID: this.store.daemonID });
 
@@ -1139,6 +1143,21 @@ export class SessionManager {
     }
 
     return { plan: { bin: plan.bin, args: plan.args, env }, attemptID };
+  }
+
+  // A launch without runtime auth never starts on a host that holds a
+  // binding, whatever its state: the imp may hold grants atc could not
+  // confirm gone, and only a rebind or a forget of the host clears it.
+  private async requireUnboundHost(agent: string, hostKey: SessionID): Promise<void> {
+    const held = this.authBinder === null ? null : await this.authBinder.findBinding(hostKey);
+
+    if (held !== null) {
+      throw new DaemonError(
+        'auth_rebind_required',
+        `agent '${agent}' takes no credential from impd's broker, but its host holds a runtime auth binding; rebind the session or forget it`,
+        { agent, state: held.state },
+      );
+    }
   }
 
   // The binding revision and placeholders a guest plan behind the broker
