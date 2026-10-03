@@ -130,8 +130,8 @@ type SessionOutput =
       readonly offset: number;
       readonly prelude: number;
       readonly coldBoots: readonly ColdBoot[];
-      readonly previous?: PreviousGeneration;
-      readonly resume?: ResumeResult;
+      readonly previous?: PreviousGeneration | undefined;
+      readonly resume?: ResumeResult | undefined;
     };
 
 export type ImpSessionRequest =

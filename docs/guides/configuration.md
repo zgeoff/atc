@@ -70,14 +70,14 @@ your own:
 {
   "targets": {
     "local": { "provider": "local-pty" },
-    "box": { "provider": "imp", "image": "dev" }
+    "box": { "provider": "imp", "url": "http://impd.tail:7070", "tokenEnv": "IMP_TOKEN" }
   },
   "defaultTarget": "local"
 }
 ```
 
-- `provider` selects the provider kind. `local-pty` is the one built-in kind. Every other key in the
-  entry is an option for that provider.
+- `provider` selects the provider kind: `local-pty` or `imp`. Every other key in the entry is an
+  option for that provider.
 - A target whose provider kind this atc does not have still lists, as unavailable, and a spawn to it
   fails with `target_unavailable`.
 - A `targets` map without `local` turns local sessions off: a spawn to `local` fails with
@@ -94,6 +94,25 @@ and options. Change a target's provider or options, and each session started on 
 resume, and revive with `target_changed`, listing as exited with `target '<target_id>' changed`.
 Restore the target's earlier config to use those sessions again, or kill them. Never put a
 credential value in a target's options; name an environment variable that holds it instead.
+
+### imp targets
+
+An `imp` target runs each top-level session in an imp of its own, a VM that impd hosts, and keeps
+each sub-session in its parent's imp. A kill of the top-level session puts its imp to sleep, and
+`session.forget` destroys it. The [daemon architecture](../architecture/daemon.md#the-imp-provider)
+covers the lifecycle. Its options:
+
+| Key         | Default    | What it does                                                               |
+| ----------- | ---------- | -------------------------------------------------------------------------- |
+| `url`       | required   | Where impd listens. Without it the target lists as unavailable.            |
+| `tokenEnv`  | unset      | The environment variable of the daemon that holds the impd token.          |
+| `image`     | impd's     | The image a new imp boots.                                                 |
+| `memoryMib` | impd's     | The memory a new imp gets.                                                 |
+| `guestDir`  | `/tmp/atc` | The folder inside each imp that atc's files go under.                      |
+| `guestATC`  | unset      | An atc binary already installed in the image, for hooks to report through. |
+
+A Claude session on an imp target reports through an atc inside the imp. A compiled atc daemon on
+Linux copies itself in; a daemon run from source needs `guestATC`, and refuses the spawn without it.
 
 A target config that is set but wrong fails closed. atc keeps running, the targets it can read keep
 working, and every spawn that resolves through the problem fails with `target_config_invalid`, whose

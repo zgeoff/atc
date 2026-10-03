@@ -1,4 +1,5 @@
 import type { TargetConfig } from '../shared/collect-targets';
+import { buildImpProvider } from './build-imp-provider';
 import { buildTargetIdentity } from './build-target-identity';
 import type { ExecutionProvider } from './execution-provider';
 import { LocalPTYProvider } from './local-pty-provider';
@@ -29,6 +30,14 @@ export function buildExecutionTargets(configs: readonly TargetConfig[]): Executi
     kind: config.provider,
     options: config.options,
     identity: buildTargetIdentity(config.provider, config.options),
-    provider: config.provider === 'local-pty' ? new LocalPTYProvider() : null,
+    provider: buildProvider(config),
   }));
+}
+
+function buildProvider(config: TargetConfig): ExecutionProvider | null {
+  if (config.provider === 'local-pty') {
+    return new LocalPTYProvider();
+  }
+
+  return config.provider === 'imp' ? buildImpProvider(config.options) : null;
 }
