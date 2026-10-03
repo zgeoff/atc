@@ -2,15 +2,21 @@ import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
 import { isRecord } from './report';
 
 /**
- * Where workspace sources come from: the GitHub owner whose repositories
- * the spawn picker lists by default, or null to list the gh account's own;
- * the ids of the sources the picker offers, in order, or null for the
- * default order; and the git transports the daemon fetches over.
+ * Where workspace sources come from and where their checkouts land: the
+ * GitHub owner whose repositories the spawn picker lists by default, or
+ * null to list the gh account's own; the ids of the sources the picker
+ * offers, in order, or null for the default order; the git transports the
+ * daemon fetches over; the root a checkout lands under on any target
+ * without its own, or null for the default; and each target's own root, by
+ * target id. A root is kept as written: whether it fits its target, such
+ * as `~` on a remote target, is checked where the target is known.
  */
 export interface WorkspacesConfig {
   readonly githubOwner: string | null;
   readonly sources: readonly string[] | null;
   readonly gitTransports: readonly string[] | InvalidGitTransports;
+  readonly root: string | null;
+  readonly targetRoots: ReadonlyMap<string, string>;
 }
 
 /**
@@ -34,17 +40,20 @@ const GITHUB_OWNER_PATTERN = /^[A-Za-z\d][A-Za-z\d-]{0,38}$/u;
 /**
  * Reads the `workspaces` section of config.json. An owner that is not a
  * GitHub login is dropped, so a typo lists the gh account's own
- * repositories instead of failing, and a source order that is not a list
- * of ids falls back to the default order. A transport list that is not a
+ * repositories instead of failing, a source order that is not a list of
+ * ids falls back to the default order, and a root that is not a non-empty
+ * string is dropped. A transport list that is not a
  * list of transports atc allows is a config error, and the list is then
  * invalid, never the default, so the daemon runs no git until it is fixed.
  * An empty list is valid and allows no transport.
  */
 export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig {
-  const owner = isRecord(raw) ? raw['githubOwner'] : undefined;
-  const sources = isRecord(raw) ? raw['sources'] : undefined;
-  const rawTransports = isRecord(raw) ? raw['gitTransports'] : undefined;
-  const transports = collectGitTransports(rawTransports);
+  const section = isRecord(raw) ? raw : {};
+  const owner = section['githubOwner'];
+  const sources = section['sources'];
+  const root = section['root'];
+  const targets = isRecord(section['targets']) ? section['targets'] : {};
+  const transports = collectGitTransports(section['gitTransports']);
 
   return {
     workspaces: {
@@ -55,6 +64,12 @@ export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig
           ? sources
           : null,
       gitTransports: transports.transports,
+      root: typeof root === 'string' && root !== '' ? root : null,
+      targetRoots: new Map(
+        Object.entries(targets).flatMap(([id, dir]) =>
+          typeof dir === 'string' && dir !== '' ? [[id, dir] as const] : [],
+        ),
+      ),
     },
     errors: transports.errors,
   };

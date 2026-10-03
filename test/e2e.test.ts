@@ -16,6 +16,7 @@ import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
 import { DaemonClient } from '../src/client/daemon-client';
 import { isRecord } from '../src/shared/report';
+import { startGitHTTPServer } from './start-git-http-server';
 
 const repo = join(import.meta.dir, '..');
 const CTRL_SPACE = String.fromCodePoint(0);
@@ -41,6 +42,10 @@ interface TestContext {
   waitFor: (needle: string, ms?: number) => Promise<void>;
   [Symbol.asyncDispose]: () => Promise<void>;
 }
+
+// The transports the fixture upstreams are reached over: local paths, and
+// smart HTTP on the loopback.
+const FIXTURE_GIT_TRANSPORTS = ['https', 'ssh', 'http', 'file'];
 
 function setupTest(): TestContext {
   // The client boots with this home as its cwd and lists it first in the
@@ -132,6 +137,7 @@ idle
       codexBin: join(home, 'fake-codex'),
       codexArgs: [],
       gateways: [],
+      workspaces: { gitTransports: FIXTURE_GIT_TRANSPORTS },
     }),
   );
 
@@ -316,6 +322,71 @@ async function spawnGrokSession(ctx: TestContext, pty: IPty, name: string) {
   pty.write('\r');
 
   await ctx.waitFor('FAKE_GROK_UP');
+}
+
+// A bare repository under the home with one commit on main, made by git
+// commands that read neither the host's system nor its global git config.
+async function createFixtureUpstream(home: string) {
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_AUTHOR_NAME: 'atc',
+    GIT_AUTHOR_EMAIL: 'atc@example.com',
+    GIT_COMMITTER_NAME: 'atc',
+    GIT_COMMITTER_EMAIL: 'atc@example.com',
+  };
+
+  const upstream = join(home, 'upstream.git');
+  const work = join(home, 'upstream-work');
+
+  await $`git init --quiet --bare --template= --initial-branch=main ${upstream}`.env(env).quiet();
+  await $`git clone --quiet --template= ${upstream} ${work}`.env(env).quiet();
+
+  writeFileSync(join(work, 'README.md'), 'hello\n');
+
+  await $`git add README.md`.env(env).cwd(work).quiet();
+  await $`git commit --quiet --no-gpg-sign -m initial`.env(env).cwd(work).quiet();
+  await $`git push --quiet origin main`.env(env).cwd(work).quiet();
+
+  const sha = await $`git rev-parse HEAD`
+    .env(env)
+    .cwd(work)
+    .text()
+    .then((text) => text.trim());
+
+  return { env, upstream, work, sha };
+}
+
+// Puts a fake gh first on the PATH of the client and its daemon, so no test
+// reaches a real gh or GitHub. The default fake is signed out.
+function writeFakeGH(home: string, script = "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n") {
+  mkdirSync(join(home, 'bin'), { recursive: true });
+  writeFileSync(join(home, 'bin', 'gh'), script, { mode: 0o755 });
+}
+
+// A fake gh whose repository listing answers 1.5 seconds after it starts.
+const SLOW_GH = `#!/bin/sh
+case "$1" in
+  config) echo https ;;
+  *) sleep 1.5; echo '[{"nameWithOwner":"me/dots","description":"dotfiles","isPrivate":false,"url":"https://github.com/me/dots","sshUrl":"git@github.com:me/dots.git"}]' ;;
+esac
+`;
+
+// Opens the GitHub repository step of a Claude spawn.
+async function openRepoStep(ctx: TestContext, pty: IPty) {
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: GitHub repository');
 }
 
 async function waitForStatus(statusPath: string, needle: string) {
@@ -645,6 +716,8 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   await ctx.waitFor('spawn: name');
 
+  // The first spawn's prompt step is still in the buffer.
+  ctx.reset();
   pty.write('second\r');
 
   await ctx.waitFor('spawn: initial prompt');
@@ -736,6 +809,8 @@ test('it preselects the focused session when the overlay opens', async () => {
 
   await ctx.waitFor('spawn: name');
 
+  // The first spawn's prompt step is still in the buffer.
+  ctx.reset();
   pty.write('second\r');
 
   await ctx.waitFor('spawn: initial prompt');
@@ -1672,6 +1747,432 @@ test('it keeps the target step open on a target the directory cannot run on', as
   await ctx.waitFor('spawn: directory');
 }, 15_000);
 
+test('it spawns a session from a git repository at the commit the confirm screen shows, keeping choices across esc', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const dest = join(
+    ctx.home,
+    '.local',
+    'share',
+    'atc',
+    'workspaces',
+    `upstream-main-${fixture.sha.slice(0, 7)}`,
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  await ctx.waitFor('gh is not signed in on the daemon host');
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`> ${dest}`);
+
+  expect(ctx.read()).toInclude(`main → ${fixture.sha.slice(0, 12)}`);
+  expect(ctx.read()).toInclude('dest    local:/');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor(`> ${fixture.upstream}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor(`> ${dest}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
+
+  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  await daemon.sendHello('atc/test');
+
+  const listed = await daemon.sendRequest('session.list');
+
+  expect(listed['sessions']).toMatchObject([
+    { cwd: dest, workspace: { repoURL: fixture.upstream, sha: fixture.sha, ref: 'main' } },
+  ]);
+
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
+}, 30_000);
+
+test('it filters refs by name and refuses an abbreviated commit id on the ref step', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('b');
+
+  await ctx.waitFor('> b');
+
+  expect(ctx.read()).not.toInclude('main  default');
+
+  pty.write('\u0015');
+  ctx.reset();
+  pty.write(`${fixture.sha.slice(0, 7)}\r`);
+
+  await ctx.waitFor('full commit id required');
+
+  expect(ctx.read()).not.toInclude('spawn: confirm');
+}, 20_000);
+
+test("it lists the gh account's repositories and an owner's on request, and leaves on esc", async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(
+    ctx.home,
+    `#!/bin/sh
+printf '%s\\n' "$*" >> '${join(ctx.home, 'gh-argv')}'
+case "$1 $3" in
+  "config "*) echo https ;;
+  "repo --limit") echo '[{"nameWithOwner":"me/dots","description":"dotfiles","isPrivate":false,"url":"https://github.com/me/dots","sshUrl":"git@github.com:me/dots.git"}]' ;;
+  *) echo '[{"nameWithOwner":"acme/app","description":"","isPrivate":true,"url":"https://github.com/acme/app","sshUrl":"git@github.com:acme/app.git"}]' ;;
+esac
+`,
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  await ctx.waitFor('me/dots  dotfiles');
+
+  ctx.reset();
+  pty.write('acme/\r');
+
+  await ctx.waitFor('acme/app  private');
+
+  expect(ctx.read()).toInclude('spawn: GitHub repository · acme');
+
+  expect(readFileSync(join(ctx.home, 'gh-argv'), 'utf8')).toMatch(
+    /^repo list --limit .*\nconfig get git_protocol\nrepo list acme --limit .*\nconfig get git_protocol\n$/u,
+  );
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: agent');
+}, 20_000);
+
+test('it returns a spawn into an existing destination to the confirm screen with a suffix offered', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const dest = join(
+    ctx.home,
+    '.local',
+    'share',
+    'atc',
+    'workspaces',
+    `upstream-main-${fixture.sha.slice(0, 7)}`,
+  );
+
+  mkdirSync(dest, { recursive: true });
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('workspace_exists', 10_000);
+
+  expect(ctx.read()).toInclude(`> ${dest}-2`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
+
+  expect(readFileSync(join(`${dest}-2`, 'README.md'), 'utf8')).toBe('hello\n');
+}, 30_000);
+
+test('it returns a spawn whose clone fails to the repository step', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  rmSync(fixture.upstream, { recursive: true, force: true });
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('clone_failed', 10_000);
+
+  expect(ctx.read()).toInclude('spawn: GitHub repository');
+}, 30_000);
+
+test('it returns a spawn whose commit left the upstream to the ref step with the refs re-read', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  // Main moves to an unrelated commit and the old one is pruned, so the
+  // pinned commit is no longer in the upstream.
+  await $`git checkout --quiet --orphan rewritten`.env(fixture.env).cwd(fixture.work).quiet();
+  await $`git commit --quiet --no-gpg-sign -m rewritten`.env(fixture.env).cwd(fixture.work).quiet();
+
+  await $`git push --quiet --force origin rewritten:main`
+    .env(fixture.env)
+    .cwd(fixture.work)
+    .quiet();
+
+  await $`git reflog expire --expire=now --all`.env(fixture.env).cwd(fixture.upstream).quiet();
+  await $`git gc --quiet --prune=now`.env(fixture.env).cwd(fixture.upstream).quiet();
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('refs re-read', 10_000);
+
+  const rewritten = await $`git rev-parse HEAD`
+    .env(fixture.env)
+    .cwd(fixture.work)
+    .text()
+    .then((text) => text.trim());
+
+  expect(ctx.read()).toInclude('ref_not_found');
+  expect(ctx.read()).toInclude('spawn: ref');
+  expect(ctx.read()).toInclude(`main  default · ${rewritten.slice(0, 7)}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`main → ${rewritten.slice(0, 12)}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
+}, 40_000);
+
+test('it shows a repository the daemon cannot read on the repository step', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  ctx.reset();
+  pty.write(`${join(ctx.home, 'missing.git')}\r`);
+
+  await ctx.waitFor('clone_failed');
+
+  expect(ctx.read()).toInclude('spawn: GitHub repository');
+  expect(ctx.read()).not.toInclude('spawn: ref');
+}, 20_000);
+
+test('it keeps paths and slash filters in the local directory step and switches source on tab or a pasted URL', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('~/');
+
+  await ctx.waitFor('> ~/');
+
+  pty.write('\u0015');
+  pty.write('atc/src');
+
+  await ctx.waitFor('> atc/src');
+
+  expect(ctx.read()).not.toInclude('spawn: GitHub repository');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: GitHub repository');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: git URL');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: directory on the daemon host');
+
+  ctx.reset();
+  pty.write('https://github.com/acme/app.git');
+
+  await ctx.waitFor('spawn: GitHub repository');
+
+  expect(ctx.read()).toInclude('> https://github.com/acme/app.git');
+}, 20_000);
+
 test('it sends a local directory to a target off the daemon machine as a path workspace without allowDirty', async () => {
   await using ctx = setupTest();
 
@@ -1755,6 +2256,1084 @@ test('it sends a local directory to a target off the daemon machine as a path wo
 
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
 }, 20_000);
+
+test('it opens github mode on a target that takes a workspace when the default cannot, and esc at the target step returns to the directory', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: { local: { provider: 'local-pty' }, far: { provider: 'nowhere' } },
+      defaultTarget: 'far',
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: target');
+
+  expect(ctx.read()).toInclude('\u001B[7mlocal  local-pty');
+  expect(ctx.read()).toInclude('\u001B[90mfar  nowhere · default · unavailable');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: GitHub repository');
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('target  local (local-pty)');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
+}, 30_000);
+
+test("it builds each target's own default destination when the target changes", async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const name = `upstream-main-${fixture.sha.slice(0, 7)}`;
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: { local: { provider: 'local-pty' }, alt: { provider: 'local-pty', tag: 'alt' } },
+      defaultTarget: 'local',
+      workspaces: {
+        gitTransports: FIXTURE_GIT_TRANSPORTS,
+        targets: { alt: join(ctx.home, 'alt-ws') },
+      },
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: GitHub repository');
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`> ${join(ctx.home, '.local', 'share', 'atc', 'workspaces', name)}`);
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor(`> ${fixture.upstream}`);
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7malt  local-pty');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`> ${fixture.upstream}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`> ${join(ctx.home, 'alt-ws', name)}`);
+
+  expect(ctx.read()).toInclude('target  alt (local-pty)');
+}, 30_000);
+
+test('it refuses a remote target workspace root and destination that rely on ~', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  // An imp target with a url and no token takes a workspace; nothing here
+  // reaches impd, since no spawn is sent.
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: {
+        local: { provider: 'local-pty' },
+        box: { provider: 'imp', url: 'http://127.0.0.1:9' },
+      },
+      defaultTarget: 'local',
+      workspaces: { gitTransports: FIXTURE_GIT_TRANSPORTS, targets: { box: '~/ws' } },
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7mbox  imp');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: GitHub repository');
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('set workspaces.targets.box in config.json to an absolute path on that target');
+
+  expect(ctx.read()).toInclude('dest    box:');
+
+  ctx.reset();
+  pty.write('~/ws/app\r');
+
+  await ctx.waitFor('~ is not expanded there');
+
+  expect(ctx.read()).not.toInclude('spawn: name');
+}, 30_000);
+
+test('it offers the other URL form after a failed probe and checks that form on request', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const mirror = join(ctx.home, 'mirror', 'acme', 'app.git');
+
+  mkdirSync(join(ctx.home, 'mirror', 'acme'), { recursive: true });
+
+  await $`git clone --quiet --bare --template= ${fixture.upstream} ${mirror}`
+    .env(fixture.env)
+    .quiet();
+
+  // The daemon reads the home's git config: the ssh form of acme/app reads
+  // the mirror, and the https form reads a path that does not exist, so no
+  // request reaches GitHub.
+  writeFileSync(
+    join(ctx.home, '.gitconfig'),
+    `[url "file://${join(ctx.home, 'mirror')}/"]\n\tinsteadOf = git@github.com:\n[url "file://${join(ctx.home, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  ctx.reset();
+  pty.write('acme/app\r');
+
+  await ctx.waitFor('try git@github.com:acme/app.git instead');
+
+  expect(ctx.read()).toInclude('clone_failed');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('source  git@github.com:acme/app.git');
+}, 30_000);
+
+test('it stops a repository listing on esc and keeps taking typed input', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home, SLOW_GH);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  await ctx.waitFor('listing…');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('listing stopped');
+
+  // The fake gh answers 1.5 seconds after it starts; nothing signals that
+  // its dropped answer reached the client, so the test outwaits it.
+  await Bun.sleep(2500);
+
+  expect(ctx.read()).toInclude('spawn: GitHub repository');
+  expect(ctx.read()).not.toInclude('me/dots');
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+}, 20_000);
+
+test('it cancels a probe in flight on esc and drops its answer', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const server = Bun.serve({
+    port: 0,
+    hostname: '127.0.0.1',
+    async fetch() {
+      await Bun.sleep(1500);
+
+      return new Response('not found', { status: 404 });
+    },
+  });
+
+  onTestFinished(async () => {
+    await server.stop(true);
+  });
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  ctx.reset();
+  pty.write(`http://127.0.0.1:${server.port}/silent.git\r`);
+
+  await ctx.waitFor('checking access');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('cancelled');
+
+  // The server answers 1.5 seconds after the request; nothing signals that
+  // the dropped answer reached the client, so the test outwaits it.
+  await Bun.sleep(2500);
+
+  expect(ctx.read()).toInclude('spawn: GitHub repository');
+  expect(ctx.read()).not.toInclude('clone_failed');
+
+  pty.write('\u0015');
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+}, 20_000);
+
+test('it keeps the ref the user moved to when a repository listing answers late', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home, SLOW_GH.replace('sleep 1.5', 'sleep 2'));
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  await $`git push --quiet origin main:feat`.env(fixture.env).cwd(fixture.work).quiet();
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+  await ctx.waitFor('feat');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7mfeat');
+
+  // The fake gh answers 2 seconds after the step opened; nothing signals
+  // that the late listing reached the client, so the test outwaits it.
+  await Bun.sleep(2500);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  expect(ctx.read()).toInclude(`feat → ${fixture.sha.slice(0, 12)}`);
+}, 20_000);
+
+test('it leaves the picker when esc stops waiting on a spawn, and the spawn lists one session', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  // Every authenticated request waits 1.5 seconds, so the clone behind the
+  // spawn takes several. The home's git config supplies the basic auth the
+  // server asks for.
+  const server = startGitHTTPServer(ctx.home, fixture.env, { delayMs: 1500 });
+
+  onTestFinished(async () => {
+    await server.stop();
+  });
+
+  writeFileSync(
+    join(ctx.home, '.gitconfig'),
+    '[credential]\n\thelper = "!f() { echo username=atc; echo password=fixture; }; f"\n',
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  ctx.reset();
+  pty.write(`${server.url}upstream.git\r`);
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`, 8000);
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('slowclone\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('esc stops waiting; the session still lists');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('atc — control tower');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('slowclone', 15_000);
+
+  // The spawn answers once its session starts; nothing signals that the
+  // dropped answer reached the client, so the test outwaits it.
+  await Bun.sleep(1000);
+
+  expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
+  expect(ctx.read()).not.toInclude('spawn: initial prompt');
+
+  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  await daemon.sendHello('atc/test');
+
+  const listed = await daemon.sendRequest('session.list');
+
+  expect(listed['sessions']).toBeArrayOfSize(1);
+}, 40_000);
+
+test('it drops a typed destination when the repository changes', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const other = join(ctx.home, 'other.git');
+
+  await $`git clone --quiet --bare --template= ${fixture.upstream} ${other}`
+    .env(fixture.env)
+    .quiet();
+
+  const custom = join(ctx.home, 'custom-dest');
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  pty.write('\u0015');
+  pty.write(`${custom}\r`);
+
+  await ctx.waitFor('spawn: name');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor(`> ${custom}`);
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor(`> ${fixture.upstream}`);
+
+  pty.write('\u0015');
+  ctx.reset();
+  pty.write(`${other}\r`);
+
+  await ctx.waitFor('spawn: ref');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  expect(ctx.read()).toInclude(`other-main-${fixture.sha.slice(0, 7)}`);
+  expect(ctx.read()).not.toInclude(custom);
+}, 30_000);
+
+test('it drives a source the daemon composition adds from its candidates to the confirm screen', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  await startSourceDaemon(ctx, { ATC_TEST_FIXTURE_URL: fixture.upstream });
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('tab GitHub repository');
+
+  pty.write('\t');
+
+  await ctx.waitFor('tab git URL');
+
+  pty.write('\t');
+
+  await ctx.waitFor('tab fixture repository');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('upstream  fixture');
+
+  expect(ctx.read()).toInclude('spawn: fixture repository');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  expect(ctx.read()).toInclude(`source  ${fixture.upstream}`);
+}, 30_000);
+
+test('it spawns the repository a composed source reads typed text as, through to its workspace', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  await startSourceDaemon(ctx, { ATC_TEST_FIXTURE_URL: fixture.upstream });
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('tab GitHub repository');
+
+  pty.write('\t');
+
+  await ctx.waitFor('tab git URL');
+
+  pty.write('\t');
+
+  await ctx.waitFor('tab fixture repository');
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('upstream  fixture');
+
+  ctx.reset();
+  pty.write('pick upstream');
+
+  await ctx.waitFor('> pick upstream');
+
+  pty.write('\r');
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`, 10_000);
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('picked\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP', 20_000);
+
+  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  await daemon.sendHello('atc/test');
+
+  const listed = await daemon.sendRequest('session.list');
+
+  const name = `upstream-main-${fixture.sha.slice(0, 7)}`;
+
+  expect(listed['sessions']).toMatchObject([
+    {
+      name: 'picked',
+      cwd: join(ctx.home, '.local', 'share', 'atc', 'workspaces', name),
+      workspace: { repoURL: fixture.upstream, sha: fixture.sha, ref: 'main' },
+    },
+  ]);
+}, 60_000);
+
+test('it lists the scope a composed source reads from a directory step once, on the target chosen next', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+  const listLog = join(ctx.home, 'source-lists.jsonl');
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: { local: { provider: 'local-pty' }, alt: { provider: 'local-pty', tag: 'alt' } },
+      defaultTarget: 'local',
+    }),
+  );
+
+  await startSourceDaemon(ctx, {
+    ATC_TEST_FIXTURE_URL: fixture.upstream,
+    ATC_TEST_SOURCE_LOG: listLog,
+  });
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory on the daemon host');
+
+  ctx.reset();
+  pty.write('in acme');
+
+  await ctx.waitFor('> in acme');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7malt  local-pty');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('acme/upstream  fixture');
+
+  expect(ctx.read()).toInclude('spawn: fixture repository · acme');
+
+  const lists = readFileSync(listLog, 'utf8').trim().split('\n');
+
+  expect(lists.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    { scope: 'acme', target: 'alt' },
+  ]);
+}, 30_000);
+
+// Starts a daemon composed with the sources `ATC_TEST_SOURCES` selects,
+// the fixture source unless the env says otherwise, on the test's socket
+// before the client boots, so the client connects to it instead of
+// starting its own, and resolves once it listens.
+async function startSourceDaemon(ctx: TestContext, env: Readonly<Record<string, string>>) {
+  const daemon = Bun.spawn([process.execPath, join(repo, 'test', 'run-source-daemon.ts')], {
+    env: collectEnv({
+      HOME: ctx.home,
+      XDG_RUNTIME_DIR: ctx.home,
+      PATH: `${join(ctx.home, 'bin')}:/usr/sbin:/usr/bin:/bin`,
+      ATC_TEST_SOURCES: 'fixture',
+      ...env,
+    }),
+    stdout: 'pipe',
+    stderr: 'ignore',
+  });
+
+  onTestFinished(() => {
+    daemon.kill();
+  });
+
+  const reader = daemon.stdout.getReader();
+
+  await reader.read();
+
+  reader.releaseLock();
+}
+
+test('it offers the local directory flow alone when the daemon offers no sources', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  await startSourceDaemon(ctx, { ATC_TEST_SOURCES: 'none' });
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  expect(ctx.read()).not.toInclude('tab ');
+  expect(ctx.read()).not.toInclude('on the daemon host');
+
+  ctx.reset();
+  pty.write('\t');
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  expect(ctx.read()).not.toInclude('spawn: GitHub repository');
+}, 30_000);
+
+test('it lists an owner typed in the directory step through the source that reads it', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(
+    ctx.home,
+    `#!/bin/sh
+case "$1" in
+  config) echo https ;;
+  *) echo '[{"nameWithOwner":"acme/app","description":"","isPrivate":true,"url":"https://github.com/acme/app","sshUrl":"git@github.com:acme/app.git"}]' ;;
+esac
+`,
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('acme/\r');
+
+  await ctx.waitFor('spawn: GitHub repository · acme');
+  await ctx.waitFor('acme/app  private');
+}, 20_000);
+
+test('it probes a repository typed in the directory step at the URL its source reads it as', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  mkdirSync(join(ctx.home, 'mirror', 'acme'), { recursive: true });
+
+  await $`git clone --quiet --bare --template= ${fixture.upstream} ${join(ctx.home, 'mirror', 'acme', 'app.git')}`
+    .env(fixture.env)
+    .quiet();
+
+  // The daemon reads the home's git config, which sends the https form of
+  // acme/app to the mirror, so no request reaches GitHub.
+  writeFileSync(
+    join(ctx.home, '.gitconfig'),
+    `[url "file://${join(ctx.home, 'mirror')}/"]\n\tinsteadOf = https://github.com/\n`,
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory');
+
+  ctx.reset();
+  pty.write('acme/app\r');
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`);
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('source  https://github.com/acme/app.git');
+}, 30_000);
+
+test('it opens the sources in the order the config gives', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      workspaces: { gitTransports: FIXTURE_GIT_TRANSPORTS, sources: ['git', 'dirs'] },
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  ctx.reset();
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: git URL');
+
+  expect(ctx.read()).toInclude('tab directory on the daemon host');
+
+  ctx.reset();
+  pty.write(`${fixture.upstream}\r`);
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`);
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor(`> ${fixture.upstream}`);
+
+  ctx.reset();
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: directory on the daemon host');
+
+  expect(ctx.read()).not.toInclude('GitHub');
+}, 30_000);
+
+test('it stays where the user moved when a directory listing answers late', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  // The daemon runs zoxide from the PATH the client gives it, so every
+  // directory listing takes 1.5 seconds.
+  writeFileSync(join(ctx.home, 'bin', 'zoxide'), '#!/bin/sh\nsleep 1.5\n', { mode: 0o755 });
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory on the daemon host');
+
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: GitHub repository');
+
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: git URL');
+
+  ctx.reset();
+  pty.write('\t');
+
+  // The tab draws nothing until the listing answers, so a short pause keeps
+  // it and the esc in separate reads.
+  await Bun.sleep(300);
+
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: agent');
+
+  // The listing answers 1.5 seconds after the tab; nothing signals that the
+  // dropped answer reached the client, so the test outwaits it.
+  ctx.reset();
+
+  await Bun.sleep(2500);
+
+  expect(ctx.read()).not.toInclude('directory on the daemon host');
+}, 20_000);
+
+test('it keeps a probe started on a git source after a tab in that flow, spawning one git workspace', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  // Every directory listing takes a second, and every authenticated git
+  // request 1.5 seconds, so the tab's listing answers before the probe.
+  writeFileSync(join(ctx.home, 'bin', 'zoxide'), '#!/bin/sh\nsleep 1\n', { mode: 0o755 });
+
+  const fixture = await createFixtureUpstream(ctx.home);
+
+  const server = startGitHTTPServer(ctx.home, fixture.env, { delayMs: 1500 });
+
+  onTestFinished(async () => {
+    await server.stop();
+  });
+
+  writeFileSync(
+    join(ctx.home, '.gitconfig'),
+    '[credential]\n\thelper = "!f() { echo username=atc; echo password=fixture; }; f"\n',
+  );
+
+  const url = `${server.url}upstream.git`;
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  pty.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: directory on the daemon host');
+
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: GitHub repository');
+
+  pty.write('\t');
+
+  await ctx.waitFor('spawn: git URL');
+
+  ctx.reset();
+  pty.write(url);
+
+  await ctx.waitFor(`> ${url}`);
+
+  pty.write('\t');
+
+  // The tab draws nothing until its listing answers, so a short pause keeps
+  // it and the enter in separate reads.
+  await Bun.sleep(200);
+
+  pty.write('\r');
+
+  await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`, 10_000);
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: confirm');
+
+  pty.write('\r');
+
+  await ctx.waitFor('spawn: name');
+
+  pty.write('raced\r');
+
+  await ctx.waitFor('spawn: initial prompt');
+
+  pty.write('\r');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP', 20_000);
+
+  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  await daemon.sendHello('atc/test');
+
+  const listed = await daemon.sendRequest('session.list');
+
+  expect(listed['sessions']).toBeArrayOfSize(1);
+
+  expect(listed['sessions']).toMatchObject([
+    { name: 'raced', workspace: { repoURL: url, sha: fixture.sha, ref: 'main' } },
+  ]);
+}, 60_000);
 
 test('it offers an adopt only the targets that run on this host', async () => {
   await using ctx = setupTest();

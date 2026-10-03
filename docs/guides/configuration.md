@@ -11,7 +11,13 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
   "codexBin": "codex",
   "codexArgs": [],
   "dirs": { "roots": [] },
-  "workspaces": { "githubOwner": null, "sources": null, "gitTransports": ["https", "ssh"] },
+  "workspaces": {
+    "githubOwner": null,
+    "sources": null,
+    "gitTransports": ["https", "ssh"],
+    "root": null,
+    "targets": {}
+  },
   "gateways": {},
   "hooks": {},
   "leader": "ctrl-space"
