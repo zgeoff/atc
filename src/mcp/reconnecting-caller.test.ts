@@ -4,6 +4,7 @@ import { setupMCPHTTP } from '../../test/setup-mcp-http';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { startLegacyDaemon } from '../../test/start-legacy-daemon';
 import { waitFor } from '../../test/wait-for';
+import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { PROTOCOL_V, decodeMessage, encodeMessage } from '../protocol/protocol';
@@ -57,7 +58,9 @@ test('it closes a connection whose handshake the daemon rejects and reconnects o
     },
   });
 
-  const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();
@@ -127,7 +130,9 @@ test('it refuses a filtered read unsent when an older daemon replaced the one it
     statusPath: join(tmp.dir, 'status.json'),
   });
 
-  const caller = new ReconnectingCaller(socketPath, 'atc/test-build');
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();
@@ -156,7 +161,9 @@ test('it refuses a filtered read unsent when an older daemon replaced the one it
 test('it retries a spawn on a fresh connection under the key it minted when the connection drops', async () => {
   const daemon = setupDroppingDaemon(['spawn.idempotency']);
 
-  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build');
+  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();
@@ -171,7 +178,9 @@ test('it retries a spawn on a fresh connection under the key it minted when the 
 test('it retries a message on a fresh connection under the key its caller passed', async () => {
   const daemon = setupDroppingDaemon(['message.idempotency']);
 
-  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build');
+  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();
@@ -189,7 +198,9 @@ test('it retries a message on a fresh connection under the key its caller passed
 test('it refuses to retry a keyed spawn unsent when the daemon behind the socket stopped taking keys', async () => {
   const daemon = setupDroppingDaemon(['spawn.idempotency'], []);
 
-  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build');
+  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();
@@ -207,7 +218,9 @@ test('it refuses to retry a keyed spawn unsent when the daemon behind the socket
 test('it fails a spawn whose connection drops when the daemon takes no keys', async () => {
   const daemon = setupDroppingDaemon([]);
 
-  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build');
+  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
   onTestFinished(async () => {
     await caller.stop();

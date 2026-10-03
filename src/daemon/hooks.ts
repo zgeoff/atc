@@ -1,14 +1,8 @@
 import { unlinkSync } from 'node:fs';
+import type { HookEvent } from '../protocol/hook-event';
 import { LineDecoder } from '../protocol/line-decoder';
 import { socketPath } from '../shared/config';
-import type { SessionID } from '../shared/session-id';
 import { parseHookLine } from './parse-hook-line';
-
-export interface HookEvent {
-  atcId: SessionID;
-  event: string;
-  payload: Record<string, unknown>;
-}
 
 // Per-connection read state: the connection's own line framing.
 interface HookConnection {

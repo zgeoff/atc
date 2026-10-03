@@ -1,9 +1,9 @@
-import type { AdapterEvent } from '../agents/agent-adapter';
-import { truncateDetail } from '../agents/truncate-detail';
+import type { AdapterEvent } from '../protocol/adapter-event';
 import type { SessionID } from '../shared/session-id';
+import { truncateDetail } from '../shared/truncate-detail';
+import { truncateSummary } from '../shared/truncate-summary';
 import type { SessionRuntime } from './session-runtime';
 import type { SessionManager } from './sessions';
-import { truncateSummary } from './truncate-summary';
 
 /**
  * Starts one headless turn for a session: finds its adapter's headless

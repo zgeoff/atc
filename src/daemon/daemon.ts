@@ -2,12 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { AdapterEvent, AgentAdapter } from '../agents/agent-adapter';
+import type { AgentAdapter } from '../agents/agent-adapter';
 import { planTypedLineInput } from '../agents/plan-typed-line-input';
+import type { AdapterEvent } from '../protocol/adapter-event';
 import { DaemonError } from '../protocol/daemon-error';
+import type { HookEvent } from '../protocol/hook-event';
 import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
+import type { SessionState } from '../protocol/session-state';
 import type { HooksConfig } from '../shared/collect-hooks';
 import type { TargetConfigError } from '../shared/collect-targets';
 import { findDaemonRecord } from '../shared/find-daemon-record';
@@ -47,11 +50,10 @@ import type {
   OutputClient,
   SpawnParams,
   TapClient,
-} from './daemon-connection';
+} from './daemon-context';
 import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
 import { startHookServer } from './hooks';
-import type { HookEvent } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
@@ -66,7 +68,7 @@ import { runEjectHandoff } from './run-eject-handoff';
 import { ScreenModel } from './screen-model';
 import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
-import type { Session, SessionDescriptor, SessionState } from './sessions';
+import type { Session, SessionDescriptor } from './sessions';
 import { startEventsServer } from './start-events-server';
 import { startHeadlessTurn } from './start-headless-turn';
 import { startSessionBridge } from './start-session-bridge';

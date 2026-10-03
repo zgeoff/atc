@@ -1,14 +1,15 @@
 import { existsSync } from 'node:fs';
 import { z } from 'zod';
-import type { HookEvent } from '../daemon/hooks';
+import type { AdapterEvent } from '../protocol/adapter-event';
+import type { HookEvent } from '../protocol/hook-event';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalString } from '../shared/build-optional-string';
 import type { Config } from '../shared/config';
 import { isRecord } from '../shared/report';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toShellArg } from '../shared/to-shell-arg';
+import { truncateDetail } from '../shared/truncate-detail';
 import type {
-  AdapterEvent,
   AgentAdapter,
   AgentProfile,
   GuestPaths,
@@ -31,7 +32,6 @@ import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { planTypedLineInput } from './plan-typed-line-input';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
-import { truncateDetail } from './truncate-detail';
 import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
 

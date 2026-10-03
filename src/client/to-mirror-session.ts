@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { toAgentID } from '../agents/agent-adapter';
-import type { AgentID } from '../agents/agent-adapter';
-import type { SessionState } from '../daemon/sessions';
+import type { SessionState } from '../protocol/session-state';
+import type { AgentID } from '../shared/agent-id';
+import { toAgentID } from '../shared/to-agent-id';
 
 export interface MirrorSession {
   id: string;

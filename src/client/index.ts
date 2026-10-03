@@ -1,9 +1,11 @@
 import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
-import type { AgentID } from '../agents/agent-adapter';
-import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from '../daemon/sessions';
+import { countSessionStates } from '../protocol/count-session-states';
 import { DaemonError } from '../protocol/daemon-error';
 import type { EventMsg } from '../protocol/protocol';
+import { sortGroupedSessionViews } from '../protocol/sort-grouped-session-views';
+import { sortSessionViews } from '../protocol/sort-session-views';
+import type { AgentID } from '../shared/agent-id';
 import { loadConfig } from '../shared/config';
 import { makeSingleFlight } from '../shared/make-single-flight';
 import { bootDaemonClient } from './boot-daemon';

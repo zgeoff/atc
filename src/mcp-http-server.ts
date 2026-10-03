@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { bootDaemonClient } from './client/boot-daemon';
+import { DaemonClient } from './client/daemon-client';
 import { collectClients } from './mcp/collect-clients';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { ReconnectingCaller } from './mcp/reconnecting-caller';
@@ -27,7 +28,7 @@ export async function runMCPHTTPServer(build: string, flags: MCPHTTPFlags): Prom
 
   mkdirSync(stateDir, { recursive: true });
 
-  const caller = new ReconnectingCaller(boot.socketPath, build);
+  const caller = new ReconnectingCaller(boot.socketPath, build, (path) => DaemonClient.open(path));
 
   const server = await startMCPHTTPServer({
     caller,

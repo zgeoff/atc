@@ -1,12 +1,12 @@
 import { z } from 'zod';
+import type { HookEvent } from '../protocol/hook-event';
 import type { EventMsg } from '../protocol/protocol';
 import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
 import { toMessageID } from '../shared/to-message-id';
 import type { MessageRecord } from '../store/message-record';
-import type { TapClient } from './daemon-connection';
+import type { TapClient } from './daemon-context';
 import type { HarnessRelay } from './execution-provider';
-import type { HookEvent } from './hooks';
 import { isBindingCurrent } from './is-binding-current';
 import type { BridgeBinding } from './is-binding-current';
 import { parseHookLine } from './parse-hook-line';
