@@ -322,6 +322,29 @@ test('it redacts credential-shaped runs from a refusal message it shows', async 
   });
 });
 
+test('it redacts short credentials in URL, header, and authorization shapes it shows', async () => {
+  using fixture = await setupTest();
+
+  fixture.port.setNextSessionFailure(
+    null,
+    undefined,
+    'dial https://alice:demo-pass@api.example.test/v1?api_key=demo-secret with x-api-key: demo-secret and Authorization: Basic ZGVtbzpwYXNz failed',
+  );
+
+  fixture.port.stopConnection('imp-a', 's1', 1011);
+
+  await waitFor(() => {
+    expect(fixture.exits).toStrictEqual([
+      {
+        exitCode: 1,
+        reason: 'ended',
+        detail:
+          'imp refused the session (error): dial https://[redacted]@api.example.test/v1?api_key=[redacted] with x-api-key: [redacted] and Authorization: [redacted] failed',
+      },
+    ]);
+  });
+});
+
 test('it never sends a resume offset to a session whose agent carries none', async () => {
   using fixture = await setupTest({ continuity: 'none' });
 

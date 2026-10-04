@@ -1,5 +1,6 @@
 import { DaemonError } from '../protocol/daemon-error';
 import { isRecord } from '../shared/report';
+import { sanitizeDetail } from '../shared/sanitize-detail';
 import { truncateSummary } from '../shared/truncate-summary';
 import type {
   HarnessAttachment,
@@ -927,13 +928,10 @@ function collectColdBoots(value: unknown): { readonly bootId: unknown; readonly 
 }
 
 // A refusal's message as detail a session list row can hold: control
-// characters taken out so the text cannot redraw the row, secret-shaped
-// runs redacted, and whitespace flattened to one line.
+// characters taken out so the text cannot redraw the row, credentials
+// redacted, and whitespace flattened to one line.
 function buildSafeDetail(message: string): string {
-  return message
-    .replaceAll(/[\p{Cc}\p{Cf}]/gu, ' ')
-    .replaceAll(/Bearer\s+\S+/giu, 'Bearer [redacted]')
-    .replaceAll(/[A-Za-z0-9+/_=-]{32,}/gu, '[redacted]')
+  return sanitizeDetail(message.replaceAll(/[\p{Cc}\p{Cf}]/gu, ' '))
     .replaceAll(/\s+/gu, ' ')
     .trim();
 }
