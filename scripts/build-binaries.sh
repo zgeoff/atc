@@ -17,11 +17,16 @@ fi
 rm -rf dist
 mkdir -p dist
 
+# A compiled binary otherwise loads a .env file from whatever directory it
+# starts in, so a stray ~/.env would reach the daemon's environment and every
+# process it starts.
+compile=(bun build --compile --no-compile-autoload-dotenv)
+
 for target in "${targets[@]}"; do
-  bun build --compile --target="bun-$target" src/cli.ts --outfile "dist/atc-$target"
+  "${compile[@]}" --target="bun-$target" src/cli.ts --outfile "dist/atc-$target"
 
   if [ "$target" = linux-x64 ]; then
-    bun build --compile --target=bun-linux-x64 src/gateway.ts --outfile dist/atc-gateway-linux-x64
+    "${compile[@]}" --target=bun-linux-x64 src/gateway.ts --outfile dist/atc-gateway-linux-x64
   fi
 done
 
