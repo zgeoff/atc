@@ -208,6 +208,11 @@ interface WorkspaceReservation {
   readonly target: string;
   readonly dir: string;
   resolved: string | null;
+
+  // A workspace spawn builds its directory and may remove it on a failure;
+  // a plain spawn only starts in its directory, which another plain spawn
+  // may share.
+  readonly kind: 'workspace' | 'plain';
 }
 
 // Prints a directory with every symlink in it resolved: its nearest
@@ -910,8 +915,12 @@ export class SessionManager {
       throw refusal;
     }
 
-    if (materialize !== null && hostKey !== id) {
-      this.claimWorkspace(id, hostKey, target, cwd);
+    if (hostKey !== id) {
+      if (materialize === null) {
+        this.claimPlainDir(id, hostKey, target, cwd);
+      } else {
+        this.claimWorkspace(id, hostKey, target, cwd);
+      }
     }
 
     const setupHost = () =>
@@ -1127,7 +1136,36 @@ export class SessionManager {
       .map((s) => [s.id, s.cwd] as const);
 
     this.requireSeparateWorkspace(id, hostKey, target, dir, [dir], listed);
-    this.reservations.set(id, { hostKey, target, dir, resolved: null });
+    this.reservations.set(id, { hostKey, target, dir, resolved: null, kind: 'workspace' });
+  }
+
+  // Holds a plain spawn's directory on a shared host until the session
+  // lists, refusing one inside or around a directory a workspace spawn is
+  // still building there: that spawn's rollback could remove it. Plain
+  // spawns share directories freely, and a workspace spawn refuses one
+  // around a held plain directory, so the rollback never reaches it.
+  private claimPlainDir(id: SessionID, hostKey: SessionID, target: string, dir: string): void {
+    if (!posix.isAbsolute(dir)) {
+      return;
+    }
+
+    for (const [other, r] of this.reservations) {
+      if (
+        other !== id &&
+        r.kind === 'workspace' &&
+        r.hostKey === hostKey &&
+        r.target === target &&
+        [r.dir, r.resolved ?? r.dir].some((held) => isPathOverlapping(dir, held))
+      ) {
+        throw new DaemonError(
+          'workspace_overlap',
+          `${dir} overlaps ${r.dir}, where session ${other} is still building its workspace on the same host`,
+          { phase: 'resolving', dir, session: other },
+        );
+      }
+    }
+
+    this.reservations.set(id, { hostKey, target, dir, resolved: null, kind: 'plain' });
   }
 
   // The directory a spawn's workspace lands in, as the readied host

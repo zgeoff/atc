@@ -262,7 +262,10 @@ physical path on the claim. It reads the listed sessions again after each wait, 
 sessions listed then. A refused spawn's `workspace_overlap` holds the session or spawn whose
 directory it overlaps as `data.session`. The claim holds until the session lists or the spawn fails.
 A spawn that fails as `outcome_unknown` keeps its claim with no expiry, since its directory may
-still hold what it left, and a daemon restart releases it.
+still hold what it left, and a daemon restart releases it. A plain sub-session spawn on a shared
+host holds its `cwd` the same way until it lists, and is refused with `workspace_overlap` when that
+`cwd` lies inside or around a workspace another spawn is still building there. Plain spawns share
+directories with each other and with listed sessions freely.
 
 A failure removes the directory it created only while no listed session's or other claim's directory
 lies inside it, and only while the path still resolves to itself on the host: the removal enters the

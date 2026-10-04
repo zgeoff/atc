@@ -749,6 +749,88 @@ test("it keeps another session's files inside its directory when a workspace spa
   expect(readFileSync(join(outer, 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
 });
 
+test('it refuses a plain sub-session inside a workspace still materializing on the shared host', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const outer = join(daemon.dir, 'box', 'a');
+
+  daemon.port.startCommandHold('tar -x');
+
+  const outerSpawn = daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls).toContainEqual(expect.toEndWith(`mkdir -- ${outer}`));
+  });
+
+  const refusal = await daemon.client
+    .sendRequest('session.spawn', {
+      cwd: join(outer, 'b'),
+      agent: 'glm',
+      target: 'box',
+      parent: parentID,
+    })
+    .catch((error: unknown) => error);
+
+  daemon.port.stopCommandHold();
+
+  await outerSpawn;
+
+  expect(refusal).toMatchObject({ code: 'workspace_overlap', data: { dir: join(outer, 'b') } });
+});
+
+test('it starts a plain sub-session beside a workspace still materializing on the shared host', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const outer = join(daemon.dir, 'box', 'a');
+
+  daemon.port.startCommandHold('tar -x');
+
+  const outerSpawn = daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls).toContainEqual(expect.toEndWith(`mkdir -- ${outer}`));
+  });
+
+  const plain = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  daemon.port.stopCommandHold();
+
+  await outerSpawn;
+
+  expect(getRecord(plain, 'session')['alive']).toBe(true);
+});
+
 test('it removes the directory it claimed and gives it back when a workspace spawn rolls back on the shared host', async () => {
   await using daemon = await setupTest();
 
@@ -1013,9 +1095,13 @@ test('it keeps the files of a session listed inside its directory while a worksp
     );
   });
 
-  // The rollback's resolution is held while the nested session lists.
+  // The rollback's resolution is held while the nested session lists. It
+  // reaches the directory through a symlink, since a plain spawn naming a
+  // path inside a workspace still materializing is refused.
+  symlinkSync(outer, join(daemon.dir, 'alias'));
+
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(outer, 'inner'),
+    cwd: join(daemon.dir, 'alias', 'inner'),
     agent: 'glm',
     target: 'box',
     parent: parentID,
