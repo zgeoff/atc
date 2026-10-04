@@ -2,10 +2,11 @@
 
 ## [2.26.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.1...@zgeoff/atc@2.26.2) (2026-10-04)
 
-
 ### Bug Fixes
 
-* **#192:** materialize workspaces on the session host of an imp spawn ([#262](https://github.com/zgeoff/atc/issues/262)) ([b154ae2](https://github.com/zgeoff/atc/commit/b154ae2652727f2c7bf8631a6a17f7b740bb14f3))
+- **#192:** materialize workspaces on the session host of an imp spawn
+  ([#262](https://github.com/zgeoff/atc/issues/262))
+  ([b154ae2](https://github.com/zgeoff/atc/commit/b154ae2652727f2c7bf8631a6a17f7b740bb14f3))
 
 ## [2.26.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.0...@zgeoff/atc@2.26.1) (2026-10-03)
 
