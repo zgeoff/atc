@@ -1347,8 +1347,8 @@ export class SessionManager {
 
   // The directory of every session listed on a host, and of every plain
   // spawn still starting there, as the host resolves it, and its own
-  // absolute form; a relative directory the host can no
-  // longer enter is left out, since no harness can run there.
+  // absolute form, and whether any of them failed to resolve, which a
+  // rollback treats as a directory that may lie inside its own.
   private async resolveListedDirs(
     provider: ExecutionProvider,
     hostKey: SessionID,
@@ -1373,7 +1373,7 @@ export class SessionManager {
           dirs.push([s.id, dir]);
         }
 
-        return { dirs, unresolved: dir === null && posix.isAbsolute(s.cwd) };
+        return { dirs, unresolved: dir === null };
       }),
     );
 
