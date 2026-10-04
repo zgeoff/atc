@@ -1,4 +1,5 @@
 import { writeFileSync } from 'node:fs';
+import { posix } from 'node:path';
 import type {
   AgentAdapter,
   GuestPaths,
@@ -33,6 +34,7 @@ import { buildSessionLifecycle } from './build-session-lifecycle';
 import type { SessionLifecycle } from './build-session-lifecycle';
 import { buildTarArchive } from './build-tar-archive';
 import { buildTargetIdentity } from './build-target-identity';
+import { EffectRemainsError } from './effect-remains-error';
 import type {
   ExecutionCapability,
   ExecutionProvider,
@@ -185,6 +187,54 @@ interface MaterializedSpawn {
   readonly withheldEnv: readonly string[];
 }
 
+// Builds a spawn's workspace on a target bound to an identity, calling
+// readyHost for the host it lands on once its source resolves and asking
+// canRemoveClaim before a failure removes the directory it claimed, or
+// resolves to null for a directory that runs as it stands.
+type SpawnMaterializer = (
+  host: SpawnHostAccess,
+  targetIdentity: string,
+) => Promise<MaterializedSpawn | null>;
+
+interface SpawnHostAccess {
+  readonly readyHost: () => Promise<{ readonly host: SessionID; readonly dir: string }>;
+  readonly removeClaim: (dir: string) => Promise<boolean>;
+}
+
+// A workspace directory a spawn on a shared host holds, as the spawn gave
+// it and as the host resolves it once checked there.
+interface WorkspaceReservation {
+  readonly hostKey: SessionID;
+  readonly target: string;
+  readonly dir: string;
+  resolved: string | null;
+
+  // A workspace spawn builds its directory and may remove it on a failure;
+  // a plain spawn only starts in its directory, which another plain spawn
+  // may share.
+  readonly kind: 'workspace' | 'plain';
+}
+
+// Prints a directory with every symlink in it resolved: its nearest
+// existing directory as the host resolves it and a newline, which keeps a
+// name that ends in newlines whole, then a NUL and the rest of the path as
+// given.
+const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=\${p%/*}; [ -n "$p" ] || p=/; done; cd -P -- "$p" && pwd -P && printf '\\0%s' "$s"`;
+
+// Removes a directory only while it still resolves to itself: it enters
+// the directory, compares where it landed with the path it was given, and
+// removes the contents from inside it, so no symlink changed on the way is
+// followed, then the directory itself, which is empty by then.
+const REMOVE_DIR_SCRIPT =
+  'cd -P -- "$1" || exit 3; [ "$(pwd -P; printf x)" = "$2" ] || exit 4; find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || exit 5; cd / && rmdir -- "$1"';
+
+// A readied host's harness plan, and the auth attempt that provisioned the
+// host, if one did.
+interface HarnessSetup {
+  readonly plan: HarnessPlan;
+  readonly attemptID: string | null;
+}
+
 // The identity of the implicit `local` target, which a fleet row without a
 // stored identity ran on.
 const LOCAL_TARGET_IDENTITY = buildTargetIdentity('local-pty', {});
@@ -282,6 +332,14 @@ export class SessionManager {
   // setup until its harness spawns, which follows the setup with no wait,
   // so a host with a launch in flight is never idle.
   private readonly readying = new Map<SessionID, number>();
+
+  // The workspace directory each spawn on a shared host holds from its
+  // overlap check until its session lists or its spawn fails, by spawn id.
+  private readonly reservations = new Map<SessionID, WorkspaceReservation>();
+
+  // The shared hosts with a workspace rollback removing a directory now,
+  // each with how many removals run there.
+  private readonly removals = new Map<string, number>();
 
   // Sessions dropped from the list on purpose whose rows the next fleet
   // write deletes; each stays here until a write carrying it lands.
@@ -805,9 +863,11 @@ export class SessionManager {
   // the new process runs with, and the session keeps them for every revive.
   // id is minted here unless the caller minted it ahead of the spawn. target
   // is the execution target the harness runs on; one this daemon cannot use
-  // refuses the spawn before anything starts. materialized holds what cwd
-  // was materialized from, when it was, and the variables the session's
-  // harnesses go without.
+  // refuses the spawn before anything starts. materialize builds cwd on the
+  // host once every refusal has passed and the host is ready, and returns
+  // what cwd was materialized from, when it was, and the variables the
+  // session's harnesses go without; a failure there takes back the host the
+  // spawn readied, unless it is a parent's.
   async spawn(
     cwd: string,
     name: string,
@@ -821,7 +881,7 @@ export class SessionManager {
     overrides: SpawnOverrides = {},
     id: SessionID = mintSessionID(),
     target = 'local',
-    materialized: MaterializedSpawn | null = null,
+    materialize: SpawnMaterializer | null = null,
     requireInReach: () => void = () => {},
   ): Promise<Session> {
     const adapter = this.findAdapter(agent);
@@ -853,16 +913,52 @@ export class SessionManager {
             targetIdentity: execution.identity,
           };
 
-    const setup = await this.setupHarness(
-      adapter,
-      provider,
-      id,
-      hostKey,
-      target,
-      { prompt, resume, ...overrides },
-      authSetup,
-    );
+    const refusal = adapter.findSpawnRefusal?.() ?? null;
 
+    if (refusal !== null) {
+      throw refusal;
+    }
+
+    if (hostKey !== id) {
+      if (materialize === null) {
+        this.claimPlainDir(id, hostKey, target, cwd);
+      } else {
+        this.claimWorkspace(id, hostKey, target, cwd);
+      }
+    }
+
+    const setupHost = () =>
+      this.setupHarnessOnHost(
+        adapter,
+        provider,
+        id,
+        hostKey,
+        target,
+        { prompt, resume, ...overrides },
+        authSetup,
+      );
+
+    // The host stays readying until its workspace is in place, so nothing
+    // gives its lease back or puts it to sleep in between.
+    const prepared = await this.withHostReadying(hostKey, async () => {
+      if (materialize === null) {
+        return { setup: await setupHost(), materialized: null };
+      }
+
+      return this.materializeOnSpawnHost(
+        provider,
+        id,
+        hostKey,
+        target,
+        cwd,
+        execution.identity,
+        materialize,
+        setupHost,
+      );
+    });
+
+    const setup = prepared.setup;
+    const materialized = prepared.materialized;
     const plan = setup.plan;
 
     // The caller's check runs again once the host is ready, before the
@@ -933,6 +1029,7 @@ export class SessionManager {
 
     this.attachHarness(session, pty, this.hasHostLifecycle(target));
     this.sessions.push(session);
+    this.releaseWorkspace(id);
     void this.tryWriteFleet(session.id);
     this.writeStatus();
     this.onEvent('added', session);
@@ -990,7 +1087,8 @@ export class SessionManager {
   }
 
   // A sub-session joins its parent's host only under the binding that host
-  // holds: both without runtime auth, or both bound to the same hash.
+  // holds: both without runtime auth, or both bound to the same hash, and
+  // then only while that binding is ready.
   private async requireSharedBinding(
     hostKey: SessionID,
     binding: AuthBinding | null,
@@ -1004,6 +1102,14 @@ export class SessionManager {
     }
 
     if (held !== null && binding !== null && held.bindingHash === binding.hash) {
+      if (held.state !== 'ready') {
+        throw new DaemonError(
+          'auth_blocked',
+          `the runtime auth of host ${hostKey} is ${held.state}; rebind it to launch again`,
+          { host: hostKey, state: held.state },
+        );
+      }
+
       return;
     }
 
@@ -1012,6 +1118,375 @@ export class SessionManager {
       `a sub-session joins the host of session ${hostKey} only under the runtime auth binding that host holds`,
       { host: hostKey, hostBound: held !== null, bound: binding !== null },
     );
+  }
+
+  /**
+   * Gives back the workspace directory a spawn reserved on a shared host.
+   * The spawn's session listing gives it back, and so does a failed spawn,
+   * except one whose effects may still stand, whose directory stays
+   * reserved so no other workspace lands in or around what it left.
+   */
+  releaseWorkspace(id: SessionID): void {
+    this.reservations.delete(id);
+  }
+
+  // Claims a workspace's directory on a shared host, refusing one inside
+  // or around the directory of a session listed there or of another spawn's
+  // reservation. The check and the reservation run in one turn, so of two
+  // concurrent spawns at most one passes.
+  private claimWorkspace(id: SessionID, hostKey: SessionID, target: string, dir: string): void {
+    const listed = this.sessions
+      .filter((s) => s.hostKey === hostKey && s.target === target && posix.isAbsolute(s.cwd))
+      .map((s) => [s.id, s.cwd] as const);
+
+    this.requireSeparateWorkspace(id, hostKey, target, dir, [dir], listed);
+    this.reservations.set(id, { hostKey, target, dir, resolved: null, kind: 'workspace' });
+  }
+
+  // Holds a plain spawn's directory on a shared host until the session
+  // lists, refusing one inside or around a directory a workspace spawn is
+  // still building there: that spawn's rollback could remove it. While a
+  // rollback removes a directory on the host, every plain spawn there is
+  // refused, since its directory may reach the one going through a
+  // symlink no check has resolved yet. Plain spawns share directories
+  // freely, and a rollback resolves each held plain directory on the host
+  // and keeps a directory that holds one.
+  private claimPlainDir(id: SessionID, hostKey: SessionID, target: string, dir: string): void {
+    if ((this.removals.get(buildHostSlot(hostKey, target)) ?? 0) > 0) {
+      throw new DaemonError(
+        'workspace_overlap',
+        `a failed workspace spawn is removing its directory on the host of session ${hostKey}; spawn again once it is done`,
+        { phase: 'resolving', dir, session: hostKey },
+      );
+    }
+
+    for (const [other, r] of this.reservations) {
+      if (!posix.isAbsolute(dir)) {
+        break;
+      }
+
+      if (
+        other !== id &&
+        r.kind === 'workspace' &&
+        r.hostKey === hostKey &&
+        r.target === target &&
+        [r.dir, r.resolved ?? r.dir].some((held) => isPathOverlapping(dir, held))
+      ) {
+        throw new DaemonError(
+          'workspace_overlap',
+          `${dir} overlaps ${r.dir}, where session ${other} is still building its workspace on the same host`,
+          { phase: 'resolving', dir, session: other },
+        );
+      }
+    }
+
+    this.reservations.set(id, { hostKey, target, dir, resolved: null, kind: 'plain' });
+  }
+
+  // The directory a spawn's workspace lands in, as the readied host
+  // resolves it: every later step creates, fills, and removes this
+  // physical path, never the requested one. On a shared host the spawn's
+  // claim is checked again against every directory as the host resolves
+  // it, and records the physical path, in the turn after the last wait,
+  // with the sessions listed then.
+  private async claimHostDir(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    dir: string,
+  ): Promise<string> {
+    const before = this.collectHostSessionIDs(hostKey, target);
+
+    const physical = await this.resolveHostDir(provider, hostKey, dir);
+    const listed = await this.resolveListedDirs(provider, hostKey, target);
+
+    if (this.collectHostSessionIDs(hostKey, target) !== before) {
+      return this.claimHostDir(provider, id, hostKey, target, dir);
+    }
+
+    const reservation = this.reservations.get(id);
+
+    if (reservation !== undefined) {
+      this.requireSeparateWorkspace(id, hostKey, target, dir, [dir, physical], listed.dirs);
+
+      reservation.resolved = physical;
+    }
+
+    return physical;
+  }
+
+  // Removes the physical directory a failed spawn claimed, and resolves to
+  // whether it did. It removes nothing while the directory, as the host
+  // resolves it in the turn after the last wait, holds the directory of a
+  // listed session or of another spawn's claim, or once the directory no
+  // longer resolves to itself on the host; the directory then stays for an
+  // operator to remove.
+  private async removeClaimedDir(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    dir: string,
+  ): Promise<boolean> {
+    if (!this.hasHostLifecycle(target)) {
+      const removed = await provider.runCommand({
+        argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
+        cwd: '/',
+      });
+
+      return removed.exitCode === 0;
+    }
+
+    const before = this.collectHostSessionIDs(hostKey, target);
+
+    const listed = await this.resolveListedDirs(provider, hostKey, target);
+
+    if (this.collectHostSessionIDs(hostKey, target) !== before) {
+      return this.removeClaimedDir(provider, id, hostKey, target, dir);
+    }
+
+    // A directory the host could not resolve may lie inside through a
+    // symlink, so the rollback keeps its own.
+    if (listed.unresolved) {
+      return false;
+    }
+
+    const holds = this.collectOtherWorkspaceDirs(id, hostKey, target, listed.dirs).some(
+      ([, other]) => isPathWithin(other, dir),
+    );
+
+    if (holds) {
+      return false;
+    }
+
+    const slot = buildHostSlot(hostKey, target);
+
+    this.removals.set(slot, (this.removals.get(slot) ?? 0) + 1);
+
+    try {
+      const removed = await provider.runCommand({
+        argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
+        cwd: '/',
+        host: hostKey,
+      });
+
+      return removed.exitCode === 0;
+    } finally {
+      const left = (this.removals.get(slot) ?? 1) - 1;
+
+      if (left === 0) {
+        this.removals.delete(slot);
+      } else {
+        this.removals.set(slot, left);
+      }
+    }
+  }
+
+  // The ids of the sessions listed on a host and of the plain spawns still
+  // starting there, as one string a later read compares against.
+  private collectHostSessionIDs(hostKey: SessionID, target: string): string {
+    return [
+      ...this.sessions.filter((s) => s.hostKey === hostKey && s.target === target).map((s) => s.id),
+      ...this.collectPlainDirs(hostKey, target).map(([id]) => id),
+    ].join(' ');
+  }
+
+  // The directories plain spawns still starting on a host hold, as given.
+  private collectPlainDirs(hostKey: SessionID, target: string): (readonly [SessionID, string])[] {
+    return [...this.reservations]
+      .filter(([, r]) => r.kind === 'plain' && r.hostKey === hostKey && r.target === target)
+      .map(([id, r]) => [id, r.dir] as const);
+  }
+
+  private requireSeparateWorkspace(
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    dir: string,
+    forms: readonly string[],
+    listed: readonly (readonly [SessionID, string])[],
+  ): void {
+    const other = this.collectOtherWorkspaceDirs(id, hostKey, target, listed).find(([, path]) =>
+      forms.some((form) => isPathOverlapping(form, path)),
+    );
+
+    if (other !== undefined) {
+      throw new DaemonError(
+        'workspace_overlap',
+        `${dir} overlaps ${other[1]}, the directory of session ${other[0]} on the same host; a workspace there lands beside it`,
+        { phase: 'resolving', dir, session: other[0] },
+      );
+    }
+  }
+
+  // The directories other sessions on a host hold: the listed ones given,
+  // and every other spawn's reservation in each form it has.
+  private collectOtherWorkspaceDirs(
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    listed: readonly (readonly [SessionID, string])[],
+  ): (readonly [SessionID, string])[] {
+    const dirs = [...listed];
+
+    for (const [other, r] of this.reservations) {
+      if (other !== id && r.hostKey === hostKey && r.target === target) {
+        // A relative plain directory counts only once the host resolves
+        // it, since it resolves against the session's home there.
+        dirs.push(
+          ...[r.dir, r.resolved ?? r.dir]
+            .filter((held) => posix.isAbsolute(held))
+            .map((held) => [other, held] as const),
+        );
+      }
+    }
+
+    return dirs;
+  }
+
+  // The directory of every session listed on a host, and of every plain
+  // spawn still starting there, as the host resolves it, and its own
+  // absolute form, and whether any of them failed to resolve, which a
+  // rollback treats as a directory that may lie inside its own.
+  private async resolveListedDirs(
+    provider: ExecutionProvider,
+    hostKey: SessionID,
+    target: string,
+  ): Promise<{ readonly dirs: (readonly [SessionID, string])[]; readonly unresolved: boolean }> {
+    const onHost = [
+      ...this.sessions.filter((s) => s.hostKey === hostKey && s.target === target),
+      ...this.collectPlainDirs(hostKey, target).map(([id, cwd]) => ({ id, cwd })),
+    ];
+
+    const resolved = await Promise.all(
+      onHost.map(async (s) => {
+        const dir = await this.resolveHostDir(provider, hostKey, s.cwd).catch(() => null);
+
+        const dirs: (readonly [SessionID, string])[] = [];
+
+        if (posix.isAbsolute(s.cwd)) {
+          dirs.push([s.id, s.cwd]);
+        }
+
+        if (dir !== null) {
+          dirs.push([s.id, dir]);
+        }
+
+        return { dirs, unresolved: dir === null };
+      }),
+    );
+
+    return {
+      dirs: resolved.flatMap((r) => r.dirs),
+      unresolved: resolved.some((r) => r.unresolved),
+    };
+  }
+
+  // A directory on a host with every symlink in it resolved: an absolute
+  // one through its nearest existing directory, and a relative one as a
+  // harness started in it sees it, since impd resolves both alike. A null
+  // host resolves it on the daemon's own machine.
+  private async resolveHostDir(
+    provider: ExecutionProvider,
+    hostKey: SessionID | null,
+    dir: string,
+  ): Promise<string> {
+    const absolute = posix.isAbsolute(dir);
+
+    const result = await provider.runCommand({
+      argv: ['sh', '-c', RESOLVE_DIR_SCRIPT, 'sh', absolute ? posix.normalize(dir) : '.'],
+      cwd: absolute ? '/' : dir,
+      ...(hostKey === null ? {} : { host: hostKey }),
+    });
+
+    const split = result.stdout.lastIndexOf('\0');
+
+    if (result.exitCode !== 0 || split < 1 || result.stdout[split - 1] !== '\n') {
+      throw new DaemonError(
+        'host_unavailable',
+        `${hostKey === null ? 'the daemon host' : `the host of session ${hostKey}`} cannot resolve ${dir}: ${result.stderr.trim()}`,
+        { phase: 'resolving', dir },
+      );
+    }
+
+    const existing = result.stdout.slice(0, split - 1);
+    const rest = result.stdout.slice(split + 1);
+
+    return existing === '/' ? rest || '/' : `${existing}${rest}`;
+  }
+
+  // Materializes a spawn's workspace, readying its host once the source
+  // resolves, or after the workspace for a directory that runs as it
+  // stands. A failure once the host is ready takes it back.
+  private async materializeOnSpawnHost(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    dir: string,
+    targetIdentity: string,
+    materialize: SpawnMaterializer,
+    setupHost: () => Promise<HarnessSetup>,
+  ): Promise<{ readonly setup: HarnessSetup; readonly materialized: MaterializedSpawn | null }> {
+    const readied: { setup: HarnessSetup | null } = { setup: null };
+
+    try {
+      const materialized = await materialize(
+        {
+          readyHost: async () => {
+            readied.setup = await setupHost();
+
+            const landing = this.hasHostLifecycle(target)
+              ? await this.claimHostDir(provider, id, hostKey, target, dir)
+              : await this.resolveHostDir(provider, null, dir);
+
+            return { host: hostKey, dir: landing };
+          },
+          removeClaim: (landing) => this.removeClaimedDir(provider, id, hostKey, target, landing),
+        },
+        targetIdentity,
+      );
+
+      readied.setup ??= await setupHost();
+
+      return { setup: readied.setup, materialized };
+    } catch (error) {
+      if (readied.setup !== null) {
+        await this.destroyFailedSpawnHost(provider, id, hostKey, readied.setup.attemptID);
+      }
+
+      throw error;
+    }
+  }
+
+  // Takes back the host a spawn readied when the spawn fails before its
+  // session lists: an attempt that provisioned the host takes back its imp
+  // and binding, and a host of the spawn's own without one is destroyed. A
+  // parent's host stays as it is. A take-back that fails throws, and a
+  // destroy that fails throws that the host may still stand.
+  private async destroyFailedSpawnHost(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    attemptID: string | null,
+  ): Promise<void> {
+    if (attemptID !== null) {
+      await this.tryRemoveAuthAttempt(provider, hostKey, attemptID);
+
+      return;
+    }
+
+    if (hostKey === id && provider.capabilities.destroy) {
+      try {
+        await provider.destroyHost(hostKey);
+      } catch (error) {
+        throw new EffectRemainsError(
+          `spawn of session ${id} failed and destroying its host failed too`,
+          { cause: error },
+        );
+      }
+    }
   }
 
   // Takes back what a spawn attempt bound when the spawn fails before its
@@ -1105,7 +1580,7 @@ export class SessionManager {
   // behind the broker has its binding created or verified before the host
   // is readied, and a binding this call created is taken back when a later
   // step fails; the attempt that created it comes back with the plan.
-  private async setupHarness(
+  private setupHarness(
     adapter: AgentAdapter,
     provider: ExecutionProvider,
     id: SessionID,
@@ -1114,10 +1589,17 @@ export class SessionManager {
     options: SpawnOptions,
     auth: HarnessAuthSetup | null,
   ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
+    return this.withHostReadying(hostKey, () =>
+      this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth),
+    );
+  }
+
+  // Counts a host as readying while run runs, so it is not idle then.
+  private async withHostReadying<T>(hostKey: SessionID, run: () => Promise<T>): Promise<T> {
     this.readying.set(hostKey, (this.readying.get(hostKey) ?? 0) + 1);
 
     try {
-      return await this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth);
+      return await run();
     } finally {
       const left = (this.readying.get(hostKey) ?? 1) - 1;
 
@@ -2234,4 +2716,21 @@ function formatTargetRefusal(code: ErrorCode, target: string): string {
   }
 
   return `target '${target}' cannot start a terminal`;
+}
+
+// Whether either of two directories on a host holds the other, or they are
+// the same.
+// The key of a shared host on one target, for state kept per host.
+function buildHostSlot(hostKey: SessionID, target: string): string {
+  return `${target}\0${hostKey}`;
+}
+
+function isPathOverlapping(a: string, b: string): boolean {
+  return isPathWithin(a, b) || isPathWithin(b, a);
+}
+
+function isPathWithin(child: string, parent: string): boolean {
+  const relative = posix.relative(parent, child);
+
+  return relative !== '..' && !relative.startsWith('../') && !posix.isAbsolute(relative);
 }
