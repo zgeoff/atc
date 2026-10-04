@@ -2,10 +2,11 @@
 
 ## [2.26.4](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.3...@zgeoff/atc@2.26.4) (2026-10-04)
 
-
 ### Bug Fixes
 
-* **#280:** stop compiled binaries loading a .env file ([#285](https://github.com/zgeoff/atc/issues/285)) ([1ad5108](https://github.com/zgeoff/atc/commit/1ad51081cead256b1c4d44590f62d4efb3e8cd96))
+- **#280:** stop compiled binaries loading a .env file
+  ([#285](https://github.com/zgeoff/atc/issues/285))
+  ([1ad5108](https://github.com/zgeoff/atc/commit/1ad51081cead256b1c4d44590f62d4efb3e8cd96))
 
 ## [2.26.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.2...@zgeoff/atc@2.26.3) (2026-10-04)
 
