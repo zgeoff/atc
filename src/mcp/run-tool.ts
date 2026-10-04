@@ -54,6 +54,9 @@ export function runTool(
         ...(key === undefined ? {} : { idempotencyKey: key }),
         ...(args['target'] === undefined ? {} : { target: args['target'] }),
         ...(args['workspace'] === undefined ? {} : { workspace: args['workspace'] }),
+        ...(args['trustClonedWorkspace'] === undefined
+          ? {}
+          : { trustClonedWorkspace: args['trustClonedWorkspace'] }),
         cols: 100,
         rows: 30,
       };
@@ -71,7 +74,16 @@ export function runTool(
       const workspaceFeatures: readonly DaemonFeature[] =
         args['workspace'] === undefined ? [] : ['spawn.workspace'];
 
-      const required = [...optionFeatures, ...keyFeatures, ...targetFeatures, ...workspaceFeatures];
+      const trustFeatures: readonly DaemonFeature[] =
+        args['trustClonedWorkspace'] === undefined ? [] : ['spawn.workspace.trust'];
+
+      const required = [
+        ...optionFeatures,
+        ...keyFeatures,
+        ...targetFeatures,
+        ...workspaceFeatures,
+        ...trustFeatures,
+      ];
 
       const ok =
         nested && ctx.callerSessionID !== null

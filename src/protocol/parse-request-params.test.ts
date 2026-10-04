@@ -446,3 +446,21 @@ test.each([
 
   expect(parsed).toStrictEqual({ ok: false, message });
 });
+
+test.each([true, false])(
+  'it preserves the per-launch clone trust decision %s',
+  (trustClonedWorkspace) => {
+    const parsed = parseRequestParams('session.spawn', { cwd: '/w', trustClonedWorkspace });
+
+    expect(parsed).toMatchObject({ ok: true, data: { trustClonedWorkspace } });
+  },
+);
+
+test.each(['true', 1, null])('it rejects non-boolean clone trust %s', (trustClonedWorkspace) => {
+  const parsed = parseRequestParams('session.spawn', { cwd: '/w', trustClonedWorkspace });
+
+  expect(parsed).toStrictEqual({
+    ok: false,
+    message: 'session.spawn trustClonedWorkspace must be a boolean',
+  });
+});

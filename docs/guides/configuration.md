@@ -431,11 +431,21 @@ refused, and the session has no resume command.
 
 On an imp target, the session's guest folder holds a settings file for its binding revision and a
 Claude config folder of its own. The settings file points the CLI at `baseURL` with the placeholder
-and holds no credential helper. The config folder holds no account, only the state that skips the
-first-run onboarding, and atc writes that state only when the folder has none. Claude asks a person
-to trust the workspace folder on first use; atc never answers that question. Each start names a
-permission mode: the one the gateway's `args` or `settings` set, else Claude's manual `default`
-mode, so the session never takes the default of a fresh Claude config.
+and holds no credential helper. atc seeds the config folder with first-run onboarding state only
+when `.claude.json` does not exist. Each start names a permission mode: the one the gateway's `args`
+or `settings` set, else Claude's manual `default` mode.
+
+Claude asks a person to trust the workspace folder on first use. To accept trust for one cloned
+launch, pass `trustClonedWorkspace: true` with a `workspace` source to `session.spawn` or
+`atc_session_spawn`. The option defaults to false and requires a brokered Claude gateway on an imp
+target. atc refuses the option for stock Claude, local targets, and launches without a workspace
+source.
+
+After verifying the clone, atc seeds trust for its resolved repository root in that session's
+isolated guest config. Trust allows Claude to load repository configuration and helpers; use the
+option only for repositories you trust. atc preserves an existing guest `.claude.json` byte for
+byte, so its trust decision takes precedence. The option changes neither tool permission mode nor
+the user's Claude config.
 
 The placeholders must be `ANTHROPIC_AUTH_TOKEN` alone, and the profile for the `baseURL` host must
 set a bearer `authorization` header, since that is the header Claude sends the variable in. Any

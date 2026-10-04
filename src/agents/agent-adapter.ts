@@ -21,10 +21,11 @@ export interface SpawnOptions {
 }
 
 /**
- * The per-session model and effort a spawn asks for, already checked
- * against what the agent advertises.
+ * The per-launch choices a spawn asks for. Model and effort are checked
+ * against what the agent advertises; workspace trust requires a verified clone.
  */
 export interface SpawnOverrides {
+  readonly trustClonedWorkspace?: boolean;
   readonly model?: string;
   readonly effort?: string;
 }
@@ -226,6 +227,10 @@ export interface AgentAdapter {
   // A plan for a guest whose `auth` is given that cannot launch behind the
   // broker is null.
   readonly planGuestSpawn?: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
+
+  // Guest-relative seed files for the exact root of a verified clone.
+  // Absent or null means the adapter cannot accept workspace trust.
+  readonly planGuestWorkspaceTrust?: (root: string) => Readonly<Record<string, string>> | null;
 
   // The credential this agent takes from impd's broker, or null when it
   // takes none. Absent: it takes none.

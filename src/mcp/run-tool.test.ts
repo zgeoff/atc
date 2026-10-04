@@ -529,3 +529,70 @@ test('it refuses a report read unsent when the daemon predates report reads', as
 
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
+
+test('it forwards an explicit clone trust decision and requires daemon support', async () => {
+  const sent: unknown[] = [];
+  const workspace = { kind: 'git', url: 'https://example.com/r.git', ref: 'main' };
+
+  await runTool(
+    {
+      sendRequest: (m, p, required) => {
+        sent.push({ m, p, required });
+
+        return Promise.resolve({ session: { id: 's-1' } });
+      },
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
+    },
+    'atc_session_spawn',
+    { cwd: '/tmp/ws', workspace, trustClonedWorkspace: true },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(sent).toStrictEqual([
+    {
+      m: 'session.spawn',
+      p: { cwd: '/tmp/ws', workspace, trustClonedWorkspace: true, cols: 100, rows: 30 },
+      required: ['spawn.workspace', 'spawn.workspace.trust'],
+    },
+  ]);
+});
+
+test('it refuses an explicit trust decision unsent when the daemon predates clone trust', async () => {
+  using tmp = setupTempDir('atc-run-tool-');
+
+  const socketPath = join(tmp.dir, 'daemon.sock');
+
+  const legacy = startLegacyDaemon(socketPath, {
+    features: [
+      'agents.list',
+      'events.more',
+      'events.session',
+      'message.turn',
+      'message.wait',
+      'spawn.workspace',
+    ],
+  });
+
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(async () => {
+    await caller.stop();
+
+    legacy.stop();
+  });
+
+  const spawn = runTool(
+    caller,
+    'atc_session_spawn',
+    { cwd: '/tmp/ws', workspace: { kind: 'path', path: '/src/repo' }, trustClonedWorkspace: true },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's trustClonedWorkspace/);
+
+  await spawn.catch(() => null);
+
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});
