@@ -851,6 +851,211 @@ test('it keeps the files of a plain sub-session still starting through a symlink
   expect(readFileSync(join(outer, 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
 });
 
+test('it refuses a plain sub-session on the shared host while a workspace rollback removes its directory', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const outer = join(daemon.dir, 'box', 'a');
+
+  daemon.port.startCommandHold('tar -x');
+
+  const outerSpawn = daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls).toContainEqual(expect.toEndWith(`mkdir -- ${outer}`));
+  });
+
+  symlinkSync(outer, join(daemon.dir, 'alias'));
+
+  daemon.port.setCommandFailure('tar -x');
+  daemon.port.stopCommandHold();
+  daemon.port.startCommandHold('find . -mindepth');
+
+  await waitFor(() => {
+    expect(daemon.port.calls.filter((call) => call.includes('find . -mindepth'))).not.toBeEmpty();
+  });
+
+  const refusal = await daemon.client
+    .sendRequest('session.spawn', {
+      cwd: join(daemon.dir, 'alias', 'inner'),
+      agent: 'glm',
+      target: 'box',
+      parent: parentID,
+    })
+    .catch((error: unknown) => error);
+
+  daemon.port.stopCommandHold();
+  daemon.port.setCommandFailure(null);
+
+  await outerSpawn.catch(() => null);
+
+  const after = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  expect<Record<string, unknown>>({
+    refusal,
+    after: getRecord(after, 'session')['alive'],
+  }).toMatchObject({ refusal: { code: 'workspace_overlap' }, after: true });
+});
+
+test('it keeps the files of a relative plain sub-session still starting when a workspace rolls back', async () => {
+  await using daemon = await setupTest();
+
+  const home = join(daemon.dir, 'box');
+
+  mkdirSync(home, { recursive: true });
+
+  daemon.port.setHomeDir(home);
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const outer = join(home, 'a');
+
+  daemon.port.startCommandHold('tar -x');
+
+  const outerSpawn = daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls).toContainEqual(expect.toEndWith(`mkdir -- ${outer}`));
+  });
+
+  mkdirSync(join(outer, 'inner'));
+  writeFileSync(join(outer, 'inner', 'keep.txt'), 'kept\n');
+
+  const leasesBefore = daemon.port.calls.filter((call) => call.startsWith('leases.acquire')).length;
+
+  daemon.port.startLeaseHold();
+
+  // The relative sub-session waits for its lease, before it lists.
+  const plain = daemon.client.sendRequest('session.spawn', {
+    cwd: 'a/inner',
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  await waitFor(() => {
+    expect(
+      daemon.port.calls.filter((call) => call.startsWith('leases.acquire')).length,
+    ).toBeGreaterThan(leasesBefore);
+  });
+
+  daemon.port.setCommandFailure('tar -x');
+  daemon.port.stopCommandHold();
+
+  await outerSpawn.catch(() => null);
+
+  daemon.port.setCommandFailure(null);
+  daemon.port.stopLeaseHold();
+
+  await plain;
+
+  expect(readFileSync(join(outer, 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
+});
+
+test('it keeps its directory when a workspace rollback cannot resolve a plain sub-session still starting', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const outer = join(daemon.dir, 'box', 'a');
+
+  daemon.port.startCommandHold('tar -x');
+
+  const outerSpawn = daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls).toContainEqual(expect.toEndWith(`mkdir -- ${outer}`));
+  });
+
+  mkdirSync(join(outer, 'inner'));
+  writeFileSync(join(outer, 'inner', 'keep.txt'), 'kept\n');
+  symlinkSync(outer, join(daemon.dir, 'alias'));
+
+  const leasesBefore = daemon.port.calls.filter((call) => call.startsWith('leases.acquire')).length;
+
+  daemon.port.startLeaseHold();
+
+  const plain = daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'alias', 'inner'),
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  await waitFor(() => {
+    expect(
+      daemon.port.calls.filter((call) => call.startsWith('leases.acquire')).length,
+    ).toBeGreaterThan(leasesBefore);
+  });
+
+  const resolvesBefore = daemon.port.calls.filter((call) => call.includes('pwd -P')).length;
+
+  daemon.port.setCommandFailure('tar -x');
+  daemon.port.stopCommandHold();
+  daemon.port.startCommandHold('pwd -P');
+
+  await waitFor(() => {
+    expect(daemon.port.calls.filter((call) => call.includes('pwd -P')).length).toBeGreaterThan(
+      resolvesBefore,
+    );
+  });
+
+  // Only the resolution of the plain sub-session's directory fails.
+  daemon.port.setCommandFailure(join(daemon.dir, 'alias'));
+  daemon.port.stopCommandHold();
+
+  const refusal = await outerSpawn.catch((error: unknown) => error);
+
+  daemon.port.setCommandFailure(null);
+  daemon.port.stopLeaseHold();
+
+  await plain;
+
+  expect<Record<string, unknown>>({
+    refusal,
+    kept: readFileSync(join(outer, 'inner', 'keep.txt'), 'utf8'),
+  }).toMatchObject({ refusal: { data: { leftDir: outer } }, kept: 'kept\n' });
+});
+
 test('it starts a plain sub-session beside a workspace still materializing on the shared host', async () => {
   await using daemon = await setupTest();
 

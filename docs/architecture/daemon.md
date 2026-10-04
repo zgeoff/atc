@@ -249,10 +249,10 @@ host the workspace lands on: the session's own host, or its parent's when the tw
 materialization that fails once the host is ready takes back a host of the session's own, with the
 imp and binding its spawn provisioned, and leaves a parent's host running.
 
-On a target whose hosts have a lifecycle, the workspace has one directory: the physical path the
-host resolves `cwd` to once the host is ready, with every symlink in it resolved. The daemon
-creates, fills, verifies, and removes that path, and never removes anything through `cwd` as
-written.
+The workspace has one directory: the physical path `cwd` resolves to, with every symlink in it
+resolved, on the session's host once it is ready, or on the daemon's own machine for a target
+without hosts. The daemon creates, fills, verifies, and removes that path, and never removes
+anything through `cwd` as written.
 
 On a shared host, a workspace spawn claims its `cwd` against every session listed there and every
 other workspace spawn in flight there, in the same step that checks it, so two concurrent spawns
@@ -265,7 +265,10 @@ A spawn that fails as `outcome_unknown` keeps its claim with no expiry, since it
 still hold what it left, and a daemon restart releases it. A plain sub-session spawn on a shared
 host holds its `cwd` the same way until it lists, and is refused with `workspace_overlap` when that
 `cwd` lies inside or around a workspace another spawn is still building there. Plain spawns share
-directories with each other and with listed sessions freely.
+directories with each other and with listed sessions freely. While a failed workspace spawn removes
+its directory on a host, every plain spawn there is refused with `workspace_overlap`. A rollback
+resolves the directory of each plain spawn still starting there, relative ones included, and keeps
+its own directory when one of them lies inside or cannot be resolved.
 
 A failure removes the directory it created only while no listed session's or other claim's directory
 lies inside it, and only while the path still resolves to itself on the host: the removal enters the

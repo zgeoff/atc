@@ -337,6 +337,10 @@ export class SessionManager {
   // overlap check until its session lists or its spawn fails, by spawn id.
   private readonly reservations = new Map<SessionID, WorkspaceReservation>();
 
+  // The shared hosts with a workspace rollback removing a directory now,
+  // each with how many removals run there.
+  private readonly removals = new Map<string, number>();
+
   // Sessions dropped from the list on purpose whose rows the next fleet
   // write deletes; each stays here until a write carrying it lands.
   private readonly removedIDs = new Set<SessionID>();
@@ -1141,15 +1145,26 @@ export class SessionManager {
 
   // Holds a plain spawn's directory on a shared host until the session
   // lists, refusing one inside or around a directory a workspace spawn is
-  // still building there: that spawn's rollback could remove it. Plain
-  // spawns share directories freely, and a workspace spawn refuses one
-  // around a held plain directory, so the rollback never reaches it.
+  // still building there: that spawn's rollback could remove it. While a
+  // rollback removes a directory on the host, every plain spawn there is
+  // refused, since its directory may reach the one going through a
+  // symlink no check has resolved yet. Plain spawns share directories
+  // freely, and a rollback resolves each held plain directory on the host
+  // and keeps a directory that holds one.
   private claimPlainDir(id: SessionID, hostKey: SessionID, target: string, dir: string): void {
-    if (!posix.isAbsolute(dir)) {
-      return;
+    if ((this.removals.get(buildHostSlot(hostKey, target)) ?? 0) > 0) {
+      throw new DaemonError(
+        'workspace_overlap',
+        `a failed workspace spawn is removing its directory on the host of session ${hostKey}; spawn again once it is done`,
+        { phase: 'resolving', dir, session: hostKey },
+      );
     }
 
     for (const [other, r] of this.reservations) {
+      if (!posix.isAbsolute(dir)) {
+        break;
+      }
+
       if (
         other !== id &&
         r.kind === 'workspace' &&
@@ -1193,7 +1208,7 @@ export class SessionManager {
     const reservation = this.reservations.get(id);
 
     if (reservation !== undefined) {
-      this.requireSeparateWorkspace(id, hostKey, target, dir, [dir, physical], listed);
+      this.requireSeparateWorkspace(id, hostKey, target, dir, [dir, physical], listed.dirs);
 
       reservation.resolved = physical;
     }
@@ -1215,7 +1230,10 @@ export class SessionManager {
     dir: string,
   ): Promise<boolean> {
     if (!this.hasHostLifecycle(target)) {
-      const removed = await provider.runCommand({ argv: ['rm', '-rf', '--', dir], cwd: '/' });
+      const removed = await provider.runCommand({
+        argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
+        cwd: '/',
+      });
 
       return removed.exitCode === 0;
     }
@@ -1228,21 +1246,41 @@ export class SessionManager {
       return this.removeClaimedDir(provider, id, hostKey, target, dir);
     }
 
-    const holds = this.collectOtherWorkspaceDirs(id, hostKey, target, listed).some(([, other]) =>
-      isPathWithin(other, dir),
+    // A directory the host could not resolve may lie inside through a
+    // symlink, so the rollback keeps its own.
+    if (listed.unresolved) {
+      return false;
+    }
+
+    const holds = this.collectOtherWorkspaceDirs(id, hostKey, target, listed.dirs).some(
+      ([, other]) => isPathWithin(other, dir),
     );
 
     if (holds) {
       return false;
     }
 
-    const removed = await provider.runCommand({
-      argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
-      cwd: '/',
-      host: hostKey,
-    });
+    const slot = buildHostSlot(hostKey, target);
 
-    return removed.exitCode === 0;
+    this.removals.set(slot, (this.removals.get(slot) ?? 0) + 1);
+
+    try {
+      const removed = await provider.runCommand({
+        argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
+        cwd: '/',
+        host: hostKey,
+      });
+
+      return removed.exitCode === 0;
+    } finally {
+      const left = (this.removals.get(slot) ?? 1) - 1;
+
+      if (left === 0) {
+        this.removals.delete(slot);
+      } else {
+        this.removals.set(slot, left);
+      }
+    }
   }
 
   // The ids of the sessions listed on a host and of the plain spawns still
@@ -1294,7 +1332,13 @@ export class SessionManager {
 
     for (const [other, r] of this.reservations) {
       if (other !== id && r.hostKey === hostKey && r.target === target) {
-        dirs.push([other, r.dir], [other, r.resolved ?? r.dir]);
+        // A relative plain directory counts only once the host resolves
+        // it, since it resolves against the session's home there.
+        dirs.push(
+          ...[r.dir, r.resolved ?? r.dir]
+            .filter((held) => posix.isAbsolute(held))
+            .map((held) => [other, held] as const),
+        );
       }
     }
 
@@ -1309,7 +1353,7 @@ export class SessionManager {
     provider: ExecutionProvider,
     hostKey: SessionID,
     target: string,
-  ): Promise<(readonly [SessionID, string])[]> {
+  ): Promise<{ readonly dirs: (readonly [SessionID, string])[]; readonly unresolved: boolean }> {
     const onHost = [
       ...this.sessions.filter((s) => s.hostKey === hostKey && s.target === target),
       ...this.collectPlainDirs(hostKey, target).map(([id, cwd]) => ({ id, cwd })),
@@ -1329,19 +1373,23 @@ export class SessionManager {
           dirs.push([s.id, dir]);
         }
 
-        return dirs;
+        return { dirs, unresolved: dir === null && posix.isAbsolute(s.cwd) };
       }),
     );
 
-    return resolved.flat();
+    return {
+      dirs: resolved.flatMap((r) => r.dirs),
+      unresolved: resolved.some((r) => r.unresolved),
+    };
   }
 
   // A directory on a host with every symlink in it resolved: an absolute
   // one through its nearest existing directory, and a relative one as a
-  // harness started in it sees it, since impd resolves both alike.
+  // harness started in it sees it, since impd resolves both alike. A null
+  // host resolves it on the daemon's own machine.
   private async resolveHostDir(
     provider: ExecutionProvider,
-    hostKey: SessionID,
+    hostKey: SessionID | null,
     dir: string,
   ): Promise<string> {
     const absolute = posix.isAbsolute(dir);
@@ -1349,7 +1397,7 @@ export class SessionManager {
     const result = await provider.runCommand({
       argv: ['sh', '-c', RESOLVE_DIR_SCRIPT, 'sh', absolute ? posix.normalize(dir) : '.'],
       cwd: absolute ? '/' : dir,
-      host: hostKey,
+      ...(hostKey === null ? {} : { host: hostKey }),
     });
 
     const split = result.stdout.lastIndexOf('\0');
@@ -1357,7 +1405,7 @@ export class SessionManager {
     if (result.exitCode !== 0 || split < 1 || result.stdout[split - 1] !== '\n') {
       throw new DaemonError(
         'host_unavailable',
-        `the host of session ${hostKey} cannot resolve ${dir}: ${result.stderr.trim()}`,
+        `${hostKey === null ? 'the daemon host' : `the host of session ${hostKey}`} cannot resolve ${dir}: ${result.stderr.trim()}`,
         { phase: 'resolving', dir },
       );
     }
@@ -1391,7 +1439,7 @@ export class SessionManager {
 
             const landing = this.hasHostLifecycle(target)
               ? await this.claimHostDir(provider, id, hostKey, target, dir)
-              : dir;
+              : await this.resolveHostDir(provider, null, dir);
 
             return { host: hostKey, dir: landing };
           },
@@ -2672,6 +2720,11 @@ function formatTargetRefusal(code: ErrorCode, target: string): string {
 
 // Whether either of two directories on a host holds the other, or they are
 // the same.
+// The key of a shared host on one target, for state kept per host.
+function buildHostSlot(hostKey: SessionID, target: string): string {
+  return `${target}\0${hostKey}`;
+}
+
 function isPathOverlapping(a: string, b: string): boolean {
   return isPathWithin(a, b) || isPathWithin(b, a);
 }
