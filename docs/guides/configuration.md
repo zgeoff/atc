@@ -527,3 +527,11 @@ Daemon state lives in `~/.local/state/atc/` — the
 [architecture overview](../architecture/overview.md#state) covers the files. The daemon's sockets
 and pid file sit in `$XDG_RUNTIME_DIR`, and `daemon.json` in the state directory holds their paths
 for a client whose environment lacks that variable.
+
+## Environment
+
+atc takes its environment from the process that starts it: a shell, a systemd unit, or an MCP client
+entry. A release binary never reads a `.env` file, so a `~/.env` line does not reach the daemon or
+the sessions it starts. A variable that the starting process exports reaches atc, a stale one
+included. Run from source with `bun src/cli.ts`, atc follows Bun's runtime default and loads a
+`.env` file from its working directory.
