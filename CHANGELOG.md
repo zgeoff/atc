@@ -2,10 +2,10 @@
 
 ## [2.26.7](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.6...@zgeoff/atc@2.26.7) (2026-10-04)
 
-
 ### Bug Fixes
 
-* **#281:** preserve redacted imp refusal details ([#292](https://github.com/zgeoff/atc/issues/292)) ([603ac71](https://github.com/zgeoff/atc/commit/603ac715c6b240ce2875f898dd14b214eda12034))
+- **#281:** preserve redacted imp refusal details ([#292](https://github.com/zgeoff/atc/issues/292))
+  ([603ac71](https://github.com/zgeoff/atc/commit/603ac715c6b240ce2875f898dd14b214eda12034))
 
 ## [2.26.6](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.5...@zgeoff/atc@2.26.6) (2026-10-04)
 
