@@ -2,10 +2,11 @@
 
 ## [2.26.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.2...@zgeoff/atc@2.26.3) (2026-10-04)
 
-
 ### Bug Fixes
 
-* **#178:** send a guest command's input to impd in pieces ([#282](https://github.com/zgeoff/atc/issues/282)) ([5091a23](https://github.com/zgeoff/atc/commit/5091a23ea1ba9a2dfa359d7633961858e25529e2))
+- **#178:** send a guest command's input to impd in pieces
+  ([#282](https://github.com/zgeoff/atc/issues/282))
+  ([5091a23](https://github.com/zgeoff/atc/commit/5091a23ea1ba9a2dfa359d7633961858e25529e2))
 
 ## [2.26.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.1...@zgeoff/atc@2.26.2) (2026-10-04)
 
