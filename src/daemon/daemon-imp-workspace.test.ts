@@ -196,6 +196,7 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
     readme: readFileSync(join(dest, 'README.md'), 'utf8'),
     session,
     claims: daemon.port.calls.filter((call) => call.startsWith(`exec.run ${imp} mkdir`)),
+    unpacks: daemon.port.calls.filter((call) => call.includes(dest) && call.includes('tar -x')),
     started: daemon.port.sessionRequests.map((request) => request.kind),
   }).toMatchObject({
     readme: 'hello\n',
@@ -203,6 +204,9 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
     claims: [
       `exec.run ${imp} mkdir -p -- ${join(daemon.dir, 'box')}`,
       `exec.run ${imp} mkdir -- ${dest}`,
+    ],
+    unpacks: [
+      `exec.run ${imp} sh -c mkdir -p "$1" && tar -x --no-same-owner -f - -C "$1" sh ${dest}`,
     ],
     started: ['start'],
   });
