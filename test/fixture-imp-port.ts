@@ -60,6 +60,14 @@ const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
  * broker variable, and when it would join a process that started without
  * the broker required.
  */
+// A hold on the commands whose argv holds its text: entered resolves with
+// the argv of the first command it holds, and stop lets every command it
+// holds run.
+interface FixtureCommandHold {
+  readonly entered: Promise<string>;
+  readonly stop: () => void;
+}
+
 export class FixtureImpPort implements ImpPort {
   // Every port call, in order, as `<call> <imp> [<detail>]`.
   readonly calls: string[] = [];
@@ -141,6 +149,7 @@ export class FixtureImpPort implements ImpPort {
   // one is held.
   private commandHold: {
     readonly match: string;
+    readonly entered: PromiseWithResolvers<string>;
     readonly done: PromiseWithResolvers<void>;
   } | null = null;
 
@@ -560,9 +569,12 @@ export class FixtureImpPort implements ImpPort {
     }
 
     const line = command.argv.join(' ');
+    const hold = this.commandHold;
 
-    if (this.commandHold !== null && line.includes(this.commandHold.match)) {
-      await this.commandHold.done.promise;
+    if (hold !== null && line.includes(hold.match)) {
+      hold.entered.resolve(line);
+
+      await hold.done.promise;
     }
 
     if (this.commandFailure !== null && line.includes(this.commandFailure)) {
@@ -960,13 +972,36 @@ export class FixtureImpPort implements ImpPort {
   }
 
   /**
-   * Holds every command whose argv holds match until the hold stops.
+   * Holds every command whose argv holds match until the returned hold
+   * stops. Throws while another hold is active, so no hold replaces one a
+   * command still waits on.
    */
-  startCommandHold(match: string): void {
-    this.commandHold = { match, done: Promise.withResolvers<void>() };
+  startCommandHold(match: string): FixtureCommandHold {
+    if (this.commandHold !== null) {
+      throw new Error(`a hold on ${this.commandHold.match} is still active`);
+    }
+
+    const hold = {
+      match,
+      entered: Promise.withResolvers<string>(),
+      done: Promise.withResolvers<void>(),
+    };
+
+    this.commandHold = hold;
+
+    return {
+      entered: hold.entered.promise,
+      stop: () => {
+        if (this.commandHold === hold) {
+          this.commandHold = null;
+        }
+
+        hold.done.resolve();
+      },
+    };
   }
 
-  // Lets every held command run, and the next at once.
+  // Lets every command the active hold holds run, and the next at once.
   stopCommandHold(): void {
     const hold = this.commandHold;
 
