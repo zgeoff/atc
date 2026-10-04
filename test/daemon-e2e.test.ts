@@ -3460,3 +3460,70 @@ test('it closes a TCP connection whose token a SIGHUP reload removed', async () 
 
   expect(hello).toContainKey('daemonID');
 });
+
+// A compiled binary loads no .env file from its working directory, while the
+// source entry keeps Bun's runtime autoload, so these run on the binary only.
+// With no daemon running, `daemon id` prints the socket path it tried, which
+// follows XDG_RUNTIME_DIR and so shows whether a variable reached the process.
+const isCompiledRun = process.env['ATC_BIN'] !== undefined;
+
+test.skipIf(!isCompiledRun)(
+  'it ignores a .env file in the working directory of the compiled binary',
+  async () => {
+    const dir = setupDotenvDir();
+    const env = collectEnv({ HOME: dir });
+
+    delete env['XDG_RUNTIME_DIR'];
+
+    const result = await runDaemonID(dir, env);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toInclude(join(dir, '.local', 'state', 'atc', 'atc-daemon.sock'));
+    expect(result.stderr).not.toInclude('from-dotenv');
+  },
+);
+
+test.skipIf(!isCompiledRun)(
+  'it keeps an explicitly inherited variable in the compiled binary',
+  async () => {
+    const dir = setupDotenvDir();
+    const explicit = join(dir, 'from-process-env');
+    const env = collectEnv({ HOME: dir, XDG_RUNTIME_DIR: explicit });
+
+    const result = await runDaemonID(dir, env);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toInclude(join(explicit, 'atc-daemon.sock'));
+  },
+);
+
+// A fresh directory holding a .env file whose only line points
+// XDG_RUNTIME_DIR at a sentinel path, removed when the test ends.
+function setupDotenvDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-dotenv-'));
+
+  onTestFinished(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  writeFileSync(join(dir, '.env'), `XDG_RUNTIME_DIR=${join(dir, 'from-dotenv')}\n`);
+
+  return dir;
+}
+
+// Runs `daemon id` in the directory with exactly the given environment.
+async function runDaemonID(
+  cwd: string,
+  env: Readonly<Record<string, string>>,
+): Promise<{ exitCode: number; stderr: string }> {
+  const proc = Bun.spawn([...atcCommand, 'daemon', 'id'], {
+    cwd,
+    env,
+    stdout: 'ignore',
+    stderr: 'pipe',
+  });
+
+  const stderr = await new Response(proc.stderr).text();
+
+  return { exitCode: await proc.exited, stderr };
+}
