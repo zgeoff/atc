@@ -649,10 +649,11 @@ interface ImpHost {
 }
 
 function buildImpSessionName(sessionID: string): string {
+  // The prefix plus 28 chars stays inside the 32-char session limit.
   return `atc-${sessionID
     .toLowerCase()
     .replaceAll(/[^a-z0-9]/g, '')
-    .slice(0, 32)}`;
+    .slice(0, 28)}`;
 }
 
 // Short enough that the socket's path stays inside a unix socket's limit.

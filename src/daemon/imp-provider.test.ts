@@ -145,6 +145,88 @@ test('it asks impd to require the broker on a harness start that requires one', 
   ]);
 });
 
+test('it keeps a full UUID imp session name inside the session limit', async () => {
+  using imp = setupTest();
+
+  await imp.port.createImp({ name: 'atc-s1' });
+
+  const harness = imp.provider.spawnHarness({
+    session: '9d53f7d6-f7b4-4809-9bf6-17d3b5b0c058',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: '/tmp',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  await harness.waitForStart?.().catch(() => null);
+
+  const [request] = imp.port.sessionRequests;
+
+  if (request === undefined) {
+    throw new Error('expected a session request');
+  }
+
+  if (request.kind !== 'start') {
+    throw new Error('expected a start request');
+  }
+
+  expect(request.session.length).toBeLessThanOrEqual(32);
+  expect(request.session).toMatch(/^[a-z0-9][a-z0-9-]{0,31}$/);
+});
+
+test('it derives one imp session name per session', async () => {
+  using imp = setupTest();
+
+  await imp.port.createImp({ name: 'atc-s1' });
+  await imp.port.createImp({ name: 'atc-s2' });
+  await imp.port.createImp({ name: 'atc-s3' });
+
+  const base = {
+    bin: 'sleep',
+    args: ['30'],
+    cwd: '/tmp',
+    env: {},
+    cols: 80,
+    rows: 24,
+  } as const;
+
+  const first = imp.provider.spawnHarness({
+    ...base,
+    session: '9d53f7d6-f7b4-4809-9bf6-17d3b5b0c058',
+    host: 's1',
+  });
+
+  const repeat = imp.provider.spawnHarness({
+    ...base,
+    session: '9d53f7d6-f7b4-4809-9bf6-17d3b5b0c058',
+    host: 's2',
+  });
+
+  const other = imp.provider.spawnHarness({
+    ...base,
+    session: 'ad53f7d6-f7b4-4809-9bf6-17d3b5b0c058',
+    host: 's3',
+  });
+
+  await first.waitForStart?.().catch(() => null);
+  await repeat.waitForStart?.().catch(() => null);
+  await other.waitForStart?.().catch(() => null);
+
+  const names = imp.port.sessionRequests.map((request) => {
+    if (request.kind !== 'start') {
+      throw new Error('expected a start request');
+    }
+
+    return request.session;
+  });
+
+  expect(names[0]).toBe(names[1]);
+  expect(names[2]).not.toBe(names[0]);
+});
+
 test('it asks impd to require nothing on a harness start that requires no broker', async () => {
   using imp = setupTest();
 
