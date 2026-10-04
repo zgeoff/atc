@@ -248,16 +248,8 @@ export class ImpClientPort implements ImpPort {
   };
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
-  readonly runCommand = async (name: string, command: ImpCommand): Promise<ImpCommandResult> => {
-    const result = await this.tryCall((client) =>
-      client.run(name, command.argv, {
-        ...(command.cwd === undefined ? {} : { cwd: command.cwd }),
-        ...(command.stdin === undefined ? {} : { stdin: command.stdin }),
-      }),
-    );
-
-    return { code: result.code, stdout: result.stdout, stderr: result.stderr };
-  };
+  readonly runCommand = (name: string, command: ImpCommand): Promise<ImpCommandResult> =>
+    this.tryCall((client) => runCommandInChunks(client, name, command));
 
   readonly openReverseForward = (
     name: string,
@@ -423,6 +415,51 @@ async function waitForSessionOutcome(outcome: Promise<ExecOutcome>): Promise<Imp
   }
 
   return ended;
+}
+
+// impd takes no WebSocket message over its size limit and closes the exec
+// when one arrives, so a command's input goes over in pieces well below it.
+const STDIN_CHUNK_BYTES = 1024 * 1024;
+
+// Runs a command with its input sent a piece at a time. A command that ends
+// before it takes all its input answers with its own exit, or with the
+// failure that ended it, never with the refused write.
+async function runCommandInChunks(
+  client: ImpClient,
+  name: string,
+
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
+  command: ImpCommand,
+): Promise<ImpCommandResult> {
+  const options = command.cwd === undefined ? {} : { cwd: command.cwd };
+
+  const handle = await client.openExec(name, command.argv, options);
+
+  const output = Promise.all([
+    new Response(handle.stdout).bytes(),
+    new Response(handle.stderr).bytes(),
+  ]);
+
+  try {
+    const stdin = command.stdin ?? new Uint8Array(0);
+
+    for (let at = 0; at < stdin.byteLength; at += STDIN_CHUNK_BYTES) {
+      await handle.write(stdin.subarray(at, at + STDIN_CHUNK_BYTES));
+    }
+
+    await handle.closeStdin();
+  } catch {
+    // A write fails once the exec has ended, and the exit holds why: the
+    // command's own exit, or the failure that ended it, which rethrows
+    // here. Closing first ends an exec the failed write left running.
+    handle.close();
+
+    await handle.exit;
+  }
+
+  const [exit, [stdout, stderr]] = await Promise.all([handle.exit, output]);
+
+  return { code: exit.code, stdout, stderr };
 }
 
 // oxlint-disable-next-line prefer-readonly-parameter-types -- a promise is a live handle

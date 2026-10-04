@@ -14,7 +14,11 @@ import { readImpToken } from './read-imp-token';
 // path, or else as system info, and answers a tunnel listen as listening,
 // keeping that control socket so a test can announce a guest connection on
 // it. It records each exec open message and refuses it as a start whose
-// broker is not ready. Plus a temp directory for the token file.
+// broker is not ready. Once a test sets exec.reply, it instead starts the
+// command and either counts the stdin bytes until stdin ends and prints the
+// count, as wc -c does, or exits 2 at once without reading stdin. It takes
+// no WebSocket message over 2 MiB, as impd refuses one over its own limit.
+// Plus a temp directory for the token file.
 function setupTest() {
   const tmp = setupTempDir('atc-imp-client-port-');
   const authorizations: (string | null)[] = [];
@@ -24,6 +28,9 @@ function setupTest() {
 
   const controls: ServerWebSocket[] = [];
   const execOpens: unknown[] = [];
+  const exec: { reply: 'refuse' | 'count' | 'exit-early' } = { reply: 'refuse' };
+
+  const counted = new WeakMap<ServerWebSocket, number>();
 
   const server = Bun.serve({
     port: 0,
@@ -51,11 +58,45 @@ function setupTest() {
         : Response.json({ json: answer.json }, { status: answer.status });
     },
     websocket: {
+      maxPayloadLength: 2 * 1024 * 1024,
       message: (socket, message) => {
-        const parsed: unknown = JSON.parse(String(message));
+        const seen = counted.get(socket);
+
+        if (typeof message !== 'string') {
+          if (seen !== undefined) {
+            counted.set(socket, seen + message.byteLength - 1);
+          }
+
+          return;
+        }
+
+        const parsed: unknown = JSON.parse(message);
+
+        if (isRecord(parsed) && parsed['type'] === 'stdin_eof' && seen !== undefined) {
+          const count = new TextEncoder().encode(`${String(seen)}\n`);
+
+          socket.send(new Uint8Array([1, ...count]));
+          socket.send(JSON.stringify({ type: 'exit', code: 0, signal: null }));
+
+          return;
+        }
 
         if (isRecord(parsed) && (parsed['type'] === 'start' || parsed['type'] === 'attach')) {
           execOpens.push(parsed);
+
+          if (exec.reply === 'count') {
+            counted.set(socket, 0);
+            socket.send(JSON.stringify({ type: 'started', pid: 7 }));
+
+            return;
+          }
+
+          if (exec.reply === 'exit-early') {
+            socket.send(JSON.stringify({ type: 'started', pid: 7 }));
+            socket.send(JSON.stringify({ type: 'exit', code: 2, signal: null }));
+
+            return;
+          }
 
           socket.send(
             JSON.stringify({
@@ -86,6 +127,7 @@ function setupTest() {
     answers,
     controls,
     execOpens,
+    exec,
     async [Symbol.asyncDispose]() {
       await server.stop(true);
 
@@ -272,6 +314,63 @@ test.each([
     secretRebind: flag,
     execRequire: flag,
   });
+});
+
+test('it sends a command stdin larger than one WebSocket message impd takes', async () => {
+  await using impd = setupTest();
+
+  const file = join(impd.dir, 'token');
+
+  writeFileSync(file, 't0');
+
+  impd.exec.reply = 'count';
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(file) });
+
+  const result = await port.runCommand('imp-a', {
+    argv: ['wc', '-c'],
+    stdin: new Uint8Array(5 * 1024 * 1024),
+  });
+
+  expect({ code: result.code, stdout: new TextDecoder().decode(result.stdout) }).toStrictEqual({
+    code: 0,
+    stdout: '5242880\n',
+  });
+});
+
+test('it returns the exit of a command that ends before it reads its stdin', async () => {
+  await using impd = setupTest();
+
+  const file = join(impd.dir, 'token');
+
+  writeFileSync(file, 't0');
+
+  impd.exec.reply = 'exit-early';
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(file) });
+
+  const result = await port.runCommand('imp-a', {
+    argv: ['false'],
+    stdin: new Uint8Array(5 * 1024 * 1024),
+  });
+
+  expect(result.code).toBe(2);
+});
+
+test('it rejects a command whose start impd refuses with the refusal', async () => {
+  await using impd = setupTest();
+
+  const file = join(impd.dir, 'token');
+
+  writeFileSync(file, 't0');
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(file) });
+
+  const refusal = port.runCommand('imp-a', { argv: ['true'] });
+
+  expect(refusal).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+
+  await refusal.catch(() => null);
 });
 
 test('it reads the caller identity impd answers tokens.whoami with', async () => {
