@@ -1,5 +1,6 @@
 import { DaemonError } from '../protocol/daemon-error';
 import { isRecord } from '../shared/report';
+import { truncateSummary } from '../shared/truncate-summary';
 import type {
   HarnessAttachment,
   HarnessExit,
@@ -925,10 +926,30 @@ function collectColdBoots(value: unknown): { readonly bootId: unknown; readonly 
     }));
 }
 
+// A refusal's message as detail a session list row can hold: control
+// characters taken out so the text cannot redraw the row, secret-shaped
+// runs redacted, and whitespace flattened to one line.
+function buildSafeDetail(message: string): string {
+  return message
+    .replaceAll(/[\p{Cc}\p{Cf}]/gu, ' ')
+    .replaceAll(/Bearer\s+\S+/giu, 'Bearer [redacted]')
+    .replaceAll(/[A-Za-z0-9+/_=-]{32,}/gu, '[redacted]')
+    .replaceAll(/\s+/gu, ' ')
+    .trim();
+}
+
 // An end other than an exit, as a session's last message.
 function formatOutcome(outcome: Exclude<ImpSessionOutcome, { kind: 'exit' }>): string {
   if (outcome.kind === 'failed') {
-    return `imp refused the session (${outcome.code ?? 'error'})`;
+    const code = outcome.code ?? 'error';
+    const detail = buildSafeDetail(outcome.message);
+
+    const line =
+      detail === ''
+        ? `imp refused the session (${code})`
+        : `imp refused the session (${code}): ${detail}`;
+
+    return truncateSummary(line);
   }
 
   if (outcome.kind === 'detached') {
