@@ -2,10 +2,11 @@
 
 ## [2.26.5](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.4...@zgeoff/atc@2.26.5) (2026-10-04)
 
-
 ### Bug Fixes
 
-* **#273:** unpack an imp workspace as the guest user ([#287](https://github.com/zgeoff/atc/issues/287)) ([4413608](https://github.com/zgeoff/atc/commit/44136085151fdab0415ed946993e4434240eb84a))
+- **#273:** unpack an imp workspace as the guest user
+  ([#287](https://github.com/zgeoff/atc/issues/287))
+  ([4413608](https://github.com/zgeoff/atc/commit/44136085151fdab0415ed946993e4434240eb84a))
 
 ## [2.26.4](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.3...@zgeoff/atc@2.26.4) (2026-10-04)
 
