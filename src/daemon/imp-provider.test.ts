@@ -184,31 +184,37 @@ test('it derives one imp session name per session', async () => {
   await imp.port.createImp({ name: 'atc-s2' });
   await imp.port.createImp({ name: 'atc-s3' });
 
-  const base = {
+  const first = imp.provider.spawnHarness({
+    session: '9d53f7d6-f7b4-4809-9bf6-17d3b5b0c058',
+    host: 's1',
     bin: 'sleep',
     args: ['30'],
     cwd: '/tmp',
     env: {},
     cols: 80,
     rows: 24,
-  } as const;
-
-  const first = imp.provider.spawnHarness({
-    ...base,
-    session: '9d53f7d6-f7b4-4809-9bf6-17d3b5b0c058',
-    host: 's1',
   });
 
   const repeat = imp.provider.spawnHarness({
-    ...base,
     session: '9d53f7d6-f7b4-4809-9bf6-17d3b5b0c058',
     host: 's2',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: '/tmp',
+    env: {},
+    cols: 80,
+    rows: 24,
   });
 
   const other = imp.provider.spawnHarness({
-    ...base,
     session: 'ad53f7d6-f7b4-4809-9bf6-17d3b5b0c058',
     host: 's3',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: '/tmp',
+    env: {},
+    cols: 80,
+    rows: 24,
   });
 
   await first.waitForStart?.().catch(() => null);
@@ -223,6 +229,7 @@ test('it derives one imp session name per session', async () => {
     return request.session;
   });
 
+  expect(names).toHaveLength(3);
   expect(names[0]).toBe(names[1]);
   expect(names[2]).not.toBe(names[0]);
 });
