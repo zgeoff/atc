@@ -302,8 +302,11 @@ export class ImpProvider implements ExecutionProvider {
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- archive bytes have no readonly form
   readonly transferArchive = async (archive: Uint8Array, dir: string, host?: string) => {
+    // The archive records the daemon host's owners. Commands in an imp run as
+    // root, and root's tar keeps those owners, which git there then refuses
+    // as dubious ownership, so the unpacked files take the guest user's owner.
     const result = await this.runOnHost(host, {
-      argv: ['sh', '-c', 'mkdir -p "$1" && tar -x -f - -C "$1"', 'sh', dir],
+      argv: ['sh', '-c', 'mkdir -p "$1" && tar -x --no-same-owner -f - -C "$1"', 'sh', dir],
       stdin: archive,
     });
 
