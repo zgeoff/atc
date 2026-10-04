@@ -269,13 +269,45 @@ answer to the reconnect decides how the harness ended:
 
 The daemon builds a spawn's [workspace](./protocol.md#workspaces) on the session's target through
 two provider operations, `transfer` and `run`, and nothing specific to one provider. Each provider
-call passes the execution check against the target identity the session binds to when its
-materialization starts. The `workspace_materialization` table holds one row per materialization,
-keyed by the session id, and the daemon records each phase in it before the phase starts:
+call passes the execution check against the target identity the session binds to when its spawn
+starts, and runs on the session's host. Materialization starts only after every refusal of the spawn
+has passed, its runtime auth checks included. The daemon resolves the source first, then readies the
+host the workspace lands on: the session's own host, or its parent's when the two share one. A
+materialization that fails once the host is ready takes back a host of the session's own, with the
+imp and binding its spawn provisioned, and leaves a parent's host running.
+
+The workspace has one directory: the physical path `cwd` resolves to, with every symlink in it
+resolved, on the session's host once it is ready, or on the daemon's own machine for a target
+without hosts. The daemon creates, fills, verifies, and removes that path, and never removes
+anything through `cwd` as written.
+
+On a shared host, a workspace spawn claims its `cwd` against every session listed there and every
+other workspace spawn in flight there, in the same step that checks it, so two concurrent spawns
+never both take nested directories. Once the host is ready, the daemon checks the claim again with
+each directory as the host resolves it, symlinks and relative directories included, and records the
+physical path on the claim. It reads the listed sessions again after each wait, and decides with the
+sessions listed then. A refused spawn's `workspace_overlap` holds the session or spawn whose
+directory it overlaps as `data.session`. The claim holds until the session lists or the spawn fails.
+A spawn that fails as `outcome_unknown` keeps its claim with no expiry, since its directory may
+still hold what it left, and a daemon restart releases it. A plain sub-session spawn on a shared
+host holds its `cwd` the same way until it lists, and is refused with `workspace_overlap` when that
+`cwd` lies inside or around a workspace another spawn is still building there. Plain spawns share
+directories with each other and with listed sessions freely. While a failed workspace spawn removes
+its directory on a host, every plain spawn there is refused with `workspace_overlap`. A rollback
+resolves the directory of each plain spawn still starting there, relative ones included, and keeps
+its own directory when one of them lies inside or cannot be resolved.
+
+A failure removes the directory it created only while no listed session's or other claim's directory
+lies inside it, and only while the path still resolves to itself on the host: the removal enters the
+directory, checks where it landed, and removes the contents from inside. Otherwise the directory
+stays, the daemon logs it, and the refusal holds it as `data.leftDir`; a refusal that answers
+`outcome_unknown` carries no data, so there the log is the only record. The
+`workspace_materialization` table holds one row per materialization, keyed by the session id, and
+the daemon records each phase in it before the phase starts:
 
 | Phase          | What the daemon does                                                                                                                   |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolving`    | resolves the source to a URL and commit, checks the URL, and creates `cwd` with `mkdir`                                                |
+| `resolving`    | resolves the source to a URL and commit, checks the URL, readies the host, and creates `cwd` with `mkdir`                              |
 | `cloning`      | clones the commit into a staging directory on its own host, sanitizes it, and tars it                                                  |
 | `transferring` | unpacks the archive into `cwd` through `transfer`                                                                                      |
 | `verifying`    | runs `git rev-parse` and `git status` in `cwd` through `run`, and checks HEAD is the pinned commit with every tracked file matching it |

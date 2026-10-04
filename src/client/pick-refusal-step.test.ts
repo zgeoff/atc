@@ -3,6 +3,7 @@ import { pickRefusalStep } from './pick-refusal-step';
 
 test.each([
   ['workspace_exists', 'destination'],
+  ['workspace_overlap', 'destination'],
   ['ref_not_found', 'ref'],
   ['invalid_git_url', 'source'],
   ['credential_in_url', 'source'],

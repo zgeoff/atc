@@ -976,6 +976,16 @@ export class DaemonConnection {
         throw new DaemonError('bad_args', 'a spawn with a workspace requires an absolute cwd');
       }
 
+      // A workspace is created, filled, and removed at the one directory
+      // the host resolves cwd to, which a dot segment or a control
+      // character would make differ from the path as written.
+      if (data.workspace !== undefined && !isPlainWorkspaceDir(data.cwd)) {
+        throw new DaemonError(
+          'bad_args',
+          'a spawn with a workspace requires a cwd without . or .. segments or control characters',
+        );
+      }
+
       let parent: SessionID | null = null;
 
       if (data.parent !== undefined) {
@@ -1790,4 +1800,13 @@ function findEventSession(event: EventMsg): SessionID | null {
   }
 
   return null;
+}
+
+// oxlint-disable-next-line no-control-regex -- control characters are what a workspace cwd is refused for
+const CONTROL_CHARACTER = /[\u0000-\u001F\u007F]/u;
+
+function isPlainWorkspaceDir(dir: string): boolean {
+  return (
+    !CONTROL_CHARACTER.test(dir) && !dir.split('/').some((part) => part === '.' || part === '..')
+  );
 }

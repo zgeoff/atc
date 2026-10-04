@@ -1,6 +1,14 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -215,6 +223,7 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
   expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
 
   expect(box.calls).toMatchObject([
+    { op: 'run', argv: ['sh', '-c', expect.any(String), 'sh', dest], cwd: '/' },
     { op: 'run', argv: ['mkdir', '-p', '--', join(ctx.dir, 'box')], cwd: '/' },
     { op: 'run', argv: ['mkdir', '--', dest], cwd: '/' },
     { op: 'transfer', dir: dest },
@@ -297,6 +306,50 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
 
   expect(listed).toStrictEqual({ sessions: [] });
   expect(existsSync(dest)).toBeFalse();
+});
+
+test('it removes only the directory it created when a symlink in the requested path changes before a rollback', async () => {
+  await using ctx = await setupTest();
+
+  const safe = join(ctx.dir, 'safe');
+  const busy = join(ctx.dir, 'busy');
+  const alias = join(ctx.dir, 'alias');
+
+  mkdirSync(safe);
+  mkdirSync(join(busy, 'ws', 'inner'), { recursive: true });
+  writeFileSync(join(busy, 'ws', 'inner', 'keep.txt'), 'kept\n');
+  symlinkSync(safe, alias);
+
+  // The unpack leaves a tracked file out, and the requested path's symlink
+  // moves to another directory before the rollback removes the checkout.
+  const box = new FixtureDirProvider({
+    afterTransfer: async (dir) => {
+      await rm(join(dir, 'README.md'));
+
+      unlinkSync(alias);
+      symlinkSync(busy, alias);
+    },
+  });
+
+  const booted = await ctx.boot(box);
+
+  const refused = await booted.client
+    .sendRequest('session.spawn', {
+      cwd: join(alias, 'ws'),
+      target: 'box',
+      workspace: { kind: 'path', path: ctx.work },
+    })
+    .catch((error: unknown) => error);
+
+  expect<Record<string, unknown>>({
+    refused,
+    kept: readFileSync(join(busy, 'ws', 'inner', 'keep.txt'), 'utf8'),
+    created: existsSync(join(safe, 'ws')),
+  }).toMatchObject({
+    refused: { code: 'workspace_mismatch' },
+    kept: 'kept\n',
+    created: false,
+  });
 });
 
 test('it records a ready workspace and lists it again on the session after a restart', async () => {

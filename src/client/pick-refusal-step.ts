@@ -3,6 +3,7 @@ type RefusalStep = 'confirm' | 'destination' | 'ref' | 'source';
 
 const REFUSAL_STEPS: ReadonlyMap<string, RefusalStep> = new Map<string, RefusalStep>([
   ['workspace_exists', 'destination'],
+  ['workspace_overlap', 'destination'],
   ['ref_not_found', 'ref'],
   ['invalid_git_url', 'source'],
   ['credential_in_url', 'source'],

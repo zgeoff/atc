@@ -590,8 +590,9 @@ impd's own client refuses an outdated impd.
   as recorded (`auth_rebind_required`), that the imp is the one recorded (`auth_runtime_mismatch`),
   and that impd holds exactly the bound grants (`auth_grant_missing`, `auth_grants_mismatch`). atc
   never adds a missing grant back. A sub-session joins only a host bound to the same binding as its
-  own: `auth_binding_mismatch` otherwise. A selection the auth profiles cannot bind is
-  `auth_binding_invalid`.
+  own: `auth_binding_mismatch` otherwise. Both refusals of a sub-session, and the block of a binding
+  that is not `ready`, come before its workspace source resolves or its host is touched. A selection
+  the auth profiles cannot bind is `auth_binding_invalid`.
 - Each start and attach of such a harness is admitted under the host's binding lock: the binding
   must still be `ready`, or still provisioning under the spawn that launches, and a start must match
   the revision and hash it was planned under. An admitted request goes out only once its connection
@@ -653,10 +654,13 @@ the checkout is verified:
   runs, with the config error the daemon printed at startup in its message. An empty list is valid
   and allows no transport.
 
-`cwd` must not exist on the target. The daemon creates it before it clones, so a directory that
-already exists refuses the spawn as `workspace_exists` and stays as it was. A refusal after that
-removes the directory. A `path` source outside any git work tree runs in place on a `local-pty`
-target, with `cwd` equal to its path; any other target refuses it as `not_a_git_repo`.
+`cwd` must be absolute, without `.` or `..` segments or control characters; any other `cwd` is
+`bad_args`. It must not exist on the target. The daemon creates it before it clones, so a directory
+that already exists refuses the spawn as `workspace_exists` and stays as it was. A refusal after
+that removes the directory, unless another session's directory lies inside it or it no longer
+resolves to the directory the daemon created; the refusal then holds the directory it left as
+`data.leftDir`. A `path` source outside any git work tree runs in place on a `local-pty` target,
+with `cwd` equal to its path; any other target refuses it as `not_a_git_repo`.
 
 The daemon answers the spawn once the workspace is ready, and the session descriptor holds
 `workspace`: `repoURL`, `sha`, `ref` when the commit came from a branch or tag, and
@@ -667,27 +671,28 @@ The daemon answers the spawn once the workspace is ready, and the session descri
 Every workspace refusal holds the phase it failed in as `data.phase`, and its message and data hold
 `[credential]` wherever the token's value would appear:
 
-| Code                     | Phase                     | Refused when                                                                                    |
-| ------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `not_a_git_repo`         | resolving                 | the path is not a directory inside a git work tree                                              |
-| `no_commits`             | resolving                 | the checkout has no commit                                                                      |
-| `unreadable_tree`        | resolving or cloning      | git cannot inspect the path, list the commit's tree, or read the checkout's status              |
-| `has_submodules`         | resolving or cloning      | the commit holds a gitlink or a `.gitmodules` file                                              |
-| `workspace_dirty`        | resolving                 | the checkout has uncommitted or untracked changes                                               |
-| `no_origin`              | resolving                 | the checkout has no origin remote                                                               |
-| `invalid_git_url`        | resolving                 | the URL does not read as a repository URL                                                       |
-| `git_transports_invalid` | resolving                 | `workspaces.gitTransports` in config.json is invalid                                            |
-| `unpushed_head`          | resolving                 | origin does not hold HEAD                                                                       |
-| `credential_in_url`      | resolving                 | the URL, or an `insteadOf` rewrite of it, carries a credential                                  |
-| `workspace_exists`       | resolving                 | `cwd` exists on the target, as `data.dir`                                                       |
-| `credential_missing`     | cloning                   | the `credentialRef` variable is unset or empty                                                  |
-| `ref_not_found`          | cloning                   | the upstream has no such branch, tag, or commit                                                 |
-| `lfs_unsupported`        | cloning                   | a tracked path uses Git LFS, counted in `data.count`                                            |
-| `clone_failed`           | cloning                   | git cannot clone the repository or check the commit out                                         |
-| `sanitize_failed`        | cloning                   | the clone still holds a credential, or its history no longer reads                              |
-| `tar_failed`             | cloning                   | tar cannot archive the clone                                                                    |
-| `transfer_failed`        | resolving or transferring | the provider cannot create `cwd`'s parent or unpack the archive                                 |
-| `workspace_mismatch`     | verifying                 | the target's HEAD is not the pinned commit, in `data.actual`, or a tracked file differs from it |
+| Code                     | Phase                     | Refused when                                                                                                                                                                                                        |
+| ------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `not_a_git_repo`         | resolving                 | the path is not a directory inside a git work tree                                                                                                                                                                  |
+| `no_commits`             | resolving                 | the checkout has no commit                                                                                                                                                                                          |
+| `unreadable_tree`        | resolving or cloning      | git cannot inspect the path, list the commit's tree, or read the checkout's status                                                                                                                                  |
+| `has_submodules`         | resolving or cloning      | the commit holds a gitlink or a `.gitmodules` file                                                                                                                                                                  |
+| `workspace_dirty`        | resolving                 | the checkout has uncommitted or untracked changes                                                                                                                                                                   |
+| `no_origin`              | resolving                 | the checkout has no origin remote                                                                                                                                                                                   |
+| `invalid_git_url`        | resolving                 | the URL does not read as a repository URL                                                                                                                                                                           |
+| `git_transports_invalid` | resolving                 | `workspaces.gitTransports` in config.json is invalid                                                                                                                                                                |
+| `unpushed_head`          | resolving                 | origin does not hold HEAD                                                                                                                                                                                           |
+| `credential_in_url`      | resolving                 | the URL, or an `insteadOf` rewrite of it, carries a credential                                                                                                                                                      |
+| `workspace_exists`       | resolving                 | `cwd` exists on the target, as `data.dir`                                                                                                                                                                           |
+| `workspace_overlap`      | resolving                 | `cwd` holds, or lies inside, the directory of another session on a shared host or of another workspace spawn still in flight there, compared as given and as the host resolves it, as `data.dir` and `data.session` |
+| `credential_missing`     | resolving                 | the `credentialRef` variable is unset or empty                                                                                                                                                                      |
+| `ref_not_found`          | cloning                   | the upstream has no such branch, tag, or commit                                                                                                                                                                     |
+| `lfs_unsupported`        | cloning                   | a tracked path uses Git LFS, counted in `data.count`                                                                                                                                                                |
+| `clone_failed`           | cloning                   | git cannot clone the repository or check the commit out                                                                                                                                                             |
+| `sanitize_failed`        | cloning                   | the clone still holds a credential, or its history no longer reads                                                                                                                                                  |
+| `tar_failed`             | cloning                   | tar cannot archive the clone                                                                                                                                                                                        |
+| `transfer_failed`        | resolving or transferring | the provider cannot create `cwd`'s parent or unpack the archive                                                                                                                                                     |
+| `workspace_mismatch`     | verifying                 | the target's HEAD is not the pinned commit, in `data.actual`, or a tracked file differs from it                                                                                                                     |
 
 ## Sources
 

@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ImpSessionStarted } from '../src/daemon/imp-port';
 import { FixtureImpPort } from './fixture-imp-port';
@@ -755,6 +756,96 @@ test('it runs a command in a running imp with the input it is given', async () =
     stdout: 'piped',
     stderr: new Uint8Array(0),
   });
+});
+
+test('it ends the output and exit of a command that runs while a session PTY opens in its imp', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'imp-a' });
+
+  const go = join(fixture.dir, 'go');
+
+  const result = fixture.port.runCommand('imp-a', {
+    argv: [
+      'sh',
+      '-c',
+      'while [ ! -e "$1" ]; do sleep 0.01; done; echo out; echo err >&2',
+      'sh',
+      go,
+    ],
+  });
+
+  const started = Promise.withResolvers<void>();
+
+  fixture.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: fixture.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      onStarted: () => {
+        started.resolve();
+      },
+      onOutput: () => {},
+    },
+  );
+
+  await started.promise;
+
+  writeFileSync(go, '');
+
+  const ran = await result;
+
+  expect({
+    code: ran.code,
+    stdout: Buffer.from(ran.stdout).toString(),
+    stderr: Buffer.from(ran.stderr).toString(),
+  }).toStrictEqual({ code: 0, stdout: 'out\n', stderr: 'err\n' });
+});
+
+test('it holds a matching command until its hold stops, and gives the held argv on entry', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'imp-a' });
+
+  const hold = fixture.port.startCommandHold('echo held');
+  const result = fixture.port.runCommand('imp-a', { argv: ['sh', '-c', 'echo held'] });
+
+  const held = await hold.entered;
+
+  expect(held).toBe('sh -c echo held');
+
+  hold.stop();
+
+  const ran = await result;
+
+  expect(Buffer.from(ran.stdout).toString()).toBe('held\n');
+});
+
+test('it refuses a second command hold while one is active', () => {
+  using fixture = setupTest();
+
+  fixture.port.startCommandHold('tar -x');
+
+  expect(() => fixture.port.startCommandHold('pwd -P')).toThrow('a hold on tar -x is still active');
+});
+
+test('it keeps a newer command hold active when an earlier hold stops again', () => {
+  using fixture = setupTest();
+
+  const earlier = fixture.port.startCommandHold('tar -x');
+
+  earlier.stop();
+  fixture.port.startCommandHold('pwd -P');
+  earlier.stop();
+
+  expect(() => fixture.port.startCommandHold('mkdir')).toThrow('a hold on pwd -P is still active');
 });
 
 test('it gives each imp made under a name a new id', async () => {
