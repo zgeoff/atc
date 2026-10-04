@@ -34,6 +34,12 @@ interface MaterializeRequest {
   readonly inPlace: boolean;
 }
 
+// The host a workspace lands on, and the directory there it is built in.
+interface Landing {
+  readonly host: string;
+  readonly dir: string;
+}
+
 interface MaterializeDeps {
   // The target's provider for one operation, after the execution gate
   // passes it; throws the gate's refusal otherwise.
@@ -43,11 +49,12 @@ interface MaterializeDeps {
 
   // Readies the host on the target the workspace lands on and resolves to
   // it, once the source has resolved.
-  readonly readyHost: () => Promise<string>;
+  readonly readyHost: () => Promise<Landing>;
 
-  // Whether a failure may remove the directory this call claimed: false
-  // when the directory holds another session's.
-  readonly canRemoveClaim: () => Promise<boolean>;
+  // Removes the directory this call claimed after a failure, and resolves
+  // to whether it did; one it leaves holds what another session needs, or
+  // no longer resolves to itself.
+  readonly removeClaim: (dir: string) => Promise<boolean>;
 
   // The directory on the daemon's host that holds each clone's staging
   // directory while the workspace is built.
@@ -72,8 +79,9 @@ interface ReadyWorkspace {
 interface MaterializationProgress {
   phase: MaterializationPhase;
 
-  // The host the workspace lands on, once it is ready.
-  host: string | null;
+  // The host the workspace lands on and its directory there, once the
+  // host is ready.
+  landing: Landing | null;
 
   // Whether this call created the target directory, so a failure removes
   // only a directory it made.
@@ -125,7 +133,7 @@ export async function materializeWorkspace(
 
   const secret = findCredentialSecret(source);
   const withheldEnv = buildWithheldEnv(source);
-  const progress: MaterializationProgress = { phase: 'resolving', host: null, claimed: false };
+  const progress: MaterializationProgress = { phase: 'resolving', landing: null, claimed: false };
 
   const updateProgress = (update: Readonly<Partial<MaterializationProgress>>) => {
     Object.assign(progress, update);
@@ -163,14 +171,22 @@ export async function materializeWorkspace(
     const remains = error instanceof EffectRemainsError;
     const code = remains ? 'outcome_unknown' : refusal.code;
 
-    await tryRemoveClaimedDir(request, deps, progress, secret);
+    const left = await tryRemoveClaimedDir(request, deps, progress, secret);
+
     await tryUpdateFailed(request, deps, code);
 
     deps.log(
       `atc: workspace for session ${request.sessionID} failed while ${progress.phase}: ${code}: ${refusal.message}`,
     );
 
-    throw remains ? error : refusal;
+    if (remains) {
+      throw error;
+    }
+
+    // A directory the failure left is reported, so the caller can remove it.
+    throw left === null
+      ? refusal
+      : new DaemonError(refusal.code, refusal.message, { ...refusal.data, leftDir: left });
   }
 }
 
@@ -238,11 +254,11 @@ async function runMaterialization(
   const repoURL = secret === null ? pinned.repoURL : toRedacted(pinned.repoURL, secret);
   const ref = secret === null || pinned.ref === null ? pinned.ref : toRedacted(pinned.ref, secret);
 
-  const host = await deps.readyHost();
+  const landing = await deps.readyHost();
 
-  updateProgress({ host });
+  updateProgress({ landing });
 
-  await claimTargetDir(request, deps, host, updateProgress);
+  await claimTargetDir(request, deps, landing, updateProgress);
   await recordPhase(request, deps, updateProgress, 'cloning', { repoURL, ref });
 
   const clone = await createCleanClone(pinned, join(staging, 'clone'), transports);
@@ -253,13 +269,15 @@ async function runMaterialization(
   await recordPhase(request, deps, updateProgress, 'transferring', { sha: clone.sha });
 
   try {
-    await deps.requireProvider('transfer').transferArchive(clone.archive, request.dir, host);
+    await deps
+      .requireProvider('transfer')
+      .transferArchive(clone.archive, landing.dir, landing.host);
   } catch (error) {
     throw toDaemonError(error, 'transfer_failed', 'transferring');
   }
 
   await recordPhase(request, deps, updateProgress, 'verifying', {});
-  await verifyTargetHead(request, deps, host, clone.sha);
+  await verifyTargetHead(request, deps, landing, clone.sha);
 
   const materializedAt = Date.now();
 
@@ -391,13 +409,13 @@ async function requireNoURLCredentials(url: string, cwd: string): Promise<void> 
 async function claimTargetDir(
   request: MaterializeRequest,
   deps: MaterializeDeps,
-  host: string,
+  landing: Landing,
   updateProgress: ProgressTracker,
 ): Promise<void> {
   const parent = await deps.requireProvider('run').runCommand({
-    argv: ['mkdir', '-p', '--', dirname(request.dir)],
+    argv: ['mkdir', '-p', '--', dirname(landing.dir)],
     cwd: '/',
-    host,
+    host: landing.host,
   });
 
   if (parent.exitCode !== 0) {
@@ -410,7 +428,7 @@ async function claimTargetDir(
 
   const claim = await deps
     .requireProvider('run')
-    .runCommand({ argv: ['mkdir', '--', request.dir], cwd: '/', host });
+    .runCommand({ argv: ['mkdir', '--', landing.dir], cwd: '/', host: landing.host });
 
   if (claim.exitCode !== 0) {
     throw new DaemonError(
@@ -522,12 +540,12 @@ const STATUS_ARGV = [
 async function verifyTargetHead(
   request: MaterializeRequest,
   deps: MaterializeDeps,
-  host: string,
+  landing: Landing,
   sha: string,
 ): Promise<void> {
   const head = await deps
     .requireProvider('run')
-    .runCommand({ argv: [...VERIFY_ENV, ...VERIFY_ARGV], cwd: request.dir, host });
+    .runCommand({ argv: [...VERIFY_ENV, ...VERIFY_ARGV], cwd: landing.dir, host: landing.host });
 
   const actual = head.exitCode === 0 ? head.stdout.trim() : null;
 
@@ -541,7 +559,7 @@ async function verifyTargetHead(
 
   const status = await deps
     .requireProvider('run')
-    .runCommand({ argv: [...VERIFY_ENV, ...STATUS_ARGV], cwd: request.dir, host });
+    .runCommand({ argv: [...VERIFY_ENV, ...STATUS_ARGV], cwd: landing.dir, host: landing.host });
 
   const changed = status.stdout.split('\n').filter((line) => line !== '');
 
@@ -586,43 +604,43 @@ function toRedacted(text: string, secret: string): string {
 
 /**
  * Removes the target directory after a failure, when this call created it,
- * so a failed materialization leaves no partial checkout behind. A removal
- * that fails is logged; the directory then stays and blocks the next
- * materialization into it with `workspace_exists`.
+ * so a failed materialization leaves no partial checkout behind. Resolves
+ * to the directory when it stays, logged with the reason: one another
+ * session's directory lies inside, one that no longer resolves to itself,
+ * or one whose removal failed. It then blocks the next materialization
+ * into it with `workspace_exists` until an operator removes it.
  */
 async function tryRemoveClaimedDir(
   request: MaterializeRequest,
   deps: MaterializeDeps,
   progress: Readonly<MaterializationProgress>,
   secret: string | null,
-): Promise<void> {
-  if (!progress.claimed || progress.host === null) {
-    return;
+): Promise<string | null> {
+  if (!progress.claimed || progress.landing === null) {
+    return null;
   }
 
-  const host = progress.host;
+  const dir = progress.landing.dir;
 
   try {
-    const removable = await deps.canRemoveClaim();
+    const removed = await deps.removeClaim(dir);
 
-    if (!removable) {
-      throw new Error("another session's directory lies inside it");
+    if (removed) {
+      return null;
     }
 
-    const removed = await deps
-      .requireProvider('run')
-      .runCommand({ argv: ['rm', '-rf', '--', request.dir], cwd: '/', host });
-
-    if (removed.exitCode !== 0) {
-      throw new Error(removed.stderr.trim());
-    }
+    deps.log(
+      `atc: left ${dir} on target '${request.target}' after its workspace for session ${request.sessionID} failed: another session's directory lies inside it, or it no longer resolves to itself; remove it by hand`,
+    );
   } catch (error) {
     const reason = toScrubbedRefusal(error, progress.phase, secret).message;
 
     deps.log(
-      `atc: cannot remove ${request.dir} after its workspace for session ${request.sessionID} failed: ${reason}`,
+      `atc: left ${dir} on target '${request.target}' after its workspace for session ${request.sessionID} failed, since removing it failed: ${reason}; remove it by hand`,
     );
   }
+
+  return dir;
 }
 
 async function tryUpdateFailed(

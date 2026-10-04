@@ -30,7 +30,7 @@ test('it leaves no staging directory behind when the materialization row cannot 
       },
       log: () => {},
       readyHost: () => Promise.reject(new Error('no host is expected')),
-      canRemoveClaim: () => Promise.resolve(true),
+      removeClaim: () => Promise.resolve(true),
       stagingRoot: scratch,
       gitTransports: ['https', 'ssh'],
     },

@@ -197,8 +197,8 @@ type SpawnMaterializer = (
 ) => Promise<MaterializedSpawn | null>;
 
 interface SpawnHostAccess {
-  readonly readyHost: () => Promise<SessionID>;
-  readonly canRemoveClaim: () => Promise<boolean>;
+  readonly readyHost: () => Promise<{ readonly host: SessionID; readonly dir: string }>;
+  readonly removeClaim: (dir: string) => Promise<boolean>;
 }
 
 // A workspace directory a spawn on a shared host holds, as the spawn gave
@@ -210,9 +210,18 @@ interface WorkspaceReservation {
   resolved: string | null;
 }
 
-// Prints a directory with every symlink in it resolved, resolving its
-// nearest existing directory and keeping the rest of the path as given.
-const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=\${p%/*}; [ -n "$p" ] || p=/; done; cd -P -- "$p" && printf %s "$(pwd -P)$s"`;
+// Prints a directory with every symlink in it resolved: its nearest
+// existing directory as the host resolves it and a newline, which keeps a
+// name that ends in newlines whole, then a NUL and the rest of the path as
+// given.
+const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=\${p%/*}; [ -n "$p" ] || p=/; done; cd -P -- "$p" && pwd -P && printf '\\0%s' "$s"`;
+
+// Removes a directory only while it still resolves to itself: it enters
+// the directory, compares where it landed with the path it was given, and
+// removes the contents from inside it, so no symlink changed on the way is
+// followed, then the directory itself, which is empty by then.
+const REMOVE_DIR_SCRIPT =
+  'cd -P -- "$1" || exit 3; [ "$(pwd -P; printf x)" = "$2" ] || exit 4; find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || exit 5; cd / && rmdir -- "$1"';
 
 // A readied host's harness plan, and the auth attempt that provisioned the
 // host, if one did.
@@ -927,6 +936,8 @@ export class SessionManager {
         provider,
         id,
         hostKey,
+        target,
+        cwd,
         execution.identity,
         materialize,
         setupHost,
@@ -1119,51 +1130,90 @@ export class SessionManager {
     this.reservations.set(id, { hostKey, target, dir, resolved: null });
   }
 
-  // Checks a reserved workspace again as the readied host resolves every
-  // path, symlinks and relative directories included, before the
-  // directory is claimed, and records the resolved form for later checks.
-  private async requireSeparateHostDir(provider: ExecutionProvider, id: SessionID): Promise<void> {
-    const reservation = this.reservations.get(id);
+  // The directory a spawn's workspace lands in, as the readied host
+  // resolves it: every later step creates, fills, and removes this
+  // physical path, never the requested one. On a shared host the spawn's
+  // claim is checked again against every directory as the host resolves
+  // it, and records the physical path, in the turn after the last wait,
+  // with the sessions listed then.
+  private async claimHostDir(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    dir: string,
+  ): Promise<string> {
+    const before = this.collectHostSessionIDs(hostKey, target);
 
-    if (reservation === undefined) {
-      return;
+    const physical = await this.resolveHostDir(provider, hostKey, dir);
+    const listed = await this.resolveListedDirs(provider, hostKey, target);
+
+    if (this.collectHostSessionIDs(hostKey, target) !== before) {
+      return this.claimHostDir(provider, id, hostKey, target, dir);
     }
 
-    const resolved = await this.resolveHostDir(provider, reservation.hostKey, reservation.dir);
-    const listed = await this.resolveListedDirs(provider, reservation.hostKey, reservation.target);
+    const reservation = this.reservations.get(id);
 
-    this.requireSeparateWorkspace(
-      id,
-      reservation.hostKey,
-      reservation.target,
-      reservation.dir,
-      [reservation.dir, resolved],
-      listed,
-    );
+    if (reservation !== undefined) {
+      this.requireSeparateWorkspace(id, hostKey, target, dir, [dir, physical], listed);
 
-    reservation.resolved = resolved;
+      reservation.resolved = physical;
+    }
+
+    return physical;
   }
 
-  // Whether a failed spawn may remove the directory it claimed: never when
-  // the directory, as the host resolves it, holds the directory of a
-  // session listed there or of another spawn's reservation.
-  private async canRemoveWorkspace(provider: ExecutionProvider, id: SessionID): Promise<boolean> {
-    const reservation = this.reservations.get(id);
+  // Removes the physical directory a failed spawn claimed, and resolves to
+  // whether it did. It removes nothing while the directory, as the host
+  // resolves it in the turn after the last wait, holds the directory of a
+  // listed session or of another spawn's claim, or once the directory no
+  // longer resolves to itself on the host; the directory then stays for an
+  // operator to remove.
+  private async removeClaimedDir(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    dir: string,
+  ): Promise<boolean> {
+    if (!this.hasHostLifecycle(target)) {
+      const removed = await provider.runCommand({ argv: ['rm', '-rf', '--', dir], cwd: '/' });
 
-    if (reservation === undefined) {
-      return true;
+      return removed.exitCode === 0;
     }
 
-    const listed = await this.resolveListedDirs(provider, reservation.hostKey, reservation.target);
+    const before = this.collectHostSessionIDs(hostKey, target);
 
-    const own = [reservation.dir, reservation.resolved ?? reservation.dir];
+    const listed = await this.resolveListedDirs(provider, hostKey, target);
 
-    return !this.collectOtherWorkspaceDirs(
-      id,
-      reservation.hostKey,
-      reservation.target,
-      listed,
-    ).some(([, other]) => own.some((dir) => isPathWithin(other, dir)));
+    if (this.collectHostSessionIDs(hostKey, target) !== before) {
+      return this.removeClaimedDir(provider, id, hostKey, target, dir);
+    }
+
+    const holds = this.collectOtherWorkspaceDirs(id, hostKey, target, listed).some(([, other]) =>
+      isPathWithin(other, dir),
+    );
+
+    if (holds) {
+      return false;
+    }
+
+    const removed = await provider.runCommand({
+      argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
+      cwd: '/',
+      host: hostKey,
+    });
+
+    return removed.exitCode === 0;
+  }
+
+  // The ids of the sessions listed on a host, in list order, as one string
+  // a later read compares against.
+  private collectHostSessionIDs(hostKey: SessionID, target: string): string {
+    return this.sessions
+      .filter((s) => s.hostKey === hostKey && s.target === target)
+      .map((s) => s.id)
+      .join(' ');
   }
 
   private requireSeparateWorkspace(
@@ -1253,7 +1303,9 @@ export class SessionManager {
       host: hostKey,
     });
 
-    if (result.exitCode !== 0) {
+    const split = result.stdout.lastIndexOf('\0');
+
+    if (result.exitCode !== 0 || split < 1 || result.stdout[split - 1] !== '\n') {
       throw new DaemonError(
         'host_unavailable',
         `the host of session ${hostKey} cannot resolve ${dir}: ${result.stderr.trim()}`,
@@ -1261,7 +1313,10 @@ export class SessionManager {
       );
     }
 
-    return posix.normalize(result.stdout);
+    const existing = result.stdout.slice(0, split - 1);
+    const rest = result.stdout.slice(split + 1);
+
+    return existing === '/' ? rest || '/' : `${existing}${rest}`;
   }
 
   // Materializes a spawn's workspace, readying its host once the source
@@ -1271,6 +1326,8 @@ export class SessionManager {
     provider: ExecutionProvider,
     id: SessionID,
     hostKey: SessionID,
+    target: string,
+    dir: string,
     targetIdentity: string,
     materialize: SpawnMaterializer,
     setupHost: () => Promise<HarnessSetup>,
@@ -1283,11 +1340,13 @@ export class SessionManager {
           readyHost: async () => {
             readied.setup = await setupHost();
 
-            await this.requireSeparateHostDir(provider, id);
+            const landing = this.hasHostLifecycle(target)
+              ? await this.claimHostDir(provider, id, hostKey, target, dir)
+              : dir;
 
-            return hostKey;
+            return { host: hostKey, dir: landing };
           },
-          canRemoveClaim: () => this.canRemoveWorkspace(provider, id),
+          removeClaim: (landing) => this.removeClaimedDir(provider, id, hostKey, target, landing),
         },
         targetIdentity,
       );

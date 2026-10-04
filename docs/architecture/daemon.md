@@ -249,15 +249,28 @@ host the workspace lands on: the session's own host, or its parent's when the tw
 materialization that fails once the host is ready takes back a host of the session's own, with the
 imp and binding its spawn provisioned, and leaves a parent's host running.
 
+On a target whose hosts have a lifecycle, the workspace has one directory: the physical path the
+host resolves `cwd` to once the host is ready, with every symlink in it resolved. The daemon
+creates, fills, verifies, and removes that path, and never removes anything through `cwd` as
+written.
+
 On a shared host, a workspace spawn claims its `cwd` against every session listed there and every
 other workspace spawn in flight there, in the same step that checks it, so two concurrent spawns
-never both take nested directories. The claim holds until the session lists or the spawn fails; a
-spawn that fails as `outcome_unknown` keeps it, since its directory may still hold what it left.
-Once the host is ready, and before `cwd` is created, the daemon checks again with each directory as
-the host resolves it, symlinks and relative directories included. A failure removes the directory it
-created only while no other session's directory lies inside it. The `workspace_materialization`
-table holds one row per materialization, keyed by the session id, and the daemon records each phase
-in it before the phase starts:
+never both take nested directories. Once the host is ready, the daemon checks the claim again with
+each directory as the host resolves it, symlinks and relative directories included, and records the
+physical path on the claim. It reads the listed sessions again after each wait, and decides with the
+sessions listed then. A refused spawn's `workspace_overlap` holds the session or spawn whose
+directory it overlaps as `data.session`. The claim holds until the session lists or the spawn fails.
+A spawn that fails as `outcome_unknown` keeps its claim with no expiry, since its directory may
+still hold what it left, and a daemon restart releases it.
+
+A failure removes the directory it created only while no listed session's or other claim's directory
+lies inside it, and only while the path still resolves to itself on the host: the removal enters the
+directory, checks where it landed, and removes the contents from inside. Otherwise the directory
+stays, the daemon logs it, and the refusal holds it as `data.leftDir`; a refusal that answers
+`outcome_unknown` carries no data, so there the log is the only record. The
+`workspace_materialization` table holds one row per materialization, keyed by the session id, and
+the daemon records each phase in it before the phase starts:
 
 | Phase          | What the daemon does                                                                                                                   |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |

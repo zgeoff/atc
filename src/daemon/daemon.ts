@@ -935,8 +935,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         ? null
         : async (
             host: Readonly<{
-              readyHost: () => Promise<SessionID>;
-              canRemoveClaim: () => Promise<boolean>;
+              readyHost: () => Promise<{ readonly host: SessionID; readonly dir: string }>;
+              removeClaim: (dir: string) => Promise<boolean>;
             }>,
             targetIdentity: string,
           ) => {
@@ -985,7 +985,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     p: SpawnParams,
     id: SessionID,
     source: SpawnWorkspaceSource,
-    host: Readonly<{ readyHost: () => Promise<SessionID>; canRemoveClaim: () => Promise<boolean> }>,
+    host: Readonly<{
+      readyHost: () => Promise<{ readonly host: SessionID; readonly dir: string }>;
+      removeClaim: (dir: string) => Promise<boolean>;
+    }>,
     targetIdentity: string,
   ) => {
     const binding = { target: p.target, targetIdentity };
@@ -1006,7 +1009,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           mgr.log(line);
         },
         readyHost: host.readyHost,
-        canRemoveClaim: host.canRemoveClaim,
+        removeClaim: host.removeClaim,
         stagingRoot: tmpdir(),
         gitTransports,
       },
@@ -1019,8 +1022,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     materialize:
       | ((
           host: Readonly<{
-            readyHost: () => Promise<SessionID>;
-            canRemoveClaim: () => Promise<boolean>;
+            readyHost: () => Promise<{ readonly host: SessionID; readonly dir: string }>;
+            removeClaim: (dir: string) => Promise<boolean>;
           }>,
           targetIdentity: string,
         ) => Promise<Readonly<{

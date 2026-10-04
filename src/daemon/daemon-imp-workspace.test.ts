@@ -1,6 +1,14 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
@@ -9,6 +17,7 @@ import { updateEnv } from '../../test/update-env';
 import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
+import { DaemonError } from '../protocol/daemon-error';
 import { getRecord } from '../shared/get-record';
 import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
@@ -960,4 +969,221 @@ test('it refuses a spawn whose readying fails and destroys the imp the readying 
   await spawn.catch(() => null);
 
   expect(daemon.port.collectImpNames()).toStrictEqual([]);
+});
+
+test('it keeps the files of a session listed inside its directory while a workspace rollback resolves the host', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const outer = join(daemon.dir, 'box', 'a');
+
+  daemon.port.startCommandHold('tar -x');
+
+  const outerSpawn = daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls).toContainEqual(expect.toEndWith(`mkdir -- ${outer}`));
+  });
+
+  mkdirSync(join(outer, 'inner'));
+  writeFileSync(join(outer, 'inner', 'keep.txt'), 'kept\n');
+
+  daemon.port.setCommandFailure('tar -x');
+
+  const resolvesBefore = daemon.port.calls.filter((call) => call.includes('pwd -P')).length;
+
+  daemon.port.stopCommandHold();
+  daemon.port.startCommandHold('pwd -P');
+
+  await waitFor(() => {
+    expect(daemon.port.calls.filter((call) => call.includes('pwd -P')).length).toBeGreaterThan(
+      resolvesBefore,
+    );
+  });
+
+  // The rollback's resolution is held while the nested session lists.
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: join(outer, 'inner'),
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  daemon.port.stopCommandHold();
+
+  expect(outerSpawn).rejects.toMatchObject({ code: 'transfer_failed' });
+
+  await outerSpawn.catch(() => null);
+
+  expect(readFileSync(join(outer, 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
+});
+
+test('it refuses a workspace cwd with a dot-dot segment before touching impd', async () => {
+  await using daemon = await setupTest();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: `${daemon.dir}/alias/../new`,
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
+
+  await spawn.catch(() => null);
+
+  expect(daemon.port.calls).toStrictEqual([]);
+});
+
+test('it refuses a workspace cwd with a control character before touching impd', async () => {
+  await using daemon = await setupTest();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'box', 'new\n'),
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
+
+  await spawn.catch(() => null);
+
+  expect(daemon.port.calls).toStrictEqual([]);
+});
+
+test('it materializes a workspace through a symlink to a directory whose name ends in a newline beside its parent', async () => {
+  await using daemon = await setupTest();
+
+  const busy = join(daemon.dir, 'busy');
+
+  mkdirSync(join(busy, 'sub'), { recursive: true });
+  mkdirSync(join(busy, 'sub\n'));
+  symlinkSync(join(busy, 'sub\n'), join(daemon.dir, 'alias'));
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: join(busy, 'sub'),
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'alias', 'new'),
+    agent: 'glm',
+    target: 'box',
+    parent: getRecord(parent, 'session')['id'],
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  expect<Record<string, unknown>>({
+    alive: getRecord(spawned, 'session')['alive'],
+    readme: readFileSync(join(busy, 'sub\n', 'new', 'README.md'), 'utf8'),
+    untouched: existsSync(join(busy, 'sub', 'new')),
+  }).toStrictEqual({ alive: true, readme: 'hello\n', untouched: false });
+});
+
+test('it removes only the directory it created when a symlink in the requested path changes before a rollback', async () => {
+  await using daemon = await setupTest();
+
+  const safe = join(daemon.dir, 'safe');
+  const busy = join(daemon.dir, 'busy');
+  const alias = join(daemon.dir, 'alias');
+
+  mkdirSync(safe);
+  mkdirSync(join(busy, 'new', 'inner'), { recursive: true });
+  writeFileSync(join(busy, 'new', 'inner', 'keep.txt'), 'kept\n');
+  symlinkSync(safe, alias);
+
+  daemon.port.startCommandHold('tar -x');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(alias, 'new'),
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await waitFor(() => {
+    expect(existsSync(join(safe, 'new'))).toBe(true);
+  });
+
+  rmSync(alias);
+  symlinkSync(busy, alias);
+
+  daemon.port.setCommandFailure('tar -x');
+  daemon.port.stopCommandHold();
+
+  const refusal = await spawn.catch((error: unknown) => error);
+
+  if (!(refusal instanceof DaemonError)) {
+    throw new TypeError('the spawn was not refused');
+  }
+
+  const data = refusal.data ?? {};
+
+  expect<Record<string, unknown>>({
+    refusal,
+    left: 'leftDir' in data,
+    kept: readFileSync(join(busy, 'new', 'inner', 'keep.txt'), 'utf8'),
+    removed: !existsSync(join(safe, 'new')),
+  }).toMatchObject({
+    refusal: { code: 'transfer_failed' },
+    left: false,
+    kept: 'kept\n',
+    removed: true,
+  });
+});
+
+test('it leaves its directory and reports it when the directory it created no longer resolves to itself before a rollback', async () => {
+  await using daemon = await setupTest();
+
+  const safe = join(daemon.dir, 'safe');
+  const busy = join(daemon.dir, 'busy');
+
+  mkdirSync(safe);
+  mkdirSync(join(busy, 'new', 'inner'), { recursive: true });
+  writeFileSync(join(busy, 'new', 'inner', 'keep.txt'), 'kept\n');
+
+  daemon.port.startCommandHold('tar -x');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(safe, 'new'),
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await waitFor(() => {
+    expect(existsSync(join(safe, 'new'))).toBe(true);
+  });
+
+  renameSync(safe, join(daemon.dir, 'safe-old'));
+  symlinkSync(busy, safe);
+
+  daemon.port.setCommandFailure('tar -x');
+  daemon.port.stopCommandHold();
+
+  const refusal = await spawn.catch((error: unknown) => error);
+
+  expect<Record<string, unknown>>({
+    refusal,
+    kept: readFileSync(join(busy, 'new', 'inner', 'keep.txt'), 'utf8'),
+    left: existsSync(join(daemon.dir, 'safe-old', 'new')),
+  }).toMatchObject({
+    refusal: { code: 'transfer_failed', data: { leftDir: join(safe, 'new') } },
+    kept: 'kept\n',
+    left: true,
+  });
 });
