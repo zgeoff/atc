@@ -791,6 +791,66 @@ test('it refuses a plain sub-session inside a workspace still materializing on t
   expect(refusal).toMatchObject({ code: 'workspace_overlap', data: { dir: join(outer, 'b') } });
 });
 
+test('it keeps the files of a plain sub-session still starting through a symlink when a workspace rolls back', async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const outer = join(daemon.dir, 'box', 'a');
+
+  daemon.port.startCommandHold('tar -x');
+
+  const outerSpawn = daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  await waitFor(() => {
+    expect(daemon.port.calls).toContainEqual(expect.toEndWith(`mkdir -- ${outer}`));
+  });
+
+  mkdirSync(join(outer, 'inner'));
+  writeFileSync(join(outer, 'inner', 'keep.txt'), 'kept\n');
+  symlinkSync(outer, join(daemon.dir, 'alias'));
+
+  const leasesBefore = daemon.port.calls.filter((call) => call.startsWith('leases.acquire')).length;
+
+  daemon.port.startLeaseHold();
+
+  // The plain sub-session waits for its lease, before it lists.
+  const plain = daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'alias', 'inner'),
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  await waitFor(() => {
+    expect(
+      daemon.port.calls.filter((call) => call.startsWith('leases.acquire')).length,
+    ).toBeGreaterThan(leasesBefore);
+  });
+
+  daemon.port.setCommandFailure('tar -x');
+  daemon.port.stopCommandHold();
+
+  await outerSpawn.catch(() => null);
+
+  daemon.port.stopLeaseHold();
+
+  await plain;
+
+  expect(readFileSync(join(outer, 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
+});
+
 test('it starts a plain sub-session beside a workspace still materializing on the shared host', async () => {
   await using daemon = await setupTest();
 

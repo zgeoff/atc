@@ -1245,13 +1245,20 @@ export class SessionManager {
     return removed.exitCode === 0;
   }
 
-  // The ids of the sessions listed on a host, in list order, as one string
-  // a later read compares against.
+  // The ids of the sessions listed on a host and of the plain spawns still
+  // starting there, as one string a later read compares against.
   private collectHostSessionIDs(hostKey: SessionID, target: string): string {
-    return this.sessions
-      .filter((s) => s.hostKey === hostKey && s.target === target)
-      .map((s) => s.id)
-      .join(' ');
+    return [
+      ...this.sessions.filter((s) => s.hostKey === hostKey && s.target === target).map((s) => s.id),
+      ...this.collectPlainDirs(hostKey, target).map(([id]) => id),
+    ].join(' ');
+  }
+
+  // The directories plain spawns still starting on a host hold, as given.
+  private collectPlainDirs(hostKey: SessionID, target: string): (readonly [SessionID, string])[] {
+    return [...this.reservations]
+      .filter(([, r]) => r.kind === 'plain' && r.hostKey === hostKey && r.target === target)
+      .map(([id, r]) => [id, r.dir] as const);
   }
 
   private requireSeparateWorkspace(
@@ -1294,15 +1301,19 @@ export class SessionManager {
     return dirs;
   }
 
-  // The directory of every session listed on a host as the host resolves
-  // it, and its own absolute form; a relative directory the host can no
+  // The directory of every session listed on a host, and of every plain
+  // spawn still starting there, as the host resolves it, and its own
+  // absolute form; a relative directory the host can no
   // longer enter is left out, since no harness can run there.
   private async resolveListedDirs(
     provider: ExecutionProvider,
     hostKey: SessionID,
     target: string,
   ): Promise<(readonly [SessionID, string])[]> {
-    const onHost = this.sessions.filter((s) => s.hostKey === hostKey && s.target === target);
+    const onHost = [
+      ...this.sessions.filter((s) => s.hostKey === hostKey && s.target === target),
+      ...this.collectPlainDirs(hostKey, target).map(([id, cwd]) => ({ id, cwd })),
+    ];
 
     const resolved = await Promise.all(
       onHost.map(async (s) => {
