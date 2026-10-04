@@ -328,7 +328,7 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
   fixture.port.setNextSessionFailure(
     null,
     undefined,
-    'dial https://alice:demo-pass@api.example.test/v1?api_key=demo-secret with x-api-key: demo-secret and Authorization: Basic ZGVtbzpwYXNz failed',
+    'dial failed: https://alice:demo-pass@api.example.test/v1?api_key=demo-secret with x-api-key: demo-secret and Authorization: Basic ZGVtbzpwYXNz',
   );
 
   fixture.port.stopConnection('imp-a', 's1', 1011);
@@ -339,7 +339,7 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
         exitCode: 1,
         reason: 'ended',
         detail:
-          'imp refused the session (error): dial https://[redacted]@api.example.test/v1?api_key=[redacted] with x-api-key: [redacted] and Authorization: [redacted] failed',
+          'imp refused the session (error): dial failed: https://[redacted]@api.example.test/v1?api_key=[redacted] with x-api-key: [redacted] and Authorization: [redacted]',
       },
     ]);
   });

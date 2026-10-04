@@ -927,11 +927,13 @@ function collectColdBoots(value: unknown): { readonly bootId: unknown; readonly 
     }));
 }
 
-// A refusal's message as detail a session list row can hold: control
-// characters taken out so the text cannot redraw the row, credentials
-// redacted, and whitespace flattened to one line.
+// A refusal's message as detail a session list row can hold: credentials
+// redacted while line breaks still bound a header's value, then control
+// characters taken out so the text cannot redraw the row, and whitespace
+// flattened to one line.
 function buildSafeDetail(message: string): string {
-  return sanitizeDetail(message.replaceAll(/[\p{Cc}\p{Cf}]/gu, ' '))
+  return sanitizeDetail(message)
+    .replaceAll(/[\p{Cc}\p{Cf}]/gu, ' ')
     .replaceAll(/\s+/gu, ' ')
     .trim();
 }
