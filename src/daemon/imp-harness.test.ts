@@ -282,6 +282,69 @@ test('it ends with the kept exit code of its own generation when impd no longer 
   });
 });
 
+test('it ends with the refusal message in the detail when impd refuses without a code', async () => {
+  using fixture = await setupTest();
+
+  fixture.port.setNextSessionFailure(null, undefined, 'the sentinel refusal reason');
+  fixture.port.stopConnection('imp-a', 's1', 1011);
+
+  await waitFor(() => {
+    expect(fixture.exits).toStrictEqual([
+      {
+        exitCode: 1,
+        reason: 'ended',
+        detail: 'imp refused the session (error): the sentinel refusal reason',
+      },
+    ]);
+  });
+});
+
+test('it redacts credential-shaped runs from a refusal message it shows', async () => {
+  using fixture = await setupTest();
+
+  fixture.port.setNextSessionFailure(
+    null,
+    undefined,
+    'proxy rejected Bearer abcdefghijklmnopqrstuvwxyz0123456789 and key 0123456789abcdef0123456789abcdef',
+  );
+
+  fixture.port.stopConnection('imp-a', 's1', 1011);
+
+  await waitFor(() => {
+    expect(fixture.exits).toStrictEqual([
+      {
+        exitCode: 1,
+        reason: 'ended',
+        detail:
+          'imp refused the session (error): proxy rejected Bearer [redacted] and key [redacted]',
+      },
+    ]);
+  });
+});
+
+test('it redacts short credentials in URL, header, and authorization shapes it shows', async () => {
+  using fixture = await setupTest();
+
+  fixture.port.setNextSessionFailure(
+    null,
+    undefined,
+    'dial failed: https://alice:demo-pass@api.example.test/v1?api_key=demo-secret with x-api-key: demo-secret and Authorization: Basic ZGVtbzpwYXNz',
+  );
+
+  fixture.port.stopConnection('imp-a', 's1', 1011);
+
+  await waitFor(() => {
+    expect(fixture.exits).toStrictEqual([
+      {
+        exitCode: 1,
+        reason: 'ended',
+        detail:
+          'imp refused the session (error): dial failed: https://[redacted]@api.example.test/v1?api_key=[redacted] with x-api-key: [redacted] and Authorization: [redacted]',
+      },
+    ]);
+  });
+});
+
 test('it never sends a resume offset to a session whose agent carries none', async () => {
   using fixture = await setupTest({ continuity: 'none' });
 

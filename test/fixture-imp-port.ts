@@ -120,8 +120,13 @@ export class FixtureImpPort implements ImpPort {
   // impd's code for that failure, or null for none.
   private acquireFailure: { skip: number; readonly code: string } | null = null;
 
-  // A refusal the next session request gets instead of an answer.
-  private nextFailure: { readonly code: string; readonly data: unknown } | null = null;
+  // A refusal the next session request gets instead of an answer, with the
+  // message it carries when it has one of its own.
+  private nextFailure: {
+    readonly code: string | null;
+    readonly message?: string;
+    readonly data: unknown;
+  } | null = null;
 
   // Feature reads still to fail as an unreachable impd before they answer.
   private featureFailures = 0;
@@ -1056,10 +1061,11 @@ export class FixtureImpPort implements ImpPort {
   }
 
   /**
-   * Refuses the next session request with an impd code and its data.
+   * Refuses the next session request with an impd code and its data, or the
+   * message of the refusal when it carries one instead.
    */
-  setNextSessionFailure(code: string, data: unknown): void {
-    this.nextFailure = { code, data };
+  setNextSessionFailure(code: string | null, data: unknown, message?: string): void {
+    this.nextFailure = { code, data, ...(message === undefined ? {} : { message }) };
   }
 
   // The state an imp is in, or null when it does not exist.
@@ -1255,7 +1261,7 @@ export class FixtureImpPort implements ImpPort {
       connection.finish({
         kind: 'failed',
         code: failure.code,
-        message: `impd refused the session (${failure.code})`,
+        message: failure.message ?? `impd refused the session (${failure.code})`,
         data: failure.data,
       });
 
