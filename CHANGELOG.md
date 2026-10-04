@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.26.6](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.5...@zgeoff/atc@2.26.6) (2026-10-04)
+
+
+### Bug Fixes
+
+* **#273:** keep imp session names inside the session limit ([#290](https://github.com/zgeoff/atc/issues/290)) ([84c81be](https://github.com/zgeoff/atc/commit/84c81be2df725c29492713555a14f3a96cc4a942))
+
 ## [2.26.5](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.4...@zgeoff/atc@2.26.5) (2026-10-04)
 
 ### Bug Fixes
