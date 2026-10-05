@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.30.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.30.0...@zgeoff/atc@2.30.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **geo-34:** give local pty sessions a usable term ([#302](https://github.com/zgeoff/atc/issues/302)) ([9852b55](https://github.com/zgeoff/atc/commit/9852b5575e3c8bda415cee5846e44ae13192133b))
+
 ## [2.30.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.29.0...@zgeoff/atc@2.30.0) (2026-10-05)
 
 ### Features
