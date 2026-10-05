@@ -788,19 +788,28 @@ test('it drops the target and source answer of a flow that was left and opened a
   expect(ctx.counts.renders).toBe(renders);
 });
 
-test('it returns esc from a git source to the directory source when one target left no choice', async () => {
+test('it returns esc from a git source to the agent step when one target left no choice', async () => {
   const ctx = setupTest();
+
+  writeFileSync(
+    configFile,
+    JSON.stringify({
+      claudeBin: process.execPath,
+      grokBin: process.execPath,
+      codexBin: 'no-codex',
+    }),
+  );
 
   ctx.picker.open();
 
+  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL], sources: [GIT_SOURCE, DIR_SOURCE] });
   await ctx.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
-  await ctx.applyKeys(ESC);
 
   ctx.screen.length = 0;
 
-  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ESC);
 
-  expect(ctx.screen.join('')).toInclude('spawn: directory on the daemon host');
+  expect(ctx.screen.join('')).toInclude('spawn: agent');
   expect(ctx.counts.exits).toBe(0);
 });

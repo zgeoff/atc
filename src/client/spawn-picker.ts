@@ -771,7 +771,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   // Leaves a git source step backwards: to the target step when the spawn
-  // has one, else to where Esc on the target step goes.
+  // has one, else to the agent.
   private applySourceCancel() {
     if (this.openTargetStep()) {
       process.stdout.write(ansi.clear);
@@ -780,7 +780,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    this.applyTargetCancel();
+    this.openAgentStep();
   }
 
   // Leaves the target step backwards: a directory goes back to its step,

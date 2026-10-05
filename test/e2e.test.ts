@@ -2353,7 +2353,7 @@ test('it opens github mode on a target that takes a workspace when the default c
   await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
 }, 30_000);
 
-test('it opens github mode on the one target that takes a workspace without a target step, and esc returns to the directory', async () => {
+test('it opens github mode on the one target that takes a workspace without a target step, and esc returns to the agent', async () => {
   await using ctx = setupTest();
 
   writeFakeGH(ctx.home);
@@ -2383,7 +2383,7 @@ test('it opens github mode on the one target that takes a workspace without a ta
   ctx.reset();
   pty.write('\u001B');
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: agent');
 }, 15_000);
 
 test("it builds each target's own default destination when the target changes", async () => {
