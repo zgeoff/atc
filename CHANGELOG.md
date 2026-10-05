@@ -2,10 +2,10 @@
 
 ## [2.28.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.27.0...@zgeoff/atc@2.28.0) (2026-10-05)
 
-
 ### Features
 
-* clone the committed head of a dirty path source ([#296](https://github.com/zgeoff/atc/issues/296)) ([4464ec9](https://github.com/zgeoff/atc/commit/4464ec97e16c12c402838b32591b7daa41c51ad3))
+- clone the committed head of a dirty path source ([#296](https://github.com/zgeoff/atc/issues/296))
+  ([4464ec9](https://github.com/zgeoff/atc/commit/4464ec97e16c12c402838b32591b7daa41c51ad3))
 
 ## [2.27.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.7...@zgeoff/atc@2.27.0) (2026-10-05)
 
