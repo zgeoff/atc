@@ -945,6 +945,66 @@ test('it refuses to materialize into a directory that already exists and leaves 
   expect(readdirSync(dest)).toStrictEqual(['mine.txt']);
 });
 
+test('it removes the checkout it created and keeps the files beside it when its harness fails to start, so a retry into the same directory spawns', async () => {
+  await using ctx = await setupTest();
+
+  const host = new FixtureDirProvider();
+
+  const refusals = [new DaemonError('host_unavailable', 'the harness could not start')];
+
+  // A provider whose first harness start throws, as a refused launch does.
+  const box: ExecutionProvider = {
+    kind: host.kind,
+    remote: host.remote,
+    capabilities: host.capabilities,
+    prepareHost: host.prepareHost,
+    spawnHarness: (spec) => {
+      const refusal = refusals.shift();
+
+      if (refusal !== undefined) {
+        throw refusal;
+      }
+
+      return host.spawnHarness(spec);
+    },
+    transferArchive: host.transferArchive,
+    runCommand: host.runCommand,
+    suspendHost: host.suspendHost,
+    destroyHost: host.destroyHost,
+    dispose: host.dispose,
+  };
+
+  const booted = await ctx.boot(box);
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  mkdirSync(join(ctx.dir, 'box'));
+  writeFileSync(join(ctx.dir, 'box', 'beside.txt'), 'kept\n');
+
+  const params = { cwd: dest, target: 'box', workspace: { kind: 'path', path: ctx.work } };
+  const spawn = booted.client.sendRequest('session.spawn', params);
+
+  expect(spawn).rejects.toMatchObject({ code: 'host_unavailable' });
+
+  await spawn.catch(() => null);
+
+  const left = readdirSync(join(ctx.dir, 'box'));
+
+  const retried = await booted.client.sendRequest('session.spawn', params);
+
+  expect<Record<string, unknown>>({
+    left,
+    beside: readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8'),
+    readme: readFileSync(join(dest, 'README.md'), 'utf8'),
+    alive: getRecord(retried, 'session')['alive'],
+  }).toStrictEqual({
+    left: ['beside.txt'],
+    beside: 'kept\n',
+    readme: 'hello\n',
+    alive: true,
+  });
+});
+
 test('it refuses a workspace spawn whose cwd is relative before anything runs', async () => {
   await using ctx = await setupTest();
 

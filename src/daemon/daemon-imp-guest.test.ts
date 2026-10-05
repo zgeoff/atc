@@ -296,6 +296,83 @@ test('it refuses a remote spawn whose agent is not signed in on the host, before
   expect(daemon.port.sessionRequests).toBeEmpty();
 });
 
+test('it destroys the host of its own that a remote spawn readied when its agent is not signed in there', async () => {
+  await using daemon = await setupTest({
+    adapter: (fakeClaude) => ({
+      id: 'claude',
+      headlessRunner: null,
+      screenDetector: null,
+      takesMessages: false,
+      planSpawn: () => ({ bin: fakeClaude, args: [] }),
+      planAuthCheck: () => ['false'],
+      normalizeHook: () => ({ kind: 'heartbeat' }),
+      loadName: () => Promise.resolve(null),
+      canResume: () => true,
+      buildResumeCommand: () => null,
+    }),
+  });
+
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(spawned).rejects.toMatchObject({ code: 'auth_not_configured' });
+
+  await spawned.catch(() => null);
+
+  expect<Record<string, unknown>>({
+    created: daemon.port.calls.filter((call) => call.startsWith('imps.create')),
+    imps: daemon.port.collectImpNames(),
+    listed: await daemon.client.sendRequest('session.list'),
+  }).toStrictEqual({
+    created: [expect.toStartWith('imps.create ')],
+    imps: [],
+    listed: { sessions: [] },
+  });
+});
+
+test('it keeps the key of a spawn whose agent is not signed in on a host it cannot destroy as outcome_unknown, so a retry creates no imp', async () => {
+  await using daemon = await setupTest({
+    adapter: (fakeClaude) => ({
+      id: 'claude',
+      headlessRunner: null,
+      screenDetector: null,
+      takesMessages: false,
+      planSpawn: () => ({ bin: fakeClaude, args: [] }),
+      planAuthCheck: () => ['false'],
+      normalizeHook: () => ({ kind: 'heartbeat' }),
+      loadName: () => Promise.resolve(null),
+      canResume: () => true,
+      buildResumeCommand: () => null,
+    }),
+  });
+
+  daemon.port.setDestroyFailure('INTERNAL');
+
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const first = daemon.client.sendRequest('session.spawn', params);
+
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await first.catch(() => null);
+
+  const retried = daemon.client.sendRequest('session.spawn', params);
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await retried.catch(() => null);
+
+  expect<Record<string, unknown>>({
+    created: daemon.port.calls.filter((call) => call.startsWith('imps.create')),
+    imps: daemon.port.collectImpNames(),
+  }).toStrictEqual({
+    created: [expect.toStartWith('imps.create ')],
+    imps: [expect.toStartWith('atc-')],
+  });
+});
+
 test('it revives a slept remote session whose transcript only its imp holds', async () => {
   await using daemon = await setupTest({ guestATC: true });
 

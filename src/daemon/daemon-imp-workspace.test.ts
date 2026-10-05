@@ -30,8 +30,9 @@ import { LocalPTYProvider } from './local-pty-provider';
  * `atc-runtime` manages `atc-*` imps and may grant `glm`, which impd holds
  * for api.z.ai. The agent `glm` takes that credential from the broker,
  * and `unsigned` takes it too but fails its sign-in check in the host;
- * `plain` takes none. Fixture git commands read neither the host's system
- * nor its global git config.
+ * `plain` takes none, and `unsigned-plain` takes none and fails its
+ * sign-in check. Fixture git commands read neither the host's system nor
+ * its global git config. Every line the daemon logs is kept.
  */
 async function setupTest() {
   const tmp = setupTempDir('atc-imp-workspace-');
@@ -131,13 +132,21 @@ async function setupTest() {
     planAuthCheck: () => ['false'],
   };
 
+  const unsignedPlain: AgentAdapter = {
+    ...plain,
+    id: 'unsigned-plain',
+    planAuthCheck: () => ['false'],
+  };
+
+  const logs: string[] = [];
+
   const daemon = await startDaemon({
     gitTransports: ['https', 'ssh', 'http', 'file'],
     socketPath: sockPath,
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: plain,
-    adapters: [plain, brokered, unsigned],
+    adapters: [plain, brokered, unsigned, unsignedPlain],
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),
     targets: [
@@ -150,6 +159,9 @@ async function setupTest() {
       },
       { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
     ],
+    log: (line) => {
+      logs.push(line);
+    },
   });
 
   const client = await DaemonClient.open(sockPath);
@@ -163,6 +175,7 @@ async function setupTest() {
     upstream,
     work,
     dbPath: join(tmp.dir, 'state.db'),
+    logs,
     async [Symbol.asyncDispose]() {
       port.stopCommandHold();
       port.stopLeaseHold();
@@ -420,6 +433,31 @@ test("it leaves a parent running on its host when a sub-session's workspace fail
   }).toStrictEqual({
     state: 'running',
     listed: { sessions: [expect.objectContaining({ id: parentID, alive: true })] },
+  });
+});
+
+test('it destroys the host of its own that a plain workspace spawn readied when its agent is not signed in there', async () => {
+  await using daemon = await setupTest();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'box', 'ws'),
+    agent: 'unsigned-plain',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'auth_not_configured' });
+
+  await spawn.catch(() => null);
+
+  expect<Record<string, unknown>>({
+    created: daemon.port.calls.filter((call) => call.startsWith('imps.create')),
+    imps: daemon.port.collectImpNames(),
+    listed: await daemon.client.sendRequest('session.list'),
+  }).toStrictEqual({
+    created: [expect.toStartWith('imps.create ')],
+    imps: [],
+    listed: { sessions: [] },
   });
 });
 
@@ -1233,6 +1271,131 @@ test('it removes the directory it claimed and gives it back when a workspace spa
   expect({ removed, alive: getRecord(retried, 'session')['alive'] }).toStrictEqual({
     removed: true,
     alive: true,
+  });
+});
+
+test("it removes a sub-session's checkout but keeps its parent and the files beside it when its start fails on the shared host, so a retry spawns", async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+  const dest = join(daemon.dir, 'box', 'child');
+
+  mkdirSync(join(daemon.dir, 'box'));
+  writeFileSync(join(daemon.dir, 'box', 'beside.txt'), 'kept\n');
+
+  daemon.port.startBrokerFailure();
+
+  const params = {
+    cwd: dest,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+  };
+
+  const spawn = daemon.client.sendRequest('session.spawn', params);
+
+  expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
+
+  await spawn.catch(() => null);
+
+  const removed = !existsSync(dest);
+
+  daemon.port.stopBrokerFailure();
+
+  const retried = await daemon.client.sendRequest('session.spawn', params);
+
+  const retriedID = getRecord(retried, 'session')['id'];
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  const [imp] = daemon.port.collectImpNames();
+
+  expect<Record<string, unknown>>({
+    removed,
+    beside: readFileSync(join(daemon.dir, 'box', 'beside.txt'), 'utf8'),
+    parentFiles: readFileSync(join(daemon.work, 'README.md'), 'utf8'),
+    imps: daemon.port.collectImpNames().length,
+    state: daemon.port.findState(String(imp)),
+    retried: getRecord(retried, 'session')['alive'],
+    listed,
+  }).toStrictEqual({
+    removed: true,
+    beside: 'kept\n',
+    parentFiles: 'hello\n',
+    imps: 1,
+    state: 'running',
+    retried: true,
+    listed: {
+      sessions: expect.toIncludeSameMembers([
+        expect.objectContaining({ id: parentID, alive: true }),
+        expect.objectContaining({ id: retriedID, alive: true }),
+      ]),
+    },
+  });
+});
+
+test("it keeps the key, the claim, and a logged path for a sub-session's checkout it cannot remove when its start fails on the shared host", async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+  const dest = join(daemon.dir, 'box', 'child');
+
+  daemon.port.startBrokerFailure();
+  daemon.port.setCommandFailure('-mindepth');
+
+  const params = {
+    cwd: dest,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+    idempotencyKey: 'k-1',
+  };
+
+  const first = daemon.client.sendRequest('session.spawn', params);
+
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await first.catch(() => null);
+
+  const retried = daemon.client.sendRequest('session.spawn', params);
+
+  expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
+
+  await retried.catch(() => null);
+
+  const inside = daemon.client.sendRequest('session.spawn', {
+    cwd: join(dest, 'inner'),
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  expect(inside).rejects.toMatchObject({ code: 'workspace_overlap' });
+
+  await inside.catch(() => null);
+
+  expect<Record<string, unknown>>({
+    left: existsSync(join(dest, 'README.md')),
+    logged: daemon.logs.filter((line) => line.startsWith(`atc: left ${dest} `)),
+    listed: await daemon.client.sendRequest('session.list'),
+  }).toStrictEqual({
+    left: true,
+    logged: [expect.toEndWith('; remove it by hand')],
+    listed: { sessions: [expect.objectContaining({ id: parentID, alive: true })] },
   });
 });
 
