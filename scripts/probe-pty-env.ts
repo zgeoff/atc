@@ -58,7 +58,10 @@ const MARKER_KEYS: readonly string[] = [
   ]),
 ].toSorted();
 
+// Each child prints its environment NUL-separated, so a value holding a
+// newline cannot pass for another key.
 const ENV_BIN = '/usr/bin/env';
+const ENV_ARGS: readonly string[] = ['-0'];
 const runProbe = process.argv.includes(INNER_FLAG) ? runInnerProbe : main;
 
 await runProbe();
@@ -171,6 +174,8 @@ async function runInnerProbe(): Promise<void> {
   const startupKeys = Object.keys(process.env).toSorted();
   const startup = collectMarkers(process.env);
 
+  requireSyntheticStartup(startupKeys, startup);
+
   for (const [key, value] of Object.entries(RUNTIME_SETS)) {
     process.env[key] = value;
   }
@@ -228,6 +233,23 @@ function collectMarkers(env: Readonly<Record<string, string | undefined>>): Reco
   return markers;
 }
 
+// The probe process prints the markers it starts with, so it runs only with
+// the synthetic environment the launcher builds, never one it inherits.
+function requireSyntheticStartup(
+  startupKeys: readonly string[],
+  startup: Readonly<Record<string, string>>,
+): void {
+  const expected = ['HOME', 'PATH', ...Object.keys(STARTUP_MARKERS)].toSorted();
+
+  const isSynthetic =
+    startupKeys.join('\0') === expected.join('\0') &&
+    Object.entries(STARTUP_MARKERS).every(([key, value]) => startup[key] === value);
+
+  if (!isSynthetic) {
+    throw new Error(`run without ${INNER_FLAG}: the probe process starts only from the launcher`);
+  }
+}
+
 // Keys outside the marker set keep their names with the value dropped, so
 // the report shows which keys a child got without echoing their values.
 function buildRedactedEnv(env: Readonly<Record<string, string>>): Record<string, string> {
@@ -247,7 +269,7 @@ async function readLocalPTYEnv(
     session: 'atc-probe',
     host: 'atc-probe',
     bin: ENV_BIN,
-    args: [],
+    args: ENV_ARGS,
     cwd: process.cwd(),
     env: MAP_EXTRAS,
     withheldEnv: WITHHELD,
@@ -283,7 +305,11 @@ async function readLocalPTYEnv(
 async function readBunSpawnEnv(
   map: Readonly<Record<string, string>>,
 ): Promise<Record<string, string>> {
-  const proc = Bun.spawn([ENV_BIN], { env: { ...map }, stdout: 'pipe', stderr: 'inherit' });
+  const proc = Bun.spawn([ENV_BIN, ...ENV_ARGS], {
+    env: { ...map },
+    stdout: 'pipe',
+    stderr: 'inherit',
+  });
 
   const [stdout] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
 
@@ -293,7 +319,11 @@ async function readBunSpawnEnv(
 async function readChildProcessEnv(
   map: Readonly<Record<string, string>>,
 ): Promise<Record<string, string>> {
-  const child = spawn(ENV_BIN, [], { env: { ...map }, stdio: ['ignore', 'pipe', 'inherit'] });
+  const child = spawn(ENV_BIN, [...ENV_ARGS], {
+    env: { ...map },
+    stdio: ['ignore', 'pipe', 'inherit'],
+  });
+
   let stdout = '';
 
   child.stdout.setEncoding('utf8');
@@ -316,11 +346,11 @@ async function readChildProcessEnv(
 function parseEnvOutput(output: string): Record<string, string> {
   const env: Record<string, string> = {};
 
-  for (const line of output.split(/\r?\n/)) {
-    const eq = line.indexOf('=');
+  for (const entry of output.split('\0')) {
+    const eq = entry.indexOf('=');
 
     if (eq > 0) {
-      env[line.slice(0, eq)] = line.slice(eq + 1);
+      env[entry.slice(0, eq)] = entry.slice(eq + 1);
     }
   }
 
