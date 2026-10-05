@@ -309,7 +309,9 @@ export function drawOverlay(view: OverlayView) {
       rowsList.push(dimRow(width, `▸ ${s.pinned ? 'pinned' : formatDir(s.repoRoot)}`));
     }
 
-    rowsList.push(buildSessionRow(s, plan, view, i === view.selected));
+    const row = buildSessionRow(s, plan, view, i === view.selected);
+
+    rowsList.push(boxRow(width, row.styled, row.width));
   }
 
   rowsList.push(boxDivider(width));

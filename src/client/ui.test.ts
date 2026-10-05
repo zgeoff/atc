@@ -1,7 +1,7 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { planOverlayColumns } from './plan-overlay-columns';
 import type { OverlayColumnPlan } from './plan-overlay-columns';
-import { buildOverlayHint, buildSessionRow } from './ui';
+import { buildOverlayHint, buildSessionRow, drawOverlay } from './ui';
 import type { OverlaySessionView, OverlayView } from './ui';
 
 const liveClaude: OverlaySessionView = {
@@ -294,4 +294,50 @@ test('it crowds the model out before the harness under width pressure', () => {
   expect(narrow.modelWidth).toBe(0);
   expect(row.styled).toInclude('Claude');
   expect(row.styled).not.toInclude('sonnet-x');
+});
+
+test('it draws session rows inside the overlay box borders', () => {
+  const writes: string[] = [];
+  const originalWrite = process.stdout.write.bind(process.stdout);
+
+  process.stdout.write = (chunk: unknown): boolean => {
+    writes.push(String(chunk));
+
+    return true;
+  };
+
+  onTestFinished(() => {
+    process.stdout.write = originalWrite;
+  });
+
+  drawOverlay({
+    sessions: [liveClaude],
+    agentLabels: { claude: 'Claude' },
+    agentModels: {},
+    showTarget: false,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    stale: false,
+    grouped: true,
+  });
+
+  const esc = String.fromCodePoint(0x1b);
+
+  const rows = writes
+    .join('')
+    .split(esc)
+    .join('')
+    .split(/[[0-9;]+H/gu);
+
+  const row = rows.find((part) => part.includes('auth'));
+
+  if (row === undefined) {
+    throw new TypeError('expected the session row in the overlay output');
+  }
+
+  const plain = row.replaceAll(/[[0-9;]*m/gu, '');
+
+  expect(plain.trim()).toMatch(/^│.*│$/);
 });

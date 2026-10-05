@@ -42,12 +42,13 @@ let focusedID: string | null = null;
 let fleetCount = 0;
 let lastUsedAgent: AgentID = 'claude';
 
-// The readable harness label and tier-alias map per agent, resolved from
-// the config at once and re-resolved from the daemon's `agents.list` answer
+// The readable harness label and tier-alias map per agent: the config alone
+// until the daemon's `agents.list` answer arrives and re-resolves them
 // whenever the overlay opens, so a backend configured after this client
 // started still lists under its name.
-let agentLabels: Readonly<Record<AgentID, string>> = {};
-let agentModels: Readonly<Record<AgentID, Readonly<Record<string, string>>>> = {};
+const bootMetadata = resolveAgentMetadata(loadConfig(), {});
+let agentLabels: Readonly<Record<AgentID, string>> = bootMetadata.labels;
+let agentModels: Readonly<Record<AgentID, Readonly<Record<string, string>>>> = bootMetadata.models;
 
 // How many execution targets the daemon could spawn on right now; the
 // target column appears once more than one is available.
@@ -951,6 +952,13 @@ async function restartDaemon() {
   daemonStale = next.stale;
   lastUsedAgent = next.lastUsedAgent;
   client.onEvent = applyDaemonEvent;
+
+  // A new daemon may map aliases differently, so rows fall back to the
+  // config baseline until its own answer arrives.
+  const baseline = resolveAgentMetadata(loadConfig(), {});
+
+  agentLabels = baseline.labels;
+  agentModels = baseline.models;
 
   await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
   await refreshMirror().catch(() => {});
