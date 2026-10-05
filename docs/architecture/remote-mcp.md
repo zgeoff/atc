@@ -318,7 +318,9 @@ The answer marks what the server could not read:
 
 - `complete` false: atc kept only the preview of that report, and `text` holds the preview.
 - `textError`: the error code and message of a report whose text the server could not read, such as
-  one whose daemon stopped answering. `detail` holds the preview.
+  one whose daemon stopped answering. `detail` holds the preview. The server reads the reports of a
+  page in parallel and waits at most 10 s for them, so a report whose text arrives later holds a
+  `timeout` error.
 - `unavailable`: under the gateway, the daemons that did not answer. Each keeps its place in the
   cursor, so the next call reads its events from where the last one stopped.
 - `started` and `truncated`: under the gateway, `started` lists the daemons that joined the cursor
