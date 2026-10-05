@@ -114,6 +114,66 @@ test('it forwards an events session filter to the daemon', async () => {
   expect(sent).toStrictEqual([{ m: 'events.read', p: { waitMs: 1000, session: 's1' } }]);
 });
 
+test('it reads the text of each report of an events page when the call asks for report text', async () => {
+  const sent: unknown[] = [];
+
+  const answers: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+    'events.read': {
+      events: [
+        {
+          cursor: 'c1',
+          at: 1,
+          session: 's1',
+          name: null,
+          kind: 'report',
+          detail: 'hi',
+          label: 'l',
+        },
+      ],
+      cursor: 'c1',
+      more: false,
+    },
+    'report.get': { text: 'hi there', complete: true },
+  };
+
+  const read = await runTool(
+    {
+      sendRequest: (m, p) => {
+        sent.push({ m, p });
+
+        return Promise.resolve(answers[m] ?? {});
+      },
+      readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
+    },
+    'atc_events_read',
+    { cursor: 'c0', reportText: true },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(sent).toStrictEqual([
+    { m: 'events.read', p: { cursor: 'c0' } },
+    { m: 'report.get', p: { report: 'c1' } },
+  ]);
+
+  expect(read.structured).toStrictEqual({
+    events: [
+      {
+        cursor: 'c1',
+        at: 1,
+        session: 's1',
+        name: null,
+        kind: 'report',
+        detail: 'hi',
+        label: 'l',
+        text: 'hi there',
+        complete: true,
+      },
+    ],
+    cursor: 'c1',
+    more: false,
+  });
+});
+
 test('it sends a message under the key the call gives and needs a daemon that takes keys', async () => {
   const sent: unknown[] = [];
 

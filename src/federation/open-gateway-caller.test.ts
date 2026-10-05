@@ -594,3 +594,203 @@ test('it reads a report from either daemon through the report handle of its even
     isError: true,
   });
 });
+
+test('it reads the whole reports of both daemons in one events read and resumes after them', async () => {
+  await using gateway = await setupTest();
+
+  const client = await gateway.connect('Claude');
+
+  const ids: string[] = [];
+
+  for (const daemon of ['cloud', 'pc']) {
+    const spawned = await client.callTool('atc_session_spawn', { cwd: '/tmp', daemon });
+
+    ids.push(String(getRecord(spawned, 'structuredContent')['id']));
+  }
+
+  const [cloudID = '', pcID = ''] = ids;
+
+  await sendReport(
+    gateway.reporterPath('cloud'),
+    `${JSON.stringify({ atcId: cloudID.split('.').at(-1), event: 'Report', payload: { kind: 'note', label: 'cloud', text: 'from cloud' } })}\n`,
+    2000,
+  );
+
+  await sendReport(
+    gateway.reporterPath('pc'),
+    `${JSON.stringify({ atcId: pcID.split('.').at(-1), event: 'Report', payload: { kind: 'note', label: 'pc', text: 'p'.repeat(1000) } })}\n`,
+    2000,
+  );
+
+  const first = await waitFor(async () => {
+    const read = await client.callTool('atc_events_read', { reportText: true });
+
+    const page = getRecord(read, 'structuredContent');
+
+    const found = [page['events']]
+      .flat()
+      .filter((event) => isRecord(event) && event['kind'] === 'report');
+
+    if (found.length < 2) {
+      throw new Error('both reports have not arrived yet');
+    }
+
+    return page;
+  });
+
+  await sendReport(
+    gateway.reporterPath('cloud'),
+    `${JSON.stringify({ atcId: cloudID.split('.').at(-1), event: 'Report', payload: { kind: 'note', label: 'cloud', text: 'later' } })}\n`,
+    2000,
+  );
+
+  const next = await waitFor(async () => {
+    const read = await client.callTool('atc_events_read', {
+      cursor: first['cursor'],
+      reportText: true,
+    });
+
+    const page = getRecord(read, 'structuredContent');
+
+    if ([page['events']].flat().length === 0) {
+      throw new Error('the later report has not arrived yet');
+    }
+
+    return page;
+  });
+
+  expect(first).toMatchObject({ more: false, unavailable: [], truncated: [] });
+
+  expect([first['events']].flat()).toIncludeSameMembers([
+    expect.objectContaining({
+      kind: 'report',
+      session: cloudID,
+      label: 'cloud',
+      detail: 'from cloud',
+      text: 'from cloud',
+      complete: true,
+    }),
+    expect.objectContaining({
+      kind: 'report',
+      session: pcID,
+      label: 'pc',
+      detail: `${'p'.repeat(599)}…`,
+      text: 'p'.repeat(1000),
+      complete: true,
+    }),
+  ]);
+
+  expect(next['events']).toStrictEqual([
+    expect.objectContaining({ kind: 'report', session: cloudID, text: 'later', complete: true }),
+  ]);
+});
+
+test('it reads the whole reports of the daemons that answer and lists the one that does not', async () => {
+  await using gateway = await setupTest();
+
+  const client = await gateway.connect('Claude');
+
+  const ids: string[] = [];
+
+  for (const daemon of ['cloud', 'pc']) {
+    const spawned = await client.callTool('atc_session_spawn', { cwd: '/tmp', daemon });
+
+    const session = String(getRecord(spawned, 'structuredContent')['id']);
+
+    ids.push(session);
+
+    await sendReport(
+      gateway.reporterPath(daemon),
+      `${JSON.stringify({ atcId: session.split('.').at(-1), event: 'Report', payload: { kind: 'note', label: daemon, text: `from ${daemon}` } })}\n`,
+      2000,
+    );
+  }
+
+  await waitFor(async () => {
+    const read = await client.callTool('atc_events_read');
+
+    const found = [getRecord(read, 'structuredContent')['events']]
+      .flat()
+      .filter((event) => isRecord(event) && event['kind'] === 'report');
+
+    if (found.length < 2) {
+      throw new Error('both reports have not arrived yet');
+    }
+  });
+
+  await gateway.stopDaemon('pc');
+
+  const read = await client.callTool('atc_events_read', { reportText: true });
+
+  const page = getRecord(read, 'structuredContent');
+
+  expect(page).toMatchObject({ unavailable: ['pc'], more: false });
+
+  expect(page['events']).toStrictEqual([
+    expect.objectContaining({
+      kind: 'report',
+      session: ids[0],
+      text: 'from cloud',
+      complete: true,
+    }),
+  ]);
+});
+
+test('it stops a report text read across daemons at 64 KiB and reads the rest at the cursor', async () => {
+  await using gateway = await setupTest();
+
+  const client = await gateway.connect('Claude');
+
+  const texts: Readonly<Record<string, string>> = {
+    cloud: 'c'.repeat(40_000),
+    pc: 'p'.repeat(30_000),
+  };
+
+  for (const daemon of ['cloud', 'pc']) {
+    const spawned = await client.callTool('atc_session_spawn', { cwd: '/tmp', daemon });
+
+    const session = String(getRecord(spawned, 'structuredContent')['id']);
+
+    await sendReport(
+      gateway.reporterPath(daemon),
+      `${JSON.stringify({ atcId: session.split('.').at(-1), event: 'Report', payload: { kind: 'note', label: daemon, text: texts[daemon] } })}\n`,
+      2000,
+    );
+  }
+
+  await waitFor(async () => {
+    const read = await client.callTool('atc_events_read');
+
+    const found = [getRecord(read, 'structuredContent')['events']]
+      .flat()
+      .filter((event) => isRecord(event) && event['kind'] === 'report');
+
+    if (found.length < 2) {
+      throw new Error('both reports have not arrived yet');
+    }
+  });
+
+  const firstRead = await client.callTool('atc_events_read', { reportText: true });
+
+  const first = getRecord(firstRead, 'structuredContent');
+
+  const nextRead = await client.callTool('atc_events_read', {
+    cursor: first['cursor'],
+    reportText: true,
+  });
+
+  const next = getRecord(nextRead, 'structuredContent');
+
+  const pages = [first, next].map((page) =>
+    [page['events']].flat().filter((event) => isRecord(event) && event['kind'] === 'report'),
+  );
+
+  expect(first['more']).toBeTrue();
+  expect(next['more']).toBeFalse();
+  expect(pages.map((reports) => reports.length)).toStrictEqual([1, 1]);
+
+  expect(pages.flat()).toIncludeSameMembers([
+    expect.objectContaining({ text: texts['cloud'], complete: true }),
+    expect.objectContaining({ text: texts['pc'], complete: true }),
+  ]);
+});

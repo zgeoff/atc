@@ -65,6 +65,35 @@ test('it leaves out the report tool for a daemon that does not announce report r
   expect(buildToolList(features, null).map((tool) => tool.name)).not.toContain('atc_report_get');
 });
 
+test('it offers report text on the events tool for a daemon that announces report reads', () => {
+  const eventsRead = buildToolList(new Set(DAEMON_FEATURES), null).find(
+    (tool) => tool.name === 'atc_events_read',
+  );
+
+  if (eventsRead === undefined) {
+    throw new Error('event tool missing');
+  }
+
+  expect(eventsRead.inputSchema['properties']).toContainKey('reportText');
+});
+
+test('it leaves report text off the events tool for a daemon that does not announce report reads', () => {
+  const features = new Set(DAEMON_FEATURES.filter((feature) => feature !== 'report.get'));
+
+  const eventsRead = buildToolList(features, null).find((tool) => tool.name === 'atc_events_read');
+
+  if (eventsRead === undefined) {
+    throw new Error('event tool missing');
+  }
+
+  expect(eventsRead.inputSchema['properties']).toContainAllKeys([
+    'session',
+    'cursor',
+    'limit',
+    'waitMs',
+  ]);
+});
+
 test('it lists the message and event tools in their older form for a daemon that announces no features', () => {
   const tools = buildToolList(new Set(), null);
   const messageGet = tools.find((tool) => tool.name === 'atc_message_get');
