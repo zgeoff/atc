@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
+import { canBindAddresses } from '../../test/can-bind-addresses';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
@@ -41,7 +42,8 @@ interface TCPDaemonOptions {
  * daemon logs, and `advanceClock` moves the clock the listener's refusal
  * log reads, whose window lasts a minute. `refuseFrom` dials the listener
  * from a loopback source address, sends a line before any handshake, and
- * resolves once the listener closes the connection.
+ * resolves once the listener closes the connection, or rejects with the
+ * socket's error, such as EADDRNOTAVAIL for an address the host lacks.
  */
 async function setupTest(options: TCPDaemonOptions) {
   const tmp = setupTempDir('atc-daemon-tcp-');
@@ -145,6 +147,10 @@ async function setupTest(options: TCPDaemonOptions) {
         host: '127.0.0.1',
         port: daemon.listenPort ?? 0,
         localAddress,
+      });
+
+      socket.on('error', (error) => {
+        closed.reject(error);
       });
 
       socket.on('close', () => {
@@ -867,54 +873,65 @@ test('it logs a refusal after the window as a new line after the count of the fo
   ]);
 });
 
-test('it logs a line for each new peer while the cap of refusal windows has room', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map(),
-    maxRefusalWindows: 4,
-  });
+// These peers dial from loopback aliases past 127.0.0.1, which Linux routes
+// on its own and stock macOS lacks, so a host without them skips the two
+// tests. The refusal log's unit tests cover the same windows with any peer.
+const hasLoopbackAliases = canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']);
 
-  for (const peer of [
-    '127.0.0.2',
-    '127.0.0.3',
-    '127.0.0.4',
-    '127.0.0.5',
-    '127.0.0.2',
-    '127.0.0.3',
-  ]) {
-    await daemon.refuseFrom(peer);
-  }
+test.skipIf(!hasLoopbackAliases)(
+  'it logs a line for each new peer while the cap of refusal windows has room',
+  async () => {
+    await using daemon = await setupTest({
+      tokens: `${TOKEN_A}\n`,
+      principals: new Map(),
+      maxRefusalWindows: 4,
+    });
 
-  expect(daemon.logged.slice(1)).toStrictEqual([
-    'atc tcp event=handshake_refused peer=127.0.0.2 reason=unexpected_line count=1',
-    'atc tcp event=handshake_refused peer=127.0.0.3 reason=unexpected_line count=1',
-    'atc tcp event=handshake_refused peer=127.0.0.4 reason=unexpected_line count=1',
-    'atc tcp event=handshake_refused peer=127.0.0.5 reason=unexpected_line count=1',
-  ]);
-});
+    for (const peer of [
+      '127.0.0.2',
+      '127.0.0.3',
+      '127.0.0.4',
+      '127.0.0.5',
+      '127.0.0.2',
+      '127.0.0.3',
+    ]) {
+      await daemon.refuseFrom(peer);
+    }
 
-test('it folds refusals from peers past the cap of refusal windows into one overflow line', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map(),
-    maxRefusalWindows: 2,
-  });
+    expect(daemon.logged.slice(1)).toStrictEqual([
+      'atc tcp event=handshake_refused peer=127.0.0.2 reason=unexpected_line count=1',
+      'atc tcp event=handshake_refused peer=127.0.0.3 reason=unexpected_line count=1',
+      'atc tcp event=handshake_refused peer=127.0.0.4 reason=unexpected_line count=1',
+      'atc tcp event=handshake_refused peer=127.0.0.5 reason=unexpected_line count=1',
+    ]);
+  },
+);
 
-  for (const peer of Array.from({ length: 4 }, () => [
-    '127.0.0.2',
-    '127.0.0.3',
-    '127.0.0.4',
-    '127.0.0.5',
-  ]).flat()) {
-    await daemon.refuseFrom(peer);
-  }
+test.skipIf(!hasLoopbackAliases)(
+  'it folds refusals from peers past the cap of refusal windows into one overflow line',
+  async () => {
+    await using daemon = await setupTest({
+      tokens: `${TOKEN_A}\n`,
+      principals: new Map(),
+      maxRefusalWindows: 2,
+    });
 
-  expect(daemon.logged.slice(1)).toStrictEqual([
-    'atc tcp event=handshake_refused peer=127.0.0.2 reason=unexpected_line count=1',
-    'atc tcp event=handshake_refused peer=127.0.0.3 reason=unexpected_line count=1',
-    'atc tcp event=refused peer=overflow count=1',
-  ]);
-});
+    for (const peer of Array.from({ length: 4 }, () => [
+      '127.0.0.2',
+      '127.0.0.3',
+      '127.0.0.4',
+      '127.0.0.5',
+    ]).flat()) {
+      await daemon.refuseFrom(peer);
+    }
+
+    expect(daemon.logged.slice(1)).toStrictEqual([
+      'atc tcp event=handshake_refused peer=127.0.0.2 reason=unexpected_line count=1',
+      'atc tcp event=handshake_refused peer=127.0.0.3 reason=unexpected_line count=1',
+      'atc tcp event=refused peer=overflow count=1',
+    ]);
+  },
+);
 
 test('it refuses a listener whose port another socket holds and releases the daemon lock', async () => {
   using tmp = setupTempDir('atc-daemon-tcp-');

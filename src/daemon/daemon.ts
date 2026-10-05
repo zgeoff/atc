@@ -48,6 +48,8 @@ import { buildTargetAccess } from './build-target-access';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import { buildTargetList } from './build-target-list';
 import { claimDaemonLock } from './claim-daemon-lock';
+import { createNonBlockingLog } from './create-non-blocking-log';
+import type { NonBlockingLog } from './create-non-blocking-log';
 import { DaemonConnection } from './daemon-connection';
 import type {
   DaemonContext,
@@ -69,7 +71,6 @@ import { loadListenerTokens } from './load-listener-tokens';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
-import { makeNonBlockingLog } from './make-non-blocking-log';
 import { materializeWorkspace } from './materialize-workspace';
 import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
@@ -252,6 +253,10 @@ const MAX_REFUSAL_WINDOWS = 1024;
 
 // Where the TCP listener logs when the daemon is given no log.
 const STDERR_FD = 2;
+
+// How long a stopping daemon waits for the TCP listener's log to write the
+// lines it still holds, so an unread stderr delays the exit no longer.
+const LOG_DRAIN_TIMEOUT_MS = 1000;
 
 // How long startup waits for a daemon that is shutting down to release the
 // state lock before refusing to start.
@@ -2082,8 +2087,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // refuses the start before any client can connect, and releases what the
   // daemon holds, the lock included.
   let tcpListener: TCPListener | null = null;
+  let listenerLog: NonBlockingLog | null = null;
 
   if (opts.listen !== undefined && listenTokens !== null) {
+    // A given log writes as it is called, so it has nothing to drain.
+    listenerLog =
+      opts.log === undefined
+        ? createNonBlockingLog(STDERR_FD)
+        : { log: opts.log, drain: () => Promise.resolve() };
+
     try {
       tcpListener = startTCPListener({
         host: opts.listen.host,
@@ -2099,7 +2111,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           return connection;
         },
         closeConnection: detachConnection,
-        log: opts.log ?? makeNonBlockingLog(STDERR_FD),
+        log: listenerLog.log,
         now: opts.listen.now ?? Date.now,
         refusalLogIntervalMs: opts.listen.refusalLogIntervalMs ?? REFUSAL_LOG_INTERVAL_MS,
         maxRefusalWindows: opts.listen.maxRefusalWindows ?? MAX_REFUSAL_WINDOWS,
@@ -2167,6 +2179,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     server.stop(true);
 
     await releaseResources();
+
+    // The stopped listener logs no more lines, so this writes the ones the
+    // log still holds, waiting no longer than the timeout when nothing reads
+    // stderr.
+    await listenerLog?.drain(LOG_DRAIN_TIMEOUT_MS);
   };
 
   writeDaemonRecord(recordPath, {

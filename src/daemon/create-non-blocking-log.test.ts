@@ -12,7 +12,9 @@ import { DaemonClient } from '../client/daemon-client';
  * spawn itself would not do: the runtime reads those as they fill. `refuse` sends the given
  * number of lines before any handshake, each on a connection of its own,
  * and resolves once the listener has closed every one. `ping` times a
- * `daemon.ping` from a new client on the daemon's unix socket.
+ * `daemon.ping` from a new client on the daemon's unix socket. `stop` sends
+ * the daemon SIGTERM at once and resolves with its exit code and how long
+ * it took to exit.
  */
 async function setupTest() {
   const tmp = setupTempDir('atc-non-blocking-log-');
@@ -87,6 +89,15 @@ async function setupTest() {
 
       return performance.now() - started;
     },
+    async stop(): Promise<{ exitCode: number; elapsedMs: number }> {
+      const started = performance.now();
+
+      proc.kill('SIGTERM');
+
+      const exitCode = await proc.exited;
+
+      return { exitCode, elapsedMs: performance.now() - started };
+    },
     readStderr(): void {
       const buffer = Buffer.alloc(64 * 1024);
 
@@ -154,6 +165,41 @@ test('it delivers every line to a stderr reader that keeps reading', async () =>
       expect.toStartWith('atc tcp event=listening '),
       ...Array.from(
         { length: 2000 },
+        () => 'atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=1',
+      ),
+      '',
+    ]);
+  });
+});
+
+test('it exits within three seconds of SIGTERM while a flood of refusals fills the unread stderr', async () => {
+  await using daemon = await setupTest();
+
+  await daemon.refuse(3000);
+
+  const stopped = await daemon.stop();
+
+  expect(stopped).toStrictEqual({ exitCode: 0, elapsedMs: expect.toBeWithin(0, 3000) });
+});
+
+test('it writes every line it holds at SIGTERM to a stderr reader that starts to read after it', async () => {
+  await using daemon = await setupTest();
+
+  await daemon.refuse(1000);
+
+  const stopping = daemon.stop();
+
+  daemon.readStderr();
+
+  const stopped = await stopping;
+
+  expect(stopped).toMatchObject({ exitCode: 0 });
+
+  await waitFor(() => {
+    expect(daemon.output.join('').split('\n')).toStrictEqual([
+      expect.toStartWith('atc tcp event=listening '),
+      ...Array.from(
+        { length: 1000 },
         () => 'atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=1',
       ),
       '',
