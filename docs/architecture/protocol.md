@@ -153,11 +153,12 @@ after the handshake answer arrives. Once the handshake has passed, a second `dae
 
 A TCP connection never acts as the daemon's owner. Every request on it must carry `as`, and the
 daemon answers `unauthorized` for a request without it, for an `as` that the config's `principals`
-key does not list, and for `daemon.quit` and `fleet.restore`. A handshake `principal` the key does
-not list gets `unauthorized` too, and the connection closes. Each request runs as its `as` principal
-with the reach and key namespace [principals](#principals) describes. The daemon pushes a TCP
-connection no event of a session outside the reach of its handshake `principal`, and none at all
-when the handshake gives no principal.
+key does not list, and for each method open to the daemon's owner alone, which
+[principals](#principals) lists. A handshake `principal` the key does not list gets `unauthorized`
+too, and the connection closes. Each request runs as its `as` principal with the reach and key
+namespace [principals](#principals) describes. The daemon pushes a TCP connection no event of a
+session outside the reach of its handshake `principal`, and none at all when the handshake gives no
+principal.
 
 ## Methods
 
