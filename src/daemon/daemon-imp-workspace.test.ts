@@ -1341,6 +1341,50 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
   });
 });
 
+test("it removes a sub-session's checkout on its parent's sleeping host when its start fails there, then lets the host sleep again", async () => {
+  await using daemon = await setupTest();
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+  const [imp] = daemon.port.collectImpNames();
+  const dest = join(daemon.dir, 'box', 'child');
+
+  daemon.port.suspendWithForce(String(imp));
+
+  await waitFor(async () => {
+    const listed = await daemon.client.sendRequest('session.list');
+
+    expect(listed).toMatchObject({
+      sessions: [{ id: parentID, lifecycle: { vm: 'asleep' } }],
+    });
+  });
+
+  daemon.port.startBrokerFailure();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: daemon.work },
+    idempotencyKey: 'k-1',
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
+
+  await spawn.catch(() => null);
+
+  expect<Record<string, unknown>>({
+    removed: !existsSync(dest),
+    state: daemon.port.findState(String(imp)),
+  }).toStrictEqual({ removed: true, state: 'sleeping' });
+});
+
 test("it keeps the key, the claim, and a logged path for a sub-session's checkout it cannot remove when its start fails on the shared host", async () => {
   await using daemon = await setupTest();
 

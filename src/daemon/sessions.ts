@@ -1293,7 +1293,29 @@ export class SessionManager {
     target: string,
     dir: string,
   ): Promise<boolean> {
+    // A target without hosts runs every session on one machine, so the
+    // directory stays while any other session listed there runs inside it.
     if (!this.hasHostLifecycle(target)) {
+      const others = this.sessions.filter((s) => s.id !== id && s.target === target);
+
+      const resolved = await Promise.all(
+        others.map((s) => this.resolveHostDir(provider, null, s.cwd).catch(() => null)),
+      );
+
+      if (this.sessions.some((s) => s.id !== id && s.target === target && !others.includes(s))) {
+        return this.removeClaimedDir(provider, id, hostKey, target, dir);
+      }
+
+      const holds = others.some((s, index) => {
+        const physical = resolved[index] ?? null;
+
+        return physical === null || isPathWithin(s.cwd, dir) || isPathWithin(physical, dir);
+      });
+
+      if (holds) {
+        return false;
+      }
+
       const removed = await provider.runCommand({
         argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
         cwd: '/',
@@ -1679,7 +1701,9 @@ export class SessionManager {
 
   // Waits for a revived harness behind the broker to start. A refused start
   // already ended the harness; the host goes back to sleep when no other
-  // harness runs there, and the refusal is thrown.
+  // harness runs there, and the refusal is thrown. A spawn that still has a
+  // checkout to remove there leaves the sleep to its rollback, which needs
+  // the host awake.
   private async waitForAuthStart(
     s: Session,
     provider: ExecutionProvider,
@@ -1688,7 +1712,9 @@ export class SessionManager {
     try {
       await pty.waitForStart?.();
     } catch (error) {
-      if (this.isHostIdle(s.hostKey, s.target) && provider.capabilities.suspend) {
+      const hasCheckout = (this.startingSpawns.get(s.id)?.root ?? null) !== null;
+
+      if (!hasCheckout && this.isHostIdle(s.hostKey, s.target) && provider.capabilities.suspend) {
         await this.trySuspendIdleHost(provider, s.hostKey, s.target);
       }
 
@@ -2067,7 +2093,20 @@ export class SessionManager {
           throw new Error(`the target of session ${id} is gone, so its failed spawn stays`);
         }
 
-        await this.removeFailedSpawnEffects(provider, id, s.hostKey, s.target, readied);
+        try {
+          await this.removeFailedSpawnEffects(provider, id, s.hostKey, s.target, readied);
+        } finally {
+          // A shared host stays awake for the checkout's removal, then goes
+          // back to sleep when nothing else runs there.
+          if (
+            readied.root !== null &&
+            s.hostKey !== id &&
+            provider.capabilities.suspend &&
+            this.isHostIdle(s.hostKey, s.target)
+          ) {
+            await this.trySuspendIdleHost(provider, s.hostKey, s.target);
+          }
+        }
       }
 
       this.releaseWorkspace(id);
