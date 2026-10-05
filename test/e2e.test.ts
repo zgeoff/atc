@@ -2173,7 +2173,7 @@ test('it keeps paths and slash filters in the local directory step and switches 
   expect(ctx.read()).toInclude('> https://github.com/acme/app.git');
 }, 20_000);
 
-test('it sends a local directory to a target off the daemon machine as a path workspace without allowDirty', async () => {
+test('it sends a dirty local directory to a target off the daemon machine as a path workspace past its uncommitted file', async () => {
   await using ctx = setupTest();
 
   const env = {
@@ -2201,7 +2201,8 @@ test('it sends a local directory to a target off the daemon machine as a path wo
   const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
 
   // An imp target with a url and no token has a provider that can take a
-  // workspace. The path source is refused before the daemon calls impd.
+  // workspace. The path source, which has no origin, is refused before the
+  // daemon calls impd.
   writeFileSync(
     configPath,
     JSON.stringify({
@@ -2250,10 +2251,12 @@ test('it sends a local directory to a target off the daemon machine as a path wo
   ctx.reset();
   pty.write('\r');
 
-  // Without the path workspace the spawn would reach impd; with
-  // allowDirty: 'warn' it would get past the uncommitted file.
-  await ctx.waitFor('workspace_dirty', 10_000);
+  // Without the path workspace the spawn would reach impd. The
+  // uncommitted file stays behind, so resolution goes on to the missing
+  // origin.
+  await ctx.waitFor('no_origin', 10_000);
 
+  expect(ctx.read()).not.toInclude('workspace_dirty');
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
 }, 20_000);
 

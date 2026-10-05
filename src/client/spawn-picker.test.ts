@@ -36,14 +36,20 @@ const LEADER = Buffer.from([0x1d]);
 /**
  * A spawn picker whose daemon answers only when a test says so. Every
  * request it sends waits in `sent` until the test resolves it, the screen
- * writes go nowhere, and each draw counts in `renders`. The config holds
+ * writes collect in `screen`, and each draw counts in `renders`. The config holds
  * Claude, at the running Bun, as the one installed agent.
  */
 function setupTest() {
   mkdirSync(dirname(configFile), { recursive: true });
   writeFileSync(configFile, JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok' }));
 
-  const write = spyOn(process.stdout, 'write').mockImplementation(() => true);
+  const screen: string[] = [];
+
+  const write = spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+    screen.push(String(chunk));
+
+    return true;
+  });
 
   onTestFinished(() => {
     write.mockRestore();
@@ -101,7 +107,7 @@ function setupTest() {
 
   const collectSent = (m: string) => sent.filter((r) => r.m === m).map((r) => r.p);
 
-  return { picker, sent, counts, answer, applyKeys, collectSent };
+  return { picker, sent, screen, counts, answer, applyKeys, collectSent };
 }
 
 test('it drops the target and source answer that arrives after esc leaves the agent step', async () => {
@@ -253,6 +259,96 @@ test('it materializes a directory on the one target when that target is remote',
   expect(ctx.collectSent('session.spawn')).toMatchObject([
     { cwd: process.cwd(), target: 'box', workspace: { kind: 'path', path: process.cwd() } },
   ]);
+});
+
+test('it holds a session whose workspace left changes behind until enter attaches it', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+
+  await ctx.answer('session.spawn', {
+    session: { id: 's-1' },
+    warnings: [
+      'cloned commit 0123456789ab; left 2 uncommitted or untracked paths behind in /src/app',
+    ],
+  });
+
+  const held = ctx.counts.attached;
+
+  await ctx.applyKeys(ENTER);
+
+  expect(held).toBe(0);
+  expect(ctx.counts.attached).toBe(1);
+  expect(ctx.counts.exits).toBe(0);
+});
+
+test('it shows the whole note of a workspace that left changes behind, wrapped to the picker', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+
+  ctx.screen.length = 0;
+
+  await ctx.answer('session.spawn', {
+    session: { id: 's-1' },
+    warnings: [
+      'cloned commit 0123456789ab; left 12 uncommitted or untracked paths behind in /home/me/src/a-project-with-a-long-name',
+    ],
+  });
+
+  const shown = ctx.screen.join('');
+
+  expect(shown).toInclude('/home/me/src/a-project-with-a-long-name');
+  expect(shown).toInclude('0123456789ab');
+  expect(shown).not.toInclude('…');
+});
+
+test('it leaves a session whose workspace left changes behind running when esc returns', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+
+  await ctx.answer('session.spawn', {
+    session: { id: 's-1' },
+    warnings: [
+      'cloned commit 0123456789ab; left 1 uncommitted or untracked path behind in /src/app',
+    ],
+  });
+
+  await ctx.applyKeys(ESC);
+
+  expect(ctx.counts.attached).toBe(0);
+  expect(ctx.counts.exits).toBe(1);
+  expect(ctx.collectSent('session.spawn')).toHaveLength(1);
+});
+
+test('it attaches a session spawned without warnings at once', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+  await ctx.answer('session.spawn', { session: { id: 's-1' } });
+
+  expect(ctx.counts.attached).toBe(1);
 });
 
 test('it runs a directory in place on the one target when that target is local', async () => {

@@ -221,6 +221,7 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
   expect(workspace['materializedAt']).toBeWithin(before, Date.now() + 1);
   expect(head.trim()).toBe(sha.trim());
   expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(spawned['warnings']).toBeUndefined();
 
   expect(box.calls).toMatchObject([
     { op: 'run', argv: ['sh', '-c', expect.any(String), 'sh', dest], cwd: '/' },
@@ -404,7 +405,7 @@ test('it refuses a path source whose HEAD was never pushed, transferring nothing
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
-test('it refuses a path source with uncommitted changes as workspace_dirty', async () => {
+test('it refuses a path source with uncommitted changes as workspace_dirty when dirt is refused', async () => {
   await using ctx = await setupTest();
 
   const box = new FixtureDirProvider();
@@ -416,7 +417,7 @@ test('it refuses a path source with uncommitted changes as workspace_dirty', asy
   const spawn = booted.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
-    workspace: { kind: 'path', path: ctx.work },
+    workspace: { kind: 'path', path: ctx.work, allowDirty: 'refuse' },
   });
 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_dirty' });
@@ -426,7 +427,7 @@ test('it refuses a path source with uncommitted changes as workspace_dirty', asy
   expect(box.calls).toStrictEqual([]);
 });
 
-test('it materializes the committed HEAD of a dirty path source with a warning when dirt is allowed', async () => {
+test('it materializes the committed HEAD of a dirty path source and leaves its changes behind', async () => {
   await using ctx = await setupTest();
 
   const booted = await ctx.boot(new FixtureDirProvider());
@@ -437,22 +438,82 @@ test('it materializes the committed HEAD of a dirty path source with a warning w
   writeFileSync(join(ctx.work, 'README.md'), 'edited\n');
   writeFileSync(join(ctx.work, 'scratch.txt'), 'untracked\n');
 
+  const before = await $`git status --porcelain`.env(ctx.env).cwd(ctx.work).text();
+
+  const spawned = await booted.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  const session = getRecord(spawned, 'session');
+
+  const after = await $`git status --porcelain`.env(ctx.env).cwd(ctx.work).text();
+  const cloned = await $`git rev-parse HEAD`.env(ctx.env).cwd(dest).text();
+
+  expect(session['workspace']).toMatchObject({ sha: sha.trim() });
+  expect(cloned).toBe(sha);
+
+  expect(spawned['warnings']).toStrictEqual([
+    `cloned commit ${sha.slice(0, 12)}; left 2 uncommitted or untracked paths behind in ${ctx.work}`,
+  ]);
+
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(existsSync(join(dest, 'scratch.txt'))).toBeFalse();
+  expect(after).toBe(before);
+  expect(readFileSync(join(ctx.work, 'README.md'), 'utf8')).toBe('edited\n');
+  expect(readFileSync(join(ctx.work, 'scratch.txt'), 'utf8')).toBe('untracked\n');
+});
+
+test('it materializes the committed HEAD of a dirty path source when dirt is allowed with a warning', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+  const sha = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  writeFileSync(join(ctx.work, 'scratch.txt'), 'untracked\n');
+
   const spawned = await booted.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work, allowDirty: 'warn' },
   });
 
-  const session = getRecord(spawned, 'session');
-
-  expect(session['workspace']).toMatchObject({ sha: sha.trim() });
+  expect(getRecord(spawned, 'session')['workspace']).toMatchObject({ sha: sha.trim() });
 
   expect(spawned['warnings']).toStrictEqual([
-    `uncommitted and untracked changes in ${ctx.work} stay behind; using ${sha.trim()}`,
+    `cloned commit ${sha.slice(0, 12)}; left 1 uncommitted or untracked path behind in ${ctx.work}`,
   ]);
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
   expect(existsSync(join(dest, 'scratch.txt'))).toBeFalse();
+});
+
+test('it refuses a dirty path source whose HEAD was never pushed, transferring nothing', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  writeFileSync(join(ctx.work, 'README.md'), 'unpushed\n');
+
+  await $`git commit --quiet -am unpushed`.env(ctx.env).cwd(ctx.work).quiet();
+
+  writeFileSync(join(ctx.work, 'scratch.txt'), 'untracked\n');
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'unpushed_head', data: { phase: 'resolving' } });
+
+  await spawn.catch(() => null);
+
+  expect(box.calls).toStrictEqual([]);
 });
 
 test('it refuses a path source that uses submodules, transferring nothing', async () => {
@@ -787,13 +848,14 @@ test.each([['transfer'], ['run']] as const)(
 
     const booted = await ctx.boot(box);
 
-    // A dirty tree refuses as workspace_dirty once resolution runs.
+    // A dirty tree whose dirt is refused fails as workspace_dirty once
+    // resolution runs.
     writeFileSync(join(ctx.work, 'README.md'), 'edited\n');
 
     const spawn = booted.client.sendRequest('session.spawn', {
       cwd: join(ctx.dir, 'box', 'ws'),
       target: 'box',
-      workspace: { kind: 'path', path: ctx.work },
+      workspace: { kind: 'path', path: ctx.work, allowDirty: 'refuse' },
     });
 
     expect(spawn).rejects.toMatchObject({

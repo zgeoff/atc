@@ -65,6 +65,14 @@ export function cols(): number {
   return process.stdout.columns || 80;
 }
 
+/**
+ * The width of the picker box, borders included. An item row holds 4
+ * columns fewer.
+ */
+export function getPickerWidth(): number {
+  return Math.min(cols() - 4, 90);
+}
+
 export function rows(): number {
   return process.stdout.rows || 24;
 }
@@ -393,7 +401,7 @@ export interface PickerView {
 }
 
 export function drawPicker(view: PickerView) {
-  const width = Math.min(cols() - 4, 90);
+  const width = getPickerWidth();
   const rowsList: Row[] = [boxTop(width, view.title)];
   const shown = view.items.slice(0, 10);
 
