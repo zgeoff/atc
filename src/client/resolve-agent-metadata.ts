@@ -30,12 +30,14 @@ export function resolveAgentMetadata(config: Config, listed: unknown): AgentMeta
   const models: Record<AgentID, Readonly<Record<string, string>>> = {};
 
   for (const gateway of config.gateways) {
-    labels[gateway.id] = gateway.label;
+    if (isSafeKey(gateway.id)) {
+      labels[gateway.id] = gateway.label;
+    }
   }
 
   if (isRecord(listed) && Array.isArray(listed['agents'])) {
     for (const entry of listed['agents']) {
-      if (!isRecord(entry) || typeof entry['id'] !== 'string') {
+      if (!isRecord(entry) || typeof entry['id'] !== 'string' || !isSafeKey(entry['id'])) {
         continue;
       }
 
@@ -58,10 +60,16 @@ function pickModelAliases(values: Readonly<Record<string, unknown>>): Record<str
   const aliases: Record<string, string> = {};
 
   for (const [alias, model] of Object.entries(values)) {
-    if (typeof model === 'string') {
+    if (typeof model === 'string' && isSafeKey(alias)) {
       aliases[alias] = model;
     }
   }
 
   return aliases;
+}
+
+// A daemon-supplied id or alias can name `__proto__`, which would change a
+// map's prototype instead of adding an entry, so such keys stay out.
+function isSafeKey(key: string): boolean {
+  return key !== '__proto__';
 }

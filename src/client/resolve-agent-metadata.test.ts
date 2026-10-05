@@ -83,3 +83,28 @@ test('it falls back to the config alone when the answer holds no agents array', 
   expect(meta.labels['zai']).toBe('GLM (z.ai)');
   expect(meta.models['zai']).toBeUndefined();
 });
+
+test('it leaves a __proto__ agent id out instead of changing the prototype', () => {
+  const meta = resolveAgentMetadata(buildConfig({}), {
+    agents: [{ id: '__proto__', label: 'Sneaky', models: { opus: 'sneaky-model' } }],
+  });
+
+  expect(Object.getPrototypeOf(meta.labels)).toBe(Object.prototype);
+  expect(Object.hasOwn(meta.labels, '__proto__')).toBe(false);
+  expect(Object.hasOwn(meta.models, '__proto__')).toBe(false);
+});
+
+test('it leaves a __proto__ model alias out of the map', () => {
+  const meta = resolveAgentMetadata(buildConfig({}), {
+    agents: [{ id: 'zai', models: { __proto__: 'sneaky-model', opus: 'glm-5.3' } }],
+  });
+
+  expect(meta.models['zai']).toStrictEqual({ opus: 'glm-5.3' });
+});
+
+test('it reports no entries under constructor for a plain answer', () => {
+  const meta = resolveAgentMetadata(buildConfig({}), { agents: [{ id: 'claude' }] });
+
+  expect(Object.hasOwn(meta.labels, 'constructor')).toBe(false);
+  expect(Object.hasOwn(meta.models, 'constructor')).toBe(false);
+});

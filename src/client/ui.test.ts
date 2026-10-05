@@ -341,3 +341,61 @@ test('it draws session rows inside the overlay box borders', () => {
 
   expect(plain.trim()).toMatch(/^│.*│$/);
 });
+
+test('it falls back to the raw id when the harness name would hit an inherited property', () => {
+  const plan: OverlayColumnPlan = {
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 0,
+    harnessWidth: 11,
+    modelWidth: 0,
+    lifecycleWidth: 9,
+    eventWidth: 7,
+  };
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { claude: 'Claude' },
+    agentModels: {},
+    showTarget: false,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow({ ...liveClaude, agent: 'constructor' }, plan, view, false);
+
+  expect(row.styled).toInclude('constructor');
+});
+
+test('it falls back to the raw model when the alias would hit an inherited property', () => {
+  const plan: OverlayColumnPlan = {
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 0,
+    harnessWidth: 6,
+    modelWidth: 12,
+    lifecycleWidth: 9,
+    eventWidth: 7,
+  };
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { claude: 'Claude' },
+    agentModels: { claude: { opus: 'glm-5.3' } },
+    showTarget: false,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow({ ...liveClaude, model: 'constructor' }, plan, view, false);
+
+  expect(row.styled).toInclude('constructor');
+});

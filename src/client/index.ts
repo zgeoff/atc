@@ -954,11 +954,14 @@ async function restartDaemon() {
   client.onEvent = applyDaemonEvent;
 
   // A new daemon may map aliases differently, so rows fall back to the
-  // config baseline until its own answer arrives.
+  // config baseline until its own answer arrives; the target count goes
+  // back to none for the same reason, hiding the column until the new
+  // daemon reports what it can spawn on.
   const baseline = resolveAgentMetadata(loadConfig(), {});
 
   agentLabels = baseline.labels;
   agentModels = baseline.models;
+  availableTargets = 0;
 
   await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
   await refreshMirror().catch(() => {});

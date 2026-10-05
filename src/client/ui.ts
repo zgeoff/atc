@@ -211,6 +211,24 @@ export interface OverlayView {
   grouped: boolean;
 }
 
+// A daemon-supplied id or alias can name an inherited property, so map
+// reads go through an own-property check instead of indexing blindly.
+function readMapValue<V>(map: Readonly<Record<string, V>>, key: string): V | undefined {
+  return Object.hasOwn(map, key) ? map[key] : undefined;
+}
+
+// A session's model as the row draws it: the daemon answer's alias target,
+// or the raw model string when the answer maps nothing for it.
+function resolveModelAlias(
+  models: Readonly<Record<AgentID, Readonly<Record<string, string>>>>,
+  agent: AgentID,
+  model: string,
+): string {
+  const aliases = readMapValue(models, agent);
+
+  return aliases === undefined ? model : (readMapValue(aliases, model) ?? model);
+}
+
 // A session row draws status (the attention glyph plus the unread mark),
 // pin, name, the flat view's directory, then the target, harness, model,
 // harness lifecycle, and last event columns the width plan allows.
@@ -233,9 +251,9 @@ export function buildSessionRow(
   const target =
     plan.targetWidth > 0 ? truncate(s.target, plan.targetWidth).padEnd(plan.targetWidth) : '';
 
-  const label = view.agentLabels[s.agent] ?? s.agent;
+  const label = readMapValue(view.agentLabels, s.agent) ?? s.agent;
   const harness = truncate(label, plan.harnessWidth).padEnd(plan.harnessWidth);
-  const resolved = s.model === null ? '' : (view.agentModels[s.agent]?.[s.model] ?? s.model);
+  const resolved = s.model === null ? '' : resolveModelAlias(view.agentModels, s.agent, s.model);
 
   const model =
     plan.modelWidth > 0 ? truncate(resolved, plan.modelWidth).padEnd(plan.modelWidth) : '';
@@ -268,7 +286,7 @@ export function drawOverlay(view: OverlayView) {
   // take the width of what is actually on screen.
   const harnessMax = Math.max(
     0,
-    ...view.sessions.map((s) => (view.agentLabels[s.agent] ?? s.agent).length),
+    ...view.sessions.map((s) => (readMapValue(view.agentLabels, s.agent) ?? s.agent).length),
   );
 
   const modelMax = Math.max(
@@ -278,7 +296,7 @@ export function drawOverlay(view: OverlayView) {
         return 0;
       }
 
-      return (view.agentModels[s.agent]?.[s.model] ?? s.model).length;
+      return resolveModelAlias(view.agentModels, s.agent, s.model).length;
     }),
   );
 
