@@ -19,7 +19,8 @@ import { KEY, planTextEdit } from './keys';
 import { pickRefusalStep } from './pick-refusal-step';
 import { resolvePathInput } from './resolve-path-input';
 import { resolveWorkspaceRoot } from './resolve-workspace-root';
-import { ansi, cols, drawPicker } from './ui';
+import { splitToWidth } from './split-to-width';
+import { ansi, cols, drawPicker, getPickerWidth } from './ui';
 
 type PickerStep =
   | 'agent'
@@ -411,7 +412,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     } else if (this.step === 'spawned') {
       drawPicker({
         title: `${verb}: started`,
-        items: [...this.spawnWarnings],
+        items: this.spawnWarnings.flatMap((w) => splitToWidth(w, getPickerWidth() - 4)),
         selected: -1,
         input: '',
         hint: '⏎ attach · esc back',
