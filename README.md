@@ -50,7 +50,7 @@ bun add -g @zgeoff/atc
 ```
 
 atc needs at least one of the `claude`, `grok`, or `codex` CLIs on your PATH. The agent picker lists
-the ones it finds.
+the ones it finds, and opens only when it finds more than one.
 
 ## Use
 

@@ -124,10 +124,14 @@ type SourceStepAction =
  * optional first prompt. The sources are the ones the daemon offers, in
  * its order, and Tab cycles them; a daemon that offers none gets the local
  * directory flow alone. A source of directories is followed by the
- * execution target when the daemon has more than one. A source of git
+ * execution target when more than one target can run it. A source of git
  * repositories opens the target first, then its candidates, the ref, and a
  * confirm screen with the destination the checkout lands in, so every
  * request about the repository is made for the target the spawn runs on.
+ * A choice of agent or target with one row the source can use is no
+ * choice: the flow takes that row and goes on, and Esc from the step after
+ * it goes back past it. A daemon that lists targets none of which can run
+ * the source shows the target step with the reason.
  * Typed input a source does not match against its candidates is read by
  * the source, then by the others in order. Every path out of the flow
  * either attaches the new session or returns the client to the screen it
@@ -155,6 +159,10 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // edit or a fresh install lands without a client restart.
   private picks: AgentPick[] = [];
 
+  // Whether the agent step waits on the daemon's targets and sources once
+  // an agent is chosen.
+  private sourcesPending = false;
+
   // The directories the directory step lists, and the label each shows.
   private dirs: string[] = [];
 
@@ -179,6 +187,10 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private targets: TargetPick[] = [];
 
   private target: TargetPick | null = null;
+
+  // Why the flow offers no target although the daemon lists some, or null
+  // when it offers some or the daemon lists none.
+  private targetGap: string | null = null;
 
   // The git source's candidates and the scope they were listed under, or
   // the notice that stands in for a list the daemon could not give, with
@@ -265,7 +277,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.input = '';
     this.sources = null;
     this.sourceIndex = -1;
+    this.sourcesPending = false;
     this.target = null;
+    this.targetGap = null;
     this.repo = null;
     this.ref = null;
     this.sourceDraft = '';
@@ -291,6 +305,14 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.pending = null;
 
     process.stdout.write(ansi.clear);
+
+    // One installed agent is no choice to make, so the flow goes on with it.
+    if (this.picks.length === 1) {
+      void this.openFirstSource();
+
+      return;
+    }
+
     this.render();
   }
 
@@ -322,6 +344,17 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         this.quitFlow();
       }
 
+      return;
+    }
+
+    // The agent step waiting on the daemon's targets and sources takes Esc
+    // and the leader, and every other key waits for the answer.
+    if (
+      this.step === 'agent' &&
+      this.sourcesPending &&
+      edit.kind !== 'cancel' &&
+      edit.kind !== 'leader'
+    ) {
       return;
     }
 
@@ -387,10 +420,14 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
       // An empty menu means every configured binary is missing, so the hint
       // carries the fix instead of the movement keys.
-      const hint =
-        this.picks.length === 0
-          ? 'no agent CLI found — set claudeBin, grokBin, or codexBin in config.json · esc cancel'
-          : '↑↓ move · ⏎ select · esc cancel';
+      let hint = '↑↓ move · ⏎ select · esc cancel';
+
+      if (this.picks.length === 0) {
+        hint =
+          'no agent CLI found — set claudeBin, grokBin, or codexBin in config.json · esc cancel';
+      } else if (this.sourcesPending) {
+        hint = 'reading targets and sources… · esc cancel';
+      }
 
       drawPicker({
         title: `${verb}: agent`,
@@ -488,13 +525,21 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     const git = this.isGitFlow();
     const what = git ? 'the repository' : formatDir(this.dir);
+    let hint = `where ${what} runs · ↑↓ move · ⏎ select · esc back`;
+
+    // A step with no target the source can run on says what is missing.
+    if (this.collectEligibleTargets().length === 0) {
+      const gap = this.targetGap ?? `none of these targets can run ${what}`;
+
+      hint = `${gap} · set targets in config.json · esc back`;
+    }
 
     drawPicker({
       title: `${verb}: target`,
       items: this.targets.map((t) => formatTargetPick(t)),
       selected: this.selected,
       input: '',
-      hint: this.refusal ?? `where ${what} runs · ↑↓ move · ⏎ select · esc back`,
+      hint: this.refusal ?? hint,
       dimmed: new Set(
         this.targets.flatMap((t, i) =>
           t.takesWorkspace || (!git && t.available && t.inPlace) ? [] : [i],
@@ -666,11 +711,19 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     if (this.step === 'dir') {
       this.openAgentStep();
-    } else if (this.step === 'source') {
+
+      return;
+    }
+
+    if (this.step === 'source') {
       this.sourceDraft = typed;
 
       this.applySourceCancel();
-    } else if (this.step === 'ref') {
+
+      return;
+    }
+
+    if (this.step === 'ref') {
       this.input = this.repo?.label ?? '';
       this.repo = null;
       this.step = 'source';
@@ -684,10 +737,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       if (this.isGitFlow()) {
         this.input = this.buildDestination();
         this.step = 'confirm';
-      } else {
-        this.openTargetStep(() => {
-          this.step = 'dir';
-        });
+      } else if (!this.openTargetStep()) {
+        this.step = 'dir';
       }
     } else {
       this.input = this.name;
@@ -698,20 +749,33 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.render();
   }
 
+  // Goes back to the agent step, or leaves the flow when one installed
+  // agent left no agent step to go back to.
   private openAgentStep() {
+    if (this.picks.length === 1) {
+      this.quitFlow();
+
+      return;
+    }
+
     this.selected = Math.max(
       0,
       this.picks.findIndex((p) => p.agent === this.agent),
     );
 
+    this.sourcesPending = false;
     this.step = 'agent';
+
+    process.stdout.write(ansi.clear);
+    this.render();
   }
 
-  // Leaves a git source step backwards: to the target step when the daemon
-  // has more than one target, else to the agent.
+  // Leaves a git source step backwards: to the target step when the spawn
+  // has one, else to the agent.
   private applySourceCancel() {
-    if (this.targets.length >= 2) {
-      this.openTargetStep(() => {});
+    if (this.openTargetStep()) {
+      process.stdout.write(ansi.clear);
+      this.render();
 
       return;
     }
@@ -737,8 +801,6 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     if (index === -1) {
       this.openAgentStep();
-      process.stdout.write(ansi.clear);
-      this.render();
 
       return;
     }
@@ -841,9 +903,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.dir = dir;
     this.input = '';
 
-    this.openTargetStep(() => {
+    if (!this.openTargetStep()) {
       this.step = 'name';
-    });
+    }
 
     process.stdout.write(ansi.clear);
     this.render();
@@ -1028,8 +1090,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   // Moves the flow to a source of git repositories, carrying the typed text
-  // across: the target step first when the daemon has more than one target
-  // and the flow had no repository target yet, then the source step, which
+  // across: the target step first when the spawn has one and the flow had
+  // no repository target yet, then the source step, which
   // acts as asked once it opens.
   private openGitSource(index: number, draft: string, action: SourceStepAction) {
     const fromGit = this.isGitFlow();
@@ -1045,15 +1107,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    if (this.targets.length >= 2) {
-      this.openTargetStep(() => {});
+    if (this.openTargetStep()) {
       process.stdout.write(ansi.clear);
       this.render();
 
       return;
     }
-
-    this.target = this.targets[0] ?? null;
 
     this.openSourceStep();
   }
@@ -1599,19 +1658,22 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     return this.target ?? this.targets.find((t) => t.isDefault) ?? null;
   }
 
-  // Opens the target step when the daemon has more than one target, and
-  // the fallback step otherwise. The chosen target is selected, else for a
-  // repository the default when it takes a workspace and the first target
-  // that does when it does not, else the default.
-  private openTargetStep(fallback: () => void) {
-    if (this.targets.length < 2) {
-      // The one target is the spawn's, default or not, so the spawn names it
-      // and its provider decides whether a directory runs in place.
-      this.target = this.targets[0] ?? null;
+  // Opens the target step when more than one target can run the flow's
+  // source, or none can although the daemon lists targets, and answers
+  // whether it did. The chosen target is selected, else for a repository
+  // the default when it takes a workspace and the first target that does
+  // when it does not, else the default.
+  private openTargetStep(): boolean {
+    const eligible = this.collectEligibleTargets();
 
-      fallback();
+    if (eligible.length === 1 || (this.targets.length === 0 && this.targetGap === null)) {
+      // The one target that can run the source is the spawn's, default or
+      // not, so the spawn names it and its provider decides whether a
+      // directory runs in place. A daemon that lists no targets runs the
+      // spawn on its default.
+      this.target = eligible[0] ?? null;
 
-      return;
+      return false;
     }
 
     const preferred =
@@ -1629,6 +1691,15 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.input = '';
     this.step = 'target';
+
+    return true;
+  }
+
+  // The targets the flow's source can run on.
+  private collectEligibleTargets(): TargetPick[] {
+    const git = this.isGitFlow();
+
+    return this.targets.filter((t) => findTargetRefusal(t, git) === null);
   }
 
   // Reads the daemon's targets and sources once the agent is chosen, and
@@ -1637,6 +1708,10 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private async openFirstSource() {
     const generation = this.generation;
     let listed: Readonly<Record<string, unknown>> = {};
+
+    this.sourcesPending = true;
+
+    this.render();
 
     try {
       listed = await this.deps.sendRequest('agents.list');
@@ -1649,12 +1724,20 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     // An agent that takes its credential from impd's broker runs only on a
     // target that reaches the broker.
     const brokered = isBrokerAgent(listed['agents'], this.agent);
-    const picks = collectTargetPicks(listed).filter((t) => !brokered || t.brokerAuth);
+    const listedTargets = collectTargetPicks(listed);
+    const picks = listedTargets.filter((t) => !brokered || t.brokerAuth);
 
     // An adopt resumes a session from its history on this host, which a
     // fresh checkout elsewhere does not hold, so it is offered only the
     // targets that run here.
     this.targets = this.resume ? picks.filter((t) => t.available && t.inPlace) : picks;
+    this.targetGap = null;
+
+    if (listedTargets.length > 0 && picks.length === 0) {
+      this.targetGap = `no target reaches the credential broker ${this.agent} needs`;
+    } else if (listedTargets.length > 0 && this.targets.length === 0) {
+      this.targetGap = 'no target on this host can adopt a session';
+    }
 
     const announced = parseAnnouncedSources(listed['sources']);
     const index = this.resume ? announced.findIndex((source) => source.kind === 'path') : 0;

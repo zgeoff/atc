@@ -1708,7 +1708,11 @@ test('it keeps the target step open on a target the directory cannot run on', as
     configPath,
     JSON.stringify({
       ...(isRecord(config) ? config : {}),
-      targets: { local: { provider: 'local-pty' }, far: { provider: 'nowhere' } },
+      targets: {
+        local: { provider: 'local-pty' },
+        alt: { provider: 'local-pty', tag: 'alt' },
+        far: { provider: 'nowhere' },
+      },
       defaultTarget: 'local',
     }),
   );
@@ -1728,6 +1732,11 @@ test('it keeps the target step open on a target the directory cannot run on', as
   pty.write('\r');
 
   await ctx.waitFor('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B[B');
+
+  await ctx.waitFor('\u001B[7malt  local-pty');
 
   ctx.reset();
   pty.write('\u001B[B');
@@ -2274,7 +2283,11 @@ test('it opens github mode on a target that takes a workspace when the default c
     configPath,
     JSON.stringify({
       ...(isRecord(config) ? config : {}),
-      targets: { local: { provider: 'local-pty' }, far: { provider: 'nowhere' } },
+      targets: {
+        local: { provider: 'local-pty' },
+        alt: { provider: 'local-pty', tag: 'alt' },
+        far: { provider: 'nowhere' },
+      },
       defaultTarget: 'far',
     }),
   );
@@ -2339,6 +2352,39 @@ test('it opens github mode on a target that takes a workspace when the default c
 
   await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
 }, 30_000);
+
+test('it opens github mode on the one target that takes a workspace without a target step, and esc returns to the agent', async () => {
+  await using ctx = setupTest();
+
+  writeFakeGH(ctx.home);
+
+  const configPath = join(ctx.home, '.config', 'atc', 'config.json');
+  const config: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...(isRecord(config) ? config : {}),
+      targets: { local: { provider: 'local-pty' }, far: { provider: 'nowhere' } },
+      defaultTarget: 'far',
+    }),
+  );
+
+  const pty = ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx, pty);
+
+  await ctx.waitFor('gh is not signed in on the daemon host');
+
+  expect(ctx.read()).not.toInclude('spawn: target');
+
+  ctx.reset();
+  pty.write('\u001B');
+
+  await ctx.waitFor('spawn: agent');
+}, 15_000);
 
 test("it builds each target's own default destination when the target changes", async () => {
   await using ctx = setupTest();

@@ -37,11 +37,16 @@ const LEADER = Buffer.from([0x1d]);
  * A spawn picker whose daemon answers only when a test says so. Every
  * request it sends waits in `sent` until the test resolves it, the screen
  * writes collect in `screen`, and each draw counts in `renders`. The config holds
- * Claude, at the running Bun, as the one installed agent.
+ * Claude, at the running Bun, as the one installed agent, whatever the host
+ * machine has on its PATH.
  */
 function setupTest() {
   mkdirSync(dirname(configFile), { recursive: true });
-  writeFileSync(configFile, JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok' }));
+
+  writeFileSync(
+    configFile,
+    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+  );
 
   const screen: string[] = [];
 
@@ -113,6 +118,15 @@ function setupTest() {
 test('it drops the target and source answer that arrives after esc leaves the agent step', async () => {
   const ctx = setupTest();
 
+  writeFileSync(
+    configFile,
+    JSON.stringify({
+      claudeBin: process.execPath,
+      grokBin: process.execPath,
+      codexBin: 'no-codex',
+    }),
+  );
+
   ctx.picker.open();
 
   await ctx.applyKeys(ENTER, ESC);
@@ -131,7 +145,6 @@ test('it drops the directory history that arrives after esc leaves a daemon with
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL] });
   await ctx.applyKeys(ESC);
 
@@ -148,7 +161,6 @@ test('it drops a git listing that arrives after the leader leaves the flow', asy
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL], sources: [GIT_SOURCE] });
   await ctx.applyKeys(LEADER);
 
@@ -169,7 +181,6 @@ test('it drops a directory listing that arrives after the leader leaves the flow
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL], sources: [DIR_SOURCE] });
   await ctx.applyKeys(LEADER);
 
@@ -190,7 +201,6 @@ test('it drops a reading that arrives after the leader leaves the flow', async (
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL], sources: [GIT_SOURCE] });
   await ctx.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
   await ctx.applyKeys(Buffer.from('acme/'), ENTER, LEADER);
@@ -209,7 +219,6 @@ test('it drops a probe answer that arrives after esc cancels it and the leader l
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL], sources: [GIT_SOURCE] });
   await ctx.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
   await ctx.applyKeys(Buffer.from('https://example.com/app.git'), ENTER, ESC, LEADER);
@@ -232,7 +241,6 @@ test('it neither attaches nor draws a spawn that answers after esc stops waiting
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL], sources: [DIR_SOURCE] });
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(ENTER, ENTER, ENTER, ESC);
@@ -251,7 +259,6 @@ test('it materializes a directory on the one target when that target is remote',
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(ENTER, ENTER, ENTER);
@@ -266,7 +273,6 @@ test('it holds a session whose workspace left changes behind until enter attache
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(ENTER, ENTER, ENTER);
@@ -292,7 +298,6 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(ENTER, ENTER, ENTER);
@@ -318,7 +323,6 @@ test('it leaves a session whose workspace left changes behind running when esc r
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(ENTER, ENTER, ENTER);
@@ -342,7 +346,6 @@ test('it attaches a session spawned without warnings at once', async () => {
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(ENTER, ENTER, ENTER);
@@ -356,7 +359,6 @@ test('it runs a directory in place on the one target when that target is local',
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL], sources: [DIR_SOURCE] });
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(ENTER, ENTER, ENTER);
@@ -372,7 +374,6 @@ test('it adopts in place on the one local target it offers', async () => {
 
   ctx.picker.open(true);
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [BOX, LOCAL], sources: [DIR_SOURCE] });
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(ENTER, ENTER);
@@ -387,8 +388,6 @@ test('it offers an agent that takes the broker credential only the targets that 
   const ctx = setupTest();
 
   ctx.picker.open();
-
-  await ctx.applyKeys(ENTER);
 
   await ctx.answer('agents.list', {
     agents: [{ id: 'claude', brokerAuth: true }],
@@ -407,8 +406,6 @@ test('it offers an agent that takes no broker credential every target', async ()
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
-
   await ctx.answer('agents.list', {
     agents: [{ id: 'claude', brokerAuth: false }],
     targets: [LOCAL, { ...BOX, brokerAuth: true }],
@@ -426,7 +423,6 @@ test('it lists a scope read from typed text once, on the target chosen after it'
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL, BOX], sources: [DIR_SOURCE, GIT_SOURCE] });
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(Buffer.from('acme/'), ENTER);
@@ -444,7 +440,6 @@ test('it starts a new flow on the default target, not the one the last flow chos
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL, BOX], sources: [DIR_SOURCE] });
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(ENTER, DOWN, ENTER, ENTER, ENTER);
@@ -452,7 +447,6 @@ test('it starts a new flow on the default target, not the one the last flow chos
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL, BOX], sources: [DIR_SOURCE] });
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(ENTER, ENTER, ENTER, ENTER);
@@ -466,11 +460,356 @@ test('it lists a git source again when the flow left it before its listing answe
 
   ctx.picker.open();
 
-  await ctx.applyKeys(ENTER);
   await ctx.answer('agents.list', { targets: [LOCAL], sources: [GIT_SOURCE, DIR_SOURCE] });
   await ctx.applyKeys(tab);
   await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
   await ctx.applyKeys(tab);
 
   expect(ctx.collectSent('sources.list').filter((p) => p['source'] === 'fake')).toHaveLength(2);
+});
+
+test('it reads the targets and sources at once when one agent is installed', () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  expect(ctx.collectSent('agents.list')).toStrictEqual([{}]);
+});
+
+test('it waits on the agent choice when more than one agent is installed', () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    configFile,
+    JSON.stringify({
+      claudeBin: process.execPath,
+      grokBin: process.execPath,
+      codexBin: 'no-codex',
+    }),
+  );
+
+  ctx.picker.open();
+
+  expect(ctx.collectSent('agents.list')).toStrictEqual([]);
+});
+
+test('it shows how to install an agent when none is installed', () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    configFile,
+    JSON.stringify({ claudeBin: 'no-claude', grokBin: 'no-grok', codexBin: 'no-codex' }),
+  );
+
+  ctx.picker.open();
+
+  expect(ctx.screen.join('')).toInclude('no agent CLI found');
+  expect(ctx.collectSent('agents.list')).toStrictEqual([]);
+});
+
+test('it reads the targets and sources once when enter repeats on the agent step', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    configFile,
+    JSON.stringify({
+      claudeBin: process.execPath,
+      grokBin: process.execPath,
+      codexBin: 'no-codex',
+    }),
+  );
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER, DOWN, ENTER);
+
+  expect(ctx.collectSent('agents.list')).toHaveLength(1);
+});
+
+test('it returns esc from the directory step to the agent step when more than one agent is installed', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    configFile,
+    JSON.stringify({
+      claudeBin: process.execPath,
+      grokBin: process.execPath,
+      codexBin: 'no-codex',
+    }),
+  );
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [LOCAL], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  ctx.screen.length = 0;
+
+  await ctx.applyKeys(ESC);
+
+  expect(ctx.screen.join('')).toInclude('spawn: agent');
+  expect(ctx.counts.exits).toBe(0);
+});
+
+test('it leaves the flow on esc from the directory step when one agent is installed', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', { targets: [LOCAL], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ESC);
+
+  expect(ctx.counts.exits).toBe(1);
+});
+
+test('it opens the name step after the directory when one agent and one target leave no choice', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', { targets: [LOCAL], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  ctx.screen.length = 0;
+
+  await ctx.applyKeys(ENTER);
+
+  const shown = ctx.screen.join('');
+
+  expect(shown).toInclude('spawn: name');
+  expect(shown).not.toInclude('spawn: target');
+});
+
+test('it returns esc from the name step to the directory step when one target left no choice', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', { targets: [LOCAL], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER);
+
+  ctx.screen.length = 0;
+
+  await ctx.applyKeys(ESC);
+
+  expect(ctx.screen.join('')).toInclude('spawn: directory on the daemon host');
+  expect(ctx.counts.exits).toBe(0);
+});
+
+test('it lists a git source for the one target without a key when one agent and one target leave no choice', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', { targets: [LOCAL], sources: [GIT_SOURCE] });
+
+  expect(ctx.collectSent('sources.list')).toStrictEqual([{ source: 'fake', target: 'local' }]);
+});
+
+test('it leaves the flow on esc from a git source when one agent and one target leave no choice', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', { targets: [LOCAL], sources: [GIT_SOURCE] });
+  await ctx.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
+  await ctx.applyKeys(ESC);
+
+  expect(ctx.counts.exits).toBe(1);
+});
+
+test('it takes the one available target for a directory when the other is unavailable', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', {
+    targets: [LOCAL, { ...BOX, available: false }],
+    sources: [DIR_SOURCE],
+  });
+
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+
+  expect(ctx.collectSent('session.spawn')).toMatchObject([{ target: 'local' }]);
+});
+
+test('it takes the one target that takes a workspace for a repository', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', {
+    targets: [{ ...LOCAL, capabilities: {} }, BOX],
+    sources: [GIT_SOURCE],
+  });
+
+  expect(ctx.collectSent('sources.list')).toStrictEqual([{ source: 'fake', target: 'box' }]);
+});
+
+test('it offers both targets for a directory when only one takes a workspace', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', {
+    targets: [{ ...LOCAL, capabilities: {} }, BOX],
+    sources: [DIR_SOURCE],
+  });
+
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  ctx.screen.length = 0;
+
+  await ctx.applyKeys(ENTER);
+
+  expect(ctx.screen.join('')).toInclude('spawn: target');
+});
+
+test('it shows why no target can run a directory when the one target is unavailable', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', {
+    targets: [{ ...BOX, available: false }],
+    sources: [DIR_SOURCE],
+  });
+
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  ctx.screen.length = 0;
+
+  await ctx.applyKeys(ENTER);
+
+  const shown = ctx.screen.join('');
+
+  expect(shown).toInclude('spawn: target');
+  expect(shown).toInclude('none of these targets can run');
+});
+
+test('it shows why no target can run a repository when none takes a workspace', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', {
+    targets: [{ ...LOCAL, capabilities: {} }],
+    sources: [GIT_SOURCE],
+  });
+
+  expect(ctx.screen.join('')).toInclude('none of these targets can run the repository');
+  expect(ctx.collectSent('sources.list')).toStrictEqual([]);
+});
+
+test('it shows why no target can run an agent whose broker no target reaches', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', {
+    agents: [{ id: 'claude', brokerAuth: true }],
+    targets: [LOCAL],
+    sources: [DIR_SOURCE],
+  });
+
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  ctx.screen.length = 0;
+
+  await ctx.applyKeys(ENTER);
+
+  expect(ctx.screen.join('')).toInclude('no target reaches the credential broker claude needs');
+  expect(ctx.collectSent('session.spawn')).toStrictEqual([]);
+});
+
+test('it shows why no target can adopt when none runs on the daemon host', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open(true);
+
+  await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  ctx.screen.length = 0;
+
+  await ctx.applyKeys(ENTER);
+
+  expect(ctx.screen.join('')).toInclude('no target on this host can adopt a session');
+  expect(ctx.collectSent('session.spawn')).toStrictEqual([]);
+});
+
+test('it returns esc from a target step with no usable target to the directory step', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', {
+    targets: [{ ...BOX, available: false }],
+    sources: [DIR_SOURCE],
+  });
+
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER);
+
+  ctx.screen.length = 0;
+
+  await ctx.applyKeys(ESC);
+
+  expect(ctx.screen.join('')).toInclude('spawn: directory on the daemon host');
+  expect(ctx.counts.exits).toBe(0);
+});
+
+test('it drops the target and source answer of a flow that was left and opened again', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ESC);
+
+  ctx.picker.open();
+
+  const renders = ctx.counts.renders;
+  const [first] = ctx.sent;
+
+  if (first === undefined) {
+    throw new Error('no agents.list request was sent');
+  }
+
+  first.resolve({ targets: [LOCAL], sources: [DIR_SOURCE] });
+
+  await Bun.sleep(10);
+
+  expect(ctx.collectSent('agents.list')).toHaveLength(2);
+  expect(ctx.collectSent('sources.list')).toStrictEqual([]);
+  expect(ctx.counts.renders).toBe(renders);
+});
+
+test('it returns esc from a git source to the agent step when one target left no choice', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    configFile,
+    JSON.stringify({
+      claudeBin: process.execPath,
+      grokBin: process.execPath,
+      codexBin: 'no-codex',
+    }),
+  );
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [LOCAL], sources: [GIT_SOURCE, DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
+
+  ctx.screen.length = 0;
+
+  await ctx.applyKeys(ESC);
+
+  expect(ctx.screen.join('')).toInclude('spawn: agent');
+  expect(ctx.counts.exits).toBe(0);
 });
