@@ -11,11 +11,13 @@ import { makeSingleFlight } from '../shared/make-single-flight';
 import { bootDaemonClient } from './boot-daemon';
 import { buildClientMachine } from './build-client-machine';
 import { buildLeaderChords } from './build-leader-chords';
+import { collectTargetPicks } from './collect-target-picks';
 import { findFuzzyScore, formatDir } from './dirs';
 import type { ProtocolMismatch } from './format-protocol-mismatch';
 import { KEY, isDown, isUp, planTextEdit } from './keys';
 import { parseDaemonEvent } from './parse-daemon-event';
 import { pickTabTarget } from './pick-tab-target';
+import { resolveAgentMetadata } from './resolve-agent-metadata';
 import { SpawnPicker } from './spawn-picker';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
@@ -40,12 +42,17 @@ let focusedID: string | null = null;
 let fleetCount = 0;
 let lastUsedAgent: AgentID = 'claude';
 
-// Read once at start, like the leader key: a newly configured backend gets
-// its overlay letter on the next client run.
-const agentMarks: Readonly<Record<AgentID, string>> = Object.fromEntries(
-  loadConfig().gateways.map((g) => [g.id, g.mark]),
-);
+// The readable harness label and tier-alias map per agent: the config alone
+// until the daemon's `agents.list` answer arrives and re-resolves them
+// whenever the overlay opens, so a backend configured after this client
+// started still lists under its name.
+const bootMetadata = resolveAgentMetadata(loadConfig(), {});
+let agentLabels: Readonly<Record<AgentID, string>> = bootMetadata.labels;
+let agentModels: Readonly<Record<AgentID, Readonly<Record<string, string>>>> = bootMetadata.models;
 
+// How many execution targets the daemon could spawn on right now; the
+// target column appears once more than one is available.
+let availableTargets = 0;
 const stdout = process.stdout;
 
 // Full height: the atc status bar only exists on home/overlay screens;
@@ -250,7 +257,9 @@ function renderOverlay() {
 
   drawOverlay({
     sessions,
-    agentMarks,
+    agentLabels,
+    agentModels,
+    showTarget: availableTargets >= 2,
     selected: overlaySelected,
     confirmKill,
     confirmDestroy: confirmDestroyID !== null,
@@ -262,11 +271,33 @@ function renderOverlay() {
   scheduleStatus();
 }
 
+// Rereads what the overlay labels rows with: each agent's readable name and
+// tier aliases, and which execution targets can take a spawn. Target
+// availability moves as remote hosts wake and sleep, so the overlay refresh
+// keeps the column honest rather than trusting the boot-time answer.
+async function refreshAgents() {
+  try {
+    const answer = await client.sendRequest('agents.list');
+
+    const meta = resolveAgentMetadata(loadConfig(), answer);
+
+    agentLabels = meta.labels;
+    agentModels = meta.models;
+    availableTargets = collectTargetPicks(answer).filter((t) => t.available).length;
+  } catch {
+    return;
+  }
+
+  if (service.getSnapshot().value === 'overlay') {
+    renderOverlay();
+  }
+}
+
 function openOverlay() {
   confirmKill = false;
   confirmDestroyID = null;
   overlayFilter = null;
-
+  void refreshAgents();
   const focusedIndex = pickOverlaySessions().findIndex((s) => s.id === focusedID);
 
   overlaySelected = Math.max(0, focusedIndex);
@@ -367,6 +398,9 @@ function upsertMirror(d: Readonly<MirrorSession>) {
     existing.resumable = d.resumable;
     existing.canEject = d.canEject;
     existing.agent = d.agent;
+    existing.target = d.target;
+    existing.model = d.model;
+    existing.harness = d.harness;
   }
 }
 
@@ -808,6 +842,7 @@ if (restartedOnBoot) {
 }
 
 await refreshMirror();
+await refreshAgents();
 
 /**
  * Asks on the terminal whether to restart a daemon that speaks another
@@ -918,8 +953,19 @@ async function restartDaemon() {
   lastUsedAgent = next.lastUsedAgent;
   client.onEvent = applyDaemonEvent;
 
+  // A new daemon may map aliases differently, so rows fall back to the
+  // config baseline until its own answer arrives; the target count goes
+  // back to none for the same reason, hiding the column until the new
+  // daemon reports what it can spawn on.
+  const baseline = resolveAgentMetadata(loadConfig(), {});
+
+  agentLabels = baseline.labels;
+  agentModels = baseline.models;
+  availableTargets = 0;
+
   await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
   await refreshMirror().catch(() => {});
+  await refreshAgents();
 
   service.send({ type: 'OVERLAY' });
 }

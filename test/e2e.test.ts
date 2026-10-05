@@ -420,7 +420,6 @@ test('it surfaces a needs-you session in the overlay and kills it on confirm', a
 
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
   await ctx.waitFor('need you: testsess');
 
   pty.write('K');
@@ -455,7 +454,7 @@ test('it clears the need state when attaching a needy session', async () => {
 
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
+  await ctx.waitFor('need you: needytest');
 
   pty.write('\r');
 
@@ -490,7 +489,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
+  await ctx.waitFor('need you: alpha');
 
   pty.write('\r'); // attach alpha so it stops being the urgent session in the status bar
 
@@ -579,7 +578,7 @@ test('it jumps to the most urgent needs-you session on tab', async () => {
 
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
+  await ctx.waitFor('need you: needy');
 
   pty.write('\r'); // attach needy, clearing its need
 
@@ -680,7 +679,7 @@ test('it pins a session from the overlay and marks its row', async () => {
 
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
+  await ctx.waitFor('need you: pinme');
 
   ctx.reset();
   pty.write('p');
@@ -701,7 +700,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
+  await ctx.waitFor('need you: first');
 
   pty.write('n');
 
@@ -795,7 +794,7 @@ test('it preselects the focused session when the overlay opens', async () => {
 
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
+  await ctx.waitFor('need you: first');
 
   pty.write('n');
 
@@ -839,7 +838,7 @@ test('it opens the key reference from the overlay and returns on esc', async () 
 
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
+  await ctx.waitFor('need you: helptest');
 
   pty.write('?');
 
@@ -1118,7 +1117,7 @@ test('it revives a killed session in place with a fresh terminal', async () => {
 
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
+  await ctx.waitFor('need you: revivable');
 
   pty.write('K');
 
@@ -1148,7 +1147,7 @@ test('it explains a revive that has no saved transcript instead of failing silen
 
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
+  await ctx.waitFor('need you: transcriptless');
 
   pty.write('K');
 
@@ -1223,10 +1222,11 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
     { name: 'groksess', cwd: ctx.home, agentSessionID: 'fake-grok-1', agent: 'grok' },
   ]);
 
+  ctx.reset();
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
-  await ctx.waitFor('\u001B[90mg\u001B[0m');
+  await ctx.waitFor('groksess');
+  await ctx.waitFor('Grok');
 }, 15_000);
 
 test('it marks a grok session done on end-turn Stop', async () => {
@@ -1305,7 +1305,7 @@ test('it keeps a grok session running when a hook names a subagent', async () =>
 
   await ctx.waitFor('running');
 
-  expect(ctx.read()).not.toInclude('NEEDS YOU');
+  expect(ctx.read()).not.toInclude('need you');
   expect(ctx.read()).not.toInclude('done');
 }, 15_000);
 
@@ -1507,7 +1507,7 @@ test('it adopts grok with --no-leader and without --resume', async () => {
   expect(captured).not.toInclude('FAKE_CLAUDE_UP');
 }, 15_000);
 
-test('it keeps NEEDS YOU when grok emits idle_prompt after permission_prompt', async () => {
+test('it keeps needs-you when grok emits idle_prompt after permission_prompt', async () => {
   await using ctx = setupTest();
 
   writeFileSync(
@@ -1534,7 +1534,7 @@ test('it keeps NEEDS YOU when grok emits idle_prompt after permission_prompt', a
 
   pty.write(CTRL_SPACE);
 
-  await ctx.waitFor('NEEDS YOU');
+  await ctx.waitFor('need you: grokidle');
 }, 15_000);
 
 test('it leaves an agent with no installed binary out of the picker', async () => {

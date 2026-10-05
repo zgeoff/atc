@@ -8,6 +8,7 @@ import { GatewayAdapter } from '../agents/gateway-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
+import { isRecord } from '../shared/report';
 import { buildTargetIdentity } from './build-target-identity';
 import { startDaemon } from './daemon';
 
@@ -359,4 +360,45 @@ test('it refuses a model that is not a string', async () => {
     code: 'bad_args',
     message: 'session.spawn model must be a string',
   });
+});
+
+test('it lists a spawned session with the model it was spawned with', async () => {
+  await using daemon = await setupTest();
+
+  const ok = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'zai',
+    model: 'opus',
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(ok['session']).toMatchObject({ agent: 'zai', model: 'opus' });
+
+  const list = await daemon.client.sendRequest('session.list');
+
+  expect(list).toMatchObject({ sessions: [{ agent: 'zai', model: 'opus' }] });
+});
+
+test('it lists a spawned session without a model key when it runs the default', async () => {
+  await using daemon = await setupTest();
+
+  await daemon.client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+
+  const list = await daemon.client.sendRequest('session.list');
+
+  const sessions = list['sessions'];
+
+  if (!Array.isArray(sessions)) {
+    throw new TypeError('sessions is not an array');
+  }
+
+  expect(sessions).toBeArrayOfSize(1);
+  expect(sessions[0]).toBeObject();
+
+  if (!isRecord(sessions[0])) {
+    throw new TypeError('session is not a record');
+  }
+
+  expect(Object.keys(sessions[0])).not.toInclude('model');
 });
