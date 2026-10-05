@@ -22,7 +22,7 @@ import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
-async function setupTest() {
+async function setupTest(targetTrust?: boolean) {
   const tmp = setupTempDir('atc-workspace-trust-');
   const guestDir = join(tmp.dir, 'guest');
   const marker = join(tmp.dir, 'started');
@@ -114,11 +114,17 @@ async function setupTest() {
     statusPath: join(tmp.dir, 'status.json'),
     gitTransports: ['file'],
     targets: [
-      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
+      {
+        id: 'box',
+        kind: 'imp',
+        options: targetTrust === undefined ? {} : { trustClonedWorkspace: targetTrust },
+        identity: 'imp:test',
+        provider,
+      },
       {
         id: 'local',
         kind: 'local-pty',
-        options: {},
+        options: targetTrust === undefined ? {} : { trustClonedWorkspace: targetTrust },
         identity: 'local:test',
         provider: new LocalPTYProvider(),
       },
@@ -243,44 +249,54 @@ test('it refuses trust for an existing folder before touching the imp', async ()
   expect(daemon.port.calls).toStrictEqual([]);
 });
 
-test('it does not seed trust before clone verification or launch after a mismatch', async () => {
-  await using daemon = await setupTest();
+test.each([
+  [undefined, true],
+  [true, undefined],
+] as const)(
+  'it does not seed trust before clone verification or launch after a mismatch with target %s and launch %s',
+  async (targetTrust, launchTrust) => {
+    await using daemon = await setupTest(targetTrust);
 
-  const hold = daemon.port.startCommandHold('rev-parse');
-  const root = join(daemon.dir, 'clone');
+    const hold = daemon.port.startCommandHold('rev-parse');
+    const root = join(daemon.dir, 'clone');
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    trustClonedWorkspace: true,
-    cwd: root,
-    agent: 'glm',
-    target: 'box',
-    workspace: { kind: 'path', path: daemon.work },
-  });
+    const spawn = daemon.client.sendRequest('session.spawn', {
+      ...(launchTrust === undefined ? {} : { trustClonedWorkspace: launchTrust }),
+      cwd: root,
+      agent: 'glm',
+      target: 'box',
+      workspace: { kind: 'path', path: daemon.work },
+    });
 
-  await hold.entered;
+    await hold.entered;
 
-  const [id] = readdirSync(join(daemon.guestDir, 'sessions'));
+    const [id] = readdirSync(join(daemon.guestDir, 'sessions'));
 
-  if (id === undefined) {
-    throw new Error('expected prepared guest');
-  }
+    if (id === undefined) {
+      throw new Error('expected prepared guest');
+    }
 
-  const seed: unknown = JSON.parse(
-    readFileSync(join(daemon.guestDir, 'sessions', id, 'claude-config-seed.json'), 'utf8'),
-  );
+    const seed: unknown = JSON.parse(
+      readFileSync(join(daemon.guestDir, 'sessions', id, 'claude-config-seed.json'), 'utf8'),
+    );
 
-  writeFileSync(join(root, 'README.md'), 'changed\n');
+    writeFileSync(join(root, 'README.md'), 'changed\n');
 
-  hold.stop();
+    hold.stop();
 
-  expect(seed).toStrictEqual({ hasCompletedOnboarding: true });
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch', data: { phase: 'verifying' } });
+    expect(seed).toStrictEqual({ hasCompletedOnboarding: true });
 
-  await spawn.catch(() => null);
+    expect(spawn).rejects.toMatchObject({
+      code: 'workspace_mismatch',
+      data: { phase: 'verifying' },
+    });
 
-  expect(daemon.port.sessionRequests).toStrictEqual([]);
-  expect(existsSync(daemon.marker)).toBeFalse();
-});
+    await spawn.catch(() => null);
+
+    expect(daemon.port.sessionRequests).toStrictEqual([]);
+    expect(existsSync(daemon.marker)).toBeFalse();
+  },
+);
 
 test.each(['box', 'local'])(
   'it refuses clone trust for stock Claude on %s before preparing a host',
@@ -307,38 +323,222 @@ test.each(['box', 'local'])(
   },
 );
 
-test('it preserves an existing guest config byte for byte during an opted-in clone launch', async () => {
-  await using daemon = await setupTest();
+test.each([
+  [undefined, true],
+  [true, undefined],
+] as const)(
+  'it preserves an existing guest config byte for byte during an opted-in clone launch with target %s and launch %s',
+  async (targetTrust, launchTrust) => {
+    await using daemon = await setupTest(targetTrust);
 
-  const hold = daemon.port.startCommandHold('rev-parse');
+    const hold = daemon.port.startCommandHold('rev-parse');
 
-  const existing =
-    '{"hasCompletedOnboarding":true,"projects":{"/previous":{"hasTrustDialogAccepted":false}},"custom":"preserve"}\n';
+    const existing =
+      '{"hasCompletedOnboarding":true,"projects":{"/previous":{"hasTrustDialogAccepted":false}},"custom":"preserve"}\n';
+
+    const spawn = daemon.client.sendRequest('session.spawn', {
+      cwd: join(daemon.dir, 'clone'),
+      agent: 'glm',
+      target: 'box',
+      workspace: { kind: 'path', path: daemon.work },
+      ...(launchTrust === undefined ? {} : { trustClonedWorkspace: launchTrust }),
+    });
+
+    await hold.entered;
+
+    const [id] = readdirSync(join(daemon.guestDir, 'sessions'));
+
+    if (id === undefined) {
+      throw new Error('expected prepared guest');
+    }
+
+    const configDir = join(daemon.guestDir, 'sessions', id, 'claude-config');
+
+    mkdirSync(configDir);
+    writeFileSync(join(configDir, '.claude.json'), existing);
+
+    hold.stop();
+
+    await spawn;
+
+    await waitFor(() => {
+      expect(existsSync(daemon.marker)).toBeTrue();
+
+      return true;
+    });
+
+    expect(readFileSync(join(configDir, '.claude.json'), 'utf8')).toBe(existing);
+  },
+);
+
+test.each([
+  [undefined, true],
+  [true, undefined],
+] as const)(
+  'it removes a child clone after trust-seed transfer fails and permits a keyed retry with target %s and launch %s',
+  async (targetTrust, launchTrust) => {
+    await using daemon = await setupTest(targetTrust);
+
+    const parent = await daemon.client.sendRequest('session.spawn', {
+      cwd: daemon.work,
+      agent: 'glm',
+      target: 'box',
+      trustClonedWorkspace: false,
+    });
+
+    const parentID = String(getRecord(parent, 'session')['id']);
+    const root = join(daemon.dir, 'child');
+    const hold = daemon.port.startCommandHold('rev-parse');
+
+    const request = {
+      cwd: root,
+      agent: 'glm',
+      target: 'box',
+      parent: parentID,
+      workspace: { kind: 'path', path: daemon.work },
+      ...(launchTrust === undefined ? {} : { trustClonedWorkspace: launchTrust }),
+      idempotencyKey: 'trust-transfer-retry',
+    };
+
+    const spawn = daemon.client.sendRequest('session.spawn', request);
+
+    await hold.entered;
+
+    const id = readdirSync(join(daemon.guestDir, 'sessions')).find(
+      (candidate) => candidate !== parentID,
+    );
+
+    if (id === undefined) {
+      throw new Error('expected child guest');
+    }
+
+    const dir = join(daemon.guestDir, 'sessions', id);
+
+    renameSync(dir, `${dir}-saved`);
+    writeFileSync(dir, 'blocks seed transfer');
+
+    hold.stop();
+
+    expect(spawn).rejects.toThrow();
+
+    await spawn.catch(() => null);
+
+    expect(existsSync(root)).toBeFalse();
+
+    const retried = await daemon.client.sendRequest('session.spawn', request);
+
+    expect(getRecord(retried, 'session')).toMatchObject({ alive: true, parent: parentID });
+
+    const parentState = await daemon.client.sendRequest('session.get', { session: parentID });
+
+    expect(getRecord(parentState, 'session')).toMatchObject({ alive: true });
+  },
+);
+
+test.each([
+  [undefined, undefined, '{"hasCompletedOnboarding":true}'],
+  [false, undefined, '{"hasCompletedOnboarding":true}'],
+  [
+    true,
+    undefined,
+    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true}}}',
+  ],
+  [undefined, false, '{"hasCompletedOnboarding":true}'],
+  [false, false, '{"hasCompletedOnboarding":true}'],
+  [true, false, '{"hasCompletedOnboarding":true}'],
+  [
+    undefined,
+    true,
+    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true}}}',
+  ],
+  [
+    false,
+    true,
+    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true}}}',
+  ],
+  [
+    true,
+    true,
+    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true}}}',
+  ],
+] as const)(
+  'it resolves target trust %s and launch override %s to the expected config',
+  async (targetTrust, launchTrust, expectedJSON) => {
+    await using daemon = await setupTest(targetTrust);
+
+    const root = join(daemon.dir, 'clone');
+
+    const spawned = await daemon.client.sendRequest('session.spawn', {
+      cwd: root,
+      agent: 'glm',
+      target: 'box',
+      workspace: { kind: 'path', path: daemon.work },
+      ...(launchTrust === undefined ? {} : { trustClonedWorkspace: launchTrust }),
+    });
+
+    await waitFor(() => {
+      expect(existsSync(daemon.marker)).toBeTrue();
+
+      return true;
+    });
+
+    const id = String(getRecord(spawned, 'session')['id']);
+
+    const config: unknown = JSON.parse(
+      readFileSync(join(daemon.guestDir, 'sessions', id, 'claude-config', '.claude.json'), 'utf8'),
+    );
+
+    const expected: unknown = JSON.parse(expectedJSON.replace('ROOT', root));
+
+    expect(config).toStrictEqual(expected);
+  },
+);
+
+test('it refuses an inherited trust default without a clone before touching the imp', async () => {
+  await using daemon = await setupTest(true);
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'clone'),
+    cwd: daemon.work,
     agent: 'glm',
     target: 'box',
-    workspace: { kind: 'path', path: daemon.work },
-    trustClonedWorkspace: true,
   });
 
-  await hold.entered;
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
 
-  const [id] = readdirSync(join(daemon.guestDir, 'sessions'));
+  await spawn.catch(() => null);
 
-  if (id === undefined) {
-    throw new Error('expected prepared guest');
-  }
+  expect(daemon.port.calls).toStrictEqual([]);
+});
 
-  const configDir = join(daemon.guestDir, 'sessions', id, 'claude-config');
+test.each(['box', 'local'])(
+  'it refuses inherited clone trust for stock Claude on %s',
+  async (target) => {
+    await using daemon = await setupTest(true);
 
-  mkdirSync(configDir);
-  writeFileSync(join(configDir, '.claude.json'), existing);
+    const spawn = daemon.client.sendRequest('session.spawn', {
+      cwd: join(daemon.dir, 'clone'),
+      agent: 'claude',
+      target,
+      workspace: { kind: 'path', path: daemon.work },
+    });
 
-  hold.stop();
+    expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
 
-  await spawn;
+    await spawn.catch(() => null);
+
+    expect(daemon.port.calls).toStrictEqual([]);
+  },
+);
+
+test('it permits an ordinary folder launch when false overrides inherited trust', async () => {
+  await using daemon = await setupTest(true);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+    trustClonedWorkspace: false,
+  });
 
   await waitFor(() => {
     expect(existsSync(daemon.marker)).toBeTrue();
@@ -346,62 +546,11 @@ test('it preserves an existing guest config byte for byte during an opted-in clo
     return true;
   });
 
-  expect(readFileSync(join(configDir, '.claude.json'), 'utf8')).toBe(existing);
-});
+  const id = String(getRecord(spawned, 'session')['id']);
 
-test('it removes a child clone after trust-seed transfer fails and permits a keyed retry', async () => {
-  await using daemon = await setupTest();
-
-  const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.work,
-    agent: 'glm',
-    target: 'box',
-  });
-
-  const parentID = String(getRecord(parent, 'session')['id']);
-  const root = join(daemon.dir, 'child');
-  const hold = daemon.port.startCommandHold('rev-parse');
-
-  const request = {
-    cwd: root,
-    agent: 'glm',
-    target: 'box',
-    parent: parentID,
-    workspace: { kind: 'path', path: daemon.work },
-    trustClonedWorkspace: true,
-    idempotencyKey: 'trust-transfer-retry',
-  };
-
-  const spawn = daemon.client.sendRequest('session.spawn', request);
-
-  await hold.entered;
-
-  const id = readdirSync(join(daemon.guestDir, 'sessions')).find(
-    (candidate) => candidate !== parentID,
+  const config: unknown = JSON.parse(
+    readFileSync(join(daemon.guestDir, 'sessions', id, 'claude-config', '.claude.json'), 'utf8'),
   );
 
-  if (id === undefined) {
-    throw new Error('expected child guest');
-  }
-
-  const dir = join(daemon.guestDir, 'sessions', id);
-
-  renameSync(dir, `${dir}-saved`);
-  writeFileSync(dir, 'blocks seed transfer');
-
-  hold.stop();
-
-  expect(spawn).rejects.toThrow();
-
-  await spawn.catch(() => null);
-
-  expect(existsSync(root)).toBeFalse();
-
-  const retried = await daemon.client.sendRequest('session.spawn', request);
-
-  expect(getRecord(retried, 'session')).toMatchObject({ alive: true, parent: parentID });
-
-  const parentState = await daemon.client.sendRequest('session.get', { session: parentID });
-
-  expect(getRecord(parentState, 'session')).toMatchObject({ alive: true });
+  expect(config).toStrictEqual({ hasCompletedOnboarding: true });
 });

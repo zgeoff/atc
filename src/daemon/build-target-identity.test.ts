@@ -22,3 +22,14 @@ test('it builds another identity for other options under the same provider kind'
     buildTargetIdentity('imp', { image: 'ci' }),
   );
 });
+
+test.each([undefined, false])(
+  'it changes target identity when clone trust changes from %s to true',
+  (previous) => {
+    const options = previous === undefined ? {} : { trustClonedWorkspace: previous };
+
+    expect(buildTargetIdentity('imp', { trustClonedWorkspace: true })).not.toBe(
+      buildTargetIdentity('imp', options),
+    );
+  },
+);

@@ -893,6 +893,10 @@ export class SessionManager {
     const execution = this.requireExecution({ target, targetIdentity: null }, 'spawn');
     const provider = execution.provider;
 
+    const trustClonedWorkspace =
+      overrides.trustClonedWorkspace ??
+      this.targets.get(target)?.options['trustClonedWorkspace'] === true;
+
     // The repository root resolves before the process starts: resolving it
     // can throw, and a spawn that throws must leave nothing running. A
     // remote directory is not on the daemon's machine, so it is its own root.
@@ -900,7 +904,7 @@ export class SessionManager {
     const hostKey = this.pickHostKey(id, parent, target, execution.identity);
     const auth = this.resolveHarnessAuth(adapter, provider, target);
 
-    if (overrides.trustClonedWorkspace === true) {
+    if (trustClonedWorkspace) {
       if (materialize === null) {
         throw new DaemonError('bad_args', 'trustClonedWorkspace requires a workspace source');
       }
@@ -956,24 +960,23 @@ export class SessionManager {
         authSetup,
       );
 
-    const trustWorkspace =
-      overrides.trustClonedWorkspace === true
-        ? async (root: string) => {
-            const planned = adapter.planGuestWorkspaceTrust?.(root);
+    const trustWorkspace = trustClonedWorkspace
+      ? async (root: string) => {
+          const planned = adapter.planGuestWorkspaceTrust?.(root);
 
-            if (planned === undefined || planned === null || provider.guest === undefined) {
-              throw new DaemonError('unsupported', 'this adapter cannot trust a cloned workspace');
-            }
-
-            const files = Object.entries(planned).map(([path, content]) => ({ path, content }));
-
-            await provider.transferArchive(
-              buildTarArchive(files),
-              `${provider.guest.dir}/sessions/${id}`,
-              hostKey,
-            );
+          if (planned === undefined || planned === null || provider.guest === undefined) {
+            throw new DaemonError('unsupported', 'this adapter cannot trust a cloned workspace');
           }
-        : null;
+
+          const files = Object.entries(planned).map(([path, content]) => ({ path, content }));
+
+          await provider.transferArchive(
+            buildTarArchive(files),
+            `${provider.guest.dir}/sessions/${id}`,
+            hostKey,
+          );
+        }
+      : null;
 
     // The host stays readying until its workspace is in place, so nothing
     // gives its lease back or puts it to sleep in between.

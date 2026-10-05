@@ -136,3 +136,38 @@ test('it leaves no default for a defaultTarget other than local without a target
     ],
   });
 });
+
+test.each([true, false])(
+  'it preserves the explicit target clone trust default %s',
+  (trustClonedWorkspace) => {
+    expect(collectTargets({ box: { provider: 'imp', trustClonedWorkspace } }, 'box')).toStrictEqual(
+      {
+        targets: [{ id: 'box', provider: 'imp', options: { trustClonedWorkspace } }],
+        defaultTarget: 'box',
+        errors: [],
+      },
+    );
+  },
+);
+
+test.each(['true', 1, null, {}])(
+  'it rejects non-boolean target clone trust %s',
+  (trustClonedWorkspace) => {
+    expect(
+      collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'imp', trustClonedWorkspace } },
+        undefined,
+      ),
+    ).toStrictEqual({
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+      defaultTarget: 'local',
+      errors: [
+        {
+          scope: 'target',
+          target: 'box',
+          problem: 'target "box" must give trustClonedWorkspace as a boolean',
+        },
+      ],
+    });
+  },
+);
