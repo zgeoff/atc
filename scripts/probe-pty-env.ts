@@ -311,9 +311,17 @@ async function readBunSpawnEnv(
     stderr: 'inherit',
   });
 
-  const [stdout] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+  const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
 
-  return parseEnvOutput(stdout);
+  if (exitCode !== 0) {
+    throw new Error(`the Bun.spawn child exited ${exitCode}`);
+  }
+
+  const env = parseEnvOutput(stdout);
+
+  assertSameKeys(env, map, 'Bun.spawn');
+
+  return env;
 }
 
 async function readChildProcessEnv(
@@ -335,12 +343,20 @@ async function readChildProcessEnv(
   await new Promise<void>((resolve, reject) => {
     child.on('error', reject);
 
-    child.on('close', () => {
-      resolve();
+    child.on('close', (code, signal) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`the child_process child exited ${code ?? signal}`));
+      }
     });
   });
 
-  return parseEnvOutput(stdout);
+  const env = parseEnvOutput(stdout);
+
+  assertSameKeys(env, map, 'child_process');
+
+  return env;
 }
 
 function parseEnvOutput(output: string): Record<string, string> {
@@ -357,8 +373,8 @@ function parseEnvOutput(output: string): Record<string, string> {
   return env;
 }
 
-// Every key the map holds must reach the child, so a short read of the PTY
-// output fails the probe instead of passing as a missing key.
+// Every key the map holds must reach the child, so a short or empty read of
+// a child's output fails the probe instead of passing as a missing key.
 function assertSameKeys(
   env: Readonly<Record<string, string>>,
   map: Readonly<Record<string, string>>,
