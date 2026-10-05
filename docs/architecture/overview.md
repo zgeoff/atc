@@ -77,7 +77,13 @@ never comes back as Claude.
 `n` and `r` open an agent picker first. The picker resolves each agent's configured binary as it
 opens and lists only the ones that resolve, so every row is a session that can start — an
 uninstalled agent would otherwise show up three steps later as a PTY that dies on exec. A menu with
-no rows at all carries the config keys to set.
+no rows at all carries the config keys to set. A menu with one row is no choice, so the flow takes
+that agent without showing the picker; Esc from the step that follows leaves the flow.
+
+The target step follows the same rule. It counts only the targets that can run the chosen source: a
+repository needs a target that takes a workspace, and a directory also runs on an available local
+target. One such target is taken without a picker. When the daemon lists targets but none can run
+the source, the step opens with the reason in place of the hint.
 
 The picker's opening selection is the last-used agent, advertised on `daemon.hello` and written on
 the SessionStart of a deliberate spawn. A fleet restore does not stamp it, and MCP spawn ignores it
