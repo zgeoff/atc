@@ -113,7 +113,9 @@ lines a minute.
 
 The listener's writes to stderr never block the daemon. Up to 64 KiB of lines wait while stderr
 takes no more; past that a line is dropped, and once stderr takes lines again, an
-`atc log dropped=N` line holds how many were lost.
+`atc log dropped=N` line holds how many were lost. A stopping daemon waits up to one second for
+stderr to take the lines still waiting, then exits, so stderr that nobody reads delays the exit by
+no more than that second and loses the lines it never took.
 
 `atc daemon id` prints the running daemon's `daemonID` over the owner's unix socket, for a client
 that pins the daemon's identity. It exits with status 1 when no daemon answers.
