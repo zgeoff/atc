@@ -945,6 +945,120 @@ test('it refuses to materialize into a directory that already exists and leaves 
   expect(readdirSync(dest)).toStrictEqual(['mine.txt']);
 });
 
+test('it removes the checkout it created and keeps the files beside it when its harness fails to start, so a retry into the same directory spawns', async () => {
+  await using ctx = await setupTest();
+
+  const host = new FixtureDirProvider();
+
+  const refusals = [new DaemonError('host_unavailable', 'the harness could not start')];
+
+  // A provider whose first harness start throws, as a refused launch does.
+  const box: ExecutionProvider = {
+    kind: host.kind,
+    remote: host.remote,
+    capabilities: host.capabilities,
+    prepareHost: host.prepareHost,
+    spawnHarness: (spec) => {
+      const refusal = refusals.shift();
+
+      if (refusal !== undefined) {
+        throw refusal;
+      }
+
+      return host.spawnHarness(spec);
+    },
+    transferArchive: host.transferArchive,
+    runCommand: host.runCommand,
+    suspendHost: host.suspendHost,
+    destroyHost: host.destroyHost,
+    dispose: host.dispose,
+  };
+
+  const booted = await ctx.boot(box);
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  mkdirSync(join(ctx.dir, 'box'));
+  writeFileSync(join(ctx.dir, 'box', 'beside.txt'), 'kept\n');
+
+  const params = { cwd: dest, target: 'box', workspace: { kind: 'path', path: ctx.work } };
+  const spawn = booted.client.sendRequest('session.spawn', params);
+
+  expect(spawn).rejects.toMatchObject({ code: 'host_unavailable' });
+
+  await spawn.catch(() => null);
+
+  const left = readdirSync(join(ctx.dir, 'box'));
+
+  const retried = await booted.client.sendRequest('session.spawn', params);
+
+  expect<Record<string, unknown>>({
+    left,
+    beside: readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8'),
+    readme: readFileSync(join(dest, 'README.md'), 'utf8'),
+    alive: getRecord(retried, 'session')['alive'],
+  }).toStrictEqual({
+    left: ['beside.txt'],
+    beside: 'kept\n',
+    readme: 'hello\n',
+    alive: true,
+  });
+});
+
+test.each([
+  ['the same target', 'box'],
+  ['another target on the same machine', 'local'],
+] as const)(
+  'it keeps a checkout that a session on %s runs inside when its spawn fails on a target without hosts',
+  async (_where, insideTarget) => {
+    await using ctx = await setupTest();
+
+    const transferred = Promise.withResolvers<void>();
+    const released = Promise.withResolvers<void>();
+
+    const box = new FixtureDirProvider({
+      afterTransfer: async (dir) => {
+        unlinkSync(join(dir, 'README.md'));
+
+        transferred.resolve();
+
+        await released.promise;
+      },
+    });
+
+    const booted = await ctx.boot(box);
+
+    const dest = join(ctx.dir, 'box', 'ws');
+
+    const spawn = booted.client.sendRequest('session.spawn', {
+      cwd: dest,
+      target: 'box',
+      workspace: { kind: 'path', path: ctx.work },
+    });
+
+    await transferred.promise;
+
+    mkdirSync(join(dest, 'inner'));
+    writeFileSync(join(dest, 'inner', 'mine.txt'), 'kept\n');
+
+    const inside = await booted.client.sendRequest('session.spawn', {
+      cwd: join(dest, 'inner'),
+      target: insideTarget,
+    });
+
+    released.resolve();
+
+    expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch', data: { leftDir: dest } });
+
+    await spawn.catch(() => null);
+
+    expect<Record<string, unknown>>({
+      kept: readFileSync(join(dest, 'inner', 'mine.txt'), 'utf8'),
+      alive: getRecord(inside, 'session')['alive'],
+    }).toStrictEqual({ kept: 'kept\n', alive: true });
+  },
+);
+
 test('it refuses a workspace spawn whose cwd is relative before anything runs', async () => {
   await using ctx = await setupTest();
 

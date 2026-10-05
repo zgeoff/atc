@@ -274,7 +274,11 @@ starts, and runs on the session's host. Materialization starts only after every 
 has passed, its runtime auth checks included. The daemon resolves the source first, then readies the
 host the workspace lands on: the session's own host, or its parent's when the two share one. A
 materialization that fails once the host is ready takes back a host of the session's own, with the
-imp and binding its spawn provisioned, and leaves a parent's host running.
+imp and binding its spawn provisioned, and leaves a parent's host running. A spawn whose harness
+fails to start once its workspace is ready, before or after its session lists, takes back the same:
+it destroys a host of its own, and on a host that stays, a parent's or the daemon's own machine, it
+removes only the directory its materialization created, by the rules below. A retry into the same
+`cwd` then starts clean.
 
 The workspace has one directory: the physical path `cwd` resolves to, with every symlink in it
 resolved, on the session's host once it is ready, or on the daemon's own machine for a target

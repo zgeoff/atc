@@ -239,6 +239,15 @@ interface HarnessSetup {
   readonly attemptID: string | null;
 }
 
+// What a spawn readied once its host was ready, which a failed start takes
+// back: the auth attempt that provisioned the host, if one did, and the
+// workspace directory the spawn created there, as the host resolves it,
+// if it created one.
+interface SpawnReadied {
+  readonly attemptID: string | null;
+  readonly root: string | null;
+}
+
 // The identity of the implicit `local` target, which a fleet row without a
 // stored identity ran on.
 const LOCAL_TARGET_IDENTITY = buildTargetIdentity('local-pty', {});
@@ -355,6 +364,10 @@ export class SessionManager {
   private readonly rollingBack = new Set<SessionID>();
 
   private readonly unconfirmedKills = new Map<SessionID, HarnessHandle>();
+
+  // What each listed spawn still waiting on its harness's start readied,
+  // by spawn id, so a start that fails takes it back with the session.
+  private readonly startingSpawns = new Map<SessionID, SpawnReadied>();
 
   // The epoch the next harness start or attach takes, unique across every
   // session this manager holds.
@@ -962,6 +975,7 @@ export class SessionManager {
         target,
         { prompt, resume, ...overrides },
         authSetup,
+        hostKey === id,
       );
 
     const trustWorkspace = trustClonedWorkspace
@@ -986,7 +1000,7 @@ export class SessionManager {
     // gives its lease back or puts it to sleep in between.
     const prepared = await this.withHostReadying(hostKey, async () => {
       if (materialize === null) {
-        return { setup: await setupHost(), materialized: null };
+        return { setup: await setupHost(), materialized: null, root: null };
       }
 
       return this.materializeOnSpawnHost(
@@ -1004,35 +1018,37 @@ export class SessionManager {
 
     const setup = prepared.setup;
     const materialized = prepared.materialized;
+    const readied: SpawnReadied = { attemptID: setup.attemptID, root: prepared.root };
     const plan = setup.plan;
+    const binding = this.mintBridgeBinding(id, target, execution.identity, hostKey);
+    let pty: HarnessHandle;
 
     // The caller's check runs again once the host is ready, before the
-    // harness starts.
+    // harness starts. A refusal there, or a harness its provider cannot
+    // start, takes back what the spawn readied.
     try {
       requireInReach();
+
+      pty = provider.spawnHarness({
+        session: id,
+        host: hostKey,
+        bin: plan.bin,
+        args: plan.args,
+        cwd,
+        env: { ...plan.env, ATC_SESSION_ID: id, ATC_SOCKET: socketPath },
+        withheldEnv: materialized?.withheldEnv ?? [],
+        cols,
+        rows,
+        ...this.buildBrokerSpec(hostKey, plan.admission),
+        onRelay: (relay) => {
+          this.onRelay(binding, relay);
+        },
+      });
     } catch (error) {
-      await this.tryRemoveAuthAttempt(provider, hostKey, setup.attemptID);
+      await this.removeFailedSpawnEffects(provider, id, hostKey, target, readied);
 
       throw error;
     }
-
-    const binding = this.mintBridgeBinding(id, target, execution.identity, hostKey);
-
-    const pty = provider.spawnHarness({
-      session: id,
-      host: hostKey,
-      bin: plan.bin,
-      args: plan.args,
-      cwd,
-      env: { ...plan.env, ATC_SESSION_ID: id, ATC_SOCKET: socketPath },
-      withheldEnv: materialized?.withheldEnv ?? [],
-      cols,
-      rows,
-      ...this.buildBrokerSpec(hostKey, plan.admission),
-      onRelay: (relay) => {
-        this.onRelay(binding, relay);
-      },
-    });
 
     let initialMsg = prompt;
 
@@ -1074,6 +1090,7 @@ export class SessionManager {
 
     this.attachHarness(session, pty, this.hasHostLifecycle(target));
     this.sessions.push(session);
+    this.startingSpawns.set(id, readied);
     this.releaseWorkspace(id);
     void this.tryWriteFleet(session.id);
     this.writeStatus();
@@ -1093,6 +1110,8 @@ export class SessionManager {
     if (setup.attemptID !== null) {
       await this.requireAuthBinder().updateReady(hostKey, setup.attemptID);
     }
+
+    this.startingSpawns.delete(id);
 
     return session;
   }
@@ -1274,7 +1293,30 @@ export class SessionManager {
     target: string,
     dir: string,
   ): Promise<boolean> {
+    // Targets without hosts run their sessions on the daemon's machine, so
+    // the directory stays while a session listed on any of them runs inside.
     if (!this.hasHostLifecycle(target)) {
+      const isOnMachine = (s: Session) => s.id !== id && !this.hasHostLifecycle(s.target);
+      const others = this.sessions.filter(isOnMachine);
+
+      const resolved = await Promise.all(
+        others.map((s) => this.resolveHostDir(provider, null, s.cwd).catch(() => null)),
+      );
+
+      if (this.sessions.some((s) => isOnMachine(s) && !others.includes(s))) {
+        return this.removeClaimedDir(provider, id, hostKey, target, dir);
+      }
+
+      const holds = others.some((s, index) => {
+        const physical = resolved[index] ?? null;
+
+        return physical === null || isPathWithin(s.cwd, dir) || isPathWithin(physical, dir);
+      });
+
+      if (holds) {
+        return false;
+      }
+
       const removed = await provider.runCommand({
         argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
         cwd: '/',
@@ -1463,7 +1505,8 @@ export class SessionManager {
 
   // Materializes a spawn's workspace, readying its host once the source
   // resolves, or after the workspace for a directory that runs as it
-  // stands. A failure once the host is ready takes it back.
+  // stands, and returns the directory it created, null for one that runs
+  // as it stands. A failure once the host is ready takes it back.
   private async materializeOnSpawnHost(
     provider: ExecutionProvider,
     id: SessionID,
@@ -1474,7 +1517,11 @@ export class SessionManager {
     materialize: SpawnMaterializer,
     setupHost: () => Promise<HarnessSetup>,
     trustWorkspace: ((root: string) => Promise<void>) | null,
-  ): Promise<{ readonly setup: HarnessSetup; readonly materialized: MaterializedSpawn | null }> {
+  ): Promise<{
+    readonly setup: HarnessSetup;
+    readonly materialized: MaterializedSpawn | null;
+    readonly root: string | null;
+  }> {
     const readied: { setup: HarnessSetup | null; root: string | null } = {
       setup: null,
       root: null,
@@ -1531,7 +1578,11 @@ export class SessionManager {
         }
       }
 
-      return { setup: readied.setup, materialized };
+      return {
+        setup: readied.setup,
+        materialized,
+        root: materialized === null ? null : readied.root,
+      };
     } catch (error) {
       if (readied.setup !== null) {
         await this.destroyFailedSpawnHost(provider, id, hostKey, readied.setup.attemptID);
@@ -1570,6 +1621,69 @@ export class SessionManager {
     }
   }
 
+  // Takes back what a spawn readied when it fails once its host is ready,
+  // before or after its session lists. An attempt that provisioned the
+  // host takes back its imp and binding; a host of the spawn's own without
+  // one is destroyed while no other session or launch uses it. On a host
+  // that stays, such as a parent's, only the workspace directory the spawn
+  // created goes. A directory it cannot confirm gone stays reserved, is
+  // logged for an operator to remove, and throws that it may still stand.
+  private async removeFailedSpawnEffects(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    readied: SpawnReadied,
+  ): Promise<void> {
+    const isHostInUse =
+      this.readying.has(hostKey) ||
+      this.sessions.some((other) => other.hostKey === hostKey && other.target === target);
+
+    if (
+      readied.attemptID !== null ||
+      (hostKey === id && provider.capabilities.destroy && !isHostInUse)
+    ) {
+      await this.destroyFailedSpawnHost(provider, id, hostKey, readied.attemptID);
+
+      return;
+    }
+
+    const root = readied.root;
+
+    if (root === null) {
+      return;
+    }
+
+    let removed = false;
+    let failure: { readonly cause: unknown; readonly message: string } | null = null;
+
+    try {
+      removed = await this.removeClaimedDir(provider, id, hostKey, target, root);
+    } catch (error) {
+      failure = { cause: error, message: error instanceof Error ? error.message : String(error) };
+    }
+
+    if (removed) {
+      return;
+    }
+
+    const reason =
+      failure === null
+        ? "another session's directory lies inside it, or it no longer resolves to itself"
+        : `removing it failed: ${failure.message}`;
+
+    const options = failure === null ? undefined : { cause: failure.cause };
+
+    this.log(
+      `atc: left ${root} on target '${target}' after the spawn of session ${id} failed to start, since ${reason}; remove it by hand`,
+    );
+
+    throw new EffectRemainsError(
+      `spawn of session ${id} failed and its workspace ${root} on target '${target}' could not be removed`,
+      options,
+    );
+  }
+
   // Takes back what a spawn attempt bound when the spawn fails before its
   // session lists; a take-back that cannot be confirmed throws.
   private async tryRemoveAuthAttempt(
@@ -1588,7 +1702,9 @@ export class SessionManager {
 
   // Waits for a revived harness behind the broker to start. A refused start
   // already ended the harness; the host goes back to sleep when no other
-  // harness runs there, and the refusal is thrown.
+  // harness runs there, and the refusal is thrown. A spawn that still has a
+  // checkout to remove there leaves the sleep to its rollback, which needs
+  // the host awake.
   private async waitForAuthStart(
     s: Session,
     provider: ExecutionProvider,
@@ -1597,7 +1713,9 @@ export class SessionManager {
     try {
       await pty.waitForStart?.();
     } catch (error) {
-      if (this.isHostIdle(s.hostKey, s.target) && provider.capabilities.suspend) {
+      const hasCheckout = (this.startingSpawns.get(s.id)?.root ?? null) !== null;
+
+      if (!hasCheckout && this.isHostIdle(s.hostKey, s.target) && provider.capabilities.suspend) {
         await this.trySuspendIdleHost(provider, s.hostKey, s.target);
       }
 
@@ -1660,7 +1778,8 @@ export class SessionManager {
   // there first. Every refusal comes before the harness starts. A harness
   // behind the broker has its binding created or verified before the host
   // is readied, and a binding this call created is taken back when a later
-  // step fails; the attempt that created it comes back with the plan.
+  // step fails; the attempt that created it comes back with the plan. A
+  // spawn's new host of its own without a binding is destroyed instead.
   private setupHarness(
     adapter: AgentAdapter,
     provider: ExecutionProvider,
@@ -1671,7 +1790,7 @@ export class SessionManager {
     auth: HarnessAuthSetup | null,
   ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
     return this.withHostReadying(hostKey, () =>
-      this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth),
+      this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth, false),
     );
   }
 
@@ -1700,6 +1819,10 @@ export class SessionManager {
     target: string,
     options: SpawnOptions,
     auth: HarnessAuthSetup | null,
+
+    // Whether the host is a spawn's new host of its own, which a failure
+    // once it is readied destroys.
+    isNewHost: boolean,
   ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
     const refusal = adapter.findSpawnRefusal?.() ?? null;
 
@@ -1760,7 +1883,9 @@ export class SessionManager {
     try {
       await this.setupGuest(adapter, provider, hostKey, target, dir, plan.files);
     } catch (error) {
-      await this.tryRemoveAuthAttempt(provider, hostKey, attemptID);
+      if (attemptID !== null || isNewHost) {
+        await this.destroyFailedSpawnHost(provider, id, hostKey, attemptID);
+      }
 
       throw error;
     }
@@ -1912,10 +2037,11 @@ export class SessionManager {
   }
 
   // Takes back a spawn that failed after its process started: the process
-  // dies and the session leaves the list and the fleet, so the spawn leaves
-  // nothing behind. It resolves only once the process has exited and the
-  // fleet without the session is durable, and throws when the kill, the
-  // exit, or that write cannot be confirmed. A session whose exit is not
+  // dies, the session leaves the list and the fleet, and what the spawn
+  // readied on its host goes, so the spawn leaves nothing behind. It
+  // resolves only once the process has exited, the fleet without the
+  // session is durable, and that take-back is confirmed, and throws when
+  // any of them cannot be confirmed. A session whose exit is not
   // confirmed stays listed, so the spawn's caller can still find it, and
   // no revive starts it until its process is found gone. A session that
   // never registered is left alone.
@@ -1927,7 +2053,9 @@ export class SessionManager {
     }
 
     const pty = s.pty;
+    const readied = this.startingSpawns.get(id) ?? null;
 
+    this.startingSpawns.delete(id);
     this.rollingBack.add(id);
 
     try {
@@ -1942,27 +2070,50 @@ export class SessionManager {
 
       s.pty = null;
 
+      // The directory stays held on a shared host once the session leaves
+      // the list, so no other workspace lands in or around it before it goes.
+      if (readied !== null && readied.root !== null && s.hostKey !== id) {
+        this.reservations.set(id, {
+          hostKey: s.hostKey,
+          target: s.target,
+          dir: s.cwd,
+          resolved: readied.root,
+          kind: 'workspace',
+        });
+      }
+
       this.remove(s);
       this.emitChange();
 
       await this.writeFleet();
-      await this.removeSpawnBinding(s);
+
+      if (readied !== null) {
+        const provider = this.findProvider(s);
+
+        if (provider === null) {
+          throw new Error(`the target of session ${id} is gone, so its failed spawn stays`);
+        }
+
+        try {
+          await this.removeFailedSpawnEffects(provider, id, s.hostKey, s.target, readied);
+        } finally {
+          // A shared host stays awake for the checkout's removal, then goes
+          // back to sleep when nothing else runs there.
+          if (
+            readied.root !== null &&
+            s.hostKey !== id &&
+            provider.capabilities.suspend &&
+            this.isHostIdle(s.hostKey, s.target)
+          ) {
+            await this.trySuspendIdleHost(provider, s.hostKey, s.target);
+          }
+        }
+      }
+
+      this.releaseWorkspace(id);
     } finally {
       this.rollingBack.delete(id);
     }
-  }
-
-  // Takes back the binding a failed spawn provisioned for its own host,
-  // while it is still the spawn's attempt.
-  private async removeSpawnBinding(s: Session): Promise<void> {
-    const provider = this.findProvider(s);
-    const held = s.hostKey === s.id ? await this.authBinder?.findBinding(s.id) : null;
-
-    if (provider === null || held === null || held === undefined || held.state !== 'provisioning') {
-      return;
-    }
-
-    await this.tryRemoveAuthAttempt(provider, s.id, held.attemptID);
   }
 
   // Kills a failed spawn's harness and waits for its exit. A kill that
