@@ -56,7 +56,7 @@ export class LocalPTYProvider implements ExecutionProvider {
       cols: spec.cols,
       rows: spec.rows,
       cwd: spec.cwd,
-      env: collectCleanEnv(spec.env, spec.withheldEnv),
+      env: buildPTYEnv(spec),
     });
 
     const subscriptions = new Set<{ readonly dispose: () => void }>();
@@ -179,6 +179,23 @@ export class LocalPTYProvider implements ExecutionProvider {
 
     return { exitCode, stdout, stderr };
   }
+}
+
+const USABLE_TERM = 'xterm-256color';
+
+// A pseudo-terminal always has a terminal on its far side, so a harness never
+// starts with an empty or dumb TERM, which leaves an agent CLI drawing with no
+// colour. TERM is always passed: the child starts from the environment the
+// daemon itself started with, and the keys passed here only add to it or
+// override it, so leaving TERM out hands the child the daemon's own value.
+function buildPTYEnv(spec: HarnessSpec): Record<string, string> {
+  const env = collectCleanEnv(spec.env, spec.withheldEnv);
+  const term = env['TERM'];
+
+  return {
+    ...env,
+    TERM: term === undefined || term === '' || term === 'dumb' ? USABLE_TERM : term,
+  };
 }
 
 // A process another user owns still runs, so only a missing process counts

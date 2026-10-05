@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { updateEnv } from '../../test/update-env';
 import { waitFor } from '../../test/wait-for';
 import { LocalPTYProvider } from './local-pty-provider';
 
@@ -47,6 +48,137 @@ test('it runs a harness in a pseudo-terminal that echoes typed input back', asyn
 
   await waitFor(() => {
     expect(output.join('')).toInclude('GOT:ping');
+  });
+});
+
+test('it starts a harness with TERM xterm-256color when the daemon has no TERM', async () => {
+  using local = setupTest();
+
+  updateEnv('TERM', undefined);
+
+  const output: string[] = [];
+
+  const harness = local.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'bash',
+    args: ['-c', 'echo "TERM:[$TERM]"; sleep 30'],
+    cwd: local.dir,
+    env: { PATH: '/usr/bin:/bin' },
+    cols: 80,
+    rows: 24,
+  });
+
+  onTestFinished(() => {
+    harness.kill();
+  });
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('TERM:[xterm-256color]');
+  });
+});
+
+test.each([
+  { daemonTERM: 'dumb', childTERM: 'xterm-256color' },
+  { daemonTERM: '', childTERM: 'xterm-256color' },
+  { daemonTERM: 'screen-256color', childTERM: 'screen-256color' },
+  { daemonTERM: 'xterm-kitty', childTERM: 'xterm-kitty' },
+])('it starts a harness with TERM $childTERM when the daemon has TERM $daemonTERM', async (row) => {
+  using local = setupTest();
+
+  updateEnv('TERM', row.daemonTERM);
+
+  const output: string[] = [];
+
+  const harness = local.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'bash',
+    args: ['-c', 'echo "TERM:[$TERM]"; sleep 30'],
+    cwd: local.dir,
+    env: { PATH: '/usr/bin:/bin' },
+    cols: 80,
+    rows: 24,
+  });
+
+  onTestFinished(() => {
+    harness.kill();
+  });
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude(`TERM:[${row.childTERM}]`);
+  });
+});
+
+test('it keeps a TERM the caller sets for the harness over a dumb daemon TERM', async () => {
+  using local = setupTest();
+
+  updateEnv('TERM', 'dumb');
+
+  const output: string[] = [];
+
+  const harness = local.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'bash',
+    args: ['-c', 'echo "TERM:[$TERM]"; sleep 30'],
+    cwd: local.dir,
+    env: { PATH: '/usr/bin:/bin', TERM: 'tmux-256color' },
+    cols: 80,
+    rows: 24,
+  });
+
+  onTestFinished(() => {
+    harness.kill();
+  });
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('TERM:[tmux-256color]');
+  });
+});
+
+test('it keeps a withheld variable out of a harness it gives a TERM', async () => {
+  using local = setupTest();
+
+  updateEnv('TERM', undefined);
+  updateEnv('ATC_TEST_WITHHELD', 'fixture-not-a-secret');
+
+  const output: string[] = [];
+
+  const harness = local.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'bash',
+    args: ['-c', 'echo "ENV:[$TERM|$ATC_TEST_WITHHELD]"; sleep 30'],
+    cwd: local.dir,
+    env: { PATH: '/usr/bin:/bin' },
+    withheldEnv: ['ATC_TEST_WITHHELD'],
+    cols: 80,
+    rows: 24,
+  });
+
+  onTestFinished(() => {
+    harness.kill();
+  });
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('ENV:[xterm-256color|]');
   });
 });
 

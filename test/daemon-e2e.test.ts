@@ -22,6 +22,7 @@ import { isRecord } from '../src/shared/report';
 import { toAgentSessionID } from '../src/shared/to-agent-session-id';
 import { toSessionID } from '../src/shared/to-session-id';
 import { StateStore } from '../src/store/state-store';
+import { updateEnv } from './update-env';
 import { waitFor } from './wait-for';
 
 const repo = dirname(import.meta.dir);
@@ -102,6 +103,7 @@ function setupDaemonProc(
       fakeClaude,
       `#!/usr/bin/env bash
 echo "FAKE_CLAUDE_UP args: $@"
+echo "FAKE_CLAUDE_TERM:[\${TERM-unset}]"
 settings=""
 prev=""
 for arg in "$@"; do
@@ -1442,6 +1444,52 @@ test('it reads the current screen of a session as plain text without attaching',
 
   expect(screen['text']).not.toInclude('\u001B');
 });
+
+test('it starts a session with TERM xterm-256color when the daemon starts with no TERM', async () => {
+  updateEnv('TERM', undefined);
+
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const spawned = getRecord(ok, 'session');
+  const id = getString(spawned, 'id');
+
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_CLAUDE_TERM:[xterm-256color]');
+  });
+});
+
+test.each([
+  { daemonTERM: 'dumb', sessionTERM: 'xterm-256color' },
+  { daemonTERM: 'screen-256color', sessionTERM: 'screen-256color' },
+])(
+  'it starts a session with TERM $sessionTERM when the daemon starts with TERM $daemonTERM',
+  async (row) => {
+    const ctx = setupDaemonProc(undefined, { TERM: row.daemonTERM });
+
+    const client = await ctx.openClient();
+
+    await client.sendHello('atc/test');
+
+    const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+    const spawned = getRecord(ok, 'session');
+    const id = getString(spawned, 'id');
+
+    await waitFor(async () => {
+      const read = await client.sendRequest('session.screen', { session: id });
+
+      expect(read['text']).toInclude(`FAKE_CLAUDE_TERM:[${row.sessionTERM}]`);
+    });
+  },
+);
 
 test('it keeps the last screen of a killed session readable', async () => {
   const ctx = setupDaemonProc();
