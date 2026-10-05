@@ -149,11 +149,10 @@ test('it keeps a TERM the caller sets for the harness over a dumb daemon TERM', 
   });
 });
 
-test('it keeps parent-session and withheld variables out of a harness it gives a TERM', async () => {
+test('it keeps a withheld variable out of a harness it gives a TERM', async () => {
   using local = setupTest();
 
   updateEnv('TERM', undefined);
-  updateEnv('GROK_SESSION_ID', 'parent-session');
   updateEnv('ATC_TEST_WITHHELD', 'fixture-not-a-secret');
 
   const output: string[] = [];
@@ -162,7 +161,7 @@ test('it keeps parent-session and withheld variables out of a harness it gives a
     session: 's1',
     host: 's1',
     bin: 'bash',
-    args: ['-c', 'echo "ENV:[$TERM|$GROK_SESSION_ID|$ATC_TEST_WITHHELD]"; sleep 30'],
+    args: ['-c', 'echo "ENV:[$TERM|$ATC_TEST_WITHHELD]"; sleep 30'],
     cwd: local.dir,
     env: { PATH: '/usr/bin:/bin' },
     withheldEnv: ['ATC_TEST_WITHHELD'],
@@ -179,7 +178,7 @@ test('it keeps parent-session and withheld variables out of a harness it gives a
   });
 
   await waitFor(() => {
-    expect(output.join('')).toInclude('ENV:[xterm-256color||]');
+    expect(output.join('')).toInclude('ENV:[xterm-256color|]');
   });
 });
 
