@@ -3,9 +3,11 @@ import type { SessionState } from '../protocol/session-state';
 import type { AgentID } from '../shared/agent-id';
 import { RESET_INPUT_MODES } from '../shared/reset-input-modes';
 import { formatDir } from './dirs';
-import { formatOverlayAgentMark } from './format-overlay-agent-mark';
+import { planOverlayColumns } from './plan-overlay-columns';
+import type { OverlayColumnPlan } from './plan-overlay-columns';
 import { planVacatedRows } from './plan-vacated-rows';
 import type { BoxExtent } from './plan-vacated-rows';
+import type { HarnessLifecycle } from './to-mirror-session';
 
 // The slice of a session the drawing layer needs; satisfied by both the
 // daemon's sessions and the wire descriptors a client mirrors.
@@ -37,13 +39,6 @@ const GLYPH: Record<SessionState, string> = {
   running: `${ESC}[36m◐${ESC}[0m`,
   done: `${ESC}[32m✓${ESC}[0m`,
   exited: `${ESC}[90m✗${ESC}[0m`,
-};
-
-const STATE_LABEL: Record<SessionState, string> = {
-  needs_you: 'NEEDS YOU',
-  running: 'running',
-  done: 'done',
-  exited: 'exited',
 };
 
 function out(s: string) {
@@ -186,14 +181,25 @@ export interface OverlaySessionView extends SessionView {
   readonly agent: AgentID;
   readonly pinned: boolean;
   readonly repoRoot: string;
+  readonly target: string;
+  readonly model: string | null;
+
+  // Where the session's harness stands, apart from the attention its state
+  // carries: running, suspended inside a sleeping host, or exited.
+  readonly harness: HarnessLifecycle;
 }
 
 export interface OverlayView {
   sessions: readonly OverlaySessionView[];
 
-  // The overlay column character per agent id, for the ids that do not use
-  // the built-in one.
-  agentMarks: Readonly<Record<AgentID, string>>;
+  // The readable name per agent id, and each agent's tier-alias map, from
+  // the daemon's `agents.list` answer over the config.
+  agentLabels: Readonly<Record<AgentID, string>>;
+  agentModels: Readonly<Record<AgentID, Readonly<Record<string, string>>>>;
+
+  // Whether more than one execution target is available to spawn on, which
+  // is what brings the target column in.
+  showTarget: boolean;
   selected: number;
   confirmKill: boolean;
 
@@ -205,6 +211,49 @@ export interface OverlayView {
   grouped: boolean;
 }
 
+// A session row draws status (the attention glyph plus the unread mark),
+// pin, name, the flat view's directory, then the target, harness, model,
+// harness lifecycle, and last event columns the width plan allows.
+export function buildSessionRow(
+  s: Readonly<OverlaySessionView>,
+  plan: Readonly<OverlayColumnPlan>,
+  view: Readonly<OverlayView>,
+  sel: boolean,
+): Row {
+  const sub = s.parent !== null && view.sessions.some((x) => x.id === s.parent);
+
+  const name =
+    plan.nameWidth >= 4 && sub
+      ? `↳ ${truncate(s.name, plan.nameWidth - 2)}`.padEnd(plan.nameWidth)
+      : truncate(s.name, plan.nameWidth).padEnd(plan.nameWidth);
+
+  const dir =
+    plan.dirWidth > 0 ? truncate(formatDir(s.cwd), plan.dirWidth).padEnd(plan.dirWidth) : '';
+
+  const target =
+    plan.targetWidth > 0 ? truncate(s.target, plan.targetWidth).padEnd(plan.targetWidth) : '';
+
+  const label = view.agentLabels[s.agent] ?? s.agent;
+  const harness = truncate(label, plan.harnessWidth).padEnd(plan.harnessWidth);
+  const resolved = s.model === null ? '' : (view.agentModels[s.agent]?.[s.model] ?? s.model);
+
+  const model =
+    plan.modelWidth > 0 ? truncate(resolved, plan.modelWidth).padEnd(plan.modelWidth) : '';
+
+  const lifecycle = truncate(s.harness, plan.lifecycleWidth).padEnd(plan.lifecycleWidth);
+  const event = truncate(s.lastMsg, plan.eventWidth).padEnd(plan.eventWidth);
+  const cells = [name, dir, target, harness, model, lifecycle, event].filter((cell) => cell !== '');
+  const body = cells.join(' ');
+  const styledBody = sel ? `${ESC}[7m${body}${ESC}[0m` : body;
+  const unread = s.unread ? `${ESC}[1;33m!${ESC}[0m` : ' ';
+  const pin = s.pinned ? `${ESC}[93m⋆${ESC}[0m` : ' ';
+
+  return {
+    styled: `${GLYPH[s.state]}${unread}${pin} ${styledBody}`,
+    width: 4 + body.length,
+  };
+}
+
 export function drawOverlay(view: OverlayView) {
   const width = Math.min(cols() - 4, 90);
   const rowsList: Row[] = [boxTop(width, 'sessions')];
@@ -214,6 +263,35 @@ export function drawOverlay(view: OverlayView) {
 
     rowsList.push(dimRow(width, empty));
   }
+
+  // The harness label and the model each row would draw, so the columns
+  // take the width of what is actually on screen.
+  const harnessMax = Math.max(
+    0,
+    ...view.sessions.map((s) => (view.agentLabels[s.agent] ?? s.agent).length),
+  );
+
+  const modelMax = Math.max(
+    0,
+    ...view.sessions.map((s) => {
+      if (s.model === null) {
+        return 0;
+      }
+
+      return (view.agentModels[s.agent]?.[s.model] ?? s.model).length;
+    }),
+  );
+
+  const targetMax = Math.max(0, ...view.sessions.map((s) => s.target.length));
+
+  const plan = planOverlayColumns({
+    innerWidth: width - 4,
+    grouped: view.grouped,
+    showTarget: view.showTarget,
+    targetMax,
+    harnessMax,
+    modelMax,
+  });
 
   // The grouped view clusters sessions under dim repository headers, with
   // pinned sessions leading in their own cluster; the flat view shows a
@@ -231,22 +309,7 @@ export function drawOverlay(view: OverlayView) {
       rowsList.push(dimRow(width, `▸ ${s.pinned ? 'pinned' : formatDir(s.repoRoot)}`));
     }
 
-    const sel = i === view.selected;
-    const name = (sub ? `↳ ${truncate(s.name, 14)}` : truncate(s.name, 16)).padEnd(16);
-    const state = STATE_LABEL[s.state].padEnd(9);
-    const dir = view.grouped ? '' : ` ${truncate(formatDir(s.cwd), 18).padEnd(18)}`;
-    const msgWidth = Math.max(4, width - 4 - 4 - 17 - 10 - (view.grouped ? 0 : 19));
-    const msg = truncate(s.lastMsg, msgWidth).padEnd(msgWidth);
-    const unread = s.unread ? `${ESC}[1;33m!${ESC}[0m` : ' ';
-    const pin = s.pinned ? `${ESC}[93m⋆${ESC}[0m` : ' ';
-    const mark = formatOverlayAgentMark(s.agent, view.agentMarks);
-    const styledMark = mark === ' ' ? mark : `${ESC}[90m${mark}${ESC}[0m`;
-    const body = `${name} ${state}${dir} ${msg}`;
-    const styledBody = sel ? `${ESC}[7m${body}${ESC}[0m` : body;
-
-    rowsList.push(
-      boxRow(width, `${GLYPH[s.state]}${unread}${pin}${styledMark}${styledBody}`, 4 + body.length),
-    );
+    rowsList.push(buildSessionRow(s, plan, view, i === view.selected));
   }
 
   rowsList.push(boxDivider(width));
@@ -363,7 +426,6 @@ export function drawHelp() {
     'p  pin or unpin — pinned sessions stay on top',
     '    a sub-session pins with its parent',
     'g  toggle grouping by repository',
-    '    Grok rows show a dim g after the pin mark',
     'n  new session',
     'r  adopt an external session',
     '/  filter · ↑↓/jk move · q quit',

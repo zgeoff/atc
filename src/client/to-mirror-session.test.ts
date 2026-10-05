@@ -112,3 +112,78 @@ test('it reports canEject as false when the descriptor omits it', () => {
 
   expect(mirror.canEject).toBe(false);
 });
+
+test('it reads the target from the descriptor locator', () => {
+  const mirror = toMirrorSession(
+    buildDescriptor({ locator: { daemonID: 'd-1', targetID: 'imp-box' } }),
+  );
+
+  if (mirror === null) {
+    throw new Error('expected a mirror session');
+  }
+
+  expect(mirror.target).toBe('imp-box');
+});
+
+test('it falls back the target to local when the descriptor carries no locator', () => {
+  const mirror = toMirrorSession(buildDescriptor());
+
+  if (mirror === null) {
+    throw new Error('expected a mirror session');
+  }
+
+  expect(mirror.target).toBe('local');
+});
+
+test('it keeps the model the session was spawned with', () => {
+  const mirror = toMirrorSession(buildDescriptor({ model: 'opus' }));
+
+  if (mirror === null) {
+    throw new Error('expected a mirror session');
+  }
+
+  expect(mirror.model).toBe('opus');
+});
+
+test('it reports the model as null when the descriptor omits it', () => {
+  const mirror = toMirrorSession(buildDescriptor());
+
+  if (mirror === null) {
+    throw new Error('expected a mirror session');
+  }
+
+  expect(mirror.model).toBeNull();
+});
+
+test('it reads the harness layer of the descriptor lifecycle', () => {
+  const mirror = toMirrorSession(
+    buildDescriptor({
+      lifecycle: { desired: 'sleep', vm: 'asleep', harness: 'suspended', attachment: 'detached' },
+      alive: false,
+    }),
+  );
+
+  if (mirror === null) {
+    throw new Error('expected a mirror session');
+  }
+
+  expect(mirror.harness).toBe('suspended');
+});
+
+test('it derives the harness from the alive flag when the descriptor omits the lifecycle', () => {
+  const dead = toMirrorSession(buildDescriptor({ alive: false }));
+
+  if (dead === null) {
+    throw new Error('expected a mirror session');
+  }
+
+  expect(dead.harness).toBe('exited');
+
+  const live = toMirrorSession(buildDescriptor({ alive: true }));
+
+  if (live === null) {
+    throw new Error('expected a mirror session');
+  }
+
+  expect(live.harness).toBe('running');
+});

@@ -39,6 +39,9 @@ test('it parses a SessionAdded event into a mirror session', () => {
       canEject: false,
       agent: 'claude',
       parent: null,
+      target: 'local',
+      model: null,
+      harness: 'running',
     },
   });
 });

@@ -90,6 +90,10 @@ export interface SessionDescriptor {
   // What the operator asked for, the host, the harness, and the daemon's
   // connection to it; the state derives from these and the attention.
   readonly lifecycle: SessionLifecycle;
+
+  // The model the session was spawned with; absent when it runs the
+  // agent's default.
+  readonly model?: string;
 }
 
 interface SessionLocator {
@@ -2042,6 +2046,7 @@ export class SessionManager {
       locator: { daemonID: this.store.daemonID, targetID: s.target },
       ...(s.workspace === undefined ? {} : { workspace: s.workspace }),
       lifecycle: buildLifecycle(s),
+      ...(s.model === undefined ? {} : { model: s.model }),
     }));
   }
 
