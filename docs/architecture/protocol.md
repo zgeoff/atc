@@ -660,10 +660,12 @@ the checkout is verified:
 `cwd` must be absolute, without `.` or `..` segments or control characters; any other `cwd` is
 `bad_args`. It must not exist on the target. The daemon creates it before it clones, so a directory
 that already exists refuses the spawn as `workspace_exists` and stays as it was. A refusal after
-that removes the directory, unless another session's directory lies inside it or it no longer
-resolves to the directory the daemon created; the refusal then holds the directory it left as
-`data.leftDir`. A `path` source outside any git work tree runs in place on a `local-pty` target,
-with `cwd` equal to its path; any other target refuses it as `not_a_git_repo`.
+that, a failed harness start included, removes the directory, unless another session's directory
+lies inside it or it no longer resolves to the directory the daemon created; the refusal then holds
+the directory it left as `data.leftDir`. A harness start that fails once the workspace is ready and
+leaves the directory is `outcome_unknown` instead, and the daemon logs the directory. A `path`
+source outside any git work tree runs in place on a `local-pty` target, with `cwd` equal to its
+path; any other target refuses it as `not_a_git_repo`.
 
 The daemon answers the spawn once the workspace is ready, and the session descriptor holds
 `workspace`: `repoURL`, `sha`, `ref` when the commit came from a branch or tag, and
