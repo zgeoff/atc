@@ -7,6 +7,7 @@ import { LineDecoder } from '../protocol/line-decoder';
 import { OutboundQueue } from '../protocol/outbound-queue';
 import type { SocketWriter } from '../protocol/outbound-queue';
 import { parseRequestParams } from '../protocol/parse-request-params';
+import type { RequestMethod } from '../protocol/parse-request-params';
 import {
   MAX_CHUNK,
   MAX_LINE,
@@ -26,6 +27,7 @@ import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import type { DaemonContext, SpawnParams } from './daemon-context';
 import type { TranscriptPosition } from './load-transcript-page';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
+import { REQUEST_ACCESS_CLASSES } from './request-access-classes';
 import { TargetAccess } from './target-access';
 
 // The targets a request may use and the namespace of its idempotency keys.
@@ -33,15 +35,6 @@ interface RequestScope {
   readonly access: TargetAccess;
   readonly keyNamespace: string;
 }
-
-// The requests that act on the whole daemon, or on the credentials a
-// session's host may use, which only its owner may make.
-const OWNER_METHODS: ReadonlySet<string> = new Set([
-  'daemon.quit',
-  'fleet.restore',
-  'session.auth.revoke',
-  'session.auth.rebind',
-]);
 
 // What a limited connection is sent for one event, and the sessions that
 // event moved out of its view.
@@ -316,7 +309,7 @@ export class DaemonConnection {
 
     const scope = this.findRequestScope(req);
 
-    if (scope !== null && OWNER_METHODS.has(req.m)) {
+    if (scope !== null && isOwnerOnlyMethod(req.m)) {
       this.sendErr(req.id, 'unauthorized', `${req.m} is open to the daemon's owner only`);
 
       return true;
@@ -379,7 +372,7 @@ export class DaemonConnection {
       return;
     }
 
-    if (OWNER_METHODS.has(req.m)) {
+    if (isOwnerOnlyMethod(req.m)) {
       this.sendErr(req.id, 'unauthorized', `${req.m} is open to the daemon's owner only`);
 
       return;
@@ -547,6 +540,12 @@ export class DaemonConnection {
 
   private async applyRequest(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     await this.helloAnswered;
+
+    if (!isRequestMethod(req.m)) {
+      this.sendErr(req.id, 'unknown_method', `unknown method '${req.m}'`);
+
+      return;
+    }
 
     switch (req.m) {
       case 'daemon.ping': {
@@ -908,7 +907,10 @@ export class DaemonConnection {
 
         return;
       }
-      default: {
+
+      // The handshake is answered before a request is admitted, so it never
+      // runs as one.
+      case 'daemon.hello': {
         this.sendErr(req.id, 'unknown_method', `unknown method '${req.m}'`);
       }
     }
@@ -1777,6 +1779,17 @@ export class DaemonConnection {
       }),
     );
   }
+}
+
+// Whether a request method is open to the daemon's owner alone. A method
+// the protocol does not define is not: it runs as no request and is
+// answered as unknown.
+function isOwnerOnlyMethod(method: string): boolean {
+  return isRequestMethod(method) && REQUEST_ACCESS_CLASSES[method] === 'owner';
+}
+
+function isRequestMethod(method: string): method is RequestMethod {
+  return Object.hasOwn(REQUEST_ACCESS_CLASSES, method);
 }
 
 // The token of a handshake's `auth: { scheme: "bearer", token }`, or null
