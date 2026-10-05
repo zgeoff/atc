@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.30.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.29.0...@zgeoff/atc@2.30.0) (2026-10-05)
+
+### Features
+
+- skip spawn steps with one eligible choice ([#304](https://github.com/zgeoff/atc/issues/304))
+  ([d37940d](https://github.com/zgeoff/atc/commit/d37940d0855e5b4f6eafe5b7d55733f39c31bad4))
+
+### Bug Fixes
+
+- **#255:** bound the listener log at shutdown and port peer tests
+  ([#303](https://github.com/zgeoff/atc/issues/303))
+  ([9919187](https://github.com/zgeoff/atc/commit/9919187212930287b0692e62f6921772d8109897))
+- **daemon:** declare an access class for every request method
+  ([#301](https://github.com/zgeoff/atc/issues/301))
+  ([d9f9a56](https://github.com/zgeoff/atc/commit/d9f9a56d44ae2c9e0189b21a2b98f6b73f8662fc))
+- **daemon:** stop showing a live session as ended after /clear
+  ([#300](https://github.com/zgeoff/atc/issues/300))
+  ([af5b78f](https://github.com/zgeoff/atc/commit/af5b78f1b0d72dd7deede150b92aa14f7530bb7c))
+- **daemon:** take back the host and checkout of a failed spawn
+  ([#306](https://github.com/zgeoff/atc/issues/306))
+  ([1749153](https://github.com/zgeoff/atc/commit/1749153b4c4f2be8ae592269aaf7cf411975d8a9))
+
 ## [2.29.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.28.0...@zgeoff/atc@2.29.0) (2026-10-05)
 
 ### Features
