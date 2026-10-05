@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.28.0...@zgeoff/atc@2.29.0) (2026-10-05)
+
+
+### Features
+
+* show target, harness, model, lifecycle columns in session list ([#298](https://github.com/zgeoff/atc/issues/298)) ([321a007](https://github.com/zgeoff/atc/commit/321a0079dbc51253a142a2b67629b435f2147eaa))
+
 ## [2.28.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.27.0...@zgeoff/atc@2.28.0) (2026-10-05)
 
 ### Features
