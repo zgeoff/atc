@@ -284,11 +284,51 @@ id and `answeredWith`. Pass `waitMs` to `atc_message_get` and `atc_events_read` 
 in a tight loop: each holds the request for up to 30 seconds, under the server's 60-second idle
 limit.
 
-A report event from `atc_events_read` holds a 600-character preview of the report's text.
-`atc_report_get` takes the cursor of that event and returns the whole text, up to 64 KiB, without
-messaging the session that sent it. It needs only `read`, and it reaches only the sessions
-`atc_events_read` does. Against a daemon that does not announce `report.get`, the server leaves the
-tool out of `tools/list` and refuses a call with `daemon_outdated`, sending the daemon nothing.
+## Reading reports
+
+A report is a short update a session sends through its `report` tool, which the
+[atc-bridge mod](./overview.md#agent-integration) gives every Claude session. atc keeps each report
+with its label and up to 64 KiB of its text. `atc_events_read` returns a report as a `report` event
+among the fleet's other events, with its label and a 600-character preview of its text in `detail`.
+`atc_report_get` takes the report handle of that event, or the event's cursor when it holds none,
+and returns the whole text without messaging the session that sent it. Both tools need only `read`,
+and both reach only the sessions the client's principal reaches.
+
+To read every report since your last read in one call:
+
+1. Call `atc_events_read` with `reportText: true` and no cursor. Each report event holds `text`, the
+   whole text, and `complete`.
+2. Keep the `cursor` of the answer, and pass it with `reportText: true` on the next call. That
+   answer holds only the events after the cursor, from every session, including sessions you never
+   named.
+3. While `more` is true, call again at once with the latest cursor. Pass `waitMs` to hold a call
+   open until an event arrives instead of polling.
+
+Each report event holds the session id and name of the session that sent it, and its label. Under
+the gateway, a session id starts with the name of the daemon that hosts it. `atc_session_get`
+returns the session's target and working directory. `name` is null when the session has no name or
+the daemon no longer lists it.
+
+A page read with `reportText` holds at most 64 KiB of report text. The server reads the reports in
+page order and stops the page before the first report that does not fit, with `more` true and the
+cursor of the last event the page holds, so the next call starts at that report. One report holds at
+most 64 KiB, so every page holds its first report.
+
+The answer marks what the server could not read:
+
+- `complete` false: atc kept only the preview of that report, and `text` holds the preview.
+- `textError`: the error code and message of a report whose text the server could not read, such as
+  one whose daemon stopped answering. `detail` holds the preview.
+- `unavailable`: under the gateway, the daemons that did not answer. Each keeps its place in the
+  cursor, so the next call reads its events from where the last one stopped.
+- `started` and `truncated`: under the gateway, `started` lists the daemons that joined the cursor
+  on this call, which the call reads from their latest events. `truncated` lists those of them known
+  to hold older events that went unread.
+
+Against a daemon that does not announce `report.get`, the server leaves `atc_report_get` and the
+`reportText` input out of `tools/list`. It refuses a call to `atc_report_get` with
+`daemon_outdated`, sending the daemon nothing, and gives each report of a `reportText` read a
+`textError` instead.
 
 ## Request checks
 

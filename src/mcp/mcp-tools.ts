@@ -119,6 +119,12 @@ const EVENTS_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
     waitMs: WAIT_MS.describe(
       'How long to wait for a new event when none is pending, in milliseconds; defaults to 0, capped at 30000. Keep it short.',
     ),
+    reportText: z
+      .boolean()
+      .optional()
+      .describe(
+        "true adds each report's whole text to its event, so one call reads every report of the page; defaults to false",
+      ),
   }),
   { io: 'input' },
 );
@@ -298,6 +304,10 @@ const EVENTS_OUTPUT: Readonly<Record<string, unknown>> = {
           detail: { type: ['string', 'null'] },
           message: { type: 'string' },
           label: { type: 'string' },
+          report: { type: 'string' },
+          text: { type: 'string' },
+          complete: { type: 'boolean' },
+          textError: { type: 'string' },
         },
         required: ['cursor', 'at', 'session', 'name', 'kind', 'detail'],
       },
@@ -524,10 +534,13 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-accepted, message-delivered, message-answered), and reports (report) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A report event carries its label and a preview of its text; read the full text with atc_report_get, passing the report handle of that event when it carries one, else its cursor. Without a cursor it returns the most recent events. Pass the returned cursor next time; more is true when the page stopped before the newest event, so read again at once. session limits the read to one session. waitMs holds the call open until an event arrives; pass it instead of polling in a tight loop.',
+      'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-accepted, message-delivered, message-answered), and reports (report) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A report event carries its label and a preview of its text; read the full text with atc_report_get, passing the report handle of that event when it carries one, else its cursor, or pass reportText: true to get the full text of every report in this call. With reportText, each report event also carries text and complete (false when atc kept only the preview), or textError when its text could not be read; the page holds at most 64 KiB of report text and stops early, with more true, when the next report would not fit. Without a cursor it returns the most recent events. Pass the returned cursor next time; more is true when the page stopped before the newest event, so read again at once. session limits the read to one session. waitMs holds the call open until an event arrives; pass it instead of polling in a tight loop.',
     inputSchema: EVENTS_READ_INPUT,
     outputSchema: EVENTS_OUTPUT,
-    requires: { output: 'events.more', inputs: { session: 'events.session' } },
+    requires: {
+      output: 'events.more',
+      inputs: { session: 'events.session', reportText: 'report.get' },
+    },
   },
   {
     name: 'atc_report_get',

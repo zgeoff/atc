@@ -1,10 +1,13 @@
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
+import { buildPrincipalCaller } from '../mcp/build-principal-caller';
+import { ReconnectingCaller } from '../mcp/reconnecting-caller';
+import { runTool } from '../mcp/run-tool';
 import { DaemonError } from '../protocol/daemon-error';
 import { encodeCursor } from '../protocol/encode-cursor';
 import { PROTOCOL_V } from '../protocol/protocol';
@@ -36,8 +39,8 @@ interface HostOverride {
 /**
  * A real daemon whose targets and principals come from a raw config through
  * the real parse. Every target runs harnesses on a real pseudo-terminal
- * through a provider that counts its spawns. `client` is the daemon owner's
- * connection; `openClientAs` opens a connection whose handshake gives a
+ * through a provider that counts its spawns. `socketPath` is the daemon's
+ * socket. `client` is the daemon owner's connection; `openClientAs` opens a connection whose handshake gives a
  * principal. `restart` stops the daemon and starts it again on the same
  * state with another config, running `whileStopped` in between, and
  * `dbPath` is that state. `hosts` gives a target, by its id, capabilities
@@ -126,6 +129,7 @@ async function setupTest(raw: RawConfig, hosts: Readonly<Record<string, HostOver
       return client;
     },
     harnesses,
+    socketPath,
     dbPath: join(tmp.dir, 'state.db'),
     openClientAs: (principal: unknown) => openClient({ client: 'atc/test-build', principal }),
     async restart(config: RawConfig, whileStopped: () => void = () => {}): Promise<void> {
@@ -1169,6 +1173,47 @@ test('it gives a principal the report of a session it may see', async () => {
   );
 
   expect(report).toMatchObject({ session: shown, text: 'open plan', complete: true });
+});
+
+test('it reads the whole text of only the reports of sessions a principal may see in one events read', async () => {
+  await using daemon = await setupTest({
+    targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+    principals: { 'client-a': { targets: ['local'] } },
+  });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
+
+  const shown = await daemon.spawnOn('local');
+  const hidden = await daemon.spawnOn('box');
+
+  await daemon.sendNote(hidden, 'secret plan');
+  await daemon.sendNote(shown, 'open plan');
+
+  await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
+
+    expect(JSON.stringify(owner)).toContain('open plan');
+    expect(JSON.stringify(owner)).toContain('secret plan');
+  });
+
+  const read = await runTool(
+    buildPrincipalCaller(caller, 'client-a'),
+    'atc_events_read',
+    { reportText: true },
+    { callerSessionID: null, sender: { kind: 'fixed', name: 'client-a' } },
+  );
+
+  expect(read.text).not.toContain('secret plan');
+  expect(read.text).not.toContain(hidden);
+
+  expect(read.structured).toMatchObject({
+    events: [{ kind: 'report', session: shown, text: 'open plan', complete: true }],
+    more: false,
+  });
 });
 
 test('it names a report by the session that sent it, never a hidden session that resumes the same agent session', async () => {

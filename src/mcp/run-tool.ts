@@ -4,6 +4,7 @@ import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { isRecord } from '../shared/report';
 import { parseIdempotencyKey } from './parse-idempotency-key';
+import { readReportTexts } from './read-report-texts';
 import type { FleetCaller, ToolContext } from './types';
 
 /**
@@ -195,6 +196,14 @@ export function runTool(
         },
         required,
       );
+
+      // Each report's whole text rides the same call, so a reader catches
+      // up without one report read per report.
+      if (args['reportText'] === true) {
+        const withTexts = await readReportTexts(caller, ok);
+
+        return buildObjectResult(withTexts);
+      }
 
       return buildObjectResult(ok);
     })
