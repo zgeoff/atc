@@ -2,10 +2,10 @@
 
 ## [2.27.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.7...@zgeoff/atc@2.27.0) (2026-10-05)
 
-
 ### Features
 
-* opt in to trust for cloned imp workspaces ([#294](https://github.com/zgeoff/atc/issues/294)) ([7aea33d](https://github.com/zgeoff/atc/commit/7aea33d978a00a88910610b2631a76ed9f28f96c))
+- opt in to trust for cloned imp workspaces ([#294](https://github.com/zgeoff/atc/issues/294))
+  ([7aea33d](https://github.com/zgeoff/atc/commit/7aea33d978a00a88910610b2631a76ed9f28f96c))
 
 ## [2.26.7](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.26.6...@zgeoff/atc@2.26.7) (2026-10-04)
 
