@@ -135,6 +135,26 @@ test('it resolves a checkout with untracked files to HEAD without naming them', 
   });
 });
 
+test('it counts each file inside an untracked directory', async () => {
+  await using project = await setupTest();
+
+  const head = await $`git rev-parse HEAD`.env(project.env).cwd(project.work).text();
+
+  await mkdir(join(project.work, 'drafts'));
+  await writeFile(join(project.work, 'drafts', 'a.txt'), 'a\n');
+  await writeFile(join(project.work, 'drafts', 'b.txt'), 'b\n');
+  await writeFile(join(project.work, 'drafts', 'c.txt'), 'c\n');
+
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
+
+  expect(resolved).toMatchObject({
+    ok: true,
+    warnings: [
+      `cloned commit ${head.slice(0, 12)}; left 3 uncommitted or untracked paths behind in ${project.work}`,
+    ],
+  });
+});
+
 test('it leaves the changes of a dirty checkout as they were', async () => {
   await using project = await setupTest();
 

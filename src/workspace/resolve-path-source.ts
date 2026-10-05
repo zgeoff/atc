@@ -82,7 +82,9 @@ export async function resolvePathSource(
     return { ok: false, code: 'has_submodules', message: `${root} uses submodules` };
   }
 
-  const status = await runGit(['status', '--porcelain', '--untracked-files=normal'], { cwd: root });
+  // Every untracked file is listed on its own, so an untracked directory
+  // counts each file inside it.
+  const status = await runGit(['status', '--porcelain', '--untracked-files=all'], { cwd: root });
 
   if (status.exitCode !== 0) {
     return {
