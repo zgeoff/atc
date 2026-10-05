@@ -241,6 +241,23 @@ export class GatewayAdapter implements AgentAdapter {
     };
   }
 
+  planGuestWorkspaceTrust(root: string): Readonly<Record<string, string>> | null {
+    if (this.gateway.auth === undefined) {
+      return null;
+    }
+
+    return {
+      [CONFIG_SEED_FILE]: JSON.stringify(
+        {
+          ...ONBOARDED_CONFIG,
+          projects: { [root]: { hasTrustDialogAccepted: true } },
+        },
+        null,
+        2,
+      ),
+    };
+  }
+
   normalizeHook(e: HookEvent): AdapterEvent {
     return this.claude.normalizeHook(e);
   }

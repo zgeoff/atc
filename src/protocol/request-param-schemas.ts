@@ -185,6 +185,9 @@ export const REQUEST_PARAM_SCHEMAS = {
     // session in cwd as it stands, and a source materializes a clean
     // checkout into cwd first.
     workspace: WORKSPACE_SOURCE.optional(),
+    trustClonedWorkspace: z
+      .boolean({ error: 'session.spawn trustClonedWorkspace must be a boolean' })
+      .optional(),
 
     // The session the new one is a sub-session of; absent or empty spawns a
     // top-level session.

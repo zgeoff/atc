@@ -60,6 +60,9 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
     workspace: SPAWN_SCHEMA.shape.workspace.describe(
       "Where the session's working directory comes from. Omit it to run the session in cwd as it stands. With it, atc materializes a clean checkout into cwd on the target, which must not exist yet: {kind:'path', path, allowDirty?} checks out the pushed HEAD of a git checkout on the atc host, refusing uncommitted changes unless allowDirty is 'warn'; {kind:'git', url, ref or sha, credentialRef?} checks out a branch, tag, or full commit of a repository, with credentialRef {kind:'env', name} naming the atc daemon's environment variable that holds its token. A directory outside git runs in place only on a target on the atc host itself (provider local-pty), with cwd equal to its path. Submodules and Git LFS are refused, and so is a URL that carries a credential.",
     ),
+    trustClonedWorkspace: SPAWN_SCHEMA.shape.trustClonedWorkspace.describe(
+      'Trust the exact verified clone for this launch. An explicit true or false overrides the configured target trustClonedWorkspace default; omitting both keeps trust off. Requires a workspace source, an imp target, and a brokered Claude gateway with isolated guest config; other launches are refused. Accepts repository configuration and helpers without changing tool permission mode. Existing guest config is preserved.',
+    ),
     detached: z
       .boolean()
       .optional()
@@ -403,6 +406,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
         idempotencyKey: 'spawn.idempotency',
         target: 'spawn.target',
         workspace: 'spawn.workspace',
+        trustClonedWorkspace: 'spawn.workspace.trust',
       },
     },
   },

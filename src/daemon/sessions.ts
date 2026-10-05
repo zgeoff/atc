@@ -893,12 +893,34 @@ export class SessionManager {
     const execution = this.requireExecution({ target, targetIdentity: null }, 'spawn');
     const provider = execution.provider;
 
+    const trustClonedWorkspace =
+      overrides.trustClonedWorkspace ??
+      this.targets.get(target)?.options['trustClonedWorkspace'] === true;
+
     // The repository root resolves before the process starts: resolving it
     // can throw, and a spawn that throws must leave nothing running. A
     // remote directory is not on the daemon's machine, so it is its own root.
     const repoRoot = provider.remote ? cwd : resolveRepoRoot(cwd);
     const hostKey = this.pickHostKey(id, parent, target, execution.identity);
     const auth = this.resolveHarnessAuth(adapter, provider, target);
+
+    if (trustClonedWorkspace) {
+      if (materialize === null) {
+        throw new DaemonError('bad_args', 'trustClonedWorkspace requires a workspace source');
+      }
+
+      if (
+        provider.kind !== 'imp' ||
+        !provider.remote ||
+        auth === null ||
+        adapter.planGuestWorkspaceTrust === undefined
+      ) {
+        throw new DaemonError(
+          'unsupported',
+          'trustClonedWorkspace requires a brokered Claude gateway on an imp target',
+        );
+      }
+    }
 
     if (hostKey !== id) {
       await this.requireSharedBinding(hostKey, auth?.binding ?? null);
@@ -938,6 +960,24 @@ export class SessionManager {
         authSetup,
       );
 
+    const trustWorkspace = trustClonedWorkspace
+      ? async (root: string) => {
+          const planned = adapter.planGuestWorkspaceTrust?.(root);
+
+          if (planned === undefined || planned === null || provider.guest === undefined) {
+            throw new DaemonError('unsupported', 'this adapter cannot trust a cloned workspace');
+          }
+
+          const files = Object.entries(planned).map(([path, content]) => ({ path, content }));
+
+          await provider.transferArchive(
+            buildTarArchive(files),
+            `${provider.guest.dir}/sessions/${id}`,
+            hostKey,
+          );
+        }
+      : null;
+
     // The host stays readying until its workspace is in place, so nothing
     // gives its lease back or puts it to sleep in between.
     const prepared = await this.withHostReadying(hostKey, async () => {
@@ -954,6 +994,7 @@ export class SessionManager {
         execution.identity,
         materialize,
         setupHost,
+        trustWorkspace,
       );
     });
 
@@ -1428,8 +1469,12 @@ export class SessionManager {
     targetIdentity: string,
     materialize: SpawnMaterializer,
     setupHost: () => Promise<HarnessSetup>,
+    trustWorkspace: ((root: string) => Promise<void>) | null,
   ): Promise<{ readonly setup: HarnessSetup; readonly materialized: MaterializedSpawn | null }> {
-    const readied: { setup: HarnessSetup | null } = { setup: null };
+    const readied: { setup: HarnessSetup | null; root: string | null } = {
+      setup: null,
+      root: null,
+    };
 
     try {
       const materialized = await materialize(
@@ -1441,6 +1486,8 @@ export class SessionManager {
               ? await this.claimHostDir(provider, id, hostKey, target, dir)
               : await this.resolveHostDir(provider, null, dir);
 
+            readied.root = landing;
+
             return { host: hostKey, dir: landing };
           },
           removeClaim: (landing) => this.removeClaimedDir(provider, id, hostKey, target, landing),
@@ -1449,6 +1496,36 @@ export class SessionManager {
       );
 
       readied.setup ??= await setupHost();
+
+      if (trustWorkspace !== null) {
+        if (materialized === null || readied.root === null) {
+          throw new DaemonError(
+            'bad_args',
+            'trustClonedWorkspace requires a successfully cloned workspace',
+          );
+        }
+
+        try {
+          await trustWorkspace(readied.root);
+        } catch (error) {
+          let removed = false;
+
+          try {
+            removed = await this.removeClaimedDir(provider, id, hostKey, target, readied.root);
+          } catch {
+            // A failed rollback retains the spawn's claim for reconciliation.
+          }
+
+          if (!removed) {
+            throw new EffectRemainsError(
+              'workspace trust setup failed and its clone could not be removed',
+              { cause: error },
+            );
+          }
+
+          throw error;
+        }
+      }
 
       return { setup: readied.setup, materialized };
     } catch (error) {

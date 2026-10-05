@@ -1008,7 +1008,12 @@ export class DaemonConnection {
         namedBy: data.name === '' ? 'auto' : 'user',
         agent,
         parent,
-        overrides: overrides.overrides,
+        overrides: {
+          ...overrides.overrides,
+          ...(data.trustClonedWorkspace === undefined
+            ? {}
+            : { trustClonedWorkspace: data.trustClonedWorkspace }),
+        },
         target,
         workspace: data.workspace ?? null,
       };

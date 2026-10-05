@@ -135,6 +135,19 @@ function collectTargetEntries(raw: unknown): TargetEntries {
       continue;
     }
 
+    if (
+      entry['trustClonedWorkspace'] !== undefined &&
+      typeof entry['trustClonedWorkspace'] !== 'boolean'
+    ) {
+      errors.push({
+        scope: 'target',
+        target: id,
+        problem: `target ${JSON.stringify(id)} must give trustClonedWorkspace as a boolean`,
+      });
+
+      continue;
+    }
+
     const { provider: _, ...options } = entry;
 
     targets.push({ id, provider, options });

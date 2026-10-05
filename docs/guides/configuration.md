@@ -143,16 +143,17 @@ each sub-session in its parent's imp. A kill of the top-level session puts its i
 `session.forget` destroys it. The [daemon architecture](../architecture/daemon.md#the-imp-provider)
 covers the lifecycle. Its options:
 
-| Key         | Default    | What it does                                                               |
-| ----------- | ---------- | -------------------------------------------------------------------------- |
-| `url`       | required   | Where impd listens. Without it the target lists as unavailable.            |
-| `impPrefix` | `atc-`     | The start of every imp name the target builds.                             |
-| `tokenEnv`  | unset      | The environment variable of the daemon that holds the impd token.          |
-| `tokenFile` | unset      | The file that holds the impd token.                                        |
-| `image`     | impd's     | The image a new imp boots.                                                 |
-| `memoryMib` | impd's     | The memory a new imp gets.                                                 |
-| `guestDir`  | `/tmp/atc` | The folder inside each imp that atc's files go under.                      |
-| `guestATC`  | unset      | An atc binary already installed in the image, for hooks to report through. |
+| Key                    | Default    | What it does                                                                                                           |
+| ---------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `url`                  | required   | Where impd listens. Without it the target lists as unavailable.                                                        |
+| `impPrefix`            | `atc-`     | The start of every imp name the target builds.                                                                         |
+| `tokenEnv`             | unset      | The environment variable of the daemon that holds the impd token.                                                      |
+| `tokenFile`            | unset      | The file that holds the impd token.                                                                                    |
+| `image`                | impd's     | The image a new imp boots.                                                                                             |
+| `memoryMib`            | impd's     | The memory a new imp gets.                                                                                             |
+| `guestDir`             | `/tmp/atc` | The folder inside each imp that atc's files go under.                                                                  |
+| `guestATC`             | unset      | An atc binary already installed in the image, for hooks to report through.                                             |
+| `trustClonedWorkspace` | `false`    | Default for clone trust; an explicit launch value takes precedence. See [brokered credentials](#brokered-credentials). |
 
 Set at most one of `tokenEnv` and `tokenFile`. A target that sets both is a config error, and each
 spawn on it fails with `target_config_invalid`. A target with neither calls impd with no token.
@@ -431,11 +432,26 @@ refused, and the session has no resume command.
 
 On an imp target, the session's guest folder holds a settings file for its binding revision and a
 Claude config folder of its own. The settings file points the CLI at `baseURL` with the placeholder
-and holds no credential helper. The config folder holds no account, only the state that skips the
-first-run onboarding, and atc writes that state only when the folder has none. Claude asks a person
-to trust the workspace folder on first use; atc never answers that question. Each start names a
-permission mode: the one the gateway's `args` or `settings` set, else Claude's manual `default`
-mode, so the session never takes the default of a fresh Claude config.
+and holds no credential helper. atc seeds the config folder with first-run onboarding state only
+when `.claude.json` does not exist. Each start names a permission mode: the one the gateway's `args`
+or `settings` set, else Claude's manual `default` mode.
+
+Claude asks a person to trust the workspace folder on first use. To accept trust for one cloned
+launch, pass `trustClonedWorkspace: true` with a `workspace` source to `session.spawn` or
+`atc_session_spawn`. Trust requires a brokered Claude gateway on an imp target. atc refuses trust
+for stock Claude, local targets, and launches without a workspace source.
+
+Set `targets.<target_id>.trustClonedWorkspace` to a boolean to give that target a default. An
+explicit `trustClonedWorkspace: true` or `false` on the launch overrides it; omitting both keeps
+trust off. An inherited `true` has the same restrictions as an explicit `true`, so an ordinary
+folder launch on that target must pass `false`. Changing this target option changes its identity, as
+other target options do; existing sessions remain bound to the previous target configuration.
+
+After verifying the clone, atc seeds trust for its resolved repository root in that session's
+isolated guest config. Trust allows Claude to load repository configuration and helpers; use the
+option only for repositories you trust. atc preserves an existing guest `.claude.json` byte for
+byte, so its trust decision takes precedence. The option changes neither tool permission mode nor
+the user's Claude config.
 
 The placeholders must be `ANTHROPIC_AUTH_TOKEN` alone, and the profile for the `baseURL` host must
 set a bearer `authorization` header, since that is the header Claude sends the variable in. Any

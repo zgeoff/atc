@@ -47,6 +47,9 @@ export const DAEMON_FEATURES = [
   // `workspace` its checkout was materialized from.
   'spawn.workspace',
 
+  // `session.spawn` takes an explicit trust decision for a cloned imp workspace.
+  'spawn.workspace.trust',
+
   // `session.forget` exists, and a kill of a session asleep on a target that
   // can destroy its host answers `confirmation_required`.
   'session.forget',
