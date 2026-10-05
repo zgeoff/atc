@@ -95,9 +95,11 @@ test('it leaves a __proto__ agent id out instead of changing the prototype', () 
 });
 
 test('it leaves a __proto__ model alias out of the map', () => {
-  const meta = resolveAgentMetadata(buildConfig({}), {
-    agents: [{ id: 'zai', models: { __proto__: 'sneaky-model', opus: 'glm-5.3' } }],
-  });
+  const models = { opus: 'glm-5.3', ['__proto__']: 'sneaky-model' };
+
+  expect(Object.hasOwn(models, '__proto__')).toBe(true);
+
+  const meta = resolveAgentMetadata(buildConfig({}), { agents: [{ id: 'zai', models }] });
 
   expect(meta.models['zai']).toStrictEqual({ opus: 'glm-5.3' });
 });
