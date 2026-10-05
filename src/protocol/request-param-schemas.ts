@@ -54,8 +54,9 @@ const GIT_SHA = z.string().regex(COMMIT_ID, 'a git workspace sha is a full commi
  * Where a spawn's working directory comes from, materialized as a clean
  * checkout into the spawn's `cwd` on its execution target. A `path` source
  * is a directory on the daemon's host, resolved to its origin URL and
- * pushed HEAD; `allowDirty: 'warn'` resolves a tree with uncommitted
- * changes to HEAD and leaves the changes behind with a warning. A `git`
+ * pushed HEAD. A tree with uncommitted or untracked changes resolves to
+ * HEAD and leaves the changes behind with a warning, unless `allowDirty`
+ * is `'refuse'`, which refuses it. A `git`
  * source is a repository URL with a branch or tag `ref`, a full commit
  * `sha`, or both, and an optional `credentialRef` naming the daemon
  * environment variable that holds its token. With both, the sha is the

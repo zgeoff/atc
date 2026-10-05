@@ -39,8 +39,9 @@ interface PathSourceRefusal {
  * can clone, so a workspace never carries files that exist only here. The
  * commit is HEAD, and it must already be on origin: a remote-tracking ref
  * under origin contains it, or origin advertises it as a ref tip. A tree
- * with uncommitted or untracked changes is refused, or with `allowDirty:
- * 'warn'` resolves to HEAD and leaves those changes behind with a warning.
+ * with uncommitted or untracked changes resolves to HEAD and leaves those
+ * changes behind, with a warning that counts them; `allowDirty: 'refuse'`
+ * refuses it instead. The changes are never copied.
  * Submodules are refused. The URL is origin's, with any credential stripped.
  */
 export async function resolvePathSource(
@@ -91,10 +92,11 @@ export async function resolvePathSource(
     };
   }
 
-  const dirty = status.stdout.trim() !== '';
+  const changed = countChangedPaths(status.stdout);
+  const dirty = changed > 0;
   const warnings: string[] = [];
 
-  if (dirty && options.allowDirty !== 'warn') {
+  if (dirty && options.allowDirty === 'refuse') {
     return {
       ok: false,
       code: 'workspace_dirty',
@@ -103,7 +105,9 @@ export async function resolvePathSource(
   }
 
   if (dirty) {
-    warnings.push(`uncommitted and untracked changes in ${root} stay behind; using ${sha}`);
+    warnings.push(
+      `left ${changed} uncommitted or untracked ${changed === 1 ? 'path' : 'paths'} in ${root} behind; cloned commit ${sha.slice(0, 12)}`,
+    );
   }
 
   const origin = await runGit(['ls-remote', '--get-url', 'origin'], { cwd: root });
@@ -148,6 +152,14 @@ function hasSubmodules(listing: string): boolean {
   return listing
     .split('\n')
     .some((line) => line.startsWith('160000 ') || line.endsWith('\t.gitmodules'));
+}
+
+/**
+ * How many paths a porcelain status listing holds. Only the count leaves
+ * this module: a path's name can itself be sensitive.
+ */
+function countChangedPaths(porcelain: string): number {
+  return porcelain.split('\n').filter((line) => line.trim() !== '').length;
 }
 
 /**

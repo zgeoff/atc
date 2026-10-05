@@ -326,7 +326,7 @@ async function resolveSource(
     await requireNoOriginRewriteCredentials(source.path);
 
     const resolved = await resolvePathSource(source.path, {
-      allowDirty: source.allowDirty ?? 'refuse',
+      ...(source.allowDirty === undefined ? {} : { allowDirty: source.allowDirty }),
       transports,
     });
 

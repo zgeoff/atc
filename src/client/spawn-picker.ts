@@ -21,7 +21,16 @@ import { resolvePathInput } from './resolve-path-input';
 import { resolveWorkspaceRoot } from './resolve-workspace-root';
 import { ansi, cols, drawPicker } from './ui';
 
-type PickerStep = 'agent' | 'dir' | 'source' | 'ref' | 'target' | 'confirm' | 'name' | 'prompt';
+type PickerStep =
+  | 'agent'
+  | 'dir'
+  | 'source'
+  | 'ref'
+  | 'target'
+  | 'confirm'
+  | 'name'
+  | 'prompt'
+  | 'spawned';
 
 // What the flow borrows from the client that owns the screen, the daemon
 // connection and the fleet mirror.
@@ -226,6 +235,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private pending: PendingRequest | null = null;
 
+  // A session the daemon started with warnings, and those warnings, shown
+  // before the flow attaches it.
+  private spawned: TMirror | null = null;
+
+  private spawnWarnings: readonly string[] = [];
+
   private requestSeq = 0;
 
   // The flow's generation. Opening the flow and every way out of it moves
@@ -280,6 +295,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   applyKey(buf: Buffer) {
     this.refusal = null;
+
+    if (this.step === 'spawned') {
+      this.applySpawnedKey(buf);
+
+      return;
+    }
 
     const edit = planTextEdit(buf, this.input, {
       isLeaderKey: this.deps.isLeaderKey,
@@ -387,6 +408,14 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.renderTargetStep(verb);
     } else if (this.step === 'confirm') {
       this.renderConfirmStep();
+    } else if (this.step === 'spawned') {
+      drawPicker({
+        title: `${verb}: started`,
+        items: [...this.spawnWarnings],
+        selected: -1,
+        input: '',
+        hint: '⏎ attach · esc back',
+      });
     } else if (this.step === 'name') {
       const where = this.isGitFlow() ? this.formatDestination() : formatDir(this.dir);
 
@@ -1714,7 +1743,47 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.stopFlow();
     this.deps.upsertMirror(session);
 
+    const warnings = spawned.answer['warnings'];
+
+    // A workspace that left changes behind says so before the session's
+    // screen takes over.
+    if (Array.isArray(warnings) && warnings.length > 0) {
+      this.spawned = session;
+      this.spawnWarnings = warnings.filter((w): w is string => typeof w === 'string');
+      this.step = 'spawned';
+
+      process.stdout.write(ansi.clear);
+      this.render();
+
+      return;
+    }
+
     await this.deps.attach(session.id);
+  }
+
+  // The started step takes Enter to attach the session and Esc or the
+  // leader to return to the screen the flow came from; the session runs
+  // either way.
+  private applySpawnedKey(buf: Buffer) {
+    const edit = planTextEdit(buf, '', { isLeaderKey: this.deps.isLeaderKey, moves: false });
+
+    if (edit.kind !== 'submit' && edit.kind !== 'cancel' && edit.kind !== 'leader') {
+      return;
+    }
+
+    const session = this.spawned;
+
+    this.spawned = null;
+    this.spawnWarnings = [];
+    this.step = 'agent';
+
+    if (edit.kind === 'submit' && session !== null) {
+      void this.deps.attach(session.id);
+
+      return;
+    }
+
+    this.deps.toBase();
   }
 
   // A refused git workspace spawn returns to the step that can fix it. Any

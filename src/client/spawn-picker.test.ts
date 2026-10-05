@@ -255,6 +255,70 @@ test('it materializes a directory on the one target when that target is remote',
   ]);
 });
 
+test('it holds a session whose workspace left changes behind until enter attaches it', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+
+  await ctx.answer('session.spawn', {
+    session: { id: 's-1' },
+    warnings: [
+      'left 2 uncommitted or untracked paths in /src/app behind; cloned commit 0123456789ab',
+    ],
+  });
+
+  const held = ctx.counts.attached;
+
+  await ctx.applyKeys(ENTER);
+
+  expect(held).toBe(0);
+  expect(ctx.counts.attached).toBe(1);
+  expect(ctx.counts.exits).toBe(0);
+});
+
+test('it leaves a session whose workspace left changes behind running when esc returns', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+
+  await ctx.answer('session.spawn', {
+    session: { id: 's-1' },
+    warnings: [
+      'left 1 uncommitted or untracked path in /src/app behind; cloned commit 0123456789ab',
+    ],
+  });
+
+  await ctx.applyKeys(ESC);
+
+  expect(ctx.counts.attached).toBe(0);
+  expect(ctx.counts.exits).toBe(1);
+  expect(ctx.collectSent('session.spawn')).toHaveLength(1);
+});
+
+test('it attaches a session spawned without warnings at once', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.applyKeys(ENTER);
+  await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+  await ctx.answer('session.spawn', { session: { id: 's-1' } });
+
+  expect(ctx.counts.attached).toBe(1);
+});
+
 test('it runs a directory in place on the one target when that target is local', async () => {
   const ctx = setupTest();
 

@@ -625,16 +625,19 @@ checkout of a pushed commit into `cwd` on the session's target, and the session 
 the checkout is verified:
 
 ```jsonc
-{ "kind": "path", "path": "/home/me/src/app", "allowDirty": "warn" }
+{ "kind": "path", "path": "/home/me/src/app" }
 
 { "kind": "git", "url": "https://github.com/me/app.git", "ref": "main",
   "credentialRef": { "kind": "env", "name": "APP_GIT_TOKEN" } }
 ```
 
 - A `path` source is a git checkout on the daemon's host. It resolves to origin's URL, stripped of
-  any credential, and to HEAD, which origin must already hold. Uncommitted or untracked changes
-  refuse the spawn as `workspace_dirty`. With `allowDirty: "warn"`, the checkout is HEAD, the
-  changes stay behind, and the spawn answer holds `warnings`.
+  any credential, and to HEAD, which origin must already hold. Uncommitted or untracked changes in
+  the checkout stay behind: the daemon clones HEAD, never copies the changes, and leaves the
+  checkout as it was. The spawn answer then holds `warnings`, with the count of paths left behind
+  and the commit cloned. `allowDirty` defaults to `"warn"`, and `allowDirty: "refuse"` refuses a
+  dirty checkout as `workspace_dirty`. A dirty checkout whose HEAD origin does not hold refuses as
+  `unpushed_head`, so the daemon never clones an older commit in its place.
 - A `git` source is a repository URL with `ref`, a branch or tag, `sha`, a full commit id, or both.
   `session.spawn` also takes the older `owner/repo` shorthand for a GitHub https URL; `git.probe`
   and the sources take full URLs. With both, the daemon checks out `sha`, on the branch `ref` names
@@ -677,7 +680,7 @@ Every workspace refusal holds the phase it failed in as `data.phase`, and its me
 | `no_commits`             | resolving                 | the checkout has no commit                                                                                                                                                                                          |
 | `unreadable_tree`        | resolving or cloning      | git cannot inspect the path, list the commit's tree, or read the checkout's status                                                                                                                                  |
 | `has_submodules`         | resolving or cloning      | the commit holds a gitlink or a `.gitmodules` file                                                                                                                                                                  |
-| `workspace_dirty`        | resolving                 | the checkout has uncommitted or untracked changes                                                                                                                                                                   |
+| `workspace_dirty`        | resolving                 | `allowDirty` is `refuse` and the checkout has uncommitted or untracked changes                                                                                                                                      |
 | `no_origin`              | resolving                 | the checkout has no origin remote                                                                                                                                                                                   |
 | `invalid_git_url`        | resolving                 | the URL does not read as a repository URL                                                                                                                                                                           |
 | `git_transports_invalid` | resolving                 | `workspaces.gitTransports` in config.json is invalid                                                                                                                                                                |

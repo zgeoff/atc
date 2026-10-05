@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
@@ -92,24 +92,108 @@ test('it strips a token from the origin URL', async () => {
   expect(resolved).toMatchObject({ ok: true, url: 'https://github.com/zgeoff/atc.git' });
 });
 
-test('it refuses a checkout with an uncommitted change', async () => {
+test('it resolves a checkout with an uncommitted change to HEAD with a warning that counts it', async () => {
   await using project = await setupTest();
+
+  const head = await $`git rev-parse HEAD`.env(project.env).cwd(project.work).text();
 
   await writeFile(join(project.work, 'README.md'), 'edited\n');
 
   const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
+  expect(resolved).toStrictEqual({
+    ok: true,
+    url: project.upstream,
+    sha: head.trim(),
+    branch: 'main',
+    dirty: true,
+    warnings: [
+      `left 1 uncommitted or untracked path in ${project.work} behind; cloned commit ${head.slice(0, 12)}`,
+    ],
+  });
+});
+
+test('it resolves a checkout with untracked files to HEAD without naming them', async () => {
+  await using project = await setupTest();
+
+  const head = await $`git rev-parse HEAD`.env(project.env).cwd(project.work).text();
+
+  await writeFile(join(project.work, '.env'), 'TOKEN=secret\n');
+  await writeFile(join(project.work, 'notes.txt'), 'scratch\n');
+
+  const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
+
+  expect(resolved).toStrictEqual({
+    ok: true,
+    url: project.upstream,
+    sha: head.trim(),
+    branch: 'main',
+    dirty: true,
+    warnings: [
+      `left 2 uncommitted or untracked paths in ${project.work} behind; cloned commit ${head.slice(0, 12)}`,
+    ],
+  });
+});
+
+test('it leaves the changes of a dirty checkout as they were', async () => {
+  await using project = await setupTest();
+
+  await writeFile(join(project.work, 'README.md'), 'edited\n');
+  await writeFile(join(project.work, 'notes.txt'), 'scratch\n');
+
+  await $`git add notes.txt`.env(project.env).cwd(project.work).quiet();
+
+  const before = await $`git status --porcelain`.env(project.env).cwd(project.work).text();
+
+  await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
+
+  const after = await $`git status --porcelain`.env(project.env).cwd(project.work).text();
+  const readme = await readFile(join(project.work, 'README.md'), 'utf8');
+  const notes = await readFile(join(project.work, 'notes.txt'), 'utf8');
+
+  expect(after).toBe(before);
+  expect(readme).toBe('edited\n');
+  expect(notes).toBe('scratch\n');
+});
+
+test('it refuses a checkout with an uncommitted change when dirt is refused', async () => {
+  await using project = await setupTest();
+
+  await writeFile(join(project.work, 'README.md'), 'edited\n');
+
+  const resolved = await resolvePathSource(project.work, {
+    allowDirty: 'refuse',
+    transports: FIXTURE_TRANSPORTS,
+  });
+
   expect(resolved).toMatchObject({ ok: false, code: 'workspace_dirty' });
 });
 
-test('it refuses a checkout with an untracked file as dirty', async () => {
+test('it refuses a checkout with an untracked file when dirt is refused', async () => {
   await using project = await setupTest();
+
+  await writeFile(join(project.work, 'notes.txt'), 'scratch\n');
+
+  const resolved = await resolvePathSource(project.work, {
+    allowDirty: 'refuse',
+    transports: FIXTURE_TRANSPORTS,
+  });
+
+  expect(resolved).toMatchObject({ ok: false, code: 'workspace_dirty' });
+});
+
+test('it refuses a dirty checkout whose HEAD origin does not hold rather than resolve an older commit', async () => {
+  await using project = await setupTest();
+
+  await writeFile(join(project.work, 'README.md'), 'local\n');
+
+  await $`git commit --quiet -am local`.env(project.env).cwd(project.work).quiet();
 
   await writeFile(join(project.work, 'notes.txt'), 'scratch\n');
 
   const resolved = await resolvePathSource(project.work, { transports: FIXTURE_TRANSPORTS });
 
-  expect(resolved).toMatchObject({ ok: false, code: 'workspace_dirty' });
+  expect(resolved).toMatchObject({ ok: false, code: 'unpushed_head' });
 });
 
 test('it resolves a dirty checkout to HEAD with a warning when dirt is allowed', async () => {
@@ -130,7 +214,7 @@ test('it resolves a dirty checkout to HEAD with a warning when dirt is allowed',
     sha: head.trim(),
     branch: 'main',
     dirty: true,
-    warnings: [expect.stringContaining(head.trim())],
+    warnings: [expect.stringContaining(head.slice(0, 12))],
   });
 });
 
