@@ -10,17 +10,23 @@ const REPORT_TEXT_BUDGET_BYTES = 65_536;
 // call idle for 60, so the report reads finish well inside what is left.
 const REPORT_READ_DEADLINE_MS = 10_000;
 
+// What one report read gives its event: its text and whether that text is
+// whole, or the error the read failed with.
+type ReportRead = Readonly<Record<string, unknown>>;
+
 /**
  * An events page with the whole text of each of its reports, read through
  * `report.get` by the page's own caller, so each read rides the reach the
- * page was read under. The reads run in parallel under one deadline. A
- * report event gains the `text` and `complete` its read returns, or
+ * page was read under. The reads run one at a time in page order, so one
+ * report text at most is ever in flight, under one deadline for them all.
+ * A report event gains the `text` and `complete` its read returns, or
  * `textError` when the read fails or outlasts the deadline, and keeps its
  * preview in `detail`. The page stops before the first report whose text
- * would carry it past the budget: it then holds the cursor of the last
- * event it keeps and `more` true, so the next read starts at that report.
- * Every other field of the page, such as a gateway's `unavailable` and
- * `truncated`, passes through unchanged.
+ * would carry it past the budget, or whose read would start after the
+ * deadline: it then holds the cursor of the last event it keeps and `more`
+ * true, so the next read starts at that report. Every other field of the
+ * page, such as a gateway's `unavailable` and `truncated`, passes through
+ * unchanged.
  */
 export async function readReportTexts(
   caller: FleetCaller,
@@ -29,22 +35,50 @@ export async function readReportTexts(
 ): Promise<Readonly<Record<string, unknown>>> {
   const raw: unknown = page['events'];
   const events = Array.isArray(raw) ? raw.filter((event) => isRecord(event)) : [];
+  const endsAt = Date.now() + deadlineMs;
+  const timeout = Promise.withResolvers<ReportRead>();
 
-  const reads = await readPageReports(caller, events, deadlineMs);
+  const timer = setTimeout(() => {
+    timeout.resolve({
+      textError: `timeout: the report text did not arrive within ${deadlineMs} ms`,
+    });
+  }, deadlineMs);
 
+  const read = await readPageReports(caller, page, events, endsAt, timeout.promise);
+
+  clearTimeout(timer);
+
+  return read;
+}
+
+// The page with its reports read, one at a time, until the budget or the
+// deadline at `endsAt` stops it. A read still out when `timeout` settles
+// gives way to the timeout it settles with.
+async function readPageReports(
+  caller: FleetCaller,
+  page: Readonly<Record<string, unknown>>,
+  events: readonly Readonly<Record<string, unknown>>[],
+  endsAt: number,
+  timeout: Readonly<Promise<ReportRead>>,
+): Promise<Readonly<Record<string, unknown>>> {
   const kept: Readonly<Record<string, unknown>>[] = [];
   let used = 0;
 
-  for (const [index, event] of events.entries()) {
-    const read = reads[index];
-
-    if (read === undefined) {
+  for (const event of events) {
+    if (event['kind'] !== 'report') {
       kept.push(event);
       continue;
     }
 
-    const bytes = typeof read['text'] === 'string' ? Buffer.byteLength(read['text']) : 0;
     const last = kept.at(-1);
+
+    if (last !== undefined && Date.now() >= endsAt) {
+      return { ...page, events: kept, cursor: last['cursor'], more: true };
+    }
+
+    const read = await Promise.race([readReportText(caller, event), timeout]);
+
+    const bytes = typeof read['text'] === 'string' ? Buffer.byteLength(read['text']) : 0;
 
     if (last !== undefined && used + bytes > REPORT_TEXT_BUDGET_BYTES) {
       return { ...page, events: kept, cursor: last['cursor'], more: true };
@@ -58,35 +92,6 @@ export async function readReportTexts(
   return { ...page, events: kept };
 }
 
-// The read of each report event of a page, at the event's index, read in
-// parallel. A read still out at the deadline gives way to a timeout, and an
-// event that is not a report has no read.
-async function readPageReports(
-  caller: FleetCaller,
-  events: readonly Readonly<Record<string, unknown>>[],
-  deadlineMs: number,
-): Promise<readonly (Readonly<Record<string, unknown>> | undefined)[]> {
-  const deadline = Promise.withResolvers<Readonly<Record<string, unknown>>>();
-
-  const timer = setTimeout(() => {
-    deadline.resolve({
-      textError: `timeout: the report text did not arrive within ${deadlineMs} ms`,
-    });
-  }, deadlineMs);
-
-  const reads = await Promise.all(
-    events.map((event) =>
-      event['kind'] === 'report'
-        ? Promise.race([readReportText(caller, event), deadline.promise])
-        : Promise.resolve(undefined),
-    ),
-  );
-
-  clearTimeout(timer);
-
-  return reads;
-}
-
 // One report event's whole text and whether it is complete, or the error
 // its read failed with. The read takes the event's report handle, which a
 // gateway adds, else the event's own cursor, which a daemon reads a report
@@ -94,7 +99,7 @@ async function readPageReports(
 async function readReportText(
   caller: FleetCaller,
   event: Readonly<Record<string, unknown>>,
-): Promise<Readonly<Record<string, unknown>>> {
+): Promise<ReportRead> {
   const handle = typeof event['report'] === 'string' ? event['report'] : event['cursor'];
 
   try {

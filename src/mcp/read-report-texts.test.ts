@@ -197,15 +197,17 @@ test('it keeps a report whose text read fails with its preview and the refusal',
   });
 });
 
-test('it gives each report whose text read outlasts the deadline a timeout and returns the rest', async () => {
+test('it gives a report whose text read outlasts the deadline a timeout and stops the page after it', async () => {
+  const sent: unknown[] = [];
   const started = Date.now();
 
   const page = await readReportTexts(
     {
-      sendRequest: (_method, p) =>
-        p?.['report'] === 'c2'
-          ? Promise.resolve({ text: 'quick', complete: true })
-          : Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
+      sendRequest: (_method, p) => {
+        sent.push(p?.['report']);
+
+        return Promise.withResolvers<Readonly<Record<string, unknown>>>().promise;
+      },
       readFeatures: () => Promise.resolve(new Set(DAEMON_FEATURES)),
     },
     {
@@ -219,22 +221,14 @@ test('it gives each report whose text read outlasts the deadline a timeout and r
           detail: 'slow',
           label: 'l',
         },
-        {
-          cursor: 'c2',
-          at: 2,
-          session: 's2',
-          name: null,
-          kind: 'report',
-          detail: 'quick',
-          label: 'l',
-        },
+        { cursor: 'c2', at: 2, session: 's2', name: null, kind: 'turn-done', detail: null },
         {
           cursor: 'c3',
           at: 3,
           session: 's1',
           name: null,
           kind: 'report',
-          detail: 'slow',
+          detail: 'next',
           label: 'l',
         },
       ],
@@ -245,6 +239,7 @@ test('it gives each report whose text read outlasts the deadline a timeout and r
   );
 
   expect(Date.now() - started).toBeWithin(100, 2000);
+  expect(sent).toStrictEqual(['c1']);
 
   expect(page).toStrictEqual({
     events: [
@@ -258,29 +253,9 @@ test('it gives each report whose text read outlasts the deadline a timeout and r
         label: 'l',
         textError: 'timeout: the report text did not arrive within 100 ms',
       },
-      {
-        cursor: 'c2',
-        at: 2,
-        session: 's2',
-        name: null,
-        kind: 'report',
-        detail: 'quick',
-        label: 'l',
-        text: 'quick',
-        complete: true,
-      },
-      {
-        cursor: 'c3',
-        at: 3,
-        session: 's1',
-        name: null,
-        kind: 'report',
-        detail: 'slow',
-        label: 'l',
-        textError: 'timeout: the report text did not arrive within 100 ms',
-      },
+      { cursor: 'c2', at: 2, session: 's2', name: null, kind: 'turn-done', detail: null },
     ],
-    cursor: 'c3',
-    more: false,
+    cursor: 'c2',
+    more: true,
   });
 });

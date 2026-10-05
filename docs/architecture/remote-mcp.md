@@ -309,18 +309,18 @@ the gateway, a session id starts with the name of the daemon that hosts it. `atc
 returns the session's target and working directory. `name` is null when the session has no name or
 the daemon no longer lists it.
 
-A page read with `reportText` holds at most 64 KiB of report text. The server reads the reports in
-page order and stops the page before the first report that does not fit, with `more` true and the
-cursor of the last event the page holds, so the next call starts at that report. One report holds at
-most 64 KiB, so every page holds its first report.
+A page read with `reportText` holds at most 64 KiB of report text and takes at most 10 s of report
+reads. The server reads the reports one at a time in page order. It stops the page before the first
+report that does not fit, or that it would start reading after the 10 s have passed. The stopped
+page holds `more` true and the cursor of the last event it keeps, so the next call starts at that
+report. One report holds at most 64 KiB, so every page holds its first report.
 
 The answer marks what the server could not read:
 
 - `complete` false: atc kept only the preview of that report, and `text` holds the preview.
 - `textError`: the error code and message of a report whose text the server could not read, such as
-  one whose daemon stopped answering. `detail` holds the preview. The server reads the reports of a
-  page in parallel and waits at most 10 s for them, so a report whose text arrives later holds a
-  `timeout` error.
+  one whose daemon stopped answering. `detail` holds the preview. A report whose text has not
+  arrived when the 10 s pass holds a `timeout` error.
 - `unavailable`: under the gateway, the daemons that did not answer. Each keeps its place in the
   cursor, so the next call reads its events from where the last one stopped.
 - `started` and `truncated`: under the gateway, `started` lists the daemons that joined the cursor

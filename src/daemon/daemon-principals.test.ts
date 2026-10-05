@@ -1216,6 +1216,47 @@ test('it reads the whole text of only the reports of sessions a principal may se
   });
 });
 
+test('it reads the first of many large reports a principal may see with no lost reply or timeout', async () => {
+  await using daemon = await setupTest({
+    targets: { local: { provider: 'local-pty' } },
+    principals: { 'client-a': { targets: ['local'] } },
+  });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
+
+  const shown = await daemon.spawnOn('local');
+
+  for (const index of Array.from({ length: 50 }, (_, at) => at)) {
+    await daemon.sendNote(shown, String(index).padEnd(60_000, 'x'));
+  }
+
+  await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('events.read', { limit: 50 });
+
+    expect(owner['events']).toBeArrayOfSize(50);
+  });
+
+  const started = Date.now();
+
+  const read = await runTool(
+    buildPrincipalCaller(caller, 'client-a'),
+    'atc_events_read',
+    { limit: 50, reportText: true },
+    { callerSessionID: null, sender: { kind: 'fixed', name: 'client-a' } },
+  );
+
+  expect(Date.now() - started).toBeLessThan(5000);
+
+  expect(read.structured).toMatchObject({
+    events: [{ kind: 'report', session: shown, text: '0'.padEnd(60_000, 'x'), complete: true }],
+    more: true,
+  });
+});
+
 test('it names a report by the session that sent it, never a hidden session that resumes the same agent session', async () => {
   await using daemon = await setupTest(SPLIT_CONFIG);
 
