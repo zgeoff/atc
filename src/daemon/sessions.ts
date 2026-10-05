@@ -1293,16 +1293,17 @@ export class SessionManager {
     target: string,
     dir: string,
   ): Promise<boolean> {
-    // A target without hosts runs every session on one machine, so the
-    // directory stays while any other session listed there runs inside it.
+    // Targets without hosts run their sessions on the daemon's machine, so
+    // the directory stays while a session listed on any of them runs inside.
     if (!this.hasHostLifecycle(target)) {
-      const others = this.sessions.filter((s) => s.id !== id && s.target === target);
+      const isOnMachine = (s: Session) => s.id !== id && !this.hasHostLifecycle(s.target);
+      const others = this.sessions.filter(isOnMachine);
 
       const resolved = await Promise.all(
         others.map((s) => this.resolveHostDir(provider, null, s.cwd).catch(() => null)),
       );
 
-      if (this.sessions.some((s) => s.id !== id && s.target === target && !others.includes(s))) {
+      if (this.sessions.some((s) => isOnMachine(s) && !others.includes(s))) {
         return this.removeClaimedDir(provider, id, hostKey, target, dir);
       }
 

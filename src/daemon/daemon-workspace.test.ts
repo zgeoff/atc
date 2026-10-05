@@ -1005,53 +1005,59 @@ test('it removes the checkout it created and keeps the files beside it when its 
   });
 });
 
-test("it keeps a checkout that another session's directory lies inside when its spawn fails on a target without hosts", async () => {
-  await using ctx = await setupTest();
+test.each([
+  ['the same target', 'box'],
+  ['another target on the same machine', 'local'],
+] as const)(
+  'it keeps a checkout that a session on %s runs inside when its spawn fails on a target without hosts',
+  async (_where, insideTarget) => {
+    await using ctx = await setupTest();
 
-  const transferred = Promise.withResolvers<void>();
-  const released = Promise.withResolvers<void>();
+    const transferred = Promise.withResolvers<void>();
+    const released = Promise.withResolvers<void>();
 
-  const box = new FixtureDirProvider({
-    afterTransfer: async (dir) => {
-      unlinkSync(join(dir, 'README.md'));
+    const box = new FixtureDirProvider({
+      afterTransfer: async (dir) => {
+        unlinkSync(join(dir, 'README.md'));
 
-      transferred.resolve();
+        transferred.resolve();
 
-      await released.promise;
-    },
-  });
+        await released.promise;
+      },
+    });
 
-  const booted = await ctx.boot(box);
+    const booted = await ctx.boot(box);
 
-  const dest = join(ctx.dir, 'box', 'ws');
+    const dest = join(ctx.dir, 'box', 'ws');
 
-  const spawn = booted.client.sendRequest('session.spawn', {
-    cwd: dest,
-    target: 'box',
-    workspace: { kind: 'path', path: ctx.work },
-  });
+    const spawn = booted.client.sendRequest('session.spawn', {
+      cwd: dest,
+      target: 'box',
+      workspace: { kind: 'path', path: ctx.work },
+    });
 
-  await transferred.promise;
+    await transferred.promise;
 
-  mkdirSync(join(dest, 'inner'));
-  writeFileSync(join(dest, 'inner', 'mine.txt'), 'kept\n');
+    mkdirSync(join(dest, 'inner'));
+    writeFileSync(join(dest, 'inner', 'mine.txt'), 'kept\n');
 
-  const inside = await booted.client.sendRequest('session.spawn', {
-    cwd: join(dest, 'inner'),
-    target: 'box',
-  });
+    const inside = await booted.client.sendRequest('session.spawn', {
+      cwd: join(dest, 'inner'),
+      target: insideTarget,
+    });
 
-  released.resolve();
+    released.resolve();
 
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch', data: { leftDir: dest } });
+    expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch', data: { leftDir: dest } });
 
-  await spawn.catch(() => null);
+    await spawn.catch(() => null);
 
-  expect<Record<string, unknown>>({
-    kept: readFileSync(join(dest, 'inner', 'mine.txt'), 'utf8'),
-    alive: getRecord(inside, 'session')['alive'],
-  }).toStrictEqual({ kept: 'kept\n', alive: true });
-});
+    expect<Record<string, unknown>>({
+      kept: readFileSync(join(dest, 'inner', 'mine.txt'), 'utf8'),
+      alive: getRecord(inside, 'session')['alive'],
+    }).toStrictEqual({ kept: 'kept\n', alive: true });
+  },
+);
 
 test('it refuses a workspace spawn whose cwd is relative before anything runs', async () => {
   await using ctx = await setupTest();
