@@ -182,10 +182,10 @@ test('it exits within three seconds of SIGTERM while a flood of refusals fills t
   expect(stopped).toStrictEqual({ exitCode: 0, elapsedMs: expect.toBeWithin(0, 3000) });
 });
 
-test('it writes every line it holds at SIGTERM to a stderr reader that starts to read after it', async () => {
+test('it writes every line it holds at SIGTERM, and the count of the ones it dropped, to a stderr reader that starts to read after it', async () => {
   await using daemon = await setupTest();
 
-  await daemon.refuse(1000);
+  await daemon.refuse(3000);
 
   const stopping = daemon.stop();
 
@@ -195,14 +195,30 @@ test('it writes every line it holds at SIGTERM to a stderr reader that starts to
 
   expect(stopped).toMatchObject({ exitCode: 0 });
 
+  // Every refusal arrives as a line of its own or is counted on a dropped
+  // line, however much of the flood the host's pipe took before the log
+  // started to queue and drop.
   await waitFor(() => {
-    expect(daemon.output.join('').split('\n')).toStrictEqual([
-      expect.toStartWith('atc tcp event=listening '),
-      ...Array.from(
-        { length: 1000 },
-        () => 'atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=1',
+    const lines = daemon.output.join('').split('\n');
+
+    const refusals = lines.filter(
+      (line) =>
+        line === 'atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=1',
+    ).length;
+
+    const dropped = lines
+      .filter((line) => line.startsWith('atc log dropped='))
+      .reduce((sum, line) => sum + Number(line.slice('atc log dropped='.length)), 0);
+
+    expect(lines[0]).toStartWith('atc tcp event=listening ');
+
+    expect(lines.slice(1, -1)).toSatisfyAll((line: string) =>
+      /^(?:atc tcp event=handshake_refused peer=127\.0\.0\.1 reason=unexpected_line count=1|atc log dropped=\d+)$/u.test(
+        line,
       ),
-      '',
-    ]);
+    );
+
+    expect(lines.at(-1)).toBe('');
+    expect(refusals + dropped).toBe(3000);
   });
 });
