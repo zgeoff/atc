@@ -22,6 +22,10 @@ test('it breaks a word wider than a row at the row edge', () => {
   ]);
 });
 
+test('it breaks a word at a code point boundary, never inside a character', () => {
+  expect(splitToWidth('/ab😀cd', 4)).toStrictEqual(['/ab😀', 'cd']);
+});
+
 test('it returns the text whole when no row has room', () => {
   expect(splitToWidth('behind', 0)).toStrictEqual(['behind']);
 });

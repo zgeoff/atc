@@ -105,8 +105,9 @@ export async function resolvePathSource(
   }
 
   if (dirty) {
+    // The commit leads, so a display that cuts the note short keeps it.
     warnings.push(
-      `left ${changed} uncommitted or untracked ${changed === 1 ? 'path' : 'paths'} in ${root} behind; cloned commit ${sha.slice(0, 12)}`,
+      `cloned commit ${sha.slice(0, 12)}; left ${changed} uncommitted or untracked ${changed === 1 ? 'path' : 'paths'} behind in ${root}`,
     );
   }
 

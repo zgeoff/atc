@@ -274,7 +274,7 @@ test('it holds a session whose workspace left changes behind until enter attache
   await ctx.answer('session.spawn', {
     session: { id: 's-1' },
     warnings: [
-      'left 2 uncommitted or untracked paths in /src/app behind; cloned commit 0123456789ab',
+      'cloned commit 0123456789ab; left 2 uncommitted or untracked paths behind in /src/app',
     ],
   });
 
@@ -302,7 +302,7 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
   await ctx.answer('session.spawn', {
     session: { id: 's-1' },
     warnings: [
-      'left 12 uncommitted or untracked paths in /home/me/src/a-project-with-a-long-name behind; cloned commit 0123456789ab',
+      'cloned commit 0123456789ab; left 12 uncommitted or untracked paths behind in /home/me/src/a-project-with-a-long-name',
     ],
   });
 
@@ -326,7 +326,7 @@ test('it leaves a session whose workspace left changes behind running when esc r
   await ctx.answer('session.spawn', {
     session: { id: 's-1' },
     warnings: [
-      'left 1 uncommitted or untracked path in /src/app behind; cloned commit 0123456789ab',
+      'cloned commit 0123456789ab; left 1 uncommitted or untracked path behind in /src/app',
     ],
   });
 

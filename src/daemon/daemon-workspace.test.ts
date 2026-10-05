@@ -455,7 +455,7 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
   expect(cloned).toBe(sha);
 
   expect(spawned['warnings']).toStrictEqual([
-    `left 2 uncommitted or untracked paths in ${ctx.work} behind; cloned commit ${sha.slice(0, 12)}`,
+    `cloned commit ${sha.slice(0, 12)}; left 2 uncommitted or untracked paths behind in ${ctx.work}`,
   ]);
 
   expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
@@ -484,7 +484,7 @@ test('it materializes the committed HEAD of a dirty path source when dirt is all
   expect(getRecord(spawned, 'session')['workspace']).toMatchObject({ sha: sha.trim() });
 
   expect(spawned['warnings']).toStrictEqual([
-    `left 1 uncommitted or untracked path in ${ctx.work} behind; cloned commit ${sha.slice(0, 12)}`,
+    `cloned commit ${sha.slice(0, 12)}; left 1 uncommitted or untracked path behind in ${ctx.work}`,
   ]);
 
   expect(existsSync(join(dest, 'scratch.txt'))).toBeFalse();

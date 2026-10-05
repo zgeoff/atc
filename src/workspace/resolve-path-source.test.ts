@@ -108,7 +108,7 @@ test('it resolves a checkout with an uncommitted change to HEAD with a warning t
     branch: 'main',
     dirty: true,
     warnings: [
-      `left 1 uncommitted or untracked path in ${project.work} behind; cloned commit ${head.slice(0, 12)}`,
+      `cloned commit ${head.slice(0, 12)}; left 1 uncommitted or untracked path behind in ${project.work}`,
     ],
   });
 });
@@ -130,7 +130,7 @@ test('it resolves a checkout with untracked files to HEAD without naming them', 
     branch: 'main',
     dirty: true,
     warnings: [
-      `left 2 uncommitted or untracked paths in ${project.work} behind; cloned commit ${head.slice(0, 12)}`,
+      `cloned commit ${head.slice(0, 12)}; left 2 uncommitted or untracked paths behind in ${project.work}`,
     ],
   });
 });
