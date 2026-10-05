@@ -123,6 +123,7 @@ if [ -f "$HOME/fake-claude-events.jsonl" ]; then
     sleep 0.2
   done < "$HOME/fake-claude-events.jsonl"
 fi
+if [ -f "$HOME/fake-claude-exit" ]; then exit 0; fi
 while read -r line; do echo "GOT:$line"; done
 sleep 30
 `,
@@ -438,6 +439,141 @@ test('it keeps a live terminal alive when its session reports an end', async () 
   const sessions = getRecords(list, 'sessions');
 
   expect(sessions[0]).toMatchObject({ alive: true, state: 'needs_you', lastMsg: 'session ended' });
+});
+
+test('it stops showing a live terminal as ended once a new session starts in it', async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(
+    join(ctx.home, 'fake-claude-events.jsonl'),
+    [
+      { hook_event_name: 'Stop', session_id: 'fake-1', last_assistant_message: 'All done.' },
+      { hook_event_name: 'SessionEnd', session_id: 'fake-1', reason: 'clear' },
+      {
+        hook_event_name: 'SessionStart',
+        session_id: 'fake-2',
+        source: 'clear',
+        transcript_path: join(ctx.home, 'fake-transcript-2.jsonl'),
+      },
+    ]
+      .map((ev) => `${JSON.stringify(ev)}\n`)
+      .join(''),
+  );
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' &&
+      isRecord(e['session']) &&
+      e['session']['lastMsg'] === 'session ended',
+  );
+
+  const restarted = await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' &&
+      isRecord(e['session']) &&
+      e['session']['agentSessionID'] === 'fake-2',
+  );
+
+  expect(restarted).toMatchObject({
+    session: { alive: true, kind: 'pty', state: 'done', lastMsg: 'started' },
+  });
+
+  const record = await client.sendRequest('session.get', { session: id });
+
+  expect(record).toMatchObject({
+    session: { alive: true, state: 'done', lastMsg: 'started', agentSessionID: 'fake-2' },
+  });
+});
+
+test('it keeps a gone terminal exited when a late end and start arrive', async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(join(ctx.home, 'fake-claude-exit'), '');
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' &&
+      isRecord(e['session']) &&
+      e['session']['state'] === 'exited' &&
+      e['session']['alive'] === false,
+  );
+
+  const env = collectEnv({
+    HOME: ctx.home,
+    ATC_SESSION_ID: id,
+    ATC_SOCKET: join(ctx.home, 'atc.sock'),
+  });
+
+  const endReporter = Bun.spawn([...atcCommand, 'hook-report', '--agent', 'claude'], {
+    stdin: new TextEncoder().encode(
+      JSON.stringify({ hook_event_name: 'SessionEnd', session_id: 'fake-1', reason: 'clear' }),
+    ),
+    env,
+  });
+
+  await endReporter.exited;
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' &&
+      isRecord(e['session']) &&
+      e['session']['lastMsg'] === 'session ended',
+  );
+
+  const startReporter = Bun.spawn([...atcCommand, 'hook-report', '--agent', 'claude'], {
+    stdin: new TextEncoder().encode(
+      JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'fake-2', source: 'clear' }),
+    ),
+    env,
+  });
+
+  await startReporter.exited;
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' &&
+      isRecord(e['session']) &&
+      e['session']['agentSessionID'] === 'fake-2',
+  );
+
+  const record = await client.sendRequest('session.get', { session: id });
+
+  expect(record).toMatchObject({
+    session: { alive: false, state: 'exited', lastMsg: 'session ended', agentSessionID: 'fake-2' },
+  });
 });
 
 test('it renames and pins a session through session.update', async () => {

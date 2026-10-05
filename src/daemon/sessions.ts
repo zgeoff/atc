@@ -2107,9 +2107,15 @@ export class SessionManager {
     }
 
     switch (ev.kind) {
+      // Clearing or resuming inside a live terminal ends the old agent session
+      // and starts a new one in the same process, so the start supersedes the
+      // end's message. A gone terminal keeps it.
       case 'started': {
         if (s.lastMsg === 'adopting…') {
           s.lastMsg = 'adopted';
+          dirty = true;
+        } else if (s.lastMsg === 'session ended' && s.pty !== null) {
+          s.lastMsg = 'started';
           dirty = true;
         }
 
