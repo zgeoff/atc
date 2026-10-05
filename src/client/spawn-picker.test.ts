@@ -787,3 +787,20 @@ test('it drops the target and source answer of a flow that was left and opened a
   expect(ctx.collectSent('sources.list')).toStrictEqual([]);
   expect(ctx.counts.renders).toBe(renders);
 });
+
+test('it returns esc from a git source to the directory source when one target left no choice', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', { targets: [LOCAL], sources: [GIT_SOURCE, DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
+  await ctx.applyKeys(ESC);
+
+  ctx.screen.length = 0;
+
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  expect(ctx.screen.join('')).toInclude('spawn: directory on the daemon host');
+  expect(ctx.counts.exits).toBe(0);
+});
