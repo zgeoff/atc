@@ -63,10 +63,11 @@ atc restarted the daemon at <start time>; your last turn was interrupted. Check 
 
 The message goes through the session's atc inbox, so only an agent that takes atc messages gets it:
 Claude and Claude gateways do, and Grok and Codex do not. A session whose latest turn event is a
-finished turn or a request for input gets nothing. A permission prompt counts as a request for input
-even after you approve it, so a turn that ran on past an approved prompt gets no message either. The
-message stays pending until the session's tap takes it, and a restore never adds a second one beside
-it.
+finished turn or a request for input gets nothing. A session on an imp target gets nothing either:
+its harness runs on in the imp while the daemon is down, so the restore attaches to the turn as it
+stands. A permission prompt counts as a request for input even after you approve it, so a turn that
+ran on past an approved prompt gets no message either. The message stays pending until the session's
+tap takes it, and a restore never adds a second one beside it.
 
 A spawn can make its own choice with `resumeInterruptedTurns` on `session.spawn` or
 `atc_session_spawn`. The session keeps that choice for its whole life, ahead of the config. atc

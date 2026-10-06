@@ -208,7 +208,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
 // The sessions whose last turn event in the trail is a submitted prompt:
 // the previous daemon stopped while their turn ran. A session's own choice
 // beats the config, and an agent that takes no atc messages has no path for
-// the resume message.
+// the resume message. Only a harness on the daemon's own machine ends with
+// the daemon; one on a host with a lifecycle of its own runs on, so its
+// turn was never cut off and a revive attaches to it as it stands.
 async function collectInterruptedTurns(
   mgr: SessionManager,
   store: StateStore,
@@ -220,6 +222,7 @@ async function collectInterruptedTurns(
   for (const s of sessions) {
     if (
       !(s.resumeInterruptedTurns ?? configured) ||
+      s.attachment !== 'local' ||
       mgr.findAdapter(s.agent)?.takesMessages !== true
     ) {
       continue;
