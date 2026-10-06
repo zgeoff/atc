@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.31.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.31.0...@zgeoff/atc@2.31.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* **geo-84:** paste and then submit a line to claude sessions ([#313](https://github.com/zgeoff/atc/issues/313)) ([39e8b7a](https://github.com/zgeoff/atc/commit/39e8b7aa34533b2c9091a42ea5eb47d1f9714f52))
+
 ## [2.31.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.30.1...@zgeoff/atc@2.31.0) (2026-10-06)
 
 ### Features
