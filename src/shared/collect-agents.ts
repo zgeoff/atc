@@ -3,6 +3,7 @@ import { checkGatewayAuth } from './check-gateway-auth';
 import type { GatewayAuth } from './check-gateway-auth';
 import type { AuthProfile } from './collect-auth-profiles';
 import { collectClaudeAuth } from './collect-claude-auth';
+import type { ClaudeMCPServer } from './collect-claude-auth';
 import { isSubscriptionOverrideVariable } from './is-subscription-override-variable';
 import { isRecord } from './report';
 
@@ -16,7 +17,8 @@ type AgentKind = 'claude' | 'codex' | 'grok';
  * and arguments it starts with, and, for a Claude entry, the settings, the
  * environment, and the backend and credential it runs against. A Claude entry
  * with a `baseURL` is a gateway; without one it is stock Claude, whose
- * `auth` holds profiles alone, for the subscription sign-in.
+ * `auth` holds profiles alone, for the subscription sign-in, and whose
+ * `mcpServers` reach their hosts through those profiles.
  */
 export interface AgentEntry {
   readonly id: AgentID;
@@ -30,6 +32,7 @@ export interface AgentEntry {
   readonly baseURL?: string;
   readonly apiKeyHelper?: string;
   readonly auth?: GatewayAuth;
+  readonly mcpServers?: readonly ClaudeMCPServer[];
 }
 
 interface CollectedAgents {
@@ -43,7 +46,8 @@ interface CollectedAgents {
  * Reads the `agents` map into registry order. An entry that is not an object,
  * sets an unknown field or a field outside its kind, holds a wrong-typed
  * value, or fails an auth check is left out with every problem that refused
- * it, and the other entries load. A value that is not an object leaves the
+ * it, and the other entries load. An MCP server that breaks a rule is left
+ * out of its entry with an error, and the entry loads. A value that is not an object leaves the
  * registry empty.
  */
 export function collectAgents(
@@ -64,6 +68,7 @@ export function collectAgents(
       errors.push(...parsed.problems.map((problem) => `agents.${id}: ${problem}`));
     } else {
       agents.push(parsed.entry);
+      errors.push(...(parsed.warnings ?? []).map((warning) => `agents.${id}: ${warning}`));
     }
   }
 
@@ -86,7 +91,9 @@ const DEFAULT_LABELS: Readonly<Record<AgentKind, string>> = {
   grok: 'Grok',
 };
 
-type ParsedEntry = { readonly entry: AgentEntry } | { readonly problems: string[] };
+type ParsedEntry =
+  | { readonly entry: AgentEntry; readonly warnings?: readonly string[] }
+  | { readonly problems: string[] };
 
 function parseAgentEntry(
   id: string,
@@ -125,7 +132,9 @@ function parseAgentEntry(
     return claude;
   }
 
-  return { entry: { ...entry, ...claude } };
+  const { warnings, ...read } = claude;
+
+  return { entry: { ...entry, ...read }, ...(warnings === undefined ? {} : { warnings }) };
 }
 
 // The entry's kind, or the problem that refuses it. An absent kind is the id
@@ -251,6 +260,12 @@ function buildDefaultLabel(id: string, kind: AgentKind): string {
   return id === kind ? DEFAULT_LABELS[kind] : id;
 }
 
+interface ReadClaudeAuth {
+  readonly auth?: GatewayAuth;
+  readonly mcpServers?: readonly ClaudeMCPServer[];
+  readonly warnings?: readonly string[];
+}
+
 // The `auth` a Claude entry holds, or every problem with it. With a base URL
 // the entry is a gateway and its auth is the gateway's. Without one it is
 // stock Claude, whose auth is profiles alone and whose environment may not
@@ -259,7 +274,7 @@ function readClaudeAuth(
   entry: AgentEntry,
   raw: unknown,
   authProfiles: ReadonlyMap<string, AuthProfile>,
-): { readonly auth?: GatewayAuth } | { readonly problems: string[] } {
+): ReadClaudeAuth | { readonly problems: string[] } {
   if (entry.baseURL !== undefined) {
     if (raw === undefined) {
       return {};
@@ -288,13 +303,21 @@ function readClaudeAuth(
 
   const collected = collectClaudeAuth(raw, authProfiles, 'auth');
 
-  problems.push(...collected.errors, ...collectSubscriptionProblems(entry));
+  problems.push(...collectSubscriptionProblems(entry));
 
-  if (problems.length > 0 || collected.auth === null) {
+  if (collected.auth === null) {
+    return { problems: [...collected.errors, ...problems] };
+  }
+
+  if (problems.length > 0) {
     return { problems };
   }
 
-  return { auth: { profiles: collected.auth.profiles, placeholderEnv: {} } };
+  return {
+    auth: { profiles: collected.auth.profiles, placeholderEnv: {} },
+    ...(collected.auth.mcpServers.length === 0 ? {} : { mcpServers: collected.auth.mcpServers }),
+    warnings: collected.errors,
+  };
 }
 
 // What a stock entry with `auth` sets that would override the subscription

@@ -51,6 +51,9 @@ export function collectLegacyAgents(
       ...(claudeAuth.auth === null
         ? {}
         : { auth: { profiles: claudeAuth.auth.profiles, placeholderEnv: {} } }),
+      ...(claudeAuth.auth === null || claudeAuth.auth.mcpServers.length === 0
+        ? {}
+        : { mcpServers: claudeAuth.auth.mcpServers }),
     },
     {
       id: 'grok',

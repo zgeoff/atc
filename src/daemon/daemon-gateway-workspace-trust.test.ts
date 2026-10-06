@@ -190,7 +190,7 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
 
   expect(config).toStrictEqual({
     hasCompletedOnboarding: true,
-    projects: { [root]: { hasTrustDialogAccepted: true } },
+    projects: { [root]: { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true } },
   });
 
   expect(start.argv).toIncludeAllMembers(['--permission-mode', 'default']);
@@ -454,7 +454,7 @@ test.each([
   [
     true,
     undefined,
-    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true}}}',
+    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true,"enableAllProjectMcpServers":true}}}',
   ],
   [undefined, false, '{"hasCompletedOnboarding":true}'],
   [false, false, '{"hasCompletedOnboarding":true}'],
@@ -462,17 +462,17 @@ test.each([
   [
     undefined,
     true,
-    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true}}}',
+    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true,"enableAllProjectMcpServers":true}}}',
   ],
   [
     false,
     true,
-    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true}}}',
+    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true,"enableAllProjectMcpServers":true}}}',
   ],
   [
     true,
     true,
-    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true}}}',
+    '{"hasCompletedOnboarding":true,"projects":{"ROOT":{"hasTrustDialogAccepted":true,"enableAllProjectMcpServers":true}}}',
   ],
 ] as const)(
   'it resolves target trust %s and launch override %s to the expected config',

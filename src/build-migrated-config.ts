@@ -113,10 +113,22 @@ function renderAgentEntry(entry: AgentEntry): Record<string, unknown> {
   }
 
   if (entry.auth !== undefined) {
-    rendered['auth'] =
-      Object.keys(entry.auth.placeholderEnv).length > 0
-        ? { profiles: entry.auth.profiles, placeholderEnv: entry.auth.placeholderEnv }
-        : { profiles: entry.auth.profiles };
+    rendered['auth'] = {
+      profiles: entry.auth.profiles,
+      ...(Object.keys(entry.auth.placeholderEnv).length > 0
+        ? { placeholderEnv: entry.auth.placeholderEnv }
+        : {}),
+      ...(entry.mcpServers === undefined
+        ? {}
+        : {
+            mcpServers: Object.fromEntries(
+              entry.mcpServers.map((server) => [
+                server.name,
+                { url: server.url, profile: server.profile },
+              ]),
+            ),
+          }),
+    };
   }
 
   return rendered;

@@ -157,6 +157,88 @@ test('it loads a stock claude entry with subscription auth as profiles alone', (
   });
 });
 
+test("it loads a stock claude entry's MCP servers with the header of each server's profile", () => {
+  const profiles = collectAuthProfiles({
+    claude: {
+      secret: 'claude-setup-token',
+      host: 'api.anthropic.com',
+      header: 'authorization',
+      scheme: 'bearer',
+    },
+    linear: {
+      secret: 'linear-imp-agents',
+      host: 'mcp.linear.app',
+      header: 'authorization',
+      scheme: 'bearer',
+    },
+  }).profiles;
+
+  const result = collectAgents(
+    {
+      claude: {
+        auth: {
+          profiles: ['claude', 'linear'],
+          mcpServers: { linear: { url: 'https://mcp.linear.app/mcp', profile: 'linear' } },
+        },
+      },
+    },
+    profiles,
+  );
+
+  expect({ errors: result.errors, mcpServers: result.agents[0]?.mcpServers }).toStrictEqual({
+    errors: [],
+    mcpServers: [
+      {
+        name: 'linear',
+        url: 'https://mcp.linear.app/mcp',
+        profile: 'linear',
+        header: 'authorization',
+      },
+    ],
+  });
+});
+
+test('it loads a stock claude entry without an MCP server that breaks a rule, and reports the server', () => {
+  const profiles = collectAuthProfiles({
+    claude: {
+      secret: 'claude-setup-token',
+      host: 'api.anthropic.com',
+      header: 'authorization',
+      scheme: 'bearer',
+    },
+    linear: {
+      secret: 'linear-imp-agents',
+      host: 'mcp.linear.app',
+      header: 'authorization',
+      scheme: 'bearer',
+    },
+  }).profiles;
+
+  const result = collectAgents(
+    {
+      claude: {
+        auth: {
+          profiles: ['claude', 'linear'],
+          mcpServers: { linear: { url: 'https://api.linear.app/mcp', profile: 'linear' } },
+        },
+      },
+    },
+    profiles,
+  );
+
+  expect({
+    errors: result.errors,
+    auth: result.agents[0]?.auth,
+    mcpServers: result.agents[0]?.mcpServers,
+  }).toStrictEqual({
+    errors: [
+      'agents.claude: auth.mcpServers.linear: url must be on mcp.linear.app, the host profile linear sends its credential to',
+    ],
+    auth: { profiles: ['claude', 'linear'], placeholderEnv: {} },
+    mcpServers: undefined,
+  });
+});
+
 test('it refuses a stock entry whose auth sets placeholderEnv', () => {
   const result = collectAgents(
     {
