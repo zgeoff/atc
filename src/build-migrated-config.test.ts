@@ -214,3 +214,33 @@ test('it refuses a root that is not an object', () => {
     detail: 'the root is an array, not an object',
   });
 });
+
+test('it drops a removed key from a file that already uses agents and notes it', () => {
+  const result = buildMigratedConfig({
+    agents: { claude: {} },
+    resumeInterruptedTurns: true,
+    leader: 'ctrl-a',
+  });
+
+  if (result.kind !== 'migrated') {
+    throw new Error('expected a migrated config');
+  }
+
+  expect({ text: result.text, notes: result.notes }).toStrictEqual({
+    text: `${JSON.stringify({ agents: { claude: {} }, leader: 'ctrl-a' }, null, 2)}\n`,
+    notes: ['atc config migrate: resumeInterruptedTurns is dropped: atc no longer reads it'],
+  });
+});
+
+test('it drops a removed key while it moves the old agent keys into agents', () => {
+  const result = buildMigratedConfig({ claudeBin: '/opt/claude', resumeInterruptedTurns: false });
+
+  if (result.kind !== 'migrated') {
+    throw new Error('expected a migrated config');
+  }
+
+  expect({ text: result.text, notes: result.notes }).toStrictEqual({
+    text: `${JSON.stringify({ agents: { claude: { bin: '/opt/claude' }, grok: {}, codex: {} } }, null, 2)}\n`,
+    notes: ['atc config migrate: resumeInterruptedTurns is dropped: atc no longer reads it'],
+  });
+});

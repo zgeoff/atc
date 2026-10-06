@@ -31,7 +31,6 @@ export interface SpawnOverrides {
   readonly trustClonedWorkspace?: boolean;
   readonly model?: string;
   readonly effort?: string;
-  readonly resumeInterruptedTurns?: boolean;
 }
 
 export interface SpawnPlan {

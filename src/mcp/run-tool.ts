@@ -58,9 +58,6 @@ export function runTool(
         ...(args['trustClonedWorkspace'] === undefined
           ? {}
           : { trustClonedWorkspace: args['trustClonedWorkspace'] }),
-        ...(args['resumeInterruptedTurns'] === undefined
-          ? {}
-          : { resumeInterruptedTurns: args['resumeInterruptedTurns'] }),
         cols: 100,
         rows: 30,
       };
@@ -81,9 +78,6 @@ export function runTool(
       const trustFeatures: readonly DaemonFeature[] =
         args['trustClonedWorkspace'] === undefined ? [] : ['spawn.workspace.trust'];
 
-      const resumeFeatures: readonly DaemonFeature[] =
-        args['resumeInterruptedTurns'] === undefined ? [] : ['spawn.resumeInterruptedTurns'];
-
       // Only a daemon that picks a git workspace's directory takes one
       // without a cwd.
       const autoDirFeatures: readonly DaemonFeature[] =
@@ -97,7 +91,6 @@ export function runTool(
         ...targetFeatures,
         ...workspaceFeatures,
         ...trustFeatures,
-        ...resumeFeatures,
         ...autoDirFeatures,
       ];
 

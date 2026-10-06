@@ -85,9 +85,6 @@ export const DAEMON_FEATURES = [
   // `session.auth.revoke` and `session.auth.rebind` exist, open to the
   // daemon's owner only.
   'session.auth',
-
-  // `session.spawn` takes `resumeInterruptedTurns`.
-  'spawn.resumeInterruptedTurns',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

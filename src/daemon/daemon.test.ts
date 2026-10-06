@@ -164,7 +164,6 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'transport.tcp',
       'idempotency.replayOnly',
       'session.auth',
-      'spawn.resumeInterruptedTurns',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',

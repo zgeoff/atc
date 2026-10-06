@@ -16,12 +16,15 @@ export interface RestoreFleetParams {
   // it has booted before moving on regardless; zero waits on the signal
   // alone.
   readonly capMs: number;
+}
 
-  // Whether a session spawned without its own choice gets one message to
-  // carry on a turn the previous daemon's stop cut off, and how that
-  // message is sent once the session's terminal is adopted.
-  readonly resumeInterruptedTurns: boolean;
-  readonly sendResumeMessage: (s: Session) => Promise<void>;
+export interface RestoreFleetResult {
+  // How many sessions the restore registered.
+  readonly restored: number;
+
+  // Resolves once the staggered terminal adoption behind the restore has
+  // finished, also when it failed, and at once when nothing was queued.
+  readonly settled: Promise<void>;
 }
 
 /**
@@ -29,18 +32,15 @@ export interface RestoreFleetParams {
  * the rest by recency, registers every one as a terminal-less session so
  * the whole fleet lists at once, then adopts terminals one at a time,
  * waiting for each session to report it has booted before starting the
- * next. A session that was mid-turn when the previous daemon stopped, and
- * that resumes interrupted turns, gets one message to carry on once its
- * terminal is adopted.
+ * next.
  */
-export async function restoreFleet(params: RestoreFleetParams): Promise<number> {
+export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreFleetResult> {
   const mgr = params.mgr;
   const store = params.store;
   const findRuntime = params.findRuntime;
   const cols = params.cols;
   const rows = params.rows;
   const capMs = params.capMs;
-  const sendResumeMessage = params.sendResumeMessage;
 
   const hasLiveSession = (entry: FleetEntry) =>
     mgr.sessions.some(
@@ -92,32 +92,10 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
     .filter((r) => r.revive || r.session.state !== 'exited')
     .map((r) => r.session);
 
-  // Only a session this restore registers comes from the previous daemon's
-  // fleet; a listed one this daemon already ran is revived by hand. The
-  // trail is read before any terminal is adopted, since a revived agent's
-  // own events move it on.
-  const interrupted = await collectInterruptedTurns(
-    mgr,
-    store,
-    registered.filter((r) => !r.revive && r.session.state !== 'exited').map((r) => r.session),
-    params.resumeInterruptedTurns,
-  );
-
   // A session whose target refuses to start a terminal stays listed without
-  // one, and the restore moves on to the next. A resume message that fails
-  // to send is logged, and the session runs on without it.
+  // one, and the restore moves on to the next.
   const adoptQueued = async (s: Session): Promise<boolean> => {
     const adopted = await tryAdoptTerminal(mgr, s.id, cols, rows);
-
-    if (adopted !== null && interrupted.has(s.id)) {
-      try {
-        await sendResumeMessage(s);
-      } catch (error) {
-        mgr.log(
-          `atc could not send session ${s.id} its resume message (${error instanceof Error ? error.message : String(error)})`,
-        );
-      }
-    }
 
     return adopted !== null;
   };
@@ -159,7 +137,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
   const [first, ...rest] = queued;
 
   if (first === undefined) {
-    return registered.length;
+    return { restored: registered.length, settled: Promise.resolve() };
   }
 
   // The first terminal attaches before the restore answers so a caller can
@@ -200,42 +178,17 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<number> 
 
   const firstBooted = firstAdopted ? first : null;
 
-  void adoptRest(firstBooted);
-
-  return registered.length;
-}
-
-// The sessions whose last turn event in the trail is a submitted prompt:
-// the previous daemon stopped while their turn ran. A session's own choice
-// beats the config, and an agent that takes no atc messages has no path for
-// the resume message. Only a harness on the daemon's own machine ends with
-// the daemon; one on a host with a lifecycle of its own runs on, so its
-// turn was never cut off and a revive attaches to it as it stands.
-async function collectInterruptedTurns(
-  mgr: SessionManager,
-  store: StateStore,
-  sessions: readonly Session[],
-  configured: boolean,
-): Promise<ReadonlySet<SessionID>> {
-  const interrupted = new Set<SessionID>();
-
-  for (const s of sessions) {
-    if (
-      !(s.resumeInterruptedTurns ?? configured) ||
-      s.attachment !== 'local' ||
-      mgr.findAdapter(s.agent)?.takesMessages !== true
-    ) {
-      continue;
+  const adoptRestLogged = async (): Promise<void> => {
+    try {
+      await adoptRest(firstBooted);
+    } catch (error) {
+      mgr.log(
+        `atc could not finish restoring the fleet (${error instanceof Error ? error.message : String(error)})`,
+      );
     }
+  };
 
-    const kind = await store.findLatestTurnKind(s.id, s.agentSessionID);
-
-    if (kind === 'prompt-submitted') {
-      interrupted.add(s.id);
-    }
-  }
-
-  return interrupted;
+  return { restored: registered.length, settled: adoptRestLogged() };
 }
 
 // A stored entry matches a listed session by its atc session id, or by its

@@ -242,6 +242,9 @@ process.stdin.on('data', (buf) => {
         codexArgs: [],
         gateways: { zai: { baseURL: 'http://127.0.0.1:9' } },
 
+        // These tests drive the restore through fleet.restore themselves.
+        restoreFleetOnRestart: false,
+
         // The workspace tests clone fixture repositories from local paths.
         workspaces: { gitTransports: ['https', 'ssh', 'file'] },
       }),
@@ -959,6 +962,7 @@ sleep 30
       claudeArgs: [],
       grokBin: join(home, 'fake-grok'),
       grokArgs: [],
+      restoreFleetOnRestart: false,
     }),
   );
 
@@ -1054,6 +1058,7 @@ sleep 30
       claudeArgs: [],
       grokBin: join(home, 'fake-grok'),
       grokArgs: [],
+      restoreFleetOnRestart: false,
     }),
   );
 
@@ -1132,6 +1137,7 @@ sleep 30
       claudeArgs: [],
       grokBin: join(home, 'fake-grok'),
       grokArgs: [],
+      restoreFleetOnRestart: false,
     }),
   );
 

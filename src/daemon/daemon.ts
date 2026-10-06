@@ -162,10 +162,9 @@ export interface DaemonOptions {
   readonly restoreBootTimeoutMs?: number;
   readonly tapGraceMs?: number;
 
-  // Whether a fleet restore sends a session that was mid-turn when the
-  // previous daemon stopped one message to carry on, for a session spawned
-  // without its own choice; off when unset.
-  readonly resumeInterruptedTurns?: boolean;
+  // Whether the daemon restores the stored fleet by itself once it is
+  // listening, when that fleet holds sessions; off when unset.
+  readonly restoreFleetOnRestart?: boolean;
 
   // How long a confirm token from `session.forget` stays usable.
   readonly forgetConfirmMs?: number;
@@ -291,11 +290,6 @@ const LOCK_WAIT_MS = 2000;
  * because transports guarantee byte integrity and such a line means a buggy
  * or hostile peer.
  */
-// The sender and opening of the message a restore sends a session whose
-// turn the previous daemon's stop cut off.
-const RESUME_SENDER = 'atc';
-const RESUME_LEAD = 'atc restarted the daemon';
-
 export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   let stopDaemon: (() => Promise<void>) | null = null;
 
@@ -1327,37 +1321,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     return record;
   };
 
-  const startedAt = new Date().toISOString();
-
-  // Sends a restored session the message that carries on a turn the
-  // previous daemon's stop cut off. A resume message still pending from an
-  // earlier restart covers this one, so a session never holds two.
-  const sendResumeMessage = async (s: Session): Promise<void> => {
-    const pending = await store.collectPendingMessages(buildMessageOwner(s));
-
-    if (
-      pending.some((record) => record.from === RESUME_SENDER && record.text.startsWith(RESUME_LEAD))
-    ) {
-      return;
-    }
-
-    const refusal = findMessageRefusal(s.id);
-
-    if (refusal !== null) {
-      mgr.log(`atc sent session ${s.id} no resume message (${refusal})`);
-
-      return;
-    }
-
-    await writeAcceptedMessage(
-      s.id,
-      RESUME_SENDER,
-      `${RESUME_LEAD} at ${startedAt}; your last turn was interrupted. Check the state of anything you had in flight, then continue.`,
-      mintMessageID(),
-      () => {},
-    );
-  };
-
   // A retried send answers with the message's current status, so a caller
   // that lost the first answer learns where its message stands now.
   const loadMessageReplay = async (
@@ -1395,6 +1358,44 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   const sources = opts.sources ?? [];
+
+  // The restore in flight, from its first call until its staggered terminal
+  // adoption finishes. A restore requested meanwhile joins it, so the fleet
+  // never registers twice at once.
+  let fleetRestore: Promise<number> | null = null;
+
+  const runFleetRestore = (cols: number, rows: number): Promise<number> => {
+    if (fleetRestore !== null) {
+      return fleetRestore;
+    }
+
+    const restored = Promise.withResolvers<number>();
+
+    fleetRestore = restored.promise;
+
+    void (async () => {
+      try {
+        const result = await restoreFleet({
+          mgr,
+          store,
+          findRuntime,
+          cols,
+          rows,
+          capMs: opts.restoreBootTimeoutMs ?? 0,
+        });
+
+        restored.resolve(result.restored);
+
+        await result.settled;
+      } catch (error) {
+        restored.reject(error);
+      } finally {
+        fleetRestore = null;
+      }
+    })();
+
+    return restored.promise;
+  };
 
   const ctx: DaemonContext = {
     build: opts.build,
@@ -1825,17 +1826,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     getEffectiveDims: (sessionID) =>
       attachments.findEffectiveDims(sessionID) ??
       runtimes.get(sessionID)?.dims ?? { cols: 80, rows: 24 },
-    restoreFleet: (cols, rows) =>
-      restoreFleet({
-        mgr,
-        store,
-        findRuntime,
-        cols,
-        rows,
-        capMs: opts.restoreBootTimeoutMs ?? 0,
-        resumeInterruptedTurns: opts.resumeInterruptedTurns ?? false,
-        sendResumeMessage,
-      }),
+    restoreFleet: runFleetRestore,
     readSessionRecord: async (id, access) => {
       const s = mgr.sessions.find((x) => x.id === id);
 
@@ -2274,6 +2265,27 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     eventsSocketPath: opts.eventsSocketPath ?? null,
     listenPort: tcpListener?.port ?? null,
   });
+
+  // The stored fleet restores once per start, at the size a restored
+  // terminal takes until its first attach resizes it. A failure is logged
+  // and never stops the daemon.
+  const tryRunFleetRestore = async (): Promise<void> => {
+    try {
+      await runFleetRestore(80, 24);
+    } catch (error) {
+      mgr.log(
+        `atc could not restore the fleet (${error instanceof Error ? error.message : String(error)})`,
+      );
+    }
+  };
+
+  if (opts.restoreFleetOnRestart === true) {
+    const stored = await store.loadFleet();
+
+    if (stored.length > 0) {
+      void tryRunFleetRestore();
+    }
+  }
 
   return {
     stop: stopDaemon,

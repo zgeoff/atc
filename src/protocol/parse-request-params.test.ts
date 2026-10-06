@@ -477,3 +477,15 @@ test.each(['true', 1, null])('it rejects non-boolean clone trust %s', (trustClon
     message: 'session.spawn trustClonedWorkspace must be a boolean',
   });
 });
+
+test('it ignores the removed resumeInterruptedTurns param on session.spawn from an old caller', () => {
+  const parsed = parseRequestParams('session.spawn', {
+    cwd: '/tmp',
+    resumeInterruptedTurns: true,
+  });
+
+  expect(parsed).toStrictEqual({
+    ok: true,
+    data: { cwd: '/tmp', name: '', prompt: '', resume: false, cols: 80, rows: 24 },
+  });
+});

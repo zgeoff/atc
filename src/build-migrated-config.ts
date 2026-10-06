@@ -3,6 +3,7 @@ import { parseConfig } from './shared/config';
 import { formatJSONKind } from './shared/format-json-kind';
 import { formatMixedAgentKeys } from './shared/format-mixed-agent-keys';
 import { LEGACY_AGENT_KEYS } from './shared/legacy-agent-keys';
+import { REMOVED_CONFIG_KEYS } from './shared/removed-config-keys';
 import { isRecord } from './shared/report';
 
 /**
@@ -17,7 +18,8 @@ type MigratedConfig =
 
 /**
  * Rewrites a config.json that uses the old agent keys so it holds the same
- * agents under `agents`. The old keys are removed and `agents` takes the
+ * agents under `agents`, and drops every key atc no longer reads. A file
+ * that holds `agents` and a removed key is rewritten without the key. The old keys are removed and `agents` takes the
  * place of the first of them, or the end of the file when it sets none. Each
  * entry holds only the fields that differ from a default. Values are copied
  * and never reported, so a note names a key and a reason only.
@@ -31,11 +33,26 @@ export function buildMigratedConfig(raw: unknown): MigratedConfig {
   }
 
   const present = Object.keys(raw).filter((key) => LEGACY_AGENT_KEYS.includes(key));
+  const removed = REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key));
+
+  const removedNotes = removed.map(
+    (key) => `atc config migrate: ${key} is dropped: atc no longer reads it`,
+  );
 
   if (Object.hasOwn(raw, 'agents')) {
-    return present.length === 0
-      ? { kind: 'current' }
-      : { kind: 'unusable', detail: formatMixedAgentKeys(present) };
+    if (present.length > 0) {
+      return { kind: 'unusable', detail: formatMixedAgentKeys(present) };
+    }
+
+    if (removed.length === 0) {
+      return { kind: 'current' };
+    }
+
+    return {
+      kind: 'migrated',
+      text: `${JSON.stringify(Object.fromEntries(Object.entries(raw).filter(([key]) => !removed.includes(key))), null, 2)}\n`,
+      notes: removedNotes,
+    };
   }
 
   const config = parseConfig(raw);
@@ -49,6 +66,10 @@ export function buildMigratedConfig(raw: unknown): MigratedConfig {
   let placed = false;
 
   for (const [key, value] of Object.entries(raw)) {
+    if (removed.includes(key)) {
+      continue;
+    }
+
     if (!LEGACY_AGENT_KEYS.includes(key)) {
       migrated[key] = value;
     } else if (!placed) {
@@ -64,7 +85,10 @@ export function buildMigratedConfig(raw: unknown): MigratedConfig {
   return {
     kind: 'migrated',
     text: `${JSON.stringify(migrated, null, 2)}\n`,
-    notes: collectDroppedGateways(raw['gateways'], config.agents, config.agentErrors),
+    notes: [
+      ...collectDroppedGateways(raw['gateways'], config.agents, config.agentErrors),
+      ...removedNotes,
+    ],
   };
 }
 

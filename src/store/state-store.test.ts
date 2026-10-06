@@ -505,78 +505,6 @@ test('it records hook events into the trail', async () => {
   ]);
 });
 
-test('it finds the latest turn event of a session, passing over heartbeats and other sessions', async () => {
-  const dir = setupDir();
-
-  const store = await StateStore.open(join(dir, 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent(
-    { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'c1' } },
-    { kind: 'turn-done' },
-  );
-
-  await store.recordEvent(
-    { atcId: toSessionID('s1'), event: 'UserPromptSubmit', payload: { session_id: 'c1' } },
-    { kind: 'prompt-submitted' },
-  );
-
-  await store.recordEvent(
-    { atcId: toSessionID('s1'), event: 'Heartbeat', payload: { session_id: 'c1' } },
-    { kind: 'heartbeat' },
-  );
-
-  await store.recordEvent(
-    { atcId: toSessionID('s2'), event: 'Stop', payload: { session_id: 'c2' } },
-    { kind: 'turn-done' },
-  );
-
-  const kind = await store.findLatestTurnKind(toSessionID('s1'), toAgentSessionID('c1'));
-
-  expect(kind).toBe('prompt-submitted');
-});
-
-test('it finds a turn event recorded under an earlier atc id by the agent session id', async () => {
-  const dir = setupDir();
-
-  const store = await StateStore.open(join(dir, 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent(
-    { atcId: toSessionID('s-old'), event: 'Notification', payload: { session_id: 'c1' } },
-    { kind: 'needs-input' },
-  );
-
-  const kind = await store.findLatestTurnKind(toSessionID('s-new'), toAgentSessionID('c1'));
-
-  expect(kind).toBe('needs-input');
-});
-
-test('it finds no turn kind for a session whose trail holds no turn event', async () => {
-  const dir = setupDir();
-
-  const store = await StateStore.open(join(dir, 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent(
-    { atcId: toSessionID('s1'), event: 'SessionStart', payload: { session_id: 'c1' } },
-    { kind: 'started' },
-  );
-
-  const kind = await store.findLatestTurnKind(toSessionID('s1'), toAgentSessionID('c1'));
-
-  expect(kind).toBeNull();
-});
-
 test('it records a Grok session id from the camelCase payload key', async () => {
   const dir = setupDir();
   const dbPath = join(dir, 'state.db');
@@ -920,41 +848,6 @@ test('it round-trips a fleet row with its model and effort', async () => {
     },
   ]);
 });
-
-test.each([[true], [false]])(
-  'it round-trips a fleet row whose spawn chose %p for resuming interrupted turns',
-  async (resumeInterruptedTurns) => {
-    const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-    onTestFinished(async () => {
-      await store.stop();
-    });
-
-    await store.writeFleet([
-      {
-        sessionID: toSessionID('s-c1'),
-        name: 'resumed',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('c1'),
-        agent: 'claude',
-        resumeInterruptedTurns,
-      },
-    ]);
-
-    const fleet = await store.loadFleet();
-
-    expect(fleet).toStrictEqual([
-      {
-        sessionID: toSessionID('s-c1'),
-        name: 'resumed',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('c1'),
-        agent: 'claude',
-        resumeInterruptedTurns,
-      },
-    ]);
-  },
-);
 
 test('it round-trips a fleet row with what the operator asked of it and its host', async () => {
   const store = await StateStore.open(join(setupDir(), 'state.db'));

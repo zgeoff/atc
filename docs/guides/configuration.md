@@ -15,21 +15,21 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
   },
   "hooks": {},
   "leader": "ctrl-space",
-  "resumeInterruptedTurns": false
+  "restoreFleetOnRestart": true
 }
 ```
 
-| Field                    | Default          | Meaning                                                                                                                                                |
-| ------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `agents`                 | `{ claude: {} }` | The agents atc offers, keyed by agent id. The [agents](#agents) section covers the fields of an entry.                                                 |
-| `dirs`                   | `{ roots: [] }`  | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.                                            |
-| `authProfiles`           | unset            | Credential references an agent's `auth` selects from. The [brokered credentials](#brokered-credentials) section covers them.                           |
-| `hooks`                  | `{}`             | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                                    |
-| `leader`                 | `"ctrl-space"`   | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                                  |
-| `targets`                | unset            | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                                                     |
-| `defaultTarget`          | unset            | The target a spawn without a target runs on.                                                                                                           |
-| `workspaces`             | see above        | Where workspaces come from and land. The [git transports](#git-transports) and [workspace destinations](#workspace-destinations) sections cover it.    |
-| `resumeInterruptedTurns` | `false`          | Whether a session that was mid-turn when the daemon stopped gets a message to carry on. The [interrupted turns](#interrupted-turns) section covers it. |
+| Field                   | Default          | Meaning                                                                                                                                             |
+| ----------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agents`                | `{ claude: {} }` | The agents atc offers, keyed by agent id. The [agents](#agents) section covers the fields of an entry.                                              |
+| `dirs`                  | `{ roots: [] }`  | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.                                         |
+| `authProfiles`          | unset            | Credential references an agent's `auth` selects from. The [brokered credentials](#brokered-credentials) section covers them.                        |
+| `hooks`                 | `{}`             | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                                 |
+| `leader`                | `"ctrl-space"`   | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                               |
+| `targets`               | unset            | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                                                  |
+| `defaultTarget`         | unset            | The target a spawn without a target runs on.                                                                                                        |
+| `workspaces`            | see above        | Where workspaces come from and land. The [git transports](#git-transports) and [workspace destinations](#workspace-destinations) sections cover it. |
+| `restoreFleetOnRestart` | `true`           | Whether the daemon restores the fleet by itself after a restart. The [fleet restore](#fleet-restore) section covers it.                             |
 
 ## Leader
 
@@ -37,28 +37,20 @@ Pick a different leader when `Ctrl-Space` is taken on your machine — Raycast o
 `ctrl-]` is a replacement that no common terminal, multiplexer, or OS shortcut wants. An unknown or
 reserved value falls back to the default.
 
-## Interrupted turns
+## Fleet restore
 
-Set `resumeInterruptedTurns` to `true` so that a daemon restart never leaves an agent idle partway
-through its work. The daemon reads each session's event trail when the fleet is restored. A session
-whose latest turn event is a submitted prompt was mid-turn when the previous daemon stopped. Once
-that session's terminal is adopted, atc sends it one message from `atc`:
+With `restoreFleetOnRestart` on, the daemon restores the stored fleet once per start, after it is
+listening and only when the fleet holds sessions. A restart from an update, a crash, or a reboot
+brings every session back without a keypress. Each restored terminal starts at 80x24 until the first
+client attaches and resizes it. The restore is the one `Shift+R` on the home screen runs: terminals
+attach one at a time in recency order, and a `Shift+R` pressed while that stagger runs joins it and
+starts nothing more.
 
-```text
-atc restarted the daemon at <start time>; your last turn was interrupted. Check the state of anything you had in flight, then continue.
-```
+Set `restoreFleetOnRestart` to `false` to keep the restored sessions listed without a terminal until
+you press `Shift+R`.
 
-The message goes through the session's atc inbox, so only an agent that takes atc messages gets it:
-Claude and Claude gateways do, and Grok and Codex do not. A session whose latest turn event is a
-finished turn or a request for input gets nothing. A session on an imp target gets nothing either:
-its harness runs on in the imp while the daemon is down, so the restore attaches to the turn as it
-stands. A permission prompt counts as a request for input even after you approve it, so a turn that
-ran on past an approved prompt gets no message either. The message stays pending until the session's
-tap takes it, and a restore never adds a second one beside it.
-
-A spawn can make its own choice with `resumeInterruptedTurns` on `session.spawn` or
-`atc_session_spawn`. The session keeps that choice for its whole life, ahead of the config. atc
-never replays the tool call the restart cut off, and background shells inside the agent stay lost.
+A config that still sets `resumeInterruptedTurns` loads with a warning from `atc daemon`, and atc
+ignores the key. `atc config migrate` drops it.
 
 ## Directories
 
@@ -814,8 +806,9 @@ atc config migrate --write
 A gateway the old parser left out, because it had no `baseURL`, took an id that is built in or
 empty, or failed its auth checks, stays out. The command prints one line on stderr for each, such as
 `atc config migrate: gateways.broken is left out: it has no baseURL`, and never prints a value. A
-file that already uses `agents` prints `config.json already uses agents; nothing to migrate` and
-changes nothing.
+file that already uses `agents` and sets no removed key prints
+`config.json already uses agents; nothing to migrate` and changes nothing. The command also drops a
+key atc no longer reads, such as `resumeInterruptedTurns`, and prints a line on stderr naming it.
 
 A file that sets `agents` and any old key is unusable. Every spawn fails, as for invalid JSON, and
 the problem reads:
