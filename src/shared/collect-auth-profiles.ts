@@ -2,17 +2,27 @@ import { isRecord } from './report';
 
 /**
  * A named reference to a credential impd holds: the secret's name, never
- * its value, and the rule impd applies when a request reaches the host,
- * plus the profiles a session selecting this one needs beside it. Only
- * the `custom` kind and the `bearer` scheme are bound.
+ * its value, and the profiles a session selecting this one needs beside
+ * it. A `custom` profile holds the one rule impd applies when a request
+ * reaches its host, always a bearer header. A `github` profile holds no
+ * rule: impd's `github` kind fixes its hosts and headers.
  */
-export interface AuthProfile {
+export type AuthProfile = CustomAuthProfile | GitHubAuthProfile;
+
+interface CustomAuthProfile {
   readonly name: string;
   readonly secret: string;
   readonly kind: 'custom';
   readonly host: string;
   readonly header: string;
   readonly scheme: 'bearer';
+  readonly dependencies: readonly string[];
+}
+
+interface GitHubAuthProfile {
+  readonly name: string;
+  readonly secret: string;
+  readonly kind: 'github';
   readonly dependencies: readonly string[];
 }
 
@@ -78,13 +88,31 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
   const header = entry['header'];
   const scheme = entry['scheme'];
   const dependencies = entry['dependencies'];
+  const kind = entry['kind'] ?? 'custom';
 
-  if (entry['kind'] !== undefined && entry['kind'] !== 'custom') {
-    return 'kind must be custom, the one kind atc binds';
+  if (kind !== 'custom' && kind !== 'github') {
+    return 'kind must be custom or github, the kinds atc binds';
   }
 
   if (typeof secret !== 'string' || !SECRET_NAME.test(secret)) {
     return 'secret must be a lowercase letter followed by up to 30 lowercase letters, digits or hyphens';
+  }
+
+  if (
+    dependencies !== undefined &&
+    (!Array.isArray(dependencies) || !dependencies.every((dep) => typeof dep === 'string'))
+  ) {
+    return 'dependencies must be an array of profile names';
+  }
+
+  if (kind === 'github') {
+    const extra = ['host', 'header', 'scheme', 'user'].find((key) => entry[key] !== undefined);
+
+    if (extra !== undefined) {
+      return `${extra} cannot be set on a github profile, whose hosts and headers impd's github kind fixes`;
+    }
+
+    return { name, secret, kind, dependencies: dependencies ?? [] };
   }
 
   if (typeof host !== 'string' || host.length > BROKER_HOST_MAX || !BROKER_HOST.test(host)) {
@@ -101,13 +129,6 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
 
   if (entry['user'] !== undefined) {
     return 'user pairs only with the basic scheme, which atc does not bind';
-  }
-
-  if (
-    dependencies !== undefined &&
-    (!Array.isArray(dependencies) || !dependencies.every((dep) => typeof dep === 'string'))
-  ) {
-    return 'dependencies must be an array of profile names';
   }
 
   return {

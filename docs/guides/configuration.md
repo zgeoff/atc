@@ -396,8 +396,30 @@ with it:
 | `host`         | The exact host impd adds the credential for: lowercase, no port, no wildcard, no IP.      |
 | `header`       | The lowercase header impd sets, such as `authorization`.                                  |
 | `scheme`       | How impd renders the value. atc binds `bearer` only.                                      |
-| `kind`         | The kind of secret impd holds. atc binds `custom` only, the default.                      |
+| `kind`         | The kind of secret impd holds: `custom`, the default, or `github`.                        |
 | `dependencies` | Profiles a session selecting this one needs beside it, such as a permission classifier's. |
+
+A `github` profile gives a session HTTPS git and the GitHub API. It holds `secret`, `kind` and
+`dependencies` only, since impd's `github` kind sets the rules: `Authorization: Basic` for
+`x-access-token` on `github.com`, and a bearer `authorization` header on `api.github.com` and
+`uploads.github.com`. Add the secret with `imp secret add <secret> --kind github`, list it in the
+`--grantable` secrets of the target's impd token when you make the token, and select the profile
+beside the model's:
+
+```json
+{
+  "authProfiles": {
+    "github": { "secret": "github-imp-agents", "kind": "github" }
+  },
+  "gateways": {
+    "glm": { "auth": { "profiles": ["glm", "github"] } }
+  }
+}
+```
+
+impd sets `GH_TOKEN` and `GITHUB_TOKEN` to `imp-broker-placeholder` in the session, so `gh` and
+`git` run with no sign-in, and the token stays on the host. If impd changes the hosts of its
+`github` kind, a launch fails with `auth_secret_mismatch` until atc's rules match again.
 
 A gateway's `auth.profiles` selects profiles, and atc adds each one's dependencies.
 `auth.placeholderEnv` lists the variables that stand in for the credential, each holding

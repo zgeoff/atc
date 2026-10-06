@@ -49,6 +49,43 @@ test('it reads a profile into its secret reference and the rule impd applies for
   });
 });
 
+test('it reads a github profile into its secret reference alone, since impd fixes its rules', () => {
+  expect(
+    collectAuthProfiles({
+      github: { secret: 'github-imp-agents', kind: 'github' },
+    }),
+  ).toStrictEqual({
+    profiles: new Map([
+      ['github', { name: 'github', secret: 'github-imp-agents', kind: 'github', dependencies: [] }],
+    ]),
+    errors: [],
+  });
+});
+
+test.each([
+  [
+    { host: 'github.com' },
+    "authProfiles.p: host cannot be set on a github profile, whose hosts and headers impd's github kind fixes",
+  ],
+  [
+    { header: 'authorization' },
+    "authProfiles.p: header cannot be set on a github profile, whose hosts and headers impd's github kind fixes",
+  ],
+  [
+    { scheme: 'basic' },
+    "authProfiles.p: scheme cannot be set on a github profile, whose hosts and headers impd's github kind fixes",
+  ],
+  [
+    { user: 'x-access-token' },
+    "authProfiles.p: user cannot be set on a github profile, whose hosts and headers impd's github kind fixes",
+  ],
+  [{ dependencies: 'glm' }, 'authProfiles.p: dependencies must be an array of profile names'],
+])('it refuses a github profile with %p', (override, error) => {
+  expect(
+    collectAuthProfiles({ p: { secret: 'github-imp-agents', kind: 'github', ...override } }),
+  ).toStrictEqual({ profiles: new Map(), errors: [error] });
+});
+
 test('it holds no profiles and no errors when the config sets none', () => {
   expect(collectAuthProfiles(undefined)).toStrictEqual({ profiles: new Map(), errors: [] });
 });
@@ -61,7 +98,7 @@ test('it refuses an authProfiles value that is not an object of named profiles',
 });
 
 test.each([
-  [{ kind: 'anthropic' }, 'authProfiles.p: kind must be custom, the one kind atc binds'],
+  [{ kind: 'anthropic' }, 'authProfiles.p: kind must be custom or github, the kinds atc binds'],
   [{ scheme: 'raw' }, 'authProfiles.p: scheme must be bearer, the one scheme atc binds'],
   [{ scheme: 'basic' }, 'authProfiles.p: scheme must be bearer, the one scheme atc binds'],
   [
