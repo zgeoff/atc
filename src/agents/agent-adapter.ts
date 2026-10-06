@@ -87,14 +87,19 @@ export interface GuestSpawnPlan extends SpawnPlan {
 }
 
 /**
- * The project settings files, relative to the directory a harness starts
- * in, that the agent applies on top of what atc passes it, and the refusal
- * for a file whose content would override or route around a sign-in
- * through impd's broker, or null when it holds nothing that would.
+ * The project settings files the agent applies on top of what atc passes
+ * it, and the refusal for a file whose content would override or route
+ * around a sign-in through impd's broker, or null when it holds nothing
+ * that would. `files` are relative to the directory a harness starts in;
+ * `rootFiles` are relative to that directory, each directory above it, and
+ * the main checkout of the git worktree it lies in, since the agent reads
+ * them at a repository's root. `findRefusal` takes the file's absolute path
+ * on the host.
  */
 export interface ProjectSettingsCheck {
   readonly files: readonly string[];
-  readonly findRefusal: (file: string, content: string) => DaemonError | null;
+  readonly rootFiles: readonly string[];
+  readonly findRefusal: (path: string, content: string) => DaemonError | null;
 }
 
 export interface TranscriptToolUse {

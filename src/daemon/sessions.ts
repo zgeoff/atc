@@ -27,6 +27,7 @@ import { truncateDetail } from '../shared/truncate-detail';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
 import type { SessionWorkspace } from '../store/workspace-materialization';
+import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';
@@ -241,11 +242,30 @@ const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=
 const REMOVE_DIR_SCRIPT =
   'cd -P -- "$1" || exit 3; [ "$(pwd -P; printf x)" = "$2" ] || exit 4; find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || exit 5; cd / && rmdir -- "$1"';
 
-// Prints a file as the agent would read it, following a symlink, or exits
-// with the absent status when nothing, not even a dangling symlink, is at
-// the path. Anything there that cannot be read fails with another status.
-const READ_PRESENT_FILE = 'if [ -e "$1" ] || [ -L "$1" ]; then exec cat -- "$1"; fi; exit 3';
-const ABSENT_FILE_EXIT = 3;
+// Enters a directory as the host resolves it and prints, each followed by
+// a NUL, every path where something, even a dangling symlink, stands: each
+// start file in that directory, then each root file in that directory,
+// every directory above it, and the main checkout of the git worktree it
+// lies in. A `--` argument ends the start files. A directory that does not
+// exist exits with the absent status.
+const FIND_PROJECT_SETTINGS_SCRIPT = `cd -P -- "$1" 2>/dev/null || exit 3; shift; d=$(pwd -P)
+emit() { if [ -e "$1" ] || [ -L "$1" ]; then printf '%s\\0' "$1"; fi; }
+while [ "$#" -gt 0 ] && [ "$1" != -- ]; do emit "\${d%/}/$1"; shift; done; [ "$#" -gt 0 ] && shift
+m=$(git -c safe.directory='*' -c core.fsmonitor=false rev-parse --path-format=absolute --git-common-dir 2>/dev/null) && m=\${m%/.git} || m=
+for n in "$@"; do p=$d; while :; do emit "\${p%/}/$n"; [ "$p" = / ] && break; p=\${p%/*}; [ -n "$p" ] || p=/; done; [ -z "$m" ] || emit "\${m%/}/$n"; done
+exit 0`;
+
+// Prints at most one byte more than the largest project settings file atc
+// reads, following a symlink, and fails with the special-file status for
+// anything but a regular file there, such as a FIFO or a device that would
+// never end.
+const READ_SETTINGS_FILE = '[ -f "$1" ] || exit 4; exec head -c 1048577 -- "$1"';
+const ABSENT_DIR_EXIT = 3;
+
+// Runs git on the directory it starts in, whatever repository the daemon's
+// environment pins git to.
+const GIT_ENV_ARGV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
+const MAX_SETTINGS_BYTES = 1_048_576;
 
 // A readied host's harness plan, and the auth attempt that provisioned the
 // host, if one did.
@@ -2169,12 +2189,13 @@ export class SessionManager {
     }
   }
 
-  // Reads each project settings file the agent applies from the directory
-  // a harness behind the broker starts in, on its host, and throws the
-  // agent's refusal for one that would override its sign-in. An absent file
-  // passes; one the host holds but cannot read refuses, since what the
-  // agent would take from it is unknown. A relative directory is under the
-  // host's home.
+  // Reads each project settings file the agent applies for a harness behind
+  // the broker, from the directory it starts in as the host resolves it, and
+  // throws the agent's refusal for one that would override its sign-in. An
+  // absent file passes; one the host holds but cannot read, that is not a
+  // regular file, or that is larger than any settings file refuses, since
+  // what the agent would take from it is unknown. A relative directory is
+  // under the host's home.
   private async requireProjectSettings(
     adapter: AgentAdapter,
     provider: ExecutionProvider,
@@ -2188,36 +2209,62 @@ export class SessionManager {
       return;
     }
 
-    const home = posix.isAbsolute(cwd) ? '' : await this.resolveHostHome(provider, hostKey);
-    const base = posix.join(home, cwd);
+    // The host resolves the directory as given, since a lexical join would
+    // drop a parent step after a symlink that the host follows.
+    const home = posix.isAbsolute(cwd) ? null : await this.resolveHostHome(provider, hostKey);
+    const dir = home === null ? cwd : `${home}/${cwd}`;
 
-    for (const file of check.files) {
-      const path = posix.join(base, file);
+    const found = await provider.runCommand({
+      argv: [
+        ...GIT_ENV_ARGV,
+        'sh',
+        '-c',
+        FIND_PROJECT_SETTINGS_SCRIPT,
+        'sh',
+        dir,
+        ...check.files,
+        '--',
+        ...check.rootFiles,
+      ],
+      cwd: '/',
+      host: hostKey,
+    });
 
+    if (found.exitCode === ABSENT_DIR_EXIT) {
+      return;
+    }
+
+    if (found.exitCode !== 0) {
+      throw this.buildUnreadableSettingsRefusal(adapter.id, target, dir);
+    }
+
+    const paths = new Set(found.stdout.split('\0').filter((path) => path !== ''));
+
+    for (const path of paths) {
       const read = await provider.runCommand({
-        argv: ['sh', '-c', READ_PRESENT_FILE, 'sh', path],
+        argv: ['sh', '-c', READ_SETTINGS_FILE, 'sh', path],
         cwd: '/',
         host: hostKey,
       });
 
-      if (read.exitCode === ABSENT_FILE_EXIT) {
-        continue;
+      if (read.exitCode !== 0 || Buffer.byteLength(read.stdout) > MAX_SETTINGS_BYTES) {
+        throw this.buildUnreadableSettingsRefusal(adapter.id, target, path);
       }
 
-      if (read.exitCode !== 0) {
-        throw new DaemonError(
-          'auth_target_unsupported',
-          `agent '${adapter.id}' signs in through impd's broker on target '${target}', but atc cannot read ${path} there to check it for settings that would override that sign-in`,
-          { agent: adapter.id, target, problem: 'project_settings_unreadable', file },
-        );
-      }
-
-      const refusal = check.findRefusal(file, read.stdout);
+      const refusal = check.findRefusal(path, read.stdout);
 
       if (refusal !== null) {
         throw new DaemonError(refusal.code, refusal.message, { ...refusal.data, target });
       }
     }
+  }
+
+  private buildUnreadableSettingsRefusal(agent: string, target: string, path: string): DaemonError {
+    return new DaemonError(
+      'auth_target_unsupported',
+      `agent '${agent}' signs in through impd's broker on target '${target}', but atc cannot read ${path} there as a settings file to check it for settings that would override that sign-in`,
+      { agent, target, problem: 'project_settings_unreadable', file: path },
+    );
   }
 
   // A sub-session runs on its parent's host when its resolved target, name
