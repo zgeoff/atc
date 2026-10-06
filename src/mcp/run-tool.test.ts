@@ -1,8 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { $ } from 'bun';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { startLegacyDaemon } from '../../test/start-legacy-daemon';
+import { updateEnv } from '../../test/update-env';
 import { DaemonClient } from '../client/daemon-client';
+import { startDaemon } from '../daemon/daemon';
 import { DaemonError } from '../protocol/daemon-error';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { ReconnectingCaller } from './reconnecting-caller';
@@ -432,6 +436,114 @@ test('it spawns with the workspace the call gives and needs a daemon that takes 
       required: ['spawn.workspace'],
     },
   ]);
+});
+
+test('it spawns a git workspace without a cwd and returns the directory the daemon picked under the home', async () => {
+  using tmp = setupTempDir('atc-run-tool-');
+
+  const home = join(tmp.dir, 'home');
+  const upstream = join(tmp.dir, 'upstream.git');
+  const work = join(tmp.dir, 'work');
+
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+  };
+
+  const socketPath = join(tmp.dir, 'daemon.sock');
+
+  updateEnv('HOME', home);
+
+  await $`git init --quiet --bare --template= --initial-branch=main ${upstream}`.env(env).quiet();
+  await $`git clone --quiet --template= ${upstream} ${work}`.env(env).quiet();
+
+  await $`git -c user.name=atc -c user.email=atc@example.com -c commit.gpgsign=false commit --quiet --allow-empty -m initial`
+    .env(env)
+    .cwd(work)
+    .quiet();
+
+  await $`git push --quiet origin main`.env(env).cwd(work).quiet();
+
+  const daemon = await startDaemon({
+    gitTransports: ['file'],
+    socketPath,
+    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+    build: 'atc/test-build',
+    adapter: {
+      id: 'claude',
+      headlessRunner: null,
+      screenDetector: null,
+      takesMessages: false,
+      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
+      normalizeHook: () => ({ kind: 'heartbeat' }),
+      loadName: () => Promise.resolve(null),
+      canResume: () => true,
+      buildResumeCommand: () => null,
+    },
+    dbPath: join(tmp.dir, 'state.db'),
+    statusPath: join(tmp.dir, 'status.json'),
+  });
+
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(async () => {
+    await caller.stop();
+    await daemon.stop();
+  });
+
+  const result = await runTool(
+    caller,
+    'atc_session_spawn',
+    { workspace: { kind: 'git', url: upstream, ref: 'main' } },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  const dest = join(home, '.local/share/atc/workspaces/upstream-main');
+
+  expect(result.structured).toMatchObject({
+    cwd: dest,
+    workspace: { repoURL: upstream, ref: 'main' },
+  });
+
+  expect(existsSync(join(dest, '.git'))).toBeTrue();
+});
+
+test('it refuses a git workspace without a cwd unsent when the daemon predates picking its directory', async () => {
+  using tmp = setupTempDir('atc-run-tool-');
+
+  const socketPath = join(tmp.dir, 'daemon.sock');
+
+  const legacy = startLegacyDaemon(socketPath, {
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace.autoDir'),
+  });
+
+  const caller = new ReconnectingCaller(socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(async () => {
+    await caller.stop();
+
+    legacy.stop();
+  });
+
+  const spawn = runTool(
+    caller,
+    'atc_session_spawn',
+    { workspace: { kind: 'git', url: 'https://example.com/r.git', ref: 'main' } },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(spawn).rejects.toThrow(
+    /^daemon_outdated: .*atc_session_spawn's git workspace without a cwd/,
+  );
+
+  await spawn.catch(() => null);
+
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
 test('it returns the warnings a workspace spawn left with the session', async () => {

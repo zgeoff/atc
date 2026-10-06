@@ -20,6 +20,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'request.principal': 'the target limits of a remote MCP client',
   'spawn.workspace': "atc_session_spawn's workspace",
   'spawn.workspace.trust': "atc_session_spawn's trustClonedWorkspace",
+  'spawn.workspace.autoDir': "atc_session_spawn's git workspace without a cwd",
   sources: 'sources.list and sources.interpret',
   'git.probe': 'git.probe',
   'transport.tcp': 'a TCP connection to the daemon',

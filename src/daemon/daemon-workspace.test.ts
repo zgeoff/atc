@@ -93,10 +93,17 @@ async function setupTest() {
     logs,
 
     // A daemon on the default transports takes no transports option, as
-    // one with no `workspaces.gitTransports` in its config does.
-    async boot(box: ExecutionProvider, transports: 'fixture' | 'default' | 'invalid' = 'fixture') {
+    // one with no `workspaces.gitTransports` in its config does, and one
+    // without workspace roots takes none, as one with no roots in its
+    // config does.
+    async boot(
+      box: ExecutionProvider,
+      transports: 'fixture' | 'default' | 'invalid' = 'fixture',
+      workspaceRoots?: Readonly<{ root: string | null; targetRoots: ReadonlyMap<string, string> }>,
+    ) {
       const daemon = await startDaemon({
         ...(transports === 'fixture' ? { gitTransports: FIXTURE_TRANSPORTS } : {}),
+        ...(workspaceRoots === undefined ? {} : { workspaceRoots }),
         ...(transports === 'invalid' ? { gitTransports: { invalid: INVALID_TRANSPORTS } } : {}),
         socketPath,
         reporterSocketPath: join(dir, 'reporter.sock'),
@@ -1226,6 +1233,152 @@ test('it materializes a git source on the local target like on any other', async
   });
 
   expect(head.trim()).toBe(sha.trim());
+});
+
+test('it materializes a git source without a cwd under the home on the local target and answers with its directory', async () => {
+  await using ctx = await setupTest();
+
+  const home = join(ctx.dir, 'home');
+
+  updateEnv('HOME', home);
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
+
+  const sha = head.trim();
+  const dest = join(home, '.local/share/atc/workspaces', `upstream-main-${sha.slice(0, 7)}`);
+
+  const spawned = await booted.client.sendRequest('session.spawn', {
+    target: 'local',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main', sha },
+  });
+
+  expect(spawned).toMatchObject({
+    session: {
+      cwd: dest,
+      repoRoot: dest,
+      name: `upstream-main-${sha.slice(0, 7)}`,
+      workspace: { repoURL: ctx.upstream, sha, ref: 'main' },
+    },
+  });
+
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
+});
+
+test('it lands concurrent spawns of one repository without a cwd beside a directory that exists and leaves that directory as it was', async () => {
+  await using ctx = await setupTest();
+
+  const home = join(ctx.dir, 'home');
+  const base = join(home, '.local/share/atc/workspaces', 'upstream-main');
+
+  updateEnv('HOME', home);
+  mkdirSync(base, { recursive: true });
+  writeFileSync(join(base, 'mine.txt'), 'keep\n');
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+
+  const workspace = { kind: 'git', url: ctx.upstream, ref: 'main' };
+
+  const spawned = await Promise.all([
+    booted.client.sendRequest('session.spawn', { target: 'local', workspace }),
+    booted.client.sendRequest('session.spawn', { target: 'local', workspace }),
+  ]);
+
+  const sessions = spawned.map((answer) => getRecord(answer, 'session'));
+
+  expect(sessions.map((session) => [session['cwd'], session['name']])).toIncludeSameMembers([
+    [`${base}-2`, 'upstream-main-2'],
+    [`${base}-3`, 'upstream-main-3'],
+  ]);
+
+  expect(readdirSync(base)).toStrictEqual(['mine.txt']);
+  expect(readFileSync(join(`${base}-2`, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(`${base}-3`, 'README.md'), 'utf8')).toBe('hello\n');
+});
+
+test('it lands a git source without a cwd under the root the config sets for its target', async () => {
+  await using ctx = await setupTest();
+
+  const root = join(ctx.dir, 'roots', 'box');
+
+  const booted = await ctx.boot(new FixtureDirProvider(), 'fixture', {
+    root: join(ctx.dir, 'roots', 'all'),
+    targetRoots: new Map([['box', root]]),
+  });
+
+  const spawned = await booted.client.sendRequest('session.spawn', {
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  expect(spawned).toMatchObject({ session: { cwd: join(root, 'upstream-main') } });
+  expect(readFileSync(join(root, 'upstream-main', 'README.md'), 'utf8')).toBe('hello\n');
+});
+
+test('it refuses a git source without a cwd whose root it cannot write after one attempt, with the cause', async () => {
+  await using ctx = await setupTest();
+
+  const root = join(ctx.dir, 'read-only');
+
+  const box = new FixtureDirProvider();
+
+  mkdirSync(root, { mode: 0o555 });
+
+  const booted = await ctx.boot(box, 'fixture', { root, targetRoots: new Map() });
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  const refusal: unknown = await spawn.catch((error: unknown) => error);
+
+  expect(refusal).toBeInstanceOf(DaemonError);
+  expect(refusal).toMatchObject({ code: 'transfer_failed' });
+  expect(String(refusal)).toInclude('Permission denied');
+
+  expect(
+    box.calls.filter(
+      (call) => call.op === 'run' && call.argv[0] === 'mkdir' && call.argv[1] === '--',
+    ),
+  ).toStrictEqual([{ op: 'run', argv: ['mkdir', '--', join(root, 'upstream-main')], cwd: '/' }]);
+});
+
+test('it refuses a spawn without a cwd or a workspace as bad_args', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+
+  const spawn = booted.client.sendRequest('session.spawn', { target: 'local' });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'bad_args',
+    message: 'session.spawn requires a cwd',
+  });
+
+  await spawn.catch(() => null);
+});
+
+test('it refuses a spawn without a cwd whose workspace is not a git source before anything runs', async () => {
+  await using ctx = await setupTest();
+
+  const box = new FixtureDirProvider();
+
+  const booted = await ctx.boot(box);
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'bad_args',
+    message: 'session.spawn requires a cwd',
+  });
+
+  await spawn.catch(() => null);
+
+  expect(box.calls).toStrictEqual([]);
 });
 
 test('it runs a local spawn without a workspace in its directory as it stands', async () => {

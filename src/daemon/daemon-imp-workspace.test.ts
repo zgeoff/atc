@@ -226,6 +226,76 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
   });
 });
 
+test('it materializes a git source without a cwd under the home of an imp and starts the session in it', async () => {
+  await using daemon = await setupTest();
+
+  const home = join(daemon.dir, 'guest-home');
+  const dest = join(home, '.local/share/atc/workspaces', 'upstream-main');
+
+  mkdirSync(home, { recursive: true });
+
+  daemon.port.setHomeDir(home);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'git', url: daemon.upstream, ref: 'main' },
+  });
+
+  expect<Record<string, unknown>>({
+    readme: readFileSync(join(dest, 'README.md'), 'utf8'),
+    session: getRecord(spawned, 'session'),
+    started: daemon.port.sessionRequests.flatMap((request) =>
+      request.kind === 'start' ? [request.cwd] : [],
+    ),
+  }).toMatchObject({
+    readme: 'hello\n',
+    session: { cwd: dest, repoRoot: dest, locator: { targetID: 'box' }, alive: true },
+    started: [dest],
+  });
+});
+
+test('it lands concurrent sub-sessions of one repository without a cwd side by side on their shared imp', async () => {
+  await using daemon = await setupTest();
+
+  const home = join(daemon.dir, 'guest-home');
+  const base = join(home, '.local/share/atc/workspaces', 'upstream-main');
+
+  mkdirSync(home, { recursive: true });
+
+  daemon.port.setHomeDir(home);
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const workspace = { kind: 'git', url: daemon.upstream, ref: 'main' };
+
+  const spawned = await Promise.all([
+    daemon.client.sendRequest('session.spawn', {
+      agent: 'glm',
+      target: 'box',
+      parent: parentID,
+      workspace,
+    }),
+    daemon.client.sendRequest('session.spawn', {
+      agent: 'glm',
+      target: 'box',
+      parent: parentID,
+      workspace,
+    }),
+  ]);
+
+  const dirs = spawned.map((answer) => getRecord(answer, 'session')['cwd']);
+
+  expect(dirs).toIncludeSameMembers([base, `${base}-2`]);
+  expect(readFileSync(join(base, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(`${base}-2`, 'README.md'), 'utf8')).toBe('hello\n');
+});
+
 test('it materializes a workspace for a local spawn on the daemon host and starts the session there', async () => {
   await using daemon = await setupTest();
 

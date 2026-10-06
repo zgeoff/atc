@@ -32,6 +32,11 @@ interface MaterializeRequest {
   // Whether the target is the daemon's own host, where a directory outside
   // any git work tree runs in place instead of being materialized.
   readonly inPlace: boolean;
+
+  // Whether the daemon picked the directory, so one that exists or that
+  // another workspace holds moves the claim to the next attempt's
+  // directory instead of refusing the spawn.
+  readonly autoDir?: boolean;
 }
 
 // The host a workspace lands on, and the directory there it is built in.
@@ -48,8 +53,9 @@ interface MaterializeDeps {
   readonly log: (line: string) => void;
 
   // Readies the host on the target the workspace lands on and resolves to
-  // it, once the source has resolved.
-  readonly readyHost: () => Promise<Landing>;
+  // it, once the source has resolved, with the directory of an attempt: the
+  // first is the request's directory, and attempt n appends `-n` to it.
+  readonly readyHost: (attempt: number) => Promise<Landing>;
 
   // Removes the directory this call claimed after a failure, and resolves
   // to whether it did; one it leaves holds what another session needs, or
@@ -254,12 +260,13 @@ async function runMaterialization(
   const repoURL = secret === null ? pinned.repoURL : toRedacted(pinned.repoURL, secret);
   const ref = secret === null || pinned.ref === null ? pinned.ref : toRedacted(pinned.ref, secret);
 
-  const landing = await deps.readyHost();
+  const landing = await claimLanding(request, deps, updateProgress);
 
-  updateProgress({ landing });
-
-  await claimTargetDir(request, deps, landing, updateProgress);
-  await recordPhase(request, deps, updateProgress, 'cloning', { repoURL, ref });
+  await recordPhase(request, deps, updateProgress, 'cloning', {
+    repoURL,
+    ref,
+    ...(request.autoDir === true ? { dir: landing.dir } : {}),
+  });
 
   const clone = await createCleanClone(pinned, join(staging, 'clone'), transports);
 
@@ -401,6 +408,45 @@ async function requireNoURLCredentials(url: string, cwd: string): Promise<void> 
   }
 }
 
+// How many directories a spawn whose directory the daemon picked tries
+// before it refuses.
+const AUTO_DIR_ATTEMPTS = 100;
+
+/**
+ * Readies the host and claims the directory the workspace lands in. A
+ * directory the daemon picked moves to the next attempt while the one
+ * before exists or another workspace holds it, so repeated and concurrent
+ * spawns of one repository land side by side; a directory the caller gave
+ * is claimed once.
+ */
+async function claimLanding(
+  request: MaterializeRequest,
+  deps: MaterializeDeps,
+  updateProgress: ProgressTracker,
+): Promise<Landing> {
+  const attempts = request.autoDir === true ? AUTO_DIR_ATTEMPTS : 1;
+
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const landing = await deps.readyHost(attempt);
+
+      updateProgress({ landing });
+
+      await claimTargetDir(request, deps, landing, updateProgress);
+
+      return landing;
+    } catch (error) {
+      const held =
+        error instanceof DaemonError &&
+        (error.code === 'workspace_exists' || error.code === 'workspace_overlap');
+
+      if (!held || attempt >= attempts) {
+        throw error;
+      }
+    }
+  }
+}
+
 /**
  * Creates the target directory as the claim on it: `mkdir` without `-p`
  * fails when the directory exists, so a materialization never unpacks over
@@ -412,6 +458,9 @@ async function claimTargetDir(
   landing: Landing,
   updateProgress: ProgressTracker,
 ): Promise<void> {
+  // A directory the daemon picked is reported as it landed.
+  const shown = request.autoDir === true ? landing.dir : request.dir;
+
   const parent = await deps.requireProvider('run').runCommand({
     argv: ['mkdir', '-p', '--', dirname(landing.dir)],
     cwd: '/',
@@ -421,8 +470,8 @@ async function claimTargetDir(
   if (parent.exitCode !== 0) {
     throw new DaemonError(
       'transfer_failed',
-      `cannot create ${dirname(request.dir)} on target '${request.target}': ${parent.stderr.trim()}`,
-      { phase: 'resolving', dir: request.dir },
+      `cannot create ${dirname(shown)} on target '${request.target}': ${parent.stderr.trim()}`,
+      { phase: 'resolving', dir: shown },
     );
   }
 
@@ -430,15 +479,37 @@ async function claimTargetDir(
     .requireProvider('run')
     .runCommand({ argv: ['mkdir', '--', landing.dir], cwd: '/', host: landing.host });
 
+  // A directory that is not there failed for another reason, such as a
+  // parent the command cannot write, which no other attempt would fix.
+  if (claim.exitCode !== 0 && !(await isTargetPathPresent(deps, landing))) {
+    throw new DaemonError(
+      'transfer_failed',
+      `cannot create ${shown} on target '${request.target}': ${claim.stderr.trim()}`,
+      { phase: 'resolving', dir: shown },
+    );
+  }
+
   if (claim.exitCode !== 0) {
     throw new DaemonError(
       'workspace_exists',
-      `${request.dir} already exists on target '${request.target}'; a workspace is materialized only into a directory that does not exist`,
-      { phase: 'resolving', dir: request.dir },
+      `${shown} already exists on target '${request.target}'; a workspace is materialized only into a directory that does not exist`,
+      { phase: 'resolving', dir: shown },
     );
   }
 
   updateProgress({ claimed: true });
+}
+
+// Whether anything, a dangling symlink included, stands at the landing
+// directory's path on its host.
+async function isTargetPathPresent(deps: MaterializeDeps, landing: Landing): Promise<boolean> {
+  const probe = await deps.requireProvider('run').runCommand({
+    argv: ['sh', '-c', '[ -e "$1" ] || [ -L "$1" ]', 'sh', landing.dir],
+    cwd: '/',
+    host: landing.host,
+  });
+
+  return probe.exitCode === 0;
 }
 
 async function recordPhase(
@@ -447,6 +518,7 @@ async function recordPhase(
   updateProgress: ProgressTracker,
   phase: MaterializationPhase,
   fields: Readonly<{
+    dir?: string;
     repoURL?: string;
     sha?: string;
     ref?: string | null;

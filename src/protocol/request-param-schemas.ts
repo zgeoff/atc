@@ -151,7 +151,13 @@ export const REQUEST_PARAM_SCHEMAS = {
     rows: buildTerminalSize(24),
   }),
   'session.spawn': z.object({
-    cwd: z.string({ error: 'session.spawn requires a cwd' }).min(1, 'session.spawn requires a cwd'),
+    // The working directory on the target. A spawn with a git workspace may
+    // leave it out, and the daemon then picks a directory under the target
+    // user's home; every other spawn requires it.
+    cwd: z
+      .string({ error: 'session.spawn requires a cwd' })
+      .min(1, 'session.spawn requires a cwd')
+      .optional(),
     name: buildDefaultedString(''),
     prompt: buildDefaultedString(''),
     cols: buildTerminalSize(80),

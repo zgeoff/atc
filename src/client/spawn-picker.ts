@@ -1,6 +1,8 @@
 import { homedir } from 'node:os';
 import { DaemonError } from '../protocol/daemon-error';
+import type { DaemonFeature } from '../protocol/daemon-features';
 import type { AgentID } from '../shared/agent-id';
+import { buildWorkspaceDestination } from '../shared/build-workspace-destination';
 import type { WorkspacesConfig } from '../shared/collect-workspaces-config';
 import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
 import { loadConfig } from '../shared/config';
@@ -8,7 +10,6 @@ import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { isGitURL } from '../shared/is-git-url';
 import { isRecord } from '../shared/report';
 import { resolveHomeDir } from '../shared/resolve-home-dir';
-import { buildWorkspaceDestination } from './build-workspace-destination';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
 import { collectPathCompletions } from './collect-path-completions';
@@ -48,6 +49,7 @@ export interface SpawnPickerDeps<TMirror> {
   readonly attach: (sessionID: string) => Promise<void>;
   readonly toMirrorSession: (value: unknown) => TMirror | null;
   readonly upsertMirror: (session: Readonly<TMirror>) => void;
+  readonly hasDaemonFeature: (feature: DaemonFeature) => boolean;
 }
 
 // One source `agents.list` returned, in the order the daemon offers them.
@@ -100,6 +102,9 @@ interface ChosenRef {
   readonly sha: string;
 }
 
+// The root the daemon picks a destination under on a remote target without
+// a configured one, as the confirm screen shows it.
+const AUTO_ROOT = '~/.local/share/atc/workspaces';
 const FULL_SHA_PATTERN = /^(?:[\da-f]{40}|[\da-f]{64})$/u;
 const SHORT_SHA_PATTERN = /^[\da-f]{7,63}$/u;
 
@@ -236,6 +241,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // The repository the destination was built or typed for.
   private destinationRepoURL: string | null = null;
 
+  // The directory the daemon picks on the target when the confirm screen
+  // has no destination it can build, under the target user's home as the
+  // screen shows it, or null when the spawn gives its own.
+  private autoDestination: string | null = null;
+
   private name = '';
 
   private resume = false;
@@ -291,6 +301,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.destination = '';
     this.destinationEdited = false;
     this.destinationRepoURL = null;
+    this.autoDestination = null;
 
     // A last-used agent that is no longer installed is not in the menu, so
     // the selection falls to the first one that is.
@@ -462,7 +473,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         items: [],
         selected: -1,
         input: this.input,
-        placeholder: formatDirName(this.dir),
+        placeholder: formatDirName(this.autoDestination ?? this.dir),
         hint: this.refusal ?? `session name for ${where} · ⏎ accept · esc back`,
       });
     } else {
@@ -607,7 +618,10 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       ],
       selected: -1,
       input: this.input,
-      placeholder: 'destination on the target',
+      placeholder:
+        this.autoDestination === null
+          ? 'destination on the target'
+          : 'picked on the target · or type an absolute path',
       hint: this.refusal ?? 'destination on the target · ⏎ continue · esc back',
     });
   }
@@ -1584,6 +1598,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private openConfirmStep() {
     this.step = 'confirm';
     this.destinationAttempt = 1;
+    this.autoDestination = null;
 
     if (this.destination === '' && this.repo !== null && this.ref !== null) {
       const target = this.findEffectiveTarget();
@@ -1602,6 +1617,13 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
           ref: this.ref.ref,
           sha: this.ref.sha,
         });
+      } else if (target !== null && !target.inPlace && this.canPickOnTarget(target.id)) {
+        this.autoDestination = buildWorkspaceDestination({
+          root: this.workspaces.targetRoots.get(target.id) ?? this.workspaces.root ?? AUTO_ROOT,
+          url: this.repo.url,
+          ref: this.ref.ref,
+          sha: this.ref.sha,
+        });
       } else {
         this.refusal = root.message;
       }
@@ -1610,10 +1632,30 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.input = this.buildDestination();
   }
 
+  // Whether the daemon picks the destination on a remote target: it must
+  // take a git workspace without a directory, and the target's configured
+  // root, if any, must be one it resolves there, under the home.
+  private canPickOnTarget(target: string): boolean {
+    const configured = this.workspaces.targetRoots.get(target) ?? this.workspaces.root;
+
+    return (
+      this.deps.hasDaemonFeature('spawn.workspace.autoDir') &&
+      (configured === null || configured === '~' || configured.startsWith('~/'))
+    );
+  }
+
   // Takes the confirm screen's destination: absolute on its target, with a
   // leading `~` expanded only on the daemon's own machine. False, with the
   // reason shown, when the target cannot take it.
   private applyDestination(typed: string): boolean {
+    // An empty destination takes the one the daemon picks on the target.
+    if (typed === '' && this.autoDestination !== null) {
+      this.destinationRepoURL = this.repo?.url ?? null;
+      this.dir = '';
+
+      return true;
+    }
+
     const inPlace = this.findEffectiveTarget()?.inPlace ?? true;
 
     const dir =
@@ -1635,6 +1677,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.destinationEdited = true;
     }
 
+    this.autoDestination = null;
     this.destinationRepoURL = this.repo?.url ?? null;
     this.dir = this.buildDestination();
 
@@ -1649,7 +1692,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   private formatDestination(): string {
-    return `${this.findEffectiveTarget()?.id ?? 'local'}:${this.buildDestination()}`;
+    const target = this.findEffectiveTarget()?.id ?? 'local';
+
+    return this.autoDestination === null
+      ? `${target}:${this.buildDestination()}`
+      : `${target}:${this.autoDestination}`;
   }
 
   // The target the spawn runs on: the chosen one, else the daemon's
@@ -1792,7 +1839,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private async spawn(prompt: string) {
     const params = {
-      cwd: this.dir,
+      ...(this.isGitFlow() && this.autoDestination !== null ? {} : { cwd: this.dir }),
       name: this.name,
       prompt,
       cols: cols(),
@@ -1885,7 +1932,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    if (step === 'destination') {
+    if (step === 'destination' && this.autoDestination !== null) {
+      // The daemon already tried the numbered directories beside its pick.
+      this.step = 'confirm';
+      this.input = '';
+      this.refusal = `${reason} · esc back`;
+    } else if (step === 'destination') {
       this.destinationAttempt += 1;
       this.step = 'confirm';
       this.input = this.buildDestination();

@@ -452,6 +452,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
       principals: cfg.principals,
       sources: sources.sources,
       gitTransports: cfg.workspaces.gitTransports,
+      workspaceRoots: { root: cfg.workspaces.root, targetRoots: cfg.workspaces.targetRoots },
       ...(listen === null || tokenFile === null
         ? {}
         : { listen: { host: listen.host, port: listen.port, tokenFile } }),

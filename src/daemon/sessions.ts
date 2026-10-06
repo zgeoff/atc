@@ -194,14 +194,18 @@ interface MaterializedSpawn {
 // Builds a spawn's workspace on a target bound to an identity, calling
 // readyHost for the host it lands on once its source resolves and asking
 // canRemoveClaim before a failure removes the directory it claimed, or
-// resolves to null for a directory that runs as it stands.
+// resolves to null for a directory that runs as it stands. readyHost takes
+// the attempt the directory is for: the first is the spawn's directory, and
+// attempt n is that directory with `-n` appended.
 type SpawnMaterializer = (
   host: SpawnHostAccess,
   targetIdentity: string,
 ) => Promise<MaterializedSpawn | null>;
 
 interface SpawnHostAccess {
-  readonly readyHost: () => Promise<{ readonly host: SessionID; readonly dir: string }>;
+  readonly readyHost: (
+    attempt: number,
+  ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
   readonly removeClaim: (dir: string) => Promise<boolean>;
 }
 
@@ -210,7 +214,7 @@ interface SpawnHostAccess {
 interface WorkspaceReservation {
   readonly hostKey: SessionID;
   readonly target: string;
-  readonly dir: string;
+  dir: string;
   resolved: string | null;
 
   // A workspace spawn builds its directory and may remove it on a failure;
@@ -905,6 +909,7 @@ export class SessionManager {
     target = 'local',
     materialize: SpawnMaterializer | null = null,
     requireInReach: () => void = () => {},
+    autoDir = false,
   ): Promise<Session> {
     const adapter = this.findAdapter(agent);
 
@@ -967,9 +972,14 @@ export class SessionManager {
       throw refusal;
     }
 
+    // A directory the daemon picked is checked on the host once per
+    // attempt, so a held one moves the spawn to the next attempt instead of
+    // refusing it.
     if (hostKey !== id) {
       if (materialize === null) {
         this.claimPlainDir(id, hostKey, target, cwd);
+      } else if (autoDir) {
+        this.reservations.set(id, { hostKey, target, dir: cwd, resolved: null, kind: 'workspace' });
       } else {
         this.claimWorkspace(id, hostKey, target, cwd);
       }
@@ -1041,6 +1051,9 @@ export class SessionManager {
       );
     });
 
+    // A spawn whose directory the daemon picked runs in the one it claimed,
+    // as the host resolves it.
+    const dir = autoDir && prepared.root !== null ? prepared.root : cwd;
     const setup = prepared.setup;
     const materialized = prepared.materialized;
     const readied: SpawnReadied = { attemptID: setup.attemptID, root: prepared.root };
@@ -1059,7 +1072,7 @@ export class SessionManager {
         host: hostKey,
         bin: plan.bin,
         args: plan.args,
-        cwd,
+        cwd: dir,
         env: { ...plan.env, ATC_SESSION_ID: id, ATC_SOCKET: socketPath },
         withheldEnv: materialized?.withheldEnv ?? [],
         cols,
@@ -1084,8 +1097,8 @@ export class SessionManager {
 
     const session: Session = {
       id,
-      name,
-      cwd,
+      name: namedBy === 'auto' && dir !== cwd ? posix.basename(dir) : name,
+      cwd: dir,
       kind: 'pty',
       pty,
       state: 'running',
@@ -1095,7 +1108,7 @@ export class SessionManager {
       agent,
       pinned: false,
       lastAttachedAt: Date.now(),
-      repoRoot,
+      repoRoot: dir === cwd ? repoRoot : dir,
       namedBy,
       createdAt: Date.now(),
       parent,
@@ -1306,6 +1319,7 @@ export class SessionManager {
     if (reservation !== undefined) {
       this.requireSeparateWorkspace(id, hostKey, target, dir, [dir, physical], listed.dirs);
 
+      reservation.dir = dir;
       reservation.resolved = physical;
     }
 
@@ -1535,6 +1549,28 @@ export class SessionManager {
     return existing === '/' ? rest || '/' : `${existing}${rest}`;
   }
 
+  // The home directory of the user commands run as on a host, with every
+  // symlink in it resolved.
+  private async resolveHostHome(provider: ExecutionProvider, hostKey: SessionID): Promise<string> {
+    const result = await provider.runCommand({
+      argv: ['sh', '-c', 'cd && pwd -P'],
+      cwd: '/',
+      host: hostKey,
+    });
+
+    const home = result.stdout.replace(/\n$/u, '');
+
+    if (result.exitCode !== 0 || !posix.isAbsolute(home)) {
+      throw new DaemonError(
+        'host_unavailable',
+        `the host of session ${hostKey} cannot resolve its home directory: ${result.stderr.trim()}`,
+        { phase: 'resolving' },
+      );
+    }
+
+    return home;
+  }
+
   // Materializes a spawn's workspace, readying its host once the source
   // resolves, or after the workspace for a directory that runs as it
   // stands, and returns the directory it created, null for one that runs
@@ -1559,15 +1595,26 @@ export class SessionManager {
       root: null,
     };
 
+    const hostHome: { dir: string | null } = { dir: null };
+
     try {
       const materialized = await materialize(
         {
-          readyHost: async () => {
-            readied.setup = await setupHost();
+          readyHost: async (attempt) => {
+            readied.setup ??= await setupHost();
+
+            // A directory the daemon picked on a remote target is relative
+            // to the home there, which only the readied host can resolve.
+            hostHome.dir ??= posix.isAbsolute(dir)
+              ? ''
+              : await this.resolveHostHome(provider, hostKey);
+
+            const base = posix.isAbsolute(dir) ? dir : posix.join(hostHome.dir, dir);
+            const candidate = attempt === 1 ? base : `${base}-${attempt}`;
 
             const landing = this.hasHostLifecycle(target)
-              ? await this.claimHostDir(provider, id, hostKey, target, dir)
-              : await this.resolveHostDir(provider, null, dir);
+              ? await this.claimHostDir(provider, id, hostKey, target, candidate)
+              : await this.resolveHostDir(provider, null, candidate);
 
             readied.root = landing;
 

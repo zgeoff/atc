@@ -601,7 +601,7 @@ export class FixtureImpPort implements ImpPort {
 
     const proc = Bun.spawn([...command.argv], {
       ...(cwd === undefined ? {} : { cwd }),
-      env: { PATH: GUEST_PATH },
+      env: { PATH: GUEST_PATH, ...(this.homeDir === null ? {} : { HOME: this.homeDir }) },
       stdin: command.stdin ?? 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',
@@ -986,7 +986,8 @@ export class FixtureImpPort implements ImpPort {
 
   /**
    * Resolves every relative working directory inside an imp against dir,
-   * as impd resolves one against the guest's home.
+   * as impd resolves one against the guest's home, and runs every command
+   * with dir as its HOME.
    */
   setHomeDir(dir: string): void {
     this.homeDir = dir;
