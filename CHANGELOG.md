@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.36.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.36.0...@zgeoff/atc@2.36.1) (2026-10-06)
+
+### Bug Fixes
+
+- **deps:** pin the mcp sdk past its oauth advisory
+  ([#331](https://github.com/zgeoff/atc/issues/331))
+  ([048a911](https://github.com/zgeoff/atc/commit/048a911e0daee0584cee2b3aee3426b1e16e2534))
+
 ## [2.36.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.35.0...@zgeoff/atc@2.36.0) (2026-10-06)
 
 ### Features
