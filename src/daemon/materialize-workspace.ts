@@ -479,6 +479,16 @@ async function claimTargetDir(
     .requireProvider('run')
     .runCommand({ argv: ['mkdir', '--', landing.dir], cwd: '/', host: landing.host });
 
+  // A directory that is not there failed for another reason, such as a
+  // parent the command cannot write, which no other attempt would fix.
+  if (claim.exitCode !== 0 && !(await isTargetPathPresent(deps, landing))) {
+    throw new DaemonError(
+      'transfer_failed',
+      `cannot create ${shown} on target '${request.target}': ${claim.stderr.trim()}`,
+      { phase: 'resolving', dir: shown },
+    );
+  }
+
   if (claim.exitCode !== 0) {
     throw new DaemonError(
       'workspace_exists',
@@ -488,6 +498,18 @@ async function claimTargetDir(
   }
 
   updateProgress({ claimed: true });
+}
+
+// Whether anything, a dangling symlink included, stands at the landing
+// directory's path on its host.
+async function isTargetPathPresent(deps: MaterializeDeps, landing: Landing): Promise<boolean> {
+  const probe = await deps.requireProvider('run').runCommand({
+    argv: ['sh', '-c', '[ -e "$1" ] || [ -L "$1" ]', 'sh', landing.dir],
+    cwd: '/',
+    host: landing.host,
+  });
+
+  return probe.exitCode === 0;
 }
 
 async function recordPhase(

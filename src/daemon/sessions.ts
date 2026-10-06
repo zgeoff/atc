@@ -1097,7 +1097,7 @@ export class SessionManager {
 
     const session: Session = {
       id,
-      name,
+      name: namedBy === 'auto' && dir !== cwd ? posix.basename(dir) : name,
       cwd: dir,
       kind: 'pty',
       pty,

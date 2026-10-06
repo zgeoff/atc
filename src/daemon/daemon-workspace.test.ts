@@ -1284,9 +1284,13 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
     booted.client.sendRequest('session.spawn', { target: 'local', workspace }),
   ]);
 
-  const dirs = spawned.map((answer) => getRecord(answer, 'session')['cwd']);
+  const sessions = spawned.map((answer) => getRecord(answer, 'session'));
 
-  expect(dirs).toIncludeSameMembers([`${base}-2`, `${base}-3`]);
+  expect(sessions.map((session) => [session['cwd'], session['name']])).toIncludeSameMembers([
+    [`${base}-2`, 'upstream-main-2'],
+    [`${base}-3`, 'upstream-main-3'],
+  ]);
+
   expect(readdirSync(base)).toStrictEqual(['mine.txt']);
   expect(readFileSync(join(`${base}-2`, 'README.md'), 'utf8')).toBe('hello\n');
   expect(readFileSync(join(`${base}-3`, 'README.md'), 'utf8')).toBe('hello\n');
@@ -1309,6 +1313,35 @@ test('it lands a git source without a cwd under the root the config sets for its
 
   expect(spawned).toMatchObject({ session: { cwd: join(root, 'upstream-main') } });
   expect(readFileSync(join(root, 'upstream-main', 'README.md'), 'utf8')).toBe('hello\n');
+});
+
+test('it refuses a git source without a cwd whose root it cannot write after one attempt, with the cause', async () => {
+  await using ctx = await setupTest();
+
+  const root = join(ctx.dir, 'read-only');
+
+  const box = new FixtureDirProvider();
+
+  mkdirSync(root, { mode: 0o555 });
+
+  const booted = await ctx.boot(box, 'fixture', { root, targetRoots: new Map() });
+
+  const spawn = booted.client.sendRequest('session.spawn', {
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  const refusal: unknown = await spawn.catch((error: unknown) => error);
+
+  expect(refusal).toBeInstanceOf(DaemonError);
+  expect(refusal).toMatchObject({ code: 'transfer_failed' });
+  expect(String(refusal)).toInclude('Permission denied');
+
+  expect(
+    box.calls.filter(
+      (call) => call.op === 'run' && call.argv[0] === 'mkdir' && call.argv[1] === '--',
+    ),
+  ).toStrictEqual([{ op: 'run', argv: ['mkdir', '--', join(root, 'upstream-main')], cwd: '/' }]);
 });
 
 test('it refuses a spawn without a cwd or a workspace as bad_args', async () => {
