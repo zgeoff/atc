@@ -38,6 +38,7 @@ import type {
 
 // Spelled as the partial index's predicate so SQLite can match them.
 const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;
+const TURN_KINDS = ['prompt-submitted', 'turn-done', 'needs-input', 'ended'];
 
 /**
  * Some sessions' slice of the event trail: rows under their atc ids, plus
@@ -210,6 +211,7 @@ export class StateStore {
         'workspace.withheld_env',
         'fleet.desired',
         'fleet.host_key',
+        'fleet.resume_interrupted_turns',
       ])
       .execute();
 
@@ -239,6 +241,9 @@ export class StateStore {
         ...buildWithheldEnvField(row.withheld_env),
         ...(row.desired === 'sleep' || row.desired === 'stop' ? { desired: row.desired } : {}),
         ...(row.host_key === null ? {} : { hostKey: toSessionID(row.host_key) }),
+        ...(row.resume_interrupted_turns === null
+          ? {}
+          : { resumeInterruptedTurns: row.resume_interrupted_turns !== 0 }),
       });
     }
 
@@ -346,6 +351,10 @@ export class StateStore {
             target_identity: entry.targetIdentity ?? null,
             desired: entry.desired ?? null,
             host_key: entry.hostKey ?? null,
+            resume_interrupted_turns:
+              entry.resumeInterruptedTurns === undefined
+                ? null
+                : Number(entry.resumeInterruptedTurns),
           })
           .execute();
 
@@ -537,6 +546,31 @@ export class StateStore {
       .executeTakeFirst();
 
     return row?.ts === null || row?.ts === undefined ? null : Date.parse(row.ts);
+  }
+
+  // The kind of the session's latest event that moves a turn: a prompt
+  // submitted, a turn done, a request for input, or the session's end.
+  // Null when the trail holds none. Matches the session by either id, as
+  // the activity read does.
+  async findLatestTurnKind(
+    atcID: SessionID,
+    agentSessionID: AgentSessionID | undefined,
+  ): Promise<string | null> {
+    const row = await this.db
+      .selectFrom('events')
+      .select('kind')
+      .where('kind', 'in', TURN_KINDS)
+      .where((eb) =>
+        eb.or([
+          eb('atc_id', '=', atcID),
+          ...(agentSessionID === undefined ? [] : [eb('session_id', '=', agentSessionID)]),
+        ]),
+      )
+      .orderBy('id', 'desc')
+      .limit(1)
+      .executeTakeFirst();
+
+    return row?.kind ?? null;
   }
 
   async recordSpawnDir(cwd: string, grant: SpawnTarget): Promise<void> {

@@ -20,33 +20,57 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
   },
   "gateways": {},
   "hooks": {},
-  "leader": "ctrl-space"
+  "leader": "ctrl-space",
+  "resumeInterruptedTurns": false
 }
 ```
 
-| Field           | Default         | Meaning                                                                                                                                             |
-| --------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `claudeBin`     | `"claude"`      | The binary spawned for Claude sessions.                                                                                                             |
-| `claudeArgs`    | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`. A spawn's own model or effort replaces the matching flag.                              |
-| `grokBin`       | `"grok"`        | The binary spawned for Grok sessions.                                                                                                               |
-| `grokArgs`      | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`.                                         |
-| `codexBin`      | `"codex"`       | The binary spawned for Codex sessions.                                                                                                              |
-| `codexArgs`     | `[]`            | Prepended to every Codex spawn. A spawn's own model replaces a `-m` or `--model` here.                                                              |
-| `dirs`          | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.                                         |
-| `gateways`      | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                                                        |
-| `authProfiles`  | unset           | Credential references a gateway's `auth` selects from. The [brokered credentials](#brokered-credentials) section covers them.                       |
-| `claudeAuth`    | unset           | The profiles stock Claude signs in through on an imp target. The [Claude subscription on imps](#claude-subscription-on-imps) section covers it.     |
-| `hooks`         | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                                 |
-| `leader`        | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                               |
-| `targets`       | unset           | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                                                  |
-| `defaultTarget` | unset           | The target a spawn without a target runs on.                                                                                                        |
-| `workspaces`    | see above       | Where workspaces come from and land. The [git transports](#git-transports) and [workspace destinations](#workspace-destinations) sections cover it. |
+| Field                    | Default         | Meaning                                                                                                                                                |
+| ------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `claudeBin`              | `"claude"`      | The binary spawned for Claude sessions.                                                                                                                |
+| `claudeArgs`             | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`. A spawn's own model or effort replaces the matching flag.                                 |
+| `grokBin`                | `"grok"`        | The binary spawned for Grok sessions.                                                                                                                  |
+| `grokArgs`               | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`.                                            |
+| `codexBin`               | `"codex"`       | The binary spawned for Codex sessions.                                                                                                                 |
+| `codexArgs`              | `[]`            | Prepended to every Codex spawn. A spawn's own model replaces a `-m` or `--model` here.                                                                 |
+| `dirs`                   | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.                                            |
+| `gateways`               | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                                                           |
+| `authProfiles`           | unset           | Credential references a gateway's `auth` selects from. The [brokered credentials](#brokered-credentials) section covers them.                          |
+| `claudeAuth`             | unset           | The profiles stock Claude signs in through on an imp target. The [Claude subscription on imps](#claude-subscription-on-imps) section covers it.        |
+| `hooks`                  | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                                    |
+| `leader`                 | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                                  |
+| `targets`                | unset           | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                                                     |
+| `defaultTarget`          | unset           | The target a spawn without a target runs on.                                                                                                           |
+| `workspaces`             | see above       | Where workspaces come from and land. The [git transports](#git-transports) and [workspace destinations](#workspace-destinations) sections cover it.    |
+| `resumeInterruptedTurns` | `false`         | Whether a session that was mid-turn when the daemon stopped gets a message to carry on. The [interrupted turns](#interrupted-turns) section covers it. |
 
 ## Leader
 
 Pick a different leader when `Ctrl-Space` is taken on your machine — Raycast on macOS claims it, and
 `ctrl-]` is a replacement that no common terminal, multiplexer, or OS shortcut wants. An unknown or
 reserved value falls back to the default.
+
+## Interrupted turns
+
+Set `resumeInterruptedTurns` to `true` so that a daemon restart never leaves an agent idle partway
+through its work. The daemon reads each session's event trail when the fleet is restored. A session
+whose latest turn event is a submitted prompt was mid-turn when the previous daemon stopped. Once
+that session's terminal is adopted, atc sends it one message from `atc`:
+
+```text
+atc restarted the daemon at <start time>; your last turn was interrupted. Check the state of anything you had in flight, then continue.
+```
+
+The message goes through the session's atc inbox, so only an agent that takes atc messages gets it:
+Claude and Claude gateways do, and Grok and Codex do not. A session whose latest turn event is a
+finished turn or a request for input gets nothing. A permission prompt counts as a request for input
+even after you approve it, so a turn that ran on past an approved prompt gets no message either. The
+message stays pending until the session's tap takes it, and a restore never adds a second one beside
+it.
+
+A spawn can make its own choice with `resumeInterruptedTurns` on `session.spawn` or
+`atc_session_spawn`. The session keeps that choice for its whole life, ahead of the config. atc
+never replays the tool call the restart cut off, and background shells inside the agent stay lost.
 
 ## Directories
 

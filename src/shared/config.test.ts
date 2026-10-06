@@ -40,6 +40,7 @@ test('it leaves every target unusable, local included, and grants no principal a
     principals: new Map(),
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   });
 });
 
@@ -92,6 +93,7 @@ test('it falls back field by field when a field is wrong-typed instead of failin
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   });
 });
 

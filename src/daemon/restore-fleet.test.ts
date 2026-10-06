@@ -67,6 +67,8 @@ test('it lists every restored session under the session id its row holds', async
     cols: 80,
     rows: 24,
     capMs: 0,
+    resumeInterruptedTurns: false,
+    sendResumeMessage: () => Promise.resolve(),
   });
 
   expect(restored).toBe(1);
@@ -94,6 +96,8 @@ test('it revives a listed dead session in place instead of listing its id twice'
     cols: 80,
     rows: 24,
     capMs: 0,
+    resumeInterruptedTurns: false,
+    sendResumeMessage: () => Promise.resolve(),
   });
 
   expect(ctx.mgr.sessions.map((x) => x.id)).toStrictEqual([s.id]);
@@ -141,6 +145,8 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
     cols: 80,
     rows: 24,
     capMs: 0,
+    resumeInterruptedTurns: false,
+    sendResumeMessage: () => Promise.resolve(),
   });
 
   // Every adopted terminal fires a fleet write; the last write queues
@@ -216,6 +222,8 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
     cols: 80,
     rows: 24,
     capMs: 0,
+    resumeInterruptedTurns: false,
+    sendResumeMessage: () => Promise.resolve(),
   });
 
   await waitFor(() => {
@@ -292,6 +300,8 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
     cols: 80,
     rows: 24,
     capMs: 0,
+    resumeInterruptedTurns: false,
+    sendResumeMessage: () => Promise.resolve(),
   });
 
   await waitFor(() => {

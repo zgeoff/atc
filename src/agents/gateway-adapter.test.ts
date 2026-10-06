@@ -41,6 +41,7 @@ function buildGatewayAdapter(): GatewayAdapter {
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   };
 
   return new GatewayAdapter(
@@ -150,6 +151,7 @@ test("it runs a headless turn through the gateway's binary and settings file und
       principals: null,
       principalErrors: [],
       workspaceErrors: [],
+      resumeInterruptedTurns: false,
     },
     (opts) => {
       received = { ...opts };
@@ -221,6 +223,7 @@ test('it profiles a gateway with only the model names its env sets', () => {
       principals: null,
       principalErrors: [],
       workspaceErrors: [],
+      resumeInterruptedTurns: false,
     },
   );
 

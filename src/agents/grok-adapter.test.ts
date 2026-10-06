@@ -51,6 +51,7 @@ function buildGrokConfig(): Config {
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   };
 }
 

@@ -504,6 +504,7 @@ test('it refuses to eject a grok session and does not start a headless runner', 
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   });
 
   const startFakeRun: HeadlessRunner = (opts, hooks) => {

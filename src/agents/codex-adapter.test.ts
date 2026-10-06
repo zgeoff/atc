@@ -38,6 +38,7 @@ function buildCodexConfig(): Config {
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   };
 }
 

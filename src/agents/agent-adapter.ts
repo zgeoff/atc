@@ -22,12 +22,15 @@ export interface SpawnOptions {
 
 /**
  * The per-launch choices a spawn asks for. Model and effort are checked
- * against what the agent advertises; workspace trust requires a verified clone.
+ * against what the agent advertises; workspace trust requires a verified
+ * clone; resuming an interrupted turn overrides the daemon's config for the
+ * session's whole life.
  */
 export interface SpawnOverrides {
   readonly trustClonedWorkspace?: boolean;
   readonly model?: string;
   readonly effort?: string;
+  readonly resumeInterruptedTurns?: boolean;
 }
 
 export interface SpawnPlan {

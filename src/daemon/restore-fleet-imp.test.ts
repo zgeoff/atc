@@ -69,6 +69,8 @@ async function setupTest(adapter: AgentAdapter) {
         cols: 80,
         rows: 24,
         capMs: 50,
+        resumeInterruptedTurns: false,
+        sendResumeMessage: () => Promise.resolve(),
       }),
     async [Symbol.asyncDispose]() {
       mgr.detachAll();

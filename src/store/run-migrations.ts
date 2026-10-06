@@ -34,6 +34,10 @@ interface FleetTable {
   // its parent's when the two share one host. Null for a row from before
   // hosts were recorded, which runs on its own.
   host_key: string | null;
+
+  // Whether a restore sends the session one message to carry on an
+  // interrupted turn: 1 or 0 as the spawn chose, null to follow the config.
+  resume_interrupted_turns: number | null;
 }
 
 interface EventsTable {
@@ -546,6 +550,14 @@ const MIGRATIONS: Record<string, Migration> = {
         .addColumn('phase', 'text', (c) => c.notNull())
         .addColumn('updated_at', 'integer', (c) => c.notNull())
         .addPrimaryKeyConstraint('runtime_auth_grant_pk', ['host_key', 'secret'])
+        .execute();
+    },
+  },
+  '026_add_fleet_resume_interrupted_turns': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .alterTable('fleet')
+        .addColumn('resume_interrupted_turns', 'integer')
         .execute();
     },
   },

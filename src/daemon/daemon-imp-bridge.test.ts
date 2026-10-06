@@ -88,6 +88,7 @@ done
       principals: new Map(),
       principalErrors: [],
       workspaceErrors: [],
+      resumeInterruptedTurns: false,
     }),
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),

@@ -1034,6 +1034,9 @@ export class DaemonConnection {
           ...(data.trustClonedWorkspace === undefined
             ? {}
             : { trustClonedWorkspace: data.trustClonedWorkspace }),
+          ...(data.resumeInterruptedTurns === undefined
+            ? {}
+            : { resumeInterruptedTurns: data.resumeInterruptedTurns }),
         },
         target,
         workspace: data.workspace ?? null,
