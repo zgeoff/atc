@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.39.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.38.0...@zgeoff/atc@2.39.0) (2026-10-06)
+
+### Features
+
+- **geo-127:** refuse brokered claude when clone settings override auth
+  ([#336](https://github.com/zgeoff/atc/issues/336))
+  ([2ef7cae](https://github.com/zgeoff/atc/commit/2ef7cae3b9445416436ed9d8841f993bed26a84d))
+
 ## [2.38.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.37.0...@zgeoff/atc@2.38.0) (2026-10-06)
 
 ### Features
