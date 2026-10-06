@@ -1311,6 +1311,21 @@ test('it lands a git source without a cwd under the root the config sets for its
   expect(readFileSync(join(root, 'upstream-main', 'README.md'), 'utf8')).toBe('hello\n');
 });
 
+test('it refuses a spawn without a cwd or a workspace as bad_args', async () => {
+  await using ctx = await setupTest();
+
+  const booted = await ctx.boot(new FixtureDirProvider());
+
+  const spawn = booted.client.sendRequest('session.spawn', { target: 'local' });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'bad_args',
+    message: 'session.spawn requires a cwd',
+  });
+
+  await spawn.catch(() => null);
+});
+
 test('it refuses a spawn without a cwd whose workspace is not a git source before anything runs', async () => {
   await using ctx = await setupTest();
 

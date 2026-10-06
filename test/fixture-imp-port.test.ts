@@ -758,6 +758,21 @@ test('it runs a command in a running imp with the input it is given', async () =
   });
 });
 
+test('it runs a command with the guest home as HOME once the test gives one', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'imp-a' });
+
+  fixture.port.setHomeDir(fixture.dir);
+
+  const result = await fixture.port.runCommand('imp-a', {
+    argv: ['sh', '-c', 'cd && pwd'],
+    cwd: '/',
+  });
+
+  expect(Buffer.from(result.stdout).toString()).toBe(`${fixture.dir}\n`);
+});
+
 test('it ends the output and exit of a command that runs while a session PTY opens in its imp', async () => {
   using fixture = setupTest();
 

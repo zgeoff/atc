@@ -1516,12 +1516,10 @@ export class SessionManager {
     };
   }
 
-  // A directory on a host with every symlink in it resolved through its
-  // nearest existing directory: an absolute one from the root, and a
-  // relative one from the directory a relative path starts at there, the
-  // guest's home on an imp, as a harness started in it sees it, since impd
-  // resolves both alike. A null host resolves it on the daemon's own
-  // machine.
+  // A directory on a host with every symlink in it resolved: an absolute
+  // one through its nearest existing directory, and a relative one as a
+  // harness started in it sees it, since impd resolves both alike. A null
+  // host resolves it on the daemon's own machine.
   private async resolveHostDir(
     provider: ExecutionProvider,
     hostKey: SessionID | null,
@@ -1530,8 +1528,8 @@ export class SessionManager {
     const absolute = posix.isAbsolute(dir);
 
     const result = await provider.runCommand({
-      argv: ['sh', '-c', RESOLVE_DIR_SCRIPT, 'sh', absolute ? posix.normalize(dir) : `./${dir}`],
-      cwd: absolute ? '/' : '.',
+      argv: ['sh', '-c', RESOLVE_DIR_SCRIPT, 'sh', absolute ? posix.normalize(dir) : '.'],
+      cwd: absolute ? '/' : dir,
       ...(hostKey === null ? {} : { host: hostKey }),
     });
 
@@ -1549,6 +1547,28 @@ export class SessionManager {
     const rest = result.stdout.slice(split + 1);
 
     return existing === '/' ? rest || '/' : `${existing}${rest}`;
+  }
+
+  // The home directory of the user commands run as on a host, with every
+  // symlink in it resolved.
+  private async resolveHostHome(provider: ExecutionProvider, hostKey: SessionID): Promise<string> {
+    const result = await provider.runCommand({
+      argv: ['sh', '-c', 'cd && pwd -P'],
+      cwd: '/',
+      host: hostKey,
+    });
+
+    const home = result.stdout.replace(/\n$/u, '');
+
+    if (result.exitCode !== 0 || !posix.isAbsolute(home)) {
+      throw new DaemonError(
+        'host_unavailable',
+        `the host of session ${hostKey} cannot resolve its home directory: ${result.stderr.trim()}`,
+        { phase: 'resolving' },
+      );
+    }
+
+    return home;
   }
 
   // Materializes a spawn's workspace, readying its host once the source
@@ -1575,13 +1595,22 @@ export class SessionManager {
       root: null,
     };
 
+    const hostHome: { dir: string | null } = { dir: null };
+
     try {
       const materialized = await materialize(
         {
           readyHost: async (attempt) => {
             readied.setup ??= await setupHost();
 
-            const candidate = attempt === 1 ? dir : `${dir}-${attempt}`;
+            // A directory the daemon picked on a remote target is relative
+            // to the home there, which only the readied host can resolve.
+            hostHome.dir ??= posix.isAbsolute(dir)
+              ? ''
+              : await this.resolveHostHome(provider, hostKey);
+
+            const base = posix.isAbsolute(dir) ? dir : posix.join(hostHome.dir, dir);
+            const candidate = attempt === 1 ? base : `${base}-${attempt}`;
 
             const landing = this.hasHostLifecycle(target)
               ? await this.claimHostDir(provider, id, hostKey, target, candidate)

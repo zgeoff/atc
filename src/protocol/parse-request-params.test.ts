@@ -82,8 +82,21 @@ test.each([
   expect(parsed).toStrictEqual({ ok: true, data: expected });
 });
 
-test('it rejects session.spawn missing cwd as bad_args with a cwd-specific message', () => {
-  const parsed = parseRequestParams('session.spawn', {});
+test('it parses session.spawn without a cwd for a git workspace to pick the directory of', () => {
+  const parsed = parseRequestParams('session.spawn', {
+    workspace: { kind: 'git', url: 'https://example.com/r.git', ref: 'main' },
+  });
+
+  expect(parsed).toMatchObject({
+    ok: true,
+    data: { workspace: { kind: 'git', url: 'https://example.com/r.git', ref: 'main' } },
+  });
+
+  expect(parsed).not.toHaveProperty('data.cwd');
+});
+
+test('it rejects session.spawn with an empty cwd as bad_args with a cwd-specific message', () => {
+  const parsed = parseRequestParams('session.spawn', { cwd: '' });
 
   expect(parsed).toStrictEqual({ ok: false, message: 'session.spawn requires a cwd' });
 });
