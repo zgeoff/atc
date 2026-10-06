@@ -2,10 +2,11 @@
 
 ## [2.38.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.37.0...@zgeoff/atc@2.38.0) (2026-10-06)
 
-
 ### Features
 
-* **geo-74:** broker mcp servers and approve trusted clone servers ([#332](https://github.com/zgeoff/atc/issues/332)) ([30841aa](https://github.com/zgeoff/atc/commit/30841aa76df0f9628b8c6dda5a00be56b2c25846))
+- **geo-74:** broker mcp servers and approve trusted clone servers
+  ([#332](https://github.com/zgeoff/atc/issues/332))
+  ([30841aa](https://github.com/zgeoff/atc/commit/30841aa76df0f9628b8c6dda5a00be56b2c25846))
 
 ## [2.37.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.36.1...@zgeoff/atc@2.37.0) (2026-10-06)
 
