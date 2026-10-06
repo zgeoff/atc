@@ -301,6 +301,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.destination = '';
     this.destinationEdited = false;
     this.destinationRepoURL = null;
+    this.autoDestination = null;
 
     // A last-used agent that is no longer installed is not in the menu, so
     // the selection falls to the first one that is.
@@ -1838,7 +1839,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private async spawn(prompt: string) {
     const params = {
-      ...(this.autoDestination === null ? { cwd: this.dir } : {}),
+      ...(this.isGitFlow() && this.autoDestination !== null ? {} : { cwd: this.dir }),
       name: this.name,
       prompt,
       cols: cols(),

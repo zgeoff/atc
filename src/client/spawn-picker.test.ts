@@ -315,6 +315,35 @@ test('it spawns a repository on a remote target with no destination typed and le
   ]);
 });
 
+test('it sends the directory of a directory spawn after a flow left a repository to the daemon', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', { targets: [BOX], sources: [GIT_SOURCE] });
+  await ctx.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
+  await ctx.applyKeys(Buffer.from('https://example.com/app.git'), ENTER);
+
+  await ctx.answer('git.probe', {
+    url: 'https://example.com/app.git',
+    head: 'main',
+    refs: [{ name: 'main', kind: 'branch', sha: 'a'.repeat(40) }],
+    resolved: null,
+  });
+
+  await ctx.applyKeys(ENTER, LEADER);
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', { targets: [BOX], sources: [DIR_SOURCE] });
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+
+  expect(ctx.collectSent('session.spawn')).toMatchObject([
+    { cwd: process.cwd(), target: 'box', workspace: { kind: 'path', path: process.cwd() } },
+  ]);
+});
+
 test('it refuses a remote target without a workspace root when the daemon cannot pick the directory', async () => {
   const ctx = setupTest(false);
 
