@@ -94,7 +94,7 @@ test('it runs a headless turn through the configured claude binary under the aut
     { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
   );
 
-  expect(received).toStrictEqual({
+  expect(received).toMatchObject({
     cwd: '/tmp',
     prompt: 'go',
     model: 'opus',
@@ -103,6 +103,8 @@ test('it runs a headless turn through the configured claude binary under the aut
     permissionMode: 'auto',
     pluginDir: join(tmp.dir, 'atc-bridge'),
   });
+
+  expect(received['settings']).toMatch(/hook-settings-claude\.json$/);
 });
 
 test('it advertises the documented model aliases and effort levels with the configured defaults', () => {
@@ -176,9 +178,28 @@ test('it keeps the permission mode its configured arguments set in the command t
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
-    "cd '/work/repo' && claude --permission-mode 'plan' --resume sess-1",
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
+    /^cd '\/work\/repo' && claude --permission-mode 'plan' --settings '[^']+hook-settings-claude\.json' --resume sess-1$/,
   );
+});
+
+test('it restores a stock session in the mode its settings set', () => {
+  using tmp = setupTempDir('atc-claude-settings-mode-');
+
+  const config = parseConfig({
+    agents: { claude: { settings: { permissions: { defaultMode: 'bypassPermissions' } } } },
+  });
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    null,
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
+
+  expect(plan.args.join(' ')).toContain('--permission-mode bypassPermissions');
 });
 
 test('it restores a stock session without a permission-mode argument', () => {
@@ -195,8 +216,8 @@ test('it restores a stock session without a permission-mode argument', () => {
 
   expect(plan.args).not.toContain('--permission-mode');
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
-    "cd '/work/repo' && claude --resume sess-1",
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
+    /^cd '\/work\/repo' && claude --settings '[^']+hook-settings-claude\.json' --resume sess-1$/,
   );
 });
 

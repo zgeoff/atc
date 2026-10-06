@@ -35,6 +35,7 @@ import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
 import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';
+import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
@@ -129,15 +130,23 @@ export class ClaudeAdapter implements AgentAdapter {
             claudeBin: entry.bin,
             permissionMode: resolveClaudePermissionMode(entry.args, entry.settings),
             pluginDir: () => this.writeBridge(),
+            settings: () => this.writeSettings(),
           });
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
-    this.settingsFile ??= writeHookSettings(this.buildSettingsProfile({}));
+    const modeArgs =
+      opts.resume === false ? [] : buildRestoreModeArgs(this.entry.args, this.entry.settings);
 
     return {
       bin: this.entry.bin,
-      args: this.buildArgs(this.entry.args, opts, this.settingsFile, this.writeBridge()),
+      args: this.buildArgs(
+        this.entry.args,
+        opts,
+        modeArgs,
+        this.writeSettings(),
+        this.writeBridge(),
+      ),
     };
   }
 
@@ -187,6 +196,7 @@ export class ClaudeAdapter implements AgentAdapter {
       args: this.buildArgs(
         this.entry.args,
         opts,
+        [],
         `${guest.dir}/settings.json`,
         `${guest.dir}/atc-bridge`,
       ),
@@ -243,6 +253,7 @@ export class ClaudeAdapter implements AgentAdapter {
         ...this.buildArgs(
           buildArgsWithoutFlags(this.entry.args, ['--permission-mode']),
           opts,
+          [],
           `${dir}/${settingsPath}`,
           `${dir}/atc-bridge`,
         ),
@@ -351,11 +362,13 @@ export class ClaudeAdapter implements AgentAdapter {
   private buildArgs(
     configured: readonly string[],
     opts: SpawnOptions,
+    modeArgs: readonly string[],
     settings: string,
     pluginDir: string,
   ): string[] {
     return [
       ...buildClaudeOverrideArgs(configured, opts),
+      ...modeArgs,
       '--settings',
       settings,
       '--plugin-dir',
@@ -364,6 +377,12 @@ export class ClaudeAdapter implements AgentAdapter {
       ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
       ...(opts.prompt === '' ? [] : [opts.prompt]),
     ];
+  }
+
+  private writeSettings(): string {
+    this.settingsFile ??= writeHookSettings(this.buildSettingsProfile({}));
+
+    return this.settingsFile;
   }
 
   private writeBridge(): string {
@@ -509,8 +528,9 @@ export class ClaudeAdapter implements AgentAdapter {
     const configured = findClaudePermissionMode(this.entry.args, this.entry.settings);
     const mode = configured === null ? '' : ` --permission-mode ${toShellArg(configured)}`;
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
+    const settings = toShellArg(this.writeSettings());
 
-    return `cd ${toShellArg(cwd)} && ${this.entry.bin}${mode} --resume${resume}`;
+    return `cd ${toShellArg(cwd)} && ${this.entry.bin}${mode} --settings ${settings} --resume${resume}`;
   }
 }
 
