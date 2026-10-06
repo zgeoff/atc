@@ -59,7 +59,9 @@ mod. `scripts/` holds repo tooling, not app code.
   its embedded copy in `src/agents/atc-bridge-files.ts`, which compiled binaries write out. The mods
   API is early access, so CI validates and tests the mod against one pinned Claude Code version.
   Never write into the user's own agent config (Claude, Grok, or any future agent); instrumentation
-  an agent cannot take per-invocation is a documented self-install step.
+  an agent cannot take per-invocation is a documented self-install step. One exception: a local
+  launch that opts into clone trust adds one folder-trust entry for its verified clone root to the
+  user's Claude config, under Claude's own lock, since Claude takes trust no other way.
 - A Claude-compatible backend is a configured gateway, not a new adapter class per vendor: it gets
   its own agent id, its own generated settings file, and its `ANTHROPIC_BASE_URL` in that file's
   `env` block. The credential never goes in the file — a helper command supplies it.

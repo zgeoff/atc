@@ -232,6 +232,12 @@ export interface AgentAdapter {
   // Absent or null means the adapter cannot accept workspace trust.
   readonly planGuestWorkspaceTrust?: (root: string) => Readonly<Record<string, string>> | null;
 
+  // Accepts folder trust for the exact root of a verified clone on the
+  // daemon's machine, in the agent's own config, and resolves to a function
+  // that takes it back for a launch that fails before the agent starts.
+  // Absent means the adapter cannot accept workspace trust there.
+  readonly updateLocalWorkspaceTrust?: (root: string) => Promise<() => Promise<void>>;
+
   // The credential this agent takes from impd's broker, or null when it
   // takes none. Absent: it takes none.
   readonly findAuthSelection?: () => AuthSelection | null;

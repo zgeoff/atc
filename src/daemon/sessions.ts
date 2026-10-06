@@ -926,15 +926,19 @@ export class SessionManager {
         throw new DaemonError('bad_args', 'trustClonedWorkspace requires a workspace source');
       }
 
-      if (
-        provider.kind !== 'imp' ||
-        !provider.remote ||
-        auth === null ||
-        adapter.planGuestWorkspaceTrust === undefined
-      ) {
+      const isLocalTrust =
+        !provider.remote && auth === null && adapter.updateLocalWorkspaceTrust !== undefined;
+
+      const isGuestTrust =
+        provider.kind === 'imp' &&
+        provider.remote &&
+        auth !== null &&
+        adapter.planGuestWorkspaceTrust !== undefined;
+
+      if (!isLocalTrust && !isGuestTrust) {
         throw new DaemonError(
           'unsupported',
-          'trustClonedWorkspace requires a brokered Claude gateway on an imp target',
+          'trustClonedWorkspace requires stock Claude on the local target or a brokered Claude gateway on an imp target',
         );
       }
     }
@@ -978,8 +982,24 @@ export class SessionManager {
         hostKey === id,
       );
 
+    // Takes back trust a spawn accepted in the user's own agent config when
+    // the spawn fails before its harness starts.
+    const localTrust: { remove: (() => Promise<void>) | null } = { remove: null };
+
     const trustWorkspace = trustClonedWorkspace
       ? async (root: string) => {
+          if (!provider.remote) {
+            const update = adapter.updateLocalWorkspaceTrust;
+
+            if (update === undefined) {
+              throw new DaemonError('unsupported', 'this adapter cannot trust a cloned workspace');
+            }
+
+            localTrust.remove = await update.call(adapter, root);
+
+            return;
+          }
+
           const planned = adapter.planGuestWorkspaceTrust?.(root);
 
           if (planned === undefined || planned === null || provider.guest === undefined) {
@@ -1045,6 +1065,7 @@ export class SessionManager {
         },
       });
     } catch (error) {
+      await this.removeLocalTrust(localTrust.remove, id);
       await this.removeFailedSpawnEffects(provider, id, hostKey, target, readied);
 
       throw error;
@@ -1618,6 +1639,28 @@ export class SessionManager {
           { cause: error },
         );
       }
+    }
+  }
+
+  // Takes back the trust a failed spawn accepted in the user's own agent
+  // config. A take-back that fails is logged and leaves the entry, so the
+  // spawn's own failure is the one it reports.
+  private async removeLocalTrust(
+    remove: (() => Promise<void>) | null,
+    id: SessionID,
+  ): Promise<void> {
+    if (remove === null) {
+      return;
+    }
+
+    try {
+      await remove();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+
+      this.log(
+        `atc: the spawn of session ${id} failed to start and taking back its workspace trust failed too: ${reason}`,
+      );
     }
   }
 

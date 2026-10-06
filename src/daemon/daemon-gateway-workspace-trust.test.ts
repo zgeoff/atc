@@ -298,30 +298,48 @@ test.each([
   },
 );
 
-test.each(['box', 'local'])(
-  'it refuses clone trust for stock Claude on %s before preparing a host',
-  async (target) => {
-    await using daemon = await setupTest();
+test('it refuses clone trust for stock Claude on an imp target before preparing a host', async () => {
+  await using daemon = await setupTest();
 
-    const root = join(daemon.dir, 'clone');
+  const root = join(daemon.dir, 'clone');
 
-    const spawn = daemon.client.sendRequest('session.spawn', {
-      cwd: root,
-      agent: 'claude',
-      target,
-      workspace: { kind: 'path', path: daemon.work },
-      trustClonedWorkspace: true,
-    });
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: root,
+    agent: 'claude',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+    trustClonedWorkspace: true,
+  });
 
-    expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
+  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
 
-    await spawn.catch(() => null);
+  await spawn.catch(() => null);
 
-    expect(daemon.port.calls).toStrictEqual([]);
-    expect(existsSync(root)).toBeFalse();
-    expect(existsSync(daemon.marker)).toBeFalse();
-  },
-);
+  expect(daemon.port.calls).toStrictEqual([]);
+  expect(existsSync(root)).toBeFalse();
+  expect(existsSync(daemon.marker)).toBeFalse();
+});
+
+test('it refuses clone trust for a gateway on the local target before cloning', async () => {
+  await using daemon = await setupTest();
+
+  const root = join(daemon.dir, 'clone');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: root,
+    agent: 'glm',
+    target: 'local',
+    workspace: { kind: 'path', path: daemon.work },
+    trustClonedWorkspace: true,
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
+
+  await spawn.catch(() => null);
+
+  expect(existsSync(root)).toBeFalse();
+  expect(existsSync(daemon.marker)).toBeFalse();
+});
 
 test.each([
   [undefined, true],
@@ -510,25 +528,22 @@ test('it refuses an inherited trust default without a clone before touching the 
   expect(daemon.port.calls).toStrictEqual([]);
 });
 
-test.each(['box', 'local'])(
-  'it refuses inherited clone trust for stock Claude on %s',
-  async (target) => {
-    await using daemon = await setupTest(true);
+test('it refuses inherited clone trust for stock Claude on an imp target', async () => {
+  await using daemon = await setupTest(true);
 
-    const spawn = daemon.client.sendRequest('session.spawn', {
-      cwd: join(daemon.dir, 'clone'),
-      agent: 'claude',
-      target,
-      workspace: { kind: 'path', path: daemon.work },
-    });
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'clone'),
+    agent: 'claude',
+    target: 'box',
+    workspace: { kind: 'path', path: daemon.work },
+  });
 
-    expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
+  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
 
-    await spawn.catch(() => null);
+  await spawn.catch(() => null);
 
-    expect(daemon.port.calls).toStrictEqual([]);
-  },
-);
+  expect(daemon.port.calls).toStrictEqual([]);
+});
 
 test('it permits an ordinary folder launch when false overrides inherited trust', async () => {
   await using daemon = await setupTest(true);
