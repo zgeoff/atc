@@ -2,10 +2,11 @@
 
 ## [2.32.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.32.0...@zgeoff/atc@2.32.1) (2026-10-06)
 
-
 ### Bug Fixes
 
-* **geo-117:** let atc mcp --http wait for a managed daemon ([#320](https://github.com/zgeoff/atc/issues/320)) ([5d46b51](https://github.com/zgeoff/atc/commit/5d46b517111ecba5a849ff29cd4d15fe5b4fd693))
+- **geo-117:** let atc mcp --http wait for a managed daemon
+  ([#320](https://github.com/zgeoff/atc/issues/320))
+  ([5d46b51](https://github.com/zgeoff/atc/commit/5d46b517111ecba5a849ff29cd4d15fe5b4fd693))
 
 ## [2.32.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.31.1...@zgeoff/atc@2.32.0) (2026-10-06)
 
