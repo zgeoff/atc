@@ -2206,10 +2206,16 @@ test('it submits a long line to a claude session as one submission', async () =>
 
   await client.sendRequest('session.submit', { session: id, text: 'a'.repeat(1600) });
 
-  await waitForEvent(
-    events,
-    (e) => e.ev === 'SessionOutput' && String(e['d']).includes(`SUBMIT:"${'a'.repeat(1600)}"`),
-  );
+  // A PTY can deliver the long SUBMIT line across several output events, so
+  // the check reads the output joined.
+  await waitFor(() => {
+    expect(
+      events
+        .filter((e) => e.ev === 'SessionOutput')
+        .map((e) => String(e['d']))
+        .join(''),
+    ).toInclude(`SUBMIT:"${'a'.repeat(1600)}"`);
+  });
 });
 
 test('it submits a claude composer draft on an empty line without adding a line to it', async () => {
