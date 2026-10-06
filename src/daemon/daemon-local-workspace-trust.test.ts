@@ -13,6 +13,7 @@ import { setupTempDir } from '../../test/setup-temp-dir';
 import { updateEnv } from '../../test/update-env';
 import { waitFor } from '../../test/wait-for';
 import { ClaudeAdapter } from '../agents/claude-adapter';
+import { GatewayAdapter } from '../agents/gateway-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
 import { startDaemon } from './daemon';
@@ -53,9 +54,18 @@ async function setupTest(
   mkdirSync(claudeConfigDir);
   updateEnv('CLAUDE_CONFIG_DIR', claudeConfigDir);
 
-  const config = parseConfig({ claudeBin: fakeClaude });
+  const config = parseConfig({
+    claudeBin: fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
 
   const adapter = new ClaudeAdapter(config);
+
+  const [gateway] = config.gateways;
+
+  if (gateway === undefined) {
+    throw new Error('expected gateway');
+  }
 
   // Once the real trust write lands, the CLI stops being executable, so
   // the harness start that follows it fails.
@@ -76,7 +86,7 @@ async function setupTest(
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter,
-    adapters: [adapter],
+    adapters: [adapter, new GatewayAdapter(gateway, config)],
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),
     gitTransports: ['file'],
@@ -295,6 +305,32 @@ test('it removes the clone and keeps the user config when the trust write fails'
   await spawn.catch(() => null);
 
   expect(readFileSync(daemon.claudeConfig, 'utf8')).toBe('{"projects":');
+  expect(existsSync(root)).toBeFalse();
+  expect(existsSync(daemon.marker)).toBeFalse();
+});
+
+test('it refuses local trust for a gateway before cloning or touching the user config', async () => {
+  await using daemon = await setupTest();
+
+  const root = join(daemon.dir, 'clone');
+  const original = '{"projects":{}}';
+
+  writeFileSync(daemon.claudeConfig, original);
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    trustClonedWorkspace: true,
+    cwd: root,
+    agent: 'plain',
+    target: 'local',
+    workspace: { kind: 'git', url: `file://${daemon.upstream}`, ref: 'main' },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
+  expect(spawn).rejects.toThrow('trustClonedWorkspace requires stock Claude on the local target');
+
+  await spawn.catch(() => null);
+
+  expect(readFileSync(daemon.claudeConfig, 'utf8')).toBe(original);
   expect(existsSync(root)).toBeFalse();
   expect(existsSync(daemon.marker)).toBeFalse();
 });
