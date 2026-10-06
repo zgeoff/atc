@@ -166,7 +166,7 @@ test.each([
 
     writeFileSync(join(daemon.work, file), content);
 
-    await $`git add -f ${file} README.md`.env(daemon.gitEnv).cwd(daemon.work).quiet();
+    await $`git add --all`.env(daemon.gitEnv).cwd(daemon.work).quiet();
     await $`git commit --quiet -m settings`.env(daemon.gitEnv).cwd(daemon.work).quiet();
     await $`git push --quiet origin main`.env(daemon.gitEnv).cwd(daemon.work).quiet();
 
