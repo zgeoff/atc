@@ -2,10 +2,11 @@
 
 ## [2.36.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.35.0...@zgeoff/atc@2.36.0) (2026-10-06)
 
-
 ### Features
 
-* **geo-129:** resume turns a daemon restart interrupted ([#327](https://github.com/zgeoff/atc/issues/327)) ([75ef36a](https://github.com/zgeoff/atc/commit/75ef36a964400d5289f77e29ad47054074445992))
+- **geo-129:** resume turns a daemon restart interrupted
+  ([#327](https://github.com/zgeoff/atc/issues/327))
+  ([75ef36a](https://github.com/zgeoff/atc/commit/75ef36a964400d5289f77e29ad47054074445992))
 
 ## [2.35.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.34.0...@zgeoff/atc@2.35.0) (2026-10-06)
 
