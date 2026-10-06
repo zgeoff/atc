@@ -465,6 +465,10 @@ test.each([
   ['CLAUDE_CODE_USE_BEDROCK', '1'],
   ['CLAUDE_CODE_USE_VERTEX', '1'],
   ['CLAUDE_CODE_USE_FOUNDRY', '1'],
+  ['CLAUDE_CODE_USE_MANTLE', '1'],
+  ['CLAUDE_CODE_USE_ANTHROPIC_AWS', '1'],
+  ['CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD', '1'],
+  ['CLAUDE_CODE_USE_GATEWAY', '1'],
 ])(
   'it refuses to start a subscription session in a host whose environment sets %s',
   (name, value) => {

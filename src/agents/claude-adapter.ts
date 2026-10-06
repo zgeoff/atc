@@ -458,6 +458,10 @@ const OUTRANKING_VARIABLES: ReadonlySet<string> = new Set([
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',
   'CLAUDE_CODE_USE_FOUNDRY',
+  'CLAUDE_CODE_USE_MANTLE',
+  'CLAUDE_CODE_USE_ANTHROPIC_AWS',
+  'CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD',
+  'CLAUDE_CODE_USE_GATEWAY',
 ]);
 
 // The aliases Claude Code documents for `--model`, each resolving to a model

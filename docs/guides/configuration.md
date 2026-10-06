@@ -538,10 +538,11 @@ seeds with first-run onboarding state, plus folder trust with [clone trust](#clo
 starts without `--permission-mode`, and atc drops one from `claudeArgs`, so the mode the session's
 own user settings set applies. A headless turn is refused there, as on every imp session.
 
-Six variables keep Claude Code from sending the subscription token to the Anthropic API:
+Three kinds of variable keep Claude Code from sending the subscription token to the Anthropic API:
 `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` outrank it, `ANTHROPIC_BASE_URL` moves the endpoint,
-and `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, and `CLAUDE_CODE_USE_FOUNDRY` select a
-cloud provider. atc keeps each of them away from a subscription session:
+and the `CLAUDE_CODE_USE_*` provider selectors (`BEDROCK`, `VERTEX`, `FOUNDRY`, `MANTLE`,
+`ANTHROPIC_AWS`, `ANTHROPIC_GOOGLE_CLOUD`, and `GATEWAY`) select another provider. atc keeps each of
+them away from a subscription session:
 
 - A spawn fails with `auth_target_unsupported` when an inline `--settings` in `claudeArgs` sets any
   of them, `CLAUDE_CODE_OAUTH_TOKEN`, or a proxy or CA variable.
