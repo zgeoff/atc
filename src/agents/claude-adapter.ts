@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { z } from 'zod';
 import type { AdapterEvent } from '../protocol/adapter-event';
@@ -194,7 +195,7 @@ export class ClaudeAdapter implements AgentAdapter {
   // arguments go without a permission mode, so the mode the session's own
   // user settings set applies. Those user settings, with the rest of the
   // config bundle, come from the host's own Claude config folder as it is
-  // at this launch. A credential, endpoint, or provider variable in the
+  // at this launch, staged under a key of this launch's own. A credential, endpoint, or provider variable in the
   // configured settings, or in the host's environment, would keep the CLI
   // from sending the placeholder, so either refuses the start.
   private planSubscriptionGuestSpawn(
@@ -211,6 +212,7 @@ export class ClaudeAdapter implements AgentAdapter {
     }
 
     const settingsPath = `auth-r${auth.revision}/settings.json`;
+    const bundleKey = randomUUID();
 
     const launch = buildClaudeGuestLaunch(
       dir,
@@ -224,6 +226,7 @@ export class ClaudeAdapter implements AgentAdapter {
         ),
       ],
       [...OUTRANKING_VARIABLES],
+      bundleKey,
     );
 
     const bundle = loadClaudeConfigBundle(
@@ -248,7 +251,7 @@ export class ClaudeAdapter implements AgentAdapter {
         ...buildClaudeConfigSeed(null),
         ...Object.fromEntries(
           Object.entries(bundle).map(([path, content]) => [
-            `${CLAUDE_CONFIG_BUNDLE_FOLDER}/${path}`,
+            `${CLAUDE_CONFIG_BUNDLE_FOLDER}/${bundleKey}/${path}`,
             content,
           ]),
         ),

@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import type { Stats } from 'node:fs';
 import { join } from 'node:path';
+import { resolveHomeDir } from '../shared/resolve-home-dir';
+import type { GuestFile } from './agent-adapter';
 import { buildClaudeBundleSettings } from './build-claude-bundle-settings';
 
 /**
@@ -9,26 +11,33 @@ import { buildClaudeBundleSettings } from './build-claude-bundle-settings';
  * `guestDir`: `CLAUDE.md`, the filtered `settings.json`, `statusline.sh`,
  * every file under `agents/` and `output-styles/`, and each folder under
  * `skills/` that holds a `SKILL.md`. Symlinks resolve to copies of what
- * they point at. Nothing else in the host's folder ships, so its account
+ * they point at, and a file its owner may execute unpacks executable.
+ * Nothing else in the host's folder ships, so its account
  * state, history, credentials, and backups stay there, and so does any
  * entry whose name starts with a dot. A missing entry ships nothing.
  */
 export function loadClaudeConfigBundle(
   hostDir: string,
   guestDir: string,
-): Record<string, Uint8Array | string> {
+): Record<string, GuestFile> {
   const hostSettings = readSettings(join(hostDir, 'settings.json'));
-  const settings = buildClaudeBundleSettings(hostSettings, hostDir, guestDir);
 
-  const files: Record<string, Uint8Array | string> = {
+  const settings = buildClaudeBundleSettings(
+    hostSettings,
+    buildHostDirSpellings(hostDir),
+    guestDir,
+  );
+
+  const files: Record<string, GuestFile> = {
     'settings.json': JSON.stringify(settings, null, 2),
   };
 
   for (const name of ['CLAUDE.md', 'statusline.sh']) {
     const path = join(hostDir, name);
+    const stats = findStats(path);
 
-    if (findStats(path)?.isFile() === true) {
-      files[name] = readFileSync(path);
+    if (stats?.isFile() === true) {
+      files[name] = readBundleFile(path, stats.mode);
     }
   }
 
@@ -47,6 +56,15 @@ export function loadClaudeConfigBundle(
   }
 
   return files;
+}
+
+// The ways a command can spell the host's config folder: its path, and
+// when it is the default folder in the user's home, the home-relative forms
+// a shell expands.
+function buildHostDirSpellings(hostDir: string): string[] {
+  return hostDir === join(resolveHomeDir(), '.claude')
+    ? [hostDir, '~/.claude', '$HOME/.claude']
+    : [hostDir];
 }
 
 // The host's settings, or none when the file is missing or is not JSON,
@@ -88,7 +106,7 @@ function collectTreeFiles(
   dir: string,
   prefix: string,
   seen: ReadonlySet<string>,
-): Record<string, Uint8Array> {
+): Record<string, GuestFile> {
   const real = findStats(dir) === null ? null : realpathSync(dir);
 
   if (real === null || seen.has(real)) {
@@ -97,18 +115,25 @@ function collectTreeFiles(
 
   const below = new Set([...seen, real]);
 
-  const files: Record<string, Uint8Array> = {};
+  const files: Record<string, GuestFile> = {};
 
   for (const name of readEntryNames(dir)) {
     const path = join(dir, name);
     const stats = findStats(path);
 
     if (stats?.isFile() === true) {
-      files[`${prefix}/${name}`] = readFileSync(path);
+      files[`${prefix}/${name}`] = readBundleFile(path, stats.mode);
     } else if (stats?.isDirectory() === true) {
       Object.assign(files, collectTreeFiles(path, `${prefix}/${name}`, below));
     }
   }
 
   return files;
+}
+
+// A file's bytes, with an executable mode when its owner may execute it.
+function readBundleFile(path: string, mode: number): GuestFile {
+  const content = readFileSync(path);
+
+  return (mode & 0o100) === 0 ? content : { content, mode: 0o755 };
 }

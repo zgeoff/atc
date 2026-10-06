@@ -305,7 +305,15 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
 
   const settings: unknown = JSON.parse(settingsFile);
 
-  expect({ bin: plan.bin, args: plan.args.slice(2), env: plan.env }).toStrictEqual({
+  expect(plan.args.at(6)).toMatch(
+    /^\/tmp\/atc\/sessions\/s1\/claude-config-bundle\/[\da-f-]{36}$/u,
+  );
+
+  expect({
+    bin: plan.bin,
+    args: [...plan.args.slice(2, 6), ...plan.args.slice(7)],
+    env: plan.env,
+  }).toStrictEqual({
     bin: 'sh',
     args: [
       'sh',
@@ -385,7 +393,14 @@ test("it ships the host's Claude config as the session's user settings and keeps
     throw new Error('expected a guest spawn plan');
   }
 
-  const userSettings = plan.files['claude-config-bundle/settings.json'];
+  const bundleDir = plan.args.at(6);
+
+  if (bundleDir === undefined) {
+    throw new Error('expected the staged bundle folder in the launch');
+  }
+
+  const bundleKey = bundleDir.replace('/tmp/atc/sessions/s1/', '');
+  const userSettings = plan.files[`${bundleKey}/settings.json`];
   const flagSettings = plan.files['auth-r1/settings.json'];
 
   if (typeof userSettings !== 'string' || typeof flagSettings !== 'string') {
@@ -423,8 +438,8 @@ test("it ships the host's Claude config as the session's user settings and keeps
   });
 
   expect(Object.keys(plan.files)).toIncludeAllMembers([
-    'claude-config-bundle/statusline.sh',
-    'claude-config-bundle/skills/delegate/SKILL.md',
+    `${bundleKey}/statusline.sh`,
+    `${bundleKey}/skills/delegate/SKILL.md`,
   ]);
 });
 
@@ -532,10 +547,13 @@ test('it refuses to start a subscription session in a host whose environment set
     throw new Error('expected a guest spawn plan');
   }
 
-  writeFileSync(
-    join(tmp.dir, 'claude-config-seed.json'),
-    plan.files['claude-config-seed.json'] ?? '',
-  );
+  const seed = plan.files['claude-config-seed.json'];
+
+  if (typeof seed !== 'string') {
+    throw new TypeError('expected the seed file');
+  }
+
+  writeFileSync(join(tmp.dir, 'claude-config-seed.json'), seed);
 
   const run = Bun.spawnSync([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env, ANTHROPIC_API_KEY: 'sk-test' },
@@ -632,10 +650,13 @@ test('it starts a subscription session with a seeded config folder in a host who
     throw new Error('expected a guest spawn plan');
   }
 
-  writeFileSync(
-    join(tmp.dir, 'claude-config-seed.json'),
-    plan.files['claude-config-seed.json'] ?? '',
-  );
+  const seed = plan.files['claude-config-seed.json'];
+
+  if (typeof seed !== 'string') {
+    throw new TypeError('expected the seed file');
+  }
+
+  writeFileSync(join(tmp.dir, 'claude-config-seed.json'), seed);
 
   const run = Bun.spawnSync([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env },

@@ -7,12 +7,13 @@ import { isRecord } from '../shared/report';
  * mode, which Claude Code honours at user scope only. Any other key stays on
  * the host, so a setting that holds a credential, a plugin, or a host path
  * never reaches a guest unless it is listed here. The statusline command
- * reads the guest's copy of a script under the host's config folder:
- * a path under `hostDir` in the command moves under `guestDir`.
+ * reads the guest's copy of a script under the host's config folder: a path
+ * under any of `hostDirs`, the spellings of that folder, moves under
+ * `guestDir`.
  */
 export function buildClaudeBundleSettings(
   settings: unknown,
-  hostDir: string,
+  hostDirs: readonly string[],
   guestDir: string,
 ): Record<string, unknown> {
   const source = isRecord(settings) ? settings : {};
@@ -25,7 +26,7 @@ export function buildClaudeBundleSettings(
   }
 
   const env = buildBundleEnv(source['env']);
-  const statusLine = buildBundleStatusLine(source['statusLine'], hostDir, guestDir);
+  const statusLine = buildBundleStatusLine(source['statusLine'], hostDirs, guestDir);
 
   return {
     ...shipped,
@@ -74,15 +75,17 @@ function buildBundleEnv(env: unknown): Record<string, string> | null {
 
 function buildBundleStatusLine(
   statusLine: unknown,
-  hostDir: string,
+  hostDirs: readonly string[],
   guestDir: string,
 ): Record<string, unknown> | null {
   if (!isRecord(statusLine) || typeof statusLine['command'] !== 'string') {
     return null;
   }
 
-  return {
-    ...statusLine,
-    command: statusLine['command'].replaceAll(`${hostDir}/`, `${guestDir}/`),
-  };
+  const command = hostDirs.reduce(
+    (rewritten, hostDir) => rewritten.replaceAll(`${hostDir}/`, `${guestDir}/`),
+    statusLine['command'],
+  );
+
+  return { ...statusLine, command };
 }

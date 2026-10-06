@@ -590,6 +590,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
       '/tmp/atc/sessions/s1/claude-config',
       '/tmp/atc/sessions/s1/claude-config-seed.json',
       '/tmp/atc/sessions/s1/claude-config-bundle',
+      '/tmp/atc/sessions/s1/claude-config-bundle/none',
       'claude',
       '--permission-mode',
       'default',
@@ -675,7 +676,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
 
   const settings: unknown = JSON.parse(settingsFile);
 
-  expect(plan.args.slice(7)).toStrictEqual([
+  expect(plan.args.slice(8)).toStrictEqual([
     '--permission-mode',
     'default',
     '--settings',
@@ -940,10 +941,13 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
     throw new Error('expected a guest spawn plan');
   }
 
-  writeFileSync(
-    join(tmp.dir, 'claude-config-seed.json'),
-    plan.files['claude-config-seed.json'] ?? '',
-  );
+  const seed = plan.files['claude-config-seed.json'];
+
+  if (typeof seed !== 'string') {
+    throw new TypeError('expected the seed file');
+  }
+
+  writeFileSync(join(tmp.dir, 'claude-config-seed.json'), seed);
 
   const run = Bun.spawnSync([plan.bin, ...plan.args]);
   const seeded = readFileSync(join(tmp.dir, 'claude-config', '.claude.json'), 'utf8');
@@ -996,11 +1000,13 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
     projects: { '/work': { hasTrustDialogAccepted: true } },
   });
 
-  writeFileSync(
-    join(tmp.dir, 'claude-config-seed.json'),
-    plan.files['claude-config-seed.json'] ?? '',
-  );
+  const seed = plan.files['claude-config-seed.json'];
 
+  if (typeof seed !== 'string') {
+    throw new TypeError('expected the seed file');
+  }
+
+  writeFileSync(join(tmp.dir, 'claude-config-seed.json'), seed);
   mkdirSync(join(tmp.dir, 'claude-config'));
   writeFileSync(join(tmp.dir, 'claude-config', '.claude.json'), earlier);
 

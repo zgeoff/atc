@@ -63,13 +63,22 @@ export interface AuthSelection {
 }
 
 /**
+ * One file a guest plan ships: its text, its bytes, or its bytes with the
+ * permission bits it unpacks with.
+ */
+export type GuestFile =
+  | string
+  | Uint8Array
+  | { readonly content: Uint8Array; readonly mode: number };
+
+/**
  * A spawn on a remote host, with the files the harness reads there, keyed
  * by their path inside the session's guest folder, and the variables the
  * harness process starts with, which no variable the harness inherits
  * overrides.
  */
 export interface GuestSpawnPlan extends SpawnPlan {
-  readonly files: Readonly<Record<string, Uint8Array | string>>;
+  readonly files: Readonly<Record<string, GuestFile>>;
   readonly env?: Readonly<Record<string, string>>;
 }
 

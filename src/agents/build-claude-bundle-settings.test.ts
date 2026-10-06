@@ -23,7 +23,7 @@ test('it ships the allow-listed settings and leaves every other key on the host'
       feedbackDrafts: { a: 'b' },
       agentPushNotifEnabled: true,
     },
-    '/home/me/.claude',
+    ['/home/me/.claude'],
     '/guest/claude-config',
   );
 
@@ -54,7 +54,7 @@ test('it ships the allow-listed environment variables alone', () => {
         ANTHROPIC_API_KEY: 'sk-host-secret',
       },
     },
-    '/home/me/.claude',
+    ['/home/me/.claude'],
     '/guest/claude-config',
   );
 
@@ -67,7 +67,7 @@ test('it ships the allow-listed environment variables alone', () => {
 test('it drops an env block that holds no allow-listed variable', () => {
   const settings = buildClaudeBundleSettings(
     { env: { GITHUB_TOKEN: 'ghp-host-secret' } },
-    '/home/me/.claude',
+    ['/home/me/.claude'],
     '/guest/claude-config',
   );
 
@@ -77,7 +77,7 @@ test('it drops an env block that holds no allow-listed variable', () => {
 test("it keeps the host's permission rules and sets auto mode over its own default", () => {
   const settings = buildClaudeBundleSettings(
     { permissions: { allow: ['Bash(git status)'], defaultMode: 'acceptEdits' } },
-    '/home/me/.claude',
+    ['/home/me/.claude'],
     '/guest/claude-config',
   );
 
@@ -95,7 +95,7 @@ test("it points the statusline at the guest's copy of a script under the host's 
         padding: 2,
       },
     },
-    '/home/me/.claude',
+    ['/home/me/.claude'],
     '/guest/claude-config',
   );
 
@@ -109,11 +109,32 @@ test("it points the statusline at the guest's copy of a script under the host's 
   });
 });
 
+test('it points the statusline at the guest for each spelling of the host config folder', () => {
+  const settings = buildClaudeBundleSettings(
+    {
+      statusLine: {
+        type: 'command',
+        command: 'bash ~/.claude/a.sh; bash $HOME/.claude/b.sh',
+      },
+    },
+    ['/home/me/.claude', '~/.claude', '$HOME/.claude'],
+    '/guest/claude-config',
+  );
+
+  expect(settings).toStrictEqual({
+    statusLine: {
+      type: 'command',
+      command: 'bash /guest/claude-config/a.sh; bash /guest/claude-config/b.sh',
+    },
+    permissions: { defaultMode: 'auto' },
+  });
+});
+
 test.each([[null], ['not settings'], [{ statusLine: 'echo hi' }]])(
   'it ships auto mode alone from host settings of %p',
   (input) => {
     expect(
-      buildClaudeBundleSettings(input, '/home/me/.claude', '/guest/claude-config'),
+      buildClaudeBundleSettings(input, ['/home/me/.claude'], '/guest/claude-config'),
     ).toStrictEqual({ permissions: { defaultMode: 'auto' } });
   },
 );

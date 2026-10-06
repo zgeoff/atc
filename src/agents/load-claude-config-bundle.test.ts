@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 
 test('it ships the allow-listed files and folders of the host config folder', () => {
@@ -38,8 +39,8 @@ test('it ships the allow-listed files and folders of the host config folder', ()
 
   const rules = bundle['CLAUDE.md'];
 
-  if (rules === undefined) {
-    throw new Error('expected CLAUDE.md in the bundle');
+  if (!(rules instanceof Uint8Array)) {
+    throw new TypeError('expected CLAUDE.md in the bundle');
   }
 
   expect(Buffer.from(rules).toString()).toBe('# rules');
@@ -71,13 +72,17 @@ test('it never ships credentials, account state, or a secret the host env block 
   const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
 
   const text = Object.values(bundle)
-    .map((content) => Buffer.from(content).toString())
+    .map((file) => {
+      const content = typeof file === 'string' || file instanceof Uint8Array ? file : file.content;
+
+      return Buffer.from(content).toString();
+    })
     .join('\n');
 
   const settings = bundle['settings.json'];
 
-  if (settings === undefined) {
-    throw new Error('expected settings.json in the bundle');
+  if (typeof settings !== 'string') {
+    throw new TypeError('expected settings.json in the bundle');
   }
 
   expect(Object.keys(bundle).toSorted()).toStrictEqual([
@@ -96,7 +101,7 @@ test('it never ships credentials, account state, or a secret the host env block 
     expect(text).not.toInclude(secret);
   }
 
-  expect(JSON.parse(Buffer.from(settings).toString())).toStrictEqual({
+  expect(JSON.parse(settings)).toStrictEqual({
     env: { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' },
     permissions: { defaultMode: 'auto' },
   });
@@ -126,8 +131,8 @@ test('it copies a symlinked skill and leaves out a skills folder without a SKILL
 
   const skill = bundle['skills/gh-stack/SKILL.md'];
 
-  if (skill === undefined) {
-    throw new Error('expected the symlinked skill in the bundle');
+  if (!(skill instanceof Uint8Array)) {
+    throw new TypeError('expected the symlinked skill in the bundle');
   }
 
   expect(Buffer.from(skill).toString()).toBe('stack');
@@ -146,6 +151,54 @@ test('it ends a symlink that loops back up a skill folder', () => {
   const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
 
   expect(Object.keys(bundle).toSorted()).toStrictEqual(['settings.json', 'skills/looped/SKILL.md']);
+});
+
+test('it ships an executable file with an executable mode and any other file as bytes', () => {
+  using tmp = setupTempDir('atc-claude-bundle-');
+
+  const host = join(tmp.dir, '.claude');
+
+  mkdirSync(join(host, 'skills', 'tool', 'scripts'), { recursive: true });
+  writeFileSync(join(host, 'statusline.sh'), 'echo status');
+  writeFileSync(join(host, 'skills', 'tool', 'SKILL.md'), 'tool');
+  writeFileSync(join(host, 'skills', 'tool', 'scripts', 'run.sh'), 'echo run');
+  chmodSync(join(host, 'statusline.sh'), 0o700);
+  chmodSync(join(host, 'skills', 'tool', 'scripts', 'run.sh'), 0o755);
+
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
+
+  expect({
+    statusline: bundle['statusline.sh'],
+    script: bundle['skills/tool/scripts/run.sh'],
+    skill: bundle['skills/tool/SKILL.md'],
+  }).toStrictEqual({
+    statusline: { content: Buffer.from('echo status'), mode: 0o755 },
+    script: { content: Buffer.from('echo run'), mode: 0o755 },
+    skill: Buffer.from('tool'),
+  });
+});
+
+test("it points a home-relative statusline at the guest when the host folder is the home's own", () => {
+  const host = join(resolveHomeDir(), '.claude');
+
+  mkdirSync(host, { recursive: true });
+
+  writeFileSync(
+    join(host, 'settings.json'),
+    JSON.stringify({ statusLine: { type: 'command', command: 'bash ~/.claude/statusline.sh' } }),
+  );
+
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
+  const settings = bundle['settings.json'];
+
+  if (typeof settings !== 'string') {
+    throw new TypeError('expected settings.json in the bundle');
+  }
+
+  expect(JSON.parse(settings)).toHaveProperty(
+    'statusLine.command',
+    'bash /guest/claude-config/statusline.sh',
+  );
 });
 
 test('it ships auto mode alone when the host has no Claude config folder', () => {
