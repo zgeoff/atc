@@ -183,6 +183,9 @@ export class ClaudeAdapter implements AgentAdapter {
 
     const argv = [guest.atc];
 
+    const modeArgs =
+      opts.resume === false ? [] : buildRestoreModeArgs(this.entry.args, this.entry.settings);
+
     const bridge = Object.entries(buildATCBridgeFiles(argv)).map(
       ([path, content]): [string, string] => [`atc-bridge/${path}`, content],
     );
@@ -196,7 +199,7 @@ export class ClaudeAdapter implements AgentAdapter {
       args: this.buildArgs(
         this.entry.args,
         opts,
-        [],
+        modeArgs,
         `${guest.dir}/settings.json`,
         `${guest.dir}/atc-bridge`,
       ),
@@ -530,7 +533,7 @@ export class ClaudeAdapter implements AgentAdapter {
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
     const settings = toShellArg(this.writeSettings());
 
-    return `cd ${toShellArg(cwd)} && ${this.entry.bin}${mode} --settings ${settings} --resume${resume}`;
+    return `cd ${toShellArg(cwd)} && ${toShellArg(this.entry.bin)}${mode} --settings ${settings} --resume${resume}`;
   }
 }
 

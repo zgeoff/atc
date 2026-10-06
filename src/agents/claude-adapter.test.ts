@@ -179,7 +179,7 @@ test('it keeps the permission mode its configured arguments set in the command t
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
-    /^cd '\/work\/repo' && claude --permission-mode 'plan' --settings '[^']+hook-settings-claude\.json' --resume sess-1$/,
+    /^cd '\/work\/repo' && 'claude' --permission-mode 'plan' --settings '[^']+hook-settings-claude\.json' --resume sess-1$/,
   );
 });
 
@@ -202,6 +202,31 @@ test('it restores a stock session in the mode its settings set', () => {
   expect(plan.args.join(' ')).toContain('--permission-mode bypassPermissions');
 });
 
+test('it restores an unbrokered remote session in the mode its settings set', () => {
+  const config = parseConfig({
+    agents: { claude: { settings: { permissions: { defaultMode: 'plan' } } } },
+  });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: toAgentSessionID('sess-1') },
+    { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
+  );
+
+  expect(plan?.args.join(' ')).toContain('--permission-mode plan');
+});
+
+test('it quotes a configured binary path with spaces in the resume command', () => {
+  const config = parseConfig({ agents: { claude: { bin: '/opt/Claude Code/claude' } } });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
+    /^cd '\/work\/repo' && '\/opt\/Claude Code\/claude' --settings /,
+  );
+});
+
 test('it restores a stock session without a permission-mode argument', () => {
   using tmp = setupTempDir('atc-claude-stock-restore-');
 
@@ -217,7 +242,7 @@ test('it restores a stock session without a permission-mode argument', () => {
   expect(plan.args).not.toContain('--permission-mode');
 
   expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
-    /^cd '\/work\/repo' && claude --settings '[^']+hook-settings-claude\.json' --resume sess-1$/,
+    /^cd '\/work\/repo' && 'claude' --settings '[^']+hook-settings-claude\.json' --resume sess-1$/,
   );
 });
 
