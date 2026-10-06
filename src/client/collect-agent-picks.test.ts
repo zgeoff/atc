@@ -32,6 +32,8 @@ test('it lists only the agents whose configured binary resolves', () => {
     collectAgentPicks({
       claudeBin: join(dir, 'my-claude'),
       claudeArgs: [],
+      claudeAuth: null,
+      claudeAuthErrors: [],
       grokBin: join(dir, 'my-grok'),
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
@@ -72,6 +74,8 @@ test('it resolves a bare binary name off PATH', () => {
     collectAgentPicks({
       claudeBin: 'claude',
       claudeArgs: [],
+      claudeAuth: null,
+      claudeAuthErrors: [],
       grokBin: 'grok',
       grokArgs: [],
       codexBin: 'codex',
@@ -107,6 +111,8 @@ test('it leaves out a binary that exists without the executable bit', () => {
     collectAgentPicks({
       claudeBin: join(dir, 'my-claude'),
       claudeArgs: [],
+      claudeAuth: null,
+      claudeAuthErrors: [],
       grokBin: join(dir, 'my-grok'),
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
@@ -142,6 +148,8 @@ test('it lists a configured backend after the built-in agents', () => {
     collectAgentPicks({
       claudeBin: join(dir, 'my-claude'),
       claudeArgs: [],
+      claudeAuth: null,
+      claudeAuthErrors: [],
       grokBin: join(dir, 'my-grok'),
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
@@ -190,6 +198,8 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
     collectAgentPicks({
       claudeBin: join(dir, 'my-claude'),
       claudeArgs: [],
+      claudeAuth: null,
+      claudeAuthErrors: [],
       grokBin: join(dir, 'my-grok'),
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),
@@ -235,6 +245,8 @@ test('it lists a gateway with auth, which starts on a target with broker auth', 
     collectAgentPicks({
       claudeBin: join(dir, 'my-claude'),
       claudeArgs: [],
+      claudeAuth: null,
+      claudeAuthErrors: [],
       grokBin: join(dir, 'my-grok'),
       grokArgs: [],
       codexBin: join(dir, 'my-codex'),

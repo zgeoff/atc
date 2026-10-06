@@ -49,6 +49,8 @@ test('it does not write last-used when a restored session reports SessionStart',
   const grok = new GrokAdapter({
     claudeBin: 'claude',
     claudeArgs: [],
+    claudeAuth: null,
+    claudeAuthErrors: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',

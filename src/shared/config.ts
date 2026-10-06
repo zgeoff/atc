@@ -5,6 +5,8 @@ import { buildOptionalString } from './build-optional-string';
 import { buildOptionalStringArray } from './build-optional-string-array';
 import { collectAuthProfiles } from './collect-auth-profiles';
 import type { AuthProfile } from './collect-auth-profiles';
+import { collectClaudeAuth } from './collect-claude-auth';
+import type { ClaudeAuth } from './collect-claude-auth';
 import { collectDirRoots } from './collect-dir-roots';
 import { collectGateways } from './collect-gateways';
 import type { GatewayConfig } from './collect-gateways';
@@ -23,6 +25,12 @@ import { resolveHomeDir } from './resolve-home-dir';
 export interface Config {
   claudeBin: string;
   claudeArgs: string[];
+
+  // The auth profiles stock Claude signs in through on a target that
+  // reaches impd's broker, null when it keeps the host's own sign-in there,
+  // and the problems that left an entry out.
+  claudeAuth: ClaudeAuth | null;
+  claudeAuthErrors: readonly string[];
   grokBin: string;
   grokArgs: string[];
   codexBin: string;
@@ -75,6 +83,8 @@ interface LeaderKey {
 const DEFAULTS: Config = {
   claudeBin: 'claude',
   claudeArgs: [],
+  claudeAuth: null,
+  claudeAuthErrors: [],
   grokBin: 'grok',
   grokArgs: [],
   codexBin: 'codex',
@@ -124,6 +134,7 @@ export const daemonRecordFile = join(stateDir, 'daemon.json');
 const CONFIG_SCHEMA = z.object({
   claudeBin: buildOptionalString(),
   claudeArgs: buildOptionalStringArray(),
+  claudeAuth: z.unknown().optional(),
   grokBin: buildOptionalString(),
   grokArgs: buildOptionalStringArray(),
   codexBin: buildOptionalString(),
@@ -225,6 +236,8 @@ function tryWriteDefaultConfig(file: string): void {
  */
 export function renderDefaultConfig(): string {
   const {
+    claudeAuth: _claudeAuth,
+    claudeAuthErrors: _claudeAuthErrors,
     gatewayErrors: _gatewayErrors,
     authProfiles: _authProfiles,
     authProfileErrors: _authProfileErrors,
@@ -284,6 +297,7 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
   const dirs = { roots: collectDirRoots(parsed.data.dirs) };
   const workspaces = collectWorkspacesConfig(parsed.data.workspaces);
   const authProfiles = collectAuthProfiles(parsed.data.authProfiles);
+  const claudeAuth = collectClaudeAuth(parsed.data.claudeAuth, authProfiles.profiles);
 
   const gateways = collectGateways(
     parsed.data.gateways,
@@ -302,6 +316,8 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
   return {
     claudeBin,
     claudeArgs,
+    claudeAuth: claudeAuth.auth,
+    claudeAuthErrors: claudeAuth.errors,
     grokBin,
     grokArgs,
     codexBin,

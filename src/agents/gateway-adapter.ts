@@ -23,6 +23,8 @@ import type {
   SpawnPlan,
 } from './agent-adapter';
 import { buildATCBridgeFiles } from './build-atc-bridge-files';
+import { buildClaudeConfigSeed } from './build-claude-config-seed';
+import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
 import { buildHookSettings } from './build-hook-settings';
 import { buildRestoreModeArgs } from './build-restore-mode-args';
@@ -141,6 +143,7 @@ export class GatewayAdapter implements AgentAdapter {
     return {
       gateway: { id: this.gateway.id, baseURL: this.gateway.baseURL, auth },
       profiles: this.config.authProfiles,
+      brokerRequired: true,
     };
   }
 
@@ -214,30 +217,25 @@ export class GatewayAdapter implements AgentAdapter {
       argv,
     );
 
-    const configDir = `${guest.dir}/${CLAUDE_CONFIG_FOLDER}`;
+    const launch = buildClaudeGuestLaunch(guest.dir, [
+      this.gateway.bin,
+      ...this.buildArgs(
+        opts,
+        this.buildGuestModeArgs(),
+        `${guest.dir}/${settingsPath}`,
+        `${guest.dir}/atc-bridge`,
+      ),
+    ]);
 
     return {
-      bin: 'sh',
-      args: [
-        '-c',
-        SEED_CONFIG_SCRIPT,
-        'sh',
-        configDir,
-        `${guest.dir}/${CONFIG_SEED_FILE}`,
-        this.gateway.bin,
-        ...this.buildArgs(
-          opts,
-          this.buildGuestModeArgs(),
-          `${guest.dir}/${settingsPath}`,
-          `${guest.dir}/atc-bridge`,
-        ),
-      ],
+      bin: launch.bin,
+      args: launch.args,
       files: {
         [settingsPath]: JSON.stringify(settings, null, 2),
-        [CONFIG_SEED_FILE]: JSON.stringify(ONBOARDED_CONFIG, null, 2),
+        ...buildClaudeConfigSeed(null),
         ...Object.fromEntries(bridge),
       },
-      env: { CLAUDE_CONFIG_DIR: configDir, ...guest.auth.env },
+      env: { ...launch.env, ...guest.auth.env },
     };
   }
 
@@ -246,16 +244,7 @@ export class GatewayAdapter implements AgentAdapter {
       return null;
     }
 
-    return {
-      [CONFIG_SEED_FILE]: JSON.stringify(
-        {
-          ...ONBOARDED_CONFIG,
-          projects: { [root]: { hasTrustDialogAccepted: true } },
-        },
-        null,
-        2,
-      ),
-    };
+    return buildClaudeConfigSeed(root);
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {
@@ -433,27 +422,6 @@ const PLACEHOLDER = 'imp-broker-placeholder';
 
 // The Claude CLI's mode that asks a person before each action.
 const MANUAL_PERMISSION_MODE = 'default';
-
-// The Claude config folder a brokered session gets inside its guest
-// folder, so no account or setting of the host's image reaches it.
-const CLAUDE_CONFIG_FOLDER = 'claude-config';
-
-// The state the Claude CLI reads from its config folder's `.claude.json`
-// to start without its first-run onboarding. It holds no account: the
-// placeholder credential is what keeps the CLI from asking for a login.
-// It holds no folder trust either, so the CLI asks a person to trust the
-// workspace on its first start.
-const ONBOARDED_CONFIG = { hasCompletedOnboarding: true };
-
-// Where that state travels, beside the config folder rather than in it.
-const CONFIG_SEED_FILE = 'claude-config-seed.json';
-
-// Copies the seed into the config folder only when the folder holds no
-// `.claude.json` yet, then runs the CLI. A resumed session keeps the state
-// the CLI wrote, a folder trust a person accepted included. The arguments
-// are the config folder, the seed, and the CLI's own command line.
-const SEED_CONFIG_SCRIPT =
-  'mkdir -p "$1" && { [ -e "$1/.claude.json" ] || cp "$2" "$1/.claude.json"; } && shift 2 && exec "$@"';
 
 // The gateway's settings without a credential helper, which a brokered
 // session never runs.

@@ -22,7 +22,9 @@ import { RuntimeAuthBinder } from './runtime-auth-binder';
  * credential from the broker and plans a guest spawn that prints the
  * binding revision it launches under, or a plain one without the broker, with its placeholder and its own
  * config folder in the harness's variables; `proxied` takes the same
- * credential but plans a proxy variable; `plain` takes none. The principal
+ * credential but plans a proxy variable; `subscription` takes it on a
+ * target that reaches the broker and starts without it elsewhere; `plain`
+ * takes none. The principal
  * `ops` may use `box`. `restart` stops the daemon and starts another on
  * the same state, and `setAuthSelected` turns the broker credential of
  * `glm` off and on.
@@ -99,6 +101,7 @@ async function setupTest() {
     findAuthSelection: () =>
       authSelected
         ? {
+            brokerRequired: true,
             gateway: {
               id: 'glm',
               baseURL: 'https://api.z.ai/api/anthropic',
@@ -142,13 +145,23 @@ async function setupTest() {
     }),
   };
 
+  const subscription: AgentAdapter = {
+    ...brokered,
+    id: 'subscription',
+    findAuthSelection: () => {
+      const selection = brokered.findAuthSelection?.() ?? null;
+
+      return selection === null ? null : { ...selection, brokerRequired: false };
+    },
+  };
+
   const start = (): Promise<DaemonHandle> =>
     startDaemon({
       socketPath: sockPath,
       reporterSocketPath: join(tmp.dir, 'reporter.sock'),
       build: 'atc/test-build',
       adapter: brokered,
-      adapters: [brokered, plain, proxied],
+      adapters: [brokered, plain, proxied, subscription],
       dbPath,
       statusPath: join(tmp.dir, 'status.json'),
       targets: [
@@ -272,7 +285,12 @@ test('it lists an agent that takes the broker credential as spawnable on a daemo
   const listed = await daemon.client.sendRequest('agents.list');
 
   expect(listed).toMatchObject({
-    agents: [{ id: 'glm', brokerAuth: true, capabilities: { spawn: true } }, { id: 'plain' }, {}],
+    agents: [
+      { id: 'glm', brokerAuth: true, capabilities: { spawn: true } },
+      { id: 'plain' },
+      {},
+      { id: 'subscription', brokerAuth: true, brokerRequired: false },
+    ],
   });
 });
 
@@ -386,6 +404,48 @@ test('it refuses a spawn with runtime auth on the local target before touching i
   await spawn.catch(() => null);
 
   expect(daemon.port.calls).toStrictEqual([]);
+});
+
+test('it starts an agent that takes the broker credential only where a broker is on the local target without touching impd', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'subscription',
+    target: 'local',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  const store = await StateStore.open(daemon.dbPath);
+  const binding = await store.findAuthBinding(toSessionID(id));
+
+  await store.stop();
+
+  expect<Record<string, unknown>>({ calls: daemon.port.calls, binding }).toStrictEqual({
+    calls: [],
+    binding: null,
+  });
+});
+
+test('it binds an agent that takes the broker credential only where a broker is on an imp target and starts it behind the broker', async () => {
+  await using daemon = await setupTest();
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: '/tmp',
+    agent: 'subscription',
+    target: 'box',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
+
+  expect<Record<string, unknown>>({
+    require: daemon.port.sessionRequests.map((request) =>
+      request.kind === 'start' ? request.require : null,
+    ),
+    grants: await daemon.port.readGrants(imp),
+  }).toStrictEqual({ require: [['broker']], grants: ['glm'] });
 });
 
 test.each([

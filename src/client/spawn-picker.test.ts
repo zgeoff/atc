@@ -418,6 +418,23 @@ test('it offers an agent that takes no broker credential every target', async ()
   expect(ctx.collectSent('session.spawn')).toMatchObject([{ target: 'local' }]);
 });
 
+test('it offers an agent that takes the broker credential only where a broker is every target', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', {
+    agents: [{ id: 'claude', brokerAuth: true, brokerRequired: false }],
+    targets: [LOCAL, { ...BOX, brokerAuth: true }],
+    sources: [DIR_SOURCE],
+  });
+
+  await ctx.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.applyKeys(ENTER, ENTER, ENTER, ENTER);
+
+  expect(ctx.collectSent('session.spawn')).toMatchObject([{ target: 'local' }]);
+});
+
 test('it lists a scope read from typed text once, on the target chosen after it', async () => {
   const ctx = setupTest();
 

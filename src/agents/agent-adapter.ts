@@ -52,11 +52,14 @@ export interface GuestPaths {
 /**
  * The credential an agent takes from impd's broker instead of holding it:
  * its gateway's endpoint and auth selection, and the auth profiles that
- * selection resolves against.
+ * selection resolves against. `brokerRequired` is true for an agent that
+ * starts only behind the broker; false lets it start on a target that
+ * reaches no broker under the sign-in that target's host holds.
  */
 export interface AuthSelection {
   readonly gateway: Pick<GatewayConfig, 'id' | 'baseURL'> & { readonly auth: GatewayAuth };
   readonly profiles: ReadonlyMap<string, AuthProfile>;
+  readonly brokerRequired: boolean;
 }
 
 /**

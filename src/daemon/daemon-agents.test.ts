@@ -89,6 +89,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         kind: 'claude',
         installed: true,
         brokerAuth: false,
+        brokerRequired: false,
         capabilities: {
           spawn: true,
           readTranscript: true,
@@ -125,6 +126,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         kind: 'grok',
         installed: true,
         brokerAuth: false,
+        brokerRequired: false,
         capabilities: {
           spawn: true,
           readTranscript: false,
@@ -161,6 +163,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         kind: 'codex',
         installed: false,
         brokerAuth: false,
+        brokerRequired: false,
         capabilities: {
           spawn: false,
           readTranscript: false,
@@ -197,6 +200,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         kind: 'gateway',
         installed: true,
         brokerAuth: false,
+        brokerRequired: false,
         capabilities: {
           spawn: true,
           readTranscript: true,

@@ -478,6 +478,8 @@ test('it refuses to eject a grok session and does not start a headless runner', 
   const grok = new GrokAdapter({
     claudeBin: 'claude',
     claudeArgs: [],
+    claudeAuth: null,
+    claudeAuthErrors: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',

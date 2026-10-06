@@ -457,6 +457,8 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
   const grok = new GrokAdapter({
     claudeBin: 'claude',
     claudeArgs: [],
+    claudeAuth: null,
+    claudeAuthErrors: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',
@@ -523,6 +525,8 @@ test('it yanks a grok session by id and without an id', async () => {
   const grok = new GrokAdapter({
     claudeBin: 'claude',
     claudeArgs: [],
+    claudeAuth: null,
+    claudeAuthErrors: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',
@@ -616,6 +620,8 @@ test('it revives a grok session from a captured id when summary.json is missing'
   const grok = new GrokAdapter({
     claudeBin: 'claude',
     claudeArgs: [],
+    claudeAuth: null,
+    claudeAuthErrors: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',
@@ -700,6 +706,8 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
   const grok = new GrokAdapter({
     claudeBin: 'claude',
     claudeArgs: [],
+    claudeAuth: null,
+    claudeAuthErrors: [],
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
     codexBin: 'codex',

@@ -61,7 +61,7 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
       "Where the session's working directory comes from. Omit it to run the session in cwd as it stands. With it, atc materializes a clean checkout into cwd on the target, which must not exist yet: {kind:'path', path, allowDirty?} checks out the pushed HEAD of a git checkout on the atc host, leaving its uncommitted and untracked changes behind with a warning, or refusing them when allowDirty is 'refuse'; {kind:'git', url, ref or sha, credentialRef?} checks out a branch, tag, or full commit of a repository, with credentialRef {kind:'env', name} naming the atc daemon's environment variable that holds its token. A directory outside git runs in place only on a target on the atc host itself (provider local-pty), with cwd equal to its path. Submodules and Git LFS are refused, and so is a URL that carries a credential.",
     ),
     trustClonedWorkspace: SPAWN_SCHEMA.shape.trustClonedWorkspace.describe(
-      "Trust the exact verified clone for this launch. An explicit true or false overrides the configured target trustClonedWorkspace default; omitting both keeps trust off. Requires a workspace source and either stock Claude on the local target, which adds trust for the clone root alone to the user's Claude config, or a brokered Claude gateway with isolated guest config on an imp target; other launches are refused. Accepts repository configuration and helpers without changing tool permission mode. Existing guest config is preserved.",
+      "Trust the exact verified clone for this launch. An explicit true or false overrides the configured target trustClonedWorkspace default; omitting both keeps trust off. Requires a workspace source and either stock Claude on the local target, which adds trust for the clone root alone to the user's Claude config, or, on an imp target, a brokered Claude gateway or stock Claude signed in through the broker, each with isolated guest config; other launches are refused. Accepts repository configuration and helpers without changing tool permission mode. Existing guest config is preserved.",
     ),
     detached: z
       .boolean()
@@ -223,6 +223,7 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
           kind: { type: 'string' },
           installed: { type: 'boolean' },
           brokerAuth: { type: 'boolean' },
+          brokerRequired: { type: 'boolean' },
           capabilities: {
             type: 'object',
             properties: {

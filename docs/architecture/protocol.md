@@ -362,20 +362,23 @@ spawn prompt and latest result, so both survive a restore.
 
 `agents.list` returns a `daemon` object with the host's name, platform, and architecture and the
 daemon build, plus one entry per registered agent id. An entry holds the id, label, kind,
-`installed`, `brokerAuth`, `capabilities`, and `models`:
+`installed`, `brokerAuth`, `brokerRequired`, `capabilities`, and `models`:
 
 - `kind` is the agent CLI family, which the agent's adapter declares. It is an open string, so a
   client must accept a kind it has not seen. An adapter without a profile is listed with its id as
   its label and kind.
 - `installed` is true when the agent's binary resolves on the daemon's `PATH` or at its configured
   path. A registered agent whose binary is missing stays in the list with `installed` false.
-- `brokerAuth` is true when the agent takes its credential from impd's broker, so it runs only on a
-  target whose entry has `brokerAuth`. A daemon from before the field sends none, which reads as
-  false.
+- `brokerAuth` is true when the agent takes its credential from impd's broker on a target whose
+  entry has `brokerAuth`. A daemon from before the field sends none, which reads as false.
+- `brokerRequired` is true when the agent runs only on such a target, such as a gateway with `auth`.
+  It is false for stock Claude with `claudeAuth`, which runs on any other target under that host's
+  own sign-in. A daemon from before the field sends none, and a client reads every agent with
+  `brokerAuth` as broker-only then.
 - `capabilities` holds one boolean each for `spawn`, `readTranscript`, `message`, `attach`,
   `screen`, and `input`. `spawn` is true only for an installed agent, and for an agent with
-  `brokerAuth` only while some target has `brokerAuth`. `message` follows the agent's message tap,
-  and every agent takes `attach`, `screen`, and `input`, since each session runs in a PTY.
+  `brokerRequired` only while some target has `brokerAuth`. `message` follows the agent's message
+  tap, and every agent takes `attach`, `screen`, and `input`, since each session runs in a PTY.
 - `models` holds the model names the config sets explicitly, keyed by role, and is null otherwise.
   For a gateway, `ANTHROPIC_MODEL` is the `default` role and each `ANTHROPIC_DEFAULT_<TIER>_MODEL`
   is the tier in lower case.

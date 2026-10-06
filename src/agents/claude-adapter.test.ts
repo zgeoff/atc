@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
@@ -13,6 +13,8 @@ function buildClaudeConfig(): Config {
   return {
     claudeBin: 'claude',
     claudeArgs: [],
+    claudeAuth: null,
+    claudeAuthErrors: [],
     grokBin: 'grok',
     grokArgs: [],
     codexBin: 'codex',
@@ -227,4 +229,357 @@ test('it pastes a long line and submits it with a carriage return as a second wr
     `\u001B[200~${'a'.repeat(1600)}\u001B[201~`,
     '\r',
   ]);
+});
+
+test('it takes no credential from the broker when the config holds no claudeAuth', () => {
+  const adapter = new ClaudeAdapter(parseConfig({}));
+
+  expect(adapter.findAuthSelection()).toBeNull();
+  expect(adapter.planGuestWorkspaceTrust('/work/repo')).toBeNull();
+});
+
+test('it selects the subscription token on the Anthropic API with the placeholder, and still starts where no broker is', () => {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    claudeAuth: { profiles: ['claude'] },
+  });
+
+  const adapter = new ClaudeAdapter(config);
+
+  expect(adapter.findAuthSelection()).toStrictEqual({
+    gateway: {
+      id: 'claude',
+      baseURL: 'https://api.anthropic.com',
+      auth: {
+        profiles: ['claude'],
+        placeholderEnv: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    profiles: config.authProfiles,
+    brokerRequired: false,
+  });
+});
+
+test('it plans a subscription guest spawn with its own config folder, the placeholder, and no permission mode', () => {
+  const adapter = new ClaudeAdapter(
+    parseConfig({
+      claudeArgs: ['--permission-mode', 'plan', '--verbose'],
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+      },
+      claudeAuth: { profiles: ['claude'] },
+    }),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: 'hi', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: { revision: 2, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  if (plan === null) {
+    throw new Error('expected a guest spawn plan');
+  }
+
+  const settingsFile = plan.files['auth-r2/settings.json'];
+
+  if (settingsFile === undefined) {
+    throw new Error('expected the revision settings file');
+  }
+
+  const settings: unknown = JSON.parse(settingsFile);
+
+  expect({ bin: plan.bin, args: plan.args.slice(2), env: plan.env }).toStrictEqual({
+    bin: 'sh',
+    args: [
+      'sh',
+      '/tmp/atc/sessions/s1/claude-config',
+      '/tmp/atc/sessions/s1/claude-config-seed.json',
+      'claude',
+      '--verbose',
+      '--settings',
+      '/tmp/atc/sessions/s1/auth-r2/settings.json',
+      '--plugin-dir',
+      '/tmp/atc/sessions/s1/atc-bridge',
+      'hi',
+    ],
+    env: {
+      CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    },
+  });
+
+  expect(settings).toHaveProperty('env', {
+    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  });
+
+  const seed = plan.files['claude-config-seed.json'];
+
+  if (seed === undefined) {
+    throw new Error('expected a seed file');
+  }
+
+  expect(JSON.parse(seed)).toStrictEqual({ hasCompletedOnboarding: true });
+});
+
+test('it plans a guest spawn without a broker binding in the config of the host image', () => {
+  const adapter = new ClaudeAdapter(
+    parseConfig({
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+      },
+      claudeAuth: { profiles: ['claude'] },
+    }),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
+  );
+
+  expect(plan).toMatchObject({
+    bin: 'claude',
+    args: [
+      '--settings',
+      '/tmp/atc/sessions/s1/settings.json',
+      '--plugin-dir',
+      '/tmp/atc/sessions/s1/atc-bridge',
+    ],
+  });
+
+  expect(plan).not.toContainKey('env');
+});
+
+test.each([
+  ['ANTHROPIC_API_KEY'],
+  ['ANTHROPIC_AUTH_TOKEN'],
+  ['ANTHROPIC_BASE_URL'],
+  ['CLAUDE_CODE_USE_VERTEX'],
+  ['HTTPS_PROXY'],
+])('it refuses a subscription guest spawn whose configured --settings sets %s', (variable) => {
+  const adapter = new ClaudeAdapter(
+    parseConfig({
+      claudeArgs: ['--settings', JSON.stringify({ env: { [variable]: 'sk-test' } })],
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+      },
+      claudeAuth: { profiles: ['claude'] },
+    }),
+  );
+
+  const plan = () =>
+    adapter.planGuestSpawn(
+      { prompt: '', resume: false },
+      {
+        atc: '/opt/atc/bin/atc',
+        dir: '/tmp/atc/sessions/s1',
+        auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+      },
+    );
+
+  expect(plan).toThrow(
+    expect.objectContaining({
+      code: 'auth_target_unsupported',
+      data: { agent: 'claude', problem: 'guest_env_conflict', variable },
+    }),
+  );
+});
+
+test('it refuses to start a subscription session in a host whose environment sets ANTHROPIC_API_KEY', () => {
+  using tmp = setupTempDir('atc-claude-refuse-');
+
+  const adapter = new ClaudeAdapter(
+    parseConfig({
+      claudeBin: 'true',
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+      },
+      claudeAuth: { profiles: ['claude'] },
+    }),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: tmp.dir,
+      auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  if (plan === null) {
+    throw new Error('expected a guest spawn plan');
+  }
+
+  writeFileSync(
+    join(tmp.dir, 'claude-config-seed.json'),
+    plan.files['claude-config-seed.json'] ?? '',
+  );
+
+  const run = Bun.spawnSync([plan.bin, ...plan.args], {
+    env: { PATH: process.env['PATH'] ?? '', ...plan.env, ANTHROPIC_API_KEY: 'sk-test' },
+  });
+
+  expect(run.exitCode).toBe(78);
+
+  expect(run.stderr.toString()).toBe(
+    "atc: ANTHROPIC_API_KEY is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n",
+  );
+
+  expect(existsSync(join(tmp.dir, 'claude-config'))).toBeFalse();
+});
+
+test.each([
+  ['ANTHROPIC_BASE_URL', 'https://proxy.example'],
+  ['CLAUDE_CODE_USE_BEDROCK', '1'],
+  ['CLAUDE_CODE_USE_VERTEX', '1'],
+  ['CLAUDE_CODE_USE_FOUNDRY', '1'],
+  ['CLAUDE_CODE_USE_MANTLE', '1'],
+  ['CLAUDE_CODE_USE_ANTHROPIC_AWS', '1'],
+  ['CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD', '1'],
+  ['CLAUDE_CODE_USE_GATEWAY', '1'],
+])(
+  'it refuses to start a subscription session in a host whose environment sets %s',
+  (name, value) => {
+    using tmp = setupTempDir('atc-claude-route-');
+
+    const adapter = new ClaudeAdapter(
+      parseConfig({
+        claudeBin: 'true',
+        authProfiles: {
+          claude: {
+            secret: 'claude-setup-token',
+            host: 'api.anthropic.com',
+            header: 'authorization',
+            scheme: 'bearer',
+          },
+        },
+        claudeAuth: { profiles: ['claude'] },
+      }),
+    );
+
+    const plan = adapter.planGuestSpawn(
+      { prompt: '', resume: false },
+      {
+        atc: '/opt/atc/bin/atc',
+        dir: tmp.dir,
+        auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+      },
+    );
+
+    if (plan === null) {
+      throw new Error('expected a guest spawn plan');
+    }
+
+    const run = Bun.spawnSync([plan.bin, ...plan.args], {
+      env: { PATH: process.env['PATH'] ?? '', ...plan.env, [name]: value },
+    });
+
+    expect(run.exitCode).toBe(78);
+    expect(run.stderr.toString()).toStartWith(`atc: ${name} is set in this host's environment`);
+  },
+);
+
+test('it starts a subscription session with a seeded config folder in a host whose environment sets no credential', () => {
+  using tmp = setupTempDir('atc-claude-seed-');
+
+  const adapter = new ClaudeAdapter(
+    parseConfig({
+      claudeBin: 'true',
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+      },
+      claudeAuth: { profiles: ['claude'] },
+    }),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: tmp.dir,
+      auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  if (plan === null) {
+    throw new Error('expected a guest spawn plan');
+  }
+
+  writeFileSync(
+    join(tmp.dir, 'claude-config-seed.json'),
+    plan.files['claude-config-seed.json'] ?? '',
+  );
+
+  const run = Bun.spawnSync([plan.bin, ...plan.args], {
+    env: { PATH: process.env['PATH'] ?? '', ...plan.env },
+  });
+
+  const seeded = readFileSync(join(tmp.dir, 'claude-config', '.claude.json'), 'utf8');
+
+  expect(run.exitCode).toBe(0);
+  expect(JSON.parse(seeded)).toStrictEqual({ hasCompletedOnboarding: true });
+});
+
+test('it seeds folder trust for the exact clone root of a subscription session', () => {
+  const adapter = new ClaudeAdapter(
+    parseConfig({
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+      },
+      claudeAuth: { profiles: ['claude'] },
+    }),
+  );
+
+  const seed = adapter.planGuestWorkspaceTrust('/work/repo')?.['claude-config-seed.json'];
+
+  if (seed === undefined) {
+    throw new Error('expected a seed file');
+  }
+
+  expect(JSON.parse(seed)).toStrictEqual({
+    hasCompletedOnboarding: true,
+    projects: { '/work/repo': { hasTrustDialogAccepted: true } },
+  });
 });

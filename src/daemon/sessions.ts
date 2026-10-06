@@ -599,19 +599,24 @@ export class SessionManager {
 
   /**
    * Throws the refusal for an agent that takes its credential from impd's
-   * broker on a target whose provider reaches no broker, before a spawn
-   * or an adopt does any work.
+   * broker on a target where it cannot, before a spawn or an adopt does
+   * any work: a target whose provider reaches no broker, for an agent that
+   * starts only behind one, or a broker the daemon cannot bind.
    */
   requireAgentTarget(agent: AgentID, target: string): void {
-    const adapter = this.findAdapter(agent);
+    const selection = this.findAdapter(agent)?.findAuthSelection?.() ?? null;
 
-    if (adapter === null || (adapter.findAuthSelection?.() ?? null) === null) {
+    if (selection === null) {
       return;
     }
 
-    const provider = this.targets.get(target)?.provider ?? null;
+    const host = this.targets.get(target)?.provider?.brokerAuth;
 
-    if (provider?.brokerAuth === undefined || this.authBinder === null) {
+    if (host === undefined && !selection.brokerRequired) {
+      return;
+    }
+
+    if (host === undefined || this.authBinder === null) {
       throw buildBrokerTargetRefusal(agent, target);
     }
   }
@@ -938,7 +943,7 @@ export class SessionManager {
       if (!isLocalTrust && !isGuestTrust) {
         throw new DaemonError(
           'unsupported',
-          'trustClonedWorkspace requires stock Claude on the local target or a brokered Claude gateway on an imp target',
+          'trustClonedWorkspace requires stock Claude on the local target, or stock Claude or a Claude gateway signed in through the broker on an imp target',
         );
       }
     }
@@ -1138,10 +1143,12 @@ export class SessionManager {
   }
 
   // What a harness of this agent needs to take its credential from impd's
-  // broker on a provider, or null when the agent takes none. Throws the
-  // refusal for a target whose provider has no broker, so no credential
-  // ever falls back to a local start, and for a selection the current auth
-  // profiles cannot bind.
+  // broker on a provider, or null when it takes none there: the agent
+  // takes none at all, or its selection lets it start on a target that
+  // reaches no broker under that host's own sign-in. Throws the refusal
+  // for an agent that starts only behind the broker on a target whose
+  // provider has none, so its credential never falls back to a local
+  // start, and for a selection the current auth profiles cannot bind.
   private resolveHarnessAuth(
     adapter: AgentAdapter,
     provider: ExecutionProvider,
@@ -1154,6 +1161,10 @@ export class SessionManager {
     }
 
     const host = provider.brokerAuth;
+
+    if (host === undefined && !selection.brokerRequired) {
+      return null;
+    }
 
     if (host === undefined || this.authBinder === null) {
       throw buildBrokerTargetRefusal(adapter.id, target);
