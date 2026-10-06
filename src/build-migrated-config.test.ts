@@ -155,6 +155,47 @@ test('it parses the migrated config into the entries the old keys gave', () => {
   });
 });
 
+test("it carries claudeAuth's MCP servers into the migrated claude entry", () => {
+  const legacy = {
+    claudeAuth: {
+      profiles: ['claude', 'linear'],
+      mcpServers: { linear: { url: 'https://mcp.linear.app/mcp', profile: 'linear' } },
+    },
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      linear: {
+        secret: 'linear-imp-agents',
+        host: 'mcp.linear.app',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+  };
+
+  const result = buildMigratedConfig(legacy);
+
+  if (result.kind !== 'migrated') {
+    throw new Error('expected a migrated config');
+  }
+
+  const written: unknown = JSON.parse(result.text);
+  const claude = getRecord(getRecord({ written }, 'written'), 'agents')['claude'];
+
+  expect(claude).toStrictEqual({
+    auth: {
+      profiles: ['claude', 'linear'],
+      mcpServers: { linear: { url: 'https://mcp.linear.app/mcp', profile: 'linear' } },
+    },
+  });
+
+  expect(parseConfig(written).agents).toStrictEqual(parseConfig(legacy).agents);
+});
+
 test('it reports a file that already uses agents as current', () => {
   expect(buildMigratedConfig({ agents: { claude: {} } })).toStrictEqual({ kind: 'current' });
 });

@@ -191,9 +191,14 @@ for repositories you trust. It changes no tool permission mode.
 - On a `local-pty` target, the launch must use stock Claude. atc adds one entry for the clone root
   to your own Claude config (`~/.claude.json`, or `.claude.json` in `$CLAUDE_CONFIG_DIR`), under the
   lock Claude itself writes that file under, and leaves every other entry as it is. A launch that
-  fails before Claude starts takes the entry back.
+  fails before Claude starts takes the entry back. The entry holds folder trust alone, so Claude
+  still asks you to approve the MCP servers in the clone's `.mcp.json`.
 - On an imp target, the launch must use a brokered Claude gateway or stock Claude with `auth`; see
-  [brokered credentials](#brokered-credentials).
+  [brokered credentials](#brokered-credentials). atc seeds the trust in the session's own guest
+  config, where it also approves every MCP server in the clone's `.mcp.json`, so the session starts
+  those servers without asking. Claude Code moves that approval into the clone's
+  `.claude/settings.local.json` on its first start. A launch without trust asks a person to approve
+  the servers.
 
 atc refuses trust for any other agent or target, and for a launch without a workspace source.
 
@@ -641,13 +646,13 @@ keeps the sign-in of your own Claude config.
    }
    ```
 
-`auth` on a stock entry holds `profiles` alone, and `placeholderEnv` is refused there: atc fixes the
-endpoint, `https://api.anthropic.com`, and the placeholder,
-`CLAUDE_CODE_OAUTH_TOKEN=imp-broker-placeholder`. Claude Code sends that variable as a bearer
-`authorization` header to `api.anthropic.com` and to no other host, and impd swaps the placeholder
-for the token there. atc leaves the entry out and prints the reason when the daemon starts if a
-selected profile does not resolve, or if no profile sets a bearer `authorization` header for
-`api.anthropic.com`.
+`auth` on a stock entry holds `profiles` and the optional [`mcpServers`](#mcp-servers-on-imps), and
+`placeholderEnv` is refused there: atc fixes the endpoint, `https://api.anthropic.com`, and the
+placeholder, `CLAUDE_CODE_OAUTH_TOKEN=imp-broker-placeholder`. Claude Code sends that variable as a
+bearer `authorization` header to `api.anthropic.com` and to no other host, and impd swaps the
+placeholder for the token there. atc leaves the entry out and prints the reason when the daemon
+starts if a selected profile does not resolve, or if no profile sets a bearer `authorization` header
+for `api.anthropic.com`.
 
 On an imp target, each session gets the same guest folder a brokered gateway gets: a settings file
 for its binding revision that holds the placeholder, and a Claude config folder of its own that atc
@@ -675,6 +680,58 @@ The same `env` and `settings` load on a stock entry without `auth`, where nothin
 A revoked grant or an expired token gives `API Error: 401` inside the session, and Claude never
 falls back to another sign-in. To renew the token, run `claude setup-token` again and replace the
 secret with `imp secret add claude-setup-token --replace`.
+
+#### MCP servers on imps
+
+`mcpServers` in a stock entry's `auth` gives each subscription session on an imp an MCP server over
+HTTP whose credential impd holds. The session sends `Bearer imp-broker-placeholder` in the header
+that the server's profile sets, and impd swaps in the credential for the server's host, so the
+credential never enters the imp. To give sessions Linear's MCP server with a Linear personal API
+key:
+
+1. Add the key to impd as a `custom` secret on `mcp.linear.app`, with the value on stdin:
+
+   ```bash
+   imp secret add linear-imp-agents --kind=custom --hosts=mcp.linear.app --header=authorization --scheme=bearer
+   ```
+
+2. List the secret in the `--grantable` secrets of the target's impd token.
+3. Add a profile for the secret, select it in the entry's `auth`, and point a server at it:
+
+   ```json
+   {
+     "authProfiles": {
+       "linear": {
+         "secret": "linear-imp-agents",
+         "host": "mcp.linear.app",
+         "header": "authorization",
+         "scheme": "bearer"
+       }
+     },
+     "agents": {
+       "claude": {
+         "auth": {
+           "profiles": ["claude", "github", "linear"],
+           "mcpServers": { "linear": { "url": "https://mcp.linear.app/mcp", "profile": "linear" } }
+         }
+       }
+     }
+   }
+   ```
+
+Each server holds `url` and `profile` alone. atc writes the servers to an MCP config file in the
+session's guest folder and passes it with `--mcp-config`, so Claude Code starts them without an
+approval prompt. atc leaves a server out, prints the reason when the daemon starts, and keeps the
+entry when any of these holds:
+
+- `profile` is not in the entry's `auth.profiles`, or is not a `custom` profile.
+- `url` is not https, has a port or user info, or its host is not the profile's `host`.
+- The server's name holds a character other than a letter, a digit, `_`, or `-`.
+
+A revoked grant leaves the placeholder in the request, and the server returns `401`. The tool call
+then fails with `MCP server "linear" rejected the Authorization header in its config`, and `/mcp`
+lists the server as `needs authentication`. The session has no other credential for the server. On
+the local target, Claude keeps the MCP servers of your own Claude config.
 
 #### Claude config bundle
 

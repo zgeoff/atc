@@ -32,6 +32,7 @@ import { buildArgsWithoutFlags } from './build-args-without-flags';
 import { buildATCBridgeFiles } from './build-atc-bridge-files';
 import { buildClaudeConfigSeed } from './build-claude-config-seed';
 import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
+import { buildClaudeMCPConfig } from './build-claude-mcp-config';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
 import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';
@@ -232,7 +233,11 @@ export class ClaudeAdapter implements AgentAdapter {
   // config bundle, come from the host's own Claude config folder as it is
   // at this launch, staged under a key of this launch's own. A credential, endpoint, or provider variable in the
   // configured settings, or in the host's environment, would keep the CLI
-  // from sending the placeholder, so either refuses the start.
+  // from sending the placeholder, so either refuses the start. The entry's
+  // MCP servers reach the CLI through an MCP config file of the binding
+  // revision, each with the placeholder in its header. Their flag sits
+  // ahead of the settings flag, so the variadic flag never takes the
+  // prompt as one of its values.
   private planSubscriptionGuestSpawn(
     opts: SpawnOptions,
     dir: string,
@@ -247,6 +252,9 @@ export class ClaudeAdapter implements AgentAdapter {
     }
 
     const settingsPath = `auth-r${auth.revision}/settings.json`;
+    const mcpServers = this.entry.mcpServers ?? [];
+    const mcpPath = `auth-r${auth.revision}/mcp.json`;
+    const mcpArgs = mcpServers.length === 0 ? [] : ['--mcp-config', `${dir}/${mcpPath}`];
     const bundleKey = randomUUID();
 
     const launch = buildClaudeGuestLaunch(
@@ -256,7 +264,7 @@ export class ClaudeAdapter implements AgentAdapter {
         ...this.buildArgs(
           buildArgsWithoutFlags(this.entry.args, ['--permission-mode']),
           opts,
-          [],
+          mcpArgs,
           `${dir}/${settingsPath}`,
           `${dir}/atc-bridge`,
         ),
@@ -284,6 +292,9 @@ export class ClaudeAdapter implements AgentAdapter {
       args: launch.args,
       files: {
         [settingsPath]: JSON.stringify(settings, null, 2),
+        ...(mcpServers.length === 0
+          ? {}
+          : { [mcpPath]: JSON.stringify(buildClaudeMCPConfig(mcpServers), null, 2) }),
         ...buildClaudeConfigSeed(null),
         ...Object.fromEntries(
           Object.entries(bundle).map(([path, content]) => [
@@ -365,13 +376,13 @@ export class ClaudeAdapter implements AgentAdapter {
   private buildArgs(
     configured: readonly string[],
     opts: SpawnOptions,
-    modeArgs: readonly string[],
+    leadArgs: readonly string[],
     settings: string,
     pluginDir: string,
   ): string[] {
     return [
       ...buildClaudeOverrideArgs(configured, opts),
-      ...modeArgs,
+      ...leadArgs,
       '--settings',
       settings,
       '--plugin-dir',

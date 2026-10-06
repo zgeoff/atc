@@ -478,6 +478,75 @@ test("it ships the host's Claude config as the session's user settings and keeps
   ]);
 });
 
+test('it gives a subscription guest spawn its MCP servers with the placeholder in an MCP config of its binding revision', () => {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      linear: {
+        secret: 'linear-imp-agents',
+        host: 'mcp.linear.app',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: {
+      claude: {
+        auth: {
+          profiles: ['claude', 'linear'],
+          mcpServers: { linear: { url: 'https://mcp.linear.app/mcp', profile: 'linear' } },
+        },
+      },
+    },
+  });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: 'hi', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: { revision: 3, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  if (plan === null) {
+    throw new Error('expected a guest spawn plan');
+  }
+
+  const mcpConfig = plan.files['auth-r3/mcp.json'];
+
+  if (typeof mcpConfig !== 'string') {
+    throw new TypeError('expected the revision MCP config file');
+  }
+
+  expect(plan.args.slice(7)).toStrictEqual([
+    'claude',
+    '--mcp-config',
+    '/tmp/atc/sessions/s1/auth-r3/mcp.json',
+    '--settings',
+    '/tmp/atc/sessions/s1/auth-r3/settings.json',
+    '--plugin-dir',
+    '/tmp/atc/sessions/s1/atc-bridge',
+    'hi',
+  ]);
+
+  expect(JSON.parse(mcpConfig)).toStrictEqual({
+    mcpServers: {
+      linear: {
+        type: 'http',
+        url: 'https://mcp.linear.app/mcp',
+        headers: { authorization: 'Bearer imp-broker-placeholder' },
+      },
+    },
+  });
+});
+
 test('it plans a guest spawn without a broker binding in the config of the host image', () => {
   const config = parseConfig({
     authProfiles: {
@@ -741,7 +810,7 @@ test('it starts a subscription session with a seeded config folder in a host who
   expect(JSON.parse(seeded)).toStrictEqual({ hasCompletedOnboarding: true });
 });
 
-test('it seeds folder trust for the exact clone root of a subscription session', () => {
+test("it seeds folder trust and approval of the clone's own MCP servers for the exact clone root of a subscription session", () => {
   const config = parseConfig({
     authProfiles: {
       claude: {
@@ -764,6 +833,6 @@ test('it seeds folder trust for the exact clone root of a subscription session',
 
   expect(JSON.parse(seed)).toStrictEqual({
     hasCompletedOnboarding: true,
-    projects: { '/work/repo': { hasTrustDialogAccepted: true } },
+    projects: { '/work/repo': { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true } },
   });
 });
