@@ -86,6 +86,17 @@ export interface GuestSpawnPlan extends SpawnPlan {
   readonly env?: Readonly<Record<string, string>>;
 }
 
+/**
+ * The project settings files, relative to the directory a harness starts
+ * in, that the agent applies on top of what atc passes it, and the refusal
+ * for a file whose content would override or route around a sign-in
+ * through impd's broker, or null when it holds nothing that would.
+ */
+export interface ProjectSettingsCheck {
+  readonly files: readonly string[];
+  readonly findRefusal: (file: string, content: string) => DaemonError | null;
+}
+
 export interface TranscriptToolUse {
   readonly name: string;
   readonly input: string;
@@ -269,6 +280,11 @@ export interface AgentAdapter {
   // The command that exits 0 inside a remote host when the agent there can
   // sign in without a person. Absent: atc runs no check.
   readonly planAuthCheck?: () => readonly string[];
+
+  // The project settings a remote launch behind impd's broker reads in
+  // the directory the harness starts in, before it starts. Absent: atc
+  // reads none.
+  readonly planProjectSettingsCheck?: () => ProjectSettingsCheck;
   readonly normalizeHook: (e: HookEvent) => AdapterEvent;
   readonly loadName: (
     source: string,

@@ -202,6 +202,11 @@ for repositories you trust. It changes no tool permission mode.
 
 atc refuses trust for any other agent or target, and for a launch without a workspace source.
 
+On an imp target, a launch that signs in through the broker reads the clone's own Claude settings
+before Claude starts, and fails with `auth_target_unsupported` when they would override that
+sign-in; see [Claude subscription on imps](#claude-subscription-on-imps). A brokered gateway gets
+the same check.
+
 Set `targets.<target_id>.trustClonedWorkspace` to a boolean to give that target a default. An
 explicit `trustClonedWorkspace: true` or `false` on the launch overrides it; omitting both keeps
 trust off. An inherited `true` has the same restrictions as an explicit `true`, so an ordinary
@@ -674,6 +679,14 @@ them away from a subscription session:
   sets any of them, `CLAUDE_CODE_OAUTH_TOKEN`, or a proxy or CA variable.
 - The session exits with status 78 before Claude starts when the imp's environment sets any of them,
   and its screen shows which one.
+- A spawn, resume, restore, or adopt fails with `auth_target_unsupported` before Claude starts when
+  `.claude/settings.json` or `.claude/settings.local.json` in the folder Claude starts in sets
+  `apiKeyHelper`, or its `env` sets any of them, `CLAUDE_CODE_OAUTH_TOKEN`, or a proxy or CA
+  variable. Claude applies those files once the folder is trusted, and a person can accept that
+  trust inside the session, so atc reads them whether or not the launch passes
+  `trustClonedWorkspace`. A file that is not a JSON object, or that atc cannot read, fails the
+  launch too. A spawn that cloned the folder removes the clone. The error's `data` holds the file
+  and the setting, never its value.
 
 The same `env` and `settings` load on a stock entry without `auth`, where nothing is bound.
 

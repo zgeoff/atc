@@ -241,6 +241,12 @@ const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=
 const REMOVE_DIR_SCRIPT =
   'cd -P -- "$1" || exit 3; [ "$(pwd -P; printf x)" = "$2" ] || exit 4; find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || exit 5; cd / && rmdir -- "$1"';
 
+// Prints a file as the agent would read it, following a symlink, or exits
+// with the absent status when nothing, not even a dangling symlink, is at
+// the path. Anything there that cannot be read fails with another status.
+const READ_PRESENT_FILE = 'if [ -e "$1" ] || [ -L "$1" ]; then exec cat -- "$1"; fi; exit 3';
+const ABSENT_FILE_EXIT = 3;
+
 // A readied host's harness plan, and the auth attempt that provisioned the
 // host, if one did.
 interface HarnessSetup {
@@ -693,6 +699,7 @@ export class SessionManager {
           ...(s.effort === undefined ? {} : { effort: s.effort }),
         },
         authSetup,
+        s.cwd,
       );
 
       plan = setup.plan;
@@ -999,6 +1006,10 @@ export class SessionManager {
       }
     }
 
+    // A spawn that builds its workspace reads the workspace's project
+    // settings once it is built, not when the host is readied before it.
+    const startDir = materialize === null ? cwd : null;
+
     const setupHost = () =>
       this.setupHarnessOnHost(
         adapter,
@@ -1008,8 +1019,16 @@ export class SessionManager {
         target,
         { prompt, resume, ...overrides },
         authSetup,
+        startDir,
         hostKey === id,
       );
+
+    // A launch behind the broker reads the project settings of the clone it
+    // starts in, once the clone is on the host and before it is trusted.
+    const checkWorkspace =
+      auth === null
+        ? null
+        : (root: string) => this.requireProjectSettings(adapter, provider, hostKey, target, root);
 
     // Takes back trust a spawn accepted in the user's own agent config when
     // the spawn fails before its harness starts.
@@ -1061,6 +1080,7 @@ export class SessionManager {
         execution.identity,
         materialize,
         setupHost,
+        checkWorkspace,
         trustWorkspace,
       );
     });
@@ -1591,7 +1611,9 @@ export class SessionManager {
   // Materializes a spawn's workspace, readying its host once the source
   // resolves, or after the workspace for a directory that runs as it
   // stands, and returns the directory it created, null for one that runs
-  // as it stands. A failure once the host is ready takes it back.
+  // as it stands. A clone is checked and then trusted, either as the caller
+  // asks, and a failure there removes it. A failure once the host is ready
+  // takes it back.
   private async materializeOnSpawnHost(
     provider: ExecutionProvider,
     id: SessionID,
@@ -1601,6 +1623,7 @@ export class SessionManager {
     targetIdentity: string,
     materialize: SpawnMaterializer,
     setupHost: () => Promise<HarnessSetup>,
+    checkWorkspace: ((root: string) => Promise<void>) | null,
     trustWorkspace: ((root: string) => Promise<void>) | null,
   ): Promise<{
     readonly setup: HarnessSetup;
@@ -1644,16 +1667,17 @@ export class SessionManager {
 
       readied.setup ??= await setupHost();
 
-      if (trustWorkspace !== null) {
-        if (materialized === null || readied.root === null) {
-          throw new DaemonError(
-            'bad_args',
-            'trustClonedWorkspace requires a successfully cloned workspace',
-          );
-        }
+      if (trustWorkspace !== null && (materialized === null || readied.root === null)) {
+        throw new DaemonError(
+          'bad_args',
+          'trustClonedWorkspace requires a successfully cloned workspace',
+        );
+      }
 
+      if (materialized !== null && readied.root !== null) {
         try {
-          await trustWorkspace(readied.root);
+          await checkWorkspace?.(readied.root);
+          await trustWorkspace?.(readied.root);
         } catch (error) {
           let removed = false;
 
@@ -1665,7 +1689,7 @@ export class SessionManager {
 
           if (!removed) {
             throw new EffectRemainsError(
-              'workspace trust setup failed and its clone could not be removed',
+              'workspace setup failed and its clone could not be removed',
               { cause: error },
             );
           }
@@ -1906,9 +1930,10 @@ export class SessionManager {
     target: string,
     options: SpawnOptions,
     auth: HarnessAuthSetup | null,
+    dir: string,
   ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
     return this.withHostReadying(hostKey, () =>
-      this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth, false),
+      this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth, dir, false),
     );
   }
 
@@ -1937,6 +1962,11 @@ export class SessionManager {
     target: string,
     options: SpawnOptions,
     auth: HarnessAuthSetup | null,
+
+    // The directory the harness starts in, whose project settings a launch
+    // behind the broker reads once the host is ready; null for a spawn
+    // whose workspace is built after this, which reads them once it is.
+    cwd: string | null,
 
     // Whether the host is a spawn's new host of its own, which a failure
     // once it is readied destroys.
@@ -2000,6 +2030,10 @@ export class SessionManager {
 
     try {
       await this.setupGuest(adapter, provider, hostKey, target, dir, plan.files);
+
+      if (auth !== null && cwd !== null) {
+        await this.requireProjectSettings(adapter, provider, hostKey, target, cwd);
+      }
     } catch (error) {
       if (attemptID !== null || isNewHost) {
         await this.destroyFailedSpawnHost(provider, id, hostKey, attemptID);
@@ -2132,6 +2166,57 @@ export class SessionManager {
 
     if (files.length > 0) {
       await provider.transferArchive(buildTarArchive(files), dir, hostKey);
+    }
+  }
+
+  // Reads each project settings file the agent applies from the directory
+  // a harness behind the broker starts in, on its host, and throws the
+  // agent's refusal for one that would override its sign-in. An absent file
+  // passes; one the host holds but cannot read refuses, since what the
+  // agent would take from it is unknown. A relative directory is under the
+  // host's home.
+  private async requireProjectSettings(
+    adapter: AgentAdapter,
+    provider: ExecutionProvider,
+    hostKey: SessionID,
+    target: string,
+    cwd: string,
+  ): Promise<void> {
+    const check = adapter.planProjectSettingsCheck?.();
+
+    if (check === undefined) {
+      return;
+    }
+
+    const home = posix.isAbsolute(cwd) ? '' : await this.resolveHostHome(provider, hostKey);
+    const base = posix.join(home, cwd);
+
+    for (const file of check.files) {
+      const path = posix.join(base, file);
+
+      const read = await provider.runCommand({
+        argv: ['sh', '-c', READ_PRESENT_FILE, 'sh', path],
+        cwd: '/',
+        host: hostKey,
+      });
+
+      if (read.exitCode === ABSENT_FILE_EXIT) {
+        continue;
+      }
+
+      if (read.exitCode !== 0) {
+        throw new DaemonError(
+          'auth_target_unsupported',
+          `agent '${adapter.id}' signs in through impd's broker on target '${target}', but atc cannot read ${path} there to check it for settings that would override that sign-in`,
+          { agent: adapter.id, target, problem: 'project_settings_unreadable', file },
+        );
+      }
+
+      const refusal = check.findRefusal(file, read.stdout);
+
+      if (refusal !== null) {
+        throw new DaemonError(refusal.code, refusal.message, { ...refusal.data, target });
+      }
     }
   }
 
