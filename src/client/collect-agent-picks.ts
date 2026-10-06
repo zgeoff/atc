@@ -18,14 +18,7 @@ export function collectAgentPicks(config: Config): AgentPick[] {
   // rather than left to the snapshot Bun.which defaults to.
   const opts = { PATH: process.env['PATH'] ?? '' };
 
-  const candidates: readonly (AgentPick & { readonly bin: string })[] = [
-    { agent: 'claude', label: 'Claude', bin: config.claudeBin },
-    { agent: 'grok', label: 'Grok', bin: config.grokBin },
-    { agent: 'codex', label: 'Codex', bin: config.codexBin },
-    ...config.gateways.map((g) => ({ agent: g.id, label: g.label, bin: g.bin })),
-  ];
-
-  return candidates
-    .filter((c) => Bun.which(c.bin, opts) !== null)
-    .map((c) => ({ agent: c.agent, label: c.label }));
+  return config.agents
+    .filter((entry) => Bun.which(entry.bin, opts) !== null)
+    .map((entry) => ({ agent: entry.id, label: entry.label }));
 }

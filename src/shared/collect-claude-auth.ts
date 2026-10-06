@@ -8,7 +8,7 @@ import { resolveAuthProfiles } from './resolve-auth-profiles';
  * token to the Anthropic API as a bearer authorization header, and the
  * rest bind beside it, such as a GitHub token.
  */
-export interface ClaudeAuth {
+interface ClaudeAuth {
   readonly profiles: readonly string[];
 }
 
@@ -18,7 +18,8 @@ interface CollectedClaudeAuth {
 }
 
 /**
- * Reads the `claudeAuth` entry against the auth profiles. An entry that
+ * Reads a Claude subscription auth entry against the auth profiles, `field`
+ * being the key it was set under in error text. An entry that
  * does not resolve, or whose profiles send no bearer authorization header
  * to the Anthropic API, is left out with every problem that refused it, so
  * stock Claude keeps the sign-in of the host it runs on rather than binding
@@ -27,6 +28,7 @@ interface CollectedClaudeAuth {
 export function collectClaudeAuth(
   raw: unknown,
   authProfiles: ReadonlyMap<string, AuthProfile>,
+  field = 'claudeAuth',
 ): CollectedClaudeAuth {
   if (raw === undefined) {
     return { auth: null, errors: [] };
@@ -42,7 +44,7 @@ export function collectClaudeAuth(
   ) {
     return {
       auth: null,
-      errors: ['claudeAuth must be an object with a non-empty profiles array'],
+      errors: [`${field} must be an object with a non-empty profiles array`],
     };
   }
 
@@ -52,7 +54,7 @@ export function collectClaudeAuth(
     return {
       auth: null,
       errors: [
-        `claudeAuth.${extra} cannot be set: atc fixes the endpoint and the placeholder of a Claude subscription session`,
+        `${field}.${extra} cannot be set: atc fixes the endpoint and the placeholder of a Claude subscription session`,
       ],
     };
   }
@@ -61,7 +63,7 @@ export function collectClaudeAuth(
   const resolution = resolveAuthProfiles(authProfiles, selected);
 
   if ('problem' in resolution) {
-    return { auth: null, errors: [`claudeAuth: ${resolution.problem.message}`] };
+    return { auth: null, errors: [`${field}: ${resolution.problem.message}`] };
   }
 
   const rule = resolution.resolved.secrets
@@ -72,7 +74,7 @@ export function collectClaudeAuth(
     return {
       auth: null,
       errors: [
-        `claudeAuth needs a profile that sets a bearer authorization header for ${ANTHROPIC_API_HOST}, where Claude Code sends its subscription token`,
+        `${field} needs a profile that sets a bearer authorization header for ${ANTHROPIC_API_HOST}, where Claude Code sends its subscription token`,
       ],
     };
   }

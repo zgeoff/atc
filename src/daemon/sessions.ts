@@ -383,7 +383,7 @@ export class SessionManager {
   private nextBridgeEpoch = 1;
 
   constructor(
-    fallback: AgentAdapter,
+    fallback: AgentAdapter | null | undefined,
     store: FleetStore,
     statusPath: string | undefined = statusFile,
     adapters: readonly AgentAdapter[] = [],
@@ -400,7 +400,13 @@ export class SessionManager {
   ) {
     // Each adapter names the id it answers to, so a registry key can never
     // disagree with the adapter behind it. A later one wins the id.
-    this.adapters = Object.fromEntries([fallback, ...adapters].map((a) => [a.id, a]));
+    this.adapters = Object.fromEntries(
+      [...(fallback === null || fallback === undefined ? [] : [fallback]), ...adapters].map((a) => [
+        a.id,
+        a,
+      ]),
+    );
+
     this.hasScreenDetector = Object.values(this.adapters).some((a) => a.screenDetector !== null);
     this.store = store;
     this.statusPath = statusPath ?? statusFile;

@@ -3,9 +3,10 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import type { AdapterEvent } from '../protocol/adapter-event';
 import type { HookEvent } from '../protocol/hook-event';
+import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalString } from '../shared/build-optional-string';
-import type { Config } from '../shared/config';
+import type { AgentEntry } from '../shared/collect-agents';
 import { isRecord } from '../shared/report';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toShellArg } from '../shared/to-shell-arg';
@@ -47,7 +48,11 @@ const CODEX_MODEL_FLAGS = ['-m', '--model'];
  * trusts once in the Codex TUI; atc never writes into the user's Codex config.
  */
 export class CodexAdapter implements AgentAdapter {
-  readonly id = 'codex';
+  readonly id: AgentID;
+
+  // The hook files a user installs print the kind for every entry of it, so
+  // the hook lines of every codex entry carry it.
+  readonly hookAgent = 'codex';
 
   // Codex has no headless handoff.
   readonly headlessRunner = null;
@@ -63,29 +68,30 @@ export class CodexAdapter implements AgentAdapter {
   // line is pasted and then submitted.
   readonly planLineInput = planPastedLineInput;
 
-  private readonly config: Config;
+  private readonly entry: AgentEntry;
 
-  constructor(config: Config) {
-    this.config = config;
+  constructor(entry: AgentEntry) {
+    this.entry = entry;
+    this.id = entry.id;
 
     this.profile = {
-      label: 'Codex',
+      label: entry.label,
       kind: 'codex',
-      bin: config.codexBin,
+      bin: entry.bin,
       models: null,
-      spawnOptions: buildCodexSpawnOptions(config.codexArgs),
+      spawnOptions: buildCodexSpawnOptions(entry.args),
     };
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
     return {
-      bin: this.config.codexBin,
+      bin: this.entry.bin,
       args: [
         // A model override replaces any model flag the configured arguments
         // carry, and travels as its own argument.
         ...(opts.model === undefined
-          ? this.config.codexArgs
-          : [...buildArgsWithoutFlags(this.config.codexArgs, CODEX_MODEL_FLAGS), '-m', opts.model]),
+          ? this.entry.args
+          : [...buildArgsWithoutFlags(this.entry.args, CODEX_MODEL_FLAGS), '-m', opts.model]),
 
         // Bare resume opens Codex's own session picker; an id resumes that
         // session directly. Both accept a prompt afterwards.

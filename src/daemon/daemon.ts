@@ -11,6 +11,7 @@ import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
 import type { SessionState } from '../protocol/session-state';
+import type { AgentID } from '../shared/agent-id';
 import type { HooksConfig } from '../shared/collect-hooks';
 import type { TargetConfigError } from '../shared/collect-targets';
 import type { InvalidGitTransports } from '../shared/collect-workspaces-config';
@@ -101,12 +102,16 @@ export interface DaemonOptions {
 
   // Build string sent in the handshake and in mismatch errors, e.g. "atc/0.1.0".
   readonly build: string;
-  readonly adapter: AgentAdapter;
+  readonly adapter?: AgentAdapter | null;
 
   // Adapters registered over and above the default one, each keyed by the id
   // it declares. Lookup never falls back across ids: a grok session with no
   // grok adapter is unsupported, not a Claude spawn.
   readonly adapters?: readonly AgentAdapter[];
+
+  // The agent a spawn without one runs, reported in `agents.list`'s spawn
+  // defaults; `claude` when unset.
+  readonly defaultAgent?: AgentID;
 
   // Where sessions run, in config order; one `local` target on the local
   // pseudo-terminal provider when unset. A spawn without a target runs on
@@ -888,7 +893,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     if (
       before !== undefined &&
       runtime !== undefined &&
-      !isOwnHookEvent(e.agent, before.agent, runtime.hasAgentHookLines)
+      !isOwnHookEvent(
+        e.agent,
+        mgr.findAdapter(before.agent)?.hookAgent ?? before.agent,
+        runtime.hasAgentHookLines,
+      )
     ) {
       return;
     }
@@ -1412,7 +1421,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         targets.some((target) => target.provider?.brokerAuth !== undefined),
       ),
       targets: buildTargetList(targets, defaultTarget),
-      spawnDefaults: { agent: 'claude', target: defaultTarget },
+      spawnDefaults: { agent: opts.defaultAgent ?? 'claude', target: defaultTarget },
       configRevision,
       targetErrors,
       sources: sources.map((source) => ({

@@ -11,6 +11,8 @@ import {
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
+import { getAgentEntry } from '../../test/get-agent-entry';
+import { getGatewayConfig } from '../../test/get-gateway-config';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import { ClaudeAdapter } from '../agents/claude-adapter';
@@ -94,13 +96,7 @@ async function setupTest(targetTrust?: boolean) {
     },
   });
 
-  const [gateway] = config.gateways;
-
-  if (gateway === undefined) {
-    throw new Error('expected gateway');
-  }
-
-  const adapter = new GatewayAdapter(gateway, config);
+  const adapter = new GatewayAdapter(getGatewayConfig(config, 'glm'), config);
 
   const socketPath = join(tmp.dir, 'daemon.sock');
 
@@ -108,8 +104,7 @@ async function setupTest(targetTrust?: boolean) {
     socketPath,
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
-    adapter,
-    adapters: [adapter, new ClaudeAdapter(config)],
+    adapters: [adapter, new ClaudeAdapter(getAgentEntry(config, 'claude'), config)],
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),
     gitTransports: ['file'],

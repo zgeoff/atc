@@ -3,6 +3,7 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { updateEnv } from '../../test/update-env';
+import { parseConfig } from '../shared/config';
 import { collectAgentPicks } from './collect-agent-picks';
 
 function setupBinDir(bins: readonly { readonly name: string; readonly executable: boolean }[]) {
@@ -28,39 +29,33 @@ test('it lists only the agents whose configured binary resolves', () => {
     { name: 'my-codex', executable: true },
   ]);
 
-  expect(
-    collectAgentPicks({
-      claudeBin: join(dir, 'my-claude'),
-      claudeArgs: [],
-      claudeAuth: null,
-      claudeAuthErrors: [],
-      grokBin: join(dir, 'my-grok'),
-      grokArgs: [],
-      codexBin: join(dir, 'my-codex'),
-      codexArgs: [],
-      dirs: { roots: [] },
-      workspaces: {
-        githubOwner: null,
-        sources: null,
-        gitTransports: ['https', 'ssh'],
-        root: null,
-        targetRoots: new Map(),
-      },
-      gateways: [],
-      gatewayErrors: [],
-      authProfiles: new Map(),
-      authProfileErrors: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-      defaultTarget: 'local',
-      targetErrors: [],
-      principals: null,
-      principalErrors: [],
-      workspaceErrors: [],
-      resumeInterruptedTurns: false,
-    }),
-  ).toStrictEqual([
+  const config = parseConfig({
+    agents: {
+      claude: { bin: join(dir, 'my-claude') },
+      grok: { bin: join(dir, 'my-grok') },
+      codex: { bin: join(dir, 'my-codex') },
+    },
+  });
+
+  expect(collectAgentPicks(config)).toStrictEqual([
+    { agent: 'claude', label: 'Claude' },
+    { agent: 'codex', label: 'Codex' },
+  ]);
+});
+
+test('it lists a file with the old agent keys the same way', () => {
+  const dir = setupBinDir([
+    { name: 'my-claude', executable: true },
+    { name: 'my-codex', executable: true },
+  ]);
+
+  const config = parseConfig({
+    claudeBin: join(dir, 'my-claude'),
+    grokBin: join(dir, 'my-grok'),
+    codexBin: join(dir, 'my-codex'),
+  });
+
+  expect(collectAgentPicks(config)).toStrictEqual([
     { agent: 'claude', label: 'Claude' },
     { agent: 'codex', label: 'Codex' },
   ]);
@@ -71,226 +66,91 @@ test('it resolves a bare binary name off PATH', () => {
 
   updateEnv('PATH', dir);
 
-  expect(
-    collectAgentPicks({
-      claudeBin: 'claude',
-      claudeArgs: [],
-      claudeAuth: null,
-      claudeAuthErrors: [],
-      grokBin: 'grok',
-      grokArgs: [],
-      codexBin: 'codex',
-      codexArgs: [],
-      dirs: { roots: [] },
-      workspaces: {
-        githubOwner: null,
-        sources: null,
-        gitTransports: ['https', 'ssh'],
-        root: null,
-        targetRoots: new Map(),
-      },
-      gateways: [],
-      gatewayErrors: [],
-      authProfiles: new Map(),
-      authProfileErrors: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-      defaultTarget: 'local',
-      targetErrors: [],
-      principals: null,
-      principalErrors: [],
-      workspaceErrors: [],
-      resumeInterruptedTurns: false,
-    }),
-  ).toStrictEqual([{ agent: 'grok', label: 'Grok' }]);
+  const picks = collectAgentPicks(parseConfig({}));
+
+  expect(picks).toStrictEqual([{ agent: 'grok', label: 'Grok' }]);
 });
 
 test('it leaves out a binary that exists without the executable bit', () => {
   const dir = setupBinDir([{ name: 'my-codex', executable: false }]);
 
-  expect(
-    collectAgentPicks({
-      claudeBin: join(dir, 'my-claude'),
-      claudeArgs: [],
-      claudeAuth: null,
-      claudeAuthErrors: [],
-      grokBin: join(dir, 'my-grok'),
-      grokArgs: [],
-      codexBin: join(dir, 'my-codex'),
-      codexArgs: [],
-      dirs: { roots: [] },
-      workspaces: {
-        githubOwner: null,
-        sources: null,
-        gitTransports: ['https', 'ssh'],
-        root: null,
-        targetRoots: new Map(),
-      },
-      gateways: [],
-      gatewayErrors: [],
-      authProfiles: new Map(),
-      authProfileErrors: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-      defaultTarget: 'local',
-      targetErrors: [],
-      principals: null,
-      principalErrors: [],
-      workspaceErrors: [],
-      resumeInterruptedTurns: false,
-    }),
-  ).toStrictEqual([]);
+  const config = parseConfig({
+    agents: {
+      claude: { bin: join(dir, 'my-claude') },
+      codex: { bin: join(dir, 'my-codex') },
+    },
+  });
+
+  expect(collectAgentPicks(config)).toStrictEqual([]);
 });
 
-test('it lists a configured backend after the built-in agents', () => {
+test('it lists agents in registry order with their labels', () => {
   const dir = setupBinDir([{ name: 'my-claude', executable: true }]);
 
-  expect(
-    collectAgentPicks({
-      claudeBin: join(dir, 'my-claude'),
-      claudeArgs: [],
-      claudeAuth: null,
-      claudeAuthErrors: [],
-      grokBin: join(dir, 'my-grok'),
-      grokArgs: [],
-      codexBin: join(dir, 'my-codex'),
-      codexArgs: [],
-      dirs: { roots: [] },
-      workspaces: {
-        githubOwner: null,
-        sources: null,
-        gitTransports: ['https', 'ssh'],
-        root: null,
-        targetRoots: new Map(),
+  const config = parseConfig({
+    agents: {
+      zai: {
+        kind: 'claude',
+        label: 'GLM (z.ai)',
+        bin: join(dir, 'my-claude'),
+        baseURL: 'https://api.z.ai/api/anthropic',
       },
-      gateways: [
-        {
-          id: 'zai',
-          label: 'GLM (z.ai)',
-          mark: 'z',
-          bin: join(dir, 'my-claude'),
-          args: [],
-          baseURL: 'https://api.z.ai/api/anthropic',
-          env: {},
-        },
-      ],
-      gatewayErrors: [],
-      authProfiles: new Map(),
-      authProfileErrors: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-      defaultTarget: 'local',
-      targetErrors: [],
-      principals: null,
-      principalErrors: [],
-      workspaceErrors: [],
-      resumeInterruptedTurns: false,
-    }),
-  ).toStrictEqual([
-    { agent: 'claude', label: 'Claude' },
+      claude: { bin: join(dir, 'my-claude') },
+      'claude-b': { kind: 'claude', bin: join(dir, 'my-claude') },
+    },
+  });
+
+  expect(collectAgentPicks(config)).toStrictEqual([
     { agent: 'zai', label: 'GLM (z.ai)' },
+    { agent: 'claude', label: 'Claude' },
+    { agent: 'claude-b', label: 'claude-b' },
   ]);
 });
 
 test('it leaves out a configured backend whose binary does not resolve', () => {
   const dir = setupBinDir([{ name: 'my-claude', executable: true }]);
 
-  expect(
-    collectAgentPicks({
-      claudeBin: join(dir, 'my-claude'),
-      claudeArgs: [],
-      claudeAuth: null,
-      claudeAuthErrors: [],
-      grokBin: join(dir, 'my-grok'),
-      grokArgs: [],
-      codexBin: join(dir, 'my-codex'),
-      codexArgs: [],
-      dirs: { roots: [] },
-      workspaces: {
-        githubOwner: null,
-        sources: null,
-        gitTransports: ['https', 'ssh'],
-        root: null,
-        targetRoots: new Map(),
+  const config = parseConfig({
+    agents: {
+      claude: { bin: join(dir, 'my-claude') },
+      zai: {
+        kind: 'claude',
+        bin: join(dir, 'missing-claude'),
+        baseURL: 'https://api.z.ai/api/anthropic',
       },
-      gateways: [
-        {
-          id: 'zai',
-          label: 'GLM (z.ai)',
-          mark: 'z',
-          bin: join(dir, 'missing-claude'),
-          args: [],
-          baseURL: 'https://api.z.ai/api/anthropic',
-          env: {},
-        },
-      ],
-      gatewayErrors: [],
-      authProfiles: new Map(),
-      authProfileErrors: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-      defaultTarget: 'local',
-      targetErrors: [],
-      principals: null,
-      principalErrors: [],
-      workspaceErrors: [],
-      resumeInterruptedTurns: false,
-    }),
-  ).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
+    },
+  });
+
+  expect(collectAgentPicks(config)).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
 });
 
 test('it lists a gateway with auth, which starts on a target with broker auth', () => {
   const dir = setupBinDir([{ name: 'my-claude', executable: true }]);
 
-  expect(
-    collectAgentPicks({
-      claudeBin: join(dir, 'my-claude'),
-      claudeArgs: [],
-      claudeAuth: null,
-      claudeAuthErrors: [],
-      grokBin: join(dir, 'my-grok'),
-      grokArgs: [],
-      codexBin: join(dir, 'my-codex'),
-      codexArgs: [],
-      dirs: { roots: [] },
-      workspaces: {
-        githubOwner: null,
-        sources: null,
-        gitTransports: ['https', 'ssh'],
-        root: null,
-        targetRoots: new Map(),
+  const config = parseConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: join(dir, 'my-claude') },
+      glm: {
+        kind: 'claude',
+        label: 'GLM',
+        bin: join(dir, 'my-claude'),
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: { profiles: ['glm'] },
       },
-      gateways: [
-        {
-          id: 'glm',
-          label: 'GLM',
-          mark: 'g',
-          bin: join(dir, 'my-claude'),
-          args: [],
-          baseURL: 'https://api.z.ai/api/anthropic',
-          env: {},
-          auth: { profiles: ['glm'], placeholderEnv: {} },
-        },
-      ],
-      gatewayErrors: [],
-      authProfiles: new Map(),
-      authProfileErrors: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-      defaultTarget: 'local',
-      targetErrors: [],
-      principals: null,
-      principalErrors: [],
-      workspaceErrors: [],
-      resumeInterruptedTurns: false,
-    }),
-  ).toStrictEqual([
+    },
+  });
+
+  expect(collectAgentPicks(config)).toStrictEqual([
     { agent: 'claude', label: 'Claude' },
     { agent: 'glm', label: 'GLM' },
   ]);
+});
+
+test('it lists no agent for an empty registry', () => {
+  const picks = collectAgentPicks(parseConfig({ agents: {} }));
+
+  expect(picks).toStrictEqual([]);
 });

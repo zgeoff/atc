@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
+import { getAgentEntry } from '../../test/get-agent-entry';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import { ClaudeAdapter } from '../agents/claude-adapter';
@@ -9,6 +10,7 @@ import { DaemonClient } from '../client/daemon-client';
 import { openBridgeSocket } from '../protocol/open-bridge-socket';
 import type { EventMsg } from '../protocol/protocol';
 import { sendBridgeRequest } from '../protocol/send-bridge-request';
+import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
@@ -55,41 +57,13 @@ done
     { mode: 0o755 },
   );
 
+  const adapterConfig = parseConfig({ claudeBin: fakeClaude });
+
   const daemon = await startDaemon({
     socketPath: sockPath,
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
-    adapter: new ClaudeAdapter({
-      claudeBin: fakeClaude,
-      claudeArgs: [],
-      claudeAuth: null,
-      claudeAuthErrors: [],
-      grokBin: 'grok',
-      grokArgs: [],
-      codexBin: 'codex',
-      codexArgs: [],
-      dirs: { roots: [] },
-      workspaces: {
-        githubOwner: null,
-        sources: null,
-        gitTransports: ['https', 'ssh'],
-        root: null,
-        targetRoots: new Map(),
-      },
-      gateways: [],
-      gatewayErrors: [],
-      authProfiles: new Map(),
-      authProfileErrors: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-      targets: [{ id: 'box', provider: 'imp', options: {} }],
-      defaultTarget: 'box',
-      targetErrors: [],
-      principals: new Map(),
-      principalErrors: [],
-      workspaceErrors: [],
-      resumeInterruptedTurns: false,
-    }),
+    adapter: new ClaudeAdapter(getAgentEntry(adapterConfig, 'claude'), adapterConfig),
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),
     targets: [

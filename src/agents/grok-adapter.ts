@@ -3,9 +3,10 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import type { AdapterEvent } from '../protocol/adapter-event';
 import type { HookEvent } from '../protocol/hook-event';
+import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalString } from '../shared/build-optional-string';
-import type { Config } from '../shared/config';
+import type { AgentEntry } from '../shared/collect-agents';
 import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
@@ -65,7 +66,11 @@ const GROK_UNSUPPORTED_OPTION: SpawnOptionSpec = {
  * resume semantics, and summary.json name-pulling.
  */
 export class GrokAdapter implements AgentAdapter {
-  readonly id = 'grok';
+  readonly id: AgentID;
+
+  // The hook files a user installs print the kind for every entry of it, so
+  // the hook lines of every grok entry carry it.
+  readonly hookAgent = 'grok';
 
   // Grok has no headless handoff.
   readonly headlessRunner = null;
@@ -81,17 +86,18 @@ export class GrokAdapter implements AgentAdapter {
   // line is pasted and then submitted.
   readonly planLineInput = planPastedLineInput;
 
-  private readonly config: Config;
+  private readonly entry: AgentEntry;
 
   private readonly hookState = new Map<SessionID, GrokSessionHookState>();
 
-  constructor(config: Config) {
-    this.config = config;
+  constructor(entry: AgentEntry) {
+    this.entry = entry;
+    this.id = entry.id;
 
     this.profile = {
-      label: 'Grok',
+      label: entry.label,
       kind: 'grok',
-      bin: config.grokBin,
+      bin: entry.bin,
       models: null,
       spawnOptions: { model: GROK_UNSUPPORTED_OPTION, effort: GROK_UNSUPPORTED_OPTION },
     };
@@ -99,9 +105,9 @@ export class GrokAdapter implements AgentAdapter {
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
     return {
-      bin: this.config.grokBin,
+      bin: this.entry.bin,
       args: [
-        ...this.config.grokArgs.filter((arg) => arg !== '--leader' && arg !== '--no-leader'),
+        ...this.entry.args.filter((arg) => arg !== '--leader' && arg !== '--no-leader'),
         '--no-leader',
         ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
         ...(opts.prompt === '' ? [] : [opts.prompt]),

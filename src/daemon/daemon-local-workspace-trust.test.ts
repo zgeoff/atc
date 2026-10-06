@@ -9,6 +9,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
+import { getAgentEntry } from '../../test/get-agent-entry';
+import { getGatewayConfig } from '../../test/get-gateway-config';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { updateEnv } from '../../test/update-env';
 import { waitFor } from '../../test/wait-for';
@@ -59,13 +61,7 @@ async function setupTest(
     gateways: { plain: { baseURL: 'https://gateway.example.com' } },
   });
 
-  const adapter = new ClaudeAdapter(config);
-
-  const [gateway] = config.gateways;
-
-  if (gateway === undefined) {
-    throw new Error('expected gateway');
-  }
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   // Once the real trust write lands, the CLI stops being executable, so
   // the harness start that follows it fails.
@@ -85,8 +81,7 @@ async function setupTest(
     socketPath,
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
-    adapter,
-    adapters: [adapter, new GatewayAdapter(gateway, config)],
+    adapters: [adapter, new GatewayAdapter(getGatewayConfig(config, 'plain'), config)],
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),
     gitTransports: ['file'],

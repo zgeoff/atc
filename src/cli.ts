@@ -178,6 +178,44 @@ const main = defineCommand({
           await grants.runGrants(ctx.args.revoke ?? null);
         },
       }),
+    config: () =>
+      defineCommand({
+        meta: { name: 'config', description: "Work on atc's config.json" },
+        subCommands: {
+          migrate: () =>
+            defineCommand({
+              meta: {
+                name: 'migrate',
+                description:
+                  'Move the old agent keys of config.json into agents: print the result, or rewrite the file with --write',
+              },
+              args: {
+                write: {
+                  type: 'boolean',
+                  default: false,
+                  description: 'Back the file up beside itself, then rewrite it in place',
+                },
+                file: {
+                  type: 'string',
+                  description: 'The config file to migrate (default ~/.config/atc/config.json)',
+                },
+              },
+              async run(ctx) {
+                const migrate = await import('./run-config-migrate');
+                const config = await import('./shared/config');
+
+                const code = migrate.runConfigMigrate(
+                  ctx.args.file ?? config.configFile,
+                  ctx.args.write,
+                );
+
+                if (code !== 0) {
+                  process.exit(code);
+                }
+              },
+            }),
+        },
+      }),
     daemon: () =>
       defineCommand({
         meta: {
@@ -358,10 +396,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
 
   const daemon = await import('./daemon/daemon');
   const config = await import('./shared/config');
-  const claude = await import('./agents/claude-adapter');
-  const grok = await import('./agents/grok-adapter');
-  const codex = await import('./agents/codex-adapter');
-  const gateway = await import('./agents/gateway-adapter');
+  const adapterBuilder = await import('./agents/build-agent-adapters');
   const headless = await import('./agents/start-claude-headless-run');
   const targets = await import('./daemon/build-execution-targets');
   const sourceOrder = await import('./sources/build-sources');
@@ -389,10 +424,15 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     ...cfg.principalErrors,
     ...cfg.workspaceErrors,
     ...cfg.authProfileErrors,
-    ...cfg.claudeAuthErrors,
-    ...cfg.gatewayErrors,
+    ...cfg.agentErrors,
   ]) {
     console.error(`atc daemon: config: ${problem}`);
+  }
+
+  if (cfg.legacyAgentKeys.length > 0) {
+    console.error(
+      `atc daemon: config: config.json uses the old agent keys (${cfg.legacyAgentKeys.join(', ')}); run 'atc config migrate' to move them into agents`,
+    );
   }
 
   const sources = sourceOrder.buildSources(
@@ -423,15 +463,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   // How long a started session may go without a tap before a message
   // to it is refused. Tests pin it to 0 to reach the refusal at once.
   const graceOverride = Number(process.env['ATC_TAP_GRACE_MS']);
-
-  const claudeAdapter = new claude.ClaudeAdapter(cfg, headless.startClaudeHeadlessRun);
-  const grokAdapter = new grok.GrokAdapter(cfg);
-  const codexAdapter = new codex.CodexAdapter(cfg);
-
-  const gatewayAdapters = cfg.gateways.map(
-    (entry) => new gateway.GatewayAdapter(entry, cfg, headless.startClaudeHeadlessRun),
-  );
-
+  const adapters = adapterBuilder.buildAgentAdapters(cfg, headless.startClaudeHeadlessRun);
   let handle: Awaited<ReturnType<typeof daemon.startDaemon>>;
 
   try {
@@ -440,8 +472,8 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
       reporterSocketPath: config.socketPath,
       eventsSocketPath: config.eventsSocketPath,
       build: getBuild(),
-      adapter: claudeAdapter,
-      adapters: [claudeAdapter, grokAdapter, codexAdapter, ...gatewayAdapters],
+      adapters,
+      defaultAgent: cfg.defaultAgent,
       dbPath: config.dbFile,
       legacyFleetPath: config.legacyFleetFile,
       pidPath: config.daemonPidFile,

@@ -372,8 +372,8 @@ daemon build, plus one entry per registered agent id. An entry holds the id, lab
 - `brokerAuth` is true when the agent takes its credential from impd's broker on a target whose
   entry has `brokerAuth`. A daemon from before the field sends none, which reads as false.
 - `brokerRequired` is true when the agent runs only on such a target, such as a gateway with `auth`.
-  It is false for stock Claude with `claudeAuth`, which runs on any other target under that host's
-  own sign-in. A daemon from before the field sends none, and a client reads every agent with
+  It is false for stock Claude with `auth`, which runs on any other target under that host's own
+  sign-in. A daemon from before the field sends none, and a client reads every agent with
   `brokerAuth` as broker-only then.
 - `capabilities` holds one boolean each for `spawn`, `readTranscript`, `message`, `attach`,
   `screen`, and `input`. `spawn` is true only for an installed agent, and for an agent with
@@ -397,7 +397,9 @@ The answer also holds the execution targets:
   does; a daemon from before the field sends none, which reads as false. An entry never holds the
   target's options, which can hold a host's address or an account.
 - `spawnDefaults` holds the `agent` and `target` a spawn without either runs with. `target` is null
-  when the config gives no default, and such a spawn fails with `target_config_invalid`.
+  when the config gives no default, and such a spawn fails with `target_config_invalid`. `agent` is
+  `claude` when the registry holds an entry with that id and the first entry otherwise. For an empty
+  registry it stays `claude`, and a spawn fails with `unsupported`.
 - `configRevision` is a 16-digit hex digest of each target's id and identity, the default target,
   and the target errors. It is the same for the daemon's whole life, and it changes whenever the
   target config does.
@@ -447,8 +449,8 @@ The daemon refuses a spawn before it starts any process:
 - An effort outside the option's `values` is `bad_args`.
 
 Each value reaches the CLI as its own argument, never through a shell. An override replaces any
-`--model` or `--effort` in `claudeArgs` or a gateway's `args`, value included, for that spawn alone.
-A spawn that sets neither runs with the configured arguments as they stand.
+`--model` or `--effort` in an entry's `args`, value included, for that spawn alone. A spawn that
+sets neither runs with the configured arguments as they stand.
 
 The fleet row stores the session's `model` and `effort`. A fleet restore, an adopt, and a headless
 turn all reuse the stored values. A `session.spawn` that resumes an agent session id with its own

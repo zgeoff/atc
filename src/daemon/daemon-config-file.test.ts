@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getAgentEntry } from '../../test/get-agent-entry';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { CodexAdapter } from '../agents/codex-adapter';
@@ -59,7 +60,9 @@ function setupTest() {
       buildResumeCommand: () => null,
     };
 
-    const codex = new CodexAdapter(parseConfig({ codexBin: join(tmp.dir, 'missing', 'codex') }));
+    const adapterConfig = parseConfig({ codexBin: join(tmp.dir, 'missing', 'codex') });
+
+    const codex = new CodexAdapter(getAgentEntry(adapterConfig, 'codex'));
 
     const daemon = await startDaemon({
       socketPath: join(tmp.dir, 'daemon.sock'),
@@ -170,6 +173,34 @@ test('it refuses every spawn, local included, when an existing config holds inva
 
   expect(daemon.harnesses).toStrictEqual([]);
   expect(daemon.runs).toStrictEqual([]);
+});
+
+test('it refuses every spawn when a config file sets agents beside an old agent key', async () => {
+  await using daemon = setupTest();
+
+  writeFileSync(daemon.configPath, JSON.stringify({ agents: { claude: {} }, claudeArgs: [] }));
+
+  const client = await daemon.openDaemon();
+
+  const refused = await client
+    .sendRequest('session.spawn', { cwd: '/tmp' })
+    .catch((error: unknown) => error);
+
+  if (!(refused instanceof DaemonError)) {
+    throw new Error('expected the spawn to reject with a daemon error');
+  }
+
+  expect({ code: refused.code, data: refused.data }).toStrictEqual({
+    code: 'target_config_invalid',
+    data: {
+      problem: 'config_malformed',
+      path: daemon.configPath,
+      detail:
+        "claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'",
+    },
+  });
+
+  expect(daemon.harnesses).toStrictEqual([]);
 });
 
 test.each([
@@ -366,7 +397,7 @@ test('it spawns a session without a target on the local target, and writes the d
   expect(daemon.harnesses).toStrictEqual(['local']);
 
   expect(JSON.parse(readFileSync(daemon.configPath, 'utf8'))).toMatchObject({
-    claudeBin: 'claude',
+    agents: { claude: {} },
   });
 });
 

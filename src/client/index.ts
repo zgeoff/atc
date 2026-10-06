@@ -41,7 +41,7 @@ const doneAt = new Map<string, number>();
 
 let focusedID: string | null = null;
 let fleetCount = 0;
-let lastUsedAgent: AgentID = 'claude';
+let lastUsedAgent: AgentID = loadConfig().defaultAgent;
 
 // The readable harness label and tier-alias map per agent: the config alone
 // until the daemon's `agents.list` answer arrives and re-resolves them

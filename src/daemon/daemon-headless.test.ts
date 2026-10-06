@@ -3,11 +3,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
+import { getAgentEntry } from '../../test/get-agent-entry';
 import { updateEnv } from '../../test/update-env';
 import type { AgentAdapter, HeadlessRunner } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import type { EventMsg } from '../protocol/protocol';
+import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { startDaemon } from './daemon';
@@ -475,37 +477,12 @@ test('it refuses to eject a grok session and does not start a headless runner', 
 
   updateEnv('GROK_HOME', join(dir, 'grok-home'));
 
-  const grok = new GrokAdapter({
-    claudeBin: 'claude',
-    claudeArgs: [],
-    claudeAuth: null,
-    claudeAuthErrors: [],
+  const adapterConfig = parseConfig({
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
-    codexBin: 'codex',
-    codexArgs: [],
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    gateways: [],
-    gatewayErrors: [],
-    authProfiles: new Map(),
-    authProfileErrors: [],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    resumeInterruptedTurns: false,
   });
+
+  const grok = new GrokAdapter(getAgentEntry(adapterConfig, 'grok'));
 
   const startFakeRun: HeadlessRunner = (opts, hooks) => {
     runs.push({

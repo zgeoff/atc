@@ -4,8 +4,7 @@ import { join } from 'node:path';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
-import { ClaudeAdapter } from '../agents/claude-adapter';
-import { GatewayAdapter } from '../agents/gateway-adapter';
+import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
@@ -32,19 +31,21 @@ async function setupTest(fleet: readonly FleetEntry[] = []) {
   });
 
   const config = parseConfig({
-    claudeBin: fakeClaude,
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
-    gateways: {
+    agents: {
+      claude: { bin: fakeClaude },
       glm: {
+        kind: 'claude',
+        bin: fakeClaude,
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
           placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
         },
       },
-      zai: { baseURL: 'https://api.z.ai/api/anthropic' },
+      zai: { kind: 'claude', bin: fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
     },
   });
 
@@ -58,14 +59,12 @@ async function setupTest(fleet: readonly FleetEntry[] = []) {
   }
 
   const port = new FixtureImpPort();
-  const claude = new ClaudeAdapter(config);
 
   const daemon = await startDaemon({
     socketPath: sockPath,
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
-    adapter: claude,
-    adapters: [claude, ...config.gateways.map((gateway) => new GatewayAdapter(gateway, config))],
+    adapters: buildAgentAdapters(config),
     dbPath,
     statusPath: join(tmp.dir, 'status.json'),
     targets: [

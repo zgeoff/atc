@@ -3142,6 +3142,61 @@ test('it starts with a broken config, prints the problem, and refuses every spaw
   );
 });
 
+test('it prints one line naming the old agent keys a config still uses and loads them as before', async () => {
+  const ctx = setupDaemonProc();
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const listed = await client.sendRequest('agents.list');
+
+  expect(getRecords(listed, 'agents').map((agent) => agent['id'])).toStrictEqual([
+    'claude',
+    'grok',
+    'codex',
+    'zai',
+  ]);
+
+  expect(readFileSync(join(ctx.home, 'daemon.stderr'), 'utf8')).toInclude(
+    "atc daemon: config: config.json uses the old agent keys (claudeBin, claudeArgs, grokBin, grokArgs, codexBin, codexArgs, gateways); run 'atc config migrate' to move them into agents\n",
+  );
+});
+
+test('it lists exactly the agents of an agents map and prints no old-key line', async () => {
+  const first = setupDaemonProc();
+
+  first.proc.kill();
+
+  await first.proc.exited;
+
+  writeFileSync(
+    join(first.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      agents: {
+        'claude-b': { kind: 'claude', bin: join(first.home, 'fake-claude') },
+        codex: { bin: join(first.home, 'fake-codex') },
+      },
+    }),
+  );
+
+  const ctx = setupDaemonProc(first.home);
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const listed = await client.sendRequest('agents.list');
+
+  expect(getRecords(listed, 'agents').map((agent) => agent['id'])).toStrictEqual([
+    'claude-b',
+    'codex',
+  ]);
+
+  expect(getRecord(listed, 'spawnDefaults')['agent']).toBe('claude-b');
+  expect(readFileSync(join(ctx.home, 'daemon.stderr'), 'utf8')).not.toInclude('old agent keys');
+});
+
 test.each([
   [
     'JSON with a syntax error at the value',

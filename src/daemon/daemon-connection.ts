@@ -941,7 +941,7 @@ export class DaemonConnection {
       // The target goes first: a config or target problem is the cause a
       // spawn reports, ahead of any agent check that problem can skew.
       const target = ctx.resolveSpawnTarget(data.target);
-      const agent: AgentID = data.agent ?? 'claude';
+      const agent: AgentID = data.agent ?? ctx.collectAgents().spawnDefaults.agent;
       const adapter = ctx.findAdapter(agent);
       const entry = ctx.collectAgents().agents.find((candidate) => candidate.id === agent);
 

@@ -1,5 +1,5 @@
 import { appendFileSync } from 'node:fs';
-import { ClaudeAdapter } from '../src/agents/claude-adapter';
+import { buildAgentAdapters } from '../src/agents/build-agent-adapters';
 import { startClaudeHeadlessRun } from '../src/agents/start-claude-headless-run';
 import { buildExecutionTargets } from '../src/daemon/build-execution-targets';
 import { startDaemon } from '../src/daemon/daemon';
@@ -31,8 +31,7 @@ import type { SourceProvider } from '../src/sources/types';
  */
 async function main() {
   const config = loadConfig();
-
-  const adapter = new ClaudeAdapter(config, startClaudeHeadlessRun);
+  const adapters = buildAgentAdapters(config, startClaudeHeadlessRun);
 
   const builtin = buildSources(
     collectBuiltinSources({
@@ -87,8 +86,8 @@ async function main() {
     reporterSocketPath: socketPath,
     eventsSocketPath,
     build: getBuild(),
-    adapter,
-    adapters: [adapter],
+    adapters,
+    defaultAgent: config.defaultAgent,
     dbPath: dbFile,
     pidPath: daemonPidFile,
     targets: buildExecutionTargets(config.targets).targets,

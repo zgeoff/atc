@@ -3,6 +3,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { getAgentEntry } from '../../test/get-agent-entry';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { spawnNamedSession } from '../../test/spawn-named-session';
 import { updateEnv } from '../../test/update-env';
@@ -14,6 +15,7 @@ import { encodeCursor } from '../protocol/encode-cursor';
 import { OutboundQueue } from '../protocol/outbound-queue';
 import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
+import { parseConfig } from '../shared/config';
 import { isRecord } from '../shared/report';
 import { startDaemon } from './daemon';
 
@@ -456,37 +458,12 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
 
   updateEnv('GROK_HOME', join(dir, 'grok-home'));
 
-  const grok = new GrokAdapter({
-    claudeBin: 'claude',
-    claudeArgs: [],
-    claudeAuth: null,
-    claudeAuthErrors: [],
+  const adapterConfig = parseConfig({
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
-    codexBin: 'codex',
-    codexArgs: [],
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    gateways: [],
-    gatewayErrors: [],
-    authProfiles: new Map(),
-    authProfileErrors: [],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    resumeInterruptedTurns: false,
   });
+
+  const grok = new GrokAdapter(getAgentEntry(adapterConfig, 'grok'));
 
   const daemon = await startDaemon({
     socketPath: join(dir, 'daemon.sock'),
@@ -525,37 +502,12 @@ test('it yanks a grok session by id and without an id', async () => {
 
   updateEnv('GROK_HOME', join(dir, 'grok-home'));
 
-  const grok = new GrokAdapter({
-    claudeBin: 'claude',
-    claudeArgs: [],
-    claudeAuth: null,
-    claudeAuthErrors: [],
+  const adapterConfig2 = parseConfig({
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
-    codexBin: 'codex',
-    codexArgs: [],
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    gateways: [],
-    gatewayErrors: [],
-    authProfiles: new Map(),
-    authProfileErrors: [],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    resumeInterruptedTurns: false,
   });
+
+  const grok = new GrokAdapter(getAgentEntry(adapterConfig2, 'grok'));
 
   const daemon = await startDaemon({
     socketPath: join(dir, 'daemon.sock'),
@@ -621,37 +573,12 @@ test('it revives a grok session from a captured id when summary.json is missing'
 
   updateEnv('GROK_HOME', join(dir, 'grok-home'));
 
-  const grok = new GrokAdapter({
-    claudeBin: 'claude',
-    claudeArgs: [],
-    claudeAuth: null,
-    claudeAuthErrors: [],
+  const adapterConfig3 = parseConfig({
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
-    codexBin: 'codex',
-    codexArgs: [],
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    gateways: [],
-    gatewayErrors: [],
-    authProfiles: new Map(),
-    authProfileErrors: [],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    resumeInterruptedTurns: false,
   });
+
+  const grok = new GrokAdapter(getAgentEntry(adapterConfig3, 'grok'));
 
   const daemon = await startDaemon({
     socketPath: join(dir, 'daemon.sock'),
@@ -708,37 +635,12 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
   const reporterPath = join(dir, 'reporter.sock');
   const sockPath = join(dir, 'daemon.sock');
 
-  const grok = new GrokAdapter({
-    claudeBin: 'claude',
-    claudeArgs: [],
-    claudeAuth: null,
-    claudeAuthErrors: [],
+  const adapterConfig4 = parseConfig({
     grokBin: 'bash',
     grokArgs: ['-c', 'sleep 30'],
-    codexBin: 'codex',
-    codexArgs: [],
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    gateways: [],
-    gatewayErrors: [],
-    authProfiles: new Map(),
-    authProfileErrors: [],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    resumeInterruptedTurns: false,
   });
+
+  const grok = new GrokAdapter(getAgentEntry(adapterConfig4, 'grok'));
 
   const daemon = await startDaemon({
     socketPath: sockPath,

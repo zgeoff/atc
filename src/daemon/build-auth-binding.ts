@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import type { AgentID } from '../shared/agent-id';
+import type { GatewayAuth } from '../shared/check-gateway-auth';
 import type { AuthProfile } from '../shared/collect-auth-profiles';
-import type { GatewayAuth, GatewayConfig } from '../shared/collect-gateways';
+import type { GatewayConfig } from '../shared/collect-gateways';
 import { resolveAuthProfiles } from '../shared/resolve-auth-profiles';
 import type { AuthProfileProblem, ResolvedAuthSecret } from '../shared/resolve-auth-profiles';
 import { sortJSONKeys } from '../shared/sort-json-keys';

@@ -362,7 +362,7 @@ test('it advertises agent on atc_session_spawn as an open string listing the reg
     type: 'string',
     minLength: 1,
     description:
-      'Registered agent id to spawn; defaults to claude. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_agents_list returns the current list.',
+      'Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_agents_list returns the current list.',
   });
 });
 

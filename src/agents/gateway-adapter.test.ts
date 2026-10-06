@@ -2,47 +2,17 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { getAgentEntry } from '../../test/get-agent-entry';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { updateEnv } from '../../test/update-env';
 import { parseConfig } from '../shared/config';
-import type { Config } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { ClaudeAdapter } from './claude-adapter';
 import { GatewayAdapter } from './gateway-adapter';
 
 function buildGatewayAdapter(): GatewayAdapter {
-  const config: Config = {
-    claudeBin: 'claude',
-    claudeArgs: [],
-    claudeAuth: null,
-    claudeAuthErrors: [],
-    grokBin: 'grok',
-    grokArgs: [],
-    codexBin: 'codex',
-    codexArgs: [],
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    gateways: [],
-    gatewayErrors: [],
-    authProfiles: new Map(),
-    authProfileErrors: [],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    resumeInterruptedTurns: false,
-  };
+  const config = parseConfig({});
 
   return new GatewayAdapter(
     {
@@ -122,37 +92,7 @@ test("it runs a headless turn through the gateway's binary and settings file und
       baseURL: 'https://api.z.ai/api/anthropic',
       env: {},
     },
-    {
-      claudeBin: 'claude',
-      claudeArgs: [],
-      claudeAuth: null,
-      claudeAuthErrors: [],
-      grokBin: 'grok',
-      grokArgs: [],
-      codexBin: 'codex',
-      codexArgs: [],
-      dirs: { roots: [] },
-      workspaces: {
-        githubOwner: null,
-        sources: null,
-        gitTransports: ['https', 'ssh'],
-        root: null,
-        targetRoots: new Map(),
-      },
-      gateways: [],
-      gatewayErrors: [],
-      authProfiles: new Map(),
-      authProfileErrors: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-      defaultTarget: 'local',
-      targetErrors: [],
-      principals: null,
-      principalErrors: [],
-      workspaceErrors: [],
-      resumeInterruptedTurns: false,
-    },
+    parseConfig({}),
     (opts) => {
       received = { ...opts };
 
@@ -194,37 +134,7 @@ test('it profiles a gateway with only the model names its env sets', () => {
         API_TIMEOUT_MS: '600000',
       },
     },
-    {
-      claudeBin: 'claude',
-      claudeArgs: [],
-      claudeAuth: null,
-      claudeAuthErrors: [],
-      grokBin: 'grok',
-      grokArgs: [],
-      codexBin: 'codex',
-      codexArgs: [],
-      dirs: { roots: [] },
-      workspaces: {
-        githubOwner: null,
-        sources: null,
-        gitTransports: ['https', 'ssh'],
-        root: null,
-        targetRoots: new Map(),
-      },
-      gateways: [],
-      gatewayErrors: [],
-      authProfiles: new Map(),
-      authProfileErrors: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-      defaultTarget: 'local',
-      targetErrors: [],
-      principals: null,
-      principalErrors: [],
-      workspaceErrors: [],
-      resumeInterruptedTurns: false,
-    },
+    parseConfig({}),
   );
 
   expect(adapter.profile).toStrictEqual({
@@ -1027,7 +937,7 @@ test('it starts a brokered guest in the permission mode the plain Claude adapter
     },
   });
 
-  const claude = new ClaudeAdapter(config);
+  const claude = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   const gateway = new GatewayAdapter(
     {

@@ -151,7 +151,8 @@ installs in detail.
 
 atc creates `~/.config/atc/config.json` on first run. The
 [configuration guide](./docs/guides/configuration.md) covers every field: agent binaries and
-arguments, the leader key, gateways, and hooks.
+arguments, the leader key, gateways, and hooks, and how `atc config migrate` moves an old config to
+the `agents` map.
 
 ## Documentation
 
