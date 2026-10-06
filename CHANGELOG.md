@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.35.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.34.0...@zgeoff/atc@2.35.0) (2026-10-06)
+
+
+### Features
+
+* **geo-110:** ship the claude config bundle to imp sessions ([#326](https://github.com/zgeoff/atc/issues/326)) ([6b5510a](https://github.com/zgeoff/atc/commit/6b5510acd4ba88c12228191ca4be65708fba00af))
+
 ## [2.34.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.33.0...@zgeoff/atc@2.34.0) (2026-10-06)
 
 ### Features
