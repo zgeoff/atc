@@ -564,9 +564,10 @@ for `api.anthropic.com`.
 
 On an imp target, each session gets the same guest folder a brokered gateway gets: a settings file
 for its binding revision that holds the placeholder, and a Claude config folder of its own that atc
-seeds with first-run onboarding state, plus folder trust with [clone trust](#clone-trust). The CLI
-starts without `--permission-mode`, and atc drops one from `claudeArgs`, so the mode the session's
-own user settings set applies. A headless turn is refused there, as on every imp session.
+seeds with first-run onboarding state, plus folder trust with [clone trust](#clone-trust). atc fills
+that folder with the [Claude config bundle](#claude-config-bundle). The CLI starts without
+`--permission-mode`, and atc drops one from `claudeArgs`, so the auto mode the bundle sets applies.
+A headless turn is refused there, as on every imp session.
 
 Three kinds of variable keep Claude Code from sending the subscription token to the Anthropic API:
 `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` outrank it, `ANTHROPIC_BASE_URL` moves the endpoint,
@@ -582,6 +583,46 @@ them away from a subscription session:
 A revoked grant or an expired token gives `API Error: 401` inside the session, and Claude never
 falls back to another sign-in. To renew the token, run `claude setup-token` again and replace the
 secret with `imp secret add claude-setup-token --replace`.
+
+#### Claude config bundle
+
+Each launch of a `claudeAuth` session on an imp copies an allow-listed part of the daemon host's
+Claude config folder (`$CLAUDE_CONFIG_DIR`, or `~/.claude`) into the session's own config folder,
+where Claude Code reads it as user settings:
+
+- `CLAUDE.md` and `statusline.sh`
+- every file under `agents/` and `output-styles/`
+- each folder under `skills/` that holds a `SKILL.md`, with symlinks copied as the files they point
+  at
+- `settings.json`, cut to the keys below
+
+A file its owner may execute stays executable in the guest. A symlink ships only when its target
+could ship by its own path, so a link to `.credentials.json` or to the unfiltered `settings.json`
+never does. The bundle leaves out every other entry, so `.credentials.json`, `.claude.json`,
+history, projects, plugins, and backups stay on the host. It also leaves out any entry whose name
+starts with a dot.
+
+The bundle's `settings.json` holds these keys of the host's settings when they are set: `model`,
+`effortLevel`, `advisorModel`, `outputStyle`, `autoCompactWindow`, `autoMode`, `attribution`,
+`includeCoAuthoredBy`, `skipAutoPermissionPrompt`, `skipWorkflowUsageWarning`, `editorMode`, `tui`,
+`permissions`, `statusLine`, and `env`. atc changes three of them on the way:
+
+- `permissions.defaultMode` is always `auto`. Claude Code honours that mode only in user settings.
+- `statusLine.command` points at the guest copy of a script the bundle ships. For `~/.claude`, atc
+  also rewrites the `~/.claude` and `$HOME/.claude` spellings. atc's own statusline runs that
+  command first, as it does on the host.
+- `env` keeps `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` alone, since any other variable can hold a
+  credential.
+
+A repo's own `.claude/settings.json` and `.claude/settings.local.json` rank above the bundle, so
+Claude Code's precedence gives a repo value over a bundle value. The `--settings` file atc writes
+holds only the hooks, the statusline, and the placeholder, so it never carries a bundle value above
+the repo's.
+
+atc reads the host's folder at each launch, so a spawn or a revive after you change it starts with
+the change. A running session keeps the bundle it started with. On each launch the guest replaces
+every bundle entry in the session's config folder, so an entry you remove from the host leaves the
+session too. The state Claude Code writes beside the bundle, `.claude.json` among it, stays.
 
 ## Attention hooks (Grok and Codex)
 

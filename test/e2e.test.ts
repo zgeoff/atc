@@ -927,6 +927,38 @@ test('it chains the user statusline and appends the fleet segment', async () => 
   expect(line).toInclude('◐ 1');
 });
 
+test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_DIR sets', async () => {
+  await using ctx = setupTest();
+
+  mkdirSync(join(ctx.home, '.claude'), { recursive: true });
+  mkdirSync(join(ctx.home, 'claude-config'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.home, '.claude', 'settings.json'),
+    JSON.stringify({ statusLine: { type: 'command', command: 'echo HOME-SEGMENT' } }),
+  );
+
+  writeFileSync(
+    join(ctx.home, 'claude-config', 'settings.json'),
+    JSON.stringify({ statusLine: { type: 'command', command: 'echo CONFIG-DIR-SEGMENT' } }),
+  );
+
+  const proc = Bun.spawn([process.execPath, join(repo, 'src', 'cli.ts'), 'statusline'], {
+    stdin: new TextEncoder().encode(JSON.stringify({ session_id: 'sl-2' })),
+    env: collectEnv({
+      HOME: ctx.home,
+      PATH: '/usr/sbin:/usr/bin:/bin',
+      CLAUDE_CONFIG_DIR: join(ctx.home, 'claude-config'),
+    }),
+    stdout: 'pipe',
+  });
+
+  const line = await new Response(proc.stdout).text();
+
+  expect(line).toInclude('CONFIG-DIR-SEGMENT');
+  expect(line).not.toInclude('HOME-SEGMENT');
+});
+
 test('it renames a session from the claude transcript custom-title', async () => {
   await using ctx = setupTest();
 

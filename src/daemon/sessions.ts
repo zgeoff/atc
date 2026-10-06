@@ -3,6 +3,7 @@ import { posix } from 'node:path';
 import type {
   AgentAdapter,
   GuestPaths,
+  GuestSpawnPlan,
   SpawnOptions,
   SpawnOverrides,
   SpawnPlan,
@@ -2082,7 +2083,9 @@ export class SessionManager {
     hostKey: SessionID,
     target: string,
     dir: string,
-    planned: Readonly<Record<string, string>>,
+
+    // oxlint-disable-next-line prefer-readonly-parameter-types -- file bytes have no readonly form
+    planned: GuestSpawnPlan['files'],
   ): Promise<void> {
     await provider.prepareHost({
       host: hostKey,
@@ -2105,7 +2108,11 @@ export class SessionManager {
       }
     }
 
-    const files = Object.entries(planned).map(([path, content]) => ({ path, content }));
+    const files = Object.entries(planned).map(([path, file]) =>
+      typeof file === 'string' || file instanceof Uint8Array
+        ? { path, content: file }
+        : { path, content: file.content, mode: file.mode },
+    );
 
     if (files.length > 0) {
       await provider.transferArchive(buildTarArchive(files), dir, hostKey);

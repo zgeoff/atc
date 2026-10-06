@@ -233,7 +233,10 @@ never the rest of the fleet. A gateway with a credential helper never runs remot
 helper runs on the daemon's machine. A gateway with `auth`, and stock Claude with `claudeAuth`, run
 on an imp with a Claude config folder of their own under `sessions/<id>/` and a placeholder in place
 of the credential, which impd's broker swaps for the secret; the
-[brokered credentials](../guides/configuration.md#brokered-credentials) guide covers the config.
+[brokered credentials](../guides/configuration.md#brokered-credentials) guide covers the config. A
+`claudeAuth` session's config folder also takes the
+[Claude config bundle](../guides/configuration.md#claude-config-bundle) at each launch, staged
+beside it in `claude-config-bundle/`.
 
 Each harness gets a socket inside the imp under `run/`, named for its session, which `ATC_SOCKET`
 points at, with `ATC_BRIDGE=1` beside it. impd forwards each connection there to the daemon, which
