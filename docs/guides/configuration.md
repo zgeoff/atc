@@ -4,12 +4,7 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 
 ```json
 {
-  "claudeBin": "claude",
-  "claudeArgs": [],
-  "grokBin": "grok",
-  "grokArgs": [],
-  "codexBin": "codex",
-  "codexArgs": [],
+  "agents": { "claude": {} },
   "dirs": { "roots": [] },
   "workspaces": {
     "githubOwner": null,
@@ -18,31 +13,23 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
     "root": null,
     "targets": {}
   },
-  "gateways": {},
   "hooks": {},
   "leader": "ctrl-space",
   "resumeInterruptedTurns": false
 }
 ```
 
-| Field                    | Default         | Meaning                                                                                                                                                |
-| ------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `claudeBin`              | `"claude"`      | The binary spawned for Claude sessions.                                                                                                                |
-| `claudeArgs`             | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`. A spawn's own model or effort replaces the matching flag.                                 |
-| `grokBin`                | `"grok"`        | The binary spawned for Grok sessions.                                                                                                                  |
-| `grokArgs`               | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`.                                            |
-| `codexBin`               | `"codex"`       | The binary spawned for Codex sessions.                                                                                                                 |
-| `codexArgs`              | `[]`            | Prepended to every Codex spawn. A spawn's own model replaces a `-m` or `--model` here.                                                                 |
-| `dirs`                   | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.                                            |
-| `gateways`               | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                                                           |
-| `authProfiles`           | unset           | Credential references a gateway's `auth` selects from. The [brokered credentials](#brokered-credentials) section covers them.                          |
-| `claudeAuth`             | unset           | The profiles stock Claude signs in through on an imp target. The [Claude subscription on imps](#claude-subscription-on-imps) section covers it.        |
-| `hooks`                  | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                                    |
-| `leader`                 | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                                  |
-| `targets`                | unset           | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                                                     |
-| `defaultTarget`          | unset           | The target a spawn without a target runs on.                                                                                                           |
-| `workspaces`             | see above       | Where workspaces come from and land. The [git transports](#git-transports) and [workspace destinations](#workspace-destinations) sections cover it.    |
-| `resumeInterruptedTurns` | `false`         | Whether a session that was mid-turn when the daemon stopped gets a message to carry on. The [interrupted turns](#interrupted-turns) section covers it. |
+| Field                    | Default          | Meaning                                                                                                                                                |
+| ------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `agents`                 | `{ claude: {} }` | The agents atc offers, keyed by agent id. The [agents](#agents) section covers the fields of an entry.                                                 |
+| `dirs`                   | `{ roots: [] }`  | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.                                            |
+| `authProfiles`           | unset            | Credential references an agent's `auth` selects from. The [brokered credentials](#brokered-credentials) section covers them.                           |
+| `hooks`                  | `{}`             | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                                    |
+| `leader`                 | `"ctrl-space"`   | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                                  |
+| `targets`                | unset            | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                                                     |
+| `defaultTarget`          | unset            | The target a spawn without a target runs on.                                                                                                           |
+| `workspaces`             | see above        | Where workspaces come from and land. The [git transports](#git-transports) and [workspace destinations](#workspace-destinations) sections cover it.    |
+| `resumeInterruptedTurns` | `false`          | Whether a session that was mid-turn when the daemon stopped gets a message to carry on. The [interrupted turns](#interrupted-turns) section covers it. |
 
 ## Leader
 
@@ -205,8 +192,8 @@ for repositories you trust. It changes no tool permission mode.
   to your own Claude config (`~/.claude.json`, or `.claude.json` in `$CLAUDE_CONFIG_DIR`), under the
   lock Claude itself writes that file under, and leaves every other entry as it is. A launch that
   fails before Claude starts takes the entry back.
-- On an imp target, the launch must use a brokered Claude gateway or stock Claude with `claudeAuth`;
-  see [brokered credentials](#brokered-credentials).
+- On an imp target, the launch must use a brokered Claude gateway or stock Claude with `auth`; see
+  [brokered credentials](#brokered-credentials).
 
 atc refuses trust for any other agent or target, and for a launch without a workspace source.
 
@@ -357,15 +344,93 @@ whose `targets` holds an array of target names grants nothing to that principal.
 each such problem to stderr when it starts. The daemon reads `principals` once when it starts, so
 restart it after you change the key.
 
-## Gateways
+## Agents
 
-A gateway runs the Claude CLI against a Claude-compatible backend, under its own agent id. Claude
-and GLM sessions then sit side by side in one fleet:
+`agents` holds exactly the agents atc offers, keyed by agent id. An entry that is not listed does
+not exist: `"agents": {}` offers no agent, and every spawn fails with
+`no adapter for agent 'claude'`. The first run writes `{ "claude": {} }`, so a machine with Grok or
+Codex adds an entry for each:
 
 ```json
 {
-  "gateways": {
+  "agents": {
+    "claude": { "args": ["--model", "opus"] },
+    "codex": {},
+    "grok": { "bin": "/opt/grok/bin/grok" }
+  }
+}
+```
+
+| Field          | Default                              | Meaning                                                                                                                                                                             |
+| -------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`         | the id                               | The CLI the entry drives: `claude`, `codex`, or `grok`. It is required for any other id.                                                                                            |
+| `label`        | `Claude`, `Codex`, `Grok`, or the id | The row shown in the agent picker.                                                                                                                                                  |
+| `mark`         | the first character of the id        | The overlay column letter; the first character is used.                                                                                                                             |
+| `bin`          | the kind's binary name               | The binary spawned for the entry's sessions.                                                                                                                                        |
+| `args`         | `[]`                                 | Prepended to every spawn. A spawn's own model or effort replaces the matching flag.                                                                                                 |
+| `settings`     | none                                 | Claude only. More Claude Code settings for the entry's sessions; [extra session settings](#extra-session-settings) covers them.                                                     |
+| `env`          | `{}`                                 | Claude only. Extra environment for the session, such as the model each Claude tier maps to.                                                                                         |
+| `baseURL`      | none                                 | Claude only. The backend's Anthropic-format endpoint; an entry that sets it is a [gateway](#gateways).                                                                              |
+| `apiKeyHelper` | none                                 | Claude only, with `baseURL`. Command the CLI runs to read the credential.                                                                                                           |
+| `auth`         | none                                 | Claude only. The credential profiles impd's broker applies; [brokered credentials](#brokered-credentials) and [Claude subscription on imps](#claude-subscription-on-imps) cover it. |
+
+`kind` defaults to the id for `claude`, `codex`, and `grok`, so `"codex": {}` is a Codex entry. A
+`kind` that contradicts one of those three ids, such as `"codex": { "kind": "claude" }`, is refused.
+The ids `""` and `__proto__` are refused.
+
+atc parses each entry strictly. An entry that is not an object, sets an unknown field, holds a
+wrong-typed value, or sets a field its kind does not take is left out, and the daemon prints one
+line for each problem when it starts, such as `agents.codex: baseURL is not valid for kind codex`.
+The other entries load. An `agents` value that is not an object leaves the registry empty and prints
+`agents must be an object of agent entries`.
+
+Codex and Grok take `args` as well as `bin`. A `--leader` or `--no-leader` in a Grok entry's `args`
+is dropped, since atc always appends `--no-leader`. A spawn's model replaces a `-m` or `--model` in
+a Codex entry's `args`.
+
+### Several entries per harness
+
+Each entry has its own id, binary, arguments, settings, and generated settings file, so several
+entries of one kind run side by side. Two Claude entries differ in model and settings:
+
+```json
+{
+  "agents": {
+    "claude": { "args": ["--model", "opus"] },
+    "claude-fast": {
+      "kind": "claude",
+      "label": "Claude (fast)",
+      "args": ["--model", "haiku"],
+      "settings": { "outputStyle": "terse" }
+    }
+  }
+}
+```
+
+atc writes one settings file per id and passes it as `--settings`. Entries of kind Codex or Grok
+share the hook file you install, which prints the kind as the agent for every entry of it. The
+daemon accepts those hook lines for every Codex or Grok entry; the
+[attention hooks](#attention-hooks-grok-and-codex) section covers the install.
+
+### Picker order and the default agent
+
+The agent picker and `agents.list` follow the order of `agents` in the file. An agent whose binary
+does not resolve is left out of the picker. A spawn that names no agent runs `claude` when the
+registry has an entry with that id, and the first entry otherwise. With an empty registry,
+`agents.list` still reports `claude` as the default, and the spawn fails because no adapter is
+registered for it.
+
+## Gateways
+
+A Claude entry with a `baseURL` is a gateway: it runs the Claude CLI against a Claude-compatible
+backend, under its own agent id. Claude and GLM sessions then sit side by side in one fleet:
+
+```json
+{
+  "agents": {
+    "claude": {},
     "zai": {
+      "kind": "claude",
       "label": "GLM (z.ai)",
       "mark": "z",
       "baseURL": "https://api.z.ai/api/anthropic",
@@ -376,32 +441,22 @@ and GLM sessions then sit side by side in one fleet:
 }
 ```
 
-| Field          | Default     | Meaning                                                                                                                              |
-| -------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `baseURL`      | required    | The backend's Anthropic-format endpoint. An entry without one is left out of the picker.                                             |
-| `label`        | the id      | The row shown in the agent picker.                                                                                                   |
-| `mark`         | the id      | The overlay column letter; the first character is used.                                                                              |
-| `bin`, `args`  | `claudeBin` | The binary and leading arguments, when the backend needs a different build of the CLI.                                               |
-| `apiKeyHelper` | none        | Command the CLI runs to read the credential, so no token is written into atc's state directory.                                      |
-| `env`          | `{}`        | Extra environment for the session, such as the model each Claude tier maps to.                                                       |
-| `settings`     | none        | More Claude Code settings for this gateway's sessions. The [section below](#extra-session-settings) covers it.                       |
-| `auth`         | none        | The credential profiles impd's broker applies for this gateway. The [brokered credentials](#brokered-credentials) section covers it. |
-
 A spawn through `atc_session_spawn` or `session.spawn` can pick a model and an effort per session;
 the [protocol](../architecture/protocol.md#spawn-options) lists what each agent takes. A gateway
 offers each tier its `env` maps as a model, and passes an effort on to the CLI, which its provider
 may ignore.
 
-The id may not be `claude`, `grok`, or `codex`. atc writes one settings file per id and passes it as
-`--settings`, on the terminal spawn and on a headless turn alike, so a gateway session reaches its
-own backend rather than whatever the terminal exported. Two backends may be given the same `mark`;
-atc does not check, and a clash makes them indistinguishable in the overlay column.
+atc writes one settings file per id and passes it as `--settings`, on the terminal spawn and on a
+headless turn alike, so a gateway session reaches its own backend rather than whatever the terminal
+exported. Two entries may be given the same `mark`; atc does not check, and a clash makes them
+indistinguishable in the overlay column.
 
 ### Extra session settings
 
-`settings` is a Claude Code settings object folded into the generated file, so one gateway's
-sessions carry hooks, permissions, or a model that no other agent gets. atc's own keys stay atc's,
-and a hook list joins the fleet reporter on that event rather than replacing it.
+`settings` is a Claude Code settings object folded into the generated file, so one entry's sessions
+carry hooks, permissions, or a model that no other agent gets. atc's own keys stay atc's, and a hook
+list joins the fleet reporter on that event rather than replacing it. A stock Claude entry takes
+`settings` and `env` the same way a gateway does.
 
 A permission classifier is the case this exists for. Claude Code's auto mode judges nothing in a
 session pointed at another backend, so a gateway session asks about every write and every command
@@ -410,8 +465,9 @@ global settings:
 
 ```json
 {
-  "gateways": {
+  "agents": {
     "zai": {
+      "kind": "claude",
       "baseURL": "https://api.z.ai/api/anthropic",
       "settings": {
         "hooks": {
@@ -430,9 +486,9 @@ global settings:
 
 Claude Code sends `PermissionRequest` only when it is about to ask you, so a hook there answers the
 prompts and sees nothing the CLI already allows. Your own Claude sessions never see it: the block
-belongs to this gateway id alone.
+belongs to this entry's id alone.
 
-A gateway's permission mode carries into every way atc runs its sessions. A `--permission-mode` in
+An entry's permission mode carries into every way atc runs its sessions. A `--permission-mode` in
 its `args` wins over the `permissions.defaultMode` in its `settings`. A headless turn runs in that
 mode. With neither set, a headless turn runs in auto mode. A resumed session takes back the mode it
 was saved in unless an explicit `--permission-mode` overrides it, so atc passes a settings-only mode
@@ -440,8 +496,8 @@ as that flag when it restores a session, and in the resume command it builds.
 
 ### Brokered credentials
 
-A gateway with `auth` selects the credentials that impd's credential broker adds, on the host's
-side, to requests an imp sends to the backend. The config holds secret names, never a value:
+A gateway entry with `auth` selects the credentials that impd's credential broker adds, on the
+host's side, to requests an imp sends to the backend. The config holds secret names, never a value:
 
 ```json
 {
@@ -454,8 +510,9 @@ side, to requests an imp sends to the backend. The config holds secret names, ne
       "dependencies": []
     }
   },
-  "gateways": {
+  "agents": {
     "glm": {
+      "kind": "claude",
       "baseURL": "https://api.z.ai/api/anthropic",
       "auth": {
         "profiles": ["glm"],
@@ -491,8 +548,12 @@ beside the model's:
   "authProfiles": {
     "github": { "secret": "github-imp-agents", "kind": "github" }
   },
-  "gateways": {
-    "glm": { "auth": { "profiles": ["glm", "github"] } }
+  "agents": {
+    "glm": {
+      "kind": "claude",
+      "baseURL": "https://api.z.ai/api/anthropic",
+      "auth": { "profiles": ["glm", "github"] }
+    }
   }
 }
 ```
@@ -501,9 +562,9 @@ impd sets `GH_TOKEN` and `GITHUB_TOKEN` to `imp-broker-placeholder` in the sessi
 `git` run with no sign-in, and the token stays on the host. If impd changes the hosts of its
 `github` kind, a launch fails with `auth_secret_mismatch` until atc's rules match again.
 
-A gateway's `auth.profiles` selects profiles, and atc adds each one's dependencies.
+An entry's `auth.profiles` selects profiles, and atc adds each one's dependencies.
 `auth.placeholderEnv` lists the variables that stand in for the credential, each holding
-`imp-broker-placeholder`. atc refuses a gateway, leaves it out of the picker, and prints the reason
+`imp-broker-placeholder`. atc refuses the entry, leaves it out of the picker, and prints the reason
 when the daemon starts, when any of these holds:
 
 - A selected profile or one of its dependencies is missing or refused, or the dependencies form a
@@ -512,7 +573,7 @@ when the daemon starts, when any of these holds:
   between them by order.
 - `baseURL` is not https, has a port or user info, or its host is not one of the expanded profiles'
   hosts.
-- The gateway sets `apiKeyHelper`, or its `settings` set `apiKeyHelper`.
+- The entry sets `apiKeyHelper`, or its `settings` set `apiKeyHelper`.
 - `env`, `settings.env`, or `placeholderEnv` sets a proxy or CA variable: `HTTPS_PROXY`,
   `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY`, `NODE_USE_ENV_PROXY`, `SSL_CERT_FILE`, `SSL_CERT_DIR`,
   `NODE_EXTRA_CA_CERTS`, `GIT_SSL_CAINFO`, `REQUESTS_CA_BUNDLE`, or `CURL_CA_BUNDLE`, in either
@@ -521,10 +582,10 @@ when the daemon starts, when any of these holds:
 - `env`, `settings.env`, or `placeholderEnv` sets `ANTHROPIC_BASE_URL`, which would replace the
   checked `baseURL`.
 - `env` or `settings.env` sets `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_API_KEY`, or a variable that
-  `placeholderEnv` sets, since the gateway's value would replace the placeholder.
+  `placeholderEnv` sets, since the entry's value would replace the placeholder.
 
 atc leaves out a profile that breaks impd's rules for secret names, hosts, or headers, and prints an
-error for it, so a gateway selecting it is refused as well.
+error for it, so an entry selecting it is refused as well.
 
 A gateway with `auth` starts only on an imp target whose impd has a broker, in a session with a
 broker binding. On every other target, a spawn, a resume, a restore, and an adopt each fail with
@@ -549,9 +610,9 @@ prepared, and `agents.list` lists the gateway as unable to spawn.
 
 ### Claude subscription on imps
 
-`claudeAuth` signs stock Claude in on an imp target with a subscription token that impd holds, so
-the token never enters the imp. On the local target, Claude keeps the sign-in of your own Claude
-config.
+`auth` on a stock Claude entry, one without a `baseURL`, signs it in on an imp target with a
+subscription token that impd holds, so the token never enters the imp. On the local target, Claude
+keeps the sign-in of your own Claude config.
 
 1. Run `claude setup-token` on your machine. It prints an OAuth token that bills against your Pro or
    Max subscription and lasts one year.
@@ -562,8 +623,8 @@ config.
    ```
 
 3. List the secret in the `--grantable` secrets of the target's impd token when you make the token.
-4. Add a profile for the secret and select it in `claudeAuth`, beside any other profile the session
-   needs:
+4. Add a profile for the secret and select it in the entry's `auth`, beside any other profile the
+   session needs:
 
    ```json
    {
@@ -576,23 +637,24 @@ config.
        },
        "github": { "secret": "github-imp-agents", "kind": "github" }
      },
-     "claudeAuth": { "profiles": ["claude", "github"] }
+     "agents": { "claude": { "auth": { "profiles": ["claude", "github"] } } }
    }
    ```
 
-`claudeAuth` holds `profiles` alone: atc fixes the endpoint, `https://api.anthropic.com`, and the
-placeholder, `CLAUDE_CODE_OAUTH_TOKEN=imp-broker-placeholder`. Claude Code sends that variable as a
-bearer `authorization` header to `api.anthropic.com` and to no other host, and impd swaps the
-placeholder for the token there. atc leaves the entry out and prints the reason when the daemon
-starts if a selected profile does not resolve, or if no profile sets a bearer `authorization` header
-for `api.anthropic.com`.
+`auth` on a stock entry holds `profiles` alone, and `placeholderEnv` is refused there: atc fixes the
+endpoint, `https://api.anthropic.com`, and the placeholder,
+`CLAUDE_CODE_OAUTH_TOKEN=imp-broker-placeholder`. Claude Code sends that variable as a bearer
+`authorization` header to `api.anthropic.com` and to no other host, and impd swaps the placeholder
+for the token there. atc leaves the entry out and prints the reason when the daemon starts if a
+selected profile does not resolve, or if no profile sets a bearer `authorization` header for
+`api.anthropic.com`.
 
 On an imp target, each session gets the same guest folder a brokered gateway gets: a settings file
 for its binding revision that holds the placeholder, and a Claude config folder of its own that atc
 seeds with first-run onboarding state, plus folder trust with [clone trust](#clone-trust). atc fills
 that folder with the [Claude config bundle](#claude-config-bundle). The CLI starts without
-`--permission-mode`, and atc drops one from `claudeArgs`, so the auto mode the bundle sets applies.
-A headless turn is refused there, as on every imp session.
+`--permission-mode`, and atc drops one from the entry's `args`, so the auto mode the bundle sets
+applies. A headless turn is refused there, as on every imp session.
 
 Three kinds of variable keep Claude Code from sending the subscription token to the Anthropic API:
 `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` outrank it, `ANTHROPIC_BASE_URL` moves the endpoint,
@@ -600,10 +662,15 @@ and the `CLAUDE_CODE_USE_*` provider selectors (`BEDROCK`, `VERTEX`, `FOUNDRY`, 
 `ANTHROPIC_AWS`, `ANTHROPIC_GOOGLE_CLOUD`, and `GATEWAY`) select another provider. atc keeps each of
 them away from a subscription session:
 
-- A spawn fails with `auth_target_unsupported` when an inline `--settings` in `claudeArgs` sets any
-  of them, `CLAUDE_CODE_OAUTH_TOKEN`, or a proxy or CA variable.
+- The entry is refused when its `env` or `settings.env` sets any of them, `CLAUDE_CODE_OAUTH_TOKEN`,
+  or a proxy or CA variable, and when its `settings` set `apiKeyHelper`. The error reads
+  `agents.<id>: env must not set <variable>, which would override or route around the subscription sign-in`.
+- A spawn fails with `auth_target_unsupported` when an inline `--settings` in the entry's `args`
+  sets any of them, `CLAUDE_CODE_OAUTH_TOKEN`, or a proxy or CA variable.
 - The session exits with status 78 before Claude starts when the imp's environment sets any of them,
   and its screen shows which one.
+
+The same `env` and `settings` load on a stock entry without `auth`, where nothing is bound.
 
 A revoked grant or an expired token gives `API Error: 401` inside the session, and Claude never
 falls back to another sign-in. To renew the token, run `claude setup-token` again and replace the
@@ -611,9 +678,9 @@ secret with `imp secret add claude-setup-token --replace`.
 
 #### Claude config bundle
 
-Each launch of a `claudeAuth` session on an imp copies an allow-listed part of the daemon host's
-Claude config folder (`$CLAUDE_CONFIG_DIR`, or `~/.claude`) into the session's own config folder,
-where Claude Code reads it as user settings:
+Each launch of a stock Claude session with `auth` on an imp copies an allow-listed part of the
+daemon host's Claude config folder (`$CLAUDE_CONFIG_DIR`, or `~/.claude`) into the session's own
+config folder, where Claude Code reads it as user settings:
 
 - `CLAUDE.md` and `statusline.sh`
 - every file under `agents/` and `output-styles/`
@@ -649,6 +716,44 @@ the change. A running session keeps the bundle it started with. On each launch t
 every bundle entry in the session's config folder, so an entry you remove from the host leaves the
 session too. The state Claude Code writes beside the bundle, `.claude.json` among it, stays.
 
+## Migrating from the old keys
+
+Before the `agents` map, config.json held one key per harness (`claudeBin`, `claudeArgs`, `grokBin`,
+`grokArgs`, `codexBin`, `codexArgs`), `claudeAuth`, and a `gateways` map. A file with none of the
+keys of `agents` and any of those loads with its old meaning: `claude`, `grok`, and `codex` entries
+in that order, then each gateway the old parser accepted, in file order. The daemon prints one line
+when it starts:
+
+```text
+atc daemon: config: config.json uses the old agent keys (claudeBin, gateways); run 'atc config migrate' to move them into agents
+```
+
+`atc config migrate` prints the file rewritten around `agents`, with the old keys removed and
+`agents` in the place of the first of them. Each entry holds only the fields that differ from a
+default. `--write` copies the file to `config.json.bak-<UTC timestamp>` beside it, then rewrites it
+in place and prints both paths. `--file <path>` migrates another file.
+
+```bash
+atc config migrate
+atc config migrate --write
+```
+
+A gateway the old parser left out, because it had no `baseURL`, took an id that is built in or
+empty, or failed its auth checks, stays out. The command prints one line on stderr for each, such as
+`atc config migrate: gateways.broken is left out: it has no baseURL`, and never prints a value. A
+file that already uses `agents` prints `config.json already uses agents; nothing to migrate` and
+changes nothing.
+
+A file that sets `agents` and any old key is unusable. Every spawn fails, as for invalid JSON, and
+the problem reads:
+
+```text
+claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'
+```
+
+`atc config migrate` refuses such a file with the same message and exit code 1, so move the old keys
+into `agents` by hand.
+
 ## Attention hooks (Grok and Codex)
 
 Claude needs no install step: atc instruments each spawned Claude session through a generated
@@ -673,6 +778,11 @@ Codex hooks live in `$CODEX_HOME/hooks.json` (`~/.codex` when `CODEX_HOME` is un
 2. Open `codex`, review the atc hooks in its hooks list, and approve them once. Codex parses
    untrusted hooks but never runs them.
 
+The installed hook files print `--agent codex` or `--agent grok` for every entry of that kind. A
+second Codex entry, such as `codex-fast`, therefore needs no extra install: the daemon accepts the
+lines carrying the kind for the session of every entry of that kind. A Claude entry's generated
+settings file prints the entry's id instead.
+
 Sessions you start outside atc report events too; the reporter exits immediately when no atc session
 id is present.
 
@@ -681,8 +791,9 @@ id is present.
 A harness you start from inside an atc session, such as `codex exec` run by a Claude session,
 inherits that session's `ATC_SESSION_ID` and `ATC_SOCKET`, so its hooks report under the parent
 session. Each hook command atc writes or prints carries the agent it reports for
-(`hook-report --agent codex`), and the daemon drops a report whose agent differs from the session's.
-A dropped report never changes the session's agent session id, last output, or state, and the
+(`hook-report --agent codex`), and the daemon drops a report whose agent differs from the one the
+session's agent reports under: the entry id for a Claude entry, and the kind for a Codex or Grok
+entry. A dropped report never changes the session's agent session id, last output, or state, and the
 reporter exits 0.
 
 A hook command without `--agent`, such as one installed from an older `atc codex-hooks` or

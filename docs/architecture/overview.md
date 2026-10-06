@@ -67,17 +67,19 @@ The server returns the client's requested protocol version from `initialize` whe
 ## Agents and gateways
 
 A session records which agent it runs under as an id, and the daemon keys its adapter registry by
-that id. The built-in ids are `claude`, `grok`, and `codex`. A configured gateway is an id of its
-own: the Claude CLI against a Claude-compatible backend, with its own picker row, its own generated
-settings file, and its own fleet rows. That settings file is passed to the terminal spawn and to a
-headless turn alike, so ejecting a gateway session keeps it on its backend. A fleet row whose id has
-no registered adapter keeps its place and refuses to revive, so a backend dropped from the config
-never comes back as Claude.
+that id. The config's `agents` map holds exactly the agents atc offers, one adapter per entry in
+file order, and an entry of kind `claude`, `codex`, or `grok` picks the CLI it drives. Several
+entries may share a kind. A Claude entry with a `baseURL` is a gateway: the Claude CLI against a
+Claude-compatible backend, with its own picker row, its own generated settings file, and its own
+fleet rows. That settings file is passed to the terminal spawn and to a headless turn alike, so
+ejecting a gateway session keeps it on its backend. A fleet row whose id has no registered adapter
+keeps its place and refuses to revive, so a backend dropped from the config never comes back as
+Claude.
 
 `n` and `r` open an agent picker first. The picker resolves each agent's configured binary as it
 opens and lists only the ones that resolve, so every row is a session that can start — an
 uninstalled agent would otherwise show up three steps later as a PTY that dies on exec. A menu with
-no rows at all carries the config keys to set. A menu with one row is no choice, so the flow takes
+no rows at all names the `agents` key to set. A menu with one row is no choice, so the flow takes
 that agent without showing the picker; Esc from the step that follows leaves the flow.
 
 The target step follows the same rule. It counts only the targets that can run the chosen source: a
