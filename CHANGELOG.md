@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.33.0...@zgeoff/atc@2.34.0) (2026-10-06)
+
+
+### Features
+
+* **geo-108:** pick the clone destination when a git spawn gives none ([#323](https://github.com/zgeoff/atc/issues/323)) ([4cfe284](https://github.com/zgeoff/atc/commit/4cfe28411bcc98897920789d46c0ffda21ae7aa9))
+
 ## [2.33.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.32.1...@zgeoff/atc@2.33.0) (2026-10-06)
 
 ### Features
