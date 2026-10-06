@@ -1,0 +1,175 @@
+import { expect, test } from 'bun:test';
+import { buildMigratedConfig } from './build-migrated-config';
+import { parseConfig } from './shared/config';
+import { getRecord } from './shared/get-record';
+import { isRecord } from './shared/report';
+
+test('it replaces the old keys with agents at the position of the first one', () => {
+  const result = buildMigratedConfig({
+    leader: 'ctrl-a',
+    claudeBin: '/opt/claude',
+    dirs: { roots: ['/w'] },
+    grokArgs: ['--yolo'],
+  });
+
+  if (result.kind !== 'migrated') {
+    throw new Error('expected a migrated config');
+  }
+
+  expect(result.text).toBe(
+    `${JSON.stringify(
+      {
+        leader: 'ctrl-a',
+        agents: {
+          claude: { bin: '/opt/claude' },
+          grok: { args: ['--yolo'] },
+          codex: {},
+        },
+        dirs: { roots: ['/w'] },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
+  expect(result.notes).toStrictEqual([]);
+});
+
+test('it appends agents when the file sets no old key', () => {
+  const result = buildMigratedConfig({ leader: 'ctrl-a' });
+
+  if (result.kind !== 'migrated') {
+    throw new Error('expected a migrated config');
+  }
+
+  const migrated: unknown = JSON.parse(result.text);
+  const keys = isRecord(migrated) ? Object.keys(migrated) : [];
+
+  expect(keys).toStrictEqual(['leader', 'agents']);
+});
+
+test('it writes a gateway that inherited the claude bin and args with them', () => {
+  const result = buildMigratedConfig({
+    claudeBin: '/opt/claude',
+    claudeArgs: ['--verbose'],
+    gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic', label: 'GLM', mark: 'x' } },
+  });
+
+  if (result.kind !== 'migrated') {
+    throw new Error('expected a migrated config');
+  }
+
+  const migrated: unknown = JSON.parse(result.text);
+
+  expect(getRecord(getRecord({ migrated }, 'migrated'), 'agents')['zai']).toStrictEqual({
+    kind: 'claude',
+    label: 'GLM',
+    mark: 'x',
+    bin: '/opt/claude',
+    args: ['--verbose'],
+    baseURL: 'https://api.z.ai/api/anthropic',
+  });
+});
+
+test('it leaves out a dropped gateway and notes the reason without a value', () => {
+  const result = buildMigratedConfig({
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'raw' },
+    },
+    gateways: {
+      noURL: { label: 'x' },
+      claude: { baseURL: 'https://one.example.com' },
+      '': { baseURL: 'https://two.example.com' },
+      glm: { baseURL: 'https://api.z.ai/api/anthropic', auth: { profiles: ['glm'] } },
+      kept: { baseURL: 'https://kept.example.com', env: { TOKEN: 'sk-secret-value' } },
+    },
+  });
+
+  if (result.kind !== 'migrated') {
+    throw new Error('expected a migrated config');
+  }
+
+  expect(result.notes).toStrictEqual([
+    'atc config migrate: gateways.noURL is left out: it has no baseURL',
+    'atc config migrate: gateways.claude is left out: its id is the built-in agent claude',
+    'atc config migrate: gateways. is left out: its id is empty',
+    'atc config migrate: gateways.glm is left out: profile glm is selected, but authProfiles has no usable profile by that name',
+  ]);
+
+  const migrated: unknown = JSON.parse(result.text);
+  const agents = getRecord(getRecord({ migrated }, 'migrated'), 'agents');
+
+  expect(Object.keys(agents)).toStrictEqual(['claude', 'grok', 'codex', 'kept']);
+});
+
+test('it parses the migrated config into the entries the old keys gave', () => {
+  const legacy = {
+    claudeBin: '/opt/claude',
+    claudeArgs: ['--verbose'],
+    claudeAuth: { profiles: ['claude'] },
+    grokBin: 'my-grok',
+    codexArgs: ['--search'],
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    gateways: {
+      inherits: { baseURL: 'https://one.example.com' },
+      own: {
+        baseURL: 'https://two.example.com',
+        bin: '/opt/other',
+        args: ['--x'],
+        label: 'Two',
+        mark: 'T',
+        env: { A: 'b' },
+        settings: { model: 'opus' },
+        apiKeyHelper: 'op read x',
+      },
+      glm: {
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  };
+
+  const result = buildMigratedConfig(legacy);
+
+  if (result.kind !== 'migrated') {
+    throw new Error('expected a migrated config');
+  }
+
+  const written: unknown = JSON.parse(result.text);
+  const migrated = parseConfig(written);
+
+  expect({ agents: migrated.agents, errors: migrated.agentErrors }).toStrictEqual({
+    agents: parseConfig(legacy).agents,
+    errors: [],
+  });
+});
+
+test('it reports a file that already uses agents as current', () => {
+  expect(buildMigratedConfig({ agents: { claude: {} } })).toStrictEqual({ kind: 'current' });
+});
+
+test('it refuses a mixed file with the keys it found', () => {
+  expect(buildMigratedConfig({ agents: {}, codexBin: 'x', gateways: {} })).toStrictEqual({
+    kind: 'unusable',
+    detail:
+      "codexBin and gateways cannot be set together with agents; move them into agents or run 'atc config migrate'",
+  });
+});
+
+test('it refuses a root that is not an object', () => {
+  expect(buildMigratedConfig([])).toStrictEqual({
+    kind: 'unusable',
+    detail: 'the root is an array, not an object',
+  });
+});

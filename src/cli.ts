@@ -178,6 +178,44 @@ const main = defineCommand({
           await grants.runGrants(ctx.args.revoke ?? null);
         },
       }),
+    config: () =>
+      defineCommand({
+        meta: { name: 'config', description: "Work on atc's config.json" },
+        subCommands: {
+          migrate: () =>
+            defineCommand({
+              meta: {
+                name: 'migrate',
+                description:
+                  'Move the old agent keys of config.json into agents: print the result, or rewrite the file with --write',
+              },
+              args: {
+                write: {
+                  type: 'boolean',
+                  default: false,
+                  description: 'Back the file up beside itself, then rewrite it in place',
+                },
+                file: {
+                  type: 'string',
+                  description: 'The config file to migrate (default ~/.config/atc/config.json)',
+                },
+              },
+              async run(ctx) {
+                const migrate = await import('./run-config-migrate');
+                const config = await import('./shared/config');
+
+                const code = migrate.runConfigMigrate(
+                  ctx.args.file ?? config.configFile,
+                  ctx.args.write,
+                );
+
+                if (code !== 0) {
+                  process.exit(code);
+                }
+              },
+            }),
+        },
+      }),
     daemon: () =>
       defineCommand({
         meta: {
