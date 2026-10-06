@@ -227,8 +227,8 @@ mod. `scripts/` holds repo tooling, not app code.
   generated `--settings` file (`writeHookSettings`), holding hooks (`SessionStart`, `Notification`,
   `Stop`, `UserPromptSubmit`, `SessionEnd`) and a chained statusline, and the `atc-bridge` mod
   passed as `--plugin-dir`. A session that signs in through impd's broker on an imp also gets a
-  Claude config folder of its own in its guest folder, passed as `CLAUDE_CONFIG_DIR` and seeded
-  with onboarding state and clone trust.
+  Claude config folder of its own in its guest folder, passed as `CLAUDE_CONFIG_DIR` and seeded with
+  onboarding state and clone trust.
 - The `atc-bridge` mod's source lives in `mods/atc-bridge/`. `bun run build:atc-bridge` regenerates
   its embedded copy in `src/agents/atc-bridge-files.ts`, which compiled binaries write out. The mods
   API is early access, so CI validates and tests the mod against one pinned Claude Code version.
