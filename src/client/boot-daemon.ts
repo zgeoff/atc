@@ -60,18 +60,21 @@ export interface DaemonBootOptions {
  * its own boot would otherwise flag daemons that are already current.
  */
 export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise<DaemonBoot> {
+  const wait =
+    options.waitForDaemonMs === undefined
+      ? null
+      : { deadline: Date.now() + options.waitForDaemonMs, timeoutMs: options.waitForDaemonMs };
+
   for (let attempt = 0; attempt < 2; attempt++) {
     const build = getBuild();
-
-    const opened =
-      options.waitForDaemonMs === undefined
-        ? await openOrBootDaemon()
-        : await waitForDaemon(options.waitForDaemonMs);
-
+    const opened = wait === null ? await openOrBootDaemon() : await waitForDaemon(wait);
     const client = opened.client;
 
     try {
-      const hello = await client.sendHello(build);
+      const hello =
+        wait === null
+          ? await client.sendHello(build)
+          : await waitForHello(() => client.sendHello(build), wait);
 
       return {
         client,
@@ -135,12 +138,17 @@ async function openOrBootDaemon(): Promise<OpenedDaemon> {
   return booted;
 }
 
+// The time a waiting boot gives up, and the length of its wait for the
+// error text.
+interface DaemonWait {
+  readonly deadline: number;
+  readonly timeoutMs: number;
+}
+
 /**
  * Polls the known sockets until a daemon answers, and never starts one.
  */
-async function waitForDaemon(timeoutMs: number): Promise<OpenedDaemon> {
-  const deadline = Date.now() + timeoutMs;
-
+async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
   for (;;) {
     const opened = await tryOpenKnownDaemon();
 
@@ -148,11 +156,38 @@ async function waitForDaemon(timeoutMs: number): Promise<OpenedDaemon> {
       return opened;
     }
 
-    if (Date.now() >= deadline) {
-      throw new Error(formatWaitFailure(timeoutMs));
+    if (Date.now() >= wait.deadline) {
+      throw new Error(formatWaitFailure(wait.timeoutMs));
     }
 
     await Bun.sleep(100);
+  }
+}
+
+/**
+ * Sends the handshake and rejects once the wait's deadline passes, so a
+ * daemon that takes the connection but never answers cannot hold the wait
+ * open.
+ */
+async function waitForHello(
+  sendHello: () => Promise<Readonly<Record<string, unknown>>>,
+  wait: DaemonWait,
+): Promise<Readonly<Record<string, unknown>>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const expired = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => {
+        reject(new Error(formatWaitFailure(wait.timeoutMs)));
+      },
+      Math.max(0, wait.deadline - Date.now()),
+    );
+  });
+
+  try {
+    return await Promise.race([sendHello(), expired]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

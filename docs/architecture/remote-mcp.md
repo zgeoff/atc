@@ -73,7 +73,7 @@ Description=atc daemon
 
 [Service]
 ExecStart=%h/.local/bin/atc daemon --listen <tailnet_address>:8415 --token-file %h/.config/atc/daemon-token
-Restart=on-failure
+Restart=always
 RestartSec=10
 
 [Install]
@@ -106,9 +106,11 @@ answer. It then exits with status 1 and an error that holds the socket it tried,
 
 `After=` orders the MCP unit after the daemon process starts, not after its socket accepts
 connections, so the wait covers the time between the two. `Requires=` starts the daemon unit with
-the MCP unit, and systemd stops or restarts the MCP unit whenever the daemon unit stops or restarts.
-A restart ends the approvals in progress, and grants survive it. The MCP unit keeps the default
-`KillMode`, since no daemon runs in its control group.
+the MCP unit, and `systemctl stop` or `systemctl restart` on the daemon unit stops or restarts the
+MCP unit too. That MCP restart ends the approvals in progress, and grants survive it. `atc daemon`
+exits with status 0 on SIGTERM, so the daemon unit takes `Restart=always`: under
+`Restart=on-failure`, a daemon that something outside systemd stopped stays down. The MCP unit keeps
+the default `KillMode`, since no daemon runs in its control group.
 
 ## Gateway
 

@@ -439,3 +439,51 @@ await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
   expect(existsSync(join(dir, '.local', 'state', 'atc', 'daemon.lock'))).toBeFalse();
   expect(existsSync(join(dir, 'atc-daemon.sock'))).toBeFalse();
 });
+
+test('it rejects when a socket takes the connection but never answers the handshake before the wait ends', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-boot-daemon-'));
+  const probePath = join(dir, 'probe.ts');
+  const silent = Bun.listen({ unix: join(dir, 'atc-daemon.sock'), socket: { data: () => {} } });
+
+  writeFileSync(
+    probePath,
+    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
+await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
+  process.stderr.write(error.message);
+  process.exit(3);
+});
+`,
+  );
+
+  onTestFinished(() => {
+    silent.stop(true);
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const env: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+
+  env['HOME'] = dir;
+  env['XDG_RUNTIME_DIR'] = dir;
+
+  const started = Date.now();
+  const proc = Bun.spawn([process.execPath, probePath], { env, stdout: 'ignore', stderr: 'pipe' });
+
+  const stderr = await new Response(proc.stderr).text();
+
+  await proc.exited;
+
+  expect(proc.exitCode).toBe(3);
+
+  expect(stderr).toBe(
+    `no atc daemon answered at ${join(dir, 'atc-daemon.sock')} within 0.3s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
+  );
+
+  expect(Date.now() - started).toBeLessThan(5000);
+});
