@@ -2035,7 +2035,9 @@ export class SessionManager {
     hostKey: SessionID,
     target: string,
     dir: string,
-    planned: Readonly<Record<string, string>>,
+
+    // oxlint-disable-next-line prefer-readonly-parameter-types -- file bytes have no readonly form
+    planned: Readonly<Record<string, Uint8Array | string>>,
   ): Promise<void> {
     await provider.prepareHost({
       host: hostKey,

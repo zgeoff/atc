@@ -1,8 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { updateEnv } from '../../test/update-env';
 import { parseConfig } from '../shared/config';
 import type { Config } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
@@ -298,8 +299,8 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
 
   const settingsFile = plan.files['auth-r2/settings.json'];
 
-  if (settingsFile === undefined) {
-    throw new Error('expected the revision settings file');
+  if (typeof settingsFile !== 'string') {
+    throw new TypeError('expected the revision settings file');
   }
 
   const settings: unknown = JSON.parse(settingsFile);
@@ -310,6 +311,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
       'sh',
       '/tmp/atc/sessions/s1/claude-config',
       '/tmp/atc/sessions/s1/claude-config-seed.json',
+      '/tmp/atc/sessions/s1/claude-config-bundle',
       'claude',
       '--verbose',
       '--settings',
@@ -331,11 +333,99 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
 
   const seed = plan.files['claude-config-seed.json'];
 
-  if (seed === undefined) {
-    throw new Error('expected a seed file');
+  if (typeof seed !== 'string') {
+    throw new TypeError('expected a seed file');
   }
 
   expect(JSON.parse(seed)).toStrictEqual({ hasCompletedOnboarding: true });
+});
+
+test("it ships the host's Claude config as the session's user settings and keeps it out of the --settings file", () => {
+  using tmp = setupTempDir('atc-claude-bundle-');
+
+  mkdirSync(join(tmp.dir, 'skills', 'delegate'), { recursive: true });
+  writeFileSync(join(tmp.dir, 'skills', 'delegate', 'SKILL.md'), 'delegate');
+  writeFileSync(join(tmp.dir, 'statusline.sh'), 'echo status');
+
+  writeFileSync(
+    join(tmp.dir, 'settings.json'),
+    JSON.stringify({
+      outputStyle: 'STE Direct',
+      model: 'opus[1m]',
+      statusLine: { type: 'command', command: `bash "${tmp.dir}/statusline.sh"`, padding: 2 },
+    }),
+  );
+
+  updateEnv('CLAUDE_CONFIG_DIR', tmp.dir);
+
+  const adapter = new ClaudeAdapter(
+    parseConfig({
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+      },
+      claudeAuth: { profiles: ['claude'] },
+    }),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+    },
+  );
+
+  if (plan === null) {
+    throw new Error('expected a guest spawn plan');
+  }
+
+  const userSettings = plan.files['claude-config-bundle/settings.json'];
+  const flagSettings = plan.files['auth-r1/settings.json'];
+
+  if (typeof userSettings !== 'string' || typeof flagSettings !== 'string') {
+    throw new TypeError('expected the bundle and revision settings files');
+  }
+
+  expect(JSON.parse(userSettings)).toStrictEqual({
+    model: 'opus[1m]',
+    outputStyle: 'STE Direct',
+    statusLine: {
+      type: 'command',
+      command: 'bash "/tmp/atc/sessions/s1/claude-config/statusline.sh"',
+      padding: 2,
+    },
+    permissions: { defaultMode: 'auto' },
+  });
+
+  expect(JSON.parse(flagSettings)).toStrictEqual({
+    hooks: expect.toContainAllKeys([
+      'SessionStart',
+      'Notification',
+      'Stop',
+      'UserPromptSubmit',
+      'SessionEnd',
+    ]),
+    statusLine: {
+      type: 'command',
+      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      padding: 2,
+    },
+    env: {
+      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    },
+  });
+
+  expect(Object.keys(plan.files)).toIncludeAllMembers([
+    'claude-config-bundle/statusline.sh',
+    'claude-config-bundle/skills/delegate/SKILL.md',
+  ]);
 });
 
 test('it plans a guest spawn without a broker binding in the config of the host image', () => {
@@ -574,8 +664,8 @@ test('it seeds folder trust for the exact clone root of a subscription session',
 
   const seed = adapter.planGuestWorkspaceTrust('/work/repo')?.['claude-config-seed.json'];
 
-  if (seed === undefined) {
-    throw new Error('expected a seed file');
+  if (typeof seed !== 'string') {
+    throw new TypeError('expected a seed file');
   }
 
   expect(JSON.parse(seed)).toStrictEqual({

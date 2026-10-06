@@ -1,4 +1,5 @@
 import type { SpawnPlan } from './agent-adapter';
+import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_CONFIG_SEED_FILE } from './claude-config-seed-file';
 
 /**
@@ -7,7 +8,10 @@ import { CLAUDE_CONFIG_SEED_FILE } from './claude-config-seed-file';
  * setting of the host's image reaches it. A shell copies the seed into the
  * folder only when the folder holds no `.claude.json` yet, then runs the
  * CLI, so a resumed session keeps the state the CLI wrote, a folder trust
- * a person accepted included. `argv` is the CLI's own command line. The
+ * a person accepted included. When the guest folder holds a staged config
+ * bundle, the shell replaces the bundle's entries in the config folder with
+ * the staged ones and removes the staging folder, so each launch reads the
+ * bundle its transfer carried. `argv` is the CLI's own command line. The
  * shell exits before it runs the CLI when the host's environment sets any
  * of `refusedEnv`, which must be variable names, and says which one.
  */
@@ -15,7 +19,7 @@ export function buildClaudeGuestLaunch(
   guestDir: string,
   argv: readonly string[],
   refusedEnv: readonly string[] = [],
-): SpawnPlan & { readonly env: Readonly<Record<string, string>> } {
+): SpawnPlan & { readonly env: { readonly CLAUDE_CONFIG_DIR: string } } {
   const configDir = `${guestDir}/${CLAUDE_CONFIG_FOLDER}`;
   const guards = refusedEnv.map((name) => buildEnvGuard(name)).join('');
 
@@ -27,6 +31,7 @@ export function buildClaudeGuestLaunch(
       'sh',
       configDir,
       `${guestDir}/${CLAUDE_CONFIG_SEED_FILE}`,
+      `${guestDir}/${CLAUDE_CONFIG_BUNDLE_FOLDER}`,
       ...argv,
     ],
     env: { CLAUDE_CONFIG_DIR: configDir },
@@ -49,7 +54,13 @@ function buildEnvGuard(name: string): string {
 const REFUSED_EXIT = 78;
 const CLAUDE_CONFIG_FOLDER = 'claude-config';
 
-// The arguments are the config folder, the seed, and the CLI's own command
-// line.
-const SEED_CONFIG_SCRIPT =
-  'mkdir -p "$1" && { [ -e "$1/.claude.json" ] || cp "$2" "$1/.claude.json"; } && shift 2 && exec "$@"';
+// The arguments are the config folder, the seed, the staged bundle, and the
+// CLI's own command line. The removed entries are every top-level entry a
+// bundle can hold, so one the host dropped leaves the config folder too.
+const SEED_CONFIG_SCRIPT = [
+  'mkdir -p "$1"',
+  '{ [ -e "$1/.claude.json" ] || cp "$2" "$1/.claude.json"; }',
+  '{ [ ! -d "$3" ] || { rm -rf "$1/CLAUDE.md" "$1/settings.json" "$1/statusline.sh" "$1/agents" "$1/output-styles" "$1/skills" && cp -R "$3/." "$1/" && rm -rf "$3"; }; }',
+  'shift 3',
+  'exec "$@"',
+].join(' && ');

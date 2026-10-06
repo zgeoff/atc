@@ -28,8 +28,25 @@ test('it packs files that tar unpacks with their content, parent directories, an
   expect(readFileSync(join(tmp.dir, 'bridge', 'hooks', 'register.ts'), 'utf8')).toHaveLength(1000);
 });
 
-test('it refuses a path longer than an archive header holds', () => {
+test('it packs a path longer than 100 bytes that tar unpacks at the full path', async () => {
+  using tmp = setupTempDir('atc-tar-');
+
+  const path = `${'d'.repeat(80)}/${'e'.repeat(60)}/${'f'.repeat(90)}.md`;
+
+  const proc = Bun.spawn(['tar', '-x', '-f', '-', '-C', tmp.dir], {
+    stdin: buildTarArchive([{ path, content: 'deep' }]),
+    stdout: 'ignore',
+    stderr: 'pipe',
+  });
+
+  const stderr = await new Response(proc.stderr).text();
+
+  expect({ code: await proc.exited, stderr }).toStrictEqual({ code: 0, stderr: '' });
+  expect(readFileSync(join(tmp.dir, path), 'utf8')).toBe('deep');
+});
+
+test('it refuses a path that fits no split into an archive header', () => {
   expect(() => buildTarArchive([{ path: 'a'.repeat(101), content: '' }])).toThrow(
-    'longer than 100 bytes',
+    'does not fit a ustar header',
   );
 });

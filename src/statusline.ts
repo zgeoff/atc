@@ -1,13 +1,14 @@
 import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { resolveAgentHome } from './agents/resolve-agent-home';
 import { sendBridgeRequest } from './protocol/send-bridge-request';
 import { statusFile } from './shared/config';
 import { isRecord, sendReport } from './shared/report';
 
 /**
  * Runs as the statusLine command injected into wrangled sessions. Chains the
- * user's own statusline (from ~/.claude/settings.json), appends the atc fleet
+ * user's own statusline (from settings.json in the Claude config folder,
+ * `$CLAUDE_CONFIG_DIR` or ~/.claude), appends the atc fleet
  * segment, and heartbeats the session id back to the atc socket, with the
  * agent id the command gave it. Always exits 0 so it never breaks the
  * session it renders for.
@@ -37,7 +38,7 @@ export async function runStatusline(agent: string): Promise<void> {
   let chained = '';
 
   try {
-    const settingsPath = join(homedir(), '.claude', 'settings.json');
+    const settingsPath = join(resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude'), 'settings.json');
     const rawSettings = readFileSync(settingsPath, 'utf8');
     const settings: unknown = JSON.parse(rawSettings);
     const statusLine = isRecord(settings) ? settings['statusLine'] : undefined;

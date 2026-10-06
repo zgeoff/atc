@@ -56,6 +56,16 @@ test("it resolves the grok and codex homes inside this run's own home", () => {
   ]).toStrictEqual([join(root, 'home', '.grok'), join(root, 'home', '.codex')]);
 });
 
+test("it resolves the Claude config folder inside this run's own home", () => {
+  const root = process.env['ATC_TEST_HOME'];
+
+  if (root === undefined) {
+    throw new Error('the test home fixture is not in place');
+  }
+
+  expect(resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude')).toBe(join(root, 'home', '.claude'));
+});
+
 test('it runs with no enclosing atc session to report to', () => {
   expect(process.env).not.toContainAnyKeys(['ATC_SESSION_ID', 'ATC_SOCKET']);
 });

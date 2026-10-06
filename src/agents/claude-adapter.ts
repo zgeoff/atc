@@ -30,13 +30,16 @@ import { buildClaudeConfigSeed } from './build-claude-config-seed';
 import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
 import { buildHookSettings } from './build-hook-settings';
+import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { findFlagValue } from './find-flag-value';
+import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { planPastedLineInput } from './plan-pasted-line-input';
+import { resolveAgentHome } from './resolve-agent-home';
 import { resolveClaudeGlobalConfigPath } from './resolve-claude-global-config-path';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
 import { updateClaudeProjectTrust } from './update-claude-project-trust';
@@ -189,9 +192,11 @@ export class ClaudeAdapter implements AgentAdapter {
   // A settings file of the session's own per binding revision carries the
   // placeholder, and so does the CLI's environment. The configured
   // arguments go without a permission mode, so the mode the session's own
-  // user settings set applies. A credential, endpoint, or provider variable
-  // in the configured settings, or in the host's environment, would keep
-  // the CLI from sending the placeholder, so either refuses the start.
+  // user settings set applies. Those user settings, with the rest of the
+  // config bundle, come from the host's own Claude config folder as it is
+  // at this launch. A credential, endpoint, or provider variable in the
+  // configured settings, or in the host's environment, would keep the CLI
+  // from sending the placeholder, so either refuses the start.
   private planSubscriptionGuestSpawn(
     opts: SpawnOptions,
     dir: string,
@@ -207,12 +212,6 @@ export class ClaudeAdapter implements AgentAdapter {
 
     const settingsPath = `auth-r${auth.revision}/settings.json`;
 
-    const settings = buildHookSettings(
-      { id: this.id, env: { ...auth.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' } },
-      0,
-      argv,
-    );
-
     const launch = buildClaudeGuestLaunch(
       dir,
       [
@@ -227,12 +226,32 @@ export class ClaudeAdapter implements AgentAdapter {
       [...OUTRANKING_VARIABLES],
     );
 
+    const bundle = loadClaudeConfigBundle(
+      resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude'),
+      launch.env.CLAUDE_CONFIG_DIR,
+    );
+
+    const userSettings = bundle['settings.json'];
+    const padding = typeof userSettings === 'string' ? findStatuslinePadding(userSettings) : 0;
+
+    const settings = buildHookSettings(
+      { id: this.id, env: { ...auth.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' } },
+      padding,
+      argv,
+    );
+
     return {
       bin: launch.bin,
       args: launch.args,
       files: {
         [settingsPath]: JSON.stringify(settings, null, 2),
         ...buildClaudeConfigSeed(null),
+        ...Object.fromEntries(
+          Object.entries(bundle).map(([path, content]) => [
+            `${CLAUDE_CONFIG_BUNDLE_FOLDER}/${path}`,
+            content,
+          ]),
+        ),
         ...Object.fromEntries(bridge),
       },
       env: { ...launch.env, ...auth.env },
@@ -463,6 +482,20 @@ const OUTRANKING_VARIABLES: ReadonlySet<string> = new Set([
   'CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD',
   'CLAUDE_CODE_USE_GATEWAY',
 ]);
+
+// The padding of the statusline the bundle's user settings set, which atc's
+// own statusline mirrors since it renders that one first, or none.
+function findStatuslinePadding(settings: string): number {
+  try {
+    const parsed: unknown = JSON.parse(settings);
+    const statusLine = isRecord(parsed) ? parsed['statusLine'] : undefined;
+    const padding = isRecord(statusLine) ? statusLine['padding'] : undefined;
+
+    return typeof padding === 'number' ? padding : 0;
+  } catch {
+    return 0;
+  }
+}
 
 // The aliases Claude Code documents for `--model`, each resolving to a model
 // the account picks. A full model name is accepted as well.

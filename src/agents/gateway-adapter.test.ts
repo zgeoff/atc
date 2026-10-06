@@ -570,14 +570,14 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
 
   const settingsFile = plan.files['auth-r3/settings.json'];
 
-  if (settingsFile === undefined) {
-    throw new Error('expected the revision settings file');
+  if (typeof settingsFile !== 'string') {
+    throw new TypeError('expected the revision settings file');
   }
 
   const onboardingFile = plan.files['claude-config-seed.json'];
 
-  if (onboardingFile === undefined) {
-    throw new Error('expected the Claude config file');
+  if (typeof onboardingFile !== 'string') {
+    throw new TypeError('expected the Claude config file');
   }
 
   const settings: unknown = JSON.parse(settingsFile);
@@ -589,6 +589,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
       'sh',
       '/tmp/atc/sessions/s1/claude-config',
       '/tmp/atc/sessions/s1/claude-config-seed.json',
+      '/tmp/atc/sessions/s1/claude-config-bundle',
       'claude',
       '--permission-mode',
       'default',
@@ -668,13 +669,13 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
 
   const settingsFile = plan.files['auth-r1/settings.json'];
 
-  if (settingsFile === undefined) {
-    throw new Error('expected the revision settings file');
+  if (typeof settingsFile !== 'string') {
+    throw new TypeError('expected the revision settings file');
   }
 
   const settings: unknown = JSON.parse(settingsFile);
 
-  expect(plan.args.slice(6)).toStrictEqual([
+  expect(plan.args.slice(7)).toStrictEqual([
     '--permission-mode',
     'default',
     '--settings',

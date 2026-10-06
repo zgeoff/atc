@@ -69,7 +69,7 @@ export interface AuthSelection {
  * overrides.
  */
 export interface GuestSpawnPlan extends SpawnPlan {
-  readonly files: Readonly<Record<string, string>>;
+  readonly files: Readonly<Record<string, Uint8Array | string>>;
   readonly env?: Readonly<Record<string, string>>;
 }
 
