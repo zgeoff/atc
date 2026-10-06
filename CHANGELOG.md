@@ -2,10 +2,10 @@
 
 ## [2.37.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.36.1...@zgeoff/atc@2.37.0) (2026-10-06)
 
-
 ### Features
 
-* **config:** register agents in one agents map ([#328](https://github.com/zgeoff/atc/issues/328)) ([c229de1](https://github.com/zgeoff/atc/commit/c229de1c8639e7d4a58d92afebbf9871eb81a93f))
+- **config:** register agents in one agents map ([#328](https://github.com/zgeoff/atc/issues/328))
+  ([c229de1](https://github.com/zgeoff/atc/commit/c229de1c8639e7d4a58d92afebbf9871eb81a93f))
 
 ## [2.36.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.36.0...@zgeoff/atc@2.36.1) (2026-10-06)
 
