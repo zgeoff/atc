@@ -457,6 +457,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
         ? {}
         : { listen: { host: listen.host, port: listen.port, tokenFile } }),
       restoreBootTimeoutMs,
+      resumeInterruptedTurns: cfg.resumeInterruptedTurns,
       ...(Number.isFinite(graceOverride) && graceOverride >= 0
         ? { tapGraceMs: graceOverride }
         : {}),

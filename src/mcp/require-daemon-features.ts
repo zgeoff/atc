@@ -26,6 +26,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'transport.tcp': 'a TCP connection to the daemon',
   'idempotency.replayOnly': 'a resend that only replays a held idempotency key',
   'session.auth': 'session.auth.revoke and session.auth.rebind',
+  'spawn.resumeInterruptedTurns': "atc_session_spawn's resumeInterruptedTurns",
 };
 
 /**

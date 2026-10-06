@@ -58,6 +58,7 @@ test('it lists only the agents whose configured binary resolves', () => {
       principals: null,
       principalErrors: [],
       workspaceErrors: [],
+      resumeInterruptedTurns: false,
     }),
   ).toStrictEqual([
     { agent: 'claude', label: 'Claude' },
@@ -100,6 +101,7 @@ test('it resolves a bare binary name off PATH', () => {
       principals: null,
       principalErrors: [],
       workspaceErrors: [],
+      resumeInterruptedTurns: false,
     }),
   ).toStrictEqual([{ agent: 'grok', label: 'Grok' }]);
 });
@@ -137,6 +139,7 @@ test('it leaves out a binary that exists without the executable bit', () => {
       principals: null,
       principalErrors: [],
       workspaceErrors: [],
+      resumeInterruptedTurns: false,
     }),
   ).toStrictEqual([]);
 });
@@ -184,6 +187,7 @@ test('it lists a configured backend after the built-in agents', () => {
       principals: null,
       principalErrors: [],
       workspaceErrors: [],
+      resumeInterruptedTurns: false,
     }),
   ).toStrictEqual([
     { agent: 'claude', label: 'Claude' },
@@ -234,6 +238,7 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
       principals: null,
       principalErrors: [],
       workspaceErrors: [],
+      resumeInterruptedTurns: false,
     }),
   ).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
 });
@@ -282,6 +287,7 @@ test('it lists a gateway with auth, which starts on a target with broker auth', 
       principals: null,
       principalErrors: [],
       workspaceErrors: [],
+      resumeInterruptedTurns: false,
     }),
   ).toStrictEqual([
     { agent: 'claude', label: 'Claude' },

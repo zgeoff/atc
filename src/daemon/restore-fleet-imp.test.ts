@@ -15,7 +15,7 @@ import { SessionManager } from './sessions';
 // A session manager whose one target `box` runs on the imp provider over a
 // fixture imp port, with two stored sessions on it, each in an imp of its
 // own, and the given agent.
-async function setupTest(adapter: AgentAdapter) {
+async function setupTest(adapter: AgentAdapter, resumeInterruptedTurns = false) {
   const tmp = setupTempDir('atc-restore-imp-');
 
   const store = await StateStore.open(join(tmp.dir, 'state.db'));
@@ -23,6 +23,7 @@ async function setupTest(adapter: AgentAdapter) {
   const port = new FixtureImpPort();
 
   const logged: string[] = [];
+  const resumed: string[] = [];
 
   const runtimes = new Map<string, SessionRuntime>();
 
@@ -60,7 +61,9 @@ async function setupTest(adapter: AgentAdapter) {
 
   return {
     mgr,
+    store,
     logged,
+    resumed,
     restore: () =>
       restoreFleet({
         mgr,
@@ -69,6 +72,12 @@ async function setupTest(adapter: AgentAdapter) {
         cols: 80,
         rows: 24,
         capMs: 50,
+        resumeInterruptedTurns,
+        sendResumeMessage: (s) => {
+          resumed.push(s.id);
+
+          return Promise.resolve();
+        },
       }),
     async [Symbol.asyncDispose]() {
       mgr.detachAll();
@@ -160,4 +169,25 @@ test('it logs a first session whose revive fails with a plain error and still re
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     'atc could not revive session s-first (no plan for s-first)',
   ]);
+});
+
+test('it sends no resume message to a session whose harness runs on in its imp across the restart', async () => {
+  await using ctx = await setupTest({ ...baseAdapter, takesMessages: true }, true);
+
+  await ctx.store.recordEvent(
+    {
+      atcId: toSessionID('s-first'),
+      event: 'UserPromptSubmit',
+      payload: { session_id: 'agent-s-first' },
+    },
+    { kind: 'prompt-submitted' },
+  );
+
+  const restored = await ctx.restore();
+
+  await waitFor(() => {
+    expect(ctx.mgr.sessions.map((s) => s.pty !== null)).toStrictEqual([true, true]);
+  });
+
+  expect({ restored, resumed: ctx.resumed }).toStrictEqual({ restored: 2, resumed: [] });
 });

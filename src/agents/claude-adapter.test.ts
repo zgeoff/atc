@@ -40,6 +40,7 @@ function buildClaudeConfig(): Config {
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   };
 }
 

@@ -162,6 +162,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'transport.tcp',
       'idempotency.replayOnly',
       'session.auth',
+      'spawn.resumeInterruptedTurns',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
@@ -484,6 +485,7 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   });
 
   const daemon = await startDaemon({
@@ -552,6 +554,7 @@ test('it yanks a grok session by id and without an id', async () => {
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   });
 
   const daemon = await startDaemon({
@@ -647,6 +650,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   });
 
   const daemon = await startDaemon({
@@ -733,6 +737,7 @@ test('it writes last-used on SessionStart and ignores a spawn that never reports
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   });
 
   const daemon = await startDaemon({

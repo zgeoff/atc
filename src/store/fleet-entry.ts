@@ -67,6 +67,11 @@ export interface FleetEntry {
   // parent's when the two share one host. A row without one runs on a host
   // of its own.
   readonly hostKey?: SessionID;
+
+  // Whether a fleet restore after a daemon restart sends the session one
+  // message to carry on a turn the restart cut off; a row without one
+  // follows the daemon's config.
+  readonly resumeInterruptedTurns?: boolean;
 }
 
 export interface FleetStore {

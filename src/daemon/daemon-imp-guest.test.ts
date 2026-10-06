@@ -93,6 +93,7 @@ done
       principals: new Map(),
       principalErrors: [],
       workspaceErrors: [],
+      resumeInterruptedTurns: false,
     });
 
   const daemon = await startDaemon({

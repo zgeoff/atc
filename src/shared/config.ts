@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
+import { buildOptionalBoolean } from './build-optional-boolean';
 import { buildOptionalString } from './build-optional-string';
 import { buildOptionalStringArray } from './build-optional-string-array';
 import { collectAuthProfiles } from './collect-auth-profiles';
@@ -65,6 +66,11 @@ export interface Config {
 
   // The workspace config problems, one line each.
   workspaceErrors: readonly string[];
+
+  // Whether a fleet restore after a daemon restart sends a session that
+  // was mid-turn one message to carry on; a spawn can override it per
+  // session.
+  resumeInterruptedTurns: boolean;
 }
 
 /**
@@ -109,6 +115,7 @@ const DEFAULTS: Config = {
   principals: null,
   principalErrors: [],
   workspaceErrors: [],
+  resumeInterruptedTurns: false,
 };
 
 const configDir = join(resolveHomeDir(), '.config', 'atc');
@@ -148,6 +155,7 @@ const CONFIG_SCHEMA = z.object({
   targets: z.unknown().optional(),
   defaultTarget: z.unknown().optional(),
   principals: z.unknown().optional(),
+  resumeInterruptedTurns: buildOptionalBoolean(),
 });
 
 /**
@@ -336,6 +344,7 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     principals: principals.principals,
     principalErrors: principals.errors,
     workspaceErrors: workspaces.errors,
+    resumeInterruptedTurns: parsed.data.resumeInterruptedTurns ?? DEFAULTS.resumeInterruptedTurns,
   };
 }
 

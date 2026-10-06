@@ -157,6 +157,11 @@ export interface DaemonOptions {
   readonly restoreBootTimeoutMs?: number;
   readonly tapGraceMs?: number;
 
+  // Whether a fleet restore sends a session that was mid-turn when the
+  // previous daemon stopped one message to carry on, for a session spawned
+  // without its own choice; off when unset.
+  readonly resumeInterruptedTurns?: boolean;
+
   // How long a confirm token from `session.forget` stays usable.
   readonly forgetConfirmMs?: number;
 
@@ -281,6 +286,11 @@ const LOCK_WAIT_MS = 2000;
  * because transports guarantee byte integrity and such a line means a buggy
  * or hostile peer.
  */
+// The sender and opening of the message a restore sends a session whose
+// turn the previous daemon's stop cut off.
+const RESUME_SENDER = 'atc';
+const RESUME_LEAD = 'atc restarted the daemon';
+
 export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   let stopDaemon: (() => Promise<void>) | null = null;
 
@@ -1308,6 +1318,37 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     return record;
   };
 
+  const startedAt = new Date().toISOString();
+
+  // Sends a restored session the message that carries on a turn the
+  // previous daemon's stop cut off. A resume message still pending from an
+  // earlier restart covers this one, so a session never holds two.
+  const sendResumeMessage = async (s: Session): Promise<void> => {
+    const pending = await store.collectPendingMessages(buildMessageOwner(s));
+
+    if (
+      pending.some((record) => record.from === RESUME_SENDER && record.text.startsWith(RESUME_LEAD))
+    ) {
+      return;
+    }
+
+    const refusal = findMessageRefusal(s.id);
+
+    if (refusal !== null) {
+      mgr.log(`atc sent session ${s.id} no resume message (${refusal})`);
+
+      return;
+    }
+
+    await writeAcceptedMessage(
+      s.id,
+      RESUME_SENDER,
+      `${RESUME_LEAD} at ${startedAt}; your last turn was interrupted. Check the state of anything you had in flight, then continue.`,
+      mintMessageID(),
+      () => {},
+    );
+  };
+
   // A retried send answers with the message's current status, so a caller
   // that lost the first answer learns where its message stands now.
   const loadMessageReplay = async (
@@ -1776,7 +1817,16 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       attachments.findEffectiveDims(sessionID) ??
       runtimes.get(sessionID)?.dims ?? { cols: 80, rows: 24 },
     restoreFleet: (cols, rows) =>
-      restoreFleet({ mgr, store, findRuntime, cols, rows, capMs: opts.restoreBootTimeoutMs ?? 0 }),
+      restoreFleet({
+        mgr,
+        store,
+        findRuntime,
+        cols,
+        rows,
+        capMs: opts.restoreBootTimeoutMs ?? 0,
+        resumeInterruptedTurns: opts.resumeInterruptedTurns ?? false,
+        sendResumeMessage,
+      }),
     readSessionRecord: async (id, access) => {
       const s = mgr.sessions.find((x) => x.id === id);
 

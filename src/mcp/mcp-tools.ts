@@ -65,6 +65,9 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
     trustClonedWorkspace: SPAWN_SCHEMA.shape.trustClonedWorkspace.describe(
       "Trust the exact verified clone for this launch. An explicit true or false overrides the configured target trustClonedWorkspace default; omitting both keeps trust off. Requires a workspace source and either stock Claude on the local target, which adds trust for the clone root alone to the user's Claude config, or, on an imp target, a brokered Claude gateway or stock Claude signed in through the broker, each with isolated guest config; other launches are refused. Accepts repository configuration and helpers without changing tool permission mode. Existing guest config is preserved.",
     ),
+    resumeInterruptedTurns: SPAWN_SCHEMA.shape.resumeInterruptedTurns.describe(
+      "Whether atc sends the session one message to carry on when a daemon restart cuts off its turn. The message goes out when the fleet is restored, only to a session whose last recorded event was a submitted prompt, and only to an agent that takes atc messages. Omit it to follow the daemon's resumeInterruptedTurns config, which is off by default.",
+    ),
     detached: z
       .boolean()
       .optional()
@@ -420,6 +423,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
         target: 'spawn.target',
         workspace: 'spawn.workspace',
         trustClonedWorkspace: 'spawn.workspace.trust',
+        resumeInterruptedTurns: 'spawn.resumeInterruptedTurns',
       },
     },
   },

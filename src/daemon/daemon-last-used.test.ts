@@ -75,6 +75,7 @@ test('it does not write last-used when a restored session reports SessionStart',
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    resumeInterruptedTurns: false,
   });
 
   const daemon = await startDaemon({
