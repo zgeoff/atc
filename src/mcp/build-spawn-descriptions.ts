@@ -29,8 +29,8 @@ export function buildSpawnDescriptions(
       : ` When this tool list was built, the host registered: ${formatRoster(agents)}.`;
 
   return {
-    tool: `Spawn a new session in a directory. Optional agent is a registered agent id; omitted agent is always Claude, never the TUI last-used value.${roster} atc_agents_list returns the current agents, whether each is installed, and the model and effort each takes. An unregistered agent, a registered agent that is not installed, and a model or effort the agent does not take are refused before anything spawns. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.`,
-    agent: `Registered agent id to spawn; defaults to claude.${roster} atc_agents_list returns the current list.`,
+    tool: `Spawn a new session in a directory. Optional agent is a registered agent id; omitted agent is the host's default agent (claude when it is registered, else the first registered agent), never the TUI last-used value.${roster} atc_agents_list returns the current agents, whether each is installed, and the model and effort each takes. An unregistered agent, a registered agent that is not installed, and a model or effort the agent does not take are refused before anything spawns. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.`,
+    agent: `Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent.${roster} atc_agents_list returns the current list.`,
   };
 }
 

@@ -526,14 +526,21 @@ export class ClaudeAdapter implements AgentAdapter {
 
   // Shell command that re-opens this session outside atc (or anywhere). A
   // permission mode the configured arguments set travels as an explicit
-  // flag, so it overrides the mode the CLI would restore.
+  // flag, so it overrides the mode the CLI would restore. The generated
+  // settings file travels only for an entry that sets its own settings or
+  // environment, since the file sits on the daemon's machine and an entry
+  // without either needs nothing from it.
   buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
     const configured = findClaudePermissionMode(this.entry.args, this.entry.settings);
     const mode = configured === null ? '' : ` --permission-mode ${toShellArg(configured)}`;
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
-    const settings = toShellArg(this.writeSettings());
 
-    return `cd ${toShellArg(cwd)} && ${toShellArg(this.entry.bin)}${mode} --settings ${settings} --resume${resume}`;
+    const settings =
+      this.entry.settings === undefined && Object.keys(this.entry.env).length === 0
+        ? ''
+        : ` --settings ${toShellArg(this.writeSettings())}`;
+
+    return `cd ${toShellArg(cwd)} && ${formatShellWord(this.entry.bin)}${mode}${settings} --resume${resume}`;
   }
 }
 
@@ -601,4 +608,10 @@ function buildClaudeSpawnOptions(claudeArgs: readonly string[]): SpawnOptionSpec
       note: 'Passed as --effort. Which levels a session honours depends on its model.',
     },
   };
+}
+
+// A binary name or path that needs no quoting stays bare, so the default
+// entry resumes with plain `claude`; anything else is quoted as one word.
+function formatShellWord(value: string): string {
+  return /^[\w./-]+$/.test(value) ? value : toShellArg(value);
 }

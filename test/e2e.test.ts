@@ -893,7 +893,7 @@ test('it adopts a session with --resume and yanks its resume command', async () 
 
   const cmd = Buffer.from(b64, 'base64').toString();
 
-  expect(cmd).toMatch(/claude --settings '[^']+' --resume fake-1/);
+  expect(cmd).toInclude('claude --resume fake-1');
   expect(cmd).toStartWith("cd '");
 }, 15_000);
 

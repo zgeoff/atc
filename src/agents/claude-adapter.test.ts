@@ -179,7 +179,7 @@ test('it keeps the permission mode its configured arguments set in the command t
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
-    /^cd '\/work\/repo' && 'claude' --permission-mode 'plan' --settings '[^']+hook-settings-claude\.json' --resume sess-1$/,
+    /^cd '\/work\/repo' && claude --permission-mode 'plan' --resume sess-1$/,
   );
 });
 
@@ -223,7 +223,19 @@ test('it quotes a configured binary path with spaces in the resume command', () 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
-    /^cd '\/work\/repo' && '\/opt\/Claude Code\/claude' --settings /,
+    /^cd '\/work\/repo' && '\/opt\/Claude Code\/claude' --resume sess-1$/,
+  );
+});
+
+test('it carries the settings file in the resume command of an entry with its own settings', () => {
+  const config = parseConfig({
+    agents: { claude: { settings: { model: 'opus' } } },
+  });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
+    /^cd '\/work\/repo' && claude --settings '[^']+hook-settings-claude\.json' --resume sess-1$/,
   );
 });
 
@@ -241,8 +253,8 @@ test('it restores a stock session without a permission-mode argument', () => {
 
   expect(plan.args).not.toContain('--permission-mode');
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
-    /^cd '\/work\/repo' && 'claude' --settings '[^']+hook-settings-claude\.json' --resume sess-1$/,
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+    "cd '/work/repo' && claude --resume sess-1",
   );
 });
 

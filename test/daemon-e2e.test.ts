@@ -743,7 +743,7 @@ test('it builds a resume command once the claude id is captured', async () => {
 
   const command = getString(answer, 'command');
 
-  expect(command).toMatch(/claude --settings '[^']+' --resume fake-1/);
+  expect(command).toInclude('claude --resume fake-1');
   expect(command).toStartWith("cd '");
 });
 
