@@ -301,3 +301,114 @@ test('it resolves a deep chain of shared dependencies in one visit per profile',
 
   expect(result).toMatchObject({ resolved: { profiles: names } });
 });
+
+test('it expands a github profile into the rules of the github kind beside a custom profile', () => {
+  expect(
+    resolveAuthProfiles(
+      new Map([
+        [
+          'glm',
+          {
+            name: 'glm',
+            secret: 'glm',
+            kind: 'custom',
+            host: 'api.z.ai',
+            header: 'authorization',
+            scheme: 'bearer',
+            dependencies: [],
+          },
+        ],
+        [
+          'github',
+          { name: 'github', secret: 'github-imp-agents', kind: 'github', dependencies: [] },
+        ],
+      ]),
+      ['glm', 'github'],
+    ),
+  ).toStrictEqual({
+    resolved: {
+      profiles: ['github', 'glm'],
+      hosts: ['api.github.com', 'api.z.ai', 'github.com', 'uploads.github.com'],
+      secrets: [
+        {
+          secret: 'github-imp-agents',
+          kind: 'github',
+          rules: [
+            { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+            {
+              host: 'github.com',
+              header: 'authorization',
+              scheme: 'basic',
+              user: 'x-access-token',
+            },
+            { host: 'uploads.github.com', header: 'authorization', scheme: 'bearer' },
+          ],
+        },
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+    },
+  });
+});
+
+test('it refuses a custom profile on a host a github profile covers', () => {
+  expect(
+    resolveAuthProfiles(
+      new Map([
+        [
+          'gh-api',
+          {
+            name: 'gh-api',
+            secret: 'other',
+            kind: 'custom',
+            host: 'api.github.com',
+            header: 'authorization',
+            scheme: 'bearer',
+            dependencies: [],
+          },
+        ],
+        [
+          'github',
+          { name: 'github', secret: 'github-imp-agents', kind: 'github', dependencies: [] },
+        ],
+      ]),
+      ['github', 'gh-api'],
+    ),
+  ).toStrictEqual({
+    problem: {
+      code: 'auth_collision',
+      message: 'profiles gh-api and github both send a credential to api.github.com',
+    },
+  });
+});
+
+test('it refuses two profiles that bind one secret as different kinds', () => {
+  expect(
+    resolveAuthProfiles(
+      new Map([
+        ['github', { name: 'github', secret: 'shared', kind: 'github', dependencies: [] }],
+        [
+          'judge',
+          {
+            name: 'judge',
+            secret: 'shared',
+            kind: 'custom',
+            host: 'judge.example.com',
+            header: 'authorization',
+            scheme: 'bearer',
+            dependencies: [],
+          },
+        ],
+      ]),
+      ['github', 'judge'],
+    ),
+  ).toStrictEqual({
+    problem: {
+      code: 'auth_collision',
+      message: 'profiles github and judge bind secret shared as different kinds',
+    },
+  });
+});

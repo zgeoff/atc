@@ -1,12 +1,14 @@
 import type { AuthProfile } from './collect-auth-profiles';
 
 /**
- * How impd applies one secret to requests for one host.
+ * How impd applies one secret to requests for one host. Only a basic rule
+ * holds a user.
  */
 interface AuthRule {
   readonly host: string;
   readonly header: string;
-  readonly scheme: 'bearer';
+  readonly scheme: 'basic' | 'bearer';
+  readonly user?: string;
 }
 
 /**
@@ -15,7 +17,7 @@ interface AuthRule {
  */
 export interface ResolvedAuthSecret {
   readonly secret: string;
-  readonly kind: 'custom';
+  readonly kind: AuthProfile['kind'];
   readonly rules: readonly AuthRule[];
 }
 
@@ -49,11 +51,18 @@ export type AuthProfileResolution =
   | { readonly resolved: ResolvedAuthProfiles }
   | { readonly problem: AuthProfileProblem };
 
+// One rule of a profile, with the profile it came from.
+interface ProfileRule {
+  readonly profile: AuthProfile;
+  readonly rule: AuthRule;
+}
+
 /**
  * Expands the selected profiles through their dependencies, then checks
  * the whole expanded set: each host must get exactly one rule, so a
- * credential is never picked by order. Two profiles holding the identical
- * secret and rule for a host merge into one rule.
+ * credential is never picked by order, and each secret one kind. Two
+ * profiles holding the identical secret and rule for a host merge into one
+ * rule.
  */
 export function resolveAuthProfiles(
   profiles: ReadonlyMap<string, AuthProfile>,
@@ -73,20 +82,36 @@ export function resolveAuthProfiles(
 
   const ordered = [...reached.values()].toSorted((a, b) => (a.name < b.name ? -1 : 1));
 
-  const byHost = new Map<string, AuthProfile>();
+  const byHost = new Map<string, ProfileRule>();
+  const kinds = new Map<string, AuthProfile>();
 
   for (const profile of ordered) {
-    const other = byHost.get(profile.host);
+    const kindOwner = kinds.get(profile.secret);
 
-    if (other === undefined) {
-      byHost.set(profile.host, profile);
-    } else if (!hasSameRule(other, profile)) {
+    if (kindOwner === undefined) {
+      kinds.set(profile.secret, profile);
+    } else if (kindOwner.kind !== profile.kind) {
       return {
         problem: {
           code: 'auth_collision',
-          message: `profiles ${other.name} and ${profile.name} both send a credential to ${profile.host}`,
+          message: `profiles ${kindOwner.name} and ${profile.name} bind secret ${profile.secret} as different kinds`,
         },
       };
+    }
+
+    for (const rule of getProfileRules(profile)) {
+      const other = byHost.get(rule.host);
+
+      if (other === undefined) {
+        byHost.set(rule.host, { profile, rule });
+      } else if (!hasSameRule(other, { profile, rule })) {
+        return {
+          problem: {
+            code: 'auth_collision',
+            message: `profiles ${other.profile.name} and ${profile.name} both send a credential to ${rule.host}`,
+          },
+        };
+      }
     }
   }
 
@@ -156,31 +181,50 @@ function isAuthProfileProblem(
   return 'code' in value;
 }
 
-function hasSameRule(left: AuthProfile, right: AuthProfile): boolean {
+// The rules impd's github kind applies: git over HTTPS on github.com takes
+// Basic auth for x-access-token, and the REST and upload APIs take a bearer
+// token.
+const GITHUB_RULES: readonly AuthRule[] = [
+  { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+  { host: 'github.com', header: 'authorization', scheme: 'basic', user: 'x-access-token' },
+  { host: 'uploads.github.com', header: 'authorization', scheme: 'bearer' },
+];
+
+// The rules impd holds for a profile's secret on the hosts it covers.
+function getProfileRules(profile: AuthProfile): readonly AuthRule[] {
+  if (profile.kind === 'github') {
+    return GITHUB_RULES;
+  }
+
+  return [{ host: profile.host, header: profile.header, scheme: profile.scheme }];
+}
+
+function hasSameRule(left: ProfileRule, right: ProfileRule): boolean {
   return (
-    left.secret === right.secret &&
-    left.header === right.header &&
-    left.scheme === right.scheme &&
-    left.kind === right.kind
+    left.profile.secret === right.profile.secret &&
+    left.profile.kind === right.profile.kind &&
+    left.rule.header === right.rule.header &&
+    left.rule.scheme === right.rule.scheme &&
+    left.rule.user === right.rule.user
   );
 }
 
 // One entry per secret, sorted by secret, each with its rules sorted by host.
-function buildSecrets(profiles: readonly AuthProfile[]): ResolvedAuthSecret[] {
-  const rules = new Map<string, AuthRule[]>();
+function buildSecrets(entries: readonly ProfileRule[]): ResolvedAuthSecret[] {
+  const bySecret = new Map<string, { kind: AuthProfile['kind']; rules: AuthRule[] }>();
 
-  for (const profile of profiles) {
-    const list = rules.get(profile.secret) ?? [];
+  for (const item of entries) {
+    const entry = bySecret.get(item.profile.secret) ?? { kind: item.profile.kind, rules: [] };
 
-    list.push({ host: profile.host, header: profile.header, scheme: profile.scheme });
-    rules.set(profile.secret, list);
+    entry.rules.push(item.rule);
+    bySecret.set(item.profile.secret, entry);
   }
 
-  return [...rules.entries()]
+  return [...bySecret.entries()]
     .toSorted(([a], [b]) => (a < b ? -1 : 1))
-    .map(([secret, list]) => ({
+    .map(([secret, entry]) => ({
       secret,
-      kind: 'custom',
-      rules: list.toSorted((a, b) => (a.host < b.host ? -1 : 1)),
+      kind: entry.kind,
+      rules: entry.rules.toSorted((a, b) => (a.host < b.host ? -1 : 1)),
     }));
 }

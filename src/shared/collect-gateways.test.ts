@@ -267,6 +267,59 @@ test('it keeps a gateway whose auth selects profiles that cover its base URL hos
   });
 });
 
+test('it keeps a gateway whose auth selects a github profile beside the profile for its base URL host', () => {
+  expect(
+    collectGateways(
+      {
+        glm: {
+          baseURL: 'https://api.z.ai/api/anthropic',
+          auth: {
+            profiles: ['glm', 'github'],
+            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          },
+        },
+      },
+      'claude',
+      [],
+      new Map([
+        [
+          'glm',
+          {
+            name: 'glm',
+            secret: 'glm',
+            kind: 'custom',
+            host: 'api.z.ai',
+            header: 'authorization',
+            scheme: 'bearer',
+            dependencies: [],
+          },
+        ],
+        [
+          'github',
+          { name: 'github', secret: 'github-imp-agents', kind: 'github', dependencies: [] },
+        ],
+      ]),
+    ),
+  ).toStrictEqual({
+    gateways: [
+      {
+        id: 'glm',
+        label: 'glm',
+        mark: 'g',
+        bin: 'claude',
+        args: [],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        env: {},
+        auth: {
+          profiles: ['glm', 'github'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    ],
+    errors: [],
+  });
+});
+
 test('it keeps a proxy variable in the env of a gateway without auth', () => {
   expect(
     collectGateways(
