@@ -18,6 +18,7 @@ import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import type { MessageID } from '../shared/message-id';
 import { isRecord } from '../shared/report';
+import { resolveHomeDir } from '../shared/resolve-home-dir';
 import type { SessionID } from '../shared/session-id';
 import { toMessageID } from '../shared/to-message-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
@@ -34,6 +35,7 @@ import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
 import { buildConfigRevision } from './build-config-revision';
+import { buildDefaultWorkspaceDir } from './build-default-workspace-dir';
 import { buildExecutionTargets } from './build-execution-targets';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildFleetEvents } from './build-fleet-events';
@@ -178,6 +180,14 @@ export interface DaemonOptions {
   // or the invalid list the config holds, which refuses every git
   // operation; https and ssh when unset.
   readonly gitTransports?: readonly string[] | InvalidGitTransports;
+
+  // The root a git workspace without a directory lands under on any target
+  // without its own, and each target's own root, by target id; the default
+  // root under the target user's home when unset.
+  readonly workspaceRoots?: Readonly<{
+    root: string | null;
+    targetRoots: ReadonlyMap<string, string>;
+  }>;
 }
 
 // The TCP listener's address and the file holding the tokens a handshake
@@ -962,7 +972,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         ? null
         : async (
             host: Readonly<{
-              readyHost: () => Promise<{ readonly host: SessionID; readonly dir: string }>;
+              readyHost: (
+                attempt: number,
+              ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
               removeClaim: (dir: string) => Promise<boolean>;
             }>,
             targetIdentity: string,
@@ -1013,7 +1025,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     id: SessionID,
     source: SpawnWorkspaceSource,
     host: Readonly<{
-      readyHost: () => Promise<{ readonly host: SessionID; readonly dir: string }>;
+      readyHost: (attempt: number) => Promise<{ readonly host: SessionID; readonly dir: string }>;
       removeClaim: (dir: string) => Promise<boolean>;
     }>,
     targetIdentity: string,
@@ -1028,6 +1040,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         dir: p.cwd,
         source,
         inPlace: bound.provider.kind === 'local-pty',
+        autoDir: p.autoDir,
       },
       {
         requireProvider: (capability) => mgr.requireExecution(binding, capability).provider,
@@ -1049,7 +1062,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     materialize:
       | ((
           host: Readonly<{
-            readyHost: () => Promise<{ readonly host: SessionID; readonly dir: string }>;
+            readyHost: (
+              attempt: number,
+            ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
             removeClaim: (dir: string) => Promise<boolean>;
           }>,
           targetIdentity: string,
@@ -1075,6 +1090,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       p.target,
       materialize,
       requireInReach,
+      p.autoDir,
     );
 
     const runtime = runtimes.get(s.id);
@@ -1083,7 +1099,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       runtime.pendingLastUsed = true;
     }
 
-    void store.recordSpawnDir(p.cwd, { target: s.target, targetIdentity: s.targetIdentity });
+    void store.recordSpawnDir(s.cwd, { target: s.target, targetIdentity: s.targetIdentity });
 
     return getDescriptor(mgr, s.id);
   };
@@ -1405,6 +1421,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       mgr.requireExecution({ target, targetIdentity: null }, 'transfer');
       mgr.requireExecution({ target, targetIdentity: null }, 'run');
     },
+    buildDefaultWorkspaceDir: (target, source) =>
+      buildDefaultWorkspaceDir(source, {
+        root: opts.workspaceRoots?.targetRoots.get(target) ?? opts.workspaceRoots?.root ?? null,
+        remote: mgr.requireExecution({ target, targetIdentity: null }, 'run').provider.remote,
+        home: resolveHomeDir(),
+      }),
     requireAgentTarget: (agent, target) => {
       mgr.requireAgentTarget(agent, target);
     },

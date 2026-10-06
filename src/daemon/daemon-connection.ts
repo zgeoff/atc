@@ -926,6 +926,13 @@ export class DaemonConnection {
     }
 
     const data = parsed.data;
+    const cwd = data.cwd;
+
+    if (cwd === undefined && data.workspace?.kind !== 'git') {
+      this.sendErr(req.id, 'bad_args', 'session.spawn requires a cwd');
+
+      return;
+    }
 
     // Every refusal is thrown from the plan, which runs only once a key is
     // claimed: a retry of a held key answers from the key without checking
@@ -972,16 +979,28 @@ export class DaemonConnection {
         ctx.requireWorkspaceTarget(target);
       }
 
+      // A git workspace without a cwd lands where the daemon picks on the
+      // target.
+      const dir =
+        cwd === undefined && data.workspace?.kind === 'git'
+          ? ctx.buildDefaultWorkspaceDir(target, data.workspace)
+          : cwd;
+
+      if (dir === undefined) {
+        throw new DaemonError('bad_args', 'session.spawn requires a cwd');
+      }
+
       // A workspace is materialized at cwd on the target, which only an
-      // absolute path names.
-      if (data.workspace !== undefined && !isAbsolute(data.cwd)) {
+      // absolute path names; a directory the daemon picks on a remote
+      // target is relative to the home there, which the host resolves.
+      if (data.workspace !== undefined && cwd !== undefined && !isAbsolute(cwd)) {
         throw new DaemonError('bad_args', 'a spawn with a workspace requires an absolute cwd');
       }
 
       // A workspace is created, filled, and removed at the one directory
       // the host resolves cwd to, which a dot segment or a control
       // character would make differ from the path as written.
-      if (data.workspace !== undefined && !isPlainWorkspaceDir(data.cwd)) {
+      if (data.workspace !== undefined && !isPlainWorkspaceDir(dir)) {
         throw new DaemonError(
           'bad_args',
           'a spawn with a workspace requires a cwd without . or .. segments or control characters',
@@ -1001,8 +1020,8 @@ export class DaemonConnection {
       }
 
       return {
-        cwd: data.cwd,
-        name: data.name === '' ? basename(data.cwd) : data.name,
+        cwd: dir,
+        name: data.name === '' ? basename(dir) : data.name,
         prompt: data.prompt,
         cols: data.cols,
         rows: data.rows,
@@ -1018,6 +1037,7 @@ export class DaemonConnection {
         },
         target,
         workspace: data.workspace ?? null,
+        autoDir: cwd === undefined,
       };
     };
 

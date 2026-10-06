@@ -44,7 +44,9 @@ const DIRS_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
 const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   z.strictObject({
     daemon: DAEMON_FIELD,
-    cwd: SPAWN_SCHEMA.shape.cwd.describe('Absolute path of the working directory'),
+    cwd: SPAWN_SCHEMA.shape.cwd.describe(
+      "Absolute path of the working directory. Required, except with a git workspace: omit it there and atc picks a new directory under the target user's home, ~/.local/share/atc/workspaces/<repo>-<ref>-<short sha> unless the config sets another root, adding -2, -3, and so on when that directory exists. The session's cwd in the result holds the path it landed in.",
+    ),
     name: SPAWN_SCHEMA.shape.name.describe('Session name; defaults to the directory basename'),
     prompt: SPAWN_SCHEMA.shape.prompt.describe('First message for the session'),
     agent: SPAWN_SCHEMA.shape.agent.describe(SPAWN_AGENT_DESCRIPTION),
@@ -58,7 +60,7 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
       'Execution target for the new session, one of the target ids in atc_agents_list. Omit it to run on the default target (spawnDefaults.target). An unknown or unavailable target is refused; atc never runs the session on another target instead.',
     ),
     workspace: SPAWN_SCHEMA.shape.workspace.describe(
-      "Where the session's working directory comes from. Omit it to run the session in cwd as it stands. With it, atc materializes a clean checkout into cwd on the target, which must not exist yet: {kind:'path', path, allowDirty?} checks out the pushed HEAD of a git checkout on the atc host, leaving its uncommitted and untracked changes behind with a warning, or refusing them when allowDirty is 'refuse'; {kind:'git', url, ref or sha, credentialRef?} checks out a branch, tag, or full commit of a repository, with credentialRef {kind:'env', name} naming the atc daemon's environment variable that holds its token. A directory outside git runs in place only on a target on the atc host itself (provider local-pty), with cwd equal to its path. Submodules and Git LFS are refused, and so is a URL that carries a credential.",
+      "Where the session's working directory comes from. Omit it to run the session in cwd as it stands. With it, atc materializes a clean checkout into cwd on the target, which must not exist yet, or for a git source without cwd into a directory atc picks: {kind:'path', path, allowDirty?} checks out the pushed HEAD of a git checkout on the atc host, leaving its uncommitted and untracked changes behind with a warning, or refusing them when allowDirty is 'refuse'; {kind:'git', url, ref or sha, credentialRef?} checks out a branch, tag, or full commit of a repository, with credentialRef {kind:'env', name} naming the atc daemon's environment variable that holds its token. A directory outside git runs in place only on a target on the atc host itself (provider local-pty), with cwd equal to its path. Submodules and Git LFS are refused, and so is a URL that carries a credential.",
     ),
     trustClonedWorkspace: SPAWN_SCHEMA.shape.trustClonedWorkspace.describe(
       "Trust the exact verified clone for this launch. An explicit true or false overrides the configured target trustClonedWorkspace default; omitting both keeps trust off. Requires a workspace source and either stock Claude on the local target, which adds trust for the clone root alone to the user's Claude config, or, on an imp target, a brokered Claude gateway or stock Claude signed in through the broker, each with isolated guest config; other launches are refused. Accepts repository configuration and helpers without changing tool permission mode. Existing guest config is preserved.",

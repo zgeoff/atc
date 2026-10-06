@@ -50,6 +50,10 @@ export interface WorkspaceMaterialization {
 // The fields a materialization rewrites as it moves through its phases.
 export interface MaterializationUpdate {
   readonly phase: MaterializationPhase;
+
+  // The directory the workspace landed in, once a directory the daemon
+  // picked is claimed.
+  readonly dir?: string;
   readonly repoURL?: string;
   readonly sha?: string;
   readonly ref?: string | null;

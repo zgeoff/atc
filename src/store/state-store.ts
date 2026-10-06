@@ -939,6 +939,7 @@ export class StateStore {
       .updateTable('workspace_materialization')
       .set({
         phase: fields.phase,
+        ...(fields.dir === undefined ? {} : { dir: fields.dir }),
         ...(fields.repoURL === undefined ? {} : { repo_url: fields.repoURL }),
         ...(fields.sha === undefined ? {} : { sha: fields.sha }),
         ...(fields.ref === undefined ? {} : { ref: fields.ref }),

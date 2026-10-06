@@ -39,6 +39,11 @@ export interface SpawnParams {
   // Where the session's working directory comes from; null runs the
   // session in cwd as it stands.
   readonly workspace: SpawnWorkspaceSource | null;
+
+  // Whether the daemon picked cwd for a git workspace the spawn gave no
+  // directory for, so a held directory moves the spawn to a numbered one
+  // beside it.
+  readonly autoDir: boolean;
 }
 
 interface SessionRecord {
@@ -179,6 +184,14 @@ export interface DaemonContext {
   // Throws the refusal for a target that cannot materialize a workspace:
   // one whose provider cannot both transfer an archive and run a command.
   readonly requireWorkspaceTarget: (target: string) => void;
+
+  // The directory a git workspace lands in on a target when the spawn
+  // gives none: absolute on the daemon's own machine, and relative to the
+  // target user's home on a remote target.
+  readonly buildDefaultWorkspaceDir: (
+    target: string,
+    source: Extract<SpawnWorkspaceSource, { kind: 'git' }>,
+  ) => string;
 
   // Throws the refusal for an agent that takes its credential from impd's
   // broker on a target whose provider reaches no broker.

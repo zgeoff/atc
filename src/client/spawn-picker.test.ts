@@ -38,9 +38,11 @@ const LEADER = Buffer.from([0x1d]);
  * request it sends waits in `sent` until the test resolves it, the screen
  * writes collect in `screen`, and each draw counts in `renders`. The config holds
  * Claude, at the running Bun, as the one installed agent, whatever the host
- * machine has on its PATH.
+ * machine has on its PATH. The daemon serves every feature, picking the
+ * directory of a git workspace spawned without one unless the test says
+ * it does not.
  */
-function setupTest() {
+function setupTest(picksWorkspaceDir = true) {
   mkdirSync(dirname(configFile), { recursive: true });
 
   writeFileSync(
@@ -71,6 +73,7 @@ function setupTest() {
         sent.push({ m, p, resolve });
       }),
     ptyRows: () => 24,
+    hasDaemonFeature: (feature) => feature !== 'spawn.workspace.autoDir' || picksWorkspaceDir,
     isLeaderKey: (buf) => buf.length === 1 && buf[0] === 0x1d,
     getLastUsedAgent: () => 'claude',
     scheduleStatus: () => {
@@ -266,6 +269,78 @@ test('it materializes a directory on the one target when that target is remote',
   expect(ctx.collectSent('session.spawn')).toMatchObject([
     { cwd: process.cwd(), target: 'box', workspace: { kind: 'path', path: process.cwd() } },
   ]);
+});
+
+test('it spawns a repository on a remote target with no destination typed and leaves the directory to the daemon', async () => {
+  const ctx = setupTest();
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', { targets: [BOX], sources: [GIT_SOURCE] });
+  await ctx.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
+  await ctx.applyKeys(Buffer.from('https://example.com/app.git'), ENTER);
+
+  await ctx.answer('git.probe', {
+    url: 'https://example.com/app.git',
+    head: 'main',
+    refs: [{ name: 'main', kind: 'branch', sha: 'a'.repeat(40) }],
+    resolved: null,
+  });
+
+  ctx.screen.length = 0;
+
+  await ctx.applyKeys(ENTER);
+
+  const confirm = ctx.screen.join('');
+
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+
+  expect(confirm).toInclude('dest    box:~/.local/share/atc/workspaces/app-main-aaaaaaa');
+
+  expect(ctx.collectSent('session.spawn')).toStrictEqual([
+    {
+      name: '',
+      prompt: '',
+      cols: expect.any(Number),
+      rows: 24,
+      agent: 'claude',
+      target: 'box',
+      workspace: {
+        kind: 'git',
+        url: 'https://example.com/app.git',
+        ref: 'main',
+        sha: 'a'.repeat(40),
+      },
+    },
+  ]);
+});
+
+test('it refuses a remote target without a workspace root when the daemon cannot pick the directory', async () => {
+  const ctx = setupTest(false);
+
+  ctx.picker.open();
+
+  await ctx.answer('agents.list', { targets: [BOX], sources: [GIT_SOURCE] });
+  await ctx.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
+  await ctx.applyKeys(Buffer.from('https://example.com/app.git'), ENTER);
+
+  await ctx.answer('git.probe', {
+    url: 'https://example.com/app.git',
+    head: 'main',
+    refs: [{ name: 'main', kind: 'branch', sha: 'a'.repeat(40) }],
+    resolved: null,
+  });
+
+  ctx.screen.length = 0;
+
+  await ctx.applyKeys(ENTER);
+
+  const confirm = ctx.screen.join('');
+
+  await ctx.applyKeys(ENTER, ENTER, ENTER);
+
+  expect(confirm).toInclude('set workspaces.targets.box in config.json');
+  expect(ctx.collectSent('session.spawn')).toStrictEqual([]);
 });
 
 test('it holds a session whose workspace left changes behind until enter attaches it', async () => {

@@ -153,6 +153,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'request.principal',
       'spawn.workspace',
       'spawn.workspace.trust',
+      'spawn.workspace.autoDir',
       'session.forget',
       'session.submit',
       'report.get',

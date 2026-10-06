@@ -2480,7 +2480,7 @@ test("it builds each target's own default destination when the target changes", 
   expect(ctx.read()).toInclude('target  alt (local-pty)');
 }, 30_000);
 
-test('it refuses a remote target workspace root and destination that rely on ~', async () => {
+test('it leaves a destination under a ~ root to a remote target and refuses a typed one that relies on ~', async () => {
   await using ctx = setupTest();
 
   writeFakeGH(ctx.home);
@@ -2539,9 +2539,9 @@ test('it refuses a remote target workspace root and destination that rely on ~',
   ctx.reset();
   pty.write('\r');
 
-  await ctx.waitFor('set workspaces.targets.box in config.json to an absolute path on that target');
+  await ctx.waitFor('dest    box:~/ws/upstream-main-');
 
-  expect(ctx.read()).toInclude('dest    box:');
+  expect(ctx.read()).toInclude('picked on the target');
 
   ctx.reset();
   pty.write('~/ws/app\r');

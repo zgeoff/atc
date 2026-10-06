@@ -2,6 +2,7 @@ import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { countSessionStates } from '../protocol/count-session-states';
 import { DaemonError } from '../protocol/daemon-error';
+import type { DaemonFeature } from '../protocol/daemon-features';
 import type { EventMsg } from '../protocol/protocol';
 import { sortGroupedSessionViews } from '../protocol/sort-grouped-session-views';
 import { sortSessionViews } from '../protocol/sort-session-views';
@@ -339,10 +340,15 @@ const picker = new SpawnPicker<MirrorSession>({
   attach,
   toMirrorSession,
   upsertMirror,
+  hasDaemonFeature,
 });
 
 function openPicker(resume: boolean) {
   picker.open(resume);
+}
+
+function hasDaemonFeature(feature: DaemonFeature): boolean {
+  return daemonFeatures.has(feature);
 }
 
 function sendRequest(m: string, p?: Readonly<Record<string, unknown>>) {
@@ -832,6 +838,7 @@ const boot = await bootDaemonClient({
 
 let client = boot.client;
 let daemonStale = boot.stale;
+let daemonFeatures = boot.features;
 let daemonRestarting = false;
 
 lastUsedAgent = boot.lastUsedAgent;
@@ -950,6 +957,7 @@ async function restartDaemon() {
 
   client = next.client;
   daemonStale = next.stale;
+  daemonFeatures = next.features;
   lastUsedAgent = next.lastUsedAgent;
   client.onEvent = applyDaemonEvent;
 

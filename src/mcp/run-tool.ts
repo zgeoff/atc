@@ -46,7 +46,7 @@ export function runTool(
 
       const params = {
         ...(typeof args['daemon'] === 'string' ? { daemon: args['daemon'] } : {}),
-        cwd: args['cwd'],
+        ...(args['cwd'] === undefined ? {} : { cwd: args['cwd'] }),
         ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
         ...(typeof args['prompt'] === 'string' ? { prompt: args['prompt'] } : {}),
         ...(rawAgent === undefined ? {} : { agent: rawAgent }),
@@ -78,12 +78,20 @@ export function runTool(
       const trustFeatures: readonly DaemonFeature[] =
         args['trustClonedWorkspace'] === undefined ? [] : ['spawn.workspace.trust'];
 
+      // Only a daemon that picks a git workspace's directory takes one
+      // without a cwd.
+      const autoDirFeatures: readonly DaemonFeature[] =
+        args['cwd'] === undefined && args['workspace'] !== undefined
+          ? ['spawn.workspace.autoDir']
+          : [];
+
       const required = [
         ...optionFeatures,
         ...keyFeatures,
         ...targetFeatures,
         ...workspaceFeatures,
         ...trustFeatures,
+        ...autoDirFeatures,
       ];
 
       const ok =

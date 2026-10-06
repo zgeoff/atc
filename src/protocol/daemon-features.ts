@@ -50,6 +50,11 @@ export const DAEMON_FEATURES = [
   // `session.spawn` takes an explicit trust decision for a cloned imp workspace.
   'spawn.workspace.trust',
 
+  // `session.spawn` with a git workspace takes no `cwd`, and the daemon
+  // picks a directory under the target user's home that no other
+  // workspace holds.
+  'spawn.workspace.autoDir',
+
   // `session.forget` exists, and a kill of a session asleep on a target that
   // can destroy its host answers `confirmation_required`.
   'session.forget',
