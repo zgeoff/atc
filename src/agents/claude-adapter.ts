@@ -31,7 +31,9 @@ import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { planPastedLineInput } from './plan-pasted-line-input';
+import { resolveClaudeGlobalConfigPath } from './resolve-claude-global-config-path';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
+import { updateClaudeProjectTrust } from './update-claude-project-trust';
 import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
 
@@ -152,6 +154,12 @@ export class ClaudeAdapter implements AgentAdapter {
     this.bridgeDir ??= writeATCBridge(this.bridgeTarget);
 
     return this.bridgeDir;
+  }
+
+  // A session on the daemon's machine reads the user's own Claude config,
+  // so trust for the clone is that config's entry for the clone alone.
+  updateLocalWorkspaceTrust(root: string): Promise<() => Promise<void>> {
+    return updateClaudeProjectTrust(resolveClaudeGlobalConfigPath(), root);
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {
