@@ -2,10 +2,11 @@
 
 ## [2.32.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.31.1...@zgeoff/atc@2.32.0) (2026-10-06)
 
-
 ### Features
 
-* **geo-115:** trust fresh clones on local launches ([#314](https://github.com/zgeoff/atc/issues/314)) ([d0f4759](https://github.com/zgeoff/atc/commit/d0f4759277f454467290002f2b4057933e64b966))
+- **geo-115:** trust fresh clones on local launches
+  ([#314](https://github.com/zgeoff/atc/issues/314))
+  ([d0f4759](https://github.com/zgeoff/atc/commit/d0f4759277f454467290002f2b4057933e64b966))
 
 ## [2.31.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.31.0...@zgeoff/atc@2.31.1) (2026-10-06)
 
