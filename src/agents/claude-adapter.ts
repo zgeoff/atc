@@ -30,7 +30,7 @@ import { findFlagValue } from './find-flag-value';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
-import { planTypedLineInput } from './plan-typed-line-input';
+import { planPastedLineInput } from './plan-pasted-line-input';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
 import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
@@ -62,8 +62,9 @@ export class ClaudeAdapter implements AgentAdapter {
 
   readonly parseTranscriptLine = parseClaudeTranscriptLine;
 
-  // Claude's TUI submits a line typed with its newline in one write.
-  readonly planLineInput = planTypedLineInput;
+  // Claude's TUI takes a long burst of input as a paste and keeps its
+  // newline in the composer, so a line is pasted and then submitted.
+  readonly planLineInput = planPastedLineInput;
 
   readonly profile: AgentProfile;
 

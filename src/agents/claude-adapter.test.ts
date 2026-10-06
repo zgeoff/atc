@@ -219,3 +219,12 @@ test('it restores a stock session without a permission-mode argument', () => {
     "cd '/work/repo' && claude --resume sess-1",
   );
 });
+
+test('it pastes a long line and submits it with a carriage return as a second write', () => {
+  const adapter = new ClaudeAdapter(buildClaudeConfig());
+
+  expect(adapter.planLineInput('a'.repeat(1600), { bracketedPaste: true })).toStrictEqual([
+    `\u001B[200~${'a'.repeat(1600)}\u001B[201~`,
+    '\r',
+  ]);
+});

@@ -111,6 +111,7 @@ for arg in "$@"; do
   prev="$arg"
 done
 if [ -f "$HOME/fake-claude-hold-start" ]; then while read -r line; do echo "GOT:$line"; done; sleep 30; exit 0; fi
+if [ -f "$HOME/fake-claude-composer" ]; then exec "${process.execPath}" "$HOME/fake-composer.js"; fi
 hookCommand="$("${process.execPath}" -e 'const s = JSON.parse(require("fs").readFileSync(process.argv.at(-1), "utf8")); console.log(s.hooks.SessionStart[0].hooks[0].command)' "$settings" < /dev/null)"
 hookReport() { sh -c "$hookCommand"; }
 printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | hookReport
@@ -171,8 +172,9 @@ exec "${process.execPath}" "$HOME/fake-composer.js"
       { mode: 0o755 },
     );
 
-    // The composer the fake Codex and Grok finish in, modelled on the
-    // crossterm TUIs both agents draw: raw mode with bracketed paste on.
+    // The composer the fake Codex and Grok finish in, and the fake Claude
+    // when fake-claude-composer exists, modelled on the TUIs those agents
+    // draw: raw mode with bracketed paste on.
     // Each read is one input event batch. A bracketed paste lands in the
     // composer whole, newlines kept; a lone CR outside a paste submits; a
     // lone LF is Ctrl-J and adds a newline; any other read of more than one
@@ -2170,6 +2172,85 @@ test('it submits a line to a claude session as one line', async () => {
   await waitForEvent(
     events,
     (e) => e.ev === 'SessionOutput' && String(e['d']).includes('GOT:hello'),
+  );
+});
+
+test('it submits a long line to a claude session as one submission', async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(join(ctx.home, 'fake-claude-composer'), '');
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  // A screen read waits for the daemon's parse, so once it shows the banner,
+  // the paste mode the composer turned on just before it is in force.
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
+
+  await client.sendRequest('session.submit', { session: id, text: 'a'.repeat(1600) });
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes(`SUBMIT:"${'a'.repeat(1600)}"`),
+  );
+});
+
+test('it submits a claude composer draft on an empty line without adding a line to it', async () => {
+  const ctx = setupDaemonProc();
+
+  writeFileSync(join(ctx.home, 'fake-claude-composer'), '');
+
+  const client = await ctx.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (e) => {
+    events.push(e);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
+
+  await client.sendRequest('session.input', { session: id, d: 'draft' });
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('RECEIVED:"draft"'),
+  );
+
+  await client.sendRequest('session.submit', { session: id, text: '' });
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionOutput' && String(e['d']).includes('SUBMIT:"draft"'),
   );
 });
 
