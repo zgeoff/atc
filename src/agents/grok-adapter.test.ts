@@ -2,9 +2,10 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { getAgentEntry } from '../../test/get-agent-entry';
 import { updateEnv } from '../../test/update-env';
 import type { HookEvent } from '../protocol/hook-event';
-import type { Config } from '../shared/config';
+import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { GrokAdapter } from './grok-adapter';
@@ -21,46 +22,12 @@ function setupGrokHome(): string {
   return dir;
 }
 
-function buildGrokConfig(): Config {
-  return {
-    claudeBin: 'claude',
-    claudeArgs: [],
-    claudeAuth: null,
-    claudeAuthErrors: [],
-    grokBin: 'grok',
-    grokArgs: [],
-    codexBin: 'codex',
-    codexArgs: [],
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    gateways: [],
-    gatewayErrors: [],
-    authProfiles: new Map(),
-    authProfileErrors: [],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    resumeInterruptedTurns: false,
-  };
-}
-
 function buildGrokHook(event: string, payload: Readonly<Record<string, unknown>>): HookEvent {
   return { atcId: toSessionID('s1'), event, payload };
 }
 
 test('it plans a new spawn without resume or -p and appends --no-leader', () => {
-  const plan = new GrokAdapter(buildGrokConfig()).planSpawn({
+  const plan = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok')).planSpawn({
     prompt: 'fix the bug',
     resume: false,
   });
@@ -75,13 +42,16 @@ test('it plans a new spawn without resume or -p and appends --no-leader', () => 
 });
 
 test('it plans adopt without --resume', () => {
-  const plan = new GrokAdapter(buildGrokConfig()).planSpawn({ prompt: '', resume: true });
+  const plan = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok')).planSpawn({
+    prompt: '',
+    resume: true,
+  });
 
   expect(plan.args).toStrictEqual(['--no-leader']);
 });
 
 test('it plans restore with --resume after --no-leader', () => {
-  const plan = new GrokAdapter(buildGrokConfig()).planSpawn({
+  const plan = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok')).planSpawn({
     prompt: '',
     resume: toAgentSessionID('01a0148d-f30c-7091-9bbf-548c4a7ed49e'),
   });
@@ -96,27 +66,20 @@ test('it plans restore with --resume after --no-leader', () => {
 test('it drops a user --leader from grokArgs and still appends --no-leader', () => {
   setupGrokHome();
 
-  const plan = new GrokAdapter({
-    ...buildGrokConfig(),
+  const config = parseConfig({
     grokArgs: ['--leader', '--yolo'],
-    codexBin: 'codex',
-    codexArgs: [],
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    gateways: [],
-  }).planSpawn({ prompt: '', resume: false });
+  });
+
+  const plan = new GrokAdapter(getAgentEntry(config, 'grok')).planSpawn({
+    prompt: '',
+    resume: false,
+  });
 
   expect(plan.args).toStrictEqual(['--yolo', '--no-leader']);
 });
 
 test('it yanks a captured id as grok --resume and an uncaptured session as grok', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   expect(adapter.buildResumeCommand("/tmp/o'reilly", toAgentSessionID('sess-9'))).toBe(
     String.raw`cd '/tmp/o'\''reilly' && grok --resume sess-9`,
@@ -126,7 +89,7 @@ test('it yanks a captured id as grok --resume and an uncaptured session as grok'
 });
 
 test('it maps permission_prompt to needs-input', () => {
-  const ev = new GrokAdapter(buildGrokConfig()).normalizeHook(
+  const ev = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok')).normalizeHook(
     buildGrokHook('Notification', {
       sessionId: 'g1',
       notificationType: 'permission_prompt',
@@ -143,7 +106,7 @@ test('it maps permission_prompt to needs-input', () => {
 });
 
 test('it maps end-turn Stop, StopCancelled, and StopFailure to turn-done', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   expect(
     adapter.normalizeHook(
@@ -164,7 +127,7 @@ test('it maps end-turn Stop, StopCancelled, and StopFailure to turn-done', () =>
 });
 
 test('it ignores session-end Stop and any event with a subagent type', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   expect(
     adapter.normalizeHook(buildGrokHook('Stop', { sessionId: 'g1', reason: 'channel_closed' }))
@@ -183,7 +146,7 @@ test('it ignores session-end Stop and any event with a subagent type', () => {
 });
 
 test('it evicts the oldest session and retains the newest once hook state passes 256 entries', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   adapter.normalizeHook({
     atcId: toSessionID('s-0'),
@@ -223,7 +186,7 @@ test('it evicts the oldest session and retains the newest once hook state passes
 });
 
 test('it ignores a stale promptId after a later submit', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   adapter.normalizeHook(
     buildGrokHook('UserPromptSubmit', { sessionId: 'g1', promptId: 'p2', prompt: 'next' }),
@@ -237,7 +200,7 @@ test('it ignores a stale promptId after a later submit', () => {
 });
 
 test('it treats idle_prompt after needs-input as a heartbeat', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   adapter.normalizeHook(
     buildGrokHook('Notification', { sessionId: 'g1', notificationType: 'permission_prompt' }),
@@ -251,7 +214,7 @@ test('it treats idle_prompt after needs-input as a heartbeat', () => {
 });
 
 test('it treats idle_prompt after a submitted prompt as turn-done', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   adapter.normalizeHook(
     buildGrokHook('UserPromptSubmit', { sessionId: 'g1', promptId: 'p1', prompt: 'go' }),
@@ -271,7 +234,7 @@ test('it treats idle_prompt after a submitted prompt as turn-done', () => {
 test('it captures SessionStart without a transcript path', () => {
   setupGrokHome();
 
-  const ev = new GrokAdapter(buildGrokConfig()).normalizeHook(
+  const ev = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok')).normalizeHook(
     buildGrokHook('SessionStart', { sessionId: 'g1', cwd: '/tmp/proj' }),
   );
 
@@ -297,7 +260,10 @@ test('it loads a manual title over a user-typed name', async () => {
     }),
   );
 
-  const update = await new GrokAdapter(buildGrokConfig()).loadName(file, 'user');
+  const update = await new GrokAdapter(getAgentEntry(parseConfig({}), 'grok')).loadName(
+    file,
+    'user',
+  );
 
   expect(update).toStrictEqual({ name: 'renamed in grok', namedBy: 'agent' });
 });
@@ -311,7 +277,7 @@ test('it loads an auto title only when the session was not user-named', async ()
     JSON.stringify({ generated_title: 'auto title', session_summary: 'auto blurb' }),
   );
 
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   const auto = await adapter.loadName(file, 'auto');
   const user = await adapter.loadName(file, 'user');
@@ -321,7 +287,7 @@ test('it loads an auto title only when the session was not user-named', async ()
 });
 
 test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -335,7 +301,7 @@ test('it maps a non-object hook payload to a bare heartbeat instead of throwing'
 });
 
 test('it treats wrong-typed hook payload fields as absent instead of throwing', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   const ev = adapter.normalizeHook(
     buildGrokHook('Stop', { sessionId: 9, cwd: null, reason: ['end_turn'], promptId: 12 }),
@@ -345,7 +311,7 @@ test('it treats wrong-typed hook payload fields as absent instead of throwing', 
 });
 
 test('it resumes when a session id was captured and not from a summary path', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   expect(adapter.canResume({ agentSessionID: toAgentSessionID('g1') })).toBe(true);
 
@@ -360,7 +326,7 @@ test('it resumes when a session id was captured and not from a summary path', ()
 });
 
 test('it carries the whole last assistant message of a finished turn as its result', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   const ev = adapter.normalizeHook(
     buildGrokHook('Stop', {
@@ -376,7 +342,7 @@ test('it carries the whole last assistant message of a finished turn as its resu
 });
 
 test('it refuses inbox messages', () => {
-  const adapter = new GrokAdapter(buildGrokConfig());
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
 
   expect(adapter.takesMessages).toBe(false);
 });

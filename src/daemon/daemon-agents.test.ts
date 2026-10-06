@@ -2,10 +2,7 @@ import { expect, test } from 'bun:test';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
-import { ClaudeAdapter } from '../agents/claude-adapter';
-import { CodexAdapter } from '../agents/codex-adapter';
-import { GatewayAdapter } from '../agents/gateway-adapter';
-import { GrokAdapter } from '../agents/grok-adapter';
+import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
 import { isRecord } from '../shared/report';
@@ -37,19 +34,11 @@ async function setupTest() {
     },
   });
 
-  const claude = new ClaudeAdapter(config);
-
   const daemon = await startDaemon({
     socketPath: sockPath,
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
-    adapter: claude,
-    adapters: [
-      claude,
-      new GrokAdapter(config),
-      new CodexAdapter(config),
-      ...config.gateways.map((gateway) => new GatewayAdapter(gateway, config)),
-    ],
+    adapters: buildAgentAdapters(config),
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),
   });

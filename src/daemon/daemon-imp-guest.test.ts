@@ -2,11 +2,13 @@ import { expect, test } from 'bun:test';
 import { readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
+import { getAgentEntry } from '../../test/get-agent-entry';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { DaemonClient } from '../client/daemon-client';
+import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
@@ -62,39 +64,11 @@ done
     ...(options.guestATC === true ? { guestATC: fakeATC } : {}),
   };
 
+  const adapterConfig = parseConfig({ claudeBin: fakeClaude });
+
   const adapter =
     options.adapter?.(fakeClaude) ??
-    new ClaudeAdapter({
-      claudeBin: fakeClaude,
-      claudeArgs: [],
-      claudeAuth: null,
-      claudeAuthErrors: [],
-      grokBin: 'grok',
-      grokArgs: [],
-      codexBin: 'codex',
-      codexArgs: [],
-      dirs: { roots: [] },
-      workspaces: {
-        githubOwner: null,
-        sources: null,
-        gitTransports: ['https', 'ssh'],
-        root: null,
-        targetRoots: new Map(),
-      },
-      gateways: [],
-      gatewayErrors: [],
-      authProfiles: new Map(),
-      authProfileErrors: [],
-      hooks: {},
-      leader: { code: 0, label: '^Space' },
-      targets: [{ id: 'box', provider: 'imp', options: {} }],
-      defaultTarget: 'box',
-      targetErrors: [],
-      principals: new Map(),
-      principalErrors: [],
-      workspaceErrors: [],
-      resumeInterruptedTurns: false,
-    });
+    new ClaudeAdapter(getAgentEntry(adapterConfig, 'claude'), adapterConfig);
 
   const daemon = await startDaemon({
     socketPath: sockPath,

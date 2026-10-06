@@ -3,8 +3,9 @@ import type { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
 import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
+import type { GatewayAuth } from '../shared/check-gateway-auth';
 import type { AuthProfile } from '../shared/collect-auth-profiles';
-import type { GatewayAuth, GatewayConfig } from '../shared/collect-gateways';
+import type { GatewayConfig } from '../shared/collect-gateways';
 import type { SessionID } from '../shared/session-id';
 
 export interface SpawnOptions {
@@ -220,6 +221,10 @@ export interface AgentAdapter {
   // What the registry is keyed by, and what a session records. Unique across
   // registered adapters.
   readonly id: AgentID;
+
+  // The agent value this harness's own hook lines carry, which a hook line
+  // must match for the session to act on it. Absent: the adapter's id.
+  readonly hookAgent?: AgentID;
 
   // Runs one headless turn over a session; null means eject is unsupported
   // for this agent.

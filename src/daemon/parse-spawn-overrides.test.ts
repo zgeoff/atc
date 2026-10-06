@@ -1,4 +1,7 @@
 import { expect, test } from 'bun:test';
+import { getAgentEntry } from '../../test/get-agent-entry';
+import { getGatewayConfig } from '../../test/get-gateway-config';
+import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { CodexAdapter } from '../agents/codex-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
@@ -17,16 +20,7 @@ test('it accepts every model and effort value agents.list advertises as availabl
     },
   });
 
-  const agents = buildAgentList(
-    [
-      new ClaudeAdapter(config),
-      new GrokAdapter(config),
-      new CodexAdapter(config),
-      ...config.gateways.map((gateway) => new GatewayAdapter(gateway, config)),
-    ],
-    () => true,
-    false,
-  );
+  const agents = buildAgentList(buildAgentAdapters(config), () => true, false);
 
   const advertised = agents.flatMap((agent) =>
     (['model', 'effort'] as const)
@@ -50,7 +44,11 @@ test('it refuses as unsupported every option agents.list does not advertise as a
   const config = parseConfig({});
 
   const agents = buildAgentList(
-    [new ClaudeAdapter(config), new GrokAdapter(config), new CodexAdapter(config)],
+    [
+      new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      new GrokAdapter(getAgentEntry(config, 'grok')),
+      new CodexAdapter(getAgentEntry(config, 'codex')),
+    ],
     () => true,
     false,
   );
@@ -78,7 +76,11 @@ test('it refuses as unsupported every option agents.list does not advertise as a
 });
 
 test('it refuses a model for a registered agent that is not installed', () => {
-  const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => false, false);
+  const [claude] = buildAgentList(
+    buildAgentAdapters(parseConfig({ agents: { claude: {} } })),
+    () => false,
+    false,
+  );
 
   if (claude === undefined) {
     throw new Error('the agent list holds no claude entry');
@@ -92,7 +94,11 @@ test('it refuses a model for a registered agent that is not installed', () => {
 });
 
 test('it passes a full model name through as given', () => {
-  const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => true, false);
+  const [claude] = buildAgentList(
+    buildAgentAdapters(parseConfig({ agents: { claude: {} } })),
+    () => true,
+    false,
+  );
 
   if (claude === undefined) {
     throw new Error('the agent list holds no claude entry');
@@ -114,7 +120,11 @@ test.each([
   ['', 'model must be 1 to 200 characters'],
   ['m'.repeat(201), 'model must be 1 to 200 characters'],
 ])('it refuses the model %p as bad_args', (model, message) => {
-  const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => true, false);
+  const [claude] = buildAgentList(
+    buildAgentAdapters(parseConfig({ agents: { claude: {} } })),
+    () => true,
+    false,
+  );
 
   if (claude === undefined) {
     throw new Error('the agent list holds no claude entry');
@@ -130,7 +140,11 @@ test.each([
 test.each(['ultra', 'minimal', 'HIGH', '--max'])(
   'it refuses the effort %p that Claude Code does not accept',
   (effort) => {
-    const [claude] = buildAgentList([new ClaudeAdapter(parseConfig({}))], () => true, false);
+    const [claude] = buildAgentList(
+      buildAgentAdapters(parseConfig({ agents: { claude: {} } })),
+      () => true,
+      false,
+    );
 
     if (claude === undefined) {
       throw new Error('the agent list holds no claude entry');
@@ -147,7 +161,7 @@ test("it accepts a gateway effort and marks the provider's response to it unveri
   const config = parseConfig({ gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic' } } });
 
   const [zai] = buildAgentList(
-    config.gateways.map((gateway) => new GatewayAdapter(gateway, config)),
+    [new GatewayAdapter(getGatewayConfig(config, 'zai'), config)],
     () => true,
     false,
   );
@@ -168,7 +182,7 @@ test('it refuses a gateway effort outside the levels Claude Code accepts', () =>
   const config = parseConfig({ gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic' } } });
 
   const [zai] = buildAgentList(
-    config.gateways.map((gateway) => new GatewayAdapter(gateway, config)),
+    [new GatewayAdapter(getGatewayConfig(config, 'zai'), config)],
     () => true,
     false,
   );
@@ -185,7 +199,11 @@ test('it refuses a gateway effort outside the levels Claude Code accepts', () =>
 });
 
 test('it refuses a codex effort and accepts a codex model', () => {
-  const [codex] = buildAgentList([new CodexAdapter(parseConfig({}))], () => true, false);
+  const [codex] = buildAgentList(
+    buildAgentAdapters(parseConfig({ agents: { codex: {} } })),
+    () => true,
+    false,
+  );
 
   if (codex === undefined) {
     throw new Error('the agent list holds no codex entry');

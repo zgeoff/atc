@@ -2,47 +2,13 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { getAgentEntry } from '../../test/get-agent-entry';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { updateEnv } from '../../test/update-env';
 import { parseConfig } from '../shared/config';
-import type { Config } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { ClaudeAdapter } from './claude-adapter';
-
-function buildClaudeConfig(): Config {
-  return {
-    claudeBin: 'claude',
-    claudeArgs: [],
-    claudeAuth: null,
-    claudeAuthErrors: [],
-    grokBin: 'grok',
-    grokArgs: [],
-    codexBin: 'codex',
-    codexArgs: [],
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    gateways: [],
-    gatewayErrors: [],
-    authProfiles: new Map(),
-    authProfileErrors: [],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    resumeInterruptedTurns: false,
-  };
-}
 
 test('it resumes when no transcript was reported or the reported file exists', () => {
   const dir = mkdtempSync(join(tmpdir(), 'atc-claude-resume-'));
@@ -55,7 +21,7 @@ test('it resumes when no transcript was reported or the reported file exists', (
 
   writeFileSync(transcript, '');
 
-  const adapter = new ClaudeAdapter(buildClaudeConfig());
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   expect(adapter.canResume({})).toBe(true);
   expect(adapter.canResume({ transcriptSource: transcript })).toBe(true);
@@ -63,7 +29,7 @@ test('it resumes when no transcript was reported or the reported file exists', (
 });
 
 test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
-  const adapter = new ClaudeAdapter(buildClaudeConfig());
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -77,7 +43,7 @@ test('it maps a non-object hook payload to a bare heartbeat instead of throwing'
 });
 
 test('it treats wrong-typed hook payload fields as absent instead of throwing', () => {
-  const adapter = new ClaudeAdapter(buildClaudeConfig());
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -89,7 +55,7 @@ test('it treats wrong-typed hook payload fields as absent instead of throwing', 
 });
 
 test('it carries the whole last assistant message of a finished turn as its result', () => {
-  const adapter = new ClaudeAdapter(buildClaudeConfig());
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -102,7 +68,7 @@ test('it carries the whole last assistant message of a finished turn as its resu
 });
 
 test('it takes inbox messages', () => {
-  const adapter = new ClaudeAdapter(buildClaudeConfig());
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   expect(adapter.takesMessages).toBe(true);
 });
@@ -113,7 +79,8 @@ test('it runs a headless turn through the configured claude binary under the aut
   let received: Readonly<Record<string, unknown>> = {};
 
   const adapter = new ClaudeAdapter(
-    buildClaudeConfig(),
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
     (opts) => {
       received = { ...opts };
 
@@ -139,10 +106,9 @@ test('it runs a headless turn through the configured claude binary under the aut
 });
 
 test('it advertises the documented model aliases and effort levels with the configured defaults', () => {
-  const adapter = new ClaudeAdapter({
-    ...buildClaudeConfig(),
-    claudeArgs: ['--model', 'opus', '--effort=high'],
-  });
+  const config = parseConfig({ claudeArgs: ['--model', 'opus', '--effort=high'] });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   expect(adapter.profile.spawnOptions).toStrictEqual({
     model: {
@@ -174,7 +140,8 @@ test('it advertises the documented model aliases and effort levels with the conf
 });
 
 test('it advertises no default model or effort when the configured arguments set none', () => {
-  const options = new ClaudeAdapter(buildClaudeConfig()).profile.spawnOptions;
+  const options = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}))
+    .profile.spawnOptions;
 
   expect([options.model.default, options.effort.default]).toStrictEqual([null, null]);
 });
@@ -183,9 +150,11 @@ test('it runs a headless turn under the permission mode its configured arguments
   using tmp = setupTempDir('atc-claude-mode-');
 
   let received: Readonly<Record<string, unknown>> = {};
+  const config = parseConfig({ claudeArgs: ['--permission-mode', 'plan'] });
 
   const adapter = new ClaudeAdapter(
-    parseConfig({ claudeArgs: ['--permission-mode', 'plan'] }),
+    getAgentEntry(config, 'claude'),
+    config,
     (opts) => {
       received = { ...opts };
 
@@ -203,7 +172,9 @@ test('it runs a headless turn under the permission mode its configured arguments
 });
 
 test('it keeps the permission mode its configured arguments set in the command that resumes it outside atc', () => {
-  const adapter = new ClaudeAdapter(parseConfig({ claudeArgs: ['--permission-mode', 'plan'] }));
+  const config = parseConfig({ claudeArgs: ['--permission-mode', 'plan'] });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
     "cd '/work/repo' && claude --permission-mode 'plan' --resume sess-1",
@@ -213,7 +184,12 @@ test('it keeps the permission mode its configured arguments set in the command t
 test('it restores a stock session without a permission-mode argument', () => {
   using tmp = setupTempDir('atc-claude-stock-restore-');
 
-  const adapter = new ClaudeAdapter(parseConfig({}), null, join(tmp.dir, 'atc-bridge'));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    null,
+    join(tmp.dir, 'atc-bridge'),
+  );
 
   const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
 
@@ -225,7 +201,7 @@ test('it restores a stock session without a permission-mode argument', () => {
 });
 
 test('it pastes a long line and submits it with a carriage return as a second write', () => {
-  const adapter = new ClaudeAdapter(buildClaudeConfig());
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   expect(adapter.planLineInput('a'.repeat(1600), { bracketedPaste: true })).toStrictEqual([
     `\u001B[200~${'a'.repeat(1600)}\u001B[201~`,
@@ -234,7 +210,7 @@ test('it pastes a long line and submits it with a carriage return as a second wr
 });
 
 test('it takes no credential from the broker when the config holds no claudeAuth', () => {
-  const adapter = new ClaudeAdapter(parseConfig({}));
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   expect(adapter.findAuthSelection()).toBeNull();
   expect(adapter.planGuestWorkspaceTrust('/work/repo')).toBeNull();
@@ -253,7 +229,7 @@ test('it selects the subscription token on the Anthropic API with the placeholde
     claudeAuth: { profiles: ['claude'] },
   });
 
-  const adapter = new ClaudeAdapter(config);
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   expect(adapter.findAuthSelection()).toStrictEqual({
     gateway: {
@@ -270,20 +246,20 @@ test('it selects the subscription token on the Anthropic API with the placeholde
 });
 
 test('it plans a subscription guest spawn with its own config folder, the placeholder, and no permission mode', () => {
-  const adapter = new ClaudeAdapter(
-    parseConfig({
-      claudeArgs: ['--permission-mode', 'plan', '--verbose'],
-      authProfiles: {
-        claude: {
-          secret: 'claude-setup-token',
-          host: 'api.anthropic.com',
-          header: 'authorization',
-          scheme: 'bearer',
-        },
+  const config = parseConfig({
+    claudeArgs: ['--permission-mode', 'plan', '--verbose'],
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
       },
-      claudeAuth: { profiles: ['claude'] },
-    }),
-  );
+    },
+    claudeAuth: { profiles: ['claude'] },
+  });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   const plan = adapter.planGuestSpawn(
     { prompt: 'hi', resume: false },
@@ -367,19 +343,19 @@ test("it ships the host's Claude config as the session's user settings and keeps
 
   updateEnv('CLAUDE_CONFIG_DIR', tmp.dir);
 
-  const adapter = new ClaudeAdapter(
-    parseConfig({
-      authProfiles: {
-        claude: {
-          secret: 'claude-setup-token',
-          host: 'api.anthropic.com',
-          header: 'authorization',
-          scheme: 'bearer',
-        },
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
       },
-      claudeAuth: { profiles: ['claude'] },
-    }),
-  );
+    },
+    agents: { claude: { auth: { profiles: ['claude'] } } },
+  });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -445,19 +421,19 @@ test("it ships the host's Claude config as the session's user settings and keeps
 });
 
 test('it plans a guest spawn without a broker binding in the config of the host image', () => {
-  const adapter = new ClaudeAdapter(
-    parseConfig({
-      authProfiles: {
-        claude: {
-          secret: 'claude-setup-token',
-          host: 'api.anthropic.com',
-          header: 'authorization',
-          scheme: 'bearer',
-        },
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
       },
-      claudeAuth: { profiles: ['claude'] },
-    }),
-  );
+    },
+    claudeAuth: { profiles: ['claude'] },
+  });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -484,20 +460,20 @@ test.each([
   ['CLAUDE_CODE_USE_VERTEX'],
   ['HTTPS_PROXY'],
 ])('it refuses a subscription guest spawn whose configured --settings sets %s', (variable) => {
-  const adapter = new ClaudeAdapter(
-    parseConfig({
-      claudeArgs: ['--settings', JSON.stringify({ env: { [variable]: 'sk-test' } })],
-      authProfiles: {
-        claude: {
-          secret: 'claude-setup-token',
-          host: 'api.anthropic.com',
-          header: 'authorization',
-          scheme: 'bearer',
-        },
+  const config = parseConfig({
+    claudeArgs: ['--settings', JSON.stringify({ env: { [variable]: 'sk-test' } })],
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
       },
-      claudeAuth: { profiles: ['claude'] },
-    }),
-  );
+    },
+    claudeAuth: { profiles: ['claude'] },
+  });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   const plan = () =>
     adapter.planGuestSpawn(
@@ -517,23 +493,61 @@ test.each([
   );
 });
 
+test.each([
+  ['env', { env: { ANTHROPIC_BASE_URL: 'https://x.example.com' } }, 'agents.claude.env sets'],
+  [
+    'settings.env',
+    { env: {}, settings: { env: { HTTPS_PROXY: 'http://p.example:3128' } } },
+    'agents.claude.settings.env sets',
+  ],
+])(
+  'it refuses a subscription guest spawn whose entry %s overrides the sign-in',
+  (_source, fields, wording) => {
+    const adapter = new ClaudeAdapter(
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        auth: { profiles: ['claude'], placeholderEnv: {} },
+        ...fields,
+      },
+      parseConfig({}),
+    );
+
+    const plan = () =>
+      adapter.planGuestSpawn(
+        { prompt: '', resume: false },
+        {
+          atc: '/opt/atc/bin/atc',
+          dir: '/tmp/atc/sessions/s1',
+          auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+        },
+      );
+
+    expect(plan).toThrow(expect.objectContaining({ message: expect.toInclude(wording) }));
+  },
+);
+
 test('it refuses to start a subscription session in a host whose environment sets ANTHROPIC_API_KEY', () => {
   using tmp = setupTempDir('atc-claude-refuse-');
 
-  const adapter = new ClaudeAdapter(
-    parseConfig({
-      claudeBin: 'true',
-      authProfiles: {
-        claude: {
-          secret: 'claude-setup-token',
-          host: 'api.anthropic.com',
-          header: 'authorization',
-          scheme: 'bearer',
-        },
+  const config = parseConfig({
+    claudeBin: 'true',
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
       },
-      claudeAuth: { profiles: ['claude'] },
-    }),
-  );
+    },
+    claudeAuth: { profiles: ['claude'] },
+  });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -583,20 +597,20 @@ test.each([
   (name, value) => {
     using tmp = setupTempDir('atc-claude-route-');
 
-    const adapter = new ClaudeAdapter(
-      parseConfig({
-        claudeBin: 'true',
-        authProfiles: {
-          claude: {
-            secret: 'claude-setup-token',
-            host: 'api.anthropic.com',
-            header: 'authorization',
-            scheme: 'bearer',
-          },
+    const config = parseConfig({
+      claudeBin: 'true',
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
         },
-        claudeAuth: { profiles: ['claude'] },
-      }),
-    );
+      },
+      claudeAuth: { profiles: ['claude'] },
+    });
+
+    const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
     const plan = adapter.planGuestSpawn(
       { prompt: '', resume: false },
@@ -623,20 +637,20 @@ test.each([
 test('it starts a subscription session with a seeded config folder in a host whose environment sets no credential', () => {
   using tmp = setupTempDir('atc-claude-seed-');
 
-  const adapter = new ClaudeAdapter(
-    parseConfig({
-      claudeBin: 'true',
-      authProfiles: {
-        claude: {
-          secret: 'claude-setup-token',
-          host: 'api.anthropic.com',
-          header: 'authorization',
-          scheme: 'bearer',
-        },
+  const config = parseConfig({
+    claudeBin: 'true',
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
       },
-      claudeAuth: { profiles: ['claude'] },
-    }),
-  );
+    },
+    claudeAuth: { profiles: ['claude'] },
+  });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -670,19 +684,19 @@ test('it starts a subscription session with a seeded config folder in a host who
 });
 
 test('it seeds folder trust for the exact clone root of a subscription session', () => {
-  const adapter = new ClaudeAdapter(
-    parseConfig({
-      authProfiles: {
-        claude: {
-          secret: 'claude-setup-token',
-          host: 'api.anthropic.com',
-          header: 'authorization',
-          scheme: 'bearer',
-        },
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
       },
-      claudeAuth: { profiles: ['claude'] },
-    }),
-  );
+    },
+    claudeAuth: { profiles: ['claude'] },
+  });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   const seed = adapter.planGuestWorkspaceTrust('/work/repo')?.['claude-config-seed.json'];
 

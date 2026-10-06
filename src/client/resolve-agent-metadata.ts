@@ -12,12 +12,6 @@ export interface AgentMetadata {
   readonly models: Readonly<Record<AgentID, Readonly<Record<string, string>>>>;
 }
 
-const BUILT_IN_LABELS: Readonly<Record<AgentID, string>> = {
-  claude: 'Claude',
-  grok: 'Grok',
-  codex: 'Codex',
-};
-
 /**
  * The labels and model aliases the overlay draws with, resolved from the
  * config a client reads at start and the daemon's `agents.list` answer once
@@ -26,12 +20,12 @@ const BUILT_IN_LABELS: Readonly<Record<AgentID, string>> = {
  * the window before the answer lands.
  */
 export function resolveAgentMetadata(config: Config, listed: unknown): AgentMetadata {
-  const labels: Record<AgentID, string> = { ...BUILT_IN_LABELS };
+  const labels: Record<AgentID, string> = {};
   const models: Record<AgentID, Readonly<Record<string, string>>> = {};
 
-  for (const gateway of config.gateways) {
-    if (isSafeKey(gateway.id)) {
-      labels[gateway.id] = gateway.label;
+  for (const entry of config.agents) {
+    if (isSafeKey(entry.id)) {
+      labels[entry.id] = entry.label;
     }
   }
 

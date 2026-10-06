@@ -2,9 +2,11 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FixtureImpPort } from '../../test/fixture-imp-port';
+import { getGatewayConfig } from '../../test/get-gateway-config';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { updateEnv } from '../../test/update-env';
 import { waitFor } from '../../test/wait-for';
+import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
@@ -57,12 +59,13 @@ async function setupTest() {
   const provider = new ImpProvider(port, { guestDir, guestATC }, { atcBinary: null });
 
   const config = parseConfig({
-    claudeBin: fakeClaude,
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
-    gateways: {
+    agents: {
       glm: {
+        kind: 'claude',
+        bin: fakeClaude,
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
@@ -70,6 +73,8 @@ async function setupTest() {
         },
       },
       keyed: {
+        kind: 'claude',
+        bin: fakeClaude,
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
@@ -79,12 +84,8 @@ async function setupTest() {
     },
   });
 
-  const gateways = config.gateways.map((gateway) => new GatewayAdapter(gateway, config));
-  const glm = config.gateways.find((gateway) => gateway.id === 'glm');
-
-  if (glm === undefined) {
-    throw new Error('expected the glm gateway');
-  }
+  const gateways = buildAgentAdapters(config);
+  const glm = getGatewayConfig(config, 'glm');
 
   const proxied = new GatewayAdapter(
     { ...glm, id: 'proxied', env: { HTTPS_PROXY: 'http://proxy.example:3128' } },
@@ -95,7 +96,6 @@ async function setupTest() {
     socketPath: sockPath,
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
-    adapter: gateways[0] ?? proxied,
     adapters: [...gateways, proxied],
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),

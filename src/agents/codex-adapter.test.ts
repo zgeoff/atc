@@ -2,45 +2,12 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { getAgentEntry } from '../../test/get-agent-entry';
 import { updateEnv } from '../../test/update-env';
-import type { Config } from '../shared/config';
+import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { CodexAdapter } from './codex-adapter';
-
-function buildCodexConfig(): Config {
-  return {
-    claudeBin: 'claude',
-    claudeArgs: [],
-    claudeAuth: null,
-    claudeAuthErrors: [],
-    grokBin: 'grok',
-    grokArgs: [],
-    codexBin: 'codex',
-    codexArgs: [],
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    gateways: [],
-    gatewayErrors: [],
-    authProfiles: new Map(),
-    authProfileErrors: [],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    resumeInterruptedTurns: false,
-  };
-}
 
 function setupCodexHome(indexLines: readonly string[]): string {
   const dir = mkdtempSync(join(tmpdir(), 'atc-codex-'));
@@ -56,7 +23,7 @@ function setupCodexHome(indexLines: readonly string[]): string {
 }
 
 test('it spawns fresh, picker-resume, and id-resume codex commands', () => {
-  const adapter = new CodexAdapter(buildCodexConfig());
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   expect(adapter.planSpawn({ prompt: 'fix the bug', resume: false })).toStrictEqual({
     bin: 'codex',
@@ -75,7 +42,9 @@ test('it spawns fresh, picker-resume, and id-resume codex commands', () => {
 });
 
 test('it keeps the configured codex arguments when a spawn sets no model', () => {
-  const adapter = new CodexAdapter({ ...buildCodexConfig(), codexArgs: ['--model', 'gpt-a'] });
+  const config = parseConfig({ codexArgs: ['--model', 'gpt-a'] });
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'));
 
   expect(adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
     bin: 'codex',
@@ -84,10 +53,9 @@ test('it keeps the configured codex arguments when a spawn sets no model', () =>
 });
 
 test("it replaces the configured codex model with a spawn's model passed as -m", () => {
-  const adapter = new CodexAdapter({
-    ...buildCodexConfig(),
-    codexArgs: ['--model', 'gpt-a', '--search'],
-  });
+  const config = parseConfig({ codexArgs: ['--model', 'gpt-a', '--search'] });
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'));
 
   expect(
     adapter.planSpawn({ prompt: 'go', resume: toAgentSessionID('c-1'), model: 'gpt-b' }),
@@ -95,7 +63,9 @@ test("it replaces the configured codex model with a spawn's model passed as -m",
 });
 
 test('it advertises a codex model with the configured default and no effort', () => {
-  const adapter = new CodexAdapter({ ...buildCodexConfig(), codexArgs: ['-m', 'gpt-a'] });
+  const config = parseConfig({ codexArgs: ['-m', 'gpt-a'] });
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'));
 
   expect(adapter.profile.spawnOptions).toStrictEqual({
     model: {
@@ -118,7 +88,7 @@ test('it advertises a codex model with the configured default and no effort', ()
 });
 
 test('it maps a codex session start to started with id, name, and transcript sources', () => {
-  const adapter = new CodexAdapter(buildCodexConfig());
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -141,7 +111,7 @@ test('it maps a codex session start to started with id, name, and transcript sou
 });
 
 test('it maps codex prompt, stop, permission, and end events to session kinds', () => {
-  const adapter = new CodexAdapter(buildCodexConfig());
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   const submitted = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -183,7 +153,7 @@ test('it loads the latest indexed thread name but never over a user-typed name',
     '{"id":"c-1","thread_name":"renamed title","updated_at":"2026-08-20T00:00:02Z"}',
   ]);
 
-  const adapter = new CodexAdapter(buildCodexConfig());
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   const autoName = await adapter.loadName('c-1', 'auto');
   const userName = await adapter.loadName('c-1', 'user');
@@ -200,7 +170,7 @@ test('it resumes when no transcript was reported or the reported rollout exists'
 
   writeFileSync(rollout, '');
 
-  const adapter = new CodexAdapter(buildCodexConfig());
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   expect(adapter.canResume({})).toBe(true);
   expect(adapter.canResume({ transcriptSource: rollout })).toBe(true);
@@ -208,7 +178,7 @@ test('it resumes when no transcript was reported or the reported rollout exists'
 });
 
 test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
-  const adapter = new CodexAdapter(buildCodexConfig());
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -222,7 +192,7 @@ test('it maps a non-object hook payload to a bare heartbeat instead of throwing'
 });
 
 test('it treats wrong-typed hook payload fields as absent instead of throwing', () => {
-  const adapter = new CodexAdapter(buildCodexConfig());
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -238,7 +208,7 @@ test('it treats wrong-typed hook payload fields as absent instead of throwing', 
 });
 
 test('it builds codex resume commands with and without a captured id', () => {
-  const adapter = new CodexAdapter(buildCodexConfig());
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   expect(adapter.buildResumeCommand("/tmp/it's", toAgentSessionID('c-1'))).toBe(
     String.raw`cd '/tmp/it'\''s' && codex resume c-1`,
@@ -248,7 +218,7 @@ test('it builds codex resume commands with and without a captured id', () => {
 });
 
 test('it carries the whole last assistant message of a finished turn as its result', () => {
-  const adapter = new CodexAdapter(buildCodexConfig());
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -261,7 +231,7 @@ test('it carries the whole last assistant message of a finished turn as its resu
 });
 
 test('it refuses inbox messages', () => {
-  const adapter = new CodexAdapter(buildCodexConfig());
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   expect(adapter.takesMessages).toBe(false);
 });

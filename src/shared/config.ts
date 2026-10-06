@@ -1,18 +1,18 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
+import type { AgentID } from './agent-id';
 import { buildOptionalBoolean } from './build-optional-boolean';
 import { buildOptionalString } from './build-optional-string';
 import { buildOptionalStringArray } from './build-optional-string-array';
+import { collectAgents } from './collect-agents';
+import type { AgentEntry } from './collect-agents';
 import { collectAuthProfiles } from './collect-auth-profiles';
 import type { AuthProfile } from './collect-auth-profiles';
-import { collectClaudeAuth } from './collect-claude-auth';
-import type { ClaudeAuth } from './collect-claude-auth';
 import { collectDirRoots } from './collect-dir-roots';
-import { collectGateways } from './collect-gateways';
-import type { GatewayConfig } from './collect-gateways';
 import { collectHooks } from './collect-hooks';
 import type { HooksConfig } from './collect-hooks';
+import { collectLegacyAgents } from './collect-legacy-agents';
 import { collectPrincipals } from './collect-principals';
 import { collectTargets } from './collect-targets';
 import type { TargetConfig, TargetConfigError } from './collect-targets';
@@ -20,30 +20,28 @@ import { collectWorkspacesConfig } from './collect-workspaces-config';
 import type { WorkspacesConfig } from './collect-workspaces-config';
 import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
 import { formatJSONKind } from './format-json-kind';
+import { formatMixedAgentKeys } from './format-mixed-agent-keys';
+import { LEGACY_AGENT_KEYS } from './legacy-agent-keys';
+import { pickDefaultAgent } from './pick-default-agent';
 import { isRecord } from './report';
 import { resolveHomeDir } from './resolve-home-dir';
 
 export interface Config {
-  claudeBin: string;
-  claudeArgs: string[];
+  // The agents atc offers, in menu order, and the problems that left an
+  // entry out.
+  agents: readonly AgentEntry[];
+  agentErrors: readonly string[];
 
-  // The auth profiles stock Claude signs in through on a target that
-  // reaches impd's broker, null when it keeps the host's own sign-in there,
-  // and the problems that left an entry out.
-  claudeAuth: ClaudeAuth | null;
-  claudeAuthErrors: readonly string[];
-  grokBin: string;
-  grokArgs: string[];
-  codexBin: string;
-  codexArgs: string[];
+  // The old agent keys a file without `agents` sets, in file order. Empty
+  // for a file that uses `agents` or sets none of them.
+  legacyAgentKeys: readonly string[];
+
+  // The agent a spawn without one runs.
+  defaultAgent: AgentID;
   dirs: DirsConfig;
   workspaces: WorkspacesConfig;
-  gateways: GatewayConfig[];
 
-  // The problems that kept a gateway with auth out of the gateways.
-  gatewayErrors: readonly string[];
-
-  // The credential references a gateway's auth selects from, by profile
+  // The credential references an agent's auth selects from, by profile
   // name, and the problems that kept a profile out.
   authProfiles: ReadonlyMap<string, AuthProfile>;
   authProfileErrors: readonly string[];
@@ -87,14 +85,20 @@ interface LeaderKey {
 }
 
 const DEFAULTS: Config = {
-  claudeBin: 'claude',
-  claudeArgs: [],
-  claudeAuth: null,
-  claudeAuthErrors: [],
-  grokBin: 'grok',
-  grokArgs: [],
-  codexBin: 'codex',
-  codexArgs: [],
+  agents: [
+    {
+      id: 'claude',
+      kind: 'claude',
+      label: 'Claude',
+      mark: 'c',
+      bin: 'claude',
+      args: [],
+      env: {},
+    },
+  ],
+  agentErrors: [],
+  legacyAgentKeys: [],
+  defaultAgent: 'claude',
   dirs: { roots: [] },
   workspaces: {
     githubOwner: null,
@@ -103,8 +107,6 @@ const DEFAULTS: Config = {
     root: null,
     targetRoots: new Map(),
   },
-  gateways: [],
-  gatewayErrors: [],
   authProfiles: new Map(),
   authProfileErrors: [],
   hooks: {},
@@ -139,6 +141,7 @@ export const daemonRecordFile = join(stateDir, 'daemon.json');
 // field parses to undefined rather than failing the file, so a bad config
 // falls back to a default instead of refusing to start atc.
 const CONFIG_SCHEMA = z.object({
+  agents: z.unknown().optional(),
   claudeBin: buildOptionalString(),
   claudeArgs: buildOptionalStringArray(),
   claudeAuth: z.unknown().optional(),
@@ -237,16 +240,17 @@ function tryWriteDefaultConfig(file: string): void {
 }
 
 /**
- * The config.json text a first run writes. It leaves out the targets and
- * principals, so the file holds the one implicit `local` target and no
+ * The config.json text a first run writes: the `claude` agent alone. It
+ * leaves out the targets and principals, so the file holds the one implicit `local` target and no
  * principals until the user sets their own, no auth profiles, and the
  * errors a parse reports, which belong to no file.
  */
 export function renderDefaultConfig(): string {
   const {
-    claudeAuth: _claudeAuth,
-    claudeAuthErrors: _claudeAuthErrors,
-    gatewayErrors: _gatewayErrors,
+    agents: _agents,
+    agentErrors: _agentErrors,
+    legacyAgentKeys: _legacyAgentKeys,
+    defaultAgent: _defaultAgent,
     authProfiles: _authProfiles,
     authProfileErrors: _authProfileErrors,
     targets: _targets,
@@ -264,7 +268,11 @@ export function renderDefaultConfig(): string {
   const { targetRoots, ...rest } = workspaces;
 
   return `${JSON.stringify(
-    { ...written, workspaces: { ...rest, targets: Object.fromEntries(targetRoots) } },
+    {
+      agents: { claude: {} },
+      ...written,
+      workspaces: { ...rest, targets: Object.fromEntries(targetRoots) },
+    },
     null,
     2,
   )}\n`;
@@ -296,23 +304,31 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     );
   }
 
-  const claudeBin = parsed.data.claudeBin ?? DEFAULTS.claudeBin;
-  const claudeArgs = parsed.data.claudeArgs ?? DEFAULTS.claudeArgs;
-  const grokBin = parsed.data.grokBin ?? DEFAULTS.grokBin;
-  const grokArgs = parsed.data.grokArgs ?? DEFAULTS.grokArgs;
-  const codexBin = parsed.data.codexBin ?? DEFAULTS.codexBin;
-  const codexArgs = parsed.data.codexArgs ?? DEFAULTS.codexArgs;
+  const present = Object.keys(raw).filter((key) => LEGACY_AGENT_KEYS.includes(key));
+
+  if (Object.hasOwn(raw, 'agents') && present.length > 0) {
+    return buildUnusableConfig('config_malformed', file, formatMixedAgentKeys(present));
+  }
+
   const dirs = { roots: collectDirRoots(parsed.data.dirs) };
   const workspaces = collectWorkspacesConfig(parsed.data.workspaces);
   const authProfiles = collectAuthProfiles(parsed.data.authProfiles);
-  const claudeAuth = collectClaudeAuth(parsed.data.claudeAuth, authProfiles.profiles);
 
-  const gateways = collectGateways(
-    parsed.data.gateways,
-    claudeBin,
-    claudeArgs,
-    authProfiles.profiles,
-  );
+  const registry = Object.hasOwn(raw, 'agents')
+    ? collectAgents(parsed.data.agents, authProfiles.profiles)
+    : collectLegacyAgents(
+        {
+          claudeBin: parsed.data.claudeBin ?? 'claude',
+          claudeArgs: parsed.data.claudeArgs ?? [],
+          claudeAuth: parsed.data.claudeAuth,
+          grokBin: parsed.data.grokBin ?? 'grok',
+          grokArgs: parsed.data.grokArgs ?? [],
+          codexBin: parsed.data.codexBin ?? 'codex',
+          codexArgs: parsed.data.codexArgs ?? [],
+          gateways: parsed.data.gateways,
+        },
+        authProfiles.profiles,
+      );
 
   const hooks = collectHooks(parsed.data.hooks);
   const targets = collectTargets(parsed.data.targets, parsed.data.defaultTarget);
@@ -322,18 +338,12 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     (parsed.data.leader === undefined ? null : decodeLeader(parsed.data.leader)) ?? DEFAULTS.leader;
 
   return {
-    claudeBin,
-    claudeArgs,
-    claudeAuth: claudeAuth.auth,
-    claudeAuthErrors: claudeAuth.errors,
-    grokBin,
-    grokArgs,
-    codexBin,
-    codexArgs,
+    agents: registry.agents,
+    agentErrors: registry.errors,
+    legacyAgentKeys: present,
+    defaultAgent: pickDefaultAgent(registry.agents),
     dirs,
     workspaces: workspaces.workspaces,
-    gateways: gateways.gateways,
-    gatewayErrors: gateways.errors,
     authProfiles: authProfiles.profiles,
     authProfileErrors: authProfiles.errors,
     hooks,

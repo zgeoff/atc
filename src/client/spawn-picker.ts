@@ -434,8 +434,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       let hint = '↑↓ move · ⏎ select · esc cancel';
 
       if (this.picks.length === 0) {
-        hint =
-          'no agent CLI found — set claudeBin, grokBin, or codexBin in config.json · esc cancel';
+        hint = 'no agent CLI found — set agents in config.json · esc cancel';
       } else if (this.sourcesPending) {
         hint = 'reading targets and sources… · esc cancel';
       }

@@ -4,10 +4,13 @@ import { z } from 'zod';
 import type { AdapterEvent } from '../protocol/adapter-event';
 import { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
+import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalString } from '../shared/build-optional-string';
+import type { AgentEntry } from '../shared/collect-agents';
 import type { Config } from '../shared/config';
-import { isBrokerVariable } from '../shared/is-broker-variable';
+import { isSubscriptionOverrideVariable } from '../shared/is-subscription-override-variable';
+import { OUTRANKING_VARIABLES } from '../shared/outranking-variables';
 import { isRecord } from '../shared/report';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toShellArg } from '../shared/to-shell-arg';
@@ -31,6 +34,7 @@ import { buildClaudeConfigSeed } from './build-claude-config-seed';
 import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
 import { buildHookSettings } from './build-hook-settings';
+import type { HookSettingsProfile } from './build-hook-settings';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
@@ -65,7 +69,11 @@ type ClaudeHookPayload = z.infer<typeof CLAUDE_HOOK_PAYLOAD_SCHEMA>;
  * resume semantics, transcript name-pulling, and statusline chaining.
  */
 export class ClaudeAdapter implements AgentAdapter {
-  readonly id = 'claude';
+  readonly id: AgentID;
+
+  // The agent value the hook lines of a Claude session carry: the settings
+  // file atc writes for this id names it on each hook command.
+  readonly hookAgent: AgentID;
 
   readonly headlessRunner: HeadlessRunner | null;
 
@@ -82,7 +90,9 @@ export class ClaudeAdapter implements AgentAdapter {
 
   readonly takesMessages = true;
 
-  private readonly config: Config;
+  private readonly entry: AgentEntry;
+
+  private readonly authProfiles: Config['authProfiles'];
 
   // Written on first spawn so constructing the adapter touches no state.
   private settingsFile: string | undefined;
@@ -92,44 +102,52 @@ export class ClaudeAdapter implements AgentAdapter {
 
   private readonly bridgeTarget: string | undefined;
 
-  constructor(config: Config, headlessRun: ClaudeHeadlessRun | null = null, bridgeTarget?: string) {
+  constructor(
+    entry: AgentEntry,
+    config: Pick<Config, 'authProfiles'>,
+    headlessRun: ClaudeHeadlessRun | null = null,
+    bridgeTarget?: string,
+  ) {
     this.bridgeTarget = bridgeTarget;
-    this.config = config;
+    this.entry = entry;
+    this.authProfiles = config.authProfiles;
+    this.id = entry.id;
+    this.hookAgent = entry.id;
 
     this.profile = {
-      label: 'Claude',
+      label: entry.label,
       kind: 'claude',
-      bin: config.claudeBin,
+      bin: entry.bin,
       models: null,
-      spawnOptions: buildClaudeSpawnOptions(config.claudeArgs),
+      spawnOptions: buildClaudeSpawnOptions(entry.args),
     };
 
     this.headlessRunner =
       headlessRun === null
         ? null
         : makeClaudeHeadlessRunner(headlessRun, {
-            claudeBin: config.claudeBin,
-            permissionMode: resolveClaudePermissionMode(config.claudeArgs, undefined),
+            claudeBin: entry.bin,
+            permissionMode: resolveClaudePermissionMode(entry.args, entry.settings),
             pluginDir: () => this.writeBridge(),
           });
   }
 
   planSpawn(opts: SpawnOptions): SpawnPlan {
-    this.settingsFile ??= writeHookSettings({ id: this.id });
+    this.settingsFile ??= writeHookSettings(this.buildSettingsProfile({}));
 
     return {
-      bin: this.config.claudeBin,
-      args: this.buildArgs(this.config.claudeArgs, opts, this.settingsFile, this.writeBridge()),
+      bin: this.entry.bin,
+      args: this.buildArgs(this.entry.args, opts, this.settingsFile, this.writeBridge()),
     };
   }
 
-  // With `claudeAuth` configured, Claude signs in with the subscription
+  // With `auth` configured, Claude signs in with the subscription
   // token impd's broker holds on a target that reaches the broker, and
   // with the sign-in of the host it runs on anywhere else.
   findAuthSelection(): AuthSelection | null {
-    const auth = this.config.claudeAuth;
+    const auth = this.entry.auth;
 
-    if (auth === null) {
+    if (auth === undefined) {
       return null;
     }
 
@@ -139,7 +157,7 @@ export class ClaudeAdapter implements AgentAdapter {
         baseURL: ANTHROPIC_API_URL,
         auth: { profiles: auth.profiles, placeholderEnv: { [OAUTH_VARIABLE]: PLACEHOLDER } },
       },
-      profiles: this.config.authProfiles,
+      profiles: this.authProfiles,
       brokerRequired: false,
     };
   }
@@ -165,15 +183,19 @@ export class ClaudeAdapter implements AgentAdapter {
     }
 
     return {
-      bin: this.config.claudeBin,
+      bin: this.entry.bin,
       args: this.buildArgs(
-        this.config.claudeArgs,
+        this.entry.args,
         opts,
         `${guest.dir}/settings.json`,
         `${guest.dir}/atc-bridge`,
       ),
       files: {
-        'settings.json': JSON.stringify(buildHookSettings({ id: this.id }, 0, argv), null, 2),
+        'settings.json': JSON.stringify(
+          buildHookSettings(this.buildSettingsProfile({}), 0, argv),
+          null,
+          2,
+        ),
         ...Object.fromEntries(bridge),
       },
     };
@@ -183,7 +205,7 @@ export class ClaudeAdapter implements AgentAdapter {
   // broker with trust for the clone; any other remote session reads the
   // config of the host's image, which atc never writes.
   planGuestWorkspaceTrust(root: string): Readonly<Record<string, string>> | null {
-    if (this.config.claudeAuth === null) {
+    if (this.entry.auth === undefined) {
       return null;
     }
 
@@ -217,9 +239,9 @@ export class ClaudeAdapter implements AgentAdapter {
     const launch = buildClaudeGuestLaunch(
       dir,
       [
-        this.config.claudeBin,
+        this.entry.bin,
         ...this.buildArgs(
-          buildArgsWithoutFlags(this.config.claudeArgs, ['--permission-mode']),
+          buildArgsWithoutFlags(this.entry.args, ['--permission-mode']),
           opts,
           `${dir}/${settingsPath}`,
           `${dir}/atc-bridge`,
@@ -238,7 +260,7 @@ export class ClaudeAdapter implements AgentAdapter {
     const padding = typeof userSettings === 'string' ? findStatuslinePadding(userSettings) : 0;
 
     const settings = buildHookSettings(
-      { id: this.id, env: { ...auth.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' } },
+      this.buildSettingsProfile({ ...auth.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' }),
       padding,
       argv,
     );
@@ -261,40 +283,69 @@ export class ClaudeAdapter implements AgentAdapter {
     };
   }
 
-  // The refusal for configured arguments whose inline `--settings` sets a
-  // variable that overrides the subscription sign-in or routes the CLI
-  // around impd's broker, or null when they set none.
+  // The refusal for an entry whose environment, settings environment, or
+  // inline `--settings` argument sets a variable that overrides the
+  // subscription sign-in or routes the CLI around impd's broker, or null
+  // when it sets none.
   private findCredentialOverride(): DaemonError | null {
-    const inline = findFlagValue(this.config.claudeArgs, ['--settings']);
+    const settingsEnv = this.entry.settings?.['env'];
+
+    const sources: readonly (readonly [string, readonly string[]])[] = [
+      ['env', Object.keys(this.entry.env)],
+      ['settings.env', isRecord(settingsEnv) ? Object.keys(settingsEnv) : []],
+      ['args in --settings', this.findInlineSettingsKeys()],
+    ];
+
+    for (const [source, keys] of sources) {
+      const variable = keys.find((key) => isSubscriptionOverrideVariable(key));
+
+      if (variable !== undefined) {
+        return new DaemonError(
+          'auth_target_unsupported',
+          `claude signs in through impd's broker on this target, but agents.${this.id}.${source === 'args in --settings' ? 'args set' : `${source} sets`} ${variable}${source === 'args in --settings' ? ' in --settings' : ''}, which would override or route around that sign-in`,
+          { agent: this.id, problem: 'guest_env_conflict', variable },
+        );
+      }
+    }
+
+    return null;
+  }
+
+  // The variables an inline `--settings` argument sets in its env block.
+  private findInlineSettingsKeys(): string[] {
+    const inline = findFlagValue(this.entry.args, ['--settings']);
 
     if (inline === null) {
-      return null;
+      return [];
     }
-
-    let parsed: unknown;
 
     try {
-      parsed = JSON.parse(inline);
+      const parsed: unknown = JSON.parse(inline);
+      const env = isRecord(parsed) ? parsed['env'] : undefined;
+
+      return isRecord(env) ? Object.keys(env) : [];
     } catch {
-      return null;
+      return [];
     }
+  }
 
-    const env = isRecord(parsed) ? parsed['env'] : undefined;
-    const keys = isRecord(env) ? Object.keys(env) : [];
+  // What the generated settings file holds for this entry: its hooks and
+  // statusline, its settings, and its environment, with `extraEnv` on top.
+  // The entry's environment outranks the settings' own env block.
+  private buildSettingsProfile(extraEnv: Readonly<Record<string, string>>): HookSettingsProfile {
+    const settingsEnv = this.entry.settings?.['env'];
 
-    const variable = keys.find(
-      (key) => OUTRANKING_VARIABLES.has(key) || key === OAUTH_VARIABLE || isBrokerVariable(key),
-    );
+    const env = {
+      ...(isRecord(settingsEnv) ? toStringEntries(settingsEnv) : {}),
+      ...this.entry.env,
+      ...extraEnv,
+    };
 
-    if (variable === undefined) {
-      return null;
-    }
-
-    return new DaemonError(
-      'auth_target_unsupported',
-      `claude signs in through impd's broker on this target, but claudeArgs set ${variable} in --settings, which would override or route around that sign-in`,
-      { agent: this.id, problem: 'guest_env_conflict', variable },
-    );
+    return {
+      id: this.id,
+      env,
+      ...(this.entry.settings === undefined ? {} : { settings: this.entry.settings }),
+    };
   }
 
   private buildArgs(
@@ -455,11 +506,11 @@ export class ClaudeAdapter implements AgentAdapter {
   // permission mode the configured arguments set travels as an explicit
   // flag, so it overrides the mode the CLI would restore.
   buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
-    const configured = findClaudePermissionMode(this.config.claudeArgs, undefined);
+    const configured = findClaudePermissionMode(this.entry.args, this.entry.settings);
     const mode = configured === null ? '' : ` --permission-mode ${toShellArg(configured)}`;
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
 
-    return `cd ${toShellArg(cwd)} && claude${mode} --resume${resume}`;
+    return `cd ${toShellArg(cwd)} && ${this.entry.bin}${mode} --resume${resume}`;
   }
 }
 
@@ -470,21 +521,14 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com';
 const OAUTH_VARIABLE = 'CLAUDE_CODE_OAUTH_TOKEN';
 const PLACEHOLDER = 'imp-broker-placeholder';
 
-// The variables that keep Claude Code from sending the subscription token
-// to the Anthropic API: a credential it takes ahead of that token, another
-// endpoint, or a cloud provider it signs in to instead.
-const OUTRANKING_VARIABLES: ReadonlySet<string> = new Set([
-  'ANTHROPIC_AUTH_TOKEN',
-  'ANTHROPIC_API_KEY',
-  'ANTHROPIC_BASE_URL',
-  'CLAUDE_CODE_USE_BEDROCK',
-  'CLAUDE_CODE_USE_VERTEX',
-  'CLAUDE_CODE_USE_FOUNDRY',
-  'CLAUDE_CODE_USE_MANTLE',
-  'CLAUDE_CODE_USE_ANTHROPIC_AWS',
-  'CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD',
-  'CLAUDE_CODE_USE_GATEWAY',
-]);
+// The string values of an object, which is all a session's environment holds.
+function toStringEntries(value: Readonly<Record<string, unknown>>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  );
+}
 
 // The padding of the statusline the bundle's user settings set, which atc's
 // own statusline mirrors since it renders that one first, or none.
