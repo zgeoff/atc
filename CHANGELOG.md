@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.33.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.32.1...@zgeoff/atc@2.33.0) (2026-10-06)
+
+
+### Features
+
+* **geo-109:** sign claude in on imps through the broker ([#321](https://github.com/zgeoff/atc/issues/321)) ([1b22fcc](https://github.com/zgeoff/atc/commit/1b22fcc487a3371bfc10816e235c0062d21bd774))
+
 ## [2.32.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.32.0...@zgeoff/atc@2.32.1) (2026-10-06)
 
 ### Bug Fixes
