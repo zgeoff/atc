@@ -24,7 +24,8 @@ afterEach(() => {
 
 // An inherited marker is trusted only when every isolated variable already
 // points under it and no enclosing session's variables remain; a stale or
-// hand-set marker stops the run before any test imports atc.
+// hand-set marker stops the run before any test imports atc. An inherited
+// CLAUDE_CONFIG_DIR would move the Claude config folder out of the home.
 function assertTestHome(root: string): void {
   const expected: Readonly<Record<string, string>> = {
     HOME: join(root, 'home'),
@@ -41,7 +42,9 @@ function assertTestHome(root: string): void {
     .filter(([name, path]) => normalize(process.env[name] ?? '') !== path)
     .map(([name]) => name);
 
-  const leftover = ['ATC_SESSION_ID', 'ATC_SOCKET'].filter((name) => name in process.env);
+  const leftover = ['ATC_SESSION_ID', 'ATC_SOCKET', 'CLAUDE_CONFIG_DIR'].filter(
+    (name) => name in process.env,
+  );
 
   if (mismatched.length > 0 || leftover.length > 0) {
     stopRun(

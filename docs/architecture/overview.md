@@ -100,10 +100,10 @@ Claude sessions are instrumented via a generated settings file passed as `claude
   never reports as that session ([nested harnesses](../guides/configuration.md#nested-harnesses)).
   `SessionStart` carries the agent session id at spawn/resume time, which is what makes the fleet
   restorable before any interaction.
-- The statusline command (`atc statusline`) chains the user's own configured statusline, then
-  appends the fleet segment read from `status.json`, so fleet state renders inside Claude Code's own
-  status line while attached. Its stdin JSON is also heartbeated to the socket as a second
-  id-capture path.
+- The statusline command (`atc statusline`) chains the user's own configured statusline, read from
+  `settings.json` in `$CLAUDE_CONFIG_DIR` or `~/.claude`, then appends the fleet segment read from
+  `status.json`, so fleet state renders inside Claude Code's own status line while attached. Its
+  stdin JSON is also heartbeated to the socket as a second id-capture path.
 - Session names are pulled from Claude's transcripts (`custom-title` lines from `/rename`, `summary`
   lines as fallback) — atc is not the naming authority.
 
