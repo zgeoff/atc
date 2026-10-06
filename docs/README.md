@@ -20,3 +20,8 @@ Architecture and guides for atc, the terminal control tower for coding-agent ses
   leader key, gateways, and the Grok/Codex attention-hook install.
 - [Events](./guides/events.md) — consuming fleet events: daemon hooks, `atc events`, and the
   read-only events socket.
+
+## Design
+
+- [Imp agent environment](./design/imp-agent-environment.md) — how an agent on an imp gets its
+  sign-in, its Claude configuration, and its MCP tools, and which component owns each.
