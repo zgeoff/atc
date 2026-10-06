@@ -189,9 +189,9 @@ export class ClaudeAdapter implements AgentAdapter {
   // A settings file of the session's own per binding revision carries the
   // placeholder, and so does the CLI's environment. The configured
   // arguments go without a permission mode, so the mode the session's own
-  // user settings set applies. A credential variable in the configured
-  // settings, or in the host's environment, would outrank the placeholder,
-  // so either refuses the start.
+  // user settings set applies. A credential, endpoint, or provider variable
+  // in the configured settings, or in the host's environment, would keep
+  // the CLI from sending the placeholder, so either refuses the start.
   private planSubscriptionGuestSpawn(
     opts: SpawnOptions,
     dir: string,
@@ -240,8 +240,8 @@ export class ClaudeAdapter implements AgentAdapter {
   }
 
   // The refusal for configured arguments whose inline `--settings` sets a
-  // variable that outranks the subscription token or routes the CLI around
-  // impd's broker, or null when they set none.
+  // variable that overrides the subscription sign-in or routes the CLI
+  // around impd's broker, or null when they set none.
   private findCredentialOverride(): DaemonError | null {
     const inline = findFlagValue(this.config.claudeArgs, ['--settings']);
 
@@ -270,7 +270,7 @@ export class ClaudeAdapter implements AgentAdapter {
 
     return new DaemonError(
       'auth_target_unsupported',
-      `claude signs in through impd's broker on this target, but claudeArgs set ${variable} in --settings, which would outrank or route around that sign-in`,
+      `claude signs in through impd's broker on this target, but claudeArgs set ${variable} in --settings, which would override or route around that sign-in`,
       { agent: this.id, problem: 'guest_env_conflict', variable },
     );
   }
@@ -448,11 +448,16 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com';
 const OAUTH_VARIABLE = 'CLAUDE_CODE_OAUTH_TOKEN';
 const PLACEHOLDER = 'imp-broker-placeholder';
 
-// The variables Claude Code takes a credential from ahead of the
-// subscription token.
+// The variables that keep Claude Code from sending the subscription token
+// to the Anthropic API: a credential it takes ahead of that token, another
+// endpoint, or a cloud provider it signs in to instead.
 const OUTRANKING_VARIABLES: ReadonlySet<string> = new Set([
   'ANTHROPIC_AUTH_TOKEN',
   'ANTHROPIC_API_KEY',
+  'ANTHROPIC_BASE_URL',
+  'CLAUDE_CODE_USE_BEDROCK',
+  'CLAUDE_CODE_USE_VERTEX',
+  'CLAUDE_CODE_USE_FOUNDRY',
 ]);
 
 // The aliases Claude Code documents for `--model`, each resolving to a model

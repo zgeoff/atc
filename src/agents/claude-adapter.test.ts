@@ -371,42 +371,45 @@ test('it plans a guest spawn without a broker binding in the config of the host 
   expect(plan).not.toContainKey('env');
 });
 
-test.each([['ANTHROPIC_API_KEY'], ['ANTHROPIC_AUTH_TOKEN'], ['HTTPS_PROXY']])(
-  'it refuses a subscription guest spawn whose configured --settings sets %s',
-  (variable) => {
-    const adapter = new ClaudeAdapter(
-      parseConfig({
-        claudeArgs: ['--settings', JSON.stringify({ env: { [variable]: 'sk-test' } })],
-        authProfiles: {
-          claude: {
-            secret: 'claude-setup-token',
-            host: 'api.anthropic.com',
-            header: 'authorization',
-            scheme: 'bearer',
-          },
+test.each([
+  ['ANTHROPIC_API_KEY'],
+  ['ANTHROPIC_AUTH_TOKEN'],
+  ['ANTHROPIC_BASE_URL'],
+  ['CLAUDE_CODE_USE_VERTEX'],
+  ['HTTPS_PROXY'],
+])('it refuses a subscription guest spawn whose configured --settings sets %s', (variable) => {
+  const adapter = new ClaudeAdapter(
+    parseConfig({
+      claudeArgs: ['--settings', JSON.stringify({ env: { [variable]: 'sk-test' } })],
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
         },
-        claudeAuth: { profiles: ['claude'] },
-      }),
+      },
+      claudeAuth: { profiles: ['claude'] },
+    }),
+  );
+
+  const plan = () =>
+    adapter.planGuestSpawn(
+      { prompt: '', resume: false },
+      {
+        atc: '/opt/atc/bin/atc',
+        dir: '/tmp/atc/sessions/s1',
+        auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+      },
     );
 
-    const plan = () =>
-      adapter.planGuestSpawn(
-        { prompt: '', resume: false },
-        {
-          atc: '/opt/atc/bin/atc',
-          dir: '/tmp/atc/sessions/s1',
-          auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
-        },
-      );
-
-    expect(plan).toThrow(
-      expect.objectContaining({
-        code: 'auth_target_unsupported',
-        data: { agent: 'claude', problem: 'guest_env_conflict', variable },
-      }),
-    );
-  },
-);
+  expect(plan).toThrow(
+    expect.objectContaining({
+      code: 'auth_target_unsupported',
+      data: { agent: 'claude', problem: 'guest_env_conflict', variable },
+    }),
+  );
+});
 
 test('it refuses to start a subscription session in a host whose environment sets ANTHROPIC_API_KEY', () => {
   using tmp = setupTempDir('atc-claude-refuse-');
@@ -451,11 +454,58 @@ test('it refuses to start a subscription session in a host whose environment set
   expect(run.exitCode).toBe(78);
 
   expect(run.stderr.toString()).toBe(
-    "atc: ANTHROPIC_API_KEY is set in this host's environment and outranks the sign-in atc gives this session, so Claude does not start\n",
+    "atc: ANTHROPIC_API_KEY is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n",
   );
 
   expect(existsSync(join(tmp.dir, 'claude-config'))).toBeFalse();
 });
+
+test.each([
+  ['ANTHROPIC_BASE_URL', 'https://proxy.example'],
+  ['CLAUDE_CODE_USE_BEDROCK', '1'],
+  ['CLAUDE_CODE_USE_VERTEX', '1'],
+  ['CLAUDE_CODE_USE_FOUNDRY', '1'],
+])(
+  'it refuses to start a subscription session in a host whose environment sets %s',
+  (name, value) => {
+    using tmp = setupTempDir('atc-claude-route-');
+
+    const adapter = new ClaudeAdapter(
+      parseConfig({
+        claudeBin: 'true',
+        authProfiles: {
+          claude: {
+            secret: 'claude-setup-token',
+            host: 'api.anthropic.com',
+            header: 'authorization',
+            scheme: 'bearer',
+          },
+        },
+        claudeAuth: { profiles: ['claude'] },
+      }),
+    );
+
+    const plan = adapter.planGuestSpawn(
+      { prompt: '', resume: false },
+      {
+        atc: '/opt/atc/bin/atc',
+        dir: tmp.dir,
+        auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+      },
+    );
+
+    if (plan === null) {
+      throw new Error('expected a guest spawn plan');
+    }
+
+    const run = Bun.spawnSync([plan.bin, ...plan.args], {
+      env: { PATH: process.env['PATH'] ?? '', ...plan.env, [name]: value },
+    });
+
+    expect(run.exitCode).toBe(78);
+    expect(run.stderr.toString()).toStartWith(`atc: ${name} is set in this host's environment`);
+  },
+);
 
 test('it starts a subscription session with a seeded config folder in a host whose environment sets no credential', () => {
   using tmp = setupTempDir('atc-claude-seed-');

@@ -42,7 +42,7 @@ function buildEnvGuard(name: string): string {
     throw new Error(`refused variable ${name} is not an environment variable name`);
   }
 
-  return `[ -z "\${${name}+x}" ] || { echo "atc: ${name} is set in this host's environment and outranks the sign-in atc gives this session, so Claude does not start" >&2; exit ${REFUSED_EXIT}; }; `;
+  return `[ -z "\${${name}+x}" ] || { echo "atc: ${name} is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start" >&2; exit ${REFUSED_EXIT}; }; `;
 }
 
 // sysexits' EX_CONFIG: a configuration error.
