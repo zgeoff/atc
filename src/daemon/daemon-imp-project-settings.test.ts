@@ -226,32 +226,35 @@ test('it refuses an untrusted subscription clone whose settings set apiKeyHelper
   expect(existsSync(daemon.marker)).toBeFalse();
 });
 
-test('it refuses a subscription clone whose settings file is not a JSON object', async () => {
-  await using daemon = await setupTest();
+test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
+  'it refuses a subscription clone whose settings file holds %s, which is not a JSON object',
+  async (content) => {
+    await using daemon = await setupTest();
 
-  writeFileSync(join(daemon.work, '.claude/settings.json'), '{"env": {');
+    writeFileSync(join(daemon.work, '.claude/settings.json'), content);
 
-  await $`git add .claude/settings.json README.md`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git commit --quiet -m settings`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git push --quiet origin main`.env(daemon.gitEnv).cwd(daemon.work).quiet();
+    await $`git add .claude/settings.json README.md`.env(daemon.gitEnv).cwd(daemon.work).quiet();
+    await $`git commit --quiet -m settings`.env(daemon.gitEnv).cwd(daemon.work).quiet();
+    await $`git push --quiet origin main`.env(daemon.gitEnv).cwd(daemon.work).quiet();
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'clone'),
-    agent: 'claude',
-    target: 'box',
-    workspace: { kind: 'path', path: daemon.work },
-    trustClonedWorkspace: true,
-  });
+    const spawn = daemon.client.sendRequest('session.spawn', {
+      cwd: join(daemon.dir, 'clone'),
+      agent: 'claude',
+      target: 'box',
+      workspace: { kind: 'path', path: daemon.work },
+      trustClonedWorkspace: true,
+    });
 
-  expect(spawn).rejects.toMatchObject({
-    code: 'auth_target_unsupported',
-    data: { problem: 'project_settings_conflict', setting: '(unparseable)' },
-  });
+    expect(spawn).rejects.toMatchObject({
+      code: 'auth_target_unsupported',
+      data: { problem: 'project_settings_conflict', setting: '(unparseable)' },
+    });
 
-  await spawn.catch(() => null);
+    await spawn.catch(() => null);
 
-  expect(existsSync(daemon.marker)).toBeFalse();
-});
+    expect(existsSync(daemon.marker)).toBeFalse();
+  },
+);
 
 test('it refuses a subscription clone whose settings file is a dangling symlink', async () => {
   await using daemon = await setupTest();

@@ -56,7 +56,7 @@ function findOverrideSetting(content: string): string | null {
     return UNPARSEABLE;
   }
 
-  if (!isRecord(parsed)) {
+  if (!isRecord(parsed) || Array.isArray(parsed)) {
     return UNPARSEABLE;
   }
 
