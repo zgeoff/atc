@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
+import { updateEnv } from '../../test/update-env';
 import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 
@@ -179,6 +180,10 @@ test('it ships an executable file with an executable mode and any other file as 
 });
 
 test("it points a home-relative statusline at the guest when the host folder is the home's own", () => {
+  using tmp = setupTempDir('atc-claude-bundle-home-');
+
+  updateEnv('HOME', tmp.dir);
+
   const host = join(resolveHomeDir(), '.claude');
 
   mkdirSync(host, { recursive: true });
