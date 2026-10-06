@@ -17,6 +17,7 @@ import type {
   GuestSpawnPlan,
   HeadlessRunner,
   NameUpdate,
+  ProjectSettingsCheck,
   ResumeCheck,
   SpawnOptionSpecs,
   SpawnOptions,
@@ -26,6 +27,7 @@ import { buildATCBridgeFiles } from './build-atc-bridge-files';
 import { buildClaudeConfigSeed } from './build-claude-config-seed';
 import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
+import { buildClaudeProjectSettingsCheck } from './build-claude-project-settings-check';
 import { buildHookSettings } from './build-hook-settings';
 import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { ClaudeAdapter } from './claude-adapter';
@@ -333,6 +335,12 @@ export class GatewayAdapter implements AgentAdapter {
       '--permission-mode',
       findClaudePermissionMode([], this.gateway.settings) ?? MANUAL_PERMISSION_MODE,
     ];
+  }
+
+  // The repository's own settings files reach the CLI as well, so a launch
+  // behind impd's broker reads them first.
+  planProjectSettingsCheck(): ProjectSettingsCheck {
+    return buildClaudeProjectSettingsCheck(this.id);
   }
 
   private buildBrokerRefusal(reason: string): DaemonError {

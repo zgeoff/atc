@@ -27,6 +27,7 @@ import { truncateDetail } from '../shared/truncate-detail';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
 import type { SessionWorkspace } from '../store/workspace-materialization';
+import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';
@@ -240,6 +241,31 @@ const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=
 // followed, then the directory itself, which is empty by then.
 const REMOVE_DIR_SCRIPT =
   'cd -P -- "$1" || exit 3; [ "$(pwd -P; printf x)" = "$2" ] || exit 4; find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || exit 5; cd / && rmdir -- "$1"';
+
+// Enters a directory as the host resolves it and prints, each followed by
+// a NUL, every path where something, even a dangling symlink, stands: each
+// start file in that directory, then each root file in that directory,
+// every directory above it, and the main checkout of the git worktree it
+// lies in. A `--` argument ends the start files. A directory that does not
+// exist exits with the absent status.
+const FIND_PROJECT_SETTINGS_SCRIPT = `cd -P -- "$1" 2>/dev/null || exit 3; shift; d=$(pwd -P)
+emit() { if [ -e "$1" ] || [ -L "$1" ]; then printf '%s\\0' "$1"; fi; }
+while [ "$#" -gt 0 ] && [ "$1" != -- ]; do emit "\${d%/}/$1"; shift; done; [ "$#" -gt 0 ] && shift
+m=$(git -c safe.directory='*' -c core.fsmonitor=false rev-parse --path-format=absolute --git-common-dir 2>/dev/null) && m=\${m%/.git} || m=
+for n in "$@"; do p=$d; while :; do emit "\${p%/}/$n"; [ "$p" = / ] && break; p=\${p%/*}; [ -n "$p" ] || p=/; done; [ -z "$m" ] || emit "\${m%/}/$n"; done
+exit 0`;
+
+// Prints at most one byte more than the largest project settings file atc
+// reads, following a symlink, and fails with the special-file status for
+// anything but a regular file there, such as a FIFO or a device that would
+// never end.
+const READ_SETTINGS_FILE = '[ -f "$1" ] || exit 4; exec head -c 1048577 -- "$1"';
+const ABSENT_DIR_EXIT = 3;
+
+// Runs git on the directory it starts in, whatever repository the daemon's
+// environment pins git to.
+const GIT_ENV_ARGV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
+const MAX_SETTINGS_BYTES = 1_048_576;
 
 // A readied host's harness plan, and the auth attempt that provisioned the
 // host, if one did.
@@ -693,6 +719,7 @@ export class SessionManager {
           ...(s.effort === undefined ? {} : { effort: s.effort }),
         },
         authSetup,
+        s.cwd,
       );
 
       plan = setup.plan;
@@ -999,6 +1026,10 @@ export class SessionManager {
       }
     }
 
+    // A spawn that builds its workspace reads the workspace's project
+    // settings once it is built, not when the host is readied before it.
+    const startDir = materialize === null ? cwd : null;
+
     const setupHost = () =>
       this.setupHarnessOnHost(
         adapter,
@@ -1008,8 +1039,16 @@ export class SessionManager {
         target,
         { prompt, resume, ...overrides },
         authSetup,
+        startDir,
         hostKey === id,
       );
+
+    // A launch behind the broker reads the project settings of the clone it
+    // starts in, once the clone is on the host and before it is trusted.
+    const checkWorkspace =
+      auth === null
+        ? null
+        : (root: string) => this.requireProjectSettings(adapter, provider, hostKey, target, root);
 
     // Takes back trust a spawn accepted in the user's own agent config when
     // the spawn fails before its harness starts.
@@ -1061,6 +1100,7 @@ export class SessionManager {
         execution.identity,
         materialize,
         setupHost,
+        checkWorkspace,
         trustWorkspace,
       );
     });
@@ -1591,7 +1631,9 @@ export class SessionManager {
   // Materializes a spawn's workspace, readying its host once the source
   // resolves, or after the workspace for a directory that runs as it
   // stands, and returns the directory it created, null for one that runs
-  // as it stands. A failure once the host is ready takes it back.
+  // as it stands. A clone is checked and then trusted, either as the caller
+  // asks, and a failure there removes it. A failure once the host is ready
+  // takes it back.
   private async materializeOnSpawnHost(
     provider: ExecutionProvider,
     id: SessionID,
@@ -1601,6 +1643,7 @@ export class SessionManager {
     targetIdentity: string,
     materialize: SpawnMaterializer,
     setupHost: () => Promise<HarnessSetup>,
+    checkWorkspace: ((root: string) => Promise<void>) | null,
     trustWorkspace: ((root: string) => Promise<void>) | null,
   ): Promise<{
     readonly setup: HarnessSetup;
@@ -1644,16 +1687,17 @@ export class SessionManager {
 
       readied.setup ??= await setupHost();
 
-      if (trustWorkspace !== null) {
-        if (materialized === null || readied.root === null) {
-          throw new DaemonError(
-            'bad_args',
-            'trustClonedWorkspace requires a successfully cloned workspace',
-          );
-        }
+      if (trustWorkspace !== null && (materialized === null || readied.root === null)) {
+        throw new DaemonError(
+          'bad_args',
+          'trustClonedWorkspace requires a successfully cloned workspace',
+        );
+      }
 
+      if (materialized !== null && readied.root !== null) {
         try {
-          await trustWorkspace(readied.root);
+          await checkWorkspace?.(readied.root);
+          await trustWorkspace?.(readied.root);
         } catch (error) {
           let removed = false;
 
@@ -1665,7 +1709,7 @@ export class SessionManager {
 
           if (!removed) {
             throw new EffectRemainsError(
-              'workspace trust setup failed and its clone could not be removed',
+              'workspace setup failed and its clone could not be removed',
               { cause: error },
             );
           }
@@ -1906,9 +1950,10 @@ export class SessionManager {
     target: string,
     options: SpawnOptions,
     auth: HarnessAuthSetup | null,
+    dir: string,
   ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
     return this.withHostReadying(hostKey, () =>
-      this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth, false),
+      this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth, dir, false),
     );
   }
 
@@ -1937,6 +1982,11 @@ export class SessionManager {
     target: string,
     options: SpawnOptions,
     auth: HarnessAuthSetup | null,
+
+    // The directory the harness starts in, whose project settings a launch
+    // behind the broker reads once the host is ready; null for a spawn
+    // whose workspace is built after this, which reads them once it is.
+    cwd: string | null,
 
     // Whether the host is a spawn's new host of its own, which a failure
     // once it is readied destroys.
@@ -2000,6 +2050,10 @@ export class SessionManager {
 
     try {
       await this.setupGuest(adapter, provider, hostKey, target, dir, plan.files);
+
+      if (auth !== null && cwd !== null) {
+        await this.requireProjectSettings(adapter, provider, hostKey, target, cwd);
+      }
     } catch (error) {
       if (attemptID !== null || isNewHost) {
         await this.destroyFailedSpawnHost(provider, id, hostKey, attemptID);
@@ -2133,6 +2187,84 @@ export class SessionManager {
     if (files.length > 0) {
       await provider.transferArchive(buildTarArchive(files), dir, hostKey);
     }
+  }
+
+  // Reads each project settings file the agent applies for a harness behind
+  // the broker, from the directory it starts in as the host resolves it, and
+  // throws the agent's refusal for one that would override its sign-in. An
+  // absent file passes; one the host holds but cannot read, that is not a
+  // regular file, or that is larger than any settings file refuses, since
+  // what the agent would take from it is unknown. A relative directory is
+  // under the host's home.
+  private async requireProjectSettings(
+    adapter: AgentAdapter,
+    provider: ExecutionProvider,
+    hostKey: SessionID,
+    target: string,
+    cwd: string,
+  ): Promise<void> {
+    const check = adapter.planProjectSettingsCheck?.();
+
+    if (check === undefined) {
+      return;
+    }
+
+    // The host resolves the directory as given, since a lexical join would
+    // drop a parent step after a symlink that the host follows.
+    const home = posix.isAbsolute(cwd) ? null : await this.resolveHostHome(provider, hostKey);
+    const dir = home === null ? cwd : `${home}/${cwd}`;
+
+    const found = await provider.runCommand({
+      argv: [
+        ...GIT_ENV_ARGV,
+        'sh',
+        '-c',
+        FIND_PROJECT_SETTINGS_SCRIPT,
+        'sh',
+        dir,
+        ...check.files,
+        '--',
+        ...check.rootFiles,
+      ],
+      cwd: '/',
+      host: hostKey,
+    });
+
+    if (found.exitCode === ABSENT_DIR_EXIT) {
+      return;
+    }
+
+    if (found.exitCode !== 0) {
+      throw this.buildUnreadableSettingsRefusal(adapter.id, target, dir);
+    }
+
+    const paths = new Set(found.stdout.split('\0').filter((path) => path !== ''));
+
+    for (const path of paths) {
+      const read = await provider.runCommand({
+        argv: ['sh', '-c', READ_SETTINGS_FILE, 'sh', path],
+        cwd: '/',
+        host: hostKey,
+      });
+
+      if (read.exitCode !== 0 || Buffer.byteLength(read.stdout) > MAX_SETTINGS_BYTES) {
+        throw this.buildUnreadableSettingsRefusal(adapter.id, target, path);
+      }
+
+      const refusal = check.findRefusal(path, read.stdout);
+
+      if (refusal !== null) {
+        throw new DaemonError(refusal.code, refusal.message, { ...refusal.data, target });
+      }
+    }
+  }
+
+  private buildUnreadableSettingsRefusal(agent: string, target: string, path: string): DaemonError {
+    return new DaemonError(
+      'auth_target_unsupported',
+      `agent '${agent}' signs in through impd's broker on target '${target}', but atc cannot read ${path} there as a settings file to check it for settings that would override that sign-in`,
+      { agent, target, problem: 'project_settings_unreadable', file: path },
+    );
   }
 
   // A sub-session runs on its parent's host when its resolved target, name
