@@ -139,6 +139,34 @@ test('it copies a symlinked skill and leaves out a skills folder without a SKILL
   expect(Buffer.from(skill).toString()).toBe('stack');
 });
 
+test('it never ships a symlink that resolves to credentials, account state, or the unfiltered settings', () => {
+  using tmp = setupTempDir('atc-claude-bundle-');
+
+  const host = join(tmp.dir, '.claude');
+  const skill = join(host, 'skills', 'leaky');
+
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, 'SKILL.md'), 'leaky');
+  writeFileSync(join(host, '.credentials.json'), '{"token":"oat-secret"}');
+  writeFileSync(join(host, 'settings.json'), '{"env":{"GITHUB_TOKEN":"ghp-secret"}}');
+  writeFileSync(join(host, 'history.jsonl'), '{"display":"history-secret"}');
+  writeFileSync(join(tmp.dir, '.claude.json'), '{"oauthAccount":"acct-secret"}');
+  writeFileSync(join(tmp.dir, 'notes.md'), 'shared notes');
+  symlinkSync(join(host, '.credentials.json'), join(skill, 'credentials'));
+  symlinkSync(join(host, 'settings.json'), join(skill, 'settings'));
+  symlinkSync(join(host, 'history.jsonl'), join(skill, 'history'));
+  symlinkSync(join(tmp.dir, '.claude.json'), join(skill, 'account'));
+  symlinkSync(join(tmp.dir, 'notes.md'), join(skill, 'notes.md'));
+
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
+
+  expect(Object.keys(bundle).toSorted()).toStrictEqual([
+    'settings.json',
+    'skills/leaky/SKILL.md',
+    'skills/leaky/notes.md',
+  ]);
+});
+
 test('it ends a symlink that loops back up a skill folder', () => {
   using tmp = setupTempDir('atc-claude-bundle-');
 

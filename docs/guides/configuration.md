@@ -566,9 +566,11 @@ where Claude Code reads it as user settings:
   at
 - `settings.json`, cut to the keys below
 
-A file its owner may execute stays executable in the guest. The bundle leaves out every other entry,
-so `.credentials.json`, `.claude.json`, history, projects, plugins, and backups stay on the host. It
-also leaves out any entry whose name starts with a dot.
+A file its owner may execute stays executable in the guest. A symlink ships only when its target
+could ship by its own path, so a link to `.credentials.json` or to the unfiltered `settings.json`
+never does. The bundle leaves out every other entry, so `.credentials.json`, `.claude.json`,
+history, projects, plugins, and backups stay on the host. It also leaves out any entry whose name
+starts with a dot.
 
 The bundle's `settings.json` holds these keys of the host's settings when they are set: `model`,
 `effortLevel`, `advisorModel`, `outputStyle`, `autoCompactWindow`, `autoMode`, `attribution`,
@@ -576,9 +578,9 @@ The bundle's `settings.json` holds these keys of the host's settings when they a
 `permissions`, `statusLine`, and `env`. atc changes three of them on the way:
 
 - `permissions.defaultMode` is always `auto`. Claude Code honours that mode only in user settings.
-- `statusLine.command` points at the guest copy of a script under the host's config folder. For
-  `~/.claude`, atc also rewrites the `~/.claude` and `$HOME/.claude` spellings. atc's own statusline
-  runs that command first, as it does on the host.
+- `statusLine.command` points at the guest copy of a script the bundle ships. For `~/.claude`, atc
+  also rewrites the `~/.claude` and `$HOME/.claude` spellings. atc's own statusline runs that
+  command first, as it does on the host.
 - `env` keeps `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` alone, since any other variable can hold a
   credential.
 
