@@ -239,8 +239,9 @@ mod. `scripts/` holds repo tooling, not app code.
   user's Claude config, under Claude's own lock, since Claude takes trust no other way.
 - The config's `agents` map is the registry: one adapter per entry, keyed by the entry's id, so
   several entries of one kind coexist. A Claude-compatible backend is an entry with a `baseURL`, not
-  a new adapter class per vendor: it gets its own agent id, its own generated settings file, and its `ANTHROPIC_BASE_URL` in that file's
-  `env` block. The credential never goes in the file — a helper command supplies it.
+  a new adapter class per vendor: it gets its own agent id, its own generated settings file, and its
+  `ANTHROPIC_BASE_URL` in that file's `env` block. The credential never goes in the file — a helper
+  command supplies it.
 - Grok attention is a user-installed hook file at `$GROK_HOME/hooks/atc-reporter.json`. atc prints
   that file (`atc grok-hooks`) and never writes into the user's Grok config.
 - Codex attention is user-installed hook entries in `$CODEX_HOME/hooks.json`, printed by
