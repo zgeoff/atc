@@ -43,16 +43,23 @@ export async function withClaudeConfigLock<T>(
     held = await tryCreateLockDir(lockPath);
   }
 
-  const owned = held;
+  let owned: OwnedLock = held;
+  let refreshing = Promise.resolve();
 
   const timer = setInterval(() => {
-    void refreshOwnedLock(lockPath, owned);
+    refreshing = (async () => {
+      const refreshed = await refreshOwnedLock(lockPath, owned);
+
+      owned = refreshed ?? owned;
+    })();
   }, REFRESH_MS);
 
   try {
     return await run();
   } finally {
     clearInterval(timer);
+
+    await refreshing;
 
     const isOwned = await isOwnedLock(lockPath, owned);
 
@@ -62,16 +69,23 @@ export async function withClaudeConfigLock<T>(
   }
 }
 
-// Creates the lock directory and resolves to its inode while this call
-// holds the lock, or null; a stale directory is removed so the next try
-// can take it.
-async function tryCreateLockDir(lockPath: string): Promise<number | null> {
+// The lock directory a holder created, as its inode and the age it last
+// gave it; a directory created in its place after a takeover can reuse
+// the inode but not that age.
+interface OwnedLock {
+  readonly ino: number;
+  readonly mtimeMs: number;
+}
+
+// Creates the lock directory and resolves to it while this call holds the
+// lock, or null; a stale directory is removed so the next try can take it.
+async function tryCreateLockDir(lockPath: string): Promise<OwnedLock | null> {
   try {
     await mkdir(lockPath);
 
     const created = await stat(lockPath);
 
-    return created.ino;
+    return { ino: created.ino, mtimeMs: created.mtimeMs };
   } catch (error) {
     if (!isExistsError(error)) {
       throw error;
@@ -92,19 +106,30 @@ function isExistsError(error: unknown): boolean {
 }
 
 // Moves the lock's age forward while it is still the directory this call
-// created; a failed refresh leaves the lock to go stale.
-async function refreshOwnedLock(lockPath: string, owned: number): Promise<void> {
+// created, and resolves to the lock as it then stands; null leaves the
+// lock to go stale, as a holder that stopped refreshing it does.
+async function refreshOwnedLock(lockPath: string, owned: OwnedLock): Promise<OwnedLock | null> {
   const isOwned = await isOwnedLock(lockPath, owned);
 
-  if (isOwned) {
+  if (!isOwned) {
+    return null;
+  }
+
+  try {
     const now = new Date();
 
-    await utimes(lockPath, now, now).catch(() => {});
+    await utimes(lockPath, now, now);
+
+    const refreshed = await stat(lockPath);
+
+    return { ino: refreshed.ino, mtimeMs: refreshed.mtimeMs };
+  } catch {
+    return null;
   }
 }
 
-async function isOwnedLock(lockPath: string, owned: number): Promise<boolean> {
+async function isOwnedLock(lockPath: string, owned: OwnedLock): Promise<boolean> {
   const current = await stat(lockPath).catch(() => null);
 
-  return current !== null && current.ino === owned;
+  return current !== null && current.ino === owned.ino && current.mtimeMs === owned.mtimeMs;
 }
