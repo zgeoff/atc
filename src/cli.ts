@@ -62,6 +62,12 @@ const main = defineCommand({
             description:
               'Origin clients reach the --http server at, such as https://mcp.example.com',
           },
+          'wait-for-daemon': {
+            type: 'boolean',
+            default: false,
+            description:
+              'With --http, wait for a running daemon instead of starting one, for a managed daemon',
+          },
         },
         async run(ctx) {
           if (!ctx.args.http) {
@@ -85,6 +91,7 @@ const main = defineCommand({
             host: ctx.args.host ?? null,
             port: port === null ? null : port.port,
             publicURL: ctx.args['public-url'] ?? null,
+            waitForDaemon: ctx.args['wait-for-daemon'],
           });
         },
       }),

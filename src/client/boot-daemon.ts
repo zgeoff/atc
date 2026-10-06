@@ -37,11 +37,18 @@ export interface DaemonBootOptions {
   // session it hosts; without the callback, or resolving false, the boot
   // rejects and the daemon keeps running.
   readonly onProtocolMismatch?: (mismatch: ProtocolMismatch) => Promise<boolean>;
+
+  // When set, the boot never starts a daemon: it waits this many
+  // milliseconds for one to answer, then rejects. A caller that a service
+  // manager starts beside a managed daemon sets it, so the two never race
+  // for the state directory.
+  readonly waitForDaemonMs?: number;
 }
 
 /**
  * Opens a handshaken client to the daemon, booting the daemon first when
- * neither the computed socket nor the one in the daemon's record answers.
+ * neither the computed socket nor the one in the daemon's record answers,
+ * or waiting for one to answer when the caller set `waitForDaemonMs`.
  * Overlapping calls in one process share a single boot. A daemon from an
  * older build stays in service, since stopping it would end every hosted
  * session, and is reported as stale so the caller can offer a deliberate
@@ -56,7 +63,10 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
   for (let attempt = 0; attempt < 2; attempt++) {
     const build = getBuild();
 
-    const opened = await openOrBootDaemon();
+    const opened =
+      options.waitForDaemonMs === undefined
+        ? await openOrBootDaemon()
+        : await waitForDaemon(options.waitForDaemonMs);
 
     const client = opened.client;
 
@@ -126,6 +136,27 @@ async function openOrBootDaemon(): Promise<OpenedDaemon> {
 }
 
 /**
+ * Polls the known sockets until a daemon answers, and never starts one.
+ */
+async function waitForDaemon(timeoutMs: number): Promise<OpenedDaemon> {
+  const deadline = Date.now() + timeoutMs;
+
+  for (;;) {
+    const opened = await tryOpenKnownDaemon();
+
+    if (opened !== null) {
+      return opened;
+    }
+
+    if (Date.now() >= deadline) {
+      throw new Error(formatWaitFailure(timeoutMs));
+    }
+
+    await Bun.sleep(100);
+  }
+}
+
+/**
  * Tries the socket this environment computes, then the one the running
  * daemon recorded in the state directory: a client whose environment lacks
  * XDG_RUNTIME_DIR computes a different path from the daemon's.
@@ -185,13 +216,28 @@ const bootDaemonOnce = makeSingleFlight(async () => {
 // directory a sandbox hides, needs a different fix than one that never
 // started, so the message tells them apart.
 function formatBootFailure(): string {
+  return (
+    formatUnreachableDaemon() ?? 'the atc daemon did not come up; try `atc daemon` for its output'
+  );
+}
+
+function formatUnreachableDaemon(): string | null {
   const record = findDaemonRecord(daemonRecordFile);
 
   if (record !== null && isProcessAlive(record.pid)) {
     return `the atc daemon (pid ${record.pid}) is running, but its socket ${record.socketPath} is unreachable from here`;
   }
 
-  return 'the atc daemon did not come up; try `atc daemon` for its output';
+  return null;
+}
+
+// A waiting caller was told not to start a daemon, so the message says so
+// and points at starting the managed one.
+function formatWaitFailure(timeoutMs: number): string {
+  return (
+    formatUnreachableDaemon() ??
+    `no atc daemon answered at ${daemonSocketPath} within ${timeoutMs / 1000}s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`
+  );
 }
 
 function isProcessAlive(pid: number): boolean {

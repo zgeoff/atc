@@ -61,6 +61,55 @@ session is gone, the fallback has different params, so it runs under a key of it
 and the SHA-256 of the caller's key in hex. A retry derives the same key, and the derived key always
 fits the daemon's 200-character cap.
 
+## Running under systemd
+
+Run the daemon and `atc mcp --http` as two user units, with the MCP unit ordered after the daemon
+unit. Replace `<tailnet_address>` and `<public_host>` with your own values:
+
+```ini
+# ~/.config/systemd/user/atc-daemon.service
+[Unit]
+Description=atc daemon
+
+[Service]
+ExecStart=%h/.local/bin/atc daemon --listen <tailnet_address>:8415 --token-file %h/.config/atc/daemon-token
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+```
+
+```ini
+# ~/.config/systemd/user/atc-mcp-http.service
+[Unit]
+Description=atc mcp --http
+After=atc-daemon.service
+Requires=atc-daemon.service
+
+[Service]
+Type=exec
+ExecStart=%h/.local/bin/atc mcp --http --wait-for-daemon --public-url https://<public_host>
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+`--wait-for-daemon` stops `atc mcp --http` from booting a daemon of its own. Without the flag, an
+MCP unit that finds no daemon boots one without `--listen`. That daemon holds the
+[state lock](./daemon.md#one-daemon-per-state-directory), so the daemon unit fails on every restart
+and the TCP listener never comes up. With the flag, the server waits up to 30 s for a daemon to
+answer. It then exits with status 1 and an error that holds the socket it tried, and
+`Restart=always` starts it again.
+
+`After=` orders the MCP unit after the daemon process starts, not after its socket accepts
+connections, so the wait covers the time between the two. `Requires=` starts the daemon unit with
+the MCP unit, and systemd stops or restarts the MCP unit whenever the daemon unit stops or restarts.
+A restart ends the approvals in progress, and grants survive it. The MCP unit keeps the default
+`KillMode`, since no daemon runs in its control group.
+
 ## Gateway
 
 `atc-gateway` serves the same MCP tools and authorization server for several daemons at once, and

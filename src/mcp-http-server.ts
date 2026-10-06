@@ -12,17 +12,28 @@ interface MCPHTTPFlags {
   readonly host: string | null;
   readonly port: number | null;
   readonly publicURL: string | null;
+  readonly waitForDaemon: boolean;
 }
 
+// How long `--wait-for-daemon` waits before it exits. A service manager's
+// restart covers a daemon that takes longer.
+const DAEMON_WAIT_MS = 30_000;
+
 /**
- * Runs `atc mcp --http` in the foreground: boots the daemon when it is down
- * and serves MCP over HTTP until Ctrl-C. Approval codes print here, so the
+ * Runs `atc mcp --http` in the foreground: boots the daemon when it is down,
+ * or with `--wait-for-daemon` waits for one and exits when none answers, and
+ * serves MCP over HTTP until Ctrl-C. Approval codes print here, so the
  * terminal running it is where the operator approves a client.
  */
 export async function runMCPHTTPServer(build: string, flags: MCPHTTPFlags): Promise<void> {
   const config = loadMCPHTTPConfig();
+  const bootOptions = flags.waitForDaemon ? { waitForDaemonMs: DAEMON_WAIT_MS } : {};
 
-  const boot = await bootDaemonClient();
+  const boot = await bootDaemonClient(bootOptions).catch((error: unknown) => {
+    console.error(`atc mcp --http: ${error instanceof Error ? error.message : String(error)}`);
+
+    return process.exit(1);
+  });
 
   boot.client.stop();
 
