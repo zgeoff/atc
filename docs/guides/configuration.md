@@ -708,8 +708,9 @@ The bundle's `settings.json` holds these keys of the host's settings when they a
 
 A repo's own `.claude/settings.json` and `.claude/settings.local.json` rank above the bundle, so
 Claude Code's precedence gives a repo value over a bundle value. The `--settings` file atc writes
-holds only the hooks, the statusline, and the placeholder, so it never carries a bundle value above
-the repo's.
+holds only the hooks, the statusline, the placeholder, and the entry's own `settings` and `env`, so
+it never carries a bundle value above the repo's. A value the entry sets there does rank above the
+repo's.
 
 atc reads the host's folder at each launch, so a spawn or a revive after you change it starts with
 the change. A running session keeps the bundle it started with. On each launch the guest replaces
