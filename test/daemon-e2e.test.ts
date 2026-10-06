@@ -478,6 +478,28 @@ test('it stops showing a live terminal as ended once a new session starts in it'
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
+  // The fake Claude sends its hooks one reporter launch at a time, and a
+  // loaded runner can spend seconds on each launch, so each wait covers one
+  // hook rather than the whole chain.
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' &&
+      isRecord(e['session']) &&
+      e['session']['agentSessionID'] === 'fake-1',
+  );
+
+  await waitForEvent(
+    events,
+    (e) =>
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
+
+  await waitForEvent(
+    events,
+    (e) => e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'done',
+  );
+
   await waitForEvent(
     events,
     (e) =>
