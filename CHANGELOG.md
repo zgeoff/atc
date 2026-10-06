@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.31.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.30.1...@zgeoff/atc@2.31.0) (2026-10-06)
+
+
+### Features
+
+* **geo-111:** bind github secrets through the broker ([#312](https://github.com/zgeoff/atc/issues/312)) ([b7fc9fd](https://github.com/zgeoff/atc/commit/b7fc9fdd47db9e8ecf5b7470deefd05bcd2bedc7))
+
+
+### Bug Fixes
+
+* **deps:** override three packages past their audit advisories ([#315](https://github.com/zgeoff/atc/issues/315)) ([4a29da0](https://github.com/zgeoff/atc/commit/4a29da0eac313d35a96239468e11e33294420629))
+
 ## [2.30.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.30.0...@zgeoff/atc@2.30.1) (2026-10-05)
 
 ### Bug Fixes
