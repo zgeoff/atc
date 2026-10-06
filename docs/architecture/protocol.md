@@ -221,20 +221,26 @@ Multi-client rules, chosen to cover the realistic conflicts without a write-lock
 ## Submitting a line
 
 `session.input` writes its bytes to the PTY exactly as sent. `session.submit` types `text` as one
-line and submits it the way the session's agent accepts a line, which the agent's adapter decides:
+line and submits it the way the session's agent accepts a line, which the agent's adapter decides.
 
-- Claude, and a gateway that runs the Claude CLI, get the text and a newline in one write: the same
-  bytes as a `session.input` of the text and a newline.
-- Codex and Grok keep a newline that arrives inside a burst of input as part of the text, so a line
-  typed with its newline stays unsent in the composer. They get the text between bracketed paste
-  markers (`ESC[200~` and `ESC[201~`), then a carriage return as a second write. The markers make
-  the text one paste event, so the carriage return reads as Enter however the two writes arrive.
-  Paste markers inside the text are dropped, so the text cannot end its own paste. The daemon reads
-  from the session's screen model whether the TUI has turned bracketed paste on (DEC mode 2004);
-  until it has, the text goes unmarked. In that case the text and the carriage return go out in the
-  same tick and can arrive as one burst, so the daemon cannot promise that the line is submitted.
-  The daemon reads the mode from the output parsed so far and does not wait for output still queued,
-  so a line sent just as the TUI turns bracketed paste on can go out unmarked too.
+Claude, a gateway that runs the Claude CLI, Codex, and Grok all keep a newline that arrives inside a
+burst of input as part of the text, so a line typed with its newline stays unsent in the composer.
+Claude also takes a burst of about 800 characters or more as a paste. Each of them gets the text
+between bracketed paste markers (`ESC[200~` and `ESC[201~`), then a carriage return as a second
+write. The markers make the text one paste event, so the carriage return reads as Enter however the
+two writes arrive. Paste markers inside the text are dropped, so the text cannot end its own paste.
+Empty text is the carriage return alone: it submits the text the composer holds and adds no line to
+it.
+
+The daemon reads from the session's screen model whether the TUI has turned bracketed paste on (DEC
+mode 2004); until it has, the text goes unmarked. In that case the text and the carriage return go
+out in the same tick and can arrive as one burst, so the daemon cannot promise that the line is
+submitted. The daemon reads the mode from the output parsed so far and does not wait for output
+still queued, so a line sent just as the TUI turns bracketed paste on can go out unmarked too.
+
+Claude records a pasted line of about 800 characters or more in the conversation inside
+`<pasted_content>` tags, and the model treats that text as pasted data, not as the user's own words.
+A shorter line reaches the model as plain text.
 
 A headless session takes the line as the prompt of its next turn, as it takes `session.input`. The
 ok means the daemon wrote the line and its submit key to the PTY, not that the agent answered.

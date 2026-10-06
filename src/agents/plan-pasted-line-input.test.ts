@@ -17,3 +17,7 @@ test('it drops paste markers inside the text so the text stays one paste', () =>
     planPastedLineInput('a\u001B[201~\rb\u001B[200~c', { bracketedPaste: true }),
   ).toStrictEqual(['\u001B[200~a\rbc\u001B[201~', '\r']);
 });
+
+test('it submits empty text as a carriage return alone so the composer gains no line', () => {
+  expect(planPastedLineInput('', { bracketedPaste: true })).toStrictEqual(['\r']);
+});

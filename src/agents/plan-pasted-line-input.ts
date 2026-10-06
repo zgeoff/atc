@@ -13,9 +13,14 @@ const PASTE_END = '\u001B[201~';
  * arrive. Paste markers inside the text are dropped, so the text can neither
  * end the paste early nor start one of its own. A TUI that has not turned
  * bracketed paste on gets the text unmarked, and may still read both writes
- * as one burst.
+ * as one burst. Empty text is the carriage return alone, which submits what
+ * the composer holds and adds nothing to it.
  */
 export function planPastedLineInput(text: string, modes: TerminalInputModes): readonly string[] {
+  if (text === '') {
+    return ['\r'];
+  }
+
   const unmarked = text.replaceAll(PASTE_START, '').replaceAll(PASTE_END, '');
 
   return modes.bracketedPaste ? [`${PASTE_START}${unmarked}${PASTE_END}`, '\r'] : [unmarked, '\r'];

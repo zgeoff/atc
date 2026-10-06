@@ -1234,3 +1234,9 @@ test('it refuses every start of a gateway with auth whose env sets a proxy varia
     data: { agent: 'glm', problem: 'guest_env_conflict', variable: 'https_proxy' },
   });
 });
+
+test('it pastes a long line and submits it with a carriage return as a second write', () => {
+  expect(
+    buildGatewayAdapter().planLineInput('a'.repeat(1600), { bracketedPaste: true }),
+  ).toStrictEqual([`\u001B[200~${'a'.repeat(1600)}\u001B[201~`, '\r']);
+});
