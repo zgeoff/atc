@@ -23,6 +23,7 @@ import type {
   GuestSpawnPlan,
   HeadlessRunner,
   NameUpdate,
+  ProjectSettingsCheck,
   ResumeCheck,
   SpawnOptionSpecs,
   SpawnOptions,
@@ -34,6 +35,7 @@ import { buildClaudeConfigSeed } from './build-claude-config-seed';
 import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 import { buildClaudeMCPConfig } from './build-claude-mcp-config';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
+import { buildClaudeProjectSettingsCheck } from './build-claude-project-settings-check';
 import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';
 import { buildRestoreModeArgs } from './build-restore-mode-args';
@@ -224,6 +226,12 @@ export class ClaudeAdapter implements AgentAdapter {
     }
 
     return buildClaudeConfigSeed(root);
+  }
+
+  // The repository's own settings files outrank what the session's user
+  // settings hold, so a launch behind impd's broker reads them first.
+  planProjectSettingsCheck(): ProjectSettingsCheck {
+    return buildClaudeProjectSettingsCheck(this.id);
   }
 
   // A settings file of the session's own per binding revision carries the
