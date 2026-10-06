@@ -4,6 +4,10 @@ A per-user daemon owns the sessions; thin clients attach over the [wire protocol
 The first `atc` invocation boots the daemon if its socket is absent, then connects — tmux-style
 auto-spawn. `atc daemon` runs it in the foreground for systemd or debugging.
 
+`atc mcp --http --wait-for-daemon` never boots a daemon: it waits for one to answer and exits when
+none does, so a service manager's daemon unit keeps the state directory.
+[Remote MCP](./remote-mcp.md#running-under-systemd) covers the units.
+
 ## One daemon per state directory
 
 A daemon takes an exclusive lock on `daemon.lock` in its state directory before it opens `atc.db`,
