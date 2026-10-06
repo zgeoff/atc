@@ -62,6 +62,8 @@ done
     adapter: new ClaudeAdapter({
       claudeBin: fakeClaude,
       claudeArgs: [],
+      claudeAuth: null,
+      claudeAuthErrors: [],
       grokBin: 'grok',
       grokArgs: [],
       codexBin: 'codex',

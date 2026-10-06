@@ -38,6 +38,7 @@ test('it lists an agent that takes the broker credential as spawnable once a tar
     buildResumeCommand: () => null,
     planSpawn: () => ({ bin: 'claude', args: [] }),
     findAuthSelection: () => ({
+      brokerRequired: true,
       gateway: {
         id: 'glm',
         baseURL: 'https://api.z.ai/api/anthropic',
@@ -88,6 +89,7 @@ test('it lists an agent that takes the broker credential as not spawnable when n
     buildResumeCommand: () => null,
     planSpawn: () => ({ bin: 'claude', args: [] }),
     findAuthSelection: () => ({
+      brokerRequired: true,
       gateway: {
         id: 'glm',
         baseURL: 'https://api.z.ai/api/anthropic',
@@ -101,6 +103,7 @@ test('it lists an agent that takes the broker credential as not spawnable when n
 
   expect(entry).toMatchObject({
     brokerAuth: true,
+    brokerRequired: true,
     capabilities: { spawn: false },
     spawnOptions: { model: { available: false } },
   });
@@ -146,4 +149,63 @@ test('it lists an agent that takes no broker credential as spawnable when no tar
   const [entry] = buildAgentList([adapter], () => true, false);
 
   expect(entry).toMatchObject({ brokerAuth: false, capabilities: { spawn: true } });
+});
+
+test('it lists an agent that takes the broker credential only where a broker is as spawnable when no target reaches one', () => {
+  const adapter: AgentAdapter = {
+    id: 'claude',
+    profile: {
+      label: 'Claude',
+      kind: 'claude',
+      bin: 'claude',
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: true,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+        effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+      },
+    },
+    headlessRunner: null,
+    screenDetector: null,
+    takesMessages: false,
+    normalizeHook: () => ({ kind: 'heartbeat' }),
+    loadName: () => Promise.resolve(null),
+    canResume: () => true,
+    buildResumeCommand: () => null,
+    planSpawn: () => ({ bin: 'claude', args: [] }),
+    findAuthSelection: () => ({
+      brokerRequired: false,
+      gateway: {
+        id: 'claude',
+        baseURL: 'https://api.anthropic.com',
+        auth: {
+          profiles: ['claude'],
+          placeholderEnv: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+      profiles: new Map(),
+    }),
+  };
+
+  const [entry] = buildAgentList([adapter], () => true, false);
+
+  expect(entry).toMatchObject({
+    brokerAuth: true,
+    brokerRequired: false,
+    capabilities: { spawn: true },
+    spawnOptions: { model: { available: true } },
+  });
 });

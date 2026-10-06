@@ -101,6 +101,7 @@ async function setupTest() {
       env: { ...guest.auth?.env, CLAUDE_CONFIG_DIR: `${guest.dir}/claude-config` },
     }),
     findAuthSelection: () => ({
+      brokerRequired: true,
       gateway: {
         id: 'glm',
         baseURL: 'https://api.z.ai/api/anthropic',

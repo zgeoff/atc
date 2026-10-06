@@ -1721,8 +1721,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    // An agent that takes its credential from impd's broker runs only on a
-    // target that reaches the broker.
+    // An agent that starts only behind impd's broker runs only on a target
+    // that reaches the broker.
     const brokered = isBrokerAgent(listed['agents'], this.agent);
     const listedTargets = collectTargetPicks(listed);
     const picks = listedTargets.filter((t) => !brokered || t.brokerAuth);
@@ -2026,13 +2026,18 @@ function buildProbedRepo(
   };
 }
 
-// Whether the daemon lists an agent as taking its credential from impd's
-// broker; a daemon that does not say lists none.
+// Whether the daemon lists an agent as starting only behind impd's broker.
+// A daemon that sends no `brokerRequired` holds every agent with
+// `brokerAuth` to the broker, and one that sends neither lists none.
 function isBrokerAgent(raw: unknown, agent: AgentID): boolean {
   return (
     Array.isArray(raw) &&
     raw.some(
-      (entry: unknown) => isRecord(entry) && entry['id'] === agent && entry['brokerAuth'] === true,
+      (entry: unknown) =>
+        isRecord(entry) &&
+        entry['id'] === agent &&
+        entry['brokerAuth'] === true &&
+        entry['brokerRequired'] !== false,
     )
   );
 }

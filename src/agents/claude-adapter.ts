@@ -1,10 +1,12 @@
 import { existsSync } from 'node:fs';
 import { z } from 'zod';
 import type { AdapterEvent } from '../protocol/adapter-event';
+import { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { buildOptionalString } from '../shared/build-optional-string';
 import type { Config } from '../shared/config';
+import { isBrokerVariable } from '../shared/is-broker-variable';
 import { isRecord } from '../shared/report';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toShellArg } from '../shared/to-shell-arg';
@@ -12,6 +14,7 @@ import { truncateDetail } from '../shared/truncate-detail';
 import type {
   AgentAdapter,
   AgentProfile,
+  AuthSelection,
   GuestPaths,
   GuestSpawnPlan,
   HeadlessRunner,
@@ -21,7 +24,10 @@ import type {
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
+import { buildArgsWithoutFlags } from './build-args-without-flags';
 import { buildATCBridgeFiles } from './build-atc-bridge-files';
+import { buildClaudeConfigSeed } from './build-claude-config-seed';
+import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
 import { buildHookSettings } from './build-hook-settings';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
@@ -109,13 +115,36 @@ export class ClaudeAdapter implements AgentAdapter {
 
     return {
       bin: this.config.claudeBin,
-      args: this.buildArgs(opts, this.settingsFile, this.writeBridge()),
+      args: this.buildArgs(this.config.claudeArgs, opts, this.settingsFile, this.writeBridge()),
+    };
+  }
+
+  // With `claudeAuth` configured, Claude signs in with the subscription
+  // token impd's broker holds on a target that reaches the broker, and
+  // with the sign-in of the host it runs on anywhere else.
+  findAuthSelection(): AuthSelection | null {
+    const auth = this.config.claudeAuth;
+
+    if (auth === null) {
+      return null;
+    }
+
+    return {
+      gateway: {
+        id: this.id,
+        baseURL: ANTHROPIC_API_URL,
+        auth: { profiles: auth.profiles, placeholderEnv: { [OAUTH_VARIABLE]: PLACEHOLDER } },
+      },
+      profiles: this.config.authProfiles,
+      brokerRequired: false,
     };
   }
 
   // A remote session reports through the atc inside its host, so without
   // one it has no instrumentation and cannot run there. Its settings and
-  // its copy of the mod travel with it, and it has no statusline.
+  // its copy of the mod travel with it, and it has no statusline. A
+  // session that signs in through impd's broker runs with a config folder
+  // of its own and the placeholder in place of the token.
   planGuestSpawn(opts: SpawnOptions, guest: GuestPaths): GuestSpawnPlan | null {
     if (guest.atc === null) {
       return null;
@@ -127,9 +156,18 @@ export class ClaudeAdapter implements AgentAdapter {
       ([path, content]): [string, string] => [`atc-bridge/${path}`, content],
     );
 
+    if (guest.auth !== undefined) {
+      return this.planSubscriptionGuestSpawn(opts, guest.dir, guest.auth, argv, bridge);
+    }
+
     return {
       bin: this.config.claudeBin,
-      args: this.buildArgs(opts, `${guest.dir}/settings.json`, `${guest.dir}/atc-bridge`),
+      args: this.buildArgs(
+        this.config.claudeArgs,
+        opts,
+        `${guest.dir}/settings.json`,
+        `${guest.dir}/atc-bridge`,
+      ),
       files: {
         'settings.json': JSON.stringify(buildHookSettings({ id: this.id }, 0, argv), null, 2),
         ...Object.fromEntries(bridge),
@@ -137,9 +175,114 @@ export class ClaudeAdapter implements AgentAdapter {
     };
   }
 
-  private buildArgs(opts: SpawnOptions, settings: string, pluginDir: string): string[] {
+  // Seeds the config folder of a session that signs in through impd's
+  // broker with trust for the clone; any other remote session reads the
+  // config of the host's image, which atc never writes.
+  planGuestWorkspaceTrust(root: string): Readonly<Record<string, string>> | null {
+    if (this.config.claudeAuth === null) {
+      return null;
+    }
+
+    return buildClaudeConfigSeed(root);
+  }
+
+  // A settings file of the session's own per binding revision carries the
+  // placeholder, and so does the CLI's environment. The configured
+  // arguments go without a permission mode, so the mode the session's own
+  // user settings set applies. A credential variable in the configured
+  // settings, or in the host's environment, would outrank the placeholder,
+  // so either refuses the start.
+  private planSubscriptionGuestSpawn(
+    opts: SpawnOptions,
+    dir: string,
+    auth: NonNullable<GuestPaths['auth']>,
+    argv: readonly string[],
+    bridge: readonly (readonly [string, string])[],
+  ): GuestSpawnPlan {
+    const refusal = this.findCredentialOverride();
+
+    if (refusal !== null) {
+      throw refusal;
+    }
+
+    const settingsPath = `auth-r${auth.revision}/settings.json`;
+
+    const settings = buildHookSettings(
+      { id: this.id, env: { ...auth.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' } },
+      0,
+      argv,
+    );
+
+    const launch = buildClaudeGuestLaunch(
+      dir,
+      [
+        this.config.claudeBin,
+        ...this.buildArgs(
+          buildArgsWithoutFlags(this.config.claudeArgs, ['--permission-mode']),
+          opts,
+          `${dir}/${settingsPath}`,
+          `${dir}/atc-bridge`,
+        ),
+      ],
+      [...OUTRANKING_VARIABLES],
+    );
+
+    return {
+      bin: launch.bin,
+      args: launch.args,
+      files: {
+        [settingsPath]: JSON.stringify(settings, null, 2),
+        ...buildClaudeConfigSeed(null),
+        ...Object.fromEntries(bridge),
+      },
+      env: { ...launch.env, ...auth.env },
+    };
+  }
+
+  // The refusal for configured arguments whose inline `--settings` sets a
+  // variable that outranks the subscription token or routes the CLI around
+  // impd's broker, or null when they set none.
+  private findCredentialOverride(): DaemonError | null {
+    const inline = findFlagValue(this.config.claudeArgs, ['--settings']);
+
+    if (inline === null) {
+      return null;
+    }
+
+    let parsed: unknown;
+
+    try {
+      parsed = JSON.parse(inline);
+    } catch {
+      return null;
+    }
+
+    const env = isRecord(parsed) ? parsed['env'] : undefined;
+    const keys = isRecord(env) ? Object.keys(env) : [];
+
+    const variable = keys.find(
+      (key) => OUTRANKING_VARIABLES.has(key) || key === OAUTH_VARIABLE || isBrokerVariable(key),
+    );
+
+    if (variable === undefined) {
+      return null;
+    }
+
+    return new DaemonError(
+      'auth_target_unsupported',
+      `claude signs in through impd's broker on this target, but claudeArgs set ${variable} in --settings, which would outrank or route around that sign-in`,
+      { agent: this.id, problem: 'guest_env_conflict', variable },
+    );
+  }
+
+  private buildArgs(
+    configured: readonly string[],
+    opts: SpawnOptions,
+    settings: string,
+    pluginDir: string,
+  ): string[] {
     return [
-      ...buildClaudeOverrideArgs(this.config.claudeArgs, opts),
+      ...buildClaudeOverrideArgs(configured, opts),
       '--settings',
       settings,
       '--plugin-dir',
@@ -297,6 +440,20 @@ export class ClaudeAdapter implements AgentAdapter {
     return `cd ${toShellArg(cwd)} && claude${mode} --resume${resume}`;
   }
 }
+
+// The endpoint Claude Code sends a subscription token to, the variable it
+// reads that token from, and the value impd's broker replaces with the
+// token on the host's side.
+const ANTHROPIC_API_URL = 'https://api.anthropic.com';
+const OAUTH_VARIABLE = 'CLAUDE_CODE_OAUTH_TOKEN';
+const PLACEHOLDER = 'imp-broker-placeholder';
+
+// The variables Claude Code takes a credential from ahead of the
+// subscription token.
+const OUTRANKING_VARIABLES: ReadonlySet<string> = new Set([
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_API_KEY',
+]);
 
 // The aliases Claude Code documents for `--model`, each resolving to a model
 // the account picks. A full model name is accepted as well.

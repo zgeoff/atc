@@ -15,6 +15,8 @@ function buildGatewayAdapter(): GatewayAdapter {
   const config: Config = {
     claudeBin: 'claude',
     claudeArgs: [],
+    claudeAuth: null,
+    claudeAuthErrors: [],
     grokBin: 'grok',
     grokArgs: [],
     codexBin: 'codex',
@@ -122,6 +124,8 @@ test("it runs a headless turn through the gateway's binary and settings file und
     {
       claudeBin: 'claude',
       claudeArgs: [],
+      claudeAuth: null,
+      claudeAuthErrors: [],
       grokBin: 'grok',
       grokArgs: [],
       codexBin: 'codex',
@@ -191,6 +195,8 @@ test('it profiles a gateway with only the model names its env sets', () => {
     {
       claudeBin: 'claude',
       claudeArgs: [],
+      claudeAuth: null,
+      claudeAuthErrors: [],
       grokBin: 'grok',
       grokArgs: [],
       codexBin: 'codex',
@@ -1037,7 +1043,11 @@ test('it starts a brokered guest in the permission mode the plain Claude adapter
   };
 
   const brokered = gateway.planGuestSpawn({ prompt: '', resume: false }, guest);
-  const plain = claude.planGuestSpawn({ prompt: '', resume: false }, guest);
+
+  const plain = claude.planGuestSpawn(
+    { prompt: '', resume: false },
+    { atc: guest.atc, dir: guest.dir },
+  );
 
   if (brokered === null || plain === null) {
     throw new Error('expected both guest spawn plans');
@@ -1133,6 +1143,7 @@ test('it selects the credential a gateway with auth takes from the broker, with 
       },
     },
     profiles: config.authProfiles,
+    brokerRequired: true,
   });
 });
 

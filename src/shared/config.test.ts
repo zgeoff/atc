@@ -7,6 +7,8 @@ test('it leaves every target unusable, local included, and grants no principal a
   expect(parseConfig(null, '/home/u/.config/atc/config.json')).toStrictEqual({
     claudeBin: 'claude',
     claudeArgs: [],
+    claudeAuth: null,
+    claudeAuthErrors: [],
     grokBin: 'grok',
     grokArgs: [],
     codexBin: 'codex',
@@ -64,6 +66,8 @@ test('it falls back field by field when a field is wrong-typed instead of failin
   expect(config).toStrictEqual({
     claudeBin: 'claude',
     claudeArgs: [],
+    claudeAuth: null,
+    claudeAuthErrors: [],
     grokBin: 'my-grok',
     grokArgs: ['--yolo'],
     codexBin: 'codex',

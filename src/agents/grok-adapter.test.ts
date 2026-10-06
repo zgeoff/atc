@@ -25,6 +25,8 @@ function buildGrokConfig(): Config {
   return {
     claudeBin: 'claude',
     claudeArgs: [],
+    claudeAuth: null,
+    claudeAuthErrors: [],
     grokBin: 'grok',
     grokArgs: [],
     codexBin: 'codex',

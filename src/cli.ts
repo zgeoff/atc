@@ -382,6 +382,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     ...cfg.principalErrors,
     ...cfg.workspaceErrors,
     ...cfg.authProfileErrors,
+    ...cfg.claudeAuthErrors,
     ...cfg.gatewayErrors,
   ]) {
     console.error(`atc daemon: config: ${problem}`);

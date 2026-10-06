@@ -24,22 +24,23 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 }
 ```
 
-| Field           | Default         | Meaning                                                                                                                       |
-| --------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `claudeBin`     | `"claude"`      | The binary spawned for Claude sessions.                                                                                       |
-| `claudeArgs`    | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`. A spawn's own model or effort replaces the matching flag.        |
-| `grokBin`       | `"grok"`        | The binary spawned for Grok sessions.                                                                                         |
-| `grokArgs`      | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`.                   |
-| `codexBin`      | `"codex"`       | The binary spawned for Codex sessions.                                                                                        |
-| `codexArgs`     | `[]`            | Prepended to every Codex spawn. A spawn's own model replaces a `-m` or `--model` here.                                        |
-| `dirs`          | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.                   |
-| `gateways`      | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                                  |
-| `authProfiles`  | unset           | Credential references a gateway's `auth` selects from. The [brokered credentials](#brokered-credentials) section covers them. |
-| `hooks`         | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                           |
-| `leader`        | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                         |
-| `targets`       | unset           | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                            |
-| `defaultTarget` | unset           | The target a spawn without a target runs on.                                                                                  |
-| `workspaces`    | see above       | Where workspaces come from. The [git transports](#git-transports) section covers `gitTransports`.                             |
+| Field           | Default         | Meaning                                                                                                                                         |
+| --------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `claudeBin`     | `"claude"`      | The binary spawned for Claude sessions.                                                                                                         |
+| `claudeArgs`    | `[]`            | Prepended to every Claude spawn, e.g. `["--model", "opus"]`. A spawn's own model or effort replaces the matching flag.                          |
+| `grokBin`       | `"grok"`        | The binary spawned for Grok sessions.                                                                                                           |
+| `grokArgs`      | `[]`            | Prepended to every Grok spawn. A user `--leader` in this list is dropped; atc always appends `--no-leader`.                                     |
+| `codexBin`      | `"codex"`       | The binary spawned for Codex sessions.                                                                                                          |
+| `codexArgs`     | `[]`            | Prepended to every Codex spawn. A spawn's own model replaces a `-m` or `--model` here.                                                          |
+| `dirs`          | `{ roots: [] }` | Where the directory picker looks beyond its own history. The [directories](#directories) section covers it.                                     |
+| `gateways`      | `{}`            | Claude-compatible backends, keyed by agent id. Each becomes its own row in the agent picker.                                                    |
+| `authProfiles`  | unset           | Credential references a gateway's `auth` selects from. The [brokered credentials](#brokered-credentials) section covers them.                   |
+| `claudeAuth`    | unset           | The profiles stock Claude signs in through on an imp target. The [Claude subscription on imps](#claude-subscription-on-imps) section covers it. |
+| `hooks`         | `{}`            | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                             |
+| `leader`        | `"ctrl-space"`  | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                           |
+| `targets`       | unset           | Where sessions run, keyed by target id. The [targets](#targets) section covers it.                                                              |
+| `defaultTarget` | unset           | The target a spawn without a target runs on.                                                                                                    |
+| `workspaces`    | see above       | Where workspaces come from. The [git transports](#git-transports) section covers `gitTransports`.                                               |
 
 ## Leader
 
@@ -149,8 +150,8 @@ for repositories you trust. It changes no tool permission mode.
   to your own Claude config (`~/.claude.json`, or `.claude.json` in `$CLAUDE_CONFIG_DIR`), under the
   lock Claude itself writes that file under, and leaves every other entry as it is. A launch that
   fails before Claude starts takes the entry back.
-- On an imp target, the launch must use a brokered Claude gateway; see
-  [brokered credentials](#brokered-credentials).
+- On an imp target, the launch must use a brokered Claude gateway or stock Claude with `claudeAuth`;
+  see [brokered credentials](#brokered-credentials).
 
 atc refuses trust for any other agent or target, and for a launch without a workspace source.
 
@@ -490,6 +491,64 @@ The placeholders must be `ANTHROPIC_AUTH_TOKEN` alone, and the profile for the `
 set a bearer `authorization` header, since that is the header Claude sends the variable in. Any
 other pairing fails with `auth_placeholder_unsupported`, on every target and before anything is
 prepared, and `agents.list` lists the gateway as unable to spawn.
+
+### Claude subscription on imps
+
+`claudeAuth` signs stock Claude in on an imp target with a subscription token that impd holds, so
+the token never enters the imp. On the local target, Claude keeps the sign-in of your own Claude
+config.
+
+1. Run `claude setup-token` on your machine. It prints an OAuth token that bills against your Pro or
+   Max subscription and lasts one year.
+2. Add the token to impd as a `custom` secret on `api.anthropic.com`, with the value on stdin:
+
+   ```bash
+   imp secret add claude-setup-token --kind=custom --hosts=api.anthropic.com --header=authorization --scheme=bearer
+   ```
+
+3. List the secret in the `--grantable` secrets of the target's impd token when you make the token.
+4. Add a profile for the secret and select it in `claudeAuth`, beside any other profile the session
+   needs:
+
+   ```json
+   {
+     "authProfiles": {
+       "claude": {
+         "secret": "claude-setup-token",
+         "host": "api.anthropic.com",
+         "header": "authorization",
+         "scheme": "bearer"
+       },
+       "github": { "secret": "github-imp-agents", "kind": "github" }
+     },
+     "claudeAuth": { "profiles": ["claude", "github"] }
+   }
+   ```
+
+`claudeAuth` holds `profiles` alone: atc fixes the endpoint, `https://api.anthropic.com`, and the
+placeholder, `CLAUDE_CODE_OAUTH_TOKEN=imp-broker-placeholder`. Claude Code sends that variable as a
+bearer `authorization` header to `api.anthropic.com` and to no other host, and impd swaps the
+placeholder for the token there. atc leaves the entry out and prints the reason when the daemon
+starts if a selected profile does not resolve, or if no profile sets a bearer `authorization` header
+for `api.anthropic.com`.
+
+On an imp target, each session gets the same guest folder a brokered gateway gets: a settings file
+for its binding revision that holds the placeholder, and a Claude config folder of its own that atc
+seeds with first-run onboarding state, plus folder trust with [clone trust](#clone-trust). The CLI
+starts without `--permission-mode`, and atc drops one from `claudeArgs`, so the mode the session's
+own user settings set applies. A headless turn is refused there, as on every imp session.
+
+`ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` both outrank the subscription token in Claude Code,
+so atc keeps either one away from a subscription session:
+
+- A spawn fails with `auth_target_unsupported` when an inline `--settings` in `claudeArgs` sets
+  either variable, `CLAUDE_CODE_OAUTH_TOKEN`, or a proxy or CA variable.
+- The session exits with status 78 before Claude starts when the imp's environment sets either
+  variable, and its screen shows which one.
+
+A revoked grant or an expired token gives `API Error: 401` inside the session, and Claude never
+falls back to another sign-in. To renew the token, run `claude setup-token` again and replace the
+secret with `imp secret add claude-setup-token --replace`.
 
 ## Attention hooks (Grok and Codex)
 
