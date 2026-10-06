@@ -133,6 +133,9 @@ test('it restores the stored sessions after a restart with no client request and
     ]);
   });
 
+  // The fleet write for the last session follows its adoption by well under
+  // this window; no signal marks the end of the stagger.
+  await Bun.sleep(150);
   await daemon.stopAll();
 
   const store = await StateStore.open(daemon.dbPath);
@@ -230,9 +233,9 @@ test('it joins a fleet.restore to the automatic restore while its stagger runs',
 
   await seed.stop();
 
-  // The fake agent never reports it booted, so the stagger holds on the
-  // first session until the long cap runs out.
-  const client = await daemon.boot({ restoreFleetOnRestart: true, restoreBootTimeoutMs: 60_000 });
+  // The fake agent never reports it booted, so the stagger holds on each
+  // session until the cap runs out.
+  const client = await daemon.boot({ restoreFleetOnRestart: true, restoreBootTimeoutMs: 1000 });
 
   await waitFor(() => {
     expect(daemon.spawns.count).toBe(1);
@@ -241,9 +244,19 @@ test('it joins a fleet.restore to the automatic restore while its stagger runs',
   const joined = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
   const listed = await client.sendRequest('session.list');
 
-  expect({ joined, spawns: daemon.spawns.count, listed: listed['sessions'] }).toMatchObject({
+  const spawnsDuringStagger = daemon.spawns.count;
+
+  // Let the stagger finish so teardown never races a queued spawn.
+  await waitFor(
+    () => {
+      expect(daemon.spawns.count).toBe(3);
+    },
+    { timeoutMs: 10_000 },
+  );
+
+  expect({ joined, spawnsDuringStagger, listed: listed['sessions'] }).toMatchObject({
     joined: { restored: 3 },
-    spawns: 1,
+    spawnsDuringStagger: 1,
     listed: [{ id: 's-a' }, { id: 's-b' }, { id: 's-c' }],
   });
 });
