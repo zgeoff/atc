@@ -272,7 +272,11 @@ interface ListenOptions {
 }
 
 export interface DaemonHandle {
+  // A second stop, or a disposal after one, waits on the first and stops
+  // nothing again.
   readonly stop: () => Promise<void>;
+
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 
   // How many client-protocol connections are open right now.
   readonly countClients: () => number;
@@ -2343,22 +2347,30 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
-  stopDaemon = async () => {
-    // Ends each client itself so every peer sees the close: a stopped
-    // listener does not reliably end the connections it already accepted.
-    for (const client of clients) {
-      client.dispose();
-    }
+  // The stop already started, which a quit, a second stop, and a disposal
+  // all wait on instead of releasing anything twice.
+  let stopping: Promise<void> | null = null;
 
-    tcpListener?.stop();
-    server.stop(true);
+  stopDaemon = () => {
+    stopping ??= (async () => {
+      // Ends each client itself so every peer sees the close: a stopped
+      // listener does not reliably end the connections it already accepted.
+      for (const client of clients) {
+        client.dispose();
+      }
 
-    await releaseResources();
+      tcpListener?.stop();
+      server.stop(true);
 
-    // The stopped listener logs no more lines, so this writes the ones the
-    // log still holds, waiting no longer than the timeout when nothing reads
-    // stderr.
-    await listenerLog?.drain(LOG_DRAIN_TIMEOUT_MS);
+      await releaseResources();
+
+      // The stopped listener logs no more lines, so this writes the ones the
+      // log still holds, waiting no longer than the timeout when nothing
+      // reads stderr.
+      await listenerLog?.drain(LOG_DRAIN_TIMEOUT_MS);
+    })();
+
+    return stopping;
   };
 
   writeDaemonRecord(recordPath, {
@@ -2396,6 +2408,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   return {
     stop: stopDaemon,
+    [Symbol.asyncDispose]: stopDaemon,
     countClients: () => clients.size,
     countEventWaiters: () => eventSignal.countWaiters(),
     listenPort: tcpListener?.port ?? null,

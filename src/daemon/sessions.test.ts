@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
@@ -1249,4 +1250,52 @@ test('it logs nothing for a background fleet write refused as stale_epoch', asyn
   // the background write's refusal has been handled.
   expect(mgr.writeFleet()).rejects.toMatchObject({ code: 'stale_epoch' });
   expect(ctx.lines).toStrictEqual([]);
+});
+
+test('it ends each harness on this machine when disposed', async () => {
+  await using ctx = await setupTest();
+
+  using mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  const s = await mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+
+  const harness = s.pty;
+
+  invariant(harness);
+
+  mgr[Symbol.dispose]();
+
+  const exited = await harness.waitForExit(2000);
+
+  expect(exited).toBeTrue();
+});
+
+test('it lets go of nothing again when disposed a second time', async () => {
+  await using ctx = await setupTest();
+
+  using mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  await mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+
+  mgr[Symbol.dispose]();
+
+  expect(() => {
+    mgr[Symbol.dispose]();
+  }).not.toThrow();
 });

@@ -136,6 +136,9 @@ export class StateStore {
   // migration that created session ownership.
   readonly daemonID: DaemonID;
 
+  // The close already started, which every later close waits on.
+  private stopping: Promise<void> | null = null;
+
   private constructor(sqlite: Database, db: Kysely<StateStoreSchema>, daemonID: DaemonID) {
     this.sqlite = sqlite;
     this.db = db;
@@ -1159,10 +1162,20 @@ export class StateStore {
       .execute();
   }
 
-  async stop(): Promise<void> {
-    await this.db.destroy();
+  // A second close, or a disposal after one, waits on the first and closes
+  // nothing again.
+  stop(): Promise<void> {
+    this.stopping ??= (async () => {
+      await this.db.destroy();
 
-    this.sqlite.close();
+      this.sqlite.close();
+    })();
+
+    return this.stopping;
+  }
+
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.stop();
   }
 
   private async adoptLegacyFleet(legacyFleetPath: string): Promise<void> {

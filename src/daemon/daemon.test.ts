@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -845,4 +845,23 @@ test('it answers a kill whose fleet write meets a moved ownership epoch with sta
   expect(ctx.client.sendRequest('session.kill', { session: sessionID })).rejects.toMatchObject({
     code: 'stale_epoch',
   });
+});
+
+test('it stops the daemon when its handle is disposed', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.daemon[Symbol.asyncDispose]();
+
+  expect(existsSync(join(ctx.dir, 'daemon.json'))).toBeFalse();
+});
+
+test('it releases nothing again when a stopped handle is disposed', async () => {
+  await using ctx = await setupTest();
+
+  const stopped = ctx.daemon;
+
+  await ctx.restart();
+  await stopped[Symbol.asyncDispose]();
+
+  expect(existsSync(join(ctx.dir, 'daemon.json'))).toBeTrue();
 });
