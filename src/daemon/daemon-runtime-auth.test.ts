@@ -1,4 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { getRecord } from '../shared/get-record';
 import { toSessionID } from '../shared/to-session-id';
@@ -881,7 +882,7 @@ test.each([
 
     expect<Record<string, unknown>>({
       calls: ctx.port.calls,
-      created: await Bun.file(cwd).exists(),
+      created: existsSync(cwd),
       listed: await daemon.client.sendRequest('session.list'),
     }).toStrictEqual({ calls: [], created: false, listed: { sessions: [] } });
   },
@@ -3168,6 +3169,6 @@ test('it restores a session whose broker is not ready without a terminal', async
   const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toStrictEqual({
-    sessions: [expect.objectContaining({ id, alive: false })],
+    sessions: [expect.objectContaining({ id, alive: false, kind: 'headless' })],
   });
 });

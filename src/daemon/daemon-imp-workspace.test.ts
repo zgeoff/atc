@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { $ } from 'bun';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { createGitFixture } from '../test-utils/create-git-fixture';
@@ -25,7 +26,7 @@ import { LocalPTYProvider } from './local-pty-provider';
  * A real daemon with a `local` target and an imp target `box` over a
  * fixture imp port, whose imps run their commands on this machine, beside
  * a git fixture: a bare upstream and a clone of it whose one pushed commit
- * adds `README.md` holding `hello`. `dir` is a temp directory for the
+ * adds `README.md`, at commit `sha`. `dir` is a temp directory for the
  * test's host paths. The agent `glm` takes the credential impd holds for
  * api.z.ai from the broker, and `unsigned` takes it too but fails its
  * sign-in check in the host; `plain` takes none, and `unsigned-plain`
@@ -144,6 +145,8 @@ async function setupTest() {
     dir: tmp.dir,
     upstream: git.upstream,
     work: git.work,
+    sha: git.sha,
+    env: git.env,
     dbPath: daemon.dbPath,
     logs: daemon.logs,
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
@@ -152,6 +155,9 @@ async function setupTest() {
 
 test('it materializes a workspace on the host of an imp spawn and starts the session there', async () => {
   await using ctx = await setupTest();
+
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const dest = join(ctx.dir, 'box', 'ws');
 
@@ -173,7 +179,7 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
     unpacks: ctx.port.calls.filter((call) => call.includes(dest) && call.includes('tar -x')),
     started: ctx.port.sessionRequests.map((request) => request.kind),
   }).toMatchObject({
-    readme: 'hello\n',
+    readme: committed,
     session: { locator: { targetID: 'box' }, alive: true, workspace: { sha: expect.toBeString() } },
     imps: [expect.stringMatching(/^atc-[0-9a-f]{20}$/)],
     claims: [
@@ -189,6 +195,9 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
 
 test('it materializes a git source without a cwd under the home of an imp and starts the session in it', async () => {
   await using ctx = await setupTest();
+
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const home = join(ctx.dir, 'guest-home');
   const dest = join(home, '.local/share/atc/workspaces', 'upstream-main');
@@ -210,7 +219,7 @@ test('it materializes a git source without a cwd under the home of an imp and st
       request.kind === 'start' ? [request.cwd] : [],
     ),
   }).toMatchObject({
-    readme: 'hello\n',
+    readme: committed,
     session: { cwd: dest, repoRoot: dest, locator: { targetID: 'box' }, alive: true },
     started: [dest],
   });
@@ -218,6 +227,9 @@ test('it materializes a git source without a cwd under the home of an imp and st
 
 test('it lands concurrent sub-sessions of one repository without a cwd side by side on their shared imp', async () => {
   await using ctx = await setupTest();
+
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const home = join(ctx.dir, 'guest-home');
   const base = join(home, '.local/share/atc/workspaces', 'upstream-main');
@@ -253,12 +265,15 @@ test('it lands concurrent sub-sessions of one repository without a cwd side by s
   const dirs = spawned.map((answer) => getRecord(answer, 'session')['cwd']);
 
   expect(dirs).toIncludeSameMembers([base, `${base}-2`]);
-  expect(readFileSync(join(base, 'README.md'), 'utf8')).toBe('hello\n');
-  expect(readFileSync(join(`${base}-2`, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(base, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(`${base}-2`, 'README.md'), 'utf8')).toBe(committed);
 });
 
 test('it materializes a workspace for a local spawn on the daemon host and starts the session there', async () => {
   await using ctx = await setupTest();
+
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const dest = join(ctx.dir, 'local', 'ws');
 
@@ -274,7 +289,7 @@ test('it materializes a workspace for a local spawn on the daemon host and start
     session: getRecord(spawned, 'session'),
     calls: ctx.port.calls,
   }).toMatchObject({
-    readme: 'hello\n',
+    readme: committed,
     session: {
       locator: { targetID: 'local' },
       alive: true,
@@ -333,6 +348,9 @@ test('it refuses a workspace sub-session under a revoked parent before resolving
 test('it materializes a workspace sub-session on the host of a ready parent and starts it there', async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     agent: 'glm',
@@ -354,7 +372,7 @@ test('it materializes a workspace sub-session on the host of a ready parent and 
     session: getRecord(spawned, 'session'),
     imps: ctx.port.collectImpNames(),
   }).toMatchObject({
-    readme: 'hello\n',
+    readme: committed,
     session: { alive: true, workspace: { sha: expect.toBeString() } },
     imps: [expect.toBeString()],
   });
@@ -596,6 +614,9 @@ test("it refuses a sub-session workspace inside its parent's directory before cl
 test("it materializes a sub-session workspace beside its parent's directory on the shared host", async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     agent: 'glm',
@@ -616,7 +637,7 @@ test("it materializes a sub-session workspace beside its parent's directory on t
     readme: readFileSync(join(dest, 'README.md'), 'utf8'),
     session: getRecord(spawned, 'session'),
   }).toMatchObject({
-    readme: 'hello\n',
+    readme: committed,
     session: { alive: true, workspace: { sha: expect.toBeString() } },
   });
 });
@@ -651,6 +672,9 @@ test('it refuses a git workspace whose credential variable is unset before touch
 test('it materializes a git workspace on an imp host when its credential variable is set', async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'workspace-token');
 
   const dest = join(ctx.dir, 'box', 'ws');
@@ -671,7 +695,7 @@ test('it materializes a git workspace on an imp host when its credential variabl
     readme: readFileSync(join(dest, 'README.md'), 'utf8'),
     session: getRecord(spawned, 'session'),
   }).toMatchObject({
-    readme: 'hello\n',
+    readme: committed,
     session: { alive: true, workspace: { sha: expect.toBeString() } },
   });
 });
@@ -797,6 +821,9 @@ test('it refuses a workspace spawn inside another one still materializing on the
 test('it materializes concurrent workspace spawns into sibling directories on the shared host', async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     agent: 'glm',
@@ -829,7 +856,7 @@ test('it materializes concurrent workspace spawns into sibling directories on th
   expect<Record<string, unknown>>({
     sessions: spawned.map((answer) => getRecord(answer, 'session')['alive']),
     readmes: [first, second].map((dir) => readFileSync(join(dir, 'README.md'), 'utf8')),
-  }).toStrictEqual({ sessions: [true, true], readmes: ['hello\n', 'hello\n'] });
+  }).toStrictEqual({ sessions: [true, true], readmes: [committed, committed] });
 });
 
 test("it keeps another session's files inside its directory when a workspace spawn rolls back on the shared host", async () => {
@@ -1416,6 +1443,9 @@ test('it gives back the directory a rolled-back workspace spawn claimed, so a re
 test("it removes a sub-session's checkout but keeps its parent and the files beside it when its start fails on the shared host", async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     agent: 'glm',
@@ -1424,6 +1454,9 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
 
   const parentID = String(getRecord(parent, 'session')['id']);
   const dest = join(ctx.dir, 'box', 'child');
+
+  // The imp the parent's spawn created, which the failed start must keep.
+  const [imp] = ctx.port.collectImpNames();
 
   mkdirSync(join(ctx.dir, 'box'));
   writeFileSync(join(ctx.dir, 'box', 'beside.txt'), 'kept\n');
@@ -1438,11 +1471,9 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
     workspace: { kind: 'path', path: ctx.work },
   });
 
-  await spawn.catch(() => null);
+  await Promise.allSettled([spawn]);
 
   const listed = await ctx.client.sendRequest('session.list');
-
-  const [imp] = ctx.port.collectImpNames();
 
   expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
 
@@ -1456,7 +1487,7 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
   }).toStrictEqual({
     exists: false,
     beside: 'kept\n',
-    parentFiles: 'hello\n',
+    parentFiles: committed,
     imps: [imp],
     state: 'running',
     listed: { sessions: [expect.objectContaining({ id: parentID, alive: true })] },
@@ -1466,11 +1497,17 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
 test('it spawns a sub-session again on the shared host after its failed start removed its checkout', async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     agent: 'glm',
     target: 'box',
   });
+
+  // The imp the parent's spawn created, which the failed start must keep.
+  const [imp] = ctx.port.collectImpNames();
 
   mkdirSync(join(ctx.dir, 'box'));
   writeFileSync(join(ctx.dir, 'box', 'beside.txt'), 'kept\n');
@@ -1503,8 +1540,6 @@ test('it spawns a sub-session again on the shared host after its failed start re
 
   const after = await ctx.client.sendRequest('session.list');
 
-  const [imp] = ctx.port.collectImpNames();
-
   expect<Record<string, unknown>>({
     beside: readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8'),
     parentFiles: readFileSync(join(ctx.work, 'README.md'), 'utf8'),
@@ -1514,7 +1549,7 @@ test('it spawns a sub-session again on the shared host after its failed start re
     listed: after,
   }).toStrictEqual({
     beside: 'kept\n',
-    parentFiles: 'hello\n',
+    parentFiles: committed,
     imps: [imp],
     state: 'running',
     retried: true,
@@ -1769,6 +1804,9 @@ test("it refuses a workspace destination inside its parent's relative directory 
 test('it materializes a workspace through a symlinked directory that leads away from its parent', async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     agent: 'glm',
@@ -1789,7 +1827,7 @@ test('it materializes a workspace through a symlinked directory that leads away 
   expect<Record<string, unknown>>({
     alive: getRecord(spawned, 'session')['alive'],
     readme: readFileSync(join(ctx.dir, 'elsewhere', 'new', 'README.md'), 'utf8'),
-  }).toStrictEqual({ alive: true, readme: 'hello\n' });
+  }).toStrictEqual({ alive: true, readme: committed });
 });
 
 test('it answers outcome_unknown for a workspace spawn whose own host it cannot destroy after its workspace fails', async () => {
@@ -2010,6 +2048,9 @@ test('it refuses a workspace cwd with a control character before touching impd',
 test('it materializes a workspace through a symlink to a directory whose name ends in a newline beside its parent', async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   const busy = join(ctx.dir, 'busy');
 
   mkdirSync(join(busy, 'sub'), { recursive: true });
@@ -2034,7 +2075,7 @@ test('it materializes a workspace through a symlink to a directory whose name en
     alive: getRecord(spawned, 'session')['alive'],
     readme: readFileSync(join(busy, 'sub\n', 'new', 'README.md'), 'utf8'),
     untouched: existsSync(join(busy, 'sub', 'new')),
-  }).toStrictEqual({ alive: true, readme: 'hello\n', untouched: false });
+  }).toStrictEqual({ alive: true, readme: committed, untouched: false });
 });
 
 test('it removes only the directory it created when a symlink in the requested path changes before a rollback', async () => {

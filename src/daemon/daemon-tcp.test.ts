@@ -1812,7 +1812,7 @@ test('it answers the held handshakes once the delay passes after the cap refused
   ]);
 });
 
-test('it ends a delayed handshake once its socket closes and frees its place in the cap', async () => {
+test('it cancels the delay timer of a delayed handshake once its socket closes', async () => {
   const clock = buildStubClock(0);
 
   await using daemon = await startTestDaemon({
@@ -1856,7 +1856,56 @@ test('it ends a delayed handshake once its socket closes and frees its place in 
 
   await abandonedHellos;
 
-  // A closed socket cancels the timer of its delayed handshake.
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([]);
+  });
+});
+
+test('it delays a new handshake in the place in the cap that a closed delayed handshake freed', async () => {
+  const clock = buildStubClock(0);
+
+  await using daemon = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 1500,
+          maxDelayedHandshakes: 2,
+        },
+      };
+    },
+  });
+
+  const failing = await Promise.all(Array.from({ length: 5 }, () => daemon.openTCPClient()));
+
+  await Promise.allSettled(
+    failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
+
+  const abandoned = await Promise.all(Array.from({ length: 2 }, () => daemon.openTCPClient()));
+
+  const abandonedHellos = Promise.allSettled(
+    abandoned.map((client) => client.sendHello('atc/test-gateway', 'a'.repeat(32))),
+  );
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([1500, 1500]);
+  });
+
+  for (const client of abandoned) {
+    client.stop();
+  }
+
+  await abandonedHellos;
+
+  // The closed sockets have cancelled their timers and left the cap.
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([]);
   });
