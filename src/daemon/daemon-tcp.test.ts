@@ -8,10 +8,10 @@ import { setupTempDir } from '../../test/setup-temp-dir';
 import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
 import type { EventMsg } from '../protocol/protocol';
+import { claimDaemonLock } from '../shared/claim-daemon-lock';
 import { collectTargets } from '../shared/collect-targets';
 import { getRecord } from '../shared/get-record';
 import { buildTargetIdentity } from './build-target-identity';
-import { claimDaemonLock } from './claim-daemon-lock';
 import { startDaemon } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';
 
