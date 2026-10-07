@@ -27,19 +27,14 @@ import { startGitHTTPServer } from '../test-utils/start-git-http-server';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
-import type { DaemonOptions } from './daemon';
-import type { ExecutionProvider } from './execution-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
 /**
  * A git fixture in `dir`, a bare upstream at `upstream` and a clone of it
- * at `work` holding one pushed commit `sha` that adds `README.md`, beside a
- * real daemon on a state directory of its own that outlives restarts.
- * `boot` restarts the daemon with a `local` target and a `box` target on
- * the provider given, and the transports, roots, and home given. Fixture
+ * at `work` holding one pushed commit `sha` that adds `README.md`. Fixture
  * git commands run with `env`, which reads neither the host's system nor
- * its global git config. Every line a daemon logs is kept in `logs`, and
- * `withStore` runs a read or write against the daemon's state store.
+ * its global git config. `withStore` runs a read or write against a state
+ * store.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
@@ -47,13 +42,6 @@ async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-workspace-' });
 
   stack.use(git);
-
-  const harness = await startTestDaemon({
-    prefix: 'atc-workspace-daemon-',
-    options: () => ({ adapter: buildMockAgentAdapter() }),
-  });
-
-  stack.use(harness);
 
   const owned = stack.move();
 
@@ -63,35 +51,10 @@ async function setupTest() {
     upstream: git.upstream,
     work: git.work,
     sha: git.sha,
-    stateDir: harness.dir,
-    dbPath: harness.dbPath,
-    logs: harness.logs,
-    get client() {
-      return harness.client;
-    },
-    async boot(
-      box: ExecutionProvider,
-      options: Pick<DaemonOptions, 'gitTransports' | 'workspaceRoots' | 'homeDir'>,
-    ): Promise<void> {
-      await harness.restart(() => ({
-        ...options,
-        adapter: buildMockAgentAdapter(),
-        targets: [
-          {
-            id: 'local',
-            kind: 'local-pty',
-            options: {},
-            identity: 'test:local',
-            provider: new LocalPTYProvider(),
-          },
-          { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
-        ],
-      }));
-    },
-    async withStore<T>(run: (store: StateStore) => Promise<T>): Promise<T> {
+    async withStore<T>(dbPath: string, run: (store: StateStore) => Promise<T>): Promise<T> {
       await using held = new AsyncDisposableStack();
 
-      const store = await StateStore.open(harness.dbPath);
+      const store = await StateStore.open(dbPath);
 
       held.defer(() => store.stop());
 
@@ -106,12 +69,28 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   const dest = join(ctx.dir, 'box', 'ws');
   const before = Date.now();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -244,9 +223,31 @@ test('it verifies the target checkout itself when the daemon env points git at a
 
   updateEnv('GIT_DIR', join(decoy, '.git'));
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -270,11 +271,27 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
     },
   });
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   const dest = join(ctx.dir, 'box', 'ws');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -282,7 +299,7 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
 
   await spawn.catch(() => null);
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({
     code: 'workspace_mismatch',
@@ -317,9 +334,25 @@ test('it removes only the directory it created when a symlink in the requested p
     },
   });
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(alias, 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -335,11 +368,33 @@ test('it removes only the directory it created when a symlink in the requested p
 test('it records a ready workspace and lists it again on the session after a restart', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   const dest = join(ctx.dir, 'box', 'ws');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -347,9 +402,28 @@ test('it records a ready workspace and lists it again on the session after a res
 
   const workspace = getRecord(spawned, 'session')['workspace'];
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await daemon.restart(() => ({
+    adapter: buildMockAgentAdapter(),
+    gitTransports: ['https', 'ssh', 'http', 'file'],
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: 'test:local',
+        provider: new LocalPTYProvider(),
+      },
+      {
+        id: 'box',
+        kind: 'fixture-dir',
+        options: {},
+        identity: 'test:box',
+        provider: new FixtureDirProvider(),
+      },
+    ],
+  }));
 
-  const restored = await ctx.client.sendRequest('fleet.list');
+  const restored = await daemon.client.sendRequest('fleet.list');
 
   expect(restored).toStrictEqual({
     fleet: [expect.objectContaining({ cwd: dest, target: 'box', workspace })],
@@ -361,13 +435,29 @@ test('it refuses a path source whose HEAD was never pushed, transferring nothing
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   writeFileSync(join(ctx.work, 'README.md'), 'unpushed\n');
 
   await $`git commit --quiet -am unpushed`.env(ctx.env).cwd(ctx.work).quiet();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -375,7 +465,7 @@ test('it refuses a path source whose HEAD was never pushed, transferring nothing
 
   await spawn.catch(() => null);
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({ code: 'unpushed_head', data: { phase: 'resolving' } });
   expect(box.calls).toStrictEqual([]);
@@ -387,11 +477,27 @@ test('it refuses a path source with uncommitted changes as workspace_dirty when 
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   writeFileSync(join(ctx.work, 'README.md'), 'edited\n');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work, allowDirty: 'refuse' },
@@ -406,7 +512,29 @@ test('it refuses a path source with uncommitted changes as workspace_dirty when 
 test('it materializes the committed HEAD of a dirty path source and leaves its changes behind', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   const dest = join(ctx.dir, 'box', 'ws');
 
@@ -415,7 +543,7 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
 
   const before = await $`git status --porcelain`.env(ctx.env).cwd(ctx.work).text();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -449,13 +577,35 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
 test('it materializes the committed HEAD of a dirty path source when dirt is allowed with a warning', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   const dest = join(ctx.dir, 'box', 'ws');
 
   writeFileSync(join(ctx.work, 'scratch.txt'), 'untracked\n');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work, allowDirty: 'warn' },
@@ -480,7 +630,23 @@ test('it refuses a dirty path source whose HEAD was never pushed, transferring n
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   writeFileSync(join(ctx.work, 'README.md'), 'unpushed\n');
 
@@ -488,7 +654,7 @@ test('it refuses a dirty path source whose HEAD was never pushed, transferring n
 
   writeFileSync(join(ctx.work, 'scratch.txt'), 'untracked\n');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -505,7 +671,23 @@ test('it refuses a path source that uses submodules, transferring nothing', asyn
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   await $`git update-index --add --cacheinfo 160000,${ctx.sha},vendor/lib`
     .env(ctx.env)
@@ -515,7 +697,7 @@ test('it refuses a path source that uses submodules, transferring nothing', asyn
   await $`git commit --quiet -m submodule`.env(ctx.env).cwd(ctx.work).quiet();
   await $`git push --quiet origin main`.env(ctx.env).cwd(ctx.work).quiet();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -532,7 +714,23 @@ test('it refuses a git source that tracks LFS paths, transferring nothing and le
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   const dest = join(ctx.dir, 'box', 'ws');
 
@@ -543,7 +741,7 @@ test('it refuses a git source that tracks LFS paths, transferring nothing and le
   await $`git commit --quiet -m lfs`.env(ctx.env).cwd(ctx.work).quiet();
   await $`git push --quiet origin main`.env(ctx.env).cwd(ctx.work).quiet();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
@@ -561,14 +759,30 @@ test('it refuses a path source whose git config rewrites its origin into a URL w
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   await $`git config ${`url.https://x-access-token:tok-1@example.com/.insteadOf`} ${ctx.upstream}`
     .env(ctx.env)
     .cwd(ctx.work)
     .quiet();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -585,9 +799,25 @@ test('it refuses a git source whose URL carries a token', async () => {
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'git', url: 'https://x-access-token:tok-1@example.com/r.git', ref: 'main' },
@@ -602,11 +832,33 @@ test('it refuses a git source whose URL carries a token', async () => {
 test('it keeps a workspace credential out of every row, the session, and the fleet', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'tok-7d1e5a');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: {
@@ -617,10 +869,10 @@ test('it keeps a workspace credential out of every row, the session, and the fle
     },
   });
 
-  const fleet = await ctx.client.sendRequest('fleet.list');
+  const fleet = await daemon.client.sendRequest('fleet.list');
 
-  const state = readdirSync(ctx.stateDir).filter((name) => name.startsWith('state.db'));
-  const stored = state.map((name) => readFileSync(join(ctx.stateDir, name)).toString('latin1'));
+  const state = readdirSync(daemon.dir).filter((name) => name.startsWith('state.db'));
+  const stored = state.map((name) => readFileSync(join(daemon.dir, name)).toString('latin1'));
 
   expect(state).not.toBeEmpty();
   expect(stored).toSatisfyAll((bytes: string) => !bytes.includes('tok-7d1e5a'));
@@ -631,12 +883,34 @@ test('it keeps a workspace credential out of every row, the session, and the fle
 test("it keeps a workspace credential out of a refusal that carries git's error, its log line, and every row", async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'tok-7d1e5a');
 
   // A ref spelled as the token makes git's own refusal carry it.
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: {
@@ -649,8 +923,8 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
 
   await spawn.catch(() => null);
 
-  const state = readdirSync(ctx.stateDir).filter((name) => name.startsWith('state.db'));
-  const stored = state.map((name) => readFileSync(join(ctx.stateDir, name)).toString('latin1'));
+  const state = readdirSync(daemon.dir).filter((name) => name.startsWith('state.db'));
+  const stored = state.map((name) => readFileSync(join(daemon.dir, name)).toString('latin1'));
 
   expect(spawn).rejects.toMatchObject({
     code: 'ref_not_found',
@@ -662,8 +936,8 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
 
   expect(state).not.toBeEmpty();
   expect(stored).toSatisfyAll((bytes: string) => !bytes.includes('tok-7d1e5a'));
-  expect(ctx.logs).not.toBeEmpty();
-  expect(ctx.logs).toSatisfyAll((line: string) => !line.includes('tok-7d1e5a'));
+  expect(daemon.logs).not.toBeEmpty();
+  expect(daemon.logs).toSatisfyAll((line: string) => !line.includes('tok-7d1e5a'));
 });
 
 test('it clones with the workspace credential and starts the harness without it or the askpass context', async () => {
@@ -683,12 +957,28 @@ test('it clones with the workspace credential and starts the harness without it 
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   const dest = join(ctx.dir, 'box', 'ws');
   const url = `${server.url}upstream.git`;
 
-  await ctx.client.sendRequest('session.spawn', {
+  await daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'box',
     workspace: {
@@ -731,42 +1021,63 @@ test('it starts a revived harness after a restart without the workspace credenti
 
   const dest = join(ctx.dir, 'box', 'ws');
 
-  await ctx.withStore(async (store) => {
-    await store.createMaterialization(
-      {
-        sessionID: toSessionID('s-ws'),
-        target: 'box',
-        dir: dest,
-        sourceKind: 'git',
-        withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
-      },
-      1000,
-    );
-
-    await store.updateMaterialization(
-      toSessionID('s-ws'),
-      { phase: 'ready', repoURL: ctx.upstream, sha: 'a'.repeat(40), materializedAt: 1000 },
-      1000,
-    );
-
-    await store.writeFleet([
-      buildMockFleetEntry({
-        sessionID: toSessionID('s-ws'),
-        cwd: dest,
-        agentSessionID: toAgentSessionID('agent-ws'),
-        target: 'box',
-        targetIdentity: 'test:box',
-      }),
-    ]);
-  });
-
   updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
   mkdirSync(dest, { recursive: true });
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: async (paths) => {
+      // The fleet holds a ready git workspace on box, as a spawn under a
+      // workspace credential leaves it.
+      await ctx.withStore(paths.dbPath, async (store) => {
+        await store.createMaterialization(
+          {
+            sessionID: toSessionID('s-ws'),
+            target: 'box',
+            dir: dest,
+            sourceKind: 'git',
+            withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
+          },
+          1000,
+        );
+
+        await store.updateMaterialization(
+          toSessionID('s-ws'),
+          { phase: 'ready', repoURL: ctx.upstream, sha: 'a'.repeat(40), materializedAt: 1000 },
+          1000,
+        );
+
+        await store.writeFleet([
+          buildMockFleetEntry({
+            sessionID: toSessionID('s-ws'),
+            cwd: dest,
+            agentSessionID: toAgentSessionID('agent-ws'),
+            target: 'box',
+            targetIdentity: 'test:box',
+          }),
+        ]);
+      });
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        gitTransports: ['https', 'ssh', 'http', 'file'],
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'test:local',
+            provider: new LocalPTYProvider(),
+          },
+          { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        ],
+      };
+    },
+  });
+
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   const harness = await waitFor(() => {
     const [revived] = box.harnesses;
@@ -801,11 +1112,27 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
     },
   });
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   const dest = join(ctx.dir, 'box', 'ws');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, sha: pinned.trim() },
@@ -813,9 +1140,9 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
 
   await spawn.catch(() => null);
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const rows = db.query('SELECT phase, error_code, sha FROM workspace_materialization').all();
 
@@ -839,13 +1166,29 @@ test.each([['transfer'], ['run']] as const)(
 
     const box = new FixtureDirProvider({ lacking: [capability] });
 
-    await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+    await using daemon = await startTestDaemon({
+      prefix: 'atc-workspace-daemon-',
+      options: () => ({
+        adapter: buildMockAgentAdapter(),
+        gitTransports: ['https', 'ssh', 'http', 'file'],
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'test:local',
+            provider: new LocalPTYProvider(),
+          },
+          { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        ],
+      }),
+    });
 
     // A dirty tree whose dirt is refused fails as workspace_dirty once
     // resolution runs.
     writeFileSync(join(ctx.work, 'README.md'), 'edited\n');
 
-    const spawn = ctx.client.sendRequest('session.spawn', {
+    const spawn = daemon.client.sendRequest('session.spawn', {
       cwd: join(ctx.dir, 'box', 'ws'),
       target: 'box',
       workspace: { kind: 'path', path: ctx.work, allowDirty: 'refuse' },
@@ -853,7 +1196,7 @@ test.each([['transfer'], ['run']] as const)(
 
     await spawn.catch(() => null);
 
-    using db = new Database(ctx.dbPath, { readonly: true });
+    using db = new Database(daemon.dbPath, { readonly: true });
 
     const rows = db.query('SELECT * FROM workspace_materialization').all();
 
@@ -878,11 +1221,27 @@ test('it fails a materialization that a restart interrupts and lists no session 
 
   const box = new FixtureDirProvider({ afterTransfer: () => held.promise });
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   // The restart ends the spawn's connection, so its answer never comes.
   const spawn = Promise.allSettled([
-    ctx.client.sendRequest('session.spawn', {
+    daemon.client.sendRequest('session.spawn', {
       cwd: join(ctx.dir, 'box', 'ws'),
       target: 'box',
       workspace: { kind: 'path', path: ctx.work },
@@ -893,13 +1252,32 @@ test('it fails a materialization that a restart interrupts and lists no session 
     expect(box.calls).toPartiallyContain({ op: 'transfer' });
   });
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await daemon.restart(() => ({
+    adapter: buildMockAgentAdapter(),
+    gitTransports: ['https', 'ssh', 'http', 'file'],
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: 'test:local',
+        provider: new LocalPTYProvider(),
+      },
+      {
+        id: 'box',
+        kind: 'fixture-dir',
+        options: {},
+        identity: 'test:box',
+        provider: new FixtureDirProvider(),
+      },
+    ],
+  }));
 
   await spawn;
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const rows = db.query('SELECT phase, error_code FROM workspace_materialization').all();
 
@@ -908,7 +1286,7 @@ test('it fails a materialization that a restart interrupts and lists no session 
   // The stopped daemon's materialization resumes into its closed store and
   // fails there.
   await waitFor(() => {
-    expect(ctx.logs).toSatisfyAny((line: string) => line.includes('failed while transferring'));
+    expect(daemon.logs).toSatisfyAny((line: string) => line.includes('failed while transferring'));
   });
 
   expect(listed).toStrictEqual({ sessions: [] });
@@ -920,14 +1298,30 @@ test('it refuses to materialize into a directory that already exists and leaves 
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   const dest = join(ctx.dir, 'box', 'ws');
 
   mkdirSync(dest, { recursive: true });
   writeFileSync(join(dest, 'mine.txt'), 'keep\n');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -952,12 +1346,28 @@ test('it removes the checkout it created and keeps the files beside it when its 
     },
   });
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   mkdirSync(join(ctx.dir, 'box'));
   writeFileSync(join(ctx.dir, 'box', 'beside.txt'), 'kept\n');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -982,9 +1392,25 @@ test('it spawns a retry into the directory a harness that failed to start left',
     }),
   });
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
-  await ctx.client
+  await daemon.client
     .sendRequest('session.spawn', {
       cwd: join(ctx.dir, 'box', 'ws'),
       target: 'box',
@@ -992,7 +1418,7 @@ test('it spawns a retry into the directory a harness that failed to start left',
     })
     .catch(() => null);
 
-  const retried = await ctx.client.sendRequest('session.spawn', {
+  const retried = await daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1023,11 +1449,27 @@ test.each([
       },
     });
 
-    await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+    await using daemon = await startTestDaemon({
+      prefix: 'atc-workspace-daemon-',
+      options: () => ({
+        adapter: buildMockAgentAdapter(),
+        gitTransports: ['https', 'ssh', 'http', 'file'],
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'test:local',
+            provider: new LocalPTYProvider(),
+          },
+          { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        ],
+      }),
+    });
 
     const dest = join(ctx.dir, 'box', 'ws');
 
-    const spawn = ctx.client.sendRequest('session.spawn', {
+    const spawn = daemon.client.sendRequest('session.spawn', {
       cwd: dest,
       target: 'box',
       workspace: { kind: 'path', path: ctx.work },
@@ -1038,7 +1480,7 @@ test.each([
     mkdirSync(join(dest, 'inner'));
     writeFileSync(join(dest, 'inner', 'mine.txt'), 'kept\n');
 
-    const inside = await ctx.client.sendRequest('session.spawn', {
+    const inside = await daemon.client.sendRequest('session.spawn', {
       cwd: join(dest, 'inner'),
       target: insideTarget,
     });
@@ -1061,9 +1503,25 @@ test('it refuses a workspace spawn whose cwd is relative before anything runs', 
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: 'ws',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1080,13 +1538,29 @@ test('it refuses a directory outside git as the workspace of a target off the da
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
   const plain = join(ctx.dir, 'plain');
 
   mkdirSync(plain);
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: plain },
@@ -1101,19 +1575,41 @@ test('it refuses a directory outside git as the workspace of a target off the da
 test('it runs a local session in a directory outside git as it stands', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   const plain = join(ctx.dir, 'plain');
 
   mkdirSync(plain);
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: plain,
     target: 'local',
     workspace: { kind: 'path', path: plain },
   });
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const rows = db.query('SELECT * FROM workspace_materialization').all();
 
@@ -1125,11 +1621,33 @@ test('it runs a local session in a directory outside git as it stands', async ()
 test('it refuses to run a local repository in place when git cannot read its config', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   writeFileSync(join(ctx.work, '.git', 'config'), '[[[\n');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     target: 'local',
     workspace: { kind: 'path', path: ctx.work },
@@ -1143,7 +1661,29 @@ test('it refuses to run a local repository in place when git cannot read its con
 test('it refuses to run a local repository in place when git does not trust its owner', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   // git's own switch for treating every repository as another user's, with
   // the host's system and global config kept out, since a host that lists
@@ -1152,7 +1692,7 @@ test('it refuses to run a local repository in place when git does not trust its 
   updateEnv('GIT_CONFIG_NOSYSTEM', '1');
   updateEnv('GIT_CONFIG_GLOBAL', '/dev/null');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     target: 'local',
     workspace: { kind: 'path', path: ctx.work },
@@ -1166,11 +1706,33 @@ test('it refuses to run a local repository in place when git does not trust its 
 test('it runs a local spawn without a workspace in a repository git cannot read', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   writeFileSync(join(ctx.work, '.git', 'config'), '[[[\n');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.work });
+  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: ctx.work });
 
   expect(getRecord(spawned, 'session')).toMatchObject({
     cwd: ctx.work,
@@ -1181,13 +1743,35 @@ test('it runs a local spawn without a workspace in a repository git cannot read'
 test('it refuses a local directory outside git as the workspace of a spawn elsewhere', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   const plain = join(ctx.dir, 'plain');
 
   mkdirSync(plain);
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'elsewhere'),
     target: 'local',
     workspace: { kind: 'path', path: plain },
@@ -1202,11 +1786,33 @@ test('it refuses a local directory outside git as the workspace of a spawn elsew
 test('it materializes a git source on the local target like on any other', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   const dest = join(ctx.dir, 'local', 'ws');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'local',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
@@ -1226,9 +1832,29 @@ test('it materializes a git source without a cwd under the home on the local tar
 
   const home = join(ctx.dir, 'home');
 
-  await ctx.boot(new FixtureDirProvider(), {
-    gitTransports: ['https', 'ssh', 'http', 'file'],
-    homeDir: home,
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      homeDir: home,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
   });
 
   const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
@@ -1236,7 +1862,7 @@ test('it materializes a git source without a cwd under the home on the local tar
   const sha = head.trim();
   const dest = join(home, '.local/share/atc/workspaces', `upstream-main-${sha.slice(0, 7)}`);
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     target: 'local',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main', sha },
   });
@@ -1262,16 +1888,36 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
   mkdirSync(base, { recursive: true });
   writeFileSync(join(base, 'mine.txt'), 'keep\n');
 
-  await ctx.boot(new FixtureDirProvider(), {
-    gitTransports: ['https', 'ssh', 'http', 'file'],
-    homeDir: home,
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      homeDir: home,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
   });
 
   const workspace = { kind: 'git', url: ctx.upstream, ref: 'main' };
 
   const spawned = await Promise.all([
-    ctx.client.sendRequest('session.spawn', { target: 'local', workspace }),
-    ctx.client.sendRequest('session.spawn', { target: 'local', workspace }),
+    daemon.client.sendRequest('session.spawn', { target: 'local', workspace }),
+    daemon.client.sendRequest('session.spawn', { target: 'local', workspace }),
   ]);
 
   const sessions = spawned.map((answer) => getRecord(answer, 'session'));
@@ -1291,15 +1937,35 @@ test('it lands a git source without a cwd under the root the config sets for its
 
   const root = join(ctx.dir, 'roots', 'box');
 
-  await ctx.boot(new FixtureDirProvider(), {
-    gitTransports: ['https', 'ssh', 'http', 'file'],
-    workspaceRoots: {
-      root: join(ctx.dir, 'roots', 'all'),
-      targetRoots: new Map([['box', root]]),
-    },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      workspaceRoots: {
+        root: join(ctx.dir, 'roots', 'all'),
+        targetRoots: new Map([['box', root]]),
+      },
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
   });
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
   });
@@ -1317,12 +1983,26 @@ test('it refuses a git source without a cwd whose root it cannot write after one
 
   mkdirSync(root, { mode: 0o555 });
 
-  await ctx.boot(box, {
-    gitTransports: ['https', 'ssh', 'http', 'file'],
-    workspaceRoots: { root, targetRoots: new Map() },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      workspaceRoots: { root, targetRoots: new Map() },
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
   });
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
   });
@@ -1344,11 +2024,31 @@ test('it refuses a git source without a cwd whose root it cannot write after one
 });
 
 test('it refuses a spawn without a cwd or a workspace as bad_args', async () => {
-  await using ctx = await setupTest();
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
-
-  const spawn = ctx.client.sendRequest('session.spawn', { target: 'local' });
+  const spawn = daemon.client.sendRequest('session.spawn', { target: 'local' });
 
   await spawn.catch(() => null);
 
@@ -1363,9 +2063,25 @@ test('it refuses a spawn without a cwd whose workspace is not a git source befor
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -1383,11 +2099,33 @@ test('it refuses a spawn without a cwd whose workspace is not a git source befor
 test('it runs a local spawn without a workspace in its directory as it stands', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
-  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.work });
+  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: ctx.work });
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const rows = db.query('SELECT * FROM workspace_materialization').all();
 
@@ -1404,7 +2142,29 @@ test('it runs a local spawn without a workspace in its directory as it stands', 
 test('it checks out the sha of a git source that holds both on the branch its ref names', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   const pinned = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -1420,7 +2180,7 @@ test('it checks out the sha of a git source that holds both on the branch its re
 
   const dest = join(ctx.dir, 'box', 'ws');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main', sha: pinned },
@@ -1446,9 +2206,24 @@ test('it refuses a git source on a local transport before it runs git, transferr
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, {});
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
@@ -1466,9 +2241,24 @@ test('it refuses a path source whose origin is a local repository, in git, trans
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, {});
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1485,9 +2275,24 @@ test('it holds a probe to the configured transports whatever transports it carri
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, {});
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
-  const probe = ctx.client.sendRequest('git.probe', {
+  const probe = daemon.client.sendRequest('git.probe', {
     url: `file://${ctx.upstream}`,
     target: 'box',
     transports: ['file'],
@@ -1505,9 +2310,24 @@ test('it holds a spawn to the configured transports whatever transports it carri
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, {});
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     gitTransports: ['file'],
@@ -1525,9 +2345,24 @@ test('it refuses a git source that carries transports of its own as bad_args', a
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, {});
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: {
@@ -1552,9 +2387,24 @@ test('it holds git to the configured transports whatever the daemon environment 
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, {});
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1578,11 +2428,33 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
 
   updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
 
-  await ctx.boot(new FixtureDirProvider(), { gitTransports: ['https', 'ssh', 'http', 'file'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
+  });
 
   const dest = join(ctx.dir, 'local', 'ws');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     target: 'local',
     workspace: { kind: 'git', url: 'acme/upstream', ref: 'main' },
@@ -1598,11 +2470,25 @@ test('it refuses a probe under an invalid transport list before any git runs', a
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, {
-    gitTransports: {
-      invalid:
-        "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
-    },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: {
+        invalid:
+          "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
+      },
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
   });
 
   // A git first on the PATH records each run, so a refusal that runs git
@@ -1610,7 +2496,7 @@ test('it refuses a probe under an invalid transport list before any git runs', a
   createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
   updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
 
-  const refused = ctx.client.sendRequest('git.probe', {
+  const refused = daemon.client.sendRequest('git.probe', {
     url: 'https://example.com/app.git',
     target: 'box',
   });
@@ -1632,11 +2518,25 @@ test('it refuses a git spawn under an invalid transport list before any git runs
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, {
-    gitTransports: {
-      invalid:
-        "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
-    },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: {
+        invalid:
+          "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
+      },
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
   });
 
   // A git first on the PATH records each run, so a refusal that runs git
@@ -1644,7 +2544,7 @@ test('it refuses a git spawn under an invalid transport list before any git runs
   createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
   updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
 
-  const refused = ctx.client.sendRequest('session.spawn', {
+  const refused = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'git', url: 'https://example.com/app.git', ref: 'main' },
@@ -1667,11 +2567,25 @@ test('it refuses a checkout spawn under an invalid transport list before any git
 
   const box = new FixtureDirProvider();
 
-  await ctx.boot(box, {
-    gitTransports: {
-      invalid:
-        "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
-    },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: {
+        invalid:
+          "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
+      },
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
   });
 
   // A git first on the PATH records each run, so a refusal that runs git
@@ -1679,7 +2593,7 @@ test('it refuses a checkout spawn under an invalid transport list before any git
   createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
   updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
 
-  const refused = ctx.client.sendRequest('session.spawn', {
+  const refused = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws-path'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1700,14 +2614,37 @@ test('it refuses a checkout spawn under an invalid transport list before any git
 test('it spawns a local session under an invalid transport list', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), {
-    gitTransports: {
-      invalid:
-        "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
-    },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: {
+        invalid:
+          "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
+      },
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
   });
 
-  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, target: 'local' });
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    target: 'local',
+  });
 
   expect(spawned).toMatchObject({ session: { cwd: ctx.dir } });
 });
@@ -1715,16 +2652,36 @@ test('it spawns a local session under an invalid transport list', async () => {
 test('it spawns a local session in a directory outside git under an invalid transport list', async () => {
   await using ctx = await setupTest();
 
-  await ctx.boot(new FixtureDirProvider(), {
-    gitTransports: {
-      invalid:
-        "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
-    },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: {
+        invalid:
+          "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
+      },
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
+    }),
   });
 
   mkdirSync(join(ctx.dir, 'loose'));
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'loose'),
     target: 'local',
     workspace: { kind: 'path', path: join(ctx.dir, 'loose') },

@@ -7,7 +7,7 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildTargetIdentity } from './build-target-identity';
 
 test('it lists each registered agent with what it can do and the host it runs on', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -27,7 +27,7 @@ test('it lists each registered agent with what it can do and the host it runs on
     }),
   });
 
-  const listed = await harness.client.sendRequest('agents.list');
+  const listed = await daemon.client.sendRequest('agents.list');
 
   expect(listed).toStrictEqual({
     daemon: {
@@ -216,7 +216,7 @@ test('it lists each registered agent with what it can do and the host it runs on
 });
 
 test("it keeps a gateway's env values, helper, and base URL out of the agent list", async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -238,7 +238,7 @@ test("it keeps a gateway's env values, helper, and base URL out of the agent lis
     }),
   });
 
-  const answer = await harness.client.sendRequest('agents.list');
+  const answer = await daemon.client.sendRequest('agents.list');
 
   const listed = JSON.stringify(answer);
 
@@ -250,7 +250,7 @@ test("it keeps a gateway's env values, helper, and base URL out of the agent lis
 });
 
 test('it refuses a registered agent whose binary is missing before spawning anything', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => ({
       adapters: buildAgentAdapters(
         parseConfig({ claudeBin: 'sh', codexBin: join(paths.dir, 'missing', 'codex') }),
@@ -258,61 +258,61 @@ test('it refuses a registered agent whose binary is missing before spawning anyt
     }),
   });
 
-  const spawn = harness.client.sendRequest('session.spawn', { cwd: harness.dir, agent: 'codex' });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' });
 
   expect(spawn).rejects.toMatchObject({
     code: 'unsupported',
     message: "agent 'codex' is registered but not installed on this host",
   });
 
-  const listed = await harness.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it leaves an agent id the daemon never registered out of the agent list', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
   });
 
-  const agents = await harness.client.sendRequest('agents.list');
+  const agents = await daemon.client.sendRequest('agents.list');
 
   expect(JSON.stringify(agents)).not.toInclude('gemini');
 });
 
 test('it refuses to spawn an agent id the daemon never registered', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
   });
 
-  const spawn = harness.client.sendRequest('session.spawn', { cwd: harness.dir, agent: 'gemini' });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'gemini' });
 
   expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
 
-  const listed = await harness.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a model shaped like a flag before spawning anything', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
   });
 
-  const spawn = harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     model: '--dangerously-skip-permissions',
   });
 
   expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
 
-  const listed = await harness.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a gateway effort outside the levels the CLI accepts', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -330,28 +330,28 @@ test('it refuses a gateway effort outside the levels the CLI accepts', async () 
     }),
   });
 
-  const spawn = harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'zai',
     effort: 'ultra',
   });
 
   expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
 
-  const listed = await harness.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses an option the agent takes no value for', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh', grokBin: 'sh' })),
     }),
   });
 
-  const spawn = harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'grok',
     model: 'grok-4',
   });
@@ -361,17 +361,17 @@ test('it refuses an option the agent takes no value for', async () => {
     message: "agent 'grok' takes no model",
   });
 
-  const listed = await harness.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a model that is not a string', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
   });
 
-  const spawn = harness.client.sendRequest('session.spawn', { cwd: harness.dir, model: 7 });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, model: 7 });
 
   expect(spawn).rejects.toMatchObject({
     code: 'bad_args',
@@ -380,7 +380,7 @@ test('it refuses a model that is not a string', async () => {
 });
 
 test('it answers a spawn with the model it was spawned with', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -398,8 +398,8 @@ test('it answers a spawn with the model it was spawned with', async () => {
     }),
   });
 
-  const spawned = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'zai',
     model: 'opus',
     cols: 80,
@@ -410,7 +410,7 @@ test('it answers a spawn with the model it was spawned with', async () => {
 });
 
 test('it lists a spawned session with the model it was spawned with', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -428,27 +428,27 @@ test('it lists a spawned session with the model it was spawned with', async () =
     }),
   });
 
-  await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'zai',
     model: 'opus',
     cols: 80,
     rows: 24,
   });
 
-  const list = await harness.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(list).toMatchObject({ sessions: [{ agent: 'zai', model: 'opus' }] });
 });
 
 test('it lists a spawned session without a model key when it runs the default', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
   });
 
-  await harness.client.sendRequest('session.spawn', { cwd: harness.dir, cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, cols: 80, rows: 24 });
 
-  const list = await harness.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(list).toStrictEqual({ sessions: [expect.not.toContainKey('model')] });
 });

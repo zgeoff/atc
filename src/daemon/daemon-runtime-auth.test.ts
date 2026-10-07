@@ -14,22 +14,20 @@ import { LocalPTYProvider } from './local-pty-provider';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 
 /**
- * A real daemon with a `local` target and an imp target `box`, the
- * default, over a fixture imp port whose impd an operator prepared: the
- * token `atc-runtime` manages `atc-*` imps and may grant `glm`, and impd
- * holds `glm` for api.z.ai as a custom bearer secret. The agent `glm`
- * takes that credential from the broker and plans a guest spawn that
- * prints the binding revision it launches under; `proxied` takes the same
- * credential but plans a proxy variable; `subscription` takes it on a
- * target that reaches the broker and starts without it elsewhere; `plain`
- * takes none. The principal `ops` may use `box`. `restart` stops the
- * daemon and starts another on the same state, `setAuthSelected` turns the
- * broker credential of `glm` off and on, `withStore` runs a read or write
- * against the daemon's state store, and `getImpName` returns the name of
- * the only imp impd holds.
+ * The daemon's stand-ins, over a fixture imp port whose impd an operator
+ * prepared: the token `atc-runtime` manages `atc-*` imps and may grant
+ * `glm`, and impd holds `glm` for api.z.ai as a custom bearer secret.
+ * `provider` reaches that impd. Of the agents, `glm` takes that credential
+ * from the broker and plans a guest spawn that prints the binding revision
+ * it launches under; `proxied` takes the same credential but plans a proxy
+ * variable; `subscription` takes it on a target that reaches the broker and
+ * starts without it elsewhere; `plain` takes none. `setAuthSelected` turns
+ * the broker credential of `glm` off and on, `withStore` runs a read or
+ * write against a state store, and `getImpName` returns the name of the
+ * only imp impd holds.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
+function setupTest() {
+  using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-runtime-auth-'));
   const port = stack.use(new FixtureImpPort());
@@ -56,73 +54,47 @@ async function setupTest() {
 
   let authSelected = true;
 
-  const brokered = buildStubBrokeredAgentAdapter({
-    id: 'glm',
-    brokerRequired: true,
-    isSelected: () => authSelected,
-  });
-
-  const harness = await startTestDaemon({
-    prefix: 'atc-runtime-auth-daemon-',
-    options: () => ({
-      adapter: brokered,
-      adapters: [
-        brokered,
-        buildMockAgentAdapter({ id: 'plain' }),
-        {
-          ...buildStubBrokeredAgentAdapter({
-            id: 'proxied',
-            brokerRequired: true,
-            isSelected: () => true,
-          }),
-          planGuestSpawn: () => ({
-            bin: 'sleep',
-            args: ['30'],
-            files: {},
-            env: { https_proxy: 'http://proxy.example:3128' },
-          }),
-        },
-        buildStubBrokeredAgentAdapter({
-          id: 'subscription',
-          brokerRequired: false,
-          isSelected: () => true,
-        }),
-      ],
-      targets: [
-        {
-          id: 'local',
-          kind: 'local-pty',
-          options: {},
-          identity: 'local-pty:test',
-          provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
-      ],
-      defaultTarget: 'box',
-      principals: new Map([['ops', ['box']]]),
-      forgetConfirmMs: 60_000,
+  const agents = {
+    glm: buildStubBrokeredAgentAdapter({
+      id: 'glm',
+      brokerRequired: true,
+      isSelected: () => authSelected,
     }),
-  });
-
-  stack.use(harness);
+    plain: buildMockAgentAdapter({ id: 'plain' }),
+    proxied: {
+      ...buildStubBrokeredAgentAdapter({
+        id: 'proxied',
+        brokerRequired: true,
+        isSelected: () => true,
+      }),
+      planGuestSpawn: () => ({
+        bin: 'sleep',
+        args: ['30'],
+        files: {},
+        env: { https_proxy: 'http://proxy.example:3128' },
+      }),
+    },
+    subscription: buildStubBrokeredAgentAdapter({
+      id: 'subscription',
+      brokerRequired: false,
+      isSelected: () => true,
+    }),
+  };
 
   const owned = stack.move();
 
   return {
-    get client() {
-      return harness.client;
-    },
+    agents,
     port,
     provider,
     dir: tmp.dir,
     setAuthSelected(selected: boolean): void {
       authSelected = selected;
     },
-    restart: () => harness.restart(),
-    async withStore<T>(run: (store: StateStore) => Promise<T>): Promise<T> {
+    async withStore<T>(dbPath: string, run: (store: StateStore) => Promise<T>): Promise<T> {
       await using held = new AsyncDisposableStack();
 
-      const store = await StateStore.open(harness.dbPath);
+      const store = await StateStore.open(dbPath);
 
       held.defer(() => store.stop());
 
@@ -138,14 +110,37 @@ async function setupTest() {
 
       return name;
     },
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+    [Symbol.dispose]: () => {
+      owned.dispose();
+    },
   };
 }
 
 test('it provisions the host of a spawn before readying it and starts the harness only behind a ready broker', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -155,7 +150,9 @@ test('it provisions the host of a spawn before readying it and starts the harnes
   const id = String(getRecord(spawned, 'session')['id']);
   const imp = ctx.getImpName();
 
-  const binding = await ctx.withStore((store) => store.findAuthBinding(toSessionID(id)));
+  const binding = await ctx.withStore(daemon.dbPath, (store) =>
+    store.findAuthBinding(toSessionID(id)),
+  );
 
   expect<Record<string, unknown>>({
     calls: ctx.port.calls.filter((call) => !call.startsWith('leases.renew')),
@@ -188,9 +185,30 @@ test('it provisions the host of a spawn before readying it and starts the harnes
 });
 
 test('it lists the imp target as reaching the broker and the local target as reaching none', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const listed = await ctx.client.sendRequest('agents.list');
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const listed = await daemon.client.sendRequest('agents.list');
 
   expect(listed['targets']).toStrictEqual([
     {
@@ -237,9 +255,30 @@ test('it lists the imp target as reaching the broker and the local target as rea
 });
 
 test('it lists an agent that takes the broker credential as spawnable on a daemon with a broker target', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const listed = await ctx.client.sendRequest('agents.list');
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const listed = await daemon.client.sendRequest('agents.list');
 
   expect(listed['agents']).toStrictEqual([
     {
@@ -394,9 +433,30 @@ test('it lists an agent that takes the broker credential as spawnable on a daemo
 });
 
 test('it starts a brokered harness with the variables its guest plan holds beside the ones atc sets', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -417,9 +477,30 @@ test('it starts a brokered harness with the variables its guest plan holds besid
 });
 
 test('it refuses a brokered spawn whose guest plan sets a proxy variable before touching impd', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'proxied',
     target: 'box',
@@ -434,16 +515,37 @@ test('it refuses a brokered spawn whose guest plan sets a proxy variable before 
 
   expect<Record<string, unknown>>({
     calls: ctx.port.calls,
-    listed: await ctx.client.sendRequest('session.list'),
+    listed: await daemon.client.sendRequest('session.list'),
   }).toStrictEqual({ calls: [], listed: { sessions: [] } });
 });
 
 test('it refuses a spawn on an impd without exec requirements after reading only its features', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
 
   ctx.port.features = { ...ctx.port.features, execRequire: false };
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -455,16 +557,37 @@ test('it refuses a spawn on an impd without exec requirements after reading only
 
   expect<Record<string, unknown>>({
     calls: ctx.port.calls,
-    listed: await ctx.client.sendRequest('session.list'),
+    listed: await daemon.client.sendRequest('session.list'),
   }).toStrictEqual({ calls: ['system.info'], listed: { sessions: [] } });
 });
 
 test('it refuses a spawn whose broker is not ready, takes back its imp, and lists no session', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
 
   ctx.port.startBrokerFailure();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -472,7 +595,7 @@ test('it refuses a spawn whose broker is not ready, takes back its imp, and list
 
   await spawn.catch(() => null);
 
-  const bindings = await ctx.withStore((store) => store.collectAuthBindings());
+  const bindings = await ctx.withStore(daemon.dbPath, (store) => store.collectAuthBindings());
 
   expect(spawn).rejects.toMatchObject({
     code: 'broker_not_ready',
@@ -482,14 +605,35 @@ test('it refuses a spawn whose broker is not ready, takes back its imp, and list
   expect<Record<string, unknown>>({
     imps: ctx.port.collectImpNames(),
     bindings,
-    listed: await ctx.client.sendRequest('session.list'),
+    listed: await daemon.client.sendRequest('session.list'),
   }).toStrictEqual({ imps: [], bindings: [], listed: { sessions: [] } });
 });
 
 test('it refuses a spawn with runtime auth on the local target before touching impd', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'local',
@@ -502,9 +646,30 @@ test('it refuses a spawn with runtime auth on the local target before touching i
 });
 
 test('it starts an agent that takes the broker credential only where a broker is on the local target without touching impd', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'subscription',
     target: 'local',
@@ -512,7 +677,9 @@ test('it starts an agent that takes the broker credential only where a broker is
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  const binding = await ctx.withStore((store) => store.findAuthBinding(toSessionID(id)));
+  const binding = await ctx.withStore(daemon.dbPath, (store) =>
+    store.findAuthBinding(toSessionID(id)),
+  );
 
   expect<Record<string, unknown>>({ calls: ctx.port.calls, binding }).toStrictEqual({
     calls: [],
@@ -521,9 +688,30 @@ test('it starts an agent that takes the broker credential only where a broker is
 });
 
 test('it binds an agent that takes the broker credential only where a broker is on an imp target and starts it behind the broker', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'subscription',
     target: 'box',
@@ -545,11 +733,32 @@ test.each([
 ] as const)(
   'it refuses %s of a brokered agent with a workspace on the local target before materializing it',
   async (_kind, resume) => {
-    await using ctx = await setupTest();
+    using ctx = setupTest();
+
+    await using daemon = await startTestDaemon({
+      prefix: 'atc-runtime-auth-daemon-',
+      options: () => ({
+        adapter: ctx.agents.glm,
+        adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local-pty:test',
+            provider: new LocalPTYProvider(),
+          },
+          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+        ],
+        defaultTarget: 'box',
+        principals: new Map([['ops', ['box']]]),
+        forgetConfirmMs: 60_000,
+      }),
+    });
 
     const cwd = join(ctx.dir, 'ws');
 
-    const spawn = ctx.client.sendRequest('session.spawn', {
+    const spawn = daemon.client.sendRequest('session.spawn', {
       cwd,
       agent: 'glm',
       target: 'local',
@@ -567,17 +776,38 @@ test.each([
     expect<Record<string, unknown>>({
       calls: ctx.port.calls,
       created: await Bun.file(cwd).exists(),
-      listed: await ctx.client.sendRequest('session.list'),
+      listed: await daemon.client.sendRequest('session.list'),
     }).toStrictEqual({ calls: [], created: false, listed: { sessions: [] } });
   },
 );
 
 test('it refuses to adopt a local session with a workspace once its agent takes the broker credential', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
 
   ctx.setAuthSelected(false);
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'local',
@@ -586,9 +816,9 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
 
   const id = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
 
-  const recorded = await ctx.withStore(async (store) => {
+  const recorded = await ctx.withStore(daemon.dbPath, async (store) => {
     await store.createMaterialization(
       { sessionID: id, target: 'local', dir: ctx.dir, sourceKind: 'path', withheldEnv: [] },
       Date.now(),
@@ -611,15 +841,18 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
 
   ctx.setAuthSelected(true);
 
-  await ctx.restart();
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const adopt = ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await adopt.catch(() => null);
 
-  const materialization = await ctx.withStore((store) => store.findMaterialization(id));
-  const got = await ctx.client.sendRequest('session.get', { session: id });
+  const materialization = await ctx.withStore(daemon.dbPath, (store) =>
+    store.findMaterialization(id),
+  );
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect(adopt).rejects.toMatchObject({
     code: 'auth_target_unsupported',
@@ -642,11 +875,32 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
 });
 
 test('it restores a local session with a workspace without a terminal once its agent takes the broker credential', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
 
   ctx.setAuthSelected(false);
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'local',
@@ -655,7 +909,7 @@ test('it restores a local session with a workspace without a terminal once its a
 
   const id = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  const recorded = await ctx.withStore(async (store) => {
+  const recorded = await ctx.withStore(daemon.dbPath, async (store) => {
     await store.createMaterialization(
       { sessionID: id, target: 'local', dir: ctx.dir, sourceKind: 'path', withheldEnv: [] },
       Date.now(),
@@ -678,11 +932,14 @@ test('it restores a local session with a workspace without a terminal once its a
 
   ctx.setAuthSelected(true);
 
-  await ctx.restart();
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const materialization = await ctx.withStore((store) => store.findMaterialization(id));
-  const got = await ctx.client.sendRequest('session.get', { session: id });
+  const materialization = await ctx.withStore(daemon.dbPath, (store) =>
+    store.findMaterialization(id),
+  );
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect<Record<string, unknown>>({
     session: getRecord(got, 'session'),
@@ -700,9 +957,30 @@ test('it restores a local session with a workspace without a terminal once its a
 });
 
 test('it refuses to revive a session whose agent dropped the broker credential while its host holds a binding', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -711,14 +989,14 @@ test('it refuses to revive a session whose agent dropped the broker credential w
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.client.sendRequest('session.kill', { session: id });
-  await ctx.client.sendRequest('session.auth.revoke', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.auth.revoke', { session: id });
 
   ctx.setAuthSelected(false);
 
   ctx.port.calls.length = 0;
 
-  const adopt = ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await adopt.catch(() => null);
 
@@ -731,11 +1009,32 @@ test('it refuses to revive a session whose agent dropped the broker credential w
 });
 
 test('it revives a session whose agent takes no broker credential on a host that holds no binding', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
 
   ctx.setAuthSelected(false);
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -744,8 +1043,8 @@ test('it revives a session whose agent takes no broker credential on a host that
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.client.sendRequest('session.kill', { session: id });
-  await ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   expect(
     ctx.port.sessionRequests.map((request) =>
@@ -755,9 +1054,30 @@ test('it revives a session whose agent takes no broker credential on a host that
 });
 
 test('it restores a session whose agent dropped the broker credential while its host holds a binding without a terminal', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -766,17 +1086,17 @@ test('it restores a session whose agent dropped the broker credential while its 
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.client.sendRequest('session.auth.revoke', { session: id });
+  await daemon.client.sendRequest('session.auth.revoke', { session: id });
 
   ctx.setAuthSelected(false);
 
-  await ctx.restart();
+  await daemon.restart();
 
   const before = ctx.port.sessionRequests.length;
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const got = await ctx.client.sendRequest('session.get', { session: id });
+  const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect<Record<string, unknown>>({
     sent: ctx.port.sessionRequests.length - before,
@@ -788,11 +1108,32 @@ test('it restores a session whose agent dropped the broker credential while its 
 });
 
 test('it restores a session whose agent takes no broker credential on a host that holds no binding', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
 
   ctx.setAuthSelected(false);
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -801,13 +1142,13 @@ test('it restores a session whose agent takes no broker credential on a host tha
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.restart();
+  await daemon.restart();
 
   const before = ctx.port.sessionRequests.length;
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const got = await ctx.client.sendRequest('session.get', { session: id });
+  const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect<Record<string, unknown>>({
     sent: ctx.port.sessionRequests.length - before,
@@ -816,9 +1157,30 @@ test('it restores a session whose agent takes no broker credential on a host tha
 });
 
 test('it refuses a revive that a revoke blocks while its host wakes, sending no start', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -828,13 +1190,13 @@ test('it refuses a revive that a revoke blocks while its host wakes, sending no 
   const id = String(getRecord(spawned, 'session')['id']);
   const imp = ctx.getImpName();
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
 
   ctx.port.startLeaseHold();
 
   ctx.port.calls.length = 0;
 
-  const adopt = ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
     expect(ctx.port.calls).toContainEqual(expect.toStartWith(`leases.acquire ${imp} `));
@@ -842,7 +1204,7 @@ test('it refuses a revive that a revoke blocks while its host wakes, sending no 
 
   ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  const revoke = ctx.client.sendRequest('session.auth.revoke', { session: id });
+  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: id });
 
   await revoke.catch(() => null);
 
@@ -868,9 +1230,30 @@ test('it refuses a revive that a revoke blocks while its host wakes, sending no 
 });
 
 test('it refuses a sub-session spawn that a revoke blocks while it readies the shared host, sending no start', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const parent = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -883,7 +1266,7 @@ test('it refuses a sub-session spawn that a revoke blocks while it readies the s
 
   ctx.port.calls.length = 0;
 
-  const child = ctx.client.sendRequest('session.spawn', {
+  const child = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -896,7 +1279,7 @@ test('it refuses a sub-session spawn that a revoke blocks while it readies the s
 
   ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  const revoke = ctx.client.sendRequest('session.auth.revoke', { session: parentID });
+  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: parentID });
 
   await revoke.catch(() => null);
 
@@ -915,9 +1298,30 @@ test('it refuses a sub-session spawn that a revoke blocks while it readies the s
 });
 
 test('it puts a shared host back to sleep when a revoke refuses the sub-session that woke it, keeping the imp and its grant', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const parent = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -927,7 +1331,7 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
   const parentID = String(getRecord(parent, 'session')['id']);
   const imp = ctx.getImpName();
 
-  await ctx.client.sendRequest('session.kill', { session: parentID });
+  await daemon.client.sendRequest('session.kill', { session: parentID });
 
   await waitFor(() => {
     expect(ctx.port.findState(imp)).toBe('sleeping');
@@ -937,7 +1341,7 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
 
   ctx.port.calls.length = 0;
 
-  const child = ctx.client.sendRequest('session.spawn', {
+  const child = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -950,7 +1354,7 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
 
   ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  await ctx.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
+  await daemon.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
 
   ctx.port.stopLeaseHold();
 
@@ -969,9 +1373,30 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
 });
 
 test('it keeps a shared host awake when a revoke refuses a sub-session while another harness runs there', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const parent = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -984,7 +1409,7 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
 
   ctx.port.calls.length = 0;
 
-  const child = ctx.client.sendRequest('session.spawn', {
+  const child = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -997,7 +1422,7 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
 
   ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  await ctx.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
+  await daemon.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
 
   ctx.port.stopLeaseHold();
 
@@ -1012,9 +1437,30 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
 });
 
 test('it keeps a host awake for a sub-session that readies it while a refused revive puts it to sleep', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const parent = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1024,14 +1470,14 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
   const parentID = String(getRecord(parent, 'session')['id']);
   const imp = ctx.getImpName();
 
-  await ctx.client.sendRequest('session.kill', { session: parentID });
+  await daemon.client.sendRequest('session.kill', { session: parentID });
 
   ctx.port.startBrokerFailure();
   ctx.port.startReleaseHold();
 
   ctx.port.calls.length = 0;
 
-  const revive = ctx.client.sendRequest('session.adopt', {
+  const revive = daemon.client.sendRequest('session.adopt', {
     session: parentID,
     cols: 80,
     rows: 24,
@@ -1043,7 +1489,7 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
 
   ctx.port.stopBrokerFailure();
 
-  const child = ctx.client.sendRequest('session.spawn', {
+  const child = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1062,7 +1508,7 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
 
   const childID = String(getRecord(spawnedChild, 'session')['id']);
 
-  const got = await ctx.client.sendRequest('session.get', { session: childID });
+  const got = await daemon.client.sendRequest('session.get', { session: childID });
 
   expect(revive).rejects.toMatchObject({ code: 'broker_not_ready' });
 
@@ -1078,9 +1524,30 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
 });
 
 test('it puts a host to sleep after a refused revive when no other launch readies it', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const parent = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1090,14 +1557,14 @@ test('it puts a host to sleep after a refused revive when no other launch readie
   const parentID = String(getRecord(parent, 'session')['id']);
   const imp = ctx.getImpName();
 
-  await ctx.client.sendRequest('session.kill', { session: parentID });
+  await daemon.client.sendRequest('session.kill', { session: parentID });
 
   ctx.port.startBrokerFailure();
   ctx.port.startReleaseHold();
 
   ctx.port.calls.length = 0;
 
-  const revive = ctx.client.sendRequest('session.adopt', {
+  const revive = daemon.client.sendRequest('session.adopt', {
     session: parentID,
     cols: 80,
     rows: 24,
@@ -1120,9 +1587,30 @@ test('it puts a host to sleep after a refused revive when no other launch readie
 });
 
 test('it spawns a sub-session on the shared host while it readies when no revoke comes between', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const parent = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1135,7 +1623,7 @@ test('it spawns a sub-session on the shared host while it readies when no revoke
 
   ctx.port.calls.length = 0;
 
-  const child = ctx.client.sendRequest('session.spawn', {
+  const child = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1154,9 +1642,30 @@ test('it spawns a sub-session on the shared host while it readies when no revoke
 });
 
 test('it sends no start for a revive that a revoke blocks while its connection to impd opens', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1166,11 +1675,11 @@ test('it sends no start for a revive that a revoke blocks while its connection t
   const id = String(getRecord(spawned, 'session')['id']);
   const imp = ctx.getImpName();
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
 
   ctx.port.startUpgradeHold();
 
-  const adopt = ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
     expect(ctx.port.countHeldUpgrades()).toBe(1);
@@ -1178,7 +1687,7 @@ test('it sends no start for a revive that a revoke blocks while its connection t
 
   ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  const revoke = ctx.client.sendRequest('session.auth.revoke', { session: id });
+  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: id });
 
   await revoke.catch(() => null);
 
@@ -1200,9 +1709,30 @@ test('it sends no start for a revive that a revoke blocks while its connection t
 });
 
 test('it sends the start of a revive whose connection to impd opens late when no revoke comes between', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1211,11 +1741,11 @@ test('it sends the start of a revive whose connection to impd opens late when no
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
 
   ctx.port.startUpgradeHold();
 
-  const adopt = ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
     expect(ctx.port.countHeldUpgrades()).toBe(1);
@@ -1229,9 +1759,30 @@ test('it sends the start of a revive whose connection to impd opens late when no
 });
 
 test('it revives a session while its host wakes when no revoke comes between', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1241,11 +1792,11 @@ test('it revives a session while its host wakes when no revoke comes between', a
   const id = String(getRecord(spawned, 'session')['id']);
   const imp = ctx.getImpName();
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
 
   ctx.port.startLeaseHold();
 
-  const adopt = ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
     expect(ctx.port.calls).toContainEqual(expect.toStartWith(`leases.acquire ${imp} `));
@@ -1259,9 +1810,30 @@ test('it revives a session while its host wakes when no revoke comes between', a
 });
 
 test('it revives a slept session after verifying its binding, granting nothing again', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1271,11 +1843,11 @@ test('it revives a slept session after verifying its binding, granting nothing a
   const id = String(getRecord(spawned, 'session')['id']);
   const imp = ctx.getImpName();
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
 
   ctx.port.calls.length = 0;
 
-  await ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   expect<Record<string, unknown>>({
     calls: ctx.port.calls.filter((call) => !call.startsWith('leases.renew')),
@@ -1302,9 +1874,30 @@ test('it revives a slept session after verifying its binding, granting nothing a
 });
 
 test('it refuses to revive a session whose grant was revoked outside atc and grants it no more', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1314,12 +1907,12 @@ test('it refuses to revive a session whose grant was revoked outside atc and gra
   const id = String(getRecord(spawned, 'session')['id']);
   const imp = ctx.getImpName();
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
   await ctx.port.removeGrant(imp, 'glm');
 
   ctx.port.calls.length = 0;
 
-  const adopt = ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await adopt.catch(() => null);
 
@@ -1333,9 +1926,30 @@ test('it refuses to revive a session whose grant was revoked outside atc and gra
 });
 
 test('it refuses to revive a session whose broker is not ready and puts its host back to sleep', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1345,15 +1959,15 @@ test('it refuses to revive a session whose broker is not ready and puts its host
   const id = String(getRecord(spawned, 'session')['id']);
   const imp = ctx.getImpName();
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
 
   ctx.port.startBrokerFailure();
 
-  const adopt = ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await adopt.catch(() => null);
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(adopt).rejects.toMatchObject({ code: 'broker_not_ready' });
 
@@ -1373,17 +1987,38 @@ test('it refuses to revive a session whose broker is not ready and puts its host
 });
 
 test('it provisions concurrent spawns each in an imp of its own with only its own grant', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
 
   const spawned = await Promise.all([
-    ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'glm', target: 'box' }),
-    ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'glm', target: 'box' }),
+    daemon.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'glm', target: 'box' }),
+    daemon.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'glm', target: 'box' }),
   ]);
 
   const imps = ctx.port.collectImpNames();
 
   const grants = await Promise.all(imps.map((imp) => ctx.port.readGrants(imp)));
-  const bindings = await ctx.withStore((store) => store.collectAuthBindings());
+  const bindings = await ctx.withStore(daemon.dbPath, (store) => store.collectAuthBindings());
 
   expect<Record<string, unknown>>({
     imps,
@@ -1403,9 +2038,30 @@ test('it provisions concurrent spawns each in an imp of its own with only its ow
 });
 
 test('it revokes the grants of a running session while its harness keeps running', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1415,8 +2071,8 @@ test('it revokes the grants of a running session while its harness keeps running
   const id = String(getRecord(spawned, 'session')['id']);
   const imp = ctx.getImpName();
 
-  const revoked = await ctx.client.sendRequest('session.auth.revoke', { session: id });
-  const listed = await ctx.client.sendRequest('session.list');
+  const revoked = await daemon.client.sendRequest('session.auth.revoke', { session: id });
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect<Record<string, unknown>>({
     revoked,
@@ -1430,9 +2086,30 @@ test('it revokes the grants of a running session while its harness keeps running
 });
 
 test('it refuses to revive a session revoked while it slept', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1441,10 +2118,10 @@ test('it refuses to revive a session revoked while it slept', async () => {
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.client.sendRequest('session.kill', { session: id });
-  await ctx.client.sendRequest('session.auth.revoke', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.auth.revoke', { session: id });
 
-  const adopt = ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await adopt.catch(() => null);
 
@@ -1453,9 +2130,30 @@ test('it refuses to revive a session revoked while it slept', async () => {
 });
 
 test('it rebinds a revoked session so it revives under the next revision', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1464,12 +2162,12 @@ test('it rebinds a revoked session so it revives under the next revision', async
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.client.sendRequest('session.kill', { session: id });
-  await ctx.client.sendRequest('session.auth.revoke', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.auth.revoke', { session: id });
 
-  const rebound = await ctx.client.sendRequest('session.auth.rebind', { session: id });
+  const rebound = await daemon.client.sendRequest('session.auth.rebind', { session: id });
 
-  await ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   expect<Record<string, unknown>>({
     rebound,
@@ -1483,9 +2181,30 @@ test('it rebinds a revoked session so it revives under the next revision', async
 });
 
 test('it refuses session.auth.revoke from a principal as unauthorized and revokes nothing', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1493,7 +2212,7 @@ test('it refuses session.auth.revoke from a principal as unauthorized and revoke
 
   const id = String(getRecord(spawned, 'session')['id']);
   const imp = ctx.getImpName();
-  const revoke = ctx.client.sendRequest('session.auth.revoke', { session: id }, 'ops');
+  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: id }, 'ops');
 
   await revoke.catch(() => null);
 
@@ -1504,9 +2223,30 @@ test('it refuses session.auth.revoke from a principal as unauthorized and revoke
 });
 
 test('it refuses session.auth.rebind from a principal as unauthorized and binds nothing', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1516,7 +2256,7 @@ test('it refuses session.auth.rebind from a principal as unauthorized and binds 
 
   ctx.port.calls.length = 0;
 
-  const rebind = ctx.client.sendRequest('session.auth.rebind', { session: id }, 'ops');
+  const rebind = daemon.client.sendRequest('session.auth.rebind', { session: id }, 'ops');
 
   await rebind.catch(() => null);
 
@@ -1525,9 +2265,30 @@ test('it refuses session.auth.rebind from a principal as unauthorized and binds 
 });
 
 test('it forgets a bound session by destroying its imp and dropping its binding, never a secret', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1535,14 +2296,14 @@ test('it forgets a bound session by destroying its imp and dropping its binding,
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  const offered = await ctx.client.sendRequest('session.forget', { session: id });
+  const offered = await daemon.client.sendRequest('session.forget', { session: id });
 
-  await ctx.client.sendRequest('session.forget', {
+  await daemon.client.sendRequest('session.forget', {
     session: id,
     confirmToken: offered['confirmToken'],
   });
 
-  const bindings = await ctx.withStore((store) => store.collectAuthBindings());
+  const bindings = await ctx.withStore(daemon.dbPath, (store) => store.collectAuthBindings());
   const secrets = await ctx.port.readSecrets();
 
   expect<Record<string, unknown>>({
@@ -1553,9 +2314,30 @@ test('it forgets a bound session by destroying its imp and dropping its binding,
 });
 
 test("it runs a sub-session under the same binding in its parent's imp without granting again", async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const parent = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1563,7 +2345,7 @@ test("it runs a sub-session under the same binding in its parent's imp without g
 
   ctx.port.calls.length = 0;
 
-  await ctx.client.sendRequest('session.spawn', {
+  await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1586,15 +2368,36 @@ test("it runs a sub-session under the same binding in its parent's imp without g
 });
 
 test("it refuses a sub-session without runtime auth in a bound parent's imp", async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const parent = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'plain',
     target: 'box',
@@ -1608,9 +2411,30 @@ test("it refuses a sub-session without runtime auth in a bound parent's imp", as
 });
 
 test('it takes back, as it starts, a spawn a stopped daemon left provisioning', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  await ctx.withStore(async (store) => {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  await ctx.withStore(daemon.dbPath, async (store) => {
     await new RuntimeAuthBinder(store).createBinding(ctx.provider.brokerAuth, {
       hostKey: toSessionID('orphan'),
       target: 'box',
@@ -1635,7 +2459,7 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
 
   ctx.port.calls.length = 0;
 
-  await ctx.restart();
+  await daemon.restart();
 
   await waitFor(() => {
     expect(ctx.port.collectImpNames()).toStrictEqual([]);
@@ -1650,9 +2474,30 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
 });
 
 test('it restores a session whose broker is not ready without a terminal', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: ctx.agents.glm,
+      adapters: [ctx.agents.glm, ctx.agents.plain, ctx.agents.proxied, ctx.agents.subscription],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      principals: new Map([['ops', ['box']]]),
+      forgetConfirmMs: 60_000,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -1661,14 +2506,14 @@ test('it restores a session whose broker is not ready without a terminal', async
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.client.sendRequest('session.kill', { session: id });
-  await ctx.restart();
+  await daemon.client.sendRequest('session.kill', { session: id });
+  await daemon.restart();
 
   ctx.port.startBrokerFailure();
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toStrictEqual({
     sessions: [expect.objectContaining({ id, alive: false })],

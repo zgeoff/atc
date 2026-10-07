@@ -16,11 +16,10 @@ import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 /**
- * A real daemon whose only target is the imp target `box`, over a fixture
- * imp port, with two agents that sign in through impd's broker: `claude` on
- * a subscription and the gateway `glm`. Both run a fake Claude that appends
- * a line to `marker` when it starts. Beside it, `work` is a git clone with
- * one commit, holding `README.md`.
+ * An imp provider over a fixture imp port whose token may grant the
+ * `claude-setup-token` and `glm` secrets, and a fake Claude, `fakeClaude`,
+ * that appends a line to `marker` when it starts. Beside it, `work` is a git
+ * clone with one commit, holding `README.md`.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
@@ -33,7 +32,6 @@ async function setupTest() {
 
   const marker = join(tmp.dir, 'started');
 
-  // Both agent entries run this binary for every spawn.
   const fakeClaude = createStubBin(
     tmp.dir,
     'fake-claude',
@@ -72,49 +70,11 @@ async function setupTest() {
     provider.dispose();
   });
 
-  const config = parseConfig({
-    authProfiles: {
-      claude: {
-        secret: 'claude-setup-token',
-        host: 'api.anthropic.com',
-        header: 'authorization',
-        scheme: 'bearer',
-      },
-      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-    },
-    agents: {
-      claude: { bin: fakeClaude, auth: { profiles: ['claude'] } },
-      glm: {
-        kind: 'claude',
-        bin: fakeClaude,
-        baseURL: 'https://api.z.ai/api/anthropic',
-        auth: {
-          profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
-        },
-      },
-    },
-  });
-
-  const harness = await startTestDaemon({
-    prefix: 'atc-project-settings-daemon-',
-    options: () => ({
-      adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
-        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
-      ],
-      gitTransports: ['file'],
-      targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
-      defaultTarget: 'box',
-    }),
-  });
-
-  stack.use(harness);
-
   const owned = stack.move();
 
   return {
-    client: harness.client,
+    fakeClaude,
+    provider,
     port,
     marker,
     work: git.work,
@@ -166,7 +126,48 @@ test.each([
 
     const root = join(ctx.dir, 'clone');
 
-    const spawn = ctx.client.sendRequest('session.spawn', {
+    const config = parseConfig({
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+        glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+      },
+      agents: {
+        claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+        glm: {
+          kind: 'claude',
+          bin: ctx.fakeClaude,
+          baseURL: 'https://api.z.ai/api/anthropic',
+          auth: {
+            profiles: ['glm'],
+            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          },
+        },
+      },
+    });
+
+    await using daemon = await startTestDaemon({
+      prefix: 'atc-project-settings-daemon-',
+      options: () => ({
+        // Both agents sign in through impd's broker: `claude` on a
+        // subscription and the gateway `glm`.
+        adapters: [
+          new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+          new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+        ],
+        gitTransports: ['file'],
+        targets: [
+          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+        ],
+        defaultTarget: 'box',
+      }),
+    });
+
+    const spawn = daemon.client.sendRequest('session.spawn', {
       cwd: root,
       agent: 'claude',
       target: 'box',
@@ -204,7 +205,48 @@ test('it refuses an untrusted subscription clone whose settings set apiKeyHelper
   await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
   await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+      glm: {
+        kind: 'claude',
+        bin: ctx.fakeClaude,
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      // Both agents sign in through impd's broker: `claude` on a
+      // subscription and the gateway `glm`.
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+      ],
+      gitTransports: ['file'],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'box',
@@ -239,7 +281,48 @@ test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
     await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
     await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-    const spawn = ctx.client.sendRequest('session.spawn', {
+    const config = parseConfig({
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+        glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+      },
+      agents: {
+        claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+        glm: {
+          kind: 'claude',
+          bin: ctx.fakeClaude,
+          baseURL: 'https://api.z.ai/api/anthropic',
+          auth: {
+            profiles: ['glm'],
+            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          },
+        },
+      },
+    });
+
+    await using daemon = await startTestDaemon({
+      prefix: 'atc-project-settings-daemon-',
+      options: () => ({
+        // Both agents sign in through impd's broker: `claude` on a
+        // subscription and the gateway `glm`.
+        adapters: [
+          new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+          new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+        ],
+        gitTransports: ['file'],
+        targets: [
+          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+        ],
+        defaultTarget: 'box',
+      }),
+    });
+
+    const spawn = daemon.client.sendRequest('session.spawn', {
       cwd: join(ctx.dir, 'clone'),
       agent: 'claude',
       target: 'box',
@@ -274,7 +357,48 @@ test('it refuses a subscription clone whose settings file is a dangling symlink'
   await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
   await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+      glm: {
+        kind: 'claude',
+        bin: ctx.fakeClaude,
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      // Both agents sign in through impd's broker: `claude` on a
+      // subscription and the gateway `glm`.
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+      ],
+      gitTransports: ['file'],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'box',
@@ -311,7 +435,48 @@ test('it starts a trusted subscription clone whose settings set neither a creden
   await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
   await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-  await ctx.client.sendRequest('session.spawn', {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+      glm: {
+        kind: 'claude',
+        bin: ctx.fakeClaude,
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      // Both agents sign in through impd's broker: `claude` on a
+      // subscription and the gateway `glm`.
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+      ],
+      gitTransports: ['file'],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  await daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'box',
@@ -327,7 +492,48 @@ test('it starts a trusted subscription clone whose settings set neither a creden
 test('it starts a trusted subscription clone with no project settings files', async () => {
   await using ctx = await setupTest();
 
-  await ctx.client.sendRequest('session.spawn', {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+      glm: {
+        kind: 'claude',
+        bin: ctx.fakeClaude,
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      // Both agents sign in through impd's broker: `claude` on a
+      // subscription and the gateway `glm`.
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+      ],
+      gitTransports: ['file'],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  await daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'box',
@@ -350,7 +556,48 @@ test('it refuses a subscription launch in an existing folder whose local setting
     '{"env":{"ANTHROPIC_AUTH_TOKEN":"sk-ant-repo-secret"}}',
   );
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+      glm: {
+        kind: 'claude',
+        bin: ctx.fakeClaude,
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      // Both agents sign in through impd's broker: `claude` on a
+      // subscription and the gateway `glm`.
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+      ],
+      gitTransports: ['file'],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     agent: 'claude',
     target: 'box',
@@ -383,7 +630,48 @@ test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async
   await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
   await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+      glm: {
+        kind: 'claude',
+        bin: ctx.fakeClaude,
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      // Both agents sign in through impd's broker: `claude` on a
+      // subscription and the gateway `glm`.
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+      ],
+      gitTransports: ['file'],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'clone'),
     agent: 'glm',
     target: 'box',
@@ -417,7 +705,48 @@ test('it refuses a subscription clone whose settings file is a symlink to an end
   await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
   await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+      glm: {
+        kind: 'claude',
+        bin: ctx.fakeClaude,
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      // Both agents sign in through impd's broker: `claude` on a
+      // subscription and the gateway `glm`.
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+      ],
+      gitTransports: ['file'],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'box',
@@ -447,7 +776,48 @@ test('it refuses a subscription launch in a subfolder whose repository root hold
   mkdirSync(join(ctx.work, 'sub'));
   writeFileSync(join(ctx.work, '.claude/settings.local.json'), '{"apiKeyHelper":"echo key"}');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+      glm: {
+        kind: 'claude',
+        bin: ctx.fakeClaude,
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      // Both agents sign in through impd's broker: `claude` on a
+      // subscription and the gateway `glm`.
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+      ],
+      gitTransports: ['file'],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.work, 'sub'),
     agent: 'claude',
     target: 'box',
@@ -483,7 +853,48 @@ test('it refuses a subscription launch in a worktree whose main checkout holds l
     '{"env":{"CLAUDE_CODE_USE_VERTEX":"1"}}',
   );
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+      glm: {
+        kind: 'claude',
+        bin: ctx.fakeClaude,
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      // Both agents sign in through impd's broker: `claude` on a
+      // subscription and the gateway `glm`.
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+      ],
+      gitTransports: ['file'],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: worktree,
     agent: 'claude',
     target: 'box',
@@ -514,7 +925,48 @@ test('it checks the folder a launch path resolves to through a symlink and a par
   symlinkSync(join(ctx.work, 'sub'), join(ctx.dir, 'elsewhere', 'link'));
   writeFileSync(join(ctx.work, '.claude/settings.json'), '{"env":{"ANTHROPIC_API_KEY":"x"}}');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+      glm: {
+        kind: 'claude',
+        bin: ctx.fakeClaude,
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      // Both agents sign in through impd's broker: `claude` on a
+      // subscription and the gateway `glm`.
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+      ],
+      gitTransports: ['file'],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: `${join(ctx.dir, 'elsewhere', 'link')}/..`,
     agent: 'claude',
     target: 'box',

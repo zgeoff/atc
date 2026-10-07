@@ -31,11 +31,11 @@ test('it lists an agent atc has no code for with the kind and label its adapter 
     },
   });
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({ adapter: acme, adapters: [acme] }),
   });
 
-  const listed = await harness.client.sendRequest('agents.list');
+  const listed = await daemon.client.sendRequest('agents.list');
 
   expect(listed['agents']).toStrictEqual([
     {
@@ -81,11 +81,11 @@ test('it lists an agent atc has no code for with the kind and label its adapter 
 test('it lists an adapter without a profile under its own id as its kind', async () => {
   const bare = buildMockAgentAdapter({ id: 'bare' });
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({ adapter: bare, adapters: [bare] }),
   });
 
-  const listed = await harness.client.sendRequest('agents.list');
+  const listed = await daemon.client.sendRequest('agents.list');
 
   expect(listed['agents']).toStrictEqual([
     {
@@ -157,12 +157,12 @@ test('it spawns a session under an agent atc has no code for', async () => {
     },
   });
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({ adapter: acme, adapters: [acme] }),
   });
 
-  const spawned = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'acme',
     model: 'acme-large',
     cols: 80,

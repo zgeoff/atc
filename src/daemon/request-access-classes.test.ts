@@ -64,7 +64,7 @@ test.each(
     .filter(([, access]) => access === 'owner')
     .map(([method]) => [method]),
 )('it refuses %s from a principal connection as owner-only', async (method) => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'gateway-token');
 
@@ -82,14 +82,14 @@ test.each(
     },
   });
 
-  const client = await harness.openClient({ principal: 'gw' });
+  const client = await daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest(method, {})).rejects.toMatchObject({
     code: 'unauthorized',
     message: `${method} is open to the daemon's owner only`,
   });
 
-  const pinged = await harness.client.sendRequest('daemon.ping', {});
+  const pinged = await daemon.client.sendRequest('daemon.ping', {});
 
   expect(pinged).toStrictEqual({});
 });
@@ -99,7 +99,7 @@ test.each(
     .filter(([, access]) => access === 'owner')
     .map(([method]) => [method]),
 )('it refuses %s from the owner acting as a principal as owner-only', async (method) => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'gateway-token');
 
@@ -117,12 +117,12 @@ test.each(
     },
   });
 
-  expect(harness.client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
+  expect(daemon.client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
     code: 'unauthorized',
     message: `${method} is open to the daemon's owner only`,
   });
 
-  const pinged = await harness.client.sendRequest('daemon.ping', {});
+  const pinged = await daemon.client.sendRequest('daemon.ping', {});
 
   expect(pinged).toStrictEqual({});
 });
@@ -132,7 +132,7 @@ test.each(
     .filter(([, access]) => access === 'owner')
     .map(([method]) => [method]),
 )('it refuses %s over TCP as owner-only', async (method) => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'gateway-token');
 
@@ -150,7 +150,7 @@ test.each(
     },
   });
 
-  const client = await harness.openTCPClient();
+  const client = await daemon.openTCPClient();
 
   await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
@@ -159,7 +159,7 @@ test.each(
     message: `${method} is open to the daemon's owner only`,
   });
 
-  const pinged = await harness.client.sendRequest('daemon.ping', {});
+  const pinged = await daemon.client.sendRequest('daemon.ping', {});
 
   expect(pinged).toStrictEqual({});
 });
@@ -167,7 +167,7 @@ test.each(
 // The owner's quit stops the daemon under the test, so the daemon e2e suite
 // covers it instead.
 test('it admits fleet.restore from the owner', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'gateway-token');
 
@@ -185,14 +185,14 @@ test('it admits fleet.restore from the owner', async () => {
     },
   });
 
-  expect(harness.client.sendRequest('fleet.restore', {})).resolves.toStrictEqual({ restored: 0 });
+  expect(daemon.client.sendRequest('fleet.restore', {})).resolves.toStrictEqual({ restored: 0 });
 });
 
 test.each([
   ['session.auth.revoke', 'no_such_session'],
   ['session.auth.rebind', 'no_such_session'],
 ])('it admits %s from the owner, which answers it with %s', async (method, code) => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'gateway-token');
 
@@ -210,7 +210,7 @@ test.each([
     },
   });
 
-  expect(harness.client.sendRequest(method, {})).rejects.toMatchObject({ code });
+  expect(daemon.client.sendRequest(method, {})).rejects.toMatchObject({ code });
 });
 
 // The handshake has rules of its own and is answered before admission, so
@@ -224,7 +224,7 @@ test.each([
   ['session.detach'],
   ['events.read'],
 ])('it admits %s from a principal connection', async (method) => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'gateway-token');
 
@@ -242,7 +242,7 @@ test.each([
     },
   });
 
-  const client = await harness.openClient({ principal: 'gw' });
+  const client = await daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest(method, {})).resolves.toBeTypeOf('object');
 });
@@ -273,7 +273,7 @@ test.each([
   ['report.get', 'bad_args'],
   ['message.ack', 'bad_args'],
 ])('it admits %s from a principal connection, which answers it with %s', async (method, code) => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'gateway-token');
 
@@ -291,7 +291,7 @@ test.each([
     },
   });
 
-  const client = await harness.openClient({ principal: 'gw' });
+  const client = await daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest(method, {})).rejects.toMatchObject({ code });
 });
@@ -305,7 +305,7 @@ test.each([
   ['session.detach'],
   ['events.read'],
 ])('it admits %s over TCP from a principal', async (method) => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'gateway-token');
 
@@ -323,7 +323,7 @@ test.each([
     },
   });
 
-  const client = await harness.openTCPClient();
+  const client = await daemon.openTCPClient();
 
   await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
@@ -356,7 +356,7 @@ test.each([
   ['report.get', 'bad_args'],
   ['message.ack', 'bad_args'],
 ])('it admits %s over TCP from a principal, which answers it with %s', async (method, code) => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'gateway-token');
 
@@ -374,7 +374,7 @@ test.each([
     },
   });
 
-  const client = await harness.openTCPClient();
+  const client = await daemon.openTCPClient();
 
   await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
@@ -382,7 +382,7 @@ test.each([
 });
 
 test('it answers a method the protocol does not define from a principal as unknown', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'gateway-token');
 
@@ -400,7 +400,7 @@ test('it answers a method the protocol does not define from a principal as unkno
     },
   });
 
-  const client = await harness.openClient({ principal: 'gw' });
+  const client = await daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest('daemon.nuke', {})).rejects.toMatchObject({
     code: 'unknown_method',
