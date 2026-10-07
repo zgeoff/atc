@@ -7,7 +7,12 @@ test('it reads a selection whose profiles send a bearer authorization header to 
   const profiles = new Map<string, AuthProfile>([
     [
       'claude',
-      buildMockAuthProfile({ name: 'claude', host: 'api.anthropic.com', header: 'authorization' }),
+      buildMockAuthProfile({
+        name: 'claude',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
     ],
     ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
   ]);
@@ -39,7 +44,12 @@ test('it refuses an entry that sets the endpoint or the placeholder itself', () 
   const profiles = new Map<string, AuthProfile>([
     [
       'claude',
-      buildMockAuthProfile({ name: 'claude', host: 'api.anthropic.com', header: 'authorization' }),
+      buildMockAuthProfile({
+        name: 'claude',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
     ],
   ]);
 
@@ -98,11 +108,21 @@ test("it reads an MCP server on a selected profile's host with that profile's he
   const profiles = new Map<string, AuthProfile>([
     [
       'claude',
-      buildMockAuthProfile({ name: 'claude', host: 'api.anthropic.com', header: 'authorization' }),
+      buildMockAuthProfile({
+        name: 'claude',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
     ],
     [
       'linear',
-      buildMockAuthProfile({ name: 'linear', host: 'mcp.linear.app', header: 'authorization' }),
+      buildMockAuthProfile({
+        name: 'linear',
+        host: 'mcp.linear.app',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
     ],
   ]);
 
@@ -178,15 +198,30 @@ test.each([
   const profiles = new Map<string, AuthProfile>([
     [
       'claude',
-      buildMockAuthProfile({ name: 'claude', host: 'api.anthropic.com', header: 'authorization' }),
+      buildMockAuthProfile({
+        name: 'claude',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
     ],
     [
       'linear',
-      buildMockAuthProfile({ name: 'linear', host: 'mcp.linear.app', header: 'authorization' }),
+      buildMockAuthProfile({
+        name: 'linear',
+        host: 'mcp.linear.app',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
     ],
     [
       'unselected',
-      buildMockAuthProfile({ name: 'unselected', host: 'mcp.linear.app', header: 'authorization' }),
+      buildMockAuthProfile({
+        name: 'unselected',
+        host: 'mcp.linear.app',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
     ],
     ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
   ]);

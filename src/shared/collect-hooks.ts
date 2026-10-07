@@ -1,6 +1,6 @@
-import { homedir } from 'node:os';
 import { z } from 'zod';
 import { isRecord } from './report';
+import { resolveHomeDir } from './resolve-home-dir';
 
 /**
  * One configured hook: a shell command the daemon runs when the named wire
@@ -33,7 +33,7 @@ const HOOK_ENTRY_SCHEMA = z.object({
  * `~` expanded to `home` and trailing slashes trimmed, ready for path
  * matching.
  */
-export function collectHooks(raw: unknown, home: string = homedir()): HooksConfig {
+export function collectHooks(raw: unknown, home: string = resolveHomeDir()): HooksConfig {
   if (!isRecord(raw)) {
     return {};
   }

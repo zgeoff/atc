@@ -1,5 +1,5 @@
-import { homedir } from 'node:os';
 import { isRecord } from './report';
+import { resolveHomeDir } from './resolve-home-dir';
 
 /**
  * Reads `dirs.roots`: the directories whose children the spawn picker
@@ -7,7 +7,7 @@ import { isRecord } from './report';
  * directory, and trailing slashes are trimmed so a root compares equal to
  * the paths under it. `home` is the directory a `~` expands to.
  */
-export function collectDirRoots(raw: unknown, home: string = homedir()): readonly string[] {
+export function collectDirRoots(raw: unknown, home: string = resolveHomeDir()): readonly string[] {
   if (!isRecord(raw) || !Array.isArray(raw['roots'])) {
     return [];
   }

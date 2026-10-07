@@ -1,8 +1,14 @@
 import { expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { loadConfig, parseConfig, renderDefaultConfig } from './config';
+
+function setupTest() {
+  const tmp = setupTempDir('atc-config-');
+
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+}
 
 test('#parseConfig leaves every target unusable, local included, and grants no principal a target when the root is not an object', () => {
   expect(parseConfig(null, '/home/u/.config/atc/config.json')).toStrictEqual({
@@ -193,10 +199,26 @@ test('#parseConfig collects the configured hooks map', () => {
   });
 });
 
-test('#parseConfig collects the configured directory roots', () => {
-  const config = parseConfig({ dirs: { roots: ['/home/me/projects/', '/srv/work', 7, ''] } });
+test('#parseConfig collects the configured directory roots, expanding a leading tilde to the home', () => {
+  const config = parseConfig(
+    { dirs: { roots: ['~/projects/', '/srv/work', 7, ''] } },
+    '/c.json',
+    '/home/someone',
+  );
 
-  expect(config.dirs).toStrictEqual({ roots: ['/home/me/projects', '/srv/work'] });
+  expect(config.dirs).toStrictEqual({ roots: ['/home/someone/projects', '/srv/work'] });
+});
+
+test('#parseConfig expands a leading tilde in a hook dir to the home', () => {
+  const config = parseConfig(
+    { hooks: { SessionAttached: [{ command: 'ork focus', dir: '~/w' }] } },
+    '/c.json',
+    '/home/someone',
+  );
+
+  expect(config.hooks).toStrictEqual({
+    SessionAttached: [{ command: 'ork focus', dir: '/home/someone/w' }],
+  });
 });
 
 test('#parseConfig reads the targets and default target a config sets', () => {
@@ -939,11 +961,11 @@ test('#renderDefaultConfig writes an agents map with the claude entry and no old
 });
 
 test('#loadConfig writes the default config when the file is missing', () => {
-  using tmp = setupTempDir('atc-config-first-run-');
+  using ctx = setupTest();
 
-  const file = join(tmp.dir, 'config.json');
+  const file = join(ctx.dir, 'config.json');
 
-  loadConfig(file);
+  loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'));
 
   expect(JSON.parse(readFileSync(file, 'utf8'))).toStrictEqual({
     agents: { claude: {} },
@@ -962,9 +984,11 @@ test('#loadConfig writes the default config when the file is missing', () => {
 });
 
 test('#loadConfig returns the defaults when the file is missing', () => {
-  using tmp = setupTempDir('atc-config-first-run-');
+  using ctx = setupTest();
 
-  expect(loadConfig(join(tmp.dir, 'config.json'))).toStrictEqual({
+  expect(
+    loadConfig(join(ctx.dir, 'config.json'), join(ctx.dir, 'home'), join(ctx.dir, 'state')),
+  ).toStrictEqual({
     agents: [
       {
         id: 'claude',
@@ -995,6 +1019,103 @@ test('#loadConfig returns the defaults when the file is missing', () => {
     defaultTarget: 'local',
     targetErrors: [],
     principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
+  });
+});
+
+test('#loadConfig leaves every target unusable when the file cannot be read', () => {
+  using ctx = setupTest();
+
+  const file = join(ctx.dir, 'config.json');
+
+  mkdirSync(file);
+
+  expect(loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'))).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [],
+    defaultTarget: null,
+    targetErrors: [{ scope: 'config', problem: 'config_unreadable', path: file, detail: 'EISDIR' }],
+    principals: new Map(),
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
+  });
+});
+
+test('#loadConfig leaves every target unusable when the file is not valid JSON', () => {
+  using ctx = setupTest();
+
+  const file = join(ctx.dir, 'config.json');
+
+  writeFileSync(file, '{ "agents": ');
+
+  expect(loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'))).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [],
+    defaultTarget: null,
+    targetErrors: [
+      {
+        scope: 'config',
+        problem: 'config_malformed',
+        path: file,
+        detail: 'the file is not valid JSON',
+      },
+    ],
+    principals: new Map(),
     principalErrors: [],
     workspaceErrors: [],
     restoreFleetOnRestart: true,

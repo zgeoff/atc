@@ -176,13 +176,18 @@ const CONFIG_SCHEMA = z.object({
  * defaults out. A file that exists but cannot be read or parsed loads as
  * unusable: every default but the targets, which it leaves empty with the
  * problem as the one target error, so nothing runs until the file is fixed.
- * Never throws.
+ * `home` is the directory a `~` in the file expands to, and `state` is the
+ * state directory it creates. Never throws.
  */
-export function loadConfig(file: string = configFile): Config {
+export function loadConfig(
+  file: string = configFile,
+  home: string = resolveHomeDir(),
+  state: string = stateDir,
+): Config {
   // Every atc process writes under the state directory; a failure here
   // comes back from the first write into it.
   try {
-    mkdirSync(stateDir, { recursive: true });
+    mkdirSync(state, { recursive: true });
   } catch {}
 
   let text: string;
@@ -213,7 +218,7 @@ export function loadConfig(file: string = configFile): Config {
     return buildUnusableConfig('config_malformed', file, 'the file is not valid JSON');
   }
 
-  return parseConfig(raw, file);
+  return parseConfig(raw, file, home);
 }
 
 /**
@@ -292,10 +297,15 @@ export function renderDefaultConfig(): string {
  * Parses a user-written config.json's already-decoded JSON value into a
  * Config, applying every default a malformed or absent field falls back to.
  * A root that is not an object leaves the config unusable, with no targets,
- * and `file` is the path its error holds. Total: no shape of `raw` throws,
- * so a hand-edited config never stops atc starting.
+ * and `file` is the path its error holds. `home` is the directory a `~` in
+ * a directory root or a hook's `dir` expands to. Total: no shape of `raw`
+ * throws, so a hand-edited config never stops atc starting.
  */
-export function parseConfig(raw: unknown, file: string = configFile): Config {
+export function parseConfig(
+  raw: unknown,
+  file: string = configFile,
+  home: string = resolveHomeDir(),
+): Config {
   if (!isRecord(raw) || Array.isArray(raw)) {
     return buildUnusableConfig(
       'config_malformed',
@@ -320,7 +330,7 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     return buildUnusableConfig('config_malformed', file, formatMixedAgentKeys(present));
   }
 
-  const dirs = { roots: collectDirRoots(parsed.data.dirs) };
+  const dirs = { roots: collectDirRoots(parsed.data.dirs, home) };
   const workspaces = collectWorkspacesConfig(parsed.data.workspaces);
   const authProfiles = collectAuthProfiles(parsed.data.authProfiles);
 
@@ -340,7 +350,7 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
         authProfiles.profiles,
       );
 
-  const hooks = collectHooks(parsed.data.hooks);
+  const hooks = collectHooks(parsed.data.hooks, home);
   const targets = collectTargets(parsed.data.targets, parsed.data.defaultTarget);
   const principals = collectPrincipals(parsed.data.principals);
 
