@@ -44,7 +44,7 @@ test('it stops a repository listing on esc and keeps taking typed input', async 
 
   rmSync(join(ctx.home, 'gh-hold'));
 
-  await ctx.waitForClientLog('dropped listing answer', mark);
+  await ctx.waitForClientLog('dropped answer', mark);
 
   expect(ctx.read()).toInclude('spawn: GitHub repository');
   expect(ctx.read()).not.toInclude('me/dots');
@@ -61,7 +61,10 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  const server = startGitHTTPServer(fixture.dir, fixture.env);
+  // Every authenticated request waits on the server until the test
+  // releases the gate.
+  const gate = Promise.withResolvers<void>();
+  const server = startGitHTTPServer(fixture.dir, fixture.env, { onRequest: () => gate.promise });
 
   onTestFinished(() => server.stop());
 
@@ -72,7 +75,6 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
     '[credential]\n\thelper = "!f() { echo username=atc; echo password=fixture; }; f"\n',
   );
 
-  server.hold();
   ctx.boot();
 
   await ctx.waitFor('atc — control tower');
@@ -91,9 +93,9 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   const mark = ctx.markClientLog();
 
-  server.release();
+  gate.resolve();
 
-  await ctx.waitForClientLog('dropped probe answer', mark);
+  await ctx.waitForClientLog('dropped answer', mark);
 
   expect(ctx.read()).toInclude('spawn: GitHub repository');
   expect(ctx.read()).not.toInclude('clone_failed');
@@ -157,7 +159,11 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  const server = startGitHTTPServer(fixture.dir, fixture.env);
+  // Authenticated requests pass until the test points the hold at the
+  // gate, and then wait until it releases the gate.
+  const gate = Promise.withResolvers<void>();
+  let hold = Promise.resolve();
+  const server = startGitHTTPServer(fixture.dir, fixture.env, { onRequest: () => hold });
 
   onTestFinished(() => server.stop());
 
@@ -192,7 +198,8 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 
   // The clone behind the spawn waits on the server until the test releases
   // it, so the spawn is still in flight when esc stops waiting on it.
-  server.hold();
+  hold = gate.promise;
+
   ctx.reset();
   ctx.write(KEYS.enter);
 
@@ -205,12 +212,12 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 
   const mark = ctx.markClientLog();
 
-  server.release();
+  gate.resolve();
   ctx.reset();
   ctx.write(KEYS.enter);
 
   await ctx.waitFor('slowclone', 15_000);
-  await ctx.waitForClientLog('dropped spawn answer', mark);
+  await ctx.waitForClientLog('dropped answer', mark);
 
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
   expect(ctx.read()).not.toInclude('spawn: initial prompt');
@@ -279,7 +286,7 @@ test('it stays where the user moved when a directory listing answers late', asyn
 
   rmSync(join(ctx.home, 'zoxide-hold'));
 
-  await ctx.waitForClientLog('dropped directory listing answer', mark);
+  await ctx.waitForClientLog('dropped answer', mark);
 
   expect(ctx.read()).not.toInclude('directory on the daemon host');
 }, 15_000);
@@ -294,7 +301,11 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
   // the tab's directory listing answers only once the test removes it.
   createStubBin(join(ctx.home, 'bin'), 'zoxide', buildStubHeldZoxide());
 
-  const server = startGitHTTPServer(fixture.dir, fixture.env);
+  // Authenticated requests pass until the test points the hold at the
+  // gate, and then wait until it releases the gate.
+  const gate = Promise.withResolvers<void>();
+  let hold = Promise.resolve();
+  const server = startGitHTTPServer(fixture.dir, fixture.env, { onRequest: () => hold });
 
   onTestFinished(() => server.stop());
 
@@ -333,7 +344,8 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
 
   writeFileSync(join(ctx.home, 'zoxide-hold'), '');
 
-  server.hold();
+  hold = gate.promise;
+
   ctx.write(KEYS.tab);
 
   // The tab draws nothing until its listing answers; zoxide starting shows
@@ -354,9 +366,9 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
 
   rmSync(join(ctx.home, 'zoxide-hold'));
 
-  await ctx.waitForClientLog('dropped directory listing answer', mark);
+  await ctx.waitForClientLog('dropped answer', mark);
 
-  server.release();
+  gate.resolve();
 
   await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`, 10_000);
 
