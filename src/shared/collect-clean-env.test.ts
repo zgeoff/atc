@@ -10,10 +10,12 @@ test('it strips parent-session grok keys and keeps home and api keys', () => {
 
   const env = collectCleanEnv();
 
-  expect(env['GROK_SESSION_ID']).toBeUndefined();
-  expect(env['GROK_LEADER_SOCKET']).toBeUndefined();
-  expect(env['GROK_HOME']).toBe('/tmp/grok-home');
-  expect(env['XAI_API_KEY']).toBe('xai-test-key');
+  expect(env).not.toContainAnyKeys(['GROK_SESSION_ID', 'GROK_LEADER_SOCKET']);
+
+  expect(env).toContainEntries([
+    ['GROK_HOME', '/tmp/grok-home'],
+    ['XAI_API_KEY', 'xai-test-key'],
+  ]);
 });
 
 test('it leaves withheld variables out and keeps an explicit extra of the same name', () => {
@@ -26,5 +28,5 @@ test('it leaves withheld variables out and keeps an explicit extra of the same n
   ]);
 
   expect(env).not.toContainKey('ATC_TEST_WITHHELD');
-  expect(env['ATC_TEST_EXPLICIT']).toBe('configured');
+  expect(env).toContainEntry(['ATC_TEST_EXPLICIT', 'configured']);
 });

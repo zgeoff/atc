@@ -1,4 +1,6 @@
 import { expect, test } from 'bun:test';
+import { buildMockAuthProfile } from '../test-utils/build-mock-auth-profile';
+import type { AuthProfile } from './collect-auth-profiles';
 import { collectGateways } from './collect-gateways';
 
 test('it reads an entry into a gateway that names its own binary and menu row', () => {
@@ -15,36 +17,41 @@ test('it reads an entry into a gateway that names its own binary and menu row', 
       },
       'claude',
       ['--verbose'],
-    ).gateways,
-  ).toStrictEqual([
-    {
-      id: 'zai',
-      label: 'GLM (z.ai)',
-      mark: 'z',
-      bin: 'claude',
-      args: ['--verbose'],
-      baseURL: 'https://api.z.ai/api/anthropic',
-      apiKeyHelper: '~/.local/bin/atc-zai-key',
-      env: { ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-5.2' },
-    },
-  ]);
+    ),
+  ).toStrictEqual({
+    gateways: [
+      {
+        id: 'zai',
+        label: 'GLM (z.ai)',
+        mark: 'z',
+        bin: 'claude',
+        args: ['--verbose'],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        apiKeyHelper: '~/.local/bin/atc-zai-key',
+        env: { ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-5.2' },
+      },
+    ],
+    errors: [],
+  });
 });
 
 test('it falls back to the id for a label and a mark that were not given', () => {
   expect(
-    collectGateways({ kimi: { baseURL: 'https://api.moonshot.ai/anthropic' } }, 'claude', [])
-      .gateways,
-  ).toStrictEqual([
-    {
-      id: 'kimi',
-      label: 'kimi',
-      mark: 'k',
-      bin: 'claude',
-      args: [],
-      baseURL: 'https://api.moonshot.ai/anthropic',
-      env: {},
-    },
-  ]);
+    collectGateways({ kimi: { baseURL: 'https://api.moonshot.ai/anthropic' } }, 'claude', []),
+  ).toStrictEqual({
+    gateways: [
+      {
+        id: 'kimi',
+        label: 'kimi',
+        mark: 'k',
+        bin: 'claude',
+        args: [],
+        baseURL: 'https://api.moonshot.ai/anthropic',
+        env: {},
+      },
+    ],
+    errors: [],
+  });
 });
 
 test('it takes one character of a longer mark, so the overlay column stays one wide', () => {
@@ -53,18 +60,21 @@ test('it takes one character of a longer mark, so the overlay column stays one w
       { zai: { mark: 'zai', baseURL: 'https://api.z.ai/api/anthropic' } },
       'claude',
       [],
-    ).gateways,
-  ).toStrictEqual([
-    {
-      id: 'zai',
-      label: 'zai',
-      mark: 'z',
-      bin: 'claude',
-      args: [],
-      baseURL: 'https://api.z.ai/api/anthropic',
-      env: {},
-    },
-  ]);
+    ),
+  ).toStrictEqual({
+    gateways: [
+      {
+        id: 'zai',
+        label: 'zai',
+        mark: 'z',
+        bin: 'claude',
+        args: [],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        env: {},
+      },
+    ],
+    errors: [],
+  });
 });
 
 test('it keeps a gateway that names its own binary instead of the Claude one', () => {
@@ -79,18 +89,21 @@ test('it keeps a gateway that names its own binary instead of the Claude one', (
       },
       'claude',
       ['--verbose'],
-    ).gateways,
-  ).toStrictEqual([
-    {
-      id: 'zai',
-      label: 'zai',
-      mark: 'z',
-      bin: '/opt/claude-beta',
-      args: ['--foo'],
-      baseURL: 'https://api.z.ai/api/anthropic',
-      env: {},
-    },
-  ]);
+    ),
+  ).toStrictEqual({
+    gateways: [
+      {
+        id: 'zai',
+        label: 'zai',
+        mark: 'z',
+        bin: '/opt/claude-beta',
+        args: ['--foo'],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        env: {},
+      },
+    ],
+    errors: [],
+  });
 });
 
 test('it drops an environment value that is not a string, since a child takes strings', () => {
@@ -104,24 +117,28 @@ test('it drops an environment value that is not a string, since a child takes st
       },
       'claude',
       [],
-    ).gateways,
-  ).toStrictEqual([
-    {
-      id: 'zai',
-      label: 'zai',
-      mark: 'z',
-      bin: 'claude',
-      args: [],
-      baseURL: 'https://api.z.ai/api/anthropic',
-      env: { ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-5.2' },
-    },
-  ]);
+    ),
+  ).toStrictEqual({
+    gateways: [
+      {
+        id: 'zai',
+        label: 'zai',
+        mark: 'z',
+        bin: 'claude',
+        args: [],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        env: { ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-5.2' },
+      },
+    ],
+    errors: [],
+  });
 });
 
 test('it leaves out an entry with no base URL, which could not be spawned', () => {
-  expect(collectGateways({ zai: { label: 'GLM (z.ai)' } }, 'claude', []).gateways).toStrictEqual(
-    [],
-  );
+  expect(collectGateways({ zai: { label: 'GLM (z.ai)' } }, 'claude', [])).toStrictEqual({
+    gateways: [],
+    errors: [],
+  });
 });
 
 test('it leaves out an entry under an id a built-in agent already answers to', () => {
@@ -134,14 +151,14 @@ test('it leaves out an entry under an id a built-in agent already answers to', (
       },
       'claude',
       [],
-    ).gateways,
-  ).toStrictEqual([]);
+    ),
+  ).toStrictEqual({ gateways: [], errors: [] });
 });
 
 test.each([[undefined], [null], ['zai'], [42], [[]]])(
   'it reads %p as no gateways at all',
   (raw) => {
-    expect(collectGateways(raw, 'claude', []).gateways).toStrictEqual([]);
+    expect(collectGateways(raw, 'claude', [])).toStrictEqual({ gateways: [], errors: [] });
   },
 );
 
@@ -154,7 +171,10 @@ test.each([
   [{ baseURL: 42 }],
   [{ baseURL: '' }],
 ])('it leaves out %p as a malformed gateway entry', (entry) => {
-  expect(collectGateways({ zai: entry }, 'claude', []).gateways).toStrictEqual([]);
+  expect(collectGateways({ zai: entry }, 'claude', [])).toStrictEqual({
+    gateways: [],
+    errors: [],
+  });
 });
 
 test('it falls back to every default when an entry has a valid base URL but every other field is wrong-typed', () => {
@@ -173,18 +193,21 @@ test('it falls back to every default when an entry has a valid base URL but ever
       },
       'claude',
       ['--verbose'],
-    ).gateways,
-  ).toStrictEqual([
-    {
-      id: 'zai',
-      label: 'zai',
-      mark: 'z',
-      bin: 'claude',
-      args: ['--verbose'],
-      baseURL: 'https://api.z.ai/api/anthropic',
-      env: {},
-    },
-  ]);
+    ),
+  ).toStrictEqual({
+    gateways: [
+      {
+        id: 'zai',
+        label: 'zai',
+        mark: 'z',
+        bin: 'claude',
+        args: ['--verbose'],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        env: {},
+      },
+    ],
+    errors: [],
+  });
 });
 
 // The hook that judges a gateway session's tool calls is registered here, so
@@ -198,26 +221,53 @@ test('it carries a settings block through to the gateway', () => {
     },
   };
 
-  const [gateway] = collectGateways(
-    { zai: { baseURL: 'https://api.z.ai/api/anthropic', settings } },
-    'claude',
-    [],
-  ).gateways;
-
-  expect(gateway?.settings).toStrictEqual(settings);
+  expect(
+    collectGateways({ zai: { baseURL: 'https://api.z.ai/api/anthropic', settings } }, 'claude', []),
+  ).toStrictEqual({
+    gateways: [
+      {
+        id: 'zai',
+        label: 'zai',
+        mark: 'z',
+        bin: 'claude',
+        args: [],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        env: {},
+        settings,
+      },
+    ],
+    errors: [],
+  });
 });
 
 test('it leaves out a settings value that is not an object', () => {
-  const [gateway] = collectGateways(
-    { zai: { baseURL: 'https://api.z.ai/api/anthropic', settings: 'on' } },
-    'claude',
-    [],
-  ).gateways;
-
-  expect(gateway?.settings).toBeUndefined();
+  expect(
+    collectGateways(
+      { zai: { baseURL: 'https://api.z.ai/api/anthropic', settings: 'on' } },
+      'claude',
+      [],
+    ),
+  ).toStrictEqual({
+    gateways: [
+      {
+        id: 'zai',
+        label: 'zai',
+        mark: 'z',
+        bin: 'claude',
+        args: [],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        env: {},
+      },
+    ],
+    errors: [],
+  });
 });
 
 test('it keeps a gateway whose auth selects profiles that cover its base URL host', () => {
+  const authProfiles = new Map<string, AuthProfile>([
+    ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai' })],
+  ]);
+
   expect(
     collectGateways(
       {
@@ -232,21 +282,7 @@ test('it keeps a gateway whose auth selects profiles that cover its base URL hos
       },
       'claude',
       [],
-      new Map([
-        [
-          'glm',
-          {
-            name: 'glm',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: [],
-          },
-        ],
-      ]),
+      authProfiles,
     ),
   ).toStrictEqual({
     gateways: [
@@ -269,6 +305,11 @@ test('it keeps a gateway whose auth selects profiles that cover its base URL hos
 });
 
 test('it keeps a gateway whose auth selects a github profile beside the profile for its base URL host', () => {
+  const authProfiles = new Map<string, AuthProfile>([
+    ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai' })],
+    ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+  ]);
+
   expect(
     collectGateways(
       {
@@ -282,31 +323,7 @@ test('it keeps a gateway whose auth selects a github profile beside the profile 
       },
       'claude',
       [],
-      new Map([
-        [
-          'glm',
-          {
-            name: 'glm',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: [],
-          },
-        ],
-        [
-          'github',
-          {
-            name: 'github',
-            secret: 'github-imp-agents',
-            kind: 'github',
-            env: {},
-            dependencies: [],
-          },
-        ],
-      ]),
+      authProfiles,
     ),
   ).toStrictEqual({
     gateways: [
@@ -414,6 +431,10 @@ test.each([
     'gateways.glm: settings.apiKeyHelper cannot be set together with auth, which supplies the credential through the broker',
   ],
 ])('it refuses a gateway with auth and %p', (override, error) => {
+  const authProfiles = new Map<string, AuthProfile>([
+    ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai' })],
+  ]);
+
   expect(
     collectGateways(
       {
@@ -428,21 +449,7 @@ test.each([
       },
       'claude',
       [],
-      new Map([
-        [
-          'glm',
-          {
-            name: 'glm',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: [],
-          },
-        ],
-      ]),
+      authProfiles,
     ),
   ).toStrictEqual({ gateways: [], errors: [error] });
 });
@@ -475,31 +482,25 @@ test.each([
     'gateways.glm: profile judge is selected, but authProfiles has no usable profile by that name',
   ],
 ])('it refuses a gateway whose auth is %p', (auth, error) => {
+  const authProfiles = new Map<string, AuthProfile>([
+    ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai' })],
+  ]);
+
   expect(
     collectGateways(
       { glm: { baseURL: 'https://api.z.ai/api/anthropic', auth } },
       'claude',
       [],
-      new Map([
-        [
-          'glm',
-          {
-            name: 'glm',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: [],
-          },
-        ],
-      ]),
+      authProfiles,
     ),
   ).toStrictEqual({ gateways: [], errors: [error] });
 });
 
 test('it refuses a placeholder variable that the gateway env also sets, since the env would win', () => {
+  const authProfiles = new Map<string, AuthProfile>([
+    ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai' })],
+  ]);
+
   expect(
     collectGateways(
       {
@@ -511,21 +512,7 @@ test('it refuses a placeholder variable that the gateway env also sets, since th
       },
       'claude',
       [],
-      new Map([
-        [
-          'glm',
-          {
-            name: 'glm',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: [],
-          },
-        ],
-      ]),
+      authProfiles,
     ),
   ).toStrictEqual({
     gateways: [],
@@ -536,6 +523,10 @@ test('it refuses a placeholder variable that the gateway env also sets, since th
 });
 
 test('it refuses a gateway whose profiles reach an undeclared dependency', () => {
+  const authProfiles = new Map<string, AuthProfile>([
+    ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai', dependencies: ['judge'] })],
+  ]);
+
   expect(
     collectGateways(
       {
@@ -546,21 +537,7 @@ test('it refuses a gateway whose profiles reach an undeclared dependency', () =>
       },
       'claude',
       [],
-      new Map([
-        [
-          'glm',
-          {
-            name: 'glm',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: ['judge'],
-          },
-        ],
-      ]),
+      authProfiles,
     ),
   ).toStrictEqual({
     gateways: [],
@@ -571,6 +548,11 @@ test('it refuses a gateway whose profiles reach an undeclared dependency', () =>
 });
 
 test('it refuses a gateway whose profiles collide on one host after their dependencies expand', () => {
+  const authProfiles = new Map<string, AuthProfile>([
+    ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai', dependencies: ['judge'] })],
+    ['judge', buildMockAuthProfile({ name: 'judge', host: 'api.z.ai' })],
+  ]);
+
   expect(
     collectGateways(
       {
@@ -581,34 +563,7 @@ test('it refuses a gateway whose profiles collide on one host after their depend
       },
       'claude',
       [],
-      new Map([
-        [
-          'glm',
-          {
-            name: 'glm',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: ['judge'],
-          },
-        ],
-        [
-          'judge',
-          {
-            name: 'judge',
-            secret: 'judge',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: [],
-          },
-        ],
-      ]),
+      authProfiles,
     ),
   ).toStrictEqual({
     gateways: [],

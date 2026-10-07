@@ -32,12 +32,16 @@ test('it backs off a split character when the cap is below the ellipsis length',
   expect(truncateToBytes('é'.repeat(3), 1)).toBe('');
 });
 
-test('it never exceeds a cap smaller than three bytes', () => {
-  expect(truncateToBytes('abcdef', 1)).toBe('a');
-  expect(truncateToBytes('abcdef', 2)).toBe('ab');
+test.each([
+  [1, 'a'],
+  [2, 'ab'],
+])('it never exceeds a cap of %p bytes, which is smaller than three', (cap, expected) => {
+  expect(truncateToBytes('abcdef', cap)).toBe(expected);
 });
 
-test('it returns an empty string when a one or two byte cap lands inside the first character', () => {
-  expect(truncateToBytes('😀', 1)).toBe('');
-  expect(truncateToBytes('😀', 2)).toBe('');
-});
+test.each([[1], [2]])(
+  'it returns an empty string when a cap of %p bytes lands inside the first character',
+  (cap) => {
+    expect(truncateToBytes('😀', cap)).toBe('');
+  },
+);

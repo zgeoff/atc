@@ -16,6 +16,12 @@ export class BunSqliteDriver implements Driver {
 
   private releaseTurn: () => void = () => {};
 
+  /**
+   * How many acquires are waiting for an earlier caller to release the
+   * connection.
+   */
+  waiting = 0;
+
   constructor(sqlite: Database) {
     this.connection = buildConnection(sqlite);
   }
@@ -32,7 +38,11 @@ export class BunSqliteDriver implements Driver {
       release = resolve;
     });
 
+    this.waiting += 1;
+
     await previous;
+
+    this.waiting -= 1;
 
     if (release !== undefined) {
       this.releaseTurn = release;

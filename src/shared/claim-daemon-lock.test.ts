@@ -3,10 +3,16 @@ import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { claimDaemonLock } from './claim-daemon-lock';
 
-test('it refuses the lock while another holder keeps it', async () => {
-  await using tmp = setupTempDir('atc-daemon-lock-');
+function setupTest() {
+  const tmp = setupTempDir('atc-daemon-lock-');
 
-  const lockPath = join(tmp.dir, 'daemon.lock');
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+}
+
+test('it refuses the lock while another holder keeps it', async () => {
+  using ctx = setupTest();
+
+  const lockPath = join(ctx.dir, 'daemon.lock');
 
   const first = await claimDaemonLock(lockPath, 0);
 
@@ -14,16 +20,19 @@ test('it refuses the lock while another holder keeps it', async () => {
     first?.dispose();
   });
 
+  if (first === null) {
+    throw new Error('the first claim found the lock held');
+  }
+
   const second = await claimDaemonLock(lockPath, 100);
 
-  expect(first).not.toBeNull();
   expect(second).toBeNull();
 });
 
 test('it grants the lock once the previous holder lets go', async () => {
-  await using tmp = setupTempDir('atc-daemon-lock-');
+  using ctx = setupTest();
 
-  const lockPath = join(tmp.dir, 'daemon.lock');
+  const lockPath = join(ctx.dir, 'daemon.lock');
 
   const first = await claimDaemonLock(lockPath, 0);
 
@@ -43,9 +52,9 @@ test('it grants the lock once the previous holder lets go', async () => {
 });
 
 test('it waits for a holder that lets go within the wait', async () => {
-  await using tmp = setupTempDir('atc-daemon-lock-');
+  using ctx = setupTest();
 
-  const lockPath = join(tmp.dir, 'daemon.lock');
+  const lockPath = join(ctx.dir, 'daemon.lock');
 
   const first = await claimDaemonLock(lockPath, 0);
 
@@ -53,11 +62,11 @@ test('it waits for a holder that lets go within the wait', async () => {
     throw new Error('the first claim found the lock held');
   }
 
-  setTimeout(() => {
-    first.dispose();
-  }, 100);
+  const claim = claimDaemonLock(lockPath, 2000);
 
-  const second = await claimDaemonLock(lockPath, 2000);
+  first.dispose();
+
+  const second = await claim;
 
   onTestFinished(() => {
     second?.dispose();

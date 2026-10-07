@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { makeSingleFlight } from './make-single-flight';
 
 test('it shares one run between calls that overlap', async () => {
@@ -26,12 +26,10 @@ test('it shares one run between calls that overlap', async () => {
 test('it starts a fresh run once the previous one has settled', async () => {
   let runs = 0;
 
-  const once = makeSingleFlight(async () => {
+  const once = makeSingleFlight(() => {
     runs += 1;
 
-    await Bun.sleep(0);
-
-    return runs;
+    return Promise.resolve(runs);
   });
 
   await once();
@@ -41,35 +39,20 @@ test('it starts a fresh run once the previous one has settled', async () => {
   expect(second).toBe(2);
 });
 
+test('it rejects the call with the error of a run that rejects', () => {
+  const once = makeSingleFlight(() => Promise.reject(new Error('first run fails')));
+
+  expect(once()).rejects.toThrowWithMessage(Error, 'first run fails');
+});
+
 test('it starts a fresh run after the previous one rejected', async () => {
-  const runs = [
-    async () => {
-      await Bun.sleep(0);
+  const run = mock<() => Promise<string>>()
+    .mockRejectedValueOnce(new Error('first run fails'))
+    .mockResolvedValueOnce('second run');
 
-      throw new Error('first run fails');
-    },
-    async () => {
-      await Bun.sleep(0);
+  const once = makeSingleFlight(run);
 
-      return 'second run';
-    },
-  ];
-
-  const once = makeSingleFlight(() => {
-    const run = runs.shift();
-
-    if (run === undefined) {
-      throw new Error('no run left');
-    }
-
-    return run();
-  });
-
-  const first = once();
-
-  expect(first).rejects.toThrow('first run fails');
-
-  await first.catch(() => null);
+  await once().catch(() => null);
 
   const second = await once();
 

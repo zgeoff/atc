@@ -11,9 +11,11 @@ test('it redacts secret-named header values however short', () => {
   expect(sanitizeDetail('x-api-key: demo-secret')).toBe('x-api-key: [redacted]');
 });
 
-test('it redacts a whole authorization header value', () => {
-  expect(sanitizeDetail('Authorization: Basic ZGVtbzpwYXNz')).toBe('Authorization: [redacted]');
-  expect(sanitizeDetail('authorization: Bearer abc123')).toBe('authorization: [redacted]');
+test.each([
+  ['Authorization: Basic ZGVtbzpwYXNz', 'Authorization: [redacted]'],
+  ['authorization: Bearer abc123', 'authorization: [redacted]'],
+])('it redacts the whole authorization header value in %p', (detail, sanitized) => {
+  expect(sanitizeDetail(detail)).toBe(sanitized);
 });
 
 test('it redacts an authorization header with digest parameters whole', () => {
@@ -22,23 +24,25 @@ test('it redacts an authorization header with digest parameters whole', () => {
   ).toBe('Authorization: [redacted]');
 });
 
-test('it redacts a bare credential scheme value', () => {
-  expect(
-    sanitizeDetail('proxy rejected Bearer abcdefghijklmnopqrstuvwxyz0123456789 and back'),
-  ).toBe('proxy rejected Bearer [redacted] and back');
-
-  expect(sanitizeDetail('sent Basic ZGVtbzpwYXNz over the wire')).toBe(
-    'sent Basic [redacted] over the wire',
-  );
+test.each([
+  [
+    'proxy rejected Bearer abcdefghijklmnopqrstuvwxyz0123456789 and back',
+    'proxy rejected Bearer [redacted] and back',
+  ],
+  ['sent Basic ZGVtbzpwYXNz over the wire', 'sent Basic [redacted] over the wire'],
+])('it redacts the bare credential scheme value in %p', (detail, sanitized) => {
+  expect(sanitizeDetail(detail)).toBe(sanitized);
 });
 
-test('it redacts secret-named JSON fields and quoted values whole', () => {
-  expect(sanitizeDetail('{"api_key":"demo-secret","password":"demo-pass"}')).toBe(
+test.each([
+  [
+    '{"api_key":"demo-secret","password":"demo-pass"}',
     '{"api_key":[redacted],"password":[redacted]}',
-  );
-
-  expect(sanitizeDetail("password='two word secret'")).toBe('password=[redacted]');
-  expect(sanitizeDetail('x-api-key: "two word secret"')).toBe('x-api-key: [redacted]');
+  ],
+  ["password='two word secret'", 'password=[redacted]'],
+  ['x-api-key: "two word secret"', 'x-api-key: [redacted]'],
+])('it redacts the secret-named field or quoted value whole in %p', (detail, sanitized) => {
+  expect(sanitizeDetail(detail)).toBe(sanitized);
 });
 
 test('it redacts a JSON value that carries an escaped quote', () => {

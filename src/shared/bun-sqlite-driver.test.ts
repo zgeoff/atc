@@ -1,50 +1,49 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 
-function setupTest() {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-driver-'));
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
-  const sqlite = new Database(join(dir, 'state.db'), { create: true });
+  const tmp = stack.use(setupTempDir('atc-driver-'));
 
-  return {
-    driver: new BunSqliteDriver(sqlite),
-    [Symbol.asyncDispose]() {
-      sqlite.close();
+  const sqlite = new Database(join(tmp.dir, 'state.db'), { create: true });
 
-      rmSync(dir, { recursive: true, force: true });
+  stack.defer(() => {
+    sqlite.close();
+  });
 
-      return Promise.resolve();
-    },
-  };
+  const driver = new BunSqliteDriver(sqlite);
+
+  // Every test acquires after a first caller already holds the connection.
+  await driver.acquireConnection();
+
+  const owned = stack.move();
+
+  return { driver, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
-test('it lets a second acquireConnection through only after the first releaseConnection', async () => {
-  await using ctx = setupTest();
+test('it keeps a second acquire waiting while the first caller holds the connection', async () => {
+  await using ctx = await setupTest();
 
-  await ctx.driver.acquireConnection();
+  const second = ctx.driver.acquireConnection();
 
-  let secondAcquired = false;
+  await waitFor(() => {
+    expect(ctx.driver.waiting).toBe(1);
+  });
 
-  const second = (async () => {
-    await ctx.driver.acquireConnection();
+  expect(Bun.peek.status(second)).toBe('pending');
+});
 
-    secondAcquired = true;
-  })();
+test('it hands the connection to a waiting acquire once the first caller releases it', async () => {
+  await using ctx = await setupTest();
 
-  // Two microtask drains: enough for the waiting acquire to resume if
-  // nothing were holding the connection.
-  await Promise.resolve();
-  await Promise.resolve();
-
-  expect(secondAcquired).toBe(false);
+  const second = ctx.driver.acquireConnection();
 
   await ctx.driver.releaseConnection();
 
-  await second;
-
-  expect(secondAcquired).toBe(true);
+  await expect(second).toResolve();
 });

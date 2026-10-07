@@ -1,12 +1,16 @@
 import { expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { loadConfig, parseConfig, renderDefaultConfig } from './config';
-import { getRecord } from './get-record';
 
-test('it leaves every target unusable, local included, and grants no principal a target when the root is not an object', () => {
+function setupTest() {
+  const tmp = setupTempDir('atc-config-');
+
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+}
+
+test('#parseConfig leaves every target unusable, local included, and grants no principal a target when the root is not an object', () => {
   expect(parseConfig(null, '/home/u/.config/atc/config.json')).toStrictEqual({
     agents: [
       {
@@ -57,13 +61,13 @@ test.each([
   ['garbage', 'the root is a string, not an object'],
   [42, 'the root is a number, not an object'],
   [true, 'the root is a boolean, not an object'],
-])('it reports a malformed config when the root is %p', (raw, detail) => {
+])('#parseConfig reports a malformed config when the root is %p', (raw, detail) => {
   expect(parseConfig(raw, '/c.json').targetErrors).toStrictEqual([
     { scope: 'config', problem: 'config_malformed', path: '/c.json', detail },
   ]);
 });
 
-test('it falls back field by field when a field is wrong-typed instead of failing the whole file', () => {
+test('#parseConfig falls back field by field when a field is wrong-typed instead of failing the whole file', () => {
   const config = parseConfig({
     claudeBin: 7,
     claudeArgs: 'not-an-array',
@@ -120,33 +124,72 @@ test('it falls back field by field when a field is wrong-typed instead of failin
   });
 });
 
-test('it decodes a configured leader key and falls back to the default for an unknown one', () => {
+test('#parseConfig decodes a configured leader key', () => {
   expect(parseConfig({ leader: 'ctrl-a' }).leader).toStrictEqual({ code: 1, label: '^A' });
+});
+
+test('#parseConfig falls back to the default leader key for an unknown one', () => {
   expect(parseConfig({ leader: 'ctrl-nope' }).leader).toStrictEqual({ code: 0, label: '^Space' });
 });
 
-test('it translates the old gateway map into agents using the parsed claude bin and args', () => {
+test('#parseConfig translates the old gateway map into agents using the parsed claude bin and args', () => {
   const config = parseConfig({
     claudeBin: '/opt/claude',
     claudeArgs: ['--verbose'],
     gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic' } },
   });
 
-  expect(config.agents.slice(3)).toStrictEqual([
-    {
-      id: 'zai',
-      kind: 'claude',
-      label: 'zai',
-      mark: 'z',
-      bin: '/opt/claude',
-      args: ['--verbose'],
-      baseURL: 'https://api.z.ai/api/anthropic',
-      env: {},
+  expect(config).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: '/opt/claude',
+        args: ['--verbose'],
+        env: {},
+      },
+      { id: 'grok', kind: 'grok', label: 'Grok', mark: 'g', bin: 'grok', args: [], env: {} },
+      { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
+      {
+        id: 'zai',
+        kind: 'claude',
+        label: 'zai',
+        mark: 'z',
+        bin: '/opt/claude',
+        args: ['--verbose'],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        env: {},
+      },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: ['claudeBin', 'claudeArgs', 'gateways'],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
     },
-  ]);
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
+  });
 });
 
-test('it collects the configured hooks map', () => {
+test('#parseConfig collects the configured hooks map', () => {
   const config = parseConfig({
     hooks: { SessionAttached: [{ command: 'ork focus', dir: '/w', timeout: 2000 }] },
   });
@@ -156,71 +199,205 @@ test('it collects the configured hooks map', () => {
   });
 });
 
-test('it collects the configured directory roots with the home directory expanded', () => {
-  const config = parseConfig({ dirs: { roots: ['~/projects/', '/srv/work', 7, ''] } });
+test('#parseConfig collects the configured directory roots, expanding a leading tilde to the home', () => {
+  const config = parseConfig(
+    { dirs: { roots: ['~/projects/', '/srv/work', 7, ''] } },
+    '/c.json',
+    '/home/someone',
+  );
 
-  expect(config.dirs).toStrictEqual({ roots: [join(homedir(), 'projects'), '/srv/work'] });
+  expect(config.dirs).toStrictEqual({ roots: ['/home/someone/projects', '/srv/work'] });
 });
 
-test('it reads the targets and default target a config sets', () => {
+test('#parseConfig expands a leading tilde in a hook dir to the home', () => {
+  const config = parseConfig(
+    { hooks: { SessionAttached: [{ command: 'ork focus', dir: '~/w' }] } },
+    '/c.json',
+    '/home/someone',
+  );
+
+  expect(config.hooks).toStrictEqual({
+    SessionAttached: [{ command: 'ork focus', dir: '/home/someone/w' }],
+  });
+});
+
+test('#parseConfig reads the targets and default target a config sets', () => {
   const config = parseConfig({
     targets: { local: { provider: 'local-pty' }, box: { provider: 'imp', image: 'dev' } },
     defaultTarget: 'box',
   });
 
-  expect({
-    targets: config.targets,
-    defaultTarget: config.defaultTarget,
-    targetErrors: config.targetErrors,
-  }).toStrictEqual({
+  expect(config).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+      { id: 'grok', kind: 'grok', label: 'Grok', mark: 'g', bin: 'grok', args: [], env: {} },
+      { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
     targets: [
       { id: 'local', provider: 'local-pty', options: {} },
       { id: 'box', provider: 'imp', options: { image: 'dev' } },
     ],
     defaultTarget: 'box',
     targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
-test('it reads the principals a config sets', () => {
+test('#parseConfig reads the principals a config sets', () => {
   const config = parseConfig({ principals: { 'client-a': { targets: ['local'] } } });
 
-  expect({
-    principals: config.principals,
-    principalErrors: config.principalErrors,
-  }).toStrictEqual({
+  expect(config).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+      { id: 'grok', kind: 'grok', label: 'Grok', mark: 'g', bin: 'grok', args: [], env: {} },
+      { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
     principals: new Map([['client-a', ['local']]]),
     principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
-test('it holds no targets and an error instead of throwing for a malformed targets map', () => {
+test('#parseConfig holds no targets and an error instead of throwing for a malformed targets map', () => {
   const config = parseConfig({ agents: { claude: { bin: 'my-claude' } }, targets: ['local'] });
 
-  expect({
-    claudeBin: config.agents[0]?.bin,
-    targets: config.targets,
-    defaultTarget: config.defaultTarget,
-    targetErrors: config.targetErrors,
-  }).toStrictEqual({
-    claudeBin: 'my-claude',
+  expect(config).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'my-claude',
+        args: [],
+        env: {},
+      },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
     targets: [],
     defaultTarget: null,
     targetErrors: [
       { scope: 'targets', problem: 'targets must be a non-empty object of named targets' },
     ],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
-test('it reads the config a first run writes back as the defaults, without target errors', () => {
+test('#parseConfig reads the config a first run writes back as the defaults, without target errors', () => {
   const written: unknown = JSON.parse(renderDefaultConfig());
-  const config = parseConfig(written);
 
-  expect(config).toStrictEqual(parseConfig({ agents: { claude: {} } }));
-  expect(config.targetErrors).toStrictEqual([]);
+  expect(parseConfig(written)).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
+  });
 });
 
-test('it reads the auth profiles a config sets and registers a claude entry whose auth selects them', () => {
+test('#parseConfig reads the auth profiles a config sets and registers a claude entry whose auth selects them', () => {
   const config = parseConfig({
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -237,28 +414,7 @@ test('it reads the auth profiles a config sets and registers a claude entry whos
     },
   });
 
-  expect({
-    authProfiles: config.authProfiles,
-    authProfileErrors: config.authProfileErrors,
-    agents: config.agents,
-    agentErrors: config.agentErrors,
-  }).toStrictEqual({
-    authProfiles: new Map([
-      [
-        'glm',
-        {
-          name: 'glm',
-          secret: 'glm',
-          kind: 'custom',
-          host: 'api.z.ai',
-          header: 'authorization',
-          scheme: 'bearer',
-          env: {},
-          dependencies: [],
-        },
-      ],
-    ]),
-    authProfileErrors: [],
+  expect(config).toStrictEqual({
     agents: [
       {
         id: 'glm',
@@ -276,10 +432,46 @@ test('it reads the auth profiles a config sets and registers a claude entry whos
       },
     ],
     agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'glm',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map([
+      [
+        'glm',
+        {
+          name: 'glm',
+          secret: 'glm',
+          kind: 'custom',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: {},
+          dependencies: [],
+        },
+      ],
+    ]),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
-test('it refuses a gateway whose auth selects a profile the config refused, and reports both', () => {
+test('#parseConfig refuses a gateway whose auth selects a profile the config refused, and reports both', () => {
   const config = parseConfig({
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'raw' },
@@ -293,20 +485,37 @@ test('it refuses a gateway whose auth selects a profile the config refused, and 
     },
   });
 
-  expect({
-    authProfileErrors: config.authProfileErrors,
-    agents: config.agents,
-    agentErrors: config.agentErrors,
-  }).toStrictEqual({
-    authProfileErrors: ['authProfiles.glm: scheme must be bearer, the one scheme atc binds'],
+  expect(config).toStrictEqual({
     agents: [],
     agentErrors: [
       'agents.glm: profile glm is selected, but authProfiles has no usable profile by that name',
     ],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: ['authProfiles.glm: scheme must be bearer, the one scheme atc binds'],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
-test('it translates the old agent keys into agents in a fixed order and records the keys', () => {
+test('#parseConfig translates the old agent keys into agents in a fixed order and records the keys', () => {
   const config = parseConfig({
     claudeBin: '/opt/claude',
     claudeArgs: ['--verbose'],
@@ -338,12 +547,7 @@ test('it translates the old agent keys into agents in a fixed order and records 
     },
   });
 
-  expect({
-    agents: config.agents,
-    agentErrors: config.agentErrors,
-    legacyAgentKeys: config.legacyAgentKeys,
-    defaultAgent: config.defaultAgent,
-  }).toStrictEqual({
+  expect(config).toStrictEqual({
     agents: [
       {
         id: 'claude',
@@ -391,59 +595,230 @@ test('it translates the old agent keys into agents in a fixed order and records 
     ],
     legacyAgentKeys: ['claudeBin', 'claudeArgs', 'claudeAuth', 'grokBin', 'codexArgs', 'gateways'],
     defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map([
+      [
+        'claude',
+        {
+          name: 'claude',
+          secret: 'claude-setup-token',
+          kind: 'custom',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: {},
+          dependencies: [],
+        },
+      ],
+    ]),
+    authProfileErrors: ['authProfiles.glm: scheme must be bearer, the one scheme atc binds'],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
-test('it gives a file with no agent keys at all the three built-in agents and no old keys', () => {
+test('#parseConfig gives a file with no agent keys at all the three built-in agents and no old keys', () => {
   const config = parseConfig({ leader: 'ctrl-a' });
 
-  expect({
-    ids: config.agents.map((entry) => entry.id),
-    legacyAgentKeys: config.legacyAgentKeys,
-  }).toStrictEqual({ ids: ['claude', 'grok', 'codex'], legacyAgentKeys: [] });
+  expect(config).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+      { id: 'grok', kind: 'grok', label: 'Grok', mark: 'g', bin: 'grok', args: [], env: {} },
+      { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 1, label: '^A' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
+  });
 });
 
-test('it loads exactly the agents an agents map holds and records no old keys', () => {
+test('#parseConfig loads exactly the agents an agents map holds and records no old keys', () => {
   const config = parseConfig({
     agents: { codex: {}, 'claude-b': { kind: 'claude' } },
   });
 
-  expect({
-    ids: config.agents.map((entry) => entry.id),
-    legacyAgentKeys: config.legacyAgentKeys,
-    defaultAgent: config.defaultAgent,
-  }).toStrictEqual({ ids: ['codex', 'claude-b'], legacyAgentKeys: [], defaultAgent: 'codex' });
+  expect(config).toStrictEqual({
+    agents: [
+      { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
+      {
+        id: 'claude-b',
+        kind: 'claude',
+        label: 'claude-b',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'codex',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
+  });
 });
 
-test('it defaults to claude when the registry holds that id, wherever it sits', () => {
+test('#parseConfig defaults to claude when the registry holds that id, wherever it sits', () => {
   const config = parseConfig({ agents: { codex: {}, claude: {} } });
 
   expect(config.defaultAgent).toBe('claude');
 });
 
-test('it keeps reporting claude as the default agent for an empty registry', () => {
+test('#parseConfig keeps reporting claude as the default agent for an empty registry', () => {
   const config = parseConfig({ agents: {} });
 
-  expect({ agents: config.agents, defaultAgent: config.defaultAgent }).toStrictEqual({
+  expect(config).toStrictEqual({
     agents: [],
+    agentErrors: [],
+    legacyAgentKeys: [],
     defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
-test('it leaves the registry empty with one error when agents is not an object', () => {
+test('#parseConfig leaves the registry empty with one error when agents is not an object', () => {
   const config = parseConfig({ agents: [] });
 
-  expect({ agents: config.agents, agentErrors: config.agentErrors }).toStrictEqual({
+  expect(config).toStrictEqual({
     agents: [],
     agentErrors: ['agents must be an object of agent entries'],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
-test('it refuses a config that sets agents beside an old agent key', () => {
+test('#parseConfig refuses a config that sets agents beside an old agent key', () => {
   const config = parseConfig({ agents: {}, claudeArgs: [] }, '/c.json');
 
-  expect({ targets: config.targets, targetErrors: config.targetErrors }).toStrictEqual({
+  expect(config).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
     targets: [],
+    defaultTarget: null,
     targetErrors: [
       {
         scope: 'config',
@@ -453,10 +828,15 @@ test('it refuses a config that sets agents beside an old agent key', () => {
           "claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'",
       },
     ],
+    principals: new Map(),
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
-test('it lists every old key a mixed config sets, in file order', () => {
+test('#parseConfig lists every old key a mixed config sets, in file order', () => {
   const config = parseConfig(
     { gateways: {}, agents: {}, claudeBin: 'x', codexArgs: [] },
     '/c.json',
@@ -473,60 +853,272 @@ test('it lists every old key a mixed config sets, in file order', () => {
   ]);
 });
 
-test('it writes a first-run config with an agents map and no old agent key', () => {
-  const written: unknown = JSON.parse(renderDefaultConfig());
-  const record = getRecord({ written }, 'written');
-
-  expect(Object.keys(record)).not.toIncludeAnyMembers([
-    'claudeBin',
-    'claudeArgs',
-    'claudeAuth',
-    'grokBin',
-    'grokArgs',
-    'codexBin',
-    'codexArgs',
-    'gateways',
-  ]);
-
-  expect(record['agents']).toStrictEqual({ claude: {} });
-});
-
-test('it writes the default config when the file is missing', () => {
-  using tmp = setupTempDir('atc-config-first-run-');
-
-  const file = `${tmp.dir}/config.json`;
-  const config = loadConfig(file);
-  const written: unknown = JSON.parse(readFileSync(file, 'utf8'));
-
-  expect({
-    ids: config.agents.map((entry) => entry.id),
-    written: getRecord({ written }, 'written')['agents'],
-  }).toStrictEqual({ ids: ['claude'], written: { claude: {} } });
-});
-
-test('it restores the fleet on restart by default', () => {
+test('#parseConfig restores the fleet on restart by default', () => {
   const config = parseConfig({});
 
-  expect({ restore: config.restoreFleetOnRestart, removed: config.removedKeys }).toStrictEqual({
-    restore: true,
-    removed: [],
+  expect(config).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+      { id: 'grok', kind: 'grok', label: 'Grok', mark: 'g', bin: 'grok', args: [], env: {} },
+      { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
-test('it reads restoreFleetOnRestart set to false', () => {
+test('#parseConfig reads restoreFleetOnRestart set to false', () => {
   expect(parseConfig({ restoreFleetOnRestart: false }).restoreFleetOnRestart).toBe(false);
 });
 
-test('it loads a config that still sets resumeInterruptedTurns and reports the key without its value', () => {
+test('#parseConfig loads a config that still sets resumeInterruptedTurns and reports the key without its value', () => {
   const config = parseConfig({ resumeInterruptedTurns: true, leader: 'ctrl-a' });
 
-  expect({
-    removed: config.removedKeys,
-    restore: config.restoreFleetOnRestart,
-    leader: config.leader,
-  }).toStrictEqual({
-    removed: ['resumeInterruptedTurns'],
-    restore: true,
+  expect(config).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+      { id: 'grok', kind: 'grok', label: 'Grok', mark: 'g', bin: 'grok', args: [], env: {} },
+      { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
     leader: { code: 1, label: '^A' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: ['resumeInterruptedTurns'],
+  });
+});
+
+test('#renderDefaultConfig writes an agents map with the claude entry and no old agent key', () => {
+  expect(JSON.parse(renderDefaultConfig())).toStrictEqual({
+    agents: { claude: {} },
+    dirs: { roots: [] },
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    restoreFleetOnRestart: true,
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targets: {},
+    },
+  });
+});
+
+test('#loadConfig writes the default config when the file is missing', () => {
+  using ctx = setupTest();
+
+  const file = join(ctx.dir, 'config.json');
+
+  loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'));
+
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toStrictEqual({
+    agents: { claude: {} },
+    dirs: { roots: [] },
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    restoreFleetOnRestart: true,
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targets: {},
+    },
+  });
+});
+
+test('#loadConfig returns the defaults when the file is missing', () => {
+  using ctx = setupTest();
+
+  expect(
+    loadConfig(join(ctx.dir, 'config.json'), join(ctx.dir, 'home'), join(ctx.dir, 'state')),
+  ).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
+  });
+});
+
+test('#loadConfig leaves every target unusable when the file cannot be read', () => {
+  using ctx = setupTest();
+
+  const file = join(ctx.dir, 'config.json');
+
+  mkdirSync(file);
+
+  expect(loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'))).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [],
+    defaultTarget: null,
+    targetErrors: [{ scope: 'config', problem: 'config_unreadable', path: file, detail: 'EISDIR' }],
+    principals: new Map(),
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
+  });
+});
+
+test('#loadConfig leaves every target unusable when the file is not valid JSON', () => {
+  using ctx = setupTest();
+
+  const file = join(ctx.dir, 'config.json');
+
+  writeFileSync(file, '{ "agents": ');
+
+  expect(loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'))).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [],
+    defaultTarget: null,
+    targetErrors: [
+      {
+        scope: 'config',
+        problem: 'config_malformed',
+        path: file,
+        detail: 'the file is not valid JSON',
+      },
+    ],
+    principals: new Map(),
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });

@@ -1,4 +1,5 @@
-import { expect, test } from 'bun:test';
+import { expect, expectTypeOf, test } from 'bun:test';
+import type { AgentSessionID } from '../shared/agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { PermissionRegistry } from './permission-registry';
 
@@ -117,4 +118,8 @@ test('it resolves every pending request for a session as dismissed', () => {
   ]);
 
   expect(registry.answer(other.id, 'allow')).toBe('ok');
+});
+
+test('it refuses an agent-minted session id as the session of a request', () => {
+  expectTypeOf<AgentSessionID>().not.toExtend<Parameters<PermissionRegistry['open']>[0]>();
 });

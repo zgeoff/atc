@@ -1,14 +1,10 @@
 import { expect, test } from 'bun:test';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { collectDirRoots } from './collect-dir-roots';
 
 test('it expands a leading tilde and trims trailing slashes from each root', () => {
-  expect(collectDirRoots({ roots: ['~', '~/projects/', '/srv/work//'] })).toStrictEqual([
-    homedir(),
-    join(homedir(), 'projects'),
-    '/srv/work',
-  ]);
+  expect(
+    collectDirRoots({ roots: ['~', '~/projects/', '/srv/work//'] }, '/home/someone'),
+  ).toStrictEqual(['/home/someone', '/home/someone/projects', '/srv/work']);
 });
 
 test('it drops entries that are not non-empty strings and keeps the rest', () => {

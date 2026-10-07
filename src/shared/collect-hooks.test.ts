@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test';
-import { homedir } from 'node:os';
 import { collectHooks } from './collect-hooks';
 
 test('it collects hook entries keyed by wire-event name', () => {
@@ -50,18 +49,21 @@ test('it drops wrong-typed dir and timeout fields but keeps the entry', () => {
 });
 
 test('it expands a leading tilde and trims trailing slashes in dir', () => {
-  const hooks = collectHooks({
-    SessionAttached: [
-      { command: 'a', dir: '~/projects/ork/' },
-      { command: 'b', dir: '~' },
-      { command: 'c', dir: '/opt/x//' },
-    ],
-  });
+  const hooks = collectHooks(
+    {
+      SessionAttached: [
+        { command: 'a', dir: '~/projects/ork/' },
+        { command: 'b', dir: '~' },
+        { command: 'c', dir: '/opt/x//' },
+      ],
+    },
+    '/home/someone',
+  );
 
   expect(hooks).toStrictEqual({
     SessionAttached: [
-      { command: 'a', dir: `${homedir()}/projects/ork` },
-      { command: 'b', dir: homedir() },
+      { command: 'a', dir: '/home/someone/projects/ork' },
+      { command: 'b', dir: '/home/someone' },
       { command: 'c', dir: '/opt/x' },
     ],
   });
