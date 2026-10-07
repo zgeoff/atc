@@ -6,15 +6,21 @@ import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { buildCLIArgv } from './build-cli-argv';
 import { writeATCBridge } from './write-atc-bridge';
 
-// The folder the mod is written into.
+// A temp root with an empty folder for a first write, and a folder the mod
+// was already written into once.
 function setupTest() {
-  return setupTempDir('atc-bridge-');
+  const temp = setupTempDir('atc-bridge-');
+  const written = join(temp.dir, 'written');
+
+  writeATCBridge(written);
+
+  return { empty: join(temp.dir, 'empty'), written, [Symbol.dispose]: temp[Symbol.dispose] };
 }
 
 test('it writes the mod files and the atc command into the folder', () => {
   using ctx = setupTest();
 
-  const dir = join(ctx.dir, 'atc-bridge');
+  const dir = ctx.empty;
   const written = writeATCBridge(dir);
 
   expect({
@@ -35,14 +41,13 @@ test('it writes the mod files and the atc command into the folder', () => {
 test('it leaves a file whose content already matches untouched', () => {
   using ctx = setupTest();
 
-  const register = join(ctx.dir, 'hooks', 'register.ts');
+  const register = join(ctx.written, 'hooks', 'register.ts');
 
-  writeATCBridge(ctx.dir);
   utimesSync(register, new Date(1_000_000_000_000), new Date(1_000_000_000_000));
 
   const before = statSync(register).mtimeMs;
 
-  writeATCBridge(ctx.dir);
+  writeATCBridge(ctx.written);
 
   expect(statSync(register).mtimeMs).toBe(before);
 });
@@ -50,11 +55,10 @@ test('it leaves a file whose content already matches untouched', () => {
 test('it rewrites a file whose content changed', () => {
   using ctx = setupTest();
 
-  const register = join(ctx.dir, 'hooks', 'register.ts');
+  const register = join(ctx.written, 'hooks', 'register.ts');
 
-  writeATCBridge(ctx.dir);
   writeFileSync(register, 'stale');
-  writeATCBridge(ctx.dir);
+  writeATCBridge(ctx.written);
 
   expect(readFileSync(register, 'utf8')).toBe(ATC_BRIDGE_FILES['hooks/register.ts']);
 });

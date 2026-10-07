@@ -567,7 +567,8 @@ test("it writes the sign-in file from the oauth secret's claims and account id",
     auth_mode: 'chatgpt',
     OPENAI_API_KEY: null,
     tokens: {
-      id_token: expect.toBeString(),
+      id_token:
+        'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
       access_token: 'imp-broker-placeholder',
       refresh_token: 'imp-broker-placeholder',
       account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
@@ -833,6 +834,7 @@ test.each([
       code: 'auth_signin_needed',
       message:
         "agent 'codex' signs in through codex-chatgpt, whose ID token in impd holds no ChatGPT account id; sign Codex in again and run imp secret add codex-chatgpt --kind oauth ... --replace with the new refresh token",
+      data: { agent: 'codex', secret: 'codex-chatgpt', status: 'ready' },
     }),
   );
 });

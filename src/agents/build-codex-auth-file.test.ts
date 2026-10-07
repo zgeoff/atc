@@ -21,7 +21,8 @@ test('it writes a ChatGPT sign-in whose tokens are the placeholder and whose ref
     auth_mode: 'chatgpt',
     OPENAI_API_KEY: null,
     tokens: {
-      id_token: expect.toBeString(),
+      id_token:
+        'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIiwiY2hhdGdwdF9wbGFuX3R5cGUiOiJwcm8ifX0.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
       access_token: 'imp-broker-placeholder',
       refresh_token: 'imp-broker-placeholder',
       account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',

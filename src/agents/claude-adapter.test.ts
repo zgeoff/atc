@@ -103,6 +103,7 @@ test('it runs a headless turn through the configured claude binary under the aut
     parseConfig({}),
     runner,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   adapter.headlessRunner?.(
@@ -119,7 +120,7 @@ test('it runs a headless turn through the configured claude binary under the aut
       claudeBin: 'claude',
       permissionMode: 'auto',
       pluginDir: join(ctx.dir, 'atc-bridge'),
-      settings: expect.toEndWith('/hook-settings-claude.json'),
+      settings: join(ctx.dir, 'state', 'hook-settings-claude.json'),
     },
     expect.anything(),
   );
@@ -177,6 +178,7 @@ test('it runs a headless turn under the permission mode its configured arguments
     config,
     runner,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   adapter.headlessRunner?.(
@@ -191,7 +193,7 @@ test('it runs a headless turn under the permission mode its configured arguments
       claudeBin: 'claude',
       permissionMode: 'plan',
       pluginDir: join(ctx.dir, 'atc-bridge'),
-      settings: expect.toEndWith('/hook-settings-claude.json'),
+      settings: join(ctx.dir, 'state', 'hook-settings-claude.json'),
     },
     expect.anything(),
   );
@@ -219,6 +221,7 @@ test('it restores a stock session in the mode its settings set', () => {
     config,
     null,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
@@ -229,7 +232,7 @@ test('it restores a stock session in the mode its settings set', () => {
       '--permission-mode',
       'bypassPermissions',
       '--settings',
-      expect.toEndWith('/hook-settings-claude.json'),
+      join(ctx.dir, 'state', 'hook-settings-claude.json'),
       '--plugin-dir',
       join(ctx.dir, 'atc-bridge'),
       '--resume',
@@ -313,15 +316,41 @@ test('it quotes a configured binary path with spaces in the resume command', () 
 });
 
 test('it carries the settings file in the resume command of an entry with its own settings', () => {
+  using ctx = setupTest();
+
   const config = parseConfig({
     agents: { claude: { settings: { model: 'opus' } } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
+    stateDir: join(ctx.dir, 'state'),
+    homeDir: join(ctx.dir, 'home'),
+  });
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
-    /^cd '\/work\/repo' && claude --settings '[^']+hook-settings-claude\.json' --resume sess-1$/,
+  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
+
+  const settings: unknown = JSON.parse(
+    readFileSync(join(ctx.dir, 'state', 'hook-settings-claude.json'), 'utf8'),
   );
+
+  expect({ command, settings }).toStrictEqual({
+    command: `cd '/work/repo' && claude --settings '${join(ctx.dir, 'state', 'hook-settings-claude.json')}' --resume sess-1`,
+    settings: {
+      model: 'opus',
+      hooks: expect.toContainAllKeys([
+        'SessionStart',
+        'Notification',
+        'Stop',
+        'UserPromptSubmit',
+        'SessionEnd',
+      ]),
+      statusLine: {
+        type: 'command',
+        command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'claude'`,
+        padding: 0,
+      },
+    },
+  });
 });
 
 test('it restores a stock session without a permission-mode argument', () => {
@@ -332,6 +361,7 @@ test('it restores a stock session without a permission-mode argument', () => {
     parseConfig({}),
     null,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
@@ -340,7 +370,7 @@ test('it restores a stock session without a permission-mode argument', () => {
     bin: 'claude',
     args: [
       '--settings',
-      expect.toEndWith('/hook-settings-claude.json'),
+      join(ctx.dir, 'state', 'hook-settings-claude.json'),
       '--plugin-dir',
       join(ctx.dir, 'atc-bridge'),
       '--resume',
@@ -408,6 +438,8 @@ test('it selects the subscription token on the Anthropic API with the placeholde
 });
 
 test('it plans a subscription guest spawn with its own config folder, the placeholder, and no permission mode', () => {
+  using ctx = setupTest();
+
   const config = parseConfig({
     claudeArgs: ['--permission-mode', 'plan', '--verbose'],
     authProfiles: {
@@ -421,7 +453,9 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
     claudeAuth: { profiles: ['claude'] },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
+    homeDir: join(ctx.dir, 'home'),
+  });
 
   const plan = adapter.planGuestSpawn(
     { prompt: 'hi', resume: false },
@@ -535,7 +569,9 @@ test("it ships the host's Claude config as the session's user settings and keeps
     agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
+    homeDir: join(ctx.dir, 'home'),
+  });
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -612,6 +648,8 @@ test("it ships the host's Claude config as the session's user settings and keeps
 });
 
 test('it gives a subscription guest spawn its MCP servers with the placeholder in an MCP config of its binding revision', () => {
+  using ctx = setupTest();
+
   const config = parseConfig({
     authProfiles: {
       claude: {
@@ -637,7 +675,9 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
     },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
+    homeDir: join(ctx.dir, 'home'),
+  });
 
   const plan = adapter.planGuestSpawn(
     { prompt: 'hi', resume: false },
@@ -852,7 +892,9 @@ test('it refuses to start a subscription session in a host whose environment set
     claudeAuth: { profiles: ['claude'] },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
+    homeDir: join(ctx.dir, 'home'),
+  });
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -965,7 +1007,9 @@ test('it starts a subscription session with a seeded config folder in a host who
     claudeAuth: { profiles: ['claude'] },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
+    homeDir: join(ctx.dir, 'home'),
+  });
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -1030,6 +1074,8 @@ test("it seeds folder trust and approval of the clone's own MCP servers for the 
 });
 
 test("it sets a profile's variables in a subscription guest's settings env and spawn env", () => {
+  using ctx = setupTest();
+
   const config = parseConfig({
     authProfiles: {
       claude: {
@@ -1052,7 +1098,9 @@ test("it sets a profile's variables in a subscription guest's settings env and s
     claudeAuth: { profiles: ['claude', 'op'] },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
+    homeDir: join(ctx.dir, 'home'),
+  });
 
   const plan = adapter.planGuestSpawn(
     { prompt: 'hi', resume: false },
@@ -1138,17 +1186,38 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
     config,
     null,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: false });
 
-  expect(plan).toStrictEqual({
-    bin: 'claude',
-    args: [
-      '--settings',
-      expect.toEndWith('/hook-settings-claude.json'),
-      '--plugin-dir',
-      join(ctx.dir, 'atc-bridge'),
-    ],
+  const settings: unknown = JSON.parse(
+    readFileSync(join(ctx.dir, 'state', 'hook-settings-claude.json'), 'utf8'),
+  );
+
+  expect({ plan, settings }).toStrictEqual({
+    settings: {
+      hooks: expect.toContainAllKeys([
+        'SessionStart',
+        'Notification',
+        'Stop',
+        'UserPromptSubmit',
+        'SessionEnd',
+      ]),
+      statusLine: {
+        type: 'command',
+        command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'claude'`,
+        padding: 0,
+      },
+    },
+    plan: {
+      bin: 'claude',
+      args: [
+        '--settings',
+        join(ctx.dir, 'state', 'hook-settings-claude.json'),
+        '--plugin-dir',
+        join(ctx.dir, 'atc-bridge'),
+      ],
+    },
   });
 });

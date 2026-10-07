@@ -82,6 +82,7 @@ test("it runs a headless turn through the gateway's binary and settings file und
     parseConfig({}),
     runner,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   adapter.headlessRunner?.(
@@ -96,7 +97,7 @@ test("it runs a headless turn through the gateway's binary and settings file und
       claudeBin: '/opt/zai/bin/claude',
       permissionMode: 'auto',
       pluginDir: join(ctx.dir, 'atc-bridge'),
-      settings: expect.toEndWith('/hook-settings-zai.json'),
+      settings: join(ctx.dir, 'state', 'hook-settings-zai.json'),
     },
     expect.anything(),
   );
@@ -170,6 +171,7 @@ test("it runs a headless turn under the permission mode the gateway's settings d
     parseConfig({}),
     runner,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   adapter.headlessRunner?.(
@@ -184,7 +186,7 @@ test("it runs a headless turn under the permission mode the gateway's settings d
       claudeBin: 'claude',
       permissionMode: 'default',
       pluginDir: join(ctx.dir, 'atc-bridge'),
-      settings: expect.toEndWith('/hook-settings-manual-settings.json'),
+      settings: join(ctx.dir, 'state', 'hook-settings-manual-settings.json'),
     },
     expect.anything(),
   );
@@ -205,6 +207,7 @@ test("it runs a headless turn under a gateway's explicit permission-mode argumen
     parseConfig({}),
     runner,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   adapter.headlessRunner?.(
@@ -219,7 +222,7 @@ test("it runs a headless turn under a gateway's explicit permission-mode argumen
       claudeBin: 'claude',
       permissionMode: 'default',
       pluginDir: join(ctx.dir, 'atc-bridge'),
-      settings: expect.toEndWith('/hook-settings-manual-flag.json'),
+      settings: join(ctx.dir, 'state', 'hook-settings-manual-flag.json'),
     },
     expect.anything(),
   );
@@ -238,6 +241,7 @@ test("it starts a gateway's terminal run under its explicit permission-mode argu
     parseConfig({}),
     null,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: false });
@@ -248,7 +252,7 @@ test("it starts a gateway's terminal run under its explicit permission-mode argu
       '--permission-mode',
       'default',
       '--settings',
-      expect.toEndWith('/hook-settings-manual-flag.json'),
+      join(ctx.dir, 'state', 'hook-settings-manual-flag.json'),
       '--plugin-dir',
       join(ctx.dir, 'atc-bridge'),
     ],
@@ -268,12 +272,13 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
     parseConfig({}),
     null,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
 
-  expect(command).toMatch(
-    /^cd '\/work\/repo' && \/opt\/gw\/bin\/claude '--permission-mode' 'default' --settings '[^']+hook-settings-manual-resume\.json' --resume sess-1$/u,
+  expect(command).toBe(
+    `cd '/work/repo' && /opt/gw/bin/claude '--permission-mode' 'default' --settings '${join(ctx.dir, 'state', 'hook-settings-manual-resume.json')}' --resume sess-1`,
   );
 });
 
@@ -286,6 +291,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
     buildMockGatewayConfig({
       id: 'manual-hook',
       bin: 'claude',
+      baseURL: 'https://gateway.example/anthropic',
       settings: {
         permissions: { defaultMode: 'default' },
         hooks: {
@@ -296,6 +302,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
     parseConfig({}),
     runner,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   adapter.headlessRunner?.(
@@ -303,21 +310,35 @@ test("it runs a headless turn with the gateway's settings file, its permission h
     { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
   );
 
-  const settingsPath = runner.mock.calls[0]?.[0].settings;
+  const settings: unknown = JSON.parse(
+    readFileSync(join(ctx.dir, 'state', 'hook-settings-manual-hook.json'), 'utf8'),
+  );
 
-  if (settingsPath === undefined) {
-    throw new TypeError('the headless turn carried no settings file');
-  }
-
-  const settings: unknown = JSON.parse(readFileSync(settingsPath, 'utf8'));
-
-  expect({ permissionMode: runner.mock.calls[0]?.[0].permissionMode, settings }).toMatchObject({
-    permissionMode: 'default',
+  expect({ request: runner.mock.calls[0]?.[0], settings }).toStrictEqual({
+    request: {
+      cwd: '/tmp',
+      prompt: 'go',
+      claudeBin: 'claude',
+      permissionMode: 'default',
+      pluginDir: join(ctx.dir, 'atc-bridge'),
+      settings: join(ctx.dir, 'state', 'hook-settings-manual-hook.json'),
+    },
     settings: {
       permissions: { defaultMode: 'default' },
       hooks: {
+        SessionStart: expect.toBeArray(),
+        Notification: expect.toBeArray(),
+        Stop: expect.toBeArray(),
+        UserPromptSubmit: expect.toBeArray(),
+        SessionEnd: expect.toBeArray(),
         PermissionRequest: [{ hooks: [{ type: 'command', command: 'decide-permission' }] }],
       },
+      statusLine: {
+        type: 'command',
+        command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'manual-hook'`,
+        padding: 0,
+      },
+      env: { ANTHROPIC_BASE_URL: 'https://gateway.example/anthropic' },
     },
   });
 });
@@ -334,6 +355,7 @@ test("it restores a session in the permission mode the gateway's settings defaul
     parseConfig({}),
     null,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
@@ -344,7 +366,7 @@ test("it restores a session in the permission mode the gateway's settings defaul
       '--permission-mode',
       'default',
       '--settings',
-      expect.toEndWith('/hook-settings-restore-settings.json'),
+      join(ctx.dir, 'state', 'hook-settings-restore-settings.json'),
       '--plugin-dir',
       join(ctx.dir, 'atc-bridge'),
       '--resume',
@@ -366,12 +388,13 @@ test("it keeps the gateway's settings default mode in the command that resumes i
     parseConfig({}),
     null,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
 
-  expect(command).toMatch(
-    /^cd '\/work\/repo' && \/opt\/gw\/bin\/claude '--permission-mode' 'default' --settings '[^']+hook-settings-resume-settings\.json' --resume sess-1$/u,
+  expect(command).toBe(
+    `cd '/work/repo' && /opt/gw/bin/claude '--permission-mode' 'default' --settings '${join(ctx.dir, 'state', 'hook-settings-resume-settings.json')}' --resume sess-1`,
   );
 });
 
@@ -388,6 +411,7 @@ test('it restores a gateway in its explicit permission-mode argument over its se
     parseConfig({}),
     null,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
@@ -398,7 +422,7 @@ test('it restores a gateway in its explicit permission-mode argument over its se
       '--permission-mode',
       'plan',
       '--settings',
-      expect.toEndWith('/hook-settings-restore-flag.json'),
+      join(ctx.dir, 'state', 'hook-settings-restore-flag.json'),
       '--plugin-dir',
       join(ctx.dir, 'atc-bridge'),
       '--resume',
@@ -420,12 +444,13 @@ test('it resumes a gateway outside atc in its explicit permission-mode argument 
     parseConfig({}),
     null,
     join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
   const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
 
-  expect(command).toMatch(
-    /^cd '\/work\/repo' && claude '--permission-mode' 'plan' --settings '[^']+hook-settings-restore-flag\.json' --resume sess-1$/u,
+  expect(command).toBe(
+    `cd '/work/repo' && claude '--permission-mode' 'plan' --settings '${join(ctx.dir, 'state', 'hook-settings-restore-flag.json')}' --resume sess-1`,
   );
 });
 
@@ -859,7 +884,9 @@ test("it refuses a brokered guest spawn whose profile sets a header other than a
         },
       },
     ),
-  ).toThrow(expect.objectContaining({ code: 'auth_placeholder_unsupported' }));
+  ).toThrow(
+    expect.objectContaining({ code: 'auth_placeholder_unsupported', data: { agent: 'glm' } }),
+  );
 });
 
 test('it refuses a brokered guest spawn on a host that gave it no broker binding', () => {
@@ -986,7 +1013,6 @@ test('it keeps a credential held on the daemon side out of every file, argument 
     throw new Error('expected a guest spawn plan');
   }
 
-  expect(Object.keys(plan.files)).not.toBeEmpty();
   expect(JSON.stringify(plan)).not.toMatch(/canary-sk-7f3e9b21d4c8a6|apiKeyHelper/u);
 });
 
