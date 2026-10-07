@@ -18,7 +18,7 @@ test('it builds no provider for an imp target without a url', () => {
   });
 });
 
-test("it builds an imp provider that takes the target's guest options without calling impd", () => {
+test("it builds an imp provider that takes the target's guest options", () => {
   const built = buildImpProvider(
     'box',
     {

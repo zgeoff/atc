@@ -1,8 +1,9 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStubHarnessGuest } from './create-stub-harness-guest';
 import { setupTempDir } from './setup-temp-dir';
+import { waitFor } from './wait-for';
 
 function setupTest() {
   const tmp = setupTempDir('atc-stub-harness-guest-');
@@ -32,6 +33,10 @@ test('it prints its pid on start, echoes each line, and exits 3 on quit', async 
   const guest = createStubHarnessGuest(ctx.dir);
   const proc = Bun.spawn([guest.path], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
 
+  onTestFinished(() => {
+    proc.kill('SIGKILL');
+  });
+
   void proc.stdin.write('one\nquit\n');
 
   await proc.stdin.end();
@@ -44,33 +49,59 @@ test('it prints its pid on start, echoes each line, and exits 3 on quit', async 
   });
 });
 
-test('it prints the terminal size on size', async () => {
+test('it prints the terminal size it starts at, and the size again on size', async () => {
   using ctx = setupTest();
 
   const guest = createStubHarnessGuest(ctx.dir);
 
-  // With no terminal on its input, the size it reads is empty.
-  const proc = Bun.spawn([guest.path], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
+  const decoder = new TextDecoder();
 
-  void proc.stdin.write('size\nquit\n');
+  const output: string[] = [];
 
-  await proc.stdin.end();
+  const proc = Bun.spawn([guest.path], {
+    terminal: {
+      cols: 100,
+      rows: 30,
+      data: (_terminal, data) => {
+        output.push(decoder.decode(data));
+      },
+    },
+  });
 
-  const stdout = await new Response(proc.stdout).text();
+  onTestFinished(() => {
+    proc.kill('SIGKILL');
+    proc.terminal?.close();
+  });
 
-  expect(stdout).toBe(`UP:${proc.pid} START:\nSIZE:\nGOT:size\n`);
+  await waitFor(() => {
+    expect(output.join('')).toInclude(`UP:${proc.pid} START:30 100\r\n`);
+  });
+
+  proc.terminal?.write('size\n');
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('SIZE:30 100\r\nGOT:size\r\n');
+  });
 });
 
 test('it prints the burst on later once a line reaches the burst pipe', async () => {
   using ctx = setupTest();
 
   const guest = createStubHarnessGuest(ctx.dir);
+  const output: string[] = [];
   const proc = Bun.spawn([guest.path], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
 
-  const decoder = new TextDecoder();
+  onTestFinished(() => {
+    proc.kill('SIGKILL');
+  });
 
-  const reader = proc.stdout.getReader();
-  let output = '';
+  const read = proc.stdout.pipeThrough(new TextDecoderStream()).pipeTo(
+    new WritableStream({
+      write: (chunk) => {
+        output.push(chunk);
+      },
+    }),
+  );
 
   void proc.stdin.write('later\n');
 
@@ -78,21 +109,15 @@ test('it prints the burst on later once a line reaches the burst pipe', async ()
 
   // The burst waits on the pipe, so nothing follows the echo until a line
   // reaches it.
-  while (!output.endsWith('GOT:later\n')) {
-    const chunk = await reader.read();
-
-    if (chunk.done) {
-      throw new Error(`the guest ended before it echoed the line: ${output}`);
-    }
-
-    output += decoder.decode(chunk.value);
-  }
+  await waitFor(() => {
+    expect(output.join('')).toBe(`UP:${proc.pid} START:\nGOT:later\n`);
+  });
 
   writeFileSync(guest.burstPath, 'go\n');
 
-  for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
-    output += decoder.decode(chunk.value);
-  }
+  await read;
 
-  expect(output).toBe(`UP:${proc.pid} START:\nGOT:later\n${'x'.repeat(300_000)}\nBURST_DONE\n`);
+  expect(output.join('')).toBe(
+    `UP:${proc.pid} START:\nGOT:later\n${'x'.repeat(300_000)}\nBURST_DONE\n`,
+  );
 });

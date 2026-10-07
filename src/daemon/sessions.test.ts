@@ -7,6 +7,7 @@ import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubHostProvider } from '../test-utils/build-stub-host-provider';
+import { buildStubLog } from '../test-utils/build-stub-log';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
@@ -15,10 +16,10 @@ import { LocalPTYProvider } from './local-pty-provider';
 import { SessionManager } from './sessions';
 
 // The fixed parts every session manager test shares: a real state store, a
-// recorder of logged lines, and two target providers: `local` on this
-// machine's terminals, and `box`, whose hosts can sleep and be destroyed.
-// `defer` runs a teardown before the store and the providers go, so a
-// manager the test builds detaches first.
+// recorder of logged lines, and two targets: `local` on this machine's
+// terminals, and `box`, whose hosts can sleep and be destroyed. `defer`
+// runs a teardown before the store and the providers go, so a manager the
+// test builds detaches first.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
@@ -40,7 +41,7 @@ async function setupTest() {
     box.dispose();
   });
 
-  const lines: string[] = [];
+  const recorder = buildStubLog();
   const owned = stack.move();
 
   return {
@@ -48,12 +49,18 @@ async function setupTest() {
     dbPath,
     statusPath: join(tmp.dir, 'status.json'),
     store,
-    local,
-    box,
-    lines,
-    log: (line: string) => {
-      lines.push(line);
-    },
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: box },
+    ],
+    lines: recorder.lines,
+    log: recorder.log,
     defer: (teardown: () => void) => {
       owned.defer(teardown);
     },
@@ -69,16 +76,7 @@ test('it restores an entry whose agent id is registered as waiting for its termi
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -87,13 +85,15 @@ test('it restores an entry whose agent id is registered as waiting for its termi
     mgr.detachAll();
   });
 
-  const session = mgr.restore({
-    sessionID: toSessionID('s-c-1'),
-    name: 'claude work',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-1'),
-    agent: 'claude',
-  });
+  const session = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-1'),
+      name: 'claude work',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-1'),
+      agent: 'claude',
+    }),
+  );
 
   expect(session.lastMsg).toBe('waiting to restore');
 });
@@ -106,16 +106,7 @@ test('it restores an entry whose agent id is unregistered with a message that th
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -124,13 +115,15 @@ test('it restores an entry whose agent id is unregistered with a message that th
     mgr.detachAll();
   });
 
-  const session = mgr.restore({
-    sessionID: toSessionID('s-z-1'),
-    name: 'glm work',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('z-1'),
-    agent: 'zai',
-  });
+  const session = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-z-1'),
+      name: 'glm work',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('z-1'),
+      agent: 'zai',
+    }),
+  );
 
   expect(session.lastMsg).toBe("no adapter for 'zai'");
 });
@@ -143,16 +136,7 @@ test('it never revives a restored entry whose agent id is unregistered as anothe
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -161,13 +145,15 @@ test('it never revives a restored entry whose agent id is unregistered as anothe
     mgr.detachAll();
   });
 
-  const session = mgr.restore({
-    sessionID: toSessionID('s-z-1'),
-    name: 'glm work',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('z-1'),
-    agent: 'zai',
-  });
+  const session = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-z-1'),
+      name: 'glm work',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('z-1'),
+      agent: 'zai',
+    }),
+  );
 
   const adopted = await mgr.adoptTerminal(session.id, 80, 24);
 
@@ -184,16 +170,7 @@ test('it resolves an agent id to the registered adapter that declares it', async
     ctx.store,
     ctx.statusPath,
     [gateway],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -215,16 +192,7 @@ test('it resolves the fallback adapter by its own id, not by another registered 
     ctx.store,
     ctx.statusPath,
     [buildMockAgentAdapter({ id: 'zai' })],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -244,16 +212,7 @@ test('it resolves an agent id no adapter declares to no adapter', async () => {
     ctx.store,
     ctx.statusPath,
     [buildMockAgentAdapter({ id: 'zai' })],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -273,16 +232,7 @@ test('it reports no screen detector when no registered adapter provides one', as
     ctx.store,
     ctx.statusPath,
     [buildMockAgentAdapter({ id: 'zai' })],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -302,16 +252,7 @@ test('it reports a screen detector when a registered adapter provides one', asyn
     ctx.store,
     ctx.statusPath,
     [buildMockAgentAdapter({ id: 'zai', screenDetector: { detectAttention: () => null } })],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -331,16 +272,7 @@ test('it links a restored sub-session to the parent already registered under its
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -349,22 +281,26 @@ test('it links a restored sub-session to the parent already registered under its
     mgr.detachAll();
   });
 
-  const parent = mgr.restore({
-    sessionID: toSessionID('s-c-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-  });
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
 
-  const child = mgr.restore({
-    sessionID: toSessionID('s-c-child'),
-    name: 'worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-child'),
-    agent: 'claude',
-    parent: toSessionID('s-c-parent'),
-  });
+  const child = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
 
   expect(child.parent).toBe(parent.id);
 });
@@ -377,16 +313,7 @@ test('it restores a sub-session whose parent is absent as a top-level session', 
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -395,14 +322,16 @@ test('it restores a sub-session whose parent is absent as a top-level session', 
     mgr.detachAll();
   });
 
-  const child = mgr.restore({
-    sessionID: toSessionID('s-c-child'),
-    name: 'worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-child'),
-    agent: 'claude',
-    parent: toSessionID('s-c-gone'),
-  });
+  const child = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-gone'),
+    }),
+  );
 
   expect(child.parent).toBeNull();
 });
@@ -415,16 +344,7 @@ test('it persists a sub-session link by the parent atc session id', async () => 
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -433,13 +353,15 @@ test('it persists a sub-session link by the parent atc session id', async () => 
     mgr.detachAll();
   });
 
-  const parent = mgr.restore({
-    sessionID: toSessionID('s-c-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-  });
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
 
   const child = await mgr.spawn(
     ctx.dir,
@@ -490,16 +412,7 @@ test('it stores a sub-session under a sub-session that resumed their parent agen
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -562,16 +475,7 @@ test('it refuses to pin a sub-session and leaves it unpinned', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -580,22 +484,26 @@ test('it refuses to pin a sub-session and leaves it unpinned', async () => {
     mgr.detachAll();
   });
 
-  mgr.restore({
-    sessionID: toSessionID('s-c-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
 
-  const child = mgr.restore({
-    sessionID: toSessionID('s-c-child'),
-    name: 'worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-child'),
-    agent: 'claude',
-    parent: toSessionID('s-c-parent'),
-  });
+  const child = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
 
   const pinned = mgr.updateSession(child.id, undefined, true);
 
@@ -613,16 +521,7 @@ test('it pins a parent that has a sub-session', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -631,22 +530,26 @@ test('it pins a parent that has a sub-session', async () => {
     mgr.detachAll();
   });
 
-  const parent = mgr.restore({
-    sessionID: toSessionID('s-c-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-  });
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
 
-  mgr.restore({
-    sessionID: toSessionID('s-c-child'),
-    name: 'worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-child'),
-    agent: 'claude',
-    parent: toSessionID('s-c-parent'),
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
 
   expect(mgr.updateSession(parent.id, undefined, true)).toBeTrue();
 });
@@ -659,16 +562,7 @@ test('it kills a live sub-session along with its parent', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -697,16 +591,7 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -715,24 +600,28 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
     mgr.detachAll();
   });
 
-  const parent = mgr.restore({
-    sessionID: toSessionID('s-c-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-    exited: true,
-  });
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+      exited: true,
+    }),
+  );
 
-  mgr.restore({
-    sessionID: toSessionID('s-c-dead'),
-    name: 'dead worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-dead'),
-    agent: 'claude',
-    exited: true,
-    parent: toSessionID('s-c-parent'),
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-dead'),
+      name: 'dead worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-dead'),
+      agent: 'claude',
+      exited: true,
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
 
   const live = await mgr.spawn(
     ctx.dir,
@@ -761,16 +650,7 @@ test('it keeps an exited sub-session on a host-destroying target when a second k
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -779,28 +659,32 @@ test('it keeps an exited sub-session on a host-destroying target when a second k
     mgr.detachAll();
   });
 
-  mgr.restore({
-    sessionID: toSessionID('s-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-    exited: true,
-    target: 'local',
-    targetIdentity: buildTargetIdentity('local-pty', {}),
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+      exited: true,
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
+    }),
+  );
 
-  const remote = mgr.restore({
-    sessionID: toSessionID('s-remote'),
-    name: 'remote worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-remote'),
-    agent: 'claude',
-    exited: true,
-    parent: toSessionID('s-parent'),
-    target: 'box',
-    targetIdentity: 'imp-like:test',
-  });
+  const remote = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote'),
+      name: 'remote worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-remote'),
+      agent: 'claude',
+      exited: true,
+      parent: toSessionID('s-parent'),
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  );
 
   await mgr.kill(toSessionID('s-parent'));
 
@@ -817,16 +701,7 @@ test("it refuses to forget a session kept asleep inside its parent's host and ke
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -835,31 +710,35 @@ test("it refuses to forget a session kept asleep inside its parent's host and ke
     mgr.detachAll();
   });
 
-  mgr.restore({
-    sessionID: toSessionID('s-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-    exited: true,
-    desired: 'sleep',
-    target: 'box',
-    targetIdentity: 'imp-like:test',
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+      exited: true,
+      desired: 'sleep',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  );
 
-  mgr.restore({
-    sessionID: toSessionID('s-guest'),
-    name: 'guest',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-guest'),
-    agent: 'claude',
-    exited: true,
-    desired: 'sleep',
-    parent: toSessionID('s-parent'),
-    hostKey: toSessionID('s-parent'),
-    target: 'box',
-    targetIdentity: 'imp-like:test',
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-guest'),
+      name: 'guest',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-guest'),
+      agent: 'claude',
+      exited: true,
+      desired: 'sleep',
+      parent: toSessionID('s-parent'),
+      hostKey: toSessionID('s-parent'),
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  );
 
   const forgotten = mgr.forget(toSessionID('s-guest'));
 
@@ -882,16 +761,7 @@ test("it forgets an exited session on its parent's host while that host is not a
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -900,29 +770,33 @@ test("it forgets an exited session on its parent's host while that host is not a
     mgr.detachAll();
   });
 
-  mgr.restore({
-    sessionID: toSessionID('s-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-    exited: true,
-    target: 'box',
-    targetIdentity: 'imp-like:test',
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+      exited: true,
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  );
 
-  mgr.restore({
-    sessionID: toSessionID('s-guest'),
-    name: 'guest',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-guest'),
-    agent: 'claude',
-    exited: true,
-    parent: toSessionID('s-parent'),
-    hostKey: toSessionID('s-parent'),
-    target: 'box',
-    targetIdentity: 'imp-like:test',
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-guest'),
+      name: 'guest',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-guest'),
+      agent: 'claude',
+      exited: true,
+      parent: toSessionID('s-parent'),
+      hostKey: toSessionID('s-parent'),
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  );
 
   const destroyed = await mgr.forget(toSessionID('s-guest'));
 
@@ -944,16 +818,7 @@ test("it keeps a finished turn's last message as the session result", async () =
         normalizeHook: () => ({ kind: 'turn-done', result: 'all green' }),
       }),
     ],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -998,16 +863,7 @@ test('it truncates a stored result past 16 KiB', async () => {
         normalizeHook: () => ({ kind: 'turn-done', result: 'x'.repeat(20_000) }),
       }),
     ],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -1043,16 +899,7 @@ test('it persists the transcript path its hooks report', async () => {
         }),
       }),
     ],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -1092,16 +939,7 @@ test("it restores an entry's prompt, result, and transcript path onto the sessio
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -1110,16 +948,18 @@ test("it restores an entry's prompt, result, and transcript path onto the sessio
     mgr.detachAll();
   });
 
-  const session = mgr.restore({
-    sessionID: toSessionID('s-c-1'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-1'),
-    agent: 'claude',
-    prompt: 'go',
-    result: 'done',
-    transcriptPath: '/t.jsonl',
-  });
+  const session = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-1'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-1'),
+      agent: 'claude',
+      prompt: 'go',
+      result: 'done',
+      transcriptPath: '/t.jsonl',
+    }),
+  );
 
   expect(session).toMatchObject({ prompt: 'go', result: 'done', transcriptPath: '/t.jsonl' });
   expect(session.transcriptSource).toBeUndefined();
@@ -1137,16 +977,7 @@ test('it keeps a crashed sibling restorable as live when another session finishe
         normalizeHook: () => ({ kind: 'turn-done', result: 'all green' }),
       }),
     ],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -1207,16 +1038,7 @@ test('it restores an entry under the session id its row holds', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -1225,13 +1047,15 @@ test('it restores an entry under the session id its row holds', async () => {
     mgr.detachAll();
   });
 
-  const session = mgr.restore({
-    sessionID: toSessionID('7d3f0c1e-2b4a-4c5d-8e9f-0a1b2c3d4e5f'),
-    name: 'claude work',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-1'),
-    agent: 'claude',
-  });
+  const session = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('7d3f0c1e-2b4a-4c5d-8e9f-0a1b2c3d4e5f'),
+      name: 'claude work',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-1'),
+      agent: 'claude',
+    }),
+  );
 
   expect(session.id).toBe(toSessionID('7d3f0c1e-2b4a-4c5d-8e9f-0a1b2c3d4e5f'));
 });
@@ -1244,16 +1068,7 @@ test('it restores an entry with no agent session id as exited', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -1283,16 +1098,7 @@ test('it persists a session the agent has not yet given a session id', async () 
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -1328,16 +1134,7 @@ test('it logs a background fleet write that fails and keeps the change in memory
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -1379,16 +1176,7 @@ test('it logs a background row update that fails', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;
@@ -1428,16 +1216,7 @@ test('it logs nothing for a background fleet write refused as stale_epoch', asyn
     ctx.store,
     ctx.statusPath,
     [],
-    [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
-    ],
+    ctx.targets,
   );
 
   mgr.log = ctx.log;

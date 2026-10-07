@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -25,6 +25,10 @@ test('it packs files that tar unpacks with their content, parent directories, an
     stderr: 'pipe',
   });
 
+  onTestFinished(() => {
+    proc.kill('SIGKILL');
+  });
+
   const stderr = await new Response(proc.stderr).text();
 
   expect({ code: await proc.exited, stderr }).toStrictEqual({ code: 0, stderr: '' });
@@ -47,6 +51,10 @@ test('it packs a path longer than 100 bytes that tar unpacks at the full path', 
     stdin: buildTarArchive([{ path, content: 'deep' }]),
     stdout: 'ignore',
     stderr: 'pipe',
+  });
+
+  onTestFinished(() => {
+    proc.kill('SIGKILL');
   });
 
   const stderr = await new Response(proc.stderr).text();

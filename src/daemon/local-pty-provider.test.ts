@@ -483,6 +483,10 @@ console.log(output);
     stderr: 'inherit',
   });
 
+  onTestFinished(() => {
+    proc.kill('SIGKILL');
+  });
+
   const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
 
   expect(exitCode).toBe(0);

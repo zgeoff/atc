@@ -99,11 +99,27 @@ test('it reconnects after impd drops a send and resumes after the last byte it h
     expect(output.join('')).toInclude('GOT:two');
   });
 
-  expect(ctx.port.sessionRequests[1]).toMatchObject({
-    kind: 'attach',
-    wake: false,
-    resumeFrom: { executionGeneration: ctx.port.getGeneration('imp-a', 's1'), offset: end },
-  });
+  expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [guest.path],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      kind: 'attach',
+      name: 'imp-a',
+      session: 's1',
+      cols: 80,
+      rows: 24,
+      wake: false,
+      resumeFrom: { executionGeneration: ctx.port.getGeneration('imp-a', 's1'), offset: end },
+    },
+  ]);
 
   expect(attachments).toStrictEqual(['attached', 'reattaching', 'attached']);
   expect(exits).toBeEmpty();
@@ -380,7 +396,33 @@ test('it takes the session back from another connection that takes it over', asy
   );
 
   expect(other.outcome).resolves.toMatchObject({ kind: 'detached', reason: 'taken_over' });
-  expect(ctx.port.sessionRequests[2]).toMatchObject({ kind: 'attach', wake: false });
+
+  expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [guest.path],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
+    {
+      kind: 'attach',
+      name: 'imp-a',
+      session: 's1',
+      cols: 80,
+      rows: 24,
+      wake: false,
+
+      resumeFrom: {
+        executionGeneration: ctx.port.getGeneration('imp-a', 's1'),
+        offset: ctx.port.getEnd('imp-a', 's1'),
+      },
+    },
+  ]);
 });
 
 test('it carries input once it takes the session back from another connection', async () => {
@@ -1003,7 +1045,32 @@ test('it reports a harness whose imp another owner put to sleep as suspended, wi
     expect(exits).toStrictEqual([{ exitCode: 0, reason: 'suspended' }]);
   });
 
-  expect(ctx.port.sessionRequests[1]).toMatchObject({ kind: 'attach', wake: false });
+  expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [guest.path],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      kind: 'attach',
+      name: 'imp-a',
+      session: 's1',
+      cols: 80,
+      rows: 24,
+      wake: false,
+
+      resumeFrom: {
+        executionGeneration: ctx.port.getGeneration('imp-a', 's1'),
+        offset: ctx.port.getEnd('imp-a', 's1'),
+      },
+    },
+  ]);
+
   expect(ctx.port.findState('imp-a')).toBe('sleeping');
 });
 
@@ -1325,7 +1392,18 @@ test('it starts at the size a resize asked for while its host was still readying
     expect(output.join('')).toInclude('START:40 100');
   });
 
-  expect(ctx.port.sessionRequests).toMatchObject([{ kind: 'start', cols: 100, rows: 40 }]);
+  expect(ctx.port.sessionRequests).toStrictEqual([
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [guest.path],
+      env: {},
+      cwd: ctx.dir,
+      cols: 100,
+      rows: 40,
+    },
+  ]);
 });
 
 test('it applies a resize that arrived before impd answered the start', async () => {
@@ -1541,9 +1619,28 @@ test('it requires the broker again on the attach that reconnects a harness whose
     expect(attachments).toStrictEqual(['attached', 'reattaching', 'attached']);
   });
 
-  expect(ctx.port.sessionRequests.filter((request) => request.name === 'imp-b')).toMatchObject([
-    { kind: 'start', require: ['broker'] },
-    { kind: 'attach', require: ['broker'] },
+  expect(ctx.port.sessionRequests).toStrictEqual([
+    {
+      kind: 'start',
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    {
+      kind: 'attach',
+      name: 'imp-b',
+      session: 's2',
+      cols: 80,
+      rows: 24,
+      wake: false,
+      require: ['broker'],
+      resumeFrom: { executionGeneration: ctx.port.getGeneration('imp-b', 's2'), offset: 0 },
+    },
   ]);
 });
 
@@ -1838,8 +1935,18 @@ test('it sends the start of a harness whose admission check passes as its connec
 
   expect(harness.waitForStart()).resolves.toBeUndefined();
 
-  expect(ctx.port.sessionRequests.filter((request) => request.name === 'imp-b')).toMatchObject([
-    { kind: 'start', name: 'imp-b' },
+  expect(ctx.port.sessionRequests).toStrictEqual([
+    {
+      kind: 'start',
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
   ]);
 });
 
