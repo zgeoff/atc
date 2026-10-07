@@ -7,27 +7,24 @@ import { openMCPAuth } from './open-mcp-auth';
 
 // A temp directory for the store and a telemetry collector a store process
 // could report to.
-function setupTest() {
-  using stack = new DisposableStack();
+// oxlint-disable-next-line require-await -- the await is the `await using` declaration that releases the stack when a later setup step throws
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-mcp-auth-'));
-  const collector = startStubTelemetryCollector();
+  const collector = stack.use(startStubTelemetryCollector());
   const owned = stack.move();
 
   return {
     dir: tmp.dir,
     dbPath: join(tmp.dir, 'mcp-auth.db'),
     collector,
-    [Symbol.asyncDispose]: async () => {
-      await collector[Symbol.asyncDispose]();
-
-      owned.dispose();
-    },
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it sends no telemetry when the environment turns it on', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
 
   // better-auth never sends telemetry under NODE_ENV=test, so the store
   // opens in a production-mode process of its own. A request the store
@@ -63,7 +60,7 @@ await store.close();`,
 });
 
 test('it refuses a resource an earlier public URL served', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
 
   const before = await openMCPAuth({ dbPath: ctx.dbPath, origin: 'https://old.example' });
 
@@ -101,7 +98,7 @@ test('it refuses a resource an earlier public URL served', async () => {
 });
 
 test('it creates the database and its write-ahead log readable by their owner only', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
 
   const store = await openMCPAuth({ dbPath: ctx.dbPath, origin: null });
 
@@ -112,7 +109,7 @@ test('it creates the database and its write-ahead log readable by their owner on
 });
 
 test('it makes an existing database readable by its owner only', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
 
   writeFileSync(ctx.dbPath, '', { mode: 0o644 });
   chmodSync(ctx.dbPath, 0o644);

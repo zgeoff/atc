@@ -373,10 +373,13 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
 
   const body: unknown = await listed.json();
 
-  expect(body).toMatchObject({
+  expect(body).toStrictEqual({
     jsonrpc: '2.0',
     id: 1,
-    result: { structuredContent: { sessions: [spawned['session']] } },
+    result: {
+      content: [{ type: 'text', text: JSON.stringify([spawned['session']], null, 2) }],
+      structuredContent: { sessions: [spawned['session']] },
+    },
   });
 });
 

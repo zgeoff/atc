@@ -1,6 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
+import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
@@ -8,6 +10,7 @@ import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { answerRPCRequest } from './answer-rpc-request';
+import { buildToolList } from './build-tool-list';
 import { ReconnectingCaller } from './reconnecting-caller';
 
 // A real daemon whose one agent is a `claude` that is not installed and
@@ -193,9 +196,15 @@ test('it lists every tool to a caller with one scope', async () => {
     },
   );
 
-  expect(outcome).toMatchObject({
+  expect(outcome).toStrictEqual({
     kind: 'reply',
-    body: { result: { tools: expect.toBeArrayOfSize(17) } },
+    body: {
+      jsonrpc: '2.0',
+      id: 2,
+      result: {
+        tools: buildToolList(new Set(DAEMON_FEATURES), [{ id: 'claude', installed: false }]),
+      },
+    },
   });
 });
 
@@ -238,13 +247,98 @@ test('it lists the agents to a caller holding only the read scope', async () => 
     },
   );
 
-  expect(outcome).toMatchObject({
+  if (outcome.kind !== 'reply') {
+    throw new Error('no reply');
+  }
+
+  const result = getRecord(outcome.body, 'result');
+  const content: unknown = result['content'];
+
+  if (!Array.isArray(content) || !isRecord(content[0]) || typeof content[0]['text'] !== 'string') {
+    throw new TypeError('no text content');
+  }
+
+  expect(JSON.parse(content[0]['text'])).toStrictEqual(result['structuredContent']);
+
+  expect(outcome).toStrictEqual({
     kind: 'reply',
     body: {
+      jsonrpc: '2.0',
+      id: 1,
       result: {
+        content: [{ type: 'text', text: expect.toBeString() }],
         structuredContent: {
-          daemon: { build: 'atc/test-build', platform: process.platform, arch: process.arch },
-          agents: [{ id: 'claude', kind: 'claude', installed: false, models: null }],
+          daemon: {
+            hostname: hostname(),
+            platform: process.platform,
+            arch: process.arch,
+            build: 'atc/test-build',
+          },
+          agents: [
+            {
+              id: 'claude',
+              label: 'claude',
+              kind: 'claude',
+              installed: false,
+              brokerAuth: false,
+              brokerRequired: false,
+              capabilities: {
+                spawn: false,
+                readTranscript: false,
+                message: false,
+                attach: true,
+                screen: true,
+                input: true,
+              },
+              models: null,
+              spawnOptions: {
+                model: {
+                  supported: false,
+                  available: false,
+                  values: null,
+                  examples: [],
+                  default: null,
+                  backendEffect: null,
+                  note: null,
+                },
+                effort: {
+                  supported: false,
+                  available: false,
+                  values: null,
+                  examples: [],
+                  default: null,
+                  backendEffect: null,
+                  note: null,
+                },
+              },
+            },
+          ],
+          targets: [
+            {
+              id: 'local',
+              provider: 'local-pty',
+              identity: expect.toStartWith('local-pty:'),
+              available: true,
+              default: true,
+              capabilities: {
+                spawn: true,
+                attach: true,
+                input: true,
+                resize: true,
+                kill: true,
+                transfer: true,
+                run: true,
+                headless: true,
+                suspend: false,
+                destroy: false,
+              },
+              brokerAuth: false,
+            },
+          ],
+          spawnDefaults: { agent: 'claude', target: 'local' },
+          configRevision: expect.toBeString(),
+          targetErrors: [],
+          sources: [],
         },
       },
     },
@@ -330,11 +424,21 @@ test('it lists the message tool in its older form when the connected daemon anno
     throw new Error('atc_message_get is not listed');
   }
 
-  expect(messageGet).toMatchObject({
-    inputSchema: { properties: { message: { type: 'string' } } },
+  expect(messageGet).toStrictEqual({
+    name: 'atc_message_get',
+    description:
+      'Read one message sent with atc_session_message: its id, session, from, text, status (accepted, delivered, or answered), the answer once answered, turn, answeredWith, and the sentAt, deliveredAt, and answeredAt timestamps. The answer is the final output of the session turn that carried the message, not a reply to that message alone: when one turn carries several messages, each gets the same answer. turn is that turn id, or null when the session reported none, and answeredWith lists the other messages the same turn answered. Pass waitMs to hold the call until the status changes from what it was when you called, up to 30000 ms, instead of polling in a tight loop; an answered message returns at once. Message ids and statuses persist, so after a call ends or times out, call again with the same id.',
+    inputSchema: {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'The message id atc_session_message returned' },
+      },
+      required: ['message'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   });
-
-  expect(messageGet).not.toContainKey('outputSchema');
 });
 
 test.each([

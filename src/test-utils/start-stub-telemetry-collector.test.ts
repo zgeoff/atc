@@ -5,26 +5,23 @@ import { startStubTelemetryCollector } from './start-stub-telemetry-collector';
 
 // A home for the telemetry process, so better-auth reads and writes no file
 // of the test run's own home, and the collector it reports to.
-function setupTest() {
-  using stack = new DisposableStack();
+// oxlint-disable-next-line require-await -- the await is the `await using` declaration that releases the stack when a later setup step throws
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-telemetry-collector-'));
-  const collector = startStubTelemetryCollector();
+  const collector = stack.use(startStubTelemetryCollector());
   const owned = stack.move();
 
   return {
     dir: tmp.dir,
     collector,
-    [Symbol.asyncDispose]: async () => {
-      await collector[Symbol.asyncDispose]();
-
-      owned.dispose();
-    },
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it receives the telemetry better-auth sends to the endpoint the environment sets', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
 
   // A production-mode process, since better-auth never sends telemetry under
   // NODE_ENV=test. A request it starts keeps the process alive until the
@@ -58,7 +55,7 @@ await createTelemetry({ baseURL: 'http://127.0.0.1' });`,
 });
 
 test('it answers each request with no content', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
 
   const answered = await fetch(ctx.collector.url, { method: 'POST', body: '{}' });
 
