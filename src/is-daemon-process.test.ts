@@ -5,29 +5,36 @@ import { join } from 'node:path';
 import { isDaemonProcess } from './is-daemon-process';
 
 async function setupTest() {
+  await using stack = new AsyncDisposableStack();
+
   const dir = await mkdtemp(join(tmpdir(), 'is-daemon-process-'));
+
+  stack.defer(() => rm(dir, { recursive: true, force: true }));
 
   const cliPath = join(dir, 'checkout', 'src', 'cli.ts');
 
   await mkdir(join(dir, 'checkout', 'src'), { recursive: true });
-  await writeFile(cliPath, 'setInterval(() => {}, 1000);\n');
+  await writeFile(cliPath, "process.stdout.write('ready\\n');\nsetInterval(() => {}, 1000);\n");
 
   const proc = Bun.spawn([process.execPath, cliPath, 'daemon'], {
     env: { HOME: join(dir, 'home'), PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
-    stdout: 'ignore',
+    stdout: 'pipe',
     stderr: 'ignore',
   });
 
-  return {
-    dir,
-    proc,
-    async [Symbol.asyncDispose]() {
-      proc.kill();
+  stack.defer(async () => {
+    proc.kill();
 
-      await proc.exited;
-      await rm(dir, { recursive: true, force: true });
-    },
-  };
+    await proc.exited;
+  });
+
+  // Until the child prints, its /proc entry can still hold the command line
+  // it was forked with, before the exec that makes it the daemon.
+  await proc.stdout.getReader().read();
+
+  const owned = stack.move();
+
+  return { dir, proc, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
 test('it accepts a daemon process whose home holds this state directory', async () => {
