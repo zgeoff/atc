@@ -16,15 +16,24 @@ interface SocketLines {
 interface SocketLinesOptions {
   // How many unsent bytes the connection holds before it refuses a write.
   readonly queueBytes?: number;
+
+  // The clock a line wait reads its deadline from; the wall clock when absent.
+  readonly now?: () => number;
+
+  // Waits out the interval between a line wait's polls; a real sleep when
+  // absent.
+  readonly wait?: (ms: number) => Promise<void>;
 }
 
 /**
  * Connects to a unix socket and collects every complete newline-terminated
  * line it sends, buffering a partial line across reads. `write` sends the
  * whole of what it is given, the rest going out as the socket drains,
- * and throws instead when the unsent bytes already fill the queue. `waitForLine` polls until the collected count reaches
- * `count` and returns the lines, throwing when `timeoutMs` passes first or
- * the connection closes short of the count. Disposal ends the connection.
+ * and throws instead when the unsent bytes already fill the queue.
+ * `waitForLine` polls until the collected count reaches `count` and returns
+ * the lines, throwing when `timeoutMs` passes first or the connection
+ * closes short of the count; a stub clock passed as `now` and `wait` steps
+ * that timeout without waiting it out. Disposal ends the connection.
  */
 export async function subscribeToSocketLines(
   path: string,
@@ -93,7 +102,11 @@ export async function subscribeToSocketLines(
             requireLines(count);
           }
         },
-        { timeoutMs },
+        {
+          timeoutMs,
+          now: options.now ?? Date.now,
+          wait: options.wait ?? Bun.sleep,
+        },
       );
 
       return requireLines(count);

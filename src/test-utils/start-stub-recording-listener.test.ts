@@ -15,18 +15,20 @@ test('it records what a connection sends and sends nothing back', async () => {
   using ctx = setupTest();
   using listener = startStubRecordingListener(ctx.path);
 
-  const events: string[] = [];
+  let replies = '';
 
   const socket = await Bun.connect({
     unix: ctx.path,
     socket: {
       data(_socket, data) {
-        events.push(`data ${data.toString()}`);
+        replies += data.toString();
       },
     },
   });
 
   onTestFinished(() => socket.end());
+
+  const peer = await listener.accepted;
 
   socket.write('go');
 
@@ -34,7 +36,15 @@ test('it records what a connection sends and sends nothing back', async () => {
     expect(listener.received).toStrictEqual(['go']);
   });
 
-  expect(events).toStrictEqual([]);
+  // The test's own marker follows anything the listener sent on the same
+  // connection, so its arrival shows every reply has arrived.
+  peer.write('end');
+
+  await waitFor(() => {
+    expect(replies).toEndWith('end');
+  });
+
+  expect(replies).toBe('end');
 });
 
 test('it hands the test the server side of the first connection', async () => {
@@ -67,6 +77,10 @@ test('it stops listening once disposed', () => {
   using ctx = setupTest();
 
   const listener = startStubRecordingListener(ctx.path);
+
+  onTestFinished(() => {
+    listener[Symbol.dispose]();
+  });
 
   listener[Symbol.dispose]();
 

@@ -1052,6 +1052,10 @@ test('it keeps a held command waiting until its hold stops', async () => {
 
   await hold.entered;
 
+  // An unheld command runs to its end across many turns of the event loop,
+  // so a hold that let its command go would have counted it out by then.
+  await ctx.port.runCommand('imp-a', { argv: ['sh', '-c', 'true'] });
+
   expect({
     held: ctx.port.countHeldCommands(),
     status: Bun.peek.status(result),

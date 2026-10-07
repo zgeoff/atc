@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { setupTempDir } from './setup-temp-dir';
@@ -70,6 +70,10 @@ test('it closes its connection once disposed', async () => {
   await using ctx = await setupTest();
 
   const client = await startStubStalledClient(ctx.path, 'atc/stub');
+
+  onTestFinished(() => {
+    client[Symbol.dispose]();
+  });
 
   const [peer] = ctx.peers;
 

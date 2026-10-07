@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { buildStubWaitClock } from './build-stub-wait-clock';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubRecordingListener } from './start-stub-recording-listener';
 import { startStubStalledListener } from './start-stub-stalled-listener';
@@ -9,15 +10,16 @@ import { waitFor } from './wait-for';
 // A unix socket server and a subscriber connected to it; `peer` is the
 // server's side of that connection, which the test writes through, and
 // `received` collects what the subscriber sends. A second server at
-// `stalledPath` accepts connections and never reads them.
-async function setupTest() {
+// `stalledPath` accepts connections and never reads them. The config's clock,
+// when given, is the one the subscriber's line waits read.
+async function setupTest(config: Parameters<typeof subscribeToSocketLines>[1] = {}) {
   await using stack = new AsyncDisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-sock-lines-'));
   const path = join(tmp.dir, 'lines.sock');
   const listener = stack.use(startStubRecordingListener(path));
 
-  const subscribed = await subscribeToSocketLines(path);
+  const subscribed = await subscribeToSocketLines(path, config);
 
   const subscriber = stack.use(subscribed);
 
@@ -119,11 +121,15 @@ test('it resolves closed once the peer ends the connection', async () => {
 });
 
 test('it throws listing the collected lines when the count never arrives', async () => {
-  await using ctx = await setupTest();
+  const clock = buildStubWaitClock();
+
+  await using ctx = await setupTest({ now: clock.now, wait: clock.wait });
 
   ctx.peer.write('{"a":1}\n');
 
-  await ctx.subscriber.waitForLine(1);
+  await waitFor(() => {
+    expect(ctx.subscriber.lines).toStrictEqual(['{"a":1}']);
+  });
 
   expect(ctx.subscriber.waitForLine(2, 100)).rejects.toThrowWithMessage(
     Error,

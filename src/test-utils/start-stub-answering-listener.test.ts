@@ -71,6 +71,8 @@ test('it closes every connection it accepted once disposed', async () => {
 
   const listener = await startStubAnsweringListener(ctx.path);
 
+  onTestFinished(() => listener[Symbol.asyncDispose]());
+
   const socket = createConnection(ctx.path);
 
   onTestFinished(() => socket.destroy());
@@ -94,6 +96,8 @@ test('it stops listening once disposed', async () => {
   using ctx = setupTest();
 
   const listener = await startStubAnsweringListener(ctx.path);
+
+  onTestFinished(() => listener[Symbol.asyncDispose]());
 
   await listener[Symbol.asyncDispose]();
 
