@@ -183,3 +183,37 @@ test('it refuses a gh listing that does not answer within its time limit', async
 
   expect(Date.now() - started).toBeLessThan(5000);
 });
+
+test('it refuses a gh listing that fails silently with its exit code', async () => {
+  await using ctx = setupTest();
+
+  await writeFile(ctx.gh, '#!/bin/sh\nexit 3\n', { mode: 0o755 });
+
+  const listed = await collectGitHubRepos({ bin: ctx.gh, owner: 'acme' });
+
+  expect(listed).toStrictEqual({
+    ok: false,
+    code: 'github_unavailable',
+    problem: 'failed',
+    message: 'gh exited with 3',
+  });
+});
+
+test("it lists no owner when the gh account's own list is empty", async () => {
+  await using ctx = setupTest();
+
+  await writeFile(
+    ctx.gh,
+    `#!/bin/sh
+case "$1" in
+  config) echo https ;;
+  repo) echo '[]' ;;
+esac
+`,
+    { mode: 0o755 },
+  );
+
+  const listed = await collectGitHubRepos({ bin: ctx.gh, owner: null });
+
+  expect(listed).toStrictEqual({ ok: true, owner: null, repos: [], gitProtocol: 'https' });
+});
