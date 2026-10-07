@@ -1025,7 +1025,7 @@ test('it runs a held command once its hold stops', async () => {
 });
 
 test('it lets a held command run once its hold is disposed', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 

@@ -104,6 +104,7 @@ test('it sends a payload larger than one socket write whole', async () => {
 
 test('it throws on a write while the unsent bytes fill the queue', async () => {
   await using tmp = setupTempDir('atc-sock-lines-');
+
   await using stack = new AsyncDisposableStack();
 
   const path = join(tmp.dir, 'stalled.sock');
