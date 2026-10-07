@@ -14,9 +14,9 @@ function setupTest() {
 }
 
 test('it allows cleanup of the recorded imp after its secret was rebound', async () => {
-  using cleanup = setupTest();
+  using ctx = setupTest();
 
-  cleanup.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -24,32 +24,28 @@ test('it allows cleanup of the recorded imp after its secret was rebound', async
     grantable: ['glm'],
   });
 
-  cleanup.port.createSecret('glm', 'custom', [
+  ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const created = await cleanup.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.port.createImp({ name: 'atc-s1' });
 
-  await cleanup.port.createGrant('atc-s1', 'glm');
+  await ctx.port.createGrant('atc-s1', 'glm');
 
-  cleanup.port.updateSecret('glm', [{ host: 'api.z.ai', header: 'x-api-key', scheme: 'raw' }]);
+  ctx.port.updateSecret('glm', [{ host: 'api.z.ai', header: 'x-api-key', scheme: 'raw' }]);
 
-  cleanup.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const imp = await verifyCleanupAuthority(
-    cleanup.port,
-    { name: 'atc-s1', id: created.id },
-    'atc-',
-  );
+  const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
 
   expect(imp).toMatchObject({ id: created.id, name: 'atc-s1' });
-  expect(cleanup.port.calls).toStrictEqual(['tokens.whoami', 'imps.get atc-s1']);
+  expect(ctx.port.calls).toStrictEqual(['tokens.whoami', 'imps.get atc-s1']);
 });
 
 test('it allows cleanup of the recorded imp after its secret was deleted', async () => {
-  using cleanup = setupTest();
+  using ctx = setupTest();
 
-  cleanup.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -57,34 +53,30 @@ test('it allows cleanup of the recorded imp after its secret was deleted', async
     grantable: ['glm'],
   });
 
-  cleanup.port.createSecret('glm', 'custom', [
+  ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const created = await cleanup.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.port.createImp({ name: 'atc-s1' });
 
-  await cleanup.port.createGrant('atc-s1', 'glm');
+  await ctx.port.createGrant('atc-s1', 'glm');
 
-  cleanup.port.removeSecret('glm');
+  ctx.port.removeSecret('glm');
 
-  cleanup.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const imp = await verifyCleanupAuthority(
-    cleanup.port,
-    { name: 'atc-s1', id: created.id },
-    'atc-',
-  );
+  const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
 
   expect(imp).toMatchObject({ id: created.id, name: 'atc-s1' });
-  expect(cleanup.port.calls).toStrictEqual(['tokens.whoami', 'imps.get atc-s1']);
+  expect(ctx.port.calls).toStrictEqual(['tokens.whoami', 'imps.get atc-s1']);
 });
 
 test('it allows cleanup by a token that may no longer grant the bound secret', async () => {
-  using cleanup = setupTest();
+  using ctx = setupTest();
 
-  const created = await cleanup.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.port.createImp({ name: 'atc-s1' });
 
-  cleanup.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -92,61 +84,53 @@ test('it allows cleanup by a token that may no longer grant the bound secret', a
     grantable: [],
   });
 
-  const imp = await verifyCleanupAuthority(
-    cleanup.port,
-    { name: 'atc-s1', id: created.id },
-    'atc-',
-  );
+  const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
 
   expect(imp).toMatchObject({ id: created.id, name: 'atc-s1' });
 });
 
 test('it reports a recorded imp that impd no longer holds as nothing to clean up', async () => {
-  using cleanup = setupTest();
+  using ctx = setupTest();
 
-  const created = await cleanup.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.port.createImp({ name: 'atc-s1' });
 
-  await cleanup.port.destroyImp('atc-s1');
+  await ctx.port.destroyImp('atc-s1');
 
-  const imp = await verifyCleanupAuthority(
-    cleanup.port,
-    { name: 'atc-s1', id: created.id },
-    'atc-',
-  );
+  const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
 
   expect(imp).toBeNull();
 });
 
 test('it refuses cleanup of an imp made again under the recorded name', async () => {
-  using cleanup = setupTest();
+  using ctx = setupTest();
 
-  const created = await cleanup.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.port.createImp({ name: 'atc-s1' });
 
-  await cleanup.port.destroyImp('atc-s1');
+  await ctx.port.destroyImp('atc-s1');
 
-  const remade = await cleanup.port.createImp({ name: 'atc-s1' });
+  const remade = await ctx.port.createImp({ name: 'atc-s1' });
 
-  const refusal: unknown = await verifyCleanupAuthority(
-    cleanup.port,
+  const verified = verifyCleanupAuthority(
+    ctx.port,
     {
       name: 'atc-s1',
       id: created.id,
     },
     'atc-',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toMatchObject({
+  expect(verified).rejects.toMatchObject({
     code: 'auth_runtime_mismatch',
     data: { imp: 'atc-s1', recordedID: created.id, actualID: remade.id },
   });
 });
 
 test('it refuses cleanup by a token whose patterns do not cover the recorded imp without looking it up', async () => {
-  using cleanup = setupTest();
+  using ctx = setupTest();
 
-  const created = await cleanup.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.port.createImp({ name: 'atc-s1' });
 
-  cleanup.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'cloud-runtime',
     scope: 'manage',
@@ -154,27 +138,31 @@ test('it refuses cleanup by a token whose patterns do not cover the recorded imp
     grantable: [],
   });
 
-  cleanup.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const refusal: unknown = await verifyCleanupAuthority(
-    cleanup.port,
+  const verified = verifyCleanupAuthority(
+    ctx.port,
     {
       name: 'atc-s1',
       id: created.id,
     },
     'atc-',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toMatchObject({ code: 'auth_imp_out_of_scope', data: { outside: ['atc-s1'] } });
-  expect(cleanup.port.calls).toStrictEqual(['tokens.whoami']);
+  expect(verified).rejects.toMatchObject({
+    code: 'auth_imp_out_of_scope',
+    data: { outside: ['atc-s1'] },
+  });
+
+  expect(ctx.port.calls).toStrictEqual(['tokens.whoami']);
 });
 
 test('it refuses cleanup by a token that reaches every imp on the host', async () => {
-  using cleanup = setupTest();
+  using ctx = setupTest();
 
-  const created = await cleanup.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.port.createImp({ name: 'atc-s1' });
 
-  cleanup.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'admin',
     scope: 'manage',
@@ -182,16 +170,16 @@ test('it refuses cleanup by a token that reaches every imp on the host', async (
     grantable: [],
   });
 
-  const refusal: unknown = await verifyCleanupAuthority(
-    cleanup.port,
+  const verified = verifyCleanupAuthority(
+    ctx.port,
     {
       name: 'atc-s1',
       id: created.id,
     },
     'atc-',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toMatchObject({ code: 'auth_token_too_broad' });
+  expect(verified).rejects.toMatchObject({ code: 'auth_token_too_broad' });
 });
 
 test.each([
@@ -231,11 +219,11 @@ test.each([
 ])(
   'it refuses cleanup by a token whose patterns %p reach imps outside the namespace',
   async (imps) => {
-    using cleanup = setupTest();
+    using ctx = setupTest();
 
-    const created = await cleanup.port.createImp({ name: 'atc-s1' });
+    const created = await ctx.port.createImp({ name: 'atc-s1' });
 
-    cleanup.port.setIdentity({
+    ctx.port.setIdentity({
       kind: 'token',
       name: 'wide',
       scope: 'manage',
@@ -243,28 +231,32 @@ test.each([
       grantable: [],
     });
 
-    cleanup.port.calls.length = 0;
+    ctx.port.calls.length = 0;
 
-    const refusal: unknown = await verifyCleanupAuthority(
-      cleanup.port,
+    const verified = verifyCleanupAuthority(
+      ctx.port,
       {
         name: 'atc-s1',
         id: created.id,
       },
       'atc-',
-    ).catch((error: unknown) => error);
+    );
 
-    expect(refusal).toMatchObject({ code: 'auth_token_too_broad', data: { token: 'wide', imps } });
-    expect(cleanup.port.calls).toStrictEqual(['tokens.whoami']);
+    expect(verified).rejects.toMatchObject({
+      code: 'auth_token_too_broad',
+      data: { token: 'wide', imps },
+    });
+
+    expect(ctx.port.calls).toStrictEqual(['tokens.whoami']);
   },
 );
 
 test('it allows cleanup by a token whose literal imp name is the recorded imp', async () => {
-  using cleanup = setupTest();
+  using ctx = setupTest();
 
-  const created = await cleanup.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.port.createImp({ name: 'atc-s1' });
 
-  cleanup.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -272,11 +264,7 @@ test('it allows cleanup by a token whose literal imp name is the recorded imp', 
     grantable: [],
   });
 
-  const imp = await verifyCleanupAuthority(
-    cleanup.port,
-    { name: 'atc-s1', id: created.id },
-    'atc-',
-  );
+  const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
 
   expect(imp).toMatchObject({ id: created.id, name: 'atc-s1' });
 });

@@ -1,169 +1,143 @@
 import { expect, test } from 'bun:test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { ClaudeAdapter } from '../agents/claude-adapter';
-import { DaemonClient } from '../client/daemon-client';
 import { openBridgeSocket } from '../protocol/open-bridge-socket';
-import type { EventMsg } from '../protocol/protocol';
 import { sendBridgeRequest } from '../protocol/send-bridge-request';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
+import { createStubGuestCLIs } from '../test-utils/create-stub-guest-clis';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
-import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
 
-// The atc CLI from this source tree, which the fake guest atc runs.
-const CLI_PATH = join(import.meta.dir, '..', 'cli.ts');
-
-// A real daemon whose one target `box` runs Claude sessions on the imp
-// provider over a fixture imp port, with the guest folder under a temp
-// directory and the guest atc running this source tree. The fake claude
-// reads one command per line: `start` reports a SessionStart, `tap` runs
-// the guest tap in the background into `tap.log`, `answer <id>` reports
-// that message answered, and `note <text>` reports a note.
+// A real daemon whose one target `box`, its default, runs Claude sessions
+// on the imp provider over a fixture imp port, with the guest folder under
+// a temp directory, the stub guest atc running this source tree, and the
+// stub claude as Claude's binary.
 async function setupTest() {
-  const tmp = setupTempDir('atc-imp-bridge-');
-  const sockPath = join(tmp.dir, 'daemon.sock');
-  const fakeClaude = join(tmp.dir, 'fake-claude');
-  const fakeATC = join(tmp.dir, 'fake-atc');
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-imp-bridge-'));
+  const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
   const guestDir = join(tmp.dir, 'g');
-  const tapLog = join(tmp.dir, 'tap.log');
+  const port = stack.use(new FixtureImpPort());
+  const config = parseConfig({ claudeBin: clis.claude });
 
-  const port = new FixtureImpPort();
-
-  writeFileSync(tapLog, '');
-
-  writeFileSync(fakeATC, `#!/bin/sh\nexec "${process.execPath}" "${CLI_PATH}" "$@"\n`, {
-    mode: 0o755,
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-bridge-daemon-',
+    options: () => ({
+      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      targets: [
+        {
+          id: 'box',
+          kind: 'imp',
+          options: {},
+          identity: 'imp:test',
+          provider: new ImpProvider(
+            port,
+            { guestDir, guestATC: clis.atc },
+            { reconnectDelaysMs: [0, 0, 0], atcBinary: null },
+          ),
+        },
+      ],
+      defaultTarget: 'box',
+    }),
   });
 
-  writeFileSync(
-    fakeClaude,
-    `#!/usr/bin/env bash
-echo "UP:$$"
-while read -r line; do
-  case "$line" in
-    start) echo '{"hook_event_name":"SessionStart","session_id":"agent-remote-1","transcript_path":"/guest/only/transcript.jsonl"}' | "${fakeATC}" hook-report --agent claude ;;
-    tap) "${fakeATC}" tap --session "$ATC_SESSION_ID" >> "${tapLog}" 2>&1 & ;;
-    answer*) printf 'the answer' | "${fakeATC}" report answered --messages "\${line#answer }" ;;
-    note*) printf '%s' "\${line#note }" | "${fakeATC}" report note --label progress ;;
-  esac
-  echo "GOT:$line"
-done
-`,
-    { mode: 0o755 },
-  );
+  stack.use(daemon);
 
-  const adapterConfig = parseConfig({ claudeBin: fakeClaude });
-
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: new ClaudeAdapter(getAgentEntry(adapterConfig, 'claude'), adapterConfig),
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    targets: [
-      {
-        id: 'box',
-        kind: 'imp',
-        options: {},
-        identity: 'imp:test',
-        provider: new ImpProvider(
-          port,
-          { guestDir, guestATC: fakeATC },
-          { reconnectDelaysMs: [0, 0, 0], atcBinary: null },
-        ),
-      },
-    ],
-    defaultTarget: 'box',
-  });
-
-  const client = await DaemonClient.open(sockPath);
-
-  const events: EventMsg[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
-
-  await client.sendHello('atc/test-build');
+  const owned = stack.move();
 
   return {
-    client,
+    daemon,
     port,
-    events,
     dir: tmp.dir,
     guestDir,
-    tapLog,
-    async [Symbol.asyncDispose]() {
-      client.stop();
-
-      await daemon.stop();
-
-      port[Symbol.dispose]();
-      tmp[Symbol.dispose]();
-    },
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
-test("it delivers a message to a remote session's tap and records the answer the session reports", async () => {
-  await using daemon = await setupTest();
+test("it delivers a message to a remote session's tap", async () => {
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  const tapLog = join(ctx.dir, 'tap.log');
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'tap\r' });
+  await ctx.daemon.client.sendRequest('session.input', { session: id, d: `tap ${tapLog}\r` });
 
-  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
-
-  const messageID = String(sent['message']);
-
-  await waitFor(() => {
-    expect(readFileSync(daemon.tapLog, 'utf8')).toInclude(`"id":"${messageID}"`);
+  const sent = await ctx.daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
   });
 
   await waitFor(async () => {
-    const read = await daemon.client.sendRequest('message.get', { message: messageID });
+    const read = await ctx.daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(readFileSync(tapLog, 'utf8')).toInclude(`"id":"${String(sent['message'])}"`);
+    expect(read).toMatchObject({ status: 'delivered' });
+  });
+});
+
+test('it records the answer a remote session reports to a message its tap took', async () => {
+  await using ctx = await setupTest();
+
+  const tapLog = join(ctx.dir, 'tap.log');
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await ctx.daemon.client.sendRequest('session.input', { session: id, d: `tap ${tapLog}\r` });
+
+  const sent = await ctx.daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+  });
+
+  const messageID = String(sent['message']);
+
+  await waitFor(async () => {
+    const read = await ctx.daemon.client.sendRequest('message.get', { message: messageID });
 
     expect(read).toMatchObject({ status: 'delivered' });
   });
 
-  await daemon.client.sendRequest('session.input', { session: id, d: `answer ${messageID}\r` });
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: id,
+    d: `answer ${messageID} the answer\r`,
+  });
 
   await waitFor(async () => {
-    const read = await daemon.client.sendRequest('message.get', { message: messageID });
+    const read = await ctx.daemon.client.sendRequest('message.get', { message: messageID });
 
     expect(read).toMatchObject({ status: 'answered', answer: 'the answer' });
   });
 });
 
 test("it answers a status read on a remote session's bridge with that session's own state", async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
-    cols: 80,
-    rows: 24,
-  });
+  await ctx.daemon.client.sendRequest('session.spawn', { cwd: ctx.daemon.dir, cols: 80, rows: 24 });
 
-  const id = String(getRecord(spawned, 'session')['id']);
-
-  const socketName = id
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]/g, '')
-    .slice(0, 16);
+  const socket = readdirSync(join(ctx.guestDir, 'run')).find((name) => name.endsWith('.sock'));
 
   const status = await sendBridgeRequest(
-    join(daemon.guestDir, 'run', `${socketName}.sock`),
+    join(ctx.guestDir, 'run', String(socket)),
     'status.read',
     {},
     2000,
@@ -178,29 +152,16 @@ test("it answers a status read on a remote session's bridge with that session's 
 });
 
 test('it answers an op the bridge does not offer with forbidden and closes the connection', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
-    cols: 80,
-    rows: 24,
-  });
+  await ctx.daemon.client.sendRequest('session.spawn', { cwd: ctx.daemon.dir, cols: 80, rows: 24 });
 
-  const id = String(getRecord(spawned, 'session')['id']);
-
-  const socketName = id
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]/g, '')
-    .slice(0, 16);
-
+  const socketName = readdirSync(join(ctx.guestDir, 'run')).find((name) => name.endsWith('.sock'));
   const answers: Readonly<Record<string, unknown>>[] = [];
 
-  const socket = await openBridgeSocket(
-    join(daemon.guestDir, 'run', `${socketName}.sock`),
-    (line) => {
-      answers.push(line);
-    },
-  );
+  const socket = await openBridgeSocket(join(ctx.guestDir, 'run', String(socketName)), (line) => {
+    answers.push(line);
+  });
 
   socket.writeLine({ v: 1, id: 'list', op: 'session.list' });
 
@@ -210,169 +171,181 @@ test('it answers an op the bridge does not offer with forbidden and closes the c
 });
 
 test('it delivers a message sent after a sleep and a wake to the tap that ran before, and each message once', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  const tapLog = join(ctx.dir, 'tap.log');
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'start\r' });
-  await daemon.client.sendRequest('session.input', { session: id, d: 'tap\r' });
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: id,
+    d: 'start agent-remote-1\r',
+  });
 
-  const before = await daemon.client.sendRequest('session.message', {
+  await ctx.daemon.client.sendRequest('session.input', { session: id, d: `tap ${tapLog}\r` });
+
+  const before = await ctx.daemon.client.sendRequest('session.message', {
     session: id,
     text: 'before',
   });
 
   await waitFor(() => {
-    expect(readFileSync(daemon.tapLog, 'utf8')).toInclude(`"id":"${String(before['message'])}"`);
+    expect(readFileSync(tapLog, 'utf8')).toInclude(`"id":"${String(before['message'])}"`);
   });
 
-  await daemon.client.sendRequest('session.kill', { session: id });
-  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
-  const after = await daemon.client.sendRequest('session.message', { session: id, text: 'after' });
+  const after = await ctx.daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'after',
+  });
 
-  await waitFor(
-    () => {
-      expect(readFileSync(daemon.tapLog, 'utf8')).toInclude(`"id":"${String(after['message'])}"`);
-    },
-    { timeoutMs: 15_000 },
-  );
+  await waitFor(() => {
+    const printed = readFileSync(tapLog, 'utf8')
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line): unknown => JSON.parse(line));
 
-  const printed = readFileSync(daemon.tapLog, 'utf8')
-    .split('\n')
-    .filter((line) => line !== '')
-    .map((line): unknown => JSON.parse(line));
-
-  expect(printed).toStrictEqual([
-    {
-      id: before['message'],
-      from: expect.toBeString(),
-      text: 'before',
-      sentAt: expect.toBeNumber(),
-    },
-    { id: after['message'], from: expect.toBeString(), text: 'after', sentAt: expect.toBeNumber() },
-  ]);
+    expect(printed).toStrictEqual([
+      {
+        id: before['message'],
+        from: expect.toBeString(),
+        text: 'before',
+        sentAt: expect.toBeNumber(),
+      },
+      {
+        id: after['message'],
+        from: expect.toBeString(),
+        text: 'after',
+        sentAt: expect.toBeNumber(),
+      },
+    ]);
+  });
 });
 
 test('it delivers a message and a report held back while the bridge was unreachable once each after it reconnects', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  const tapLog = join(ctx.dir, 'tap.log');
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await daemon.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
-  await daemon.client.sendRequest('session.input', { session: id, d: 'tap\r' });
+  await ctx.daemon.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+  await ctx.daemon.client.sendRequest('session.input', { session: id, d: `tap ${tapLog}\r` });
 
-  const first = await daemon.client.sendRequest('session.message', { session: id, text: 'first' });
-
-  await waitFor(() => {
-    expect(readFileSync(daemon.tapLog, 'utf8')).toInclude(`"id":"${String(first['message'])}"`);
+  const first = await ctx.daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'first',
   });
 
-  daemon.port.startRelayRefusal();
-  daemon.port.stopRelays();
+  await waitFor(() => {
+    expect(readFileSync(tapLog, 'utf8')).toInclude(`"id":"${String(first['message'])}"`);
+  });
 
-  const held = await daemon.client.sendRequest('session.message', { session: id, text: 'held' });
+  ctx.port.startRelayRefusal();
+  ctx.port.stopRelays();
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'note while away\r' });
+  const held = await ctx.daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'held',
+  });
+
+  await ctx.daemon.client.sendRequest('session.input', { session: id, d: 'note while away\r' });
 
   await waitFor(() => {
     expect(
-      daemon.events
+      ctx.daemon.events
         .filter((event) => event.ev === 'SessionOutput')
         .map((event) => String(event['d']))
         .join(''),
     ).toInclude('GOT:note while away');
   });
 
-  daemon.port.stopRelayRefusal();
+  ctx.port.stopRelayRefusal();
 
-  await waitFor(
-    () => {
-      expect(readFileSync(daemon.tapLog, 'utf8')).toInclude(`"id":"${String(held['message'])}"`);
-      expect(daemon.events).toPartiallyContain({ ev: 'SessionReport', text: 'while away' });
-    },
-    { timeoutMs: 15_000 },
-  );
+  await waitFor(() => {
+    const printed = readFileSync(tapLog, 'utf8')
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line): unknown => JSON.parse(line));
 
-  const printed = readFileSync(daemon.tapLog, 'utf8')
-    .split('\n')
-    .filter((line) => line !== '')
-    .map((line): unknown => JSON.parse(line));
-
-  expect({
-    printed,
-    reports: daemon.events.filter((event) => event.ev === 'SessionReport'),
-  }).toMatchObject({
-    printed: [{ id: first['message'] }, { id: held['message'] }],
-    reports: [{ text: 'while away' }],
+    expect({
+      printed,
+      reports: ctx.daemon.events.filter((event) => event.ev === 'SessionReport'),
+    }).toMatchObject({
+      printed: [{ id: first['message'] }, { id: held['message'] }],
+      reports: [{ text: 'while away' }],
+    });
   });
 });
 
 test('it prints a message whose ack was lost once, and acks it again when the tap reconnects', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  const tapLog = join(ctx.dir, 'tap.log');
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'tap\r' });
+  await ctx.daemon.client.sendRequest('session.input', { session: id, d: `tap ${tapLog}\r` });
 
-  const ready = await daemon.client.sendRequest('session.message', { session: id, text: 'ready' });
+  const ready = await ctx.daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'ready',
+  });
 
   await waitFor(async () => {
-    const read = await daemon.client.sendRequest('message.get', { message: ready['message'] });
+    const read = await ctx.daemon.client.sendRequest('message.get', { message: ready['message'] });
 
     expect(read).toMatchObject({ status: 'delivered' });
   });
 
-  daemon.port.startGuestByteDrop();
+  ctx.port.startGuestByteDrop();
 
-  const lost = await daemon.client.sendRequest('session.message', {
+  const lost = await ctx.daemon.client.sendRequest('session.message', {
     session: id,
     text: 'lost ack',
   });
 
   await waitFor(() => {
-    expect(readFileSync(daemon.tapLog, 'utf8')).toInclude(`"id":"${String(lost['message'])}"`);
+    expect(readFileSync(tapLog, 'utf8')).toInclude(`"id":"${String(lost['message'])}"`);
   });
 
-  const unacked = await daemon.client.sendRequest('message.get', { message: lost['message'] });
+  const unacked = await ctx.daemon.client.sendRequest('message.get', { message: lost['message'] });
 
-  daemon.port.stopGuestByteDrop();
-  daemon.port.stopRelays();
+  ctx.port.stopGuestByteDrop();
+  ctx.port.stopRelays();
 
-  await waitFor(
-    async () => {
-      const read = await daemon.client.sendRequest('message.get', { message: lost['message'] });
+  await waitFor(async () => {
+    const read = await ctx.daemon.client.sendRequest('message.get', { message: lost['message'] });
 
-      expect(read).toMatchObject({ status: 'delivered' });
-    },
-    { timeoutMs: 15_000 },
-  );
+    const printed = readFileSync(tapLog, 'utf8')
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line): unknown => JSON.parse(line));
 
-  const printed = readFileSync(daemon.tapLog, 'utf8')
-    .split('\n')
-    .filter((line) => line !== '')
-    .map((line): unknown => JSON.parse(line));
-
-  expect({ unacked, printed }).toMatchObject({
-    unacked: { status: 'accepted' },
-    printed: [{ id: ready['message'] }, { id: lost['message'] }],
+    expect({ unacked, read, printed }).toMatchObject({
+      unacked: { status: 'accepted' },
+      read: { status: 'delivered' },
+      printed: [{ id: ready['message'] }, { id: lost['message'] }],
+    });
   });
 });

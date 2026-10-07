@@ -1,182 +1,159 @@
 import { expect, test } from 'bun:test';
-import { readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { ClaudeAdapter } from '../agents/claude-adapter';
-import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { createStubGuestCLIs } from '../test-utils/create-stub-guest-clis';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
-import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
-import type { ImpTargetOptions } from './imp-provider';
 
-// The atc CLI from this source tree, which a fake guest atc runs.
-const CLI_PATH = join(import.meta.dir, '..', 'cli.ts');
+interface ImpGuestTestConfig {
+  // Whether the target names the stub atc as the atc inside every host, or
+  // names none.
+  readonly guestATC: 'stub' | 'none';
 
-// A real daemon whose one target `box` runs on the imp provider over a
-// fixture imp port, with the guest folder under a temp directory. The
-// adapter is Claude's own, whose binary is a fake claude that prints its
-// pid and, on `start`, reports a SessionStart with a transcript only the
-// imp holds; on `notify`, a Notification through the guest atc; on
-// `forge <id>`, a Notification as the session `<id>` instead.
-async function setupTest(
-  options: Readonly<{
-    guestATC?: boolean;
-    atcBinary?: boolean;
-    adapter?: (fakeClaude: string) => AgentAdapter;
-  }> = {},
-) {
-  const tmp = setupTempDir('atc-imp-guest-');
-  const sockPath = join(tmp.dir, 'daemon.sock');
-  const fakeClaude = join(tmp.dir, 'fake-claude');
-  const fakeATC = join(tmp.dir, 'fake-atc');
+  // Whether the daemon has the stub atc as a binary of its own to copy into
+  // a host that has none, or has none.
+  readonly atcBinary: 'stub' | 'none';
+
+  // The agent, built from the path of the stub claude.
+  readonly adapter: (claudeBin: string) => AgentAdapter;
+}
+
+// A real daemon whose one target `box`, its default, runs on the imp
+// provider over a fixture imp port, with the guest folder and the stub
+// guest tools under a temp directory.
+async function setupTest(config: ImpGuestTestConfig) {
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-imp-guest-'));
+  const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
   const guestDir = join(tmp.dir, 'g');
+  const port = stack.use(new FixtureImpPort());
+  const target = { stub: { guestDir, guestATC: clis.atc }, none: { guestDir } }[config.guestATC];
+  const atcBinary = { stub: clis.atc, none: null }[config.atcBinary];
 
-  const port = new FixtureImpPort();
-
-  writeFileSync(fakeATC, `#!/bin/sh\nexec "${process.execPath}" "${CLI_PATH}" "$@"\n`, {
-    mode: 0o755,
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-guest-daemon-',
+    options: () => ({
+      adapter: config.adapter(clis.claude),
+      targets: [
+        {
+          id: 'box',
+          kind: 'imp',
+          options: {},
+          identity: 'imp:test',
+          provider: new ImpProvider(port, target, { reconnectDelaysMs: [0, 0, 0], atcBinary }),
+        },
+      ],
+      defaultTarget: 'box',
+    }),
   });
 
-  writeFileSync(
-    fakeClaude,
-    `#!/usr/bin/env bash
-echo "UP:$$"
-while read -r line; do
-  case "$line" in
-    start) echo '{"hook_event_name":"SessionStart","session_id":"agent-remote-1","transcript_path":"/guest/only/transcript.jsonl"}' | "${fakeATC}" hook-report --agent claude ;;
-    notify) echo '{"hook_event_name":"Notification","message":"own"}' | "${fakeATC}" hook-report --agent claude ;;
-    nested) echo '{"hook_event_name":"SessionStart","session_id":"nested-codex-1","source":"startup"}' | "${fakeATC}" hook-report --agent codex ;;
-    forge*) echo '{"hook_event_name":"Notification","message":"forged"}' | ATC_SESSION_ID="\${line#forge }" "${fakeATC}" hook-report --agent claude ;;
-  esac
-  echo "GOT:$line"
-done
-`,
-    { mode: 0o755 },
-  );
+  stack.use(daemon);
 
-  const target: ImpTargetOptions = {
-    guestDir,
-    ...(options.guestATC === true ? { guestATC: fakeATC } : {}),
-  };
+  const owned = stack.move();
 
-  const adapterConfig = parseConfig({ claudeBin: fakeClaude });
-
-  const adapter =
-    options.adapter?.(fakeClaude) ??
-    new ClaudeAdapter(getAgentEntry(adapterConfig, 'claude'), adapterConfig);
-
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter,
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    targets: [
-      {
-        id: 'box',
-        kind: 'imp',
-        options: {},
-        identity: 'imp:test',
-        provider: new ImpProvider(port, target, {
-          reconnectDelaysMs: [0, 0, 0],
-          atcBinary: options.atcBinary === true ? fakeATC : null,
-        }),
-      },
-    ],
-    defaultTarget: 'box',
-  });
-
-  const client = await DaemonClient.open(sockPath);
-
-  await client.sendHello('atc/test-build');
-
-  return {
-    client,
-    port,
-    dir: tmp.dir,
-    guestDir,
-    fakeATC,
-    async [Symbol.asyncDispose]() {
-      client.stop();
-
-      await daemon.stop();
-
-      port[Symbol.dispose]();
-      tmp[Symbol.dispose]();
-    },
-  };
+  return { daemon, port, guestDir, clis, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
 test('it refuses a remote Claude spawn when the host has no atc and the daemon has none to copy', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest({
+    guestATC: 'none',
+    atcBinary: 'none',
+    adapter: (claudeBin) => {
+      const config = parseConfig({ claudeBin });
 
-  const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+      return new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+    },
+  });
+
+  const spawned = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
+
+  await Promise.allSettled([spawned]);
 
   expect(spawned).rejects.toMatchObject({
     code: 'unsupported_operation',
     data: { provider: 'imp', agent: 'claude', problem: 'no_guest_atc' },
   });
 
-  await spawned.catch(() => null);
-
-  expect(daemon.port.collectImpNames()).toBeEmpty();
+  expect(ctx.port.collectImpNames()).toBeEmpty();
 });
 
 test('it gives a remote Claude session settings, a statusline, and a mod that report through the atc in its host', async () => {
-  await using daemon = await setupTest({ guestATC: true });
+  await using ctx = await setupTest({
+    guestATC: 'stub',
+    atcBinary: 'none',
+    adapter: (claudeBin) => {
+      const config = parseConfig({ claudeBin });
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+      return new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+    },
+  });
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
 
-  const dir = join(daemon.guestDir, 'sessions', String(getRecord(spawned, 'session')['id']));
+  const dir = join(ctx.guestDir, 'sessions', String(getRecord(spawned, 'session')['id']));
   const settings: unknown = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'));
 
   expect(settings).toMatchObject({
     hooks: {
-      SessionStart: [{ hooks: [{ command: `"${daemon.fakeATC}" hook-report --agent 'claude'` }] }],
+      SessionStart: [{ hooks: [{ command: `"${ctx.clis.atc}" hook-report --agent 'claude'` }] }],
     },
-    statusLine: { command: `"${daemon.fakeATC}" statusline --agent 'claude'` },
+    statusLine: { command: `"${ctx.clis.atc}" statusline --agent 'claude'` },
   });
 
   expect(readFileSync(join(dir, 'atc-bridge', 'hooks', 'atc-cli.ts'), 'utf8')).toInclude(
-    JSON.stringify([daemon.fakeATC]),
+    JSON.stringify([ctx.clis.atc]),
   );
 
-  expect(daemon.port.sessionRequests[0]).toMatchObject({
-    argv: [
-      expect.any(String),
-      '--settings',
-      join(dir, 'settings.json'),
-      '--plugin-dir',
-      join(dir, 'atc-bridge'),
-    ],
-  });
+  expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
+    expect.objectContaining({
+      argv: [
+        expect.any(String),
+        '--settings',
+        join(dir, 'settings.json'),
+        '--plugin-dir',
+        join(dir, 'atc-bridge'),
+      ],
+    }),
+  ]);
 });
 
 test("it takes a remote session's hook reports from a socket that serves that session alone", async () => {
-  await using daemon = await setupTest({ guestATC: true });
+  await using ctx = await setupTest({
+    guestATC: 'stub',
+    atcBinary: 'none',
+    adapter: (claudeBin) => {
+      const config = parseConfig({ claudeBin });
 
-  const first = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+      return new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+    },
+  });
+
+  const first = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
 
-  const second = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  const second = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
@@ -184,11 +161,15 @@ test("it takes a remote session's hook reports from a socket that serves that se
   const firstID = String(getRecord(first, 'session')['id']);
   const secondID = String(getRecord(second, 'session')['id']);
 
-  await daemon.client.sendRequest('session.input', { session: secondID, d: `forge ${firstID}\r` });
-  await daemon.client.sendRequest('session.input', { session: secondID, d: 'notify\r' });
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: secondID,
+    d: `forge ${firstID}\r`,
+  });
+
+  await ctx.daemon.client.sendRequest('session.input', { session: secondID, d: 'notify own\r' });
 
   await waitFor(async () => {
-    const listed = await daemon.client.sendRequest('session.list');
+    const listed = await ctx.daemon.client.sendRequest('session.list');
 
     expect(listed).toMatchObject({
       sessions: [
@@ -200,29 +181,44 @@ test("it takes a remote session's hook reports from a socket that serves that se
 });
 
 test('it keeps a nested harness inside a remote session from rebinding that session', async () => {
-  await using daemon = await setupTest({ guestATC: true });
+  await using ctx = await setupTest({
+    guestATC: 'stub',
+    atcBinary: 'none',
+    adapter: (claudeBin) => {
+      const config = parseConfig({ claudeBin });
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+      return new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+    },
+  });
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'start\r' });
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: id,
+    d: 'start agent-remote-1\r',
+  });
 
   await waitFor(async () => {
-    const listed = await daemon.client.sendRequest('session.list');
+    const listed = await ctx.daemon.client.sendRequest('session.list');
 
     expect(listed).toMatchObject({ sessions: [{ id, agentSessionID: 'agent-remote-1' }] });
   });
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'nested\r' });
-  await daemon.client.sendRequest('session.input', { session: id, d: 'notify\r' });
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: id,
+    d: 'nested nested-codex-1\r',
+  });
+
+  await ctx.daemon.client.sendRequest('session.input', { session: id, d: 'notify own\r' });
 
   await waitFor(async () => {
-    const listed = await daemon.client.sendRequest('session.list');
+    const listed = await ctx.daemon.client.sendRequest('session.list');
 
     expect(listed).toMatchObject({
       sessions: [{ id, state: 'needs_you', lastMsg: 'own', agentSessionID: 'agent-remote-1' }],
@@ -231,78 +227,78 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
 });
 
 test('it copies its own atc binary into an imp that has none', async () => {
-  await using daemon = await setupTest({ atcBinary: true });
+  await using ctx = await setupTest({
+    guestATC: 'none',
+    atcBinary: 'stub',
+    adapter: (claudeBin) => {
+      const config = parseConfig({ claudeBin });
 
-  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, cols: 80, rows: 24 });
+      return new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+    },
+  });
 
-  const installed = join(daemon.guestDir, 'bin', 'atc');
+  await ctx.daemon.client.sendRequest('session.spawn', { cwd: ctx.daemon.dir, cols: 80, rows: 24 });
 
-  expect(readFileSync(installed, 'utf8')).toBe(readFileSync(daemon.fakeATC, 'utf8'));
+  const installed = join(ctx.guestDir, 'bin', 'atc');
+
+  expect(readFileSync(installed, 'utf8')).toBe(readFileSync(ctx.clis.atc, 'utf8'));
   expect(statSync(installed).mode & 0o111).toBe(0o111);
 });
 
 test('it refuses a remote spawn whose agent is not signed in on the host, before any harness starts', async () => {
-  await using daemon = await setupTest({
-    adapter: (fakeClaude) => ({
-      id: 'claude',
-      headlessRunner: null,
-      screenDetector: null,
-      takesMessages: false,
-      planSpawn: () => ({ bin: fakeClaude, args: [] }),
-      planAuthCheck: () => ['false'],
-      normalizeHook: () => ({ kind: 'heartbeat' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => null,
-    }),
+  await using ctx = await setupTest({
+    guestATC: 'none',
+    atcBinary: 'none',
+    adapter: (claudeBin) =>
+      buildMockAgentAdapter({
+        planSpawn: () => ({ bin: claudeBin, args: [] }),
+        planAuthCheck: () => ['false'],
+      }),
   });
 
-  const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  const spawned = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
+
+  await Promise.allSettled([spawned]);
 
   expect(spawned).rejects.toMatchObject({
     code: 'auth_not_configured',
     data: { agent: 'claude', target: 'box' },
   });
 
-  await spawned.catch(() => null);
-
-  expect(daemon.port.sessionRequests).toBeEmpty();
+  expect(ctx.port.sessionRequests).toBeEmpty();
 });
 
 test('it destroys the host of its own that a remote spawn readied when its agent is not signed in there', async () => {
-  await using daemon = await setupTest({
-    adapter: (fakeClaude) => ({
-      id: 'claude',
-      headlessRunner: null,
-      screenDetector: null,
-      takesMessages: false,
-      planSpawn: () => ({ bin: fakeClaude, args: [] }),
-      planAuthCheck: () => ['false'],
-      normalizeHook: () => ({ kind: 'heartbeat' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => null,
-    }),
+  await using ctx = await setupTest({
+    guestATC: 'none',
+    atcBinary: 'none',
+    adapter: (claudeBin) =>
+      buildMockAgentAdapter({
+        planSpawn: () => ({ bin: claudeBin, args: [] }),
+        planAuthCheck: () => ['false'],
+      }),
   });
 
-  const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  const spawned = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
 
+  await Promise.allSettled([spawned]);
+
+  const listed = await ctx.daemon.client.sendRequest('session.list');
+
   expect(spawned).rejects.toMatchObject({ code: 'auth_not_configured' });
 
-  await spawned.catch(() => null);
-
   expect<Record<string, unknown>>({
-    created: daemon.port.calls.filter((call) => call.startsWith('imps.create')),
-    imps: daemon.port.collectImpNames(),
-    listed: await daemon.client.sendRequest('session.list'),
+    created: ctx.port.calls.filter((call) => call.startsWith('imps.create')),
+    imps: ctx.port.collectImpNames(),
+    listed,
   }).toStrictEqual({
     created: [expect.toStartWith('imps.create ')],
     imps: [],
@@ -310,40 +306,55 @@ test('it destroys the host of its own that a remote spawn readied when its agent
   });
 });
 
-test('it keeps the key of a spawn whose agent is not signed in on a host it cannot destroy as outcome_unknown, so a retry creates no imp', async () => {
-  await using daemon = await setupTest({
-    adapter: (fakeClaude) => ({
-      id: 'claude',
-      headlessRunner: null,
-      screenDetector: null,
-      takesMessages: false,
-      planSpawn: () => ({ bin: fakeClaude, args: [] }),
-      planAuthCheck: () => ['false'],
-      normalizeHook: () => ({ kind: 'heartbeat' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => null,
-    }),
+test('it answers outcome_unknown for a spawn whose agent is not signed in on a host it cannot destroy', async () => {
+  await using ctx = await setupTest({
+    guestATC: 'none',
+    atcBinary: 'none',
+    adapter: (claudeBin) =>
+      buildMockAgentAdapter({
+        planSpawn: () => ({ bin: claudeBin, args: [] }),
+        planAuthCheck: () => ['false'],
+      }),
   });
 
-  daemon.port.setDestroyFailure('INTERNAL');
+  ctx.port.setDestroyFailure('INTERNAL');
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
-  const first = daemon.client.sendRequest('session.spawn', params);
+  expect(
+    ctx.daemon.client.sendRequest('session.spawn', {
+      cwd: ctx.daemon.dir,
+      cols: 80,
+      rows: 24,
+      idempotencyKey: 'k-1',
+    }),
+  ).rejects.toMatchObject({ code: 'outcome_unknown' });
+});
 
-  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+test('it keeps the key of a spawn whose agent is not signed in on a host it cannot destroy as outcome_unknown, so a retry creates no imp', async () => {
+  await using ctx = await setupTest({
+    guestATC: 'none',
+    atcBinary: 'none',
+    adapter: (claudeBin) =>
+      buildMockAgentAdapter({
+        planSpawn: () => ({ bin: claudeBin, args: [] }),
+        planAuthCheck: () => ['false'],
+      }),
+  });
 
-  await first.catch(() => null);
+  const params = { cwd: ctx.daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  const retried = daemon.client.sendRequest('session.spawn', params);
+  ctx.port.setDestroyFailure('INTERNAL');
+
+  await Promise.allSettled([ctx.daemon.client.sendRequest('session.spawn', params)]);
+
+  const retried = ctx.daemon.client.sendRequest('session.spawn', params);
+
+  await Promise.allSettled([retried]);
 
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
 
-  await retried.catch(() => null);
-
   expect<Record<string, unknown>>({
-    created: daemon.port.calls.filter((call) => call.startsWith('imps.create')),
-    imps: daemon.port.collectImpNames(),
+    created: ctx.port.calls.filter((call) => call.startsWith('imps.create')),
+    imps: ctx.port.collectImpNames(),
   }).toStrictEqual({
     created: [expect.toStartWith('imps.create ')],
     imps: [expect.toStartWith('atc-')],
@@ -351,81 +362,93 @@ test('it keeps the key of a spawn whose agent is not signed in on a host it cann
 });
 
 test('it revives a slept remote session whose transcript only its imp holds', async () => {
-  await using daemon = await setupTest({ guestATC: true });
+  await using ctx = await setupTest({
+    guestATC: 'stub',
+    atcBinary: 'none',
+    adapter: (claudeBin) => {
+      const config = parseConfig({ claudeBin });
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+      return new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+    },
+  });
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'start\r' });
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: id,
+    d: 'start agent-remote-1\r',
+  });
 
   await waitFor(async () => {
-    const listed = await daemon.client.sendRequest('session.list');
+    const listed = await ctx.daemon.client.sendRequest('session.list');
 
     expect(listed).toMatchObject({ sessions: [{ id, agentSessionID: 'agent-remote-1' }] });
   });
 
-  await daemon.client.sendRequest('session.kill', { session: id });
-  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
-  const listed = await daemon.client.sendRequest('session.list');
+  const listed = await ctx.daemon.client.sendRequest('session.list');
 
   expect(listed).toMatchObject({ sessions: [{ id, state: 'running', lastMsg: 'revived' }] });
 });
 
 test('it refuses a remote Claude spawn when the atc the target names is missing from the host', async () => {
-  await using daemon = await setupTest({ guestATC: true });
+  await using ctx = await setupTest({
+    guestATC: 'stub',
+    atcBinary: 'none',
+    adapter: (claudeBin) => {
+      const config = parseConfig({ claudeBin });
 
-  rmSync(daemon.fakeATC);
+      return new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+    },
+  });
 
-  const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  rmSync(ctx.clis.atc);
+
+  const spawned = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     cols: 80,
     rows: 24,
   });
+
+  await Promise.allSettled([spawned]);
 
   expect(spawned).rejects.toMatchObject({
     code: 'unsupported_operation',
     data: { provider: 'imp', problem: 'no_guest_atc' },
   });
 
-  await spawned.catch(() => null);
-
-  expect(daemon.port.sessionRequests).toBeEmpty();
+  expect(ctx.port.sessionRequests).toBeEmpty();
 });
 
 test('it refuses a remote spawn of an agent that never runs remotely, without blaming a missing atc', async () => {
-  await using daemon = await setupTest({
-    guestATC: true,
-    adapter: (fakeClaude) => ({
-      id: 'zai',
-      headlessRunner: null,
-      screenDetector: null,
-      takesMessages: false,
-      planSpawn: () => ({ bin: fakeClaude, args: [] }),
-      planGuestSpawn: () => null,
-      normalizeHook: () => ({ kind: 'heartbeat' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => null,
+  await using ctx = await setupTest({
+    guestATC: 'stub',
+    atcBinary: 'none',
+    adapter: (claudeBin) =>
+      buildMockAgentAdapter({
+        id: 'zai',
+        planSpawn: () => ({ bin: claudeBin, args: [] }),
+        planGuestSpawn: () => null,
+      }),
+  });
+
+  expect(
+    ctx.daemon.client.sendRequest('session.spawn', {
+      cwd: ctx.daemon.dir,
+      cols: 80,
+      rows: 24,
+      agent: 'zai',
     }),
-  });
-
-  const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
-    cols: 80,
-    rows: 24,
-    agent: 'zai',
-  });
-
-  expect(spawned).rejects.toMatchObject({
+  ).rejects.toMatchObject({
     code: 'unsupported_operation',
     data: { provider: 'imp', agent: 'zai', problem: 'remote_unsupported' },
   });
-
-  await spawned.catch(() => null);
 });
