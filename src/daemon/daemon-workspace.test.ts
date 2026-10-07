@@ -1027,9 +1027,7 @@ test('it starts a revived harness after a restart without the workspace credenti
     options: async (paths) => {
       // The fleet holds a ready git workspace on box, as a spawn under a
       // workspace credential leaves it.
-      const store = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => store.stop());
+      await using store = await StateStore.open(paths.dbPath);
 
       await store.createMaterialization(
         {
@@ -1057,8 +1055,6 @@ test('it starts a revived harness after a restart without the workspace credenti
           targetIdentity: 'test:box',
         }),
       ]);
-
-      await store.stop();
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -2208,6 +2204,43 @@ test('it checks out the sha of a git source that holds both on the branch its re
   expect(existsSync(join(dest, 'later.txt'))).toBeFalse();
 });
 
+test("it runs git from the daemon's PATH for a git spawn on an allowed transport", async () => {
+  await using ctx = await setupTest();
+
+  const box = buildStubDirProvider();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
+
+  // A git first on the PATH records each run.
+  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
+  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+
+  await daemon.client
+    .sendRequest('session.spawn', {
+      cwd: join(ctx.dir, 'box', 'ws'),
+      target: 'box',
+      workspace: { kind: 'git', url: 'https://example.com/app.git', ref: 'main' },
+    })
+    .catch(() => null);
+
+  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeTrue();
+});
+
 test('it refuses a git source on a local transport before it runs git, transferring nothing', async () => {
   await using ctx = await setupTest();
 
@@ -2490,6 +2523,39 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
   });
 });
 
+test("it runs git from the daemon's PATH for a probe under a valid transport list", async () => {
+  await using ctx = await setupTest();
+
+  const box = buildStubDirProvider();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
+
+  // A git first on the PATH records each run.
+  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
+  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+
+  await daemon.client
+    .sendRequest('git.probe', { url: 'https://example.com/app.git', target: 'box' })
+    .catch(() => null);
+
+  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeTrue();
+});
+
 test('it refuses a probe under an invalid transport list before any git runs', async () => {
   await using ctx = await setupTest();
 
@@ -2585,6 +2651,43 @@ test('it refuses a git spawn under an invalid transport list before any git runs
 
   expect(existsSync(join(ctx.dir, 'git-ran'))).toBeFalse();
   expect(box.calls).toStrictEqual([]);
+});
+
+test("it runs git from the daemon's PATH for a checkout spawn under a valid transport list", async () => {
+  await using ctx = await setupTest();
+
+  const box = buildStubDirProvider();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+      ],
+    }),
+  });
+
+  // A git first on the PATH records each run.
+  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
+  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+
+  await daemon.client
+    .sendRequest('session.spawn', {
+      cwd: join(ctx.dir, 'box', 'ws-path'),
+      target: 'box',
+      workspace: { kind: 'path', path: ctx.work },
+    })
+    .catch(() => null);
+
+  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeTrue();
 });
 
 test('it refuses a checkout spawn under an invalid transport list before any git runs', async () => {

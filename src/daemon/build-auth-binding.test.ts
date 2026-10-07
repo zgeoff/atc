@@ -161,6 +161,11 @@ test('it keeps the hash when the selection lists the same profiles in another or
 });
 
 test('it refuses to plan a binding whose profiles collide on one host', () => {
+  const profiles = new Map([
+    ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai' })],
+    ['judge', buildMockAuthProfile({ name: 'judge', host: 'api.z.ai' })],
+  ]);
+
   expect(
     buildAuthBinding(
       {
@@ -168,34 +173,7 @@ test('it refuses to plan a binding whose profiles collide on one host', () => {
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: { profiles: ['glm', 'judge'], placeholderEnv: {} },
       },
-      new Map([
-        [
-          'glm',
-          {
-            name: 'glm',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: [],
-          },
-        ],
-        [
-          'judge',
-          {
-            name: 'judge',
-            secret: 'judge',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: [],
-          },
-        ],
-      ]),
+      profiles,
     ),
   ).toStrictEqual({
     problem: {

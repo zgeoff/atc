@@ -6,19 +6,16 @@ import { ImpClientPort } from './imp-client-port';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
 /**
- * The stub imp port, and an impd stand-in on a real HTTP port for the
- * tests that drive the real client.
+ * The stub imp port.
  */
 function setupTest() {
   using stack = new DisposableStack();
 
   const port = stack.use(buildStubImpPort());
-  const impd = stack.use(startStubImpdInfo());
   const owned = stack.move();
 
   return {
     port,
-    impd,
     [Symbol.dispose]: () => {
       owned.dispose();
     },
@@ -108,25 +105,31 @@ test.each([
   ['absent', { sessionOffsets: true, leases: true }],
   ['false', { sessionOffsets: true, leases: true, grantableTokens: false, secretRebind: false }],
   ['strings', { sessionOffsets: true, leases: true, grantableTokens: 'true', secretRebind: 'yes' }],
-])('it refuses an impd whose grant flags are %s after one system info call', (_kind, sent) => {
-  using ctx = setupTest();
+])(
+  'it refuses an impd whose grant flags are %s after one system info call',
+  async (_kind, sent) => {
+    // An impd stand-in on a real HTTP port, so the real client reads it.
+    await using impd = startStubImpdInfo();
 
-  ctx.impd.info.features = sent;
+    impd.info.features = sent;
 
-  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
+    const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
 
-  const refusal = verifyBrokerAuthority(
-    port,
-    {
-      impNames: ['atc-s1'],
-      secrets: ['glm'],
-    },
-    'atc-',
-  );
+    const refusal = verifyBrokerAuthority(
+      port,
+      {
+        impNames: ['atc-s1'],
+        secrets: ['glm'],
+      },
+      'atc-',
+    );
 
-  expect(refusal).rejects.toMatchObject({ code: 'auth_impd_too_old' });
-  expect(ctx.impd.paths).toStrictEqual(['/rpc/system/info']);
-});
+    await Promise.allSettled([refusal]);
+
+    expect(refusal).rejects.toMatchObject({ code: 'auth_impd_too_old' });
+    expect(impd.paths).toStrictEqual(['/rpc/system/info']);
+  },
+);
 
 test('it refuses a token below manage scope', () => {
   using ctx = setupTest();

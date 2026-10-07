@@ -18,12 +18,10 @@ import { buildTargetIdentity } from './build-target-identity';
 
 /**
  * The fixed parts of a daemon whose targets come from a config.json on disk
- * through the real load: a config path in a temp directory of the test's
- * own, which the test writes or leaves absent before the boot, the claude
- * stand-in, whose headless runner records each turn it starts in `runs`, a
- * real codex adapter pointed at a binary that does not exist, so codex is
- * registered but not installed, and `harnesses`, which records the target
- * of each spawn.
+ * through the real load: a temp directory of the test's own, a config path
+ * in it, which the test writes or leaves absent before the boot, the claude
+ * stand-in, whose headless runner records each turn it starts in `runs`,
+ * and `harnesses`, which records the target of each spawn.
  */
 function setupTest() {
   using stack = new DisposableStack();
@@ -35,17 +33,13 @@ function setupTest() {
 
   const headless = buildStubHeadlessRunner();
   const claude = buildMockAgentAdapter({ headlessRunner: headless.runner });
-  const codexConfig = parseConfig({ codexBin: join(tmp.dir, 'missing', 'codex') });
-
-  const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));
-
   const harnesses: string[] = [];
   const owned = stack.move();
 
   return {
+    dir: tmp.dir,
     configPath: join(configDir, 'config.json'),
     claude,
-    adapters: [claude, codex],
     harnesses,
     runs: headless.runs,
     [Symbol.dispose]: () => {
@@ -65,7 +59,6 @@ test('it refuses a spawn without a target when an existing config holds invalid 
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -102,7 +95,6 @@ test('it refuses a spawn on the local target when an existing config holds inval
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -139,7 +131,6 @@ test('it refuses a spawn without a target when the config path is a directory', 
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -176,7 +167,6 @@ test('it refuses a spawn on the local target when the config path is a directory
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -218,7 +208,6 @@ test.skipIf(process.getuid?.() === 0)(
 
         return {
           adapter: ctx.claude,
-          adapters: ctx.adapters,
           ejectSettleMs: 0,
           targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
           defaultTarget: loaded.defaultTarget,
@@ -261,7 +250,6 @@ test.skipIf(process.getuid?.() === 0)(
 
         return {
           adapter: ctx.claude,
-          adapters: ctx.adapters,
           ejectSettleMs: 0,
           targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
           defaultTarget: loaded.defaultTarget,
@@ -307,7 +295,6 @@ test.each([
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -349,7 +336,6 @@ test.each([
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -386,7 +372,6 @@ test('it refuses every spawn when a config file sets agents beside an old agent 
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -396,19 +381,35 @@ test('it refuses every spawn when a config file sets agents beside an old agent 
     },
   });
 
-  const refused = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  const refused = await Promise.all([
+    daemon.client
+      .sendRequest('session.spawn', { cwd: daemon.dir })
+      .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data })),
+    daemon.client
+      .sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' })
+      .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data })),
+  ]);
 
-  expect(refused).toStrictEqual({
-    code: 'target_config_invalid',
-    data: {
-      problem: 'config_malformed',
-      path: ctx.configPath,
-      detail:
-        "claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'",
+  expect(refused).toStrictEqual([
+    {
+      code: 'target_config_invalid',
+      data: {
+        problem: 'config_malformed',
+        path: ctx.configPath,
+        detail:
+          "claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'",
+      },
     },
-  });
+    {
+      code: 'target_config_invalid',
+      data: {
+        problem: 'config_malformed',
+        path: ctx.configPath,
+        detail:
+          "claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'",
+      },
+    },
+  ]);
 
   expect(ctx.harnesses).toStrictEqual([]);
 });
@@ -430,7 +431,6 @@ test('it refuses input to a restored local session without running a turn when t
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -469,7 +469,6 @@ test('it lists the config problem, no targets, and no default target when the co
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -510,7 +509,6 @@ test('it lists no sessions and keeps answering when the config holds invalid JSO
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -532,7 +530,6 @@ test('it spawns a session without a target on the local target when no config ex
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -559,7 +556,6 @@ test('it writes the default config when no config exists', async () => {
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -592,6 +588,12 @@ test('it writes the default config when no config exists', async () => {
 test('it refuses a spawn of an agent missing from this host with the config problem when the config holds invalid JSON', async () => {
   using ctx = setupTest();
 
+  // A codex binary that does not exist, so codex is registered but not
+  // installed.
+  const codexConfig = parseConfig({ codexBin: join(ctx.dir, 'missing', 'codex') });
+
+  const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));
+
   writeFileSync(ctx.configPath, '{ "targets": ');
 
   await using daemon = await startTestDaemon({
@@ -600,7 +602,7 @@ test('it refuses a spawn of an agent missing from this host with the config prob
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
+        adapters: [codex],
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -629,6 +631,12 @@ test('it refuses a spawn of an agent missing from this host with the config prob
 test('it refuses a spawn of an agent missing from this host as not installed when the config is usable', async () => {
   using ctx = setupTest();
 
+  // A codex binary that does not exist, so codex is registered but not
+  // installed.
+  const codexConfig = parseConfig({ codexBin: join(ctx.dir, 'missing', 'codex') });
+
+  const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));
+
   writeFileSync(ctx.configPath, '{}');
 
   await using daemon = await startTestDaemon({
@@ -637,7 +645,7 @@ test('it refuses a spawn of an agent missing from this host as not installed whe
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
+        adapters: [codex],
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -683,7 +691,6 @@ test.each([
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -720,7 +727,6 @@ test.each([
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -773,7 +779,6 @@ test.each([
 
         return {
           adapter: ctx.claude,
-          adapters: ctx.adapters,
           ejectSettleMs: 0,
           targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
           defaultTarget: loaded.defaultTarget,
@@ -806,7 +811,6 @@ test('it gives a principal legacy rights over a restored local session when no c
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
@@ -852,7 +856,6 @@ test.each([
 
         return {
           adapter: ctx.claude,
-          adapters: ctx.adapters,
           ejectSettleMs: 0,
           targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
           defaultTarget: loaded.defaultTarget,
@@ -887,7 +890,6 @@ test('it hides a restored local session from a principal when the config path is
 
       return {
         adapter: ctx.claude,
-        adapters: ctx.adapters,
         ejectSettleMs: 0,
         targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,

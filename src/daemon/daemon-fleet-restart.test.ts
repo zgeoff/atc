@@ -18,16 +18,12 @@ test('it restores the stored sessions by itself after a restart', async () => {
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: paths.dir }),
         buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: paths.dir }),
       ]);
-
-      await seed.stop();
 
       // The fake agent never reports it booted, so the second session starts
       // once the first one's boot cap runs out on the stub clock.
@@ -70,9 +66,7 @@ test('it sends no message to the sessions it restores after a restart', async ()
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet([
         buildMockFleetEntry({
@@ -87,8 +81,6 @@ test('it sends no message to the sessions it restores after a restart', async ()
         { atcId: toSessionID('s-a'), event: 'UserPromptSubmit', payload: { session_id: 'a-a' } },
         { kind: 'prompt-submitted' },
       );
-
-      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -112,9 +104,7 @@ test('it sends no message to the sessions it restores after a restart', async ()
     expect(settles).toStrictEqual([{ restored: 2, outcome: 'finished' }]);
   });
 
-  const store = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(daemon.dbPath);
 
   const pending = {
     a: await store.collectPendingMessages({ atcID: toSessionID('s-a') }),
@@ -130,15 +120,11 @@ test('it starts none of the stored sessions when the option is unset', async () 
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: paths.dir }),
       ]);
-
-      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn }),
@@ -161,15 +147,11 @@ test('it starts none of the stored sessions when the option is unset', async () 
 test('it restores the stored sessions on fleet.restore when the option is unset', async () => {
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: paths.dir }),
       ]);
-
-      await seed.stop();
 
       return { adapter: buildMockAgentAdapter() };
     },
@@ -188,15 +170,11 @@ test('it starts none of the stored sessions when the option is false', async () 
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: paths.dir }),
       ]);
-
-      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn }),
@@ -259,17 +237,13 @@ test('it joins a fleet.restore to the automatic restore while its stagger runs',
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet(
         ['s-a', 's-b', 's-c'].map((id) =>
           buildMockFleetEntry({ sessionID: toSessionID(id), cwd: paths.dir }),
         ),
       );
-
-      await seed.stop();
 
       // The fake agent never reports it booted, and no cap ends the wait, so
       // the stagger holds on the first session.
@@ -302,17 +276,13 @@ test('it starts no queued session once the daemon stops while the stagger runs',
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet(
         ['s-a', 's-b'].map((id) =>
           buildMockFleetEntry({ sessionID: toSessionID(id), cwd: paths.dir }),
         ),
       );
-
-      await seed.stop();
 
       // The fake agent never reports it booted, and no cap ends the wait, so
       // the stagger holds on the first session until the daemon stops.
@@ -348,17 +318,13 @@ test('it spawns nothing for a fleet.restore after the automatic restore settled'
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet(
         ['s-a', 's-b'].map((id) =>
           buildMockFleetEntry({ sessionID: toSessionID(id), cwd: paths.dir }),
         ),
       );
-
-      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn }),
@@ -404,9 +370,7 @@ test('it restores the rest of the fleet past rows whose repository cannot be res
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-local'), cwd: paths.dir }),
@@ -424,8 +388,6 @@ test('it restores the rest of the fleet past rows whose repository cannot be res
         }),
         buildMockFleetEntry({ sessionID: toSessionID('s-after'), cwd: paths.dir }),
       ]);
-
-      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -473,9 +435,7 @@ test('it forgets an exited session on a target the daemon cannot use', async () 
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet([
         buildMockFleetEntry({
@@ -485,8 +445,6 @@ test('it forgets an exited session on a target the daemon cannot use', async () 
           exited: true,
         }),
       ]);
-
-      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -520,15 +478,11 @@ test('it lists a restored exited worktree session under the worktree itself', as
 
       await Bun.write(join(worktree, '.git'), `gitdir: ${paths.dir}/main/.git/worktrees/wt\n`);
 
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-wt'), cwd: worktree, exited: true }),
       ]);
-
-      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -560,15 +514,11 @@ test('it regroups a revived exited worktree session under its repository', async
 
       await Bun.write(join(worktree, '.git'), `gitdir: ${paths.dir}/main/.git/worktrees/wt\n`);
 
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-wt'), cwd: worktree, exited: true }),
       ]);
-
-      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter(),

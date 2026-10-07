@@ -1,8 +1,10 @@
 import { expect, mock, test } from 'bun:test';
 import { PROTOCOL_V } from '../protocol/protocol';
-import { toDaemonID } from '../shared/to-daemon-id';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
+import { buildMockSessionDescriptor } from '../test-utils/build-mock-session-descriptor';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
 import { buildStubPeerSocket } from '../test-utils/build-stub-peer-socket';
 import { DaemonConnection } from './daemon-connection';
@@ -51,25 +53,7 @@ test('it answers session.get whose session leaves the view during the read as fo
   canSeeSession.mockReturnValue(false);
 
   record.resolve({
-    session: {
-      id: toSessionID('s-held'),
-      name: 'secret',
-      cwd: '/srv/secret',
-      state: 'running',
-      unread: false,
-      lastMsg: 'secret',
-      agent: 'claude',
-      pinned: false,
-      lastAttachedAt: 0,
-      repoRoot: '/srv/secret',
-      namedBy: 'auto',
-      createdAt: 0,
-      kind: 'pty',
-      alive: true,
-      canEject: false,
-      locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
-      lifecycle: { desired: 'run', vm: 'none', harness: 'running', attachment: 'local' },
-    },
+    session: buildMockSessionDescriptor({ id: toSessionID('s-held') }),
     prompt: 'secret',
     lastActivityAt: 0,
     pending: null,
@@ -414,14 +398,11 @@ test('it answers message.get whose session leaves the view during the wait as fo
 
   message.resolve({
     session: toSessionID('s-held'),
-    record: {
+    record: buildMockMessageRecord({
       id: toMessageID('m-held'),
       atcID: toSessionID('s-held'),
-      from: 'owner',
-      text: 'secret',
       status: 'delivered',
-      sentAt: 0,
-    },
+    }),
     answeredWith: [],
   });
 
@@ -473,14 +454,13 @@ test('it answers message.ack whose session leaves the view during the ack as for
 
   canSeeSession.mockReturnValue(false);
 
-  ack.resolve({
-    id: toMessageID('m-held'),
-    atcID: toSessionID('s-held'),
-    from: 'owner',
-    text: 'secret',
-    status: 'delivered',
-    sentAt: 0,
-  });
+  ack.resolve(
+    buildMockMessageRecord({
+      id: toMessageID('m-held'),
+      atcID: toSessionID('s-held'),
+      status: 'delivered',
+    }),
+  );
 
   const answered = await held;
 
@@ -633,10 +613,7 @@ test('it leaves out of fleet.list a session that leaves the view during the read
   await entered.promise;
 
   canSeeSession.mockReturnValue(false);
-
-  fleet.resolve([
-    { sessionID: toSessionID('s-held'), name: 'secret', cwd: '/srv/secret', agent: 'claude' },
-  ]);
+  fleet.resolve([buildMockFleetEntry({ sessionID: toSessionID('s-held') })]);
 
   const answered = await held;
 

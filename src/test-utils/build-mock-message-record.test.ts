@@ -21,6 +21,7 @@ test('it applies overrides on top of the defaults', () => {
       agentSessionID: toAgentSessionID('a1'),
       status: 'answered',
       answer: 'done',
+      turn: undefined,
     }),
   ).toStrictEqual({
     id: toMessageID('m-1'),

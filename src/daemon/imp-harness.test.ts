@@ -1,5 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
+import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
 import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubHarnessGuest } from '../test-utils/create-stub-harness-guest';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -35,8 +36,7 @@ test('it reconnects after impd drops a send and resumes after the last byte it h
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
@@ -44,7 +44,7 @@ test('it reconnects after impd drops a send and resumes after the last byte it h
       cwd: ctx.dir,
       cols: 80,
       rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -134,16 +134,12 @@ test('it drops the bytes a resume repeats below its high-water offset', async ()
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -205,8 +201,7 @@ test('it does a fresh attach that clears the screen when the resume finds a gap'
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
@@ -214,7 +209,7 @@ test('it does a fresh attach that clears the screen when the resume finds a gap'
       cwd: ctx.dir,
       cols: 80,
       rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -287,8 +282,7 @@ test('it does a fresh attach when impd refuses its resume offset', async () => {
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
@@ -296,7 +290,7 @@ test('it does a fresh attach when impd refuses its resume offset', async () => {
       cwd: ctx.dir,
       cols: 80,
       rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -358,8 +352,7 @@ test('it takes the session back from another connection that takes it over', asy
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
@@ -367,7 +360,7 @@ test('it takes the session back from another connection that takes it over', asy
       cwd: ctx.dir,
       cols: 80,
       rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -391,7 +384,14 @@ test('it takes the session back from another connection that takes it over', asy
   });
 
   const other = ctx.port.openSession(
-    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
+    buildMockImpSessionRequest({
+      kind: 'attach',
+      name: 'imp-a',
+      session: 's1',
+      cols: 80,
+      rows: 24,
+      wake: true,
+    }),
     { onStarted: () => {}, onOutput: () => {} },
   );
 
@@ -434,16 +434,12 @@ test('it carries input once it takes the session back from another connection', 
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -467,7 +463,7 @@ test('it carries input once it takes the session back from another connection', 
   });
 
   const other = ctx.port.openSession(
-    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
+    buildMockImpSessionRequest({ kind: 'attach', name: 'imp-a', session: 's1', wake: true }),
     { onStarted: () => {}, onOutput: () => {} },
   );
 
@@ -489,16 +485,12 @@ test('it ends a harness whose imp booted cold with the cause of the first boot a
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -547,16 +539,12 @@ test('it ends a harness without a boot id as ended with the cause unknown', asyn
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -606,16 +594,12 @@ test('it ends with the kept exit code of its own generation when impd no longer 
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -670,16 +654,12 @@ test('it ends with the refusal message in the detail when impd refuses without a
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -731,16 +711,12 @@ test('it redacts credential-shaped runs from a refusal message it shows', async 
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -798,16 +774,12 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -867,8 +839,7 @@ test('it never sends a resume offset to a session whose agent carries none', asy
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
@@ -876,7 +847,7 @@ test('it never sends a resume offset to a session whose agent carries none', asy
       cwd: ctx.dir,
       cols: 80,
       rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -941,8 +912,7 @@ test('it never sends a resume offset when impd carries no offsets', async () => 
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-b',
       session: 's2',
       argv: [guest.path],
@@ -950,7 +920,7 @@ test('it never sends a resume offset when impd carries no offsets', async () => 
       cwd: ctx.dir,
       cols: 80,
       rows: 24,
-    },
+    }),
     {
       offsets: false,
       reconnectDelaysMs: [0, 0, 0],
@@ -1001,8 +971,7 @@ test('it reports a harness whose imp another owner put to sleep as suspended, wi
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
@@ -1010,7 +979,7 @@ test('it reports a harness whose imp another owner put to sleep as suspended, wi
       cwd: ctx.dir,
       cols: 80,
       rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1083,16 +1052,12 @@ test('it confirms the exit of a killed harness once impd reports its process exi
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1131,16 +1096,12 @@ test('it reports no exit for a running harness whose wait runs out', async () =>
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1177,16 +1138,12 @@ test('it reports no exit for a harness whose imp went to sleep with the process 
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1227,8 +1184,7 @@ test('it counts connections impd drops before they start, and ends once its reco
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
@@ -1236,7 +1192,7 @@ test('it counts connections impd drops before they start, and ends once its reco
       cwd: ctx.dir,
       cols: 80,
       rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1286,8 +1242,7 @@ test('it ends once its reconnects run out when a listener throws on every connec
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
@@ -1295,7 +1250,7 @@ test('it ends once its reconnects run out when a listener throws on every connec
       cwd: ctx.dir,
       cols: 80,
       rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1356,8 +1311,7 @@ test('it starts at the size a resize asked for while its host was still readying
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
@@ -1365,7 +1319,7 @@ test('it starts at the size a resize asked for while its host was still readying
       cwd: ctx.dir,
       cols: 80,
       rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1417,8 +1371,7 @@ test('it applies a resize that arrived before impd answered the start', async ()
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
@@ -1426,7 +1379,7 @@ test('it applies a resize that arrived before impd answered the start', async ()
       cwd: ctx.dir,
       cols: 80,
       rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1471,16 +1424,12 @@ test('it settles its start once impd starts the process', async () => {
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-a',
       session: 's1',
       argv: [guest.path],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1521,17 +1470,13 @@ test('it rejects its start as broker_not_ready and ends without running when imp
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-b',
       session: 's2',
       argv: ['sleep', '30'],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
       require: ['broker'],
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1584,8 +1529,7 @@ test('it requires the broker again on the attach that reconnects a harness whose
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-b',
       session: 's2',
       argv: ['sleep', '30'],
@@ -1594,7 +1538,7 @@ test('it requires the broker again on the attach that reconnects a harness whose
       cols: 80,
       rows: 24,
       require: ['broker'],
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1655,8 +1599,7 @@ test('it refuses a start that requires the broker on an impd without exec requir
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-b',
       session: 's2',
       argv: ['sleep', '30'],
@@ -1665,7 +1608,7 @@ test('it refuses a start that requires the broker on an impd without exec requir
       cols: 80,
       rows: 24,
       require: ['broker'],
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1707,17 +1650,13 @@ test('it rejects its start as auth_impd_too_old when impd refuses it as outdated
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-b',
       session: 's2',
       argv: ['sleep', '30'],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
       require: ['broker'],
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1755,8 +1694,7 @@ test('it starts a harness that requires the broker after one failed feature read
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-b',
       session: 's2',
       argv: ['sleep', '30'],
@@ -1765,7 +1703,7 @@ test('it starts a harness that requires the broker after one failed feature read
       cols: 80,
       rows: 24,
       require: ['broker'],
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1799,8 +1737,7 @@ test('it refuses a harness that requires the broker once its feature reads keep 
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-b',
       session: 's2',
       argv: ['sleep', '30'],
@@ -1809,7 +1746,7 @@ test('it refuses a harness that requires the broker once its feature reads keep 
       cols: 80,
       rows: 24,
       require: ['broker'],
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1846,8 +1783,7 @@ test('it refuses a harness whose admission check throws as its connection opens,
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-b',
       session: 's2',
       argv: ['sleep', '30'],
@@ -1856,7 +1792,7 @@ test('it refuses a harness whose admission check throws as its connection opens,
       cols: 80,
       rows: 24,
       require: ['broker'],
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1905,8 +1841,7 @@ test('it sends the start of a harness whose admission check passes as its connec
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-b',
       session: 's2',
       argv: ['sleep', '30'],
@@ -1915,7 +1850,7 @@ test('it sends the start of a harness whose admission check passes as its connec
       cols: 80,
       rows: 24,
       require: ['broker'],
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -1959,16 +1894,12 @@ test('it tells its host the harness is done only after every exit listener has r
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-b',
       session: 's2',
       argv: ['sh', '-c', 'exit 3'],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],
@@ -2001,16 +1932,12 @@ test('it tells its host the harness is done once when the daemon lets go of it, 
 
   const harness = new ImpHarness(
     ctx.port,
-    {
-      kind: 'start',
+    buildMockImpSessionRequest({
       name: 'imp-b',
       session: 's2',
       argv: ['sleep', '30'],
-      env: {},
       cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    },
+    }),
     {
       offsets: true,
       reconnectDelaysMs: [0, 0, 0],

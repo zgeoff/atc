@@ -19,9 +19,11 @@ async function setupTest() {
 
   const store = await StateStore.open(join(tmp.dir, 'state.db'));
 
-  stack.defer(() => store.stop());
+  stack.use(store);
 
-  const mgr = new SessionManager(buildMockAgentAdapter(), store, join(tmp.dir, 'status.json'), []);
+  const mgr = stack.use(
+    new SessionManager(buildMockAgentAdapter(), store, join(tmp.dir, 'status.json'), []),
+  );
 
   const owned = stack.move();
 

@@ -14,9 +14,8 @@ import { restoreFleet } from './restore-fleet';
 import { SessionManager } from './sessions';
 
 // The fixed parts every restore test shares: a real state store, a recorder
-// of logged lines, and one target `box` on the imp provider over a stub
-// imp port. A manager the test holds after this setup detaches before the
-// store and the provider go.
+// of logged lines, and an imp provider over a stub imp port. A manager the
+// test holds after this setup detaches before the store and the provider go.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
@@ -44,7 +43,7 @@ async function setupTest() {
     dir: tmp.dir,
     statusPath: join(tmp.dir, 'status.json'),
     store,
-    targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
+    provider,
     logged: recorder.lines,
     log: recorder.log,
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
@@ -59,7 +58,7 @@ test('it restores the fleet with no terminal for each session whose agent is not
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
   );
 
   mgr.log = ctx.log;
@@ -118,7 +117,7 @@ test('it logs a later session whose revive fails and leaves it without a termina
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
   );
 
   mgr.log = ctx.log;
@@ -179,7 +178,7 @@ test('it logs a first session whose revive fails with a plain error and still re
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
   );
 
   mgr.log = ctx.log;

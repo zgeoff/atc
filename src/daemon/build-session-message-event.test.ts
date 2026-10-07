@@ -1,17 +1,20 @@
 import { expect, test } from 'bun:test';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
+import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
 import { buildSessionMessageEvent } from './build-session-message-event';
 
 test('it builds an accepted event without delivery or answer fields', () => {
-  const event = buildSessionMessageEvent(toSessionID('s1'), {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello',
-    status: 'accepted',
-    sentAt: 1000,
-  });
+  const event = buildSessionMessageEvent(
+    toSessionID('s1'),
+    buildMockMessageRecord({
+      id: toMessageID('m-1'),
+      from: 'alice',
+      text: 'hello',
+      status: 'accepted',
+      sentAt: 1000,
+    }),
+  );
 
   expect(event).toStrictEqual({
     v: 4,
@@ -26,17 +29,20 @@ test('it builds an accepted event without delivery or answer fields', () => {
 });
 
 test('it builds an answered event with the answer and both timestamps', () => {
-  const event = buildSessionMessageEvent(toSessionID('s2'), {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello',
-    status: 'answered',
-    sentAt: 1000,
-    deliveredAt: 2000,
-    answeredAt: 3000,
-    answer: 'done',
-  });
+  const event = buildSessionMessageEvent(
+    toSessionID('s2'),
+    buildMockMessageRecord({
+      id: toMessageID('m-1'),
+      atcID: toSessionID('s1'),
+      from: 'alice',
+      text: 'hello',
+      status: 'answered',
+      sentAt: 1000,
+      deliveredAt: 2000,
+      answeredAt: 3000,
+      answer: 'done',
+    }),
+  );
 
   expect(event).toStrictEqual({
     v: 4,
@@ -54,16 +60,18 @@ test('it builds an answered event with the answer and both timestamps', () => {
 });
 
 test('it carries only a preview of a long text and a long answer', () => {
-  const event = buildSessionMessageEvent(toSessionID('s1'), {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'q'.repeat(5000),
-    status: 'answered',
-    sentAt: 1000,
-    answeredAt: 3000,
-    answer: 'a'.repeat(5000),
-  });
+  const event = buildSessionMessageEvent(
+    toSessionID('s1'),
+    buildMockMessageRecord({
+      id: toMessageID('m-1'),
+      from: 'alice',
+      text: 'q'.repeat(5000),
+      status: 'answered',
+      sentAt: 1000,
+      answeredAt: 3000,
+      answer: 'a'.repeat(5000),
+    }),
+  );
 
   expect(event).toStrictEqual({
     v: 4,

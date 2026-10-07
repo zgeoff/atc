@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
@@ -151,13 +151,128 @@ test('it lists a gateway with auth as able to spawn, since a target with a broke
 
   const answer = await ctx.client.sendRequest('agents.list');
 
-  expect(answer).toMatchObject({
-    agents: [
-      { id: 'claude' },
-      { id: 'glm', installed: true, capabilities: { spawn: true } },
-      { id: 'zai', installed: true, capabilities: { spawn: true } },
-    ],
-  });
+  expect(answer['agents']).toStrictEqual([
+    {
+      id: 'claude',
+      label: 'Claude',
+      kind: 'claude',
+      installed: true,
+      brokerAuth: false,
+      brokerRequired: false,
+      capabilities: {
+        spawn: true,
+        readTranscript: true,
+        message: true,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: true,
+          values: null,
+          examples: [
+            { value: 'best', resolvesTo: null },
+            { value: 'fable', resolvesTo: null },
+            { value: 'opus', resolvesTo: null },
+            { value: 'sonnet', resolvesTo: null },
+            { value: 'haiku', resolvesTo: null },
+            { value: 'opus[1m]', resolvesTo: null },
+            { value: 'sonnet[1m]', resolvesTo: null },
+            { value: 'opusplan', resolvesTo: null },
+          ],
+          default: null,
+          backendEffect: 'applied',
+          note: 'An alias or a full model name, passed as --model.',
+          available: true,
+        },
+        effort: {
+          supported: true,
+          values: ['low', 'medium', 'high', 'xhigh', 'max'],
+          examples: [],
+          default: null,
+          backendEffect: 'applied',
+          note: 'Passed as --effort. Which levels a session honours depends on its model.',
+          available: true,
+        },
+      },
+    },
+    {
+      id: 'glm',
+      label: 'glm',
+      kind: 'gateway',
+      installed: true,
+      brokerAuth: true,
+      brokerRequired: true,
+      capabilities: {
+        spawn: true,
+        readTranscript: true,
+        message: true,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: true,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: 'applied',
+          note: "A tier alias the gateway's env maps, or a model name the provider accepts, passed as --model.",
+          available: true,
+        },
+        effort: {
+          supported: true,
+          values: ['low', 'medium', 'high', 'xhigh', 'max'],
+          examples: [],
+          default: null,
+          backendEffect: 'unverified',
+          note: "Passed as --effort; the gateway's provider may ignore it.",
+          available: true,
+        },
+      },
+    },
+    {
+      id: 'zai',
+      label: 'zai',
+      kind: 'gateway',
+      installed: true,
+      brokerAuth: false,
+      brokerRequired: false,
+      capabilities: {
+        spawn: true,
+        readTranscript: true,
+        message: true,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: true,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: 'applied',
+          note: "A tier alias the gateway's env maps, or a model name the provider accepts, passed as --model.",
+          available: true,
+        },
+        effort: {
+          supported: true,
+          values: ['low', 'medium', 'high', 'xhigh', 'max'],
+          examples: [],
+          default: null,
+          backendEffect: 'unverified',
+          note: "Passed as --effort; the gateway's provider may ignore it.",
+          available: true,
+        },
+      },
+    },
+  ]);
 });
 
 test('it refuses a local spawn that resumes a session of a gateway with auth and starts no harness', async () => {
@@ -194,9 +309,7 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
   // the daemon is stopped.
   await ctx.stop();
 
-  const store = await StateStore.open(ctx.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(ctx.dbPath);
 
   await store.writeFleet([
     buildMockFleetEntry({
@@ -233,9 +346,7 @@ test('it restores a local session of a gateway with auth without starting its ha
   // the daemon is stopped.
   await ctx.stop();
 
-  const store = await StateStore.open(ctx.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(ctx.dbPath);
 
   await store.writeFleet([
     buildMockFleetEntry({

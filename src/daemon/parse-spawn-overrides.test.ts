@@ -37,8 +37,28 @@ test('it accepts every model and effort value agents.list advertises as availabl
 
   const parsed = advertised.map((entry) => parseSpawnOverrides(entry.agent, entry.requested));
 
-  expect(advertised).toHaveLength(20);
-  expect(parsed.map((result) => result.ok)).toSatisfyAll((ok) => ok === true);
+  expect(parsed).toStrictEqual([
+    { ok: true, overrides: { model: 'best' } },
+    { ok: true, overrides: { model: 'fable' } },
+    { ok: true, overrides: { model: 'opus' } },
+    { ok: true, overrides: { model: 'sonnet' } },
+    { ok: true, overrides: { model: 'haiku' } },
+    { ok: true, overrides: { model: 'opus[1m]' } },
+    { ok: true, overrides: { model: 'sonnet[1m]' } },
+    { ok: true, overrides: { model: 'opusplan' } },
+    { ok: true, overrides: { effort: 'low' } },
+    { ok: true, overrides: { effort: 'medium' } },
+    { ok: true, overrides: { effort: 'high' } },
+    { ok: true, overrides: { effort: 'xhigh' } },
+    { ok: true, overrides: { effort: 'max' } },
+    { ok: true, overrides: { model: 'opus' } },
+    { ok: true, overrides: { model: 'haiku' } },
+    { ok: true, overrides: { effort: 'low' } },
+    { ok: true, overrides: { effort: 'medium' } },
+    { ok: true, overrides: { effort: 'high' } },
+    { ok: true, overrides: { effort: 'xhigh' } },
+    { ok: true, overrides: { effort: 'max' } },
+  ]);
 });
 
 test('it refuses as unsupported every option agents.list does not advertise as available', () => {

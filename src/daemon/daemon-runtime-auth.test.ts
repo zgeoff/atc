@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
@@ -97,9 +97,7 @@ test('it provisions the host of a spawn before readying it and starts the harnes
   const id = String(getRecord(spawned, 'session')['id']);
   const imp = getOnlyImpName(ctx.port);
 
-  const store = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(daemon.dbPath);
 
   const binding = await store.findAuthBinding(toSessionID(id));
 
@@ -615,9 +613,7 @@ test('it refuses a spawn whose broker is not ready, takes back its imp, and list
 
   await spawn.catch(() => null);
 
-  const store = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(daemon.dbPath);
 
   const bindings = await store.collectAuthBindings();
 
@@ -742,9 +738,7 @@ test('it starts an agent that takes the broker credential only where a broker is
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  const store = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(daemon.dbPath);
 
   const binding = await store.findAuthBinding(toSessionID(id));
 
@@ -943,9 +937,7 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
 
   await daemon.client.sendRequest('session.kill', { session: id });
 
-  const store = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(daemon.dbPath);
 
   await store.createMaterialization(
     { sessionID: id, target: 'local', dir: ctx.dir, sourceKind: 'path', withheldEnv: [] },
@@ -1052,9 +1044,7 @@ test('it restores a local session with a workspace without a terminal once its a
 
   const id = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  const store = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(daemon.dbPath);
 
   await store.createMaterialization(
     { sessionID: id, target: 'local', dir: ctx.dir, sourceKind: 'path', withheldEnv: [] },
@@ -2473,9 +2463,8 @@ test('it provisions concurrent spawns each in an imp of its own with only its ow
   const imps = ctx.port.collectImpNames();
 
   const grants = await Promise.all(imps.map((imp) => ctx.port.readGrants(imp)));
-  const store = await StateStore.open(daemon.dbPath);
 
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(daemon.dbPath);
 
   const bindings = await store.collectAuthBindings();
 
@@ -2880,9 +2869,7 @@ test('it forgets a bound session by destroying its imp and dropping its binding,
     confirmToken: offered['confirmToken'],
   });
 
-  const store = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(daemon.dbPath);
 
   const bindings = await store.collectAuthBindings();
   const secrets = await ctx.port.readSecrets();
@@ -3067,9 +3054,7 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const store = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(daemon.dbPath);
 
   await new RuntimeAuthBinder(store).createBinding(ctx.provider.brokerAuth, {
     hostKey: toSessionID('orphan'),
