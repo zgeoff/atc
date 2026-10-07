@@ -423,7 +423,7 @@ await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
 });
 
 test('it reports the start of a wait once across every poll of that wait', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   // The wait polls every 100 ms, so half a second holds several polls.
   writeFileSync(
@@ -448,7 +448,7 @@ process.exit(0);
 });
 
 test('it never reports a wait when a daemon answers on the first try', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   const daemon = await startDaemon({
     socketPath: ctx.sockPath,
@@ -459,7 +459,7 @@ test('it never reports a wait when a daemon answers on the first try', async () 
     statusPath: join(ctx.dir, 'status.json'),
   });
 
-  onTestFinished(() => daemon.stop());
+  ctx.stack.defer(() => daemon.stop());
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
