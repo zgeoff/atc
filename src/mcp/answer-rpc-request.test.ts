@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { getRecord } from '../shared/get-record';
@@ -116,16 +117,15 @@ test('it runs a tool call whose scope the caller holds', async () => {
     },
   );
 
-  if (outcome.kind !== 'reply') {
-    throw new Error('no reply');
-  }
+  invariant(outcome.kind === 'reply', 'no reply');
 
   const result = getRecord(outcome.body, 'result');
   const content: unknown = result['content'];
 
-  if (!Array.isArray(content) || !isRecord(content[0]) || typeof content[0]['text'] !== 'string') {
-    throw new TypeError('no text content');
-  }
+  invariant(
+    Array.isArray(content) && isRecord(content[0]) && typeof content[0]['text'] === 'string',
+    'no text content',
+  );
 
   expect(JSON.parse(content[0]['text'])).toStrictEqual(
     getRecord(result, 'structuredContent')['sessions'],
@@ -163,16 +163,15 @@ test('it returns a tool result object as structured content beside its JSON text
     },
   );
 
-  if (outcome.kind !== 'reply') {
-    throw new Error('no reply');
-  }
+  invariant(outcome.kind === 'reply', 'no reply');
 
   const result = getRecord(outcome.body, 'result');
   const content: unknown = result['content'];
 
-  if (!Array.isArray(content) || !isRecord(content[0]) || typeof content[0]['text'] !== 'string') {
-    throw new TypeError('no text content');
-  }
+  invariant(
+    Array.isArray(content) && isRecord(content[0]) && typeof content[0]['text'] === 'string',
+    'no text content',
+  );
 
   expect(result['structuredContent']).toStrictEqual({
     events: [],
@@ -247,16 +246,15 @@ test('it lists the agents to a caller holding only the read scope', async () => 
     },
   );
 
-  if (outcome.kind !== 'reply') {
-    throw new Error('no reply');
-  }
+  invariant(outcome.kind === 'reply', 'no reply');
 
   const result = getRecord(outcome.body, 'result');
   const content: unknown = result['content'];
 
-  if (!Array.isArray(content) || !isRecord(content[0]) || typeof content[0]['text'] !== 'string') {
-    throw new TypeError('no text content');
-  }
+  invariant(
+    Array.isArray(content) && isRecord(content[0]) && typeof content[0]['text'] === 'string',
+    'no text content',
+  );
 
   expect(JSON.parse(content[0]['text'])).toStrictEqual(result['structuredContent']);
 
@@ -369,15 +367,11 @@ test('it leaves the agents tool out of the list when the connected daemon does n
     },
   );
 
-  if (outcome.kind !== 'reply') {
-    throw new Error('no reply');
-  }
+  invariant(outcome.kind === 'reply', 'no reply');
 
   const tools: unknown = getRecord(outcome.body, 'result')['tools'];
 
-  if (!Array.isArray(tools)) {
-    throw new TypeError('no tools array');
-  }
+  invariant(Array.isArray(tools), 'no tools array');
 
   expect(tools).not.toPartiallyContain({ name: 'atc_agents_list' });
 });
@@ -406,23 +400,17 @@ test('it lists the message tool in its older form when the connected daemon anno
     },
   );
 
-  if (outcome.kind !== 'reply') {
-    throw new Error('no reply');
-  }
+  invariant(outcome.kind === 'reply', 'no reply');
 
   const tools: unknown = getRecord(outcome.body, 'result')['tools'];
 
-  if (!Array.isArray(tools)) {
-    throw new TypeError('no tools array');
-  }
+  invariant(Array.isArray(tools), 'no tools array');
 
   const messageGet: unknown = tools.find(
     (tool) => isRecord(tool) && tool['name'] === 'atc_message_get',
   );
 
-  if (!isRecord(messageGet)) {
-    throw new Error('atc_message_get is not listed');
-  }
+  invariant(isRecord(messageGet), 'atc_message_get is not listed');
 
   expect(messageGet).toStrictEqual({
     name: 'atc_message_get',
@@ -641,23 +629,17 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
     },
   );
 
-  if (outcome.kind !== 'reply') {
-    throw new Error('no reply');
-  }
+  invariant(outcome.kind === 'reply', 'no reply');
 
   const tools: unknown = getRecord(outcome.body, 'result')['tools'];
 
-  if (!Array.isArray(tools)) {
-    throw new TypeError('no tools array');
-  }
+  invariant(Array.isArray(tools), 'no tools array');
 
   const spawn: unknown = tools.find(
     (tool) => isRecord(tool) && tool['name'] === 'atc_session_spawn',
   );
 
-  if (!isRecord(spawn)) {
-    throw new Error('atc_session_spawn is not listed');
-  }
+  invariant(isRecord(spawn), 'atc_session_spawn is not listed');
 
   const properties = getRecord(getRecord(spawn, 'inputSchema'), 'properties');
 
@@ -739,23 +721,17 @@ test('it lists the agents tool without an output schema to match the agents a da
     ),
   ]);
 
-  if (listed.kind !== 'reply' || called.kind !== 'reply') {
-    throw new Error('no reply');
-  }
+  invariant(listed.kind === 'reply' && called.kind === 'reply', 'no reply');
 
   const tools: unknown = getRecord(listed.body, 'result')['tools'];
 
-  if (!Array.isArray(tools)) {
-    throw new TypeError('no tools array');
-  }
+  invariant(Array.isArray(tools), 'no tools array');
 
   const agentsTool: unknown = tools.find(
     (tool) => isRecord(tool) && tool['name'] === 'atc_agents_list',
   );
 
-  if (!isRecord(agentsTool)) {
-    throw new Error('atc_agents_list is not listed');
-  }
+  invariant(isRecord(agentsTool), 'atc_agents_list is not listed');
 
   expect(agentsTool).not.toContainKey('outputSchema');
 

@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import type { HookEvent } from '../protocol/hook-event';
 import { StateStore } from '../store/state-store';
@@ -117,9 +118,7 @@ test('it collects the daemon log lines', async () => {
 
   const port = harness.daemon.listenPort;
 
-  if (port === null) {
-    throw new Error('the daemon started without a TCP listener');
-  }
+  invariant(port !== null, 'the daemon started without a TCP listener');
 
   const closed = Promise.withResolvers<void>();
 
@@ -165,9 +164,7 @@ test('it leaves the log to the options when they set one', async () => {
 
   const port = harness.daemon.listenPort;
 
-  if (port === null) {
-    throw new Error('the daemon started without a TCP listener');
-  }
+  invariant(port !== null, 'the daemon started without a TCP listener');
 
   const closed = Promise.withResolvers<void>();
 
@@ -250,9 +247,10 @@ test('it delivers hook lines to the session they report on', async () => {
 
   const session = spawned['session'];
 
-  if (typeof session !== 'object' || session === null || !('id' in session)) {
-    throw new Error('the spawn returned no session');
-  }
+  invariant(
+    typeof session === 'object' && session !== null && 'id' in session,
+    'the spawn returned no session',
+  );
 
   await harness.sendHookLines({ atcId: session.id, event: 'Notification', payload: {} });
 
@@ -283,9 +281,10 @@ test('it delivers every hook line of a large batch', async () => {
 
   const session = spawned['session'];
 
-  if (typeof session !== 'object' || session === null || !('id' in session)) {
-    throw new Error('the spawn returned no session');
-  }
+  invariant(
+    typeof session === 'object' && session !== null && 'id' in session,
+    'the spawn returned no session',
+  );
 
   // 64 lines of 32 KiB each hold more than a socket buffer takes at once.
   const padding = 'x'.repeat(32 * 1024);
@@ -358,9 +357,10 @@ test('it keeps the stored fleet across a restart', async () => {
 
   const session = spawned['session'];
 
-  if (typeof session !== 'object' || session === null || !('id' in session)) {
-    throw new Error('the spawn returned no session');
-  }
+  invariant(
+    typeof session === 'object' && session !== null && 'id' in session,
+    'the spawn returned no session',
+  );
 
   await harness.client.sendRequest('session.kill', { session: session.id });
   await harness.restart();

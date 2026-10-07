@@ -3,6 +3,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CompiledQuery } from 'kysely';
+import invariant from 'tiny-invariant';
 import { buildTargetIdentity } from '../daemon/build-target-identity';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toMessageID } from '../shared/to-message-id';
@@ -1273,9 +1274,7 @@ test('it collects events after an id oldest first, up to the limit', async () =>
 
   const [first] = await ctx.store.collectLatestEvents(10);
 
-  if (first === undefined) {
-    throw new Error('expected events');
-  }
+  invariant(first !== undefined, 'expected events');
 
   const after = await ctx.store.collectEventsAfter(first.id, 1);
 
@@ -1392,9 +1391,7 @@ test('it serves the trail read after an id from an index', async () => {
 
   const query = ctx.queries.at(-1);
 
-  if (query === undefined) {
-    throw new Error('the store ran no query');
-  }
+  invariant(query !== undefined, 'the store ran no query');
 
   const plan = readQueryPlan(ctx.dbPath, query);
 
@@ -1408,9 +1405,7 @@ test('it serves the latest trail read from an index', async () => {
 
   const query = ctx.queries.at(-1);
 
-  if (query === undefined) {
-    throw new Error('the store ran no query');
-  }
+  invariant(query !== undefined, 'the store ran no query');
 
   const plan = readQueryPlan(ctx.dbPath, query);
 
@@ -1424,9 +1419,7 @@ test('it serves the last activity lookup from an index on each id', async () => 
 
   const query = ctx.queries.at(-1);
 
-  if (query === undefined) {
-    throw new Error('the store ran no query');
-  }
+  invariant(query !== undefined, 'the store ran no query');
 
   const plan = readQueryPlan(ctx.dbPath, query);
 
@@ -1707,9 +1700,7 @@ test('it serves the pending messages of an atc id from an index', async () => {
 
   const query = ctx.queries.at(-1);
 
-  if (query === undefined) {
-    throw new Error('the store ran no query');
-  }
+  invariant(query !== undefined, 'the store ran no query');
 
   const plan = readQueryPlan(ctx.dbPath, query);
 
@@ -1726,9 +1717,7 @@ test('it serves the pending messages of an agent session id from an index', asyn
 
   const query = ctx.queries.at(-1);
 
-  if (query === undefined) {
-    throw new Error('the store ran no query');
-  }
+  invariant(query !== undefined, 'the store ran no query');
 
   const plan = readQueryPlan(ctx.dbPath, query);
 
@@ -1921,9 +1910,7 @@ test("it finds a report's whole text by its trail id", async () => {
 
   const [event] = await ctx.store.collectLatestEvents(1);
 
-  if (event === undefined) {
-    throw new Error('no event');
-  }
+  invariant(event !== undefined, 'no event');
 
   const report = await ctx.store.findReport(event.id);
 
@@ -1948,9 +1935,7 @@ test('it misses a trail id whose row is not a report', async () => {
 
   const [event] = await ctx.store.collectLatestEvents(1);
 
-  if (event === undefined) {
-    throw new Error('no event');
-  }
+  invariant(event !== undefined, 'no event');
 
   const report = await ctx.store.findReport(event.id);
 
@@ -1972,9 +1957,7 @@ test('it misses a report of a session outside the scope', async () => {
 
   const [event] = await ctx.store.collectLatestEvents(1);
 
-  if (event === undefined) {
-    throw new Error('no event');
-  }
+  invariant(event !== undefined, 'no event');
 
   const report = await ctx.store.findReport(event.id, {
     atcIDs: [toSessionID('s2')],
@@ -2014,9 +1997,7 @@ test('it finds the preview of a report recorded without its whole text', async (
 
   const [event] = await store.collectLatestEvents(1);
 
-  if (event === undefined) {
-    throw new Error('no event');
-  }
+  invariant(event !== undefined, 'no event');
 
   const report = await store.findReport(event.id);
 
@@ -2192,9 +2173,7 @@ test('it lists the other messages answered in the same turn as siblings', async 
 
   const oldest = await ctx.store.findMessage(one.id, { atcID: toSessionID('s1') });
 
-  if (oldest === null) {
-    throw new Error('oldest message missing');
-  }
+  invariant(oldest !== null, 'oldest message missing');
 
   const siblings = await ctx.store.collectTurnSiblings(oldest);
 
@@ -2236,9 +2215,7 @@ test('it lists the other messages of one turn in send order when they share a se
 
   const answered = await ctx.store.findMessage(first.id, { atcID: toSessionID('s1') });
 
-  if (answered === null) {
-    throw new Error('first message missing');
-  }
+  invariant(answered !== null, 'first message missing');
 
   const siblings = await ctx.store.collectTurnSiblings(answered);
 
@@ -2270,9 +2247,7 @@ test('it links a legacy fleet.json sub-session to its parent by the minted sessi
   const parent = fleet.find((entry) => entry.name === 'wrangler');
   const child = fleet.find((entry) => entry.name === 'worker');
 
-  if (parent === undefined || child === undefined) {
-    throw new Error('expected both seeded entries');
-  }
+  invariant(parent !== undefined && child !== undefined, 'expected both seeded entries');
 
   expect(child.parent).toBe(parent.sessionID);
 });
@@ -2389,9 +2364,7 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
 
   const parent = fleet.find((entry) => entry.name === 'wrangler');
 
-  if (parent === undefined) {
-    throw new Error('expected the parent row');
-  }
+  invariant(parent !== undefined, 'expected the parent row');
 
   expect(fleet).toIncludeSameMembers([
     {

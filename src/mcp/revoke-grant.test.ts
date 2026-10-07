@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -86,9 +87,7 @@ test("it forgets the consent its client held along with the grant's tokens", asy
 
   const [grant] = await collectGrants(ctx.store.db);
 
-  if (grant === undefined) {
-    throw new Error('the exchange left no grant');
-  }
+  invariant(grant !== undefined, 'the exchange left no grant');
 
   const revoked = await revokeGrant(ctx.store.db, grant.grantID);
   const consents = await ctx.store.db.selectFrom('oauthConsent').select('id').execute();

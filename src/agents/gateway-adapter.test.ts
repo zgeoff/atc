@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -580,21 +581,15 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
     },
   );
 
-  if (plan === null) {
-    throw new Error('expected a guest spawn plan');
-  }
+  invariant(plan !== null, 'expected a guest spawn plan');
 
   const settingsFile = plan.files['auth-r3/settings.json'];
 
-  if (typeof settingsFile !== 'string') {
-    throw new TypeError('expected the revision settings file');
-  }
+  invariant(typeof settingsFile === 'string', 'expected the revision settings file');
 
   const onboardingFile = plan.files['claude-config-seed.json'];
 
-  if (typeof onboardingFile !== 'string') {
-    throw new TypeError('expected the Claude config file');
-  }
+  invariant(typeof onboardingFile === 'string', 'expected the Claude config file');
 
   const settings: unknown = JSON.parse(settingsFile);
   const onboarding: unknown = JSON.parse(onboardingFile);
@@ -746,15 +741,11 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
     },
   );
 
-  if (plan === null) {
-    throw new Error('expected a guest spawn plan');
-  }
+  invariant(plan !== null, 'expected a guest spawn plan');
 
   const settingsFile = plan.files['auth-r1/settings.json'];
 
-  if (typeof settingsFile !== 'string') {
-    throw new TypeError('expected the revision settings file');
-  }
+  invariant(typeof settingsFile === 'string', 'expected the revision settings file');
 
   const settings: unknown = JSON.parse(settingsFile);
 
@@ -970,9 +961,10 @@ test('it carries an extra placeholder variable and the gateway args into a broke
 
   const settingsFile = plan?.files['auth-r1/settings.json'];
 
-  if (plan === null || typeof settingsFile !== 'string') {
-    throw new Error('expected a guest spawn plan with a settings file');
-  }
+  invariant(
+    plan !== null && typeof settingsFile === 'string',
+    'expected a guest spawn plan with a settings file',
+  );
 
   const settings: unknown = JSON.parse(settingsFile);
 
@@ -1234,9 +1226,7 @@ test('it keeps a credential held on the daemon side out of every file, argument 
     },
   );
 
-  if (plan === null) {
-    throw new Error('expected a guest spawn plan');
-  }
+  invariant(plan !== null, 'expected a guest spawn plan');
 
   expect(JSON.stringify(plan)).not.toMatch(/canary-sk-7f3e9b21d4c8a6|apiKeyHelper/u);
 });
@@ -1276,16 +1266,11 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
     },
   );
 
-  if (plan === null) {
-    throw new Error('expected a guest spawn plan');
-  }
+  invariant(plan !== null, 'expected a guest spawn plan');
 
   const seed = plan.files['claude-config-seed.json'];
 
-  if (typeof seed !== 'string') {
-    throw new TypeError('expected the seed file');
-  }
-
+  invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
 
   const run = Bun.spawnSync([plan.bin, ...plan.args]);
@@ -1330,9 +1315,7 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
     },
   );
 
-  if (plan === null) {
-    throw new Error('expected a guest spawn plan');
-  }
+  invariant(plan !== null, 'expected a guest spawn plan');
 
   const earlier = JSON.stringify({
     hasCompletedOnboarding: true,
@@ -1341,10 +1324,7 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
 
   const seed = plan.files['claude-config-seed.json'];
 
-  if (typeof seed !== 'string') {
-    throw new TypeError('expected the seed file');
-  }
-
+  invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
   mkdirSync(join(ctx.dir, 'claude-config'));
   writeFileSync(join(ctx.dir, 'claude-config', '.claude.json'), earlier);
@@ -1677,9 +1657,10 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
 
   const settingsFile = plan?.files['auth-r3/settings.json'];
 
-  if (plan === null || typeof settingsFile !== 'string') {
-    throw new Error('expected a guest spawn plan with a settings file');
-  }
+  invariant(
+    plan !== null && typeof settingsFile === 'string',
+    'expected a guest spawn plan with a settings file',
+  );
 
   const settings: unknown = JSON.parse(settingsFile);
 

@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync } from 'node:fs';
 import { type } from 'node:os';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 /**
@@ -26,18 +27,13 @@ test.if(process.platform === 'linux')(
     for (const tool of ['uname', 'grep', 'touch', 'sha256sum', 'dirname']) {
       const path = Bun.which(tool);
 
-      if (path === null) {
-        throw new Error(`${tool} is missing from this host`);
-      }
-
+      invariant(path !== null, `${tool} is missing from this host`);
       symlinkSync(path, join(bin, tool));
     }
 
     const bash = Bun.which('bash');
 
-    if (bash === null) {
-      throw new Error('bash is missing from this host');
-    }
+    invariant(bash !== null, 'bash is missing from this host');
 
     const run = Bun.spawnSync([bash, 'scripts/check-test-isolation.sh', 'true'], {
       cwd: join(import.meta.dir, '..'),
@@ -60,9 +56,7 @@ test.if(process.platform !== 'linux')(
   () => {
     const bash = Bun.which('bash');
 
-    if (bash === null) {
-      throw new Error('bash is missing from this host');
-    }
+    invariant(bash !== null, 'bash is missing from this host');
 
     const run = Bun.spawnSync([bash, 'scripts/check-test-isolation.sh', 'true'], {
       cwd: join(import.meta.dir, '..'),

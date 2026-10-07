@@ -1,6 +1,7 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { encodeCursor } from '../protocol/encode-cursor';
 import { decodeMessage } from '../protocol/protocol';
@@ -2025,9 +2026,7 @@ test("it returns a report's whole text by the cursor of its event", async () => 
   const event = await waitFor(async () => {
     const answer = await daemon.client.sendRequest('events.read', {});
 
-    if (!Array.isArray(answer['events']) || !isRecord(answer['events'][0])) {
-      throw new TypeError('no event yet');
-    }
+    invariant(Array.isArray(answer['events']) && isRecord(answer['events'][0]), 'no event yet');
 
     return answer['events'][0];
   });
@@ -2066,9 +2065,7 @@ test("it returns a report's text cut at 64 KiB", async () => {
   const event = await waitFor(async () => {
     const answer = await daemon.client.sendRequest('events.read', {});
 
-    if (!Array.isArray(answer['events']) || !isRecord(answer['events'][0])) {
-      throw new TypeError('no event yet');
-    }
+    invariant(Array.isArray(answer['events']) && isRecord(answer['events'][0]), 'no event yet');
 
     return answer['events'][0];
   });
@@ -2123,9 +2120,7 @@ test('it refuses the cursor of an event that is not a report as an unknown repor
   const event = await waitFor(async () => {
     const answer = await daemon.client.sendRequest('events.read', {});
 
-    if (!Array.isArray(answer['events']) || !isRecord(answer['events'][0])) {
-      throw new TypeError('no event yet');
-    }
+    invariant(Array.isArray(answer['events']) && isRecord(answer['events'][0]), 'no event yet');
 
     return answer['events'][0];
   });

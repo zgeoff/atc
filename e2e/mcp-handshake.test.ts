@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { isRecord } from '../src/shared/report';
 import { setupMCPHome } from '../src/test-utils/setup-mcp-home';
 import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
@@ -259,17 +260,13 @@ test('it marks the kill tool destructive and not read-only', async () => {
 
   const result = response['result'];
 
-  if (!isRecord(result) || !Array.isArray(result['tools'])) {
-    throw new TypeError('tools/list returned no tools');
-  }
+  invariant(isRecord(result) && Array.isArray(result['tools']), 'tools/list returned no tools');
 
   const killTool: unknown = result['tools'].find(
     (tool) => isRecord(tool) && tool['name'] === 'atc_session_kill',
   );
 
-  if (!isRecord(killTool)) {
-    throw new TypeError('the kill tool is not listed');
-  }
+  invariant(isRecord(killTool), 'the kill tool is not listed');
 
   expect(killTool['annotations']).toStrictEqual({
     readOnlyHint: false,

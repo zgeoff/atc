@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -519,15 +520,11 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
     },
   );
 
-  if (plan === null) {
-    throw new Error('expected a guest spawn plan');
-  }
+  invariant(plan !== null, 'expected a guest spawn plan');
 
   const settingsFile = plan.files['auth-r2/settings.json'];
 
-  if (typeof settingsFile !== 'string') {
-    throw new TypeError('expected the revision settings file');
-  }
+  invariant(typeof settingsFile === 'string', 'expected the revision settings file');
 
   const settings: unknown = JSON.parse(settingsFile);
 
@@ -629,9 +626,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
 
   const seed = plan.files['claude-config-seed.json'];
 
-  if (typeof seed !== 'string') {
-    throw new TypeError('expected a seed file');
-  }
+  invariant(typeof seed === 'string', 'expected a seed file');
 
   expect(JSON.parse(seed)).toStrictEqual({ hasCompletedOnboarding: true });
 });
@@ -683,23 +678,20 @@ test("it ships the host's Claude config as the session's user settings and keeps
     },
   );
 
-  if (plan === null) {
-    throw new Error('expected a guest spawn plan');
-  }
+  invariant(plan !== null, 'expected a guest spawn plan');
 
   const bundleDir = plan.args.at(6);
 
-  if (bundleDir === undefined) {
-    throw new Error('expected the staged bundle folder in the launch');
-  }
+  invariant(bundleDir !== undefined, 'expected the staged bundle folder in the launch');
 
   const bundleKey = bundleDir.replace('/tmp/atc/sessions/s1/', '');
   const userSettings = plan.files[`${bundleKey}/settings.json`];
   const flagSettings = plan.files['auth-r1/settings.json'];
 
-  if (typeof userSettings !== 'string' || typeof flagSettings !== 'string') {
-    throw new TypeError('expected the bundle and revision settings files');
-  }
+  invariant(
+    typeof userSettings === 'string' && typeof flagSettings === 'string',
+    'expected the bundle and revision settings files',
+  );
 
   expect(JSON.parse(userSettings)).toStrictEqual({
     model: 'opus[1m]',
@@ -839,15 +831,11 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
     },
   );
 
-  if (plan === null) {
-    throw new Error('expected a guest spawn plan');
-  }
+  invariant(plan !== null, 'expected a guest spawn plan');
 
   const mcpConfig = plan.files['auth-r3/mcp.json'];
 
-  if (typeof mcpConfig !== 'string') {
-    throw new TypeError('expected the revision MCP config file');
-  }
+  invariant(typeof mcpConfig === 'string', 'expected the revision MCP config file');
 
   // The launch script is pinned by the guest launch's own tests.
   const args: readonly unknown[] = plan.args;
@@ -1066,16 +1054,11 @@ test('it refuses to start a subscription session in a host whose environment set
     },
   );
 
-  if (plan === null) {
-    throw new Error('expected a guest spawn plan');
-  }
+  invariant(plan !== null, 'expected a guest spawn plan');
 
   const seed = plan.files['claude-config-seed.json'];
 
-  if (typeof seed !== 'string') {
-    throw new TypeError('expected the seed file');
-  }
-
+  invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
 
   const run = Bun.spawnSync([plan.bin, ...plan.args], {
@@ -1135,9 +1118,7 @@ test.each([
       },
     );
 
-    if (plan === null) {
-      throw new Error('expected a guest spawn plan');
-    }
+    invariant(plan !== null, 'expected a guest spawn plan');
 
     const run = Bun.spawnSync([plan.bin, ...plan.args], {
       env: { PATH: process.env['PATH'] ?? '', ...plan.env, [name]: value },
@@ -1183,16 +1164,11 @@ test('it starts a subscription session with a seeded config folder in a host who
     },
   );
 
-  if (plan === null) {
-    throw new Error('expected a guest spawn plan');
-  }
+  invariant(plan !== null, 'expected a guest spawn plan');
 
   const seed = plan.files['claude-config-seed.json'];
 
-  if (typeof seed !== 'string') {
-    throw new TypeError('expected the seed file');
-  }
-
+  invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
 
   const run = Bun.spawnSync([plan.bin, ...plan.args], {
@@ -1222,9 +1198,7 @@ test("it seeds folder trust and approval of the clone's own MCP servers for the 
 
   const seed = adapter.planGuestWorkspaceTrust('/work/repo')?.['claude-config-seed.json'];
 
-  if (typeof seed !== 'string') {
-    throw new TypeError('expected a seed file');
-  }
+  invariant(typeof seed === 'string', 'expected a seed file');
 
   expect(JSON.parse(seed)).toStrictEqual({
     hasCompletedOnboarding: true,
@@ -1279,9 +1253,10 @@ test("it sets a profile's variables in a subscription guest's settings env and s
 
   const settingsFile = plan?.files['auth-r2/settings.json'];
 
-  if (plan === null || typeof settingsFile !== 'string') {
-    throw new Error('expected a guest spawn plan with a settings file');
-  }
+  invariant(
+    plan !== null && typeof settingsFile === 'string',
+    'expected a guest spawn plan with a settings file',
+  );
 
   const settings: unknown = JSON.parse(settingsFile);
 

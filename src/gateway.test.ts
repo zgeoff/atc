@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { resolveGatewayCommand } from './test-utils/resolve-gateway-command';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 
@@ -412,9 +413,10 @@ test.each([
 
   const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
 
-  if (clientID === undefined) {
-    throw new Error(`no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`);
-  }
+  invariant(
+    clientID !== undefined,
+    `no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`,
+  );
 
   const listed = Bun.spawnSync([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
     cwd: ctx.dir,
@@ -455,9 +457,10 @@ test.each([
 
   const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
 
-  if (clientID === undefined) {
-    throw new Error(`no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`);
-  }
+  invariant(
+    clientID !== undefined,
+    `no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`,
+  );
 
   const listed = Bun.spawnSync([...ctx.command, ...row.args], {
     cwd: ctx.dir,
@@ -500,9 +503,10 @@ test.each([
 
   const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
 
-  if (clientID === undefined) {
-    throw new Error(`no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`);
-  }
+  invariant(
+    clientID !== undefined,
+    `no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`,
+  );
 
   const removed = Bun.spawnSync([...ctx.command, ...row.before, clientID, ...row.after], {
     cwd: ctx.dir,

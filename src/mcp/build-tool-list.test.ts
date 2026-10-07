@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { getRecord } from '../shared/get-record';
 import { buildToolList } from './build-tool-list';
@@ -15,9 +16,7 @@ test('it leaves out the daemons tool and every daemon input for a caller of one 
   const spawn = tools.find((tool) => tool.name === 'atc_session_spawn');
   const dirs = tools.find((tool) => tool.name === 'atc_dirs_list');
 
-  if (spawn === undefined || dirs === undefined) {
-    throw new Error('spawn or dirs tool missing');
-  }
+  invariant(spawn !== undefined && dirs !== undefined, 'spawn or dirs tool missing');
 
   expect(tools.map((tool) => tool.name)).not.toContain('atc_daemons_list');
   expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('daemon');
@@ -29,9 +28,7 @@ test('it lists the agents tool without its output schema for a caller across nam
     (tool) => tool.name === 'atc_agents_list',
   );
 
-  if (agents === undefined) {
-    throw new Error('agents tool missing');
-  }
+  invariant(agents !== undefined, 'agents tool missing');
 
   expect(agents).not.toContainKey('outputSchema');
 });
@@ -77,9 +74,7 @@ test('it offers report text on the events tool for a daemon that announces repor
     (tool) => tool.name === 'atc_events_read',
   );
 
-  if (eventsRead === undefined) {
-    throw new Error('event tool missing');
-  }
+  invariant(eventsRead !== undefined, 'event tool missing');
 
   expect(eventsRead.inputSchema['properties']).toContainKey('reportText');
 });
@@ -89,9 +84,7 @@ test('it leaves report text off the events tool for a daemon that does not annou
 
   const eventsRead = buildToolList(features, null).find((tool) => tool.name === 'atc_events_read');
 
-  if (eventsRead === undefined) {
-    throw new Error('event tool missing');
-  }
+  invariant(eventsRead !== undefined, 'event tool missing');
 
   expect(eventsRead.inputSchema['properties']).toContainAllKeys([
     'session',
@@ -106,9 +99,7 @@ test('it lists the message and event tools in their older form for a daemon that
   const messageGet = tools.find((tool) => tool.name === 'atc_message_get');
   const eventsRead = tools.find((tool) => tool.name === 'atc_events_read');
 
-  if (messageGet === undefined || eventsRead === undefined) {
-    throw new Error('message or event tool missing');
-  }
+  invariant(messageGet !== undefined && eventsRead !== undefined, 'message or event tool missing');
 
   expect(messageGet.outputSchema).toBeUndefined();
   expect(eventsRead.outputSchema).toBeUndefined();
@@ -144,9 +135,7 @@ test('it builds the same schemas whichever agents the host registers', () => {
 test('it lists the spawn tool without model and effort for a daemon that announces no features', () => {
   const spawn = buildToolList(new Set(), null).find((tool) => tool.name === 'atc_session_spawn');
 
-  if (spawn === undefined) {
-    throw new Error('spawn tool missing');
-  }
+  invariant(spawn !== undefined, 'spawn tool missing');
 
   expect(spawn.inputSchema['properties']).toContainAllKeys([
     'cwd',
@@ -162,9 +151,7 @@ test('it lists the message tool without an idempotency key for a daemon that ann
     (tool) => tool.name === 'atc_session_message',
   );
 
-  if (message === undefined) {
-    throw new Error('message tool missing');
-  }
+  invariant(message !== undefined, 'message tool missing');
 
   expect(message.inputSchema['properties']).toContainAllKeys(['session', 'text', 'from']);
 });
@@ -184,9 +171,7 @@ test('it lists the spawn tool with a target for a daemon that takes targets', ()
     (tool) => tool.name === 'atc_session_spawn',
   );
 
-  if (spawn === undefined) {
-    throw new Error('spawn tool missing');
-  }
+  invariant(spawn !== undefined, 'spawn tool missing');
 
   expect(spawn.inputSchema['properties']).toContainKey('target');
 });
@@ -197,9 +182,7 @@ test('it lists the spawn tool without a target for a daemon that predates target
     null,
   ).find((tool) => tool.name === 'atc_session_spawn');
 
-  if (spawn === undefined) {
-    throw new Error('spawn tool missing');
-  }
+  invariant(spawn !== undefined, 'spawn tool missing');
 
   expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('target');
 });
@@ -209,9 +192,7 @@ test('it lists the spawn tool with a workspace for a daemon that takes workspace
     (tool) => tool.name === 'atc_session_spawn',
   );
 
-  if (spawn === undefined) {
-    throw new Error('spawn tool missing');
-  }
+  invariant(spawn !== undefined, 'spawn tool missing');
 
   expect(spawn.inputSchema['properties']).toContainKey('workspace');
 });
@@ -222,9 +203,7 @@ test('it lists the spawn tool without a workspace for a daemon that predates wor
     null,
   ).find((tool) => tool.name === 'atc_session_spawn');
 
-  if (spawn === undefined) {
-    throw new Error('spawn tool missing');
-  }
+  invariant(spawn !== undefined, 'spawn tool missing');
 
   expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('workspace');
 });

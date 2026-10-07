@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { isRecord } from '../src/shared/report';
 import { setupMCPHome } from '../src/test-utils/setup-mcp-home';
 import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
@@ -36,23 +37,20 @@ test('it advertises the spawn agent as an open string listing the registered age
 
   const result = response['result'];
 
-  if (!isRecord(result) || !Array.isArray(result['tools'])) {
-    throw new TypeError('tools/list returned no tools');
-  }
+  invariant(isRecord(result) && Array.isArray(result['tools']), 'tools/list returned no tools');
 
   const spawnTool: unknown = result['tools'].find(
     (tool) => isRecord(tool) && tool['name'] === 'atc_session_spawn',
   );
 
-  if (!isRecord(spawnTool) || !isRecord(spawnTool['inputSchema'])) {
-    throw new TypeError('the spawn tool has no input schema');
-  }
+  invariant(
+    isRecord(spawnTool) && isRecord(spawnTool['inputSchema']),
+    'the spawn tool has no input schema',
+  );
 
   const properties = spawnTool['inputSchema']['properties'];
 
-  if (!isRecord(properties)) {
-    throw new TypeError('the spawn tool schema has no properties');
-  }
+  invariant(isRecord(properties), 'the spawn tool schema has no properties');
 
   expect(properties['agent']).toStrictEqual({
     type: 'string',

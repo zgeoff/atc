@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { buildExecutionTargets } from './build-execution-targets';
 
 test('it reports an imp target whose token variable is unset as a target error, and keeps it listed', () => {
@@ -63,9 +64,7 @@ test('it gives an imp target another identity when its token file path changes',
 
   const [first, second] = built.targets;
 
-  if (first === undefined || second === undefined) {
-    throw new Error('expected two targets');
-  }
+  invariant(first !== undefined && second !== undefined, 'expected two targets');
 
   expect(first.identity).not.toBe(second.identity);
 });

@@ -1,13 +1,12 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { MCP_TOOLS } from './mcp-tools';
 
 test('it declares an agents result whose kind can be any string an adapter declares', () => {
   const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_agents_list')?.outputSchema;
 
-  if (schema === undefined) {
-    throw new Error('the agents tool declares no output schema');
-  }
+  invariant(schema !== undefined, 'the agents tool declares no output schema');
 
   const result = {
     daemon: { hostname: 'host', platform: 'linux', arch: 'x64', build: 'atc/test-build' },
@@ -58,9 +57,7 @@ test('it declares an agents result whose kind can be any string an adapter decla
 test('it rejects an agents result whose installed flag is not a boolean', () => {
   const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_agents_list')?.outputSchema;
 
-  if (schema === undefined) {
-    throw new Error('the agents tool declares no output schema');
-  }
+  invariant(schema !== undefined, 'the agents tool declares no output schema');
 
   const result = {
     daemon: { hostname: 'host', platform: 'linux', arch: 'x64', build: 'atc/test-build' },

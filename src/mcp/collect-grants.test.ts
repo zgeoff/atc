@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import { readJSONRecord } from '../test-utils/read-json-record';
 import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
@@ -139,9 +140,7 @@ test('it lists when a grant was last used', async () => {
 
   const lastUsedAt = grants[0]?.lastUsedAt;
 
-  if (typeof lastUsedAt !== 'string') {
-    throw new TypeError('the grant holds no last use');
-  }
+  invariant(typeof lastUsedAt === 'string', 'the grant holds no last use');
 
   expect(grants).toStrictEqual([
     {

@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { buildStubForkingGH } from './build-stub-forking-gh';
 import { createStubBin } from './create-stub-bin';
 import { setupTempDir } from './setup-temp-dir';
@@ -25,9 +26,7 @@ test('it records its own ID and the ID of a child that is still running', async 
 
   const [own, child] = pids.trim().split('\n').map(Number);
 
-  if (child === undefined) {
-    throw new Error('the stand-in recorded no child');
-  }
+  invariant(child !== undefined, 'the stand-in recorded no child');
 
   expect({ own, childRunning: process.kill(child, 0) }).toStrictEqual({
     own: proc.pid,

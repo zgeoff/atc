@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { encodeCursor } from '../protocol/encode-cursor';
@@ -530,9 +531,7 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
   const event = await waitFor(() => {
     const found = ctx.events.find((e) => e.ev === 'SessionAttached');
 
-    if (found === undefined) {
-      throw new Error('no SessionAttached yet');
-    }
+    invariant(found !== undefined, 'no SessionAttached yet');
 
     return found;
   });
@@ -564,9 +563,7 @@ test('it broadcasts SessionDetached when an attached client detaches', async () 
   const event = await waitFor(() => {
     const found = ctx.events.find((e) => e.ev === 'SessionDetached');
 
-    if (found === undefined) {
-      throw new Error('no SessionDetached yet');
-    }
+    invariant(found !== undefined, 'no SessionDetached yet');
 
     return found;
   });
@@ -591,9 +588,7 @@ test('it broadcasts SessionDetached when an attached client disconnects', async 
   const event = await waitFor(() => {
     const found = ctx.events.find((e) => e.ev === 'SessionDetached');
 
-    if (found === undefined) {
-      throw new Error('no SessionDetached yet');
-    }
+    invariant(found !== undefined, 'no SessionDetached yet');
 
     return found;
   });
@@ -642,9 +637,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   const event = await waitFor(() => {
     const found = ctx.events.find((e) => e.ev === 'SessionAttached');
 
-    if (found === undefined) {
-      throw new Error('no SessionAttached yet');
-    }
+    invariant(found !== undefined, 'no SessionAttached yet');
 
     return found;
   });
@@ -652,9 +645,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   const text = await waitFor(() => {
     const written = readFileSync(join(ctx.dir, 'hook.out'), 'utf8');
 
-    if (!written.endsWith('SessionAttached\n')) {
-      throw new Error('hook output still incomplete');
-    }
+    invariant(written.endsWith('SessionAttached\n'), 'hook output still incomplete');
 
     return written;
   });

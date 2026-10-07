@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { buildMigratedConfig } from './build-migrated-config';
 import { parseConfig } from './shared/config';
 import { getRecord } from './shared/get-record';
@@ -45,9 +46,7 @@ test('it writes a gateway that inherited the claude bin and args with them', () 
     gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic', label: 'GLM', mark: 'x' } },
   });
 
-  if (result.kind !== 'migrated') {
-    throw new Error('expected a migrated config');
-  }
+  invariant(result.kind === 'migrated', 'expected a migrated config');
 
   const migrated: unknown = JSON.parse(result.text);
 
@@ -75,9 +74,7 @@ test('it leaves out a dropped gateway and notes the reason without a value', () 
     },
   });
 
-  if (result.kind !== 'migrated') {
-    throw new Error('expected a migrated config');
-  }
+  invariant(result.kind === 'migrated', 'expected a migrated config');
 
   expect(result.notes).toStrictEqual([
     'atc config migrate: gateways.noURL is left out: it has no baseURL',
@@ -132,9 +129,7 @@ test('it parses the migrated config into the entries the old keys gave', () => {
 
   const result = buildMigratedConfig(legacy);
 
-  if (result.kind !== 'migrated') {
-    throw new Error('expected a migrated config');
-  }
+  invariant(result.kind === 'migrated', 'expected a migrated config');
 
   const written: unknown = JSON.parse(result.text);
   const migrated = parseConfig(written);
@@ -169,9 +164,7 @@ test("it carries claudeAuth's MCP servers into the migrated claude entry", () =>
 
   const result = buildMigratedConfig(legacy);
 
-  if (result.kind !== 'migrated') {
-    throw new Error('expected a migrated config');
-  }
+  invariant(result.kind === 'migrated', 'expected a migrated config');
 
   const written: unknown = JSON.parse(result.text);
   const claude = getRecord(getRecord({ written }, 'written'), 'agents')['claude'];

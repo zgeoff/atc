@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import type { EventMsg } from '../src/protocol/protocol';
 import { findDaemonRecord } from '../src/shared/find-daemon-record';
 import { getRecord } from '../src/shared/get-record';
@@ -193,9 +194,7 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
   // queued behind it until the test lets it go.
   const booting = getRecords(immediate, 'sessions').find((s) => s['kind'] === 'pty');
 
-  if (booting === undefined) {
-    throw new Error('no restored session has a terminal');
-  }
+  invariant(booting !== undefined, 'no restored session has a terminal');
 
   await ctx.client.sendRequest('session.input', { session: booting['id'], d: KEYS.enter });
 
@@ -330,9 +329,7 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
 
   const [session] = getRecords(listed, 'sessions');
 
-  if (session === undefined) {
-    throw new Error('no restored grok session');
-  }
+  invariant(session !== undefined, 'no restored grok session');
 
   await revived.sendRequest('session.attach', { session: session['id'], cols: 80, rows: 24 });
 
@@ -476,9 +473,7 @@ test('it revives a restored session that has no model or effort without either f
 
   const [entry] = getRecords(stored, 'fleet');
 
-  if (entry === undefined) {
-    throw new Error('the stored fleet holds no entry');
-  }
+  invariant(entry !== undefined, 'the stored fleet holds no entry');
 
   expect(entry).not.toContainAnyKeys(['model', 'effort']);
   expect(screen['text']).toInclude('args: --settings');

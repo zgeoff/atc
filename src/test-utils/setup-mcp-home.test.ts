@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { spawn } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { isProcessAlive } from '../shared/is-process-alive';
 import { setupMCPHome } from './setup-mcp-home';
 import { waitFor } from './wait-for';
@@ -77,9 +78,7 @@ test("it kills every process in a recorded stand-in's process group", async () =
 
   const group = stub.pid;
 
-  if (group === undefined) {
-    throw new Error('the stand-in did not start');
-  }
+  invariant(group !== undefined, 'the stand-in did not start');
 
   await waitFor(() => {
     expect(existsSync(join(mcpHome.home, 'stub-pids'))).toBeTrue();
@@ -99,9 +98,7 @@ test('it never kills a process outside the recorded process groups', async () =>
     bystander.kill();
   });
 
-  if (bystander.pid === undefined) {
-    throw new Error('the bystander did not start');
-  }
+  invariant(bystander.pid !== undefined, 'the bystander did not start');
 
   await mcpHome[Symbol.asyncDispose]();
 

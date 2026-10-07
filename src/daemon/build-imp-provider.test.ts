@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildImpProvider } from './build-imp-provider';
 import { ImpProvider } from './imp-provider';
@@ -30,9 +31,7 @@ test("it builds an imp provider that takes the target's guest options", () => {
     { ATC_TEST_IMP_TOKEN: 'token-value' },
   );
 
-  if (built.provider === null) {
-    throw new Error('expected an imp provider');
-  }
+  invariant(built.provider !== null, 'expected an imp provider');
 
   expect(built.problem).toBeNull();
   expect(built.provider).toBeInstanceOf(ImpProvider);
@@ -157,9 +156,7 @@ test('it reports a target whose tokenFile is not a non-empty string, without a p
 test('it builds an imp provider that names imps under atc- when the target sets no impPrefix', () => {
   const built = buildImpProvider('box', { url: 'http://127.0.0.1:9' }, {});
 
-  if (built.provider === null) {
-    throw new Error('expected an imp provider');
-  }
+  invariant(built.provider !== null, 'expected an imp provider');
 
   expect(built.provider.impPrefix).toBe('atc-');
 });
@@ -167,9 +164,7 @@ test('it builds an imp provider that names imps under atc- when the target sets 
 test("it builds an imp provider that names imps under the target's impPrefix", () => {
   const built = buildImpProvider('box', { url: 'http://127.0.0.1:9', impPrefix: 'harness-' }, {});
 
-  if (built.provider === null) {
-    throw new Error('expected an imp provider');
-  }
+  invariant(built.provider !== null, 'expected an imp provider');
 
   expect({ prefix: built.provider.impPrefix, name: built.provider.getImpName('s1') }).toStrictEqual(
     { prefix: 'harness-', name: 'harness-s1' },

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -581,9 +582,7 @@ test("it writes the sign-in file from the oauth secret's claims and account id",
 
   const file = plan?.files['auth-r1/auth.json'];
 
-  if (typeof file !== 'string') {
-    throw new TypeError('the plan stages no sign-in file');
-  }
+  invariant(typeof file === 'string', 'the plan stages no sign-in file');
 
   expect(JSON.parse(file)).toStrictEqual({
     auth_mode: 'chatgpt',
@@ -643,9 +642,7 @@ test('it reports every hook through the atc inside the host', () => {
 
   const hooks = plan?.files['auth-r1/hooks.json'];
 
-  if (typeof hooks !== 'string') {
-    throw new TypeError('the plan stages no hook file');
-  }
+  invariant(typeof hooks === 'string', 'the plan stages no hook file');
 
   expect(JSON.parse(hooks)).toStrictEqual({
     hooks: {

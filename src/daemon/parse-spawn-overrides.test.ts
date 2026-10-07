@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { CodexAdapter } from '../agents/codex-adapter';
@@ -82,9 +83,7 @@ test('it refuses a model for a registered agent that is not installed', () => {
     false,
   );
 
-  if (claude === undefined) {
-    throw new Error('the agent list holds no claude entry');
-  }
+  invariant(claude !== undefined, 'the agent list holds no claude entry');
 
   expect(parseSpawnOverrides(claude, { model: 'opus' })).toStrictEqual({
     ok: false,
@@ -100,9 +99,7 @@ test('it passes a full model name through as given', () => {
     false,
   );
 
-  if (claude === undefined) {
-    throw new Error('the agent list holds no claude entry');
-  }
+  invariant(claude !== undefined, 'the agent list holds no claude entry');
 
   expect(
     parseSpawnOverrides(claude, { model: 'claude-opus-4-5-20251101[1m]', effort: 'xhigh' }),
@@ -126,9 +123,7 @@ test.each([
     false,
   );
 
-  if (claude === undefined) {
-    throw new Error('the agent list holds no claude entry');
-  }
+  invariant(claude !== undefined, 'the agent list holds no claude entry');
 
   expect(parseSpawnOverrides(claude, { model })).toStrictEqual({
     ok: false,
@@ -149,9 +144,7 @@ test.each([
     false,
   );
 
-  if (claude === undefined) {
-    throw new Error('the agent list holds no claude entry');
-  }
+  invariant(claude !== undefined, 'the agent list holds no claude entry');
 
   expect(parseSpawnOverrides(claude, { effort })).toStrictEqual({
     ok: false,
@@ -169,9 +162,7 @@ test('it accepts a gateway effort', () => {
     false,
   );
 
-  if (zai === undefined) {
-    throw new Error('the agent list holds no gateway entry');
-  }
+  invariant(zai !== undefined, 'the agent list holds no gateway entry');
 
   expect(parseSpawnOverrides(zai, { effort: 'high' })).toStrictEqual({
     ok: true,
@@ -188,9 +179,7 @@ test('it refuses a gateway effort outside the levels Claude Code accepts', () =>
     false,
   );
 
-  if (zai === undefined) {
-    throw new Error('the agent list holds no gateway entry');
-  }
+  invariant(zai !== undefined, 'the agent list holds no gateway entry');
 
   expect(parseSpawnOverrides(zai, { effort: 'ultra' })).toStrictEqual({
     ok: false,
@@ -206,9 +195,7 @@ test('it refuses a codex effort', () => {
     false,
   );
 
-  if (codex === undefined) {
-    throw new Error('the agent list holds no codex entry');
-  }
+  invariant(codex !== undefined, 'the agent list holds no codex entry');
 
   expect(parseSpawnOverrides(codex, { effort: 'high' })).toStrictEqual({
     ok: false,
@@ -224,9 +211,7 @@ test('it accepts a codex model', () => {
     false,
   );
 
-  if (codex === undefined) {
-    throw new Error('the agent list holds no codex entry');
-  }
+  invariant(codex !== undefined, 'the agent list holds no codex entry');
 
   expect(parseSpawnOverrides(codex, { model: 'gpt-5.1-codex' })).toStrictEqual({
     ok: true,

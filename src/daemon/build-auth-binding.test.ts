@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { buildMockAuthProfile } from '../test-utils/build-mock-auth-profile';
 import { buildAuthBinding } from './build-auth-binding';
 
@@ -29,9 +30,7 @@ test('it plans a binding of the resolved secrets, the placeholders and the base 
     ]),
   );
 
-  if (!('binding' in planned)) {
-    throw new Error('expected the selection to resolve');
-  }
+  invariant('binding' in planned, 'expected the selection to resolve');
 
   expect(planned.binding.hash).toMatchInlineSnapshot(
     `"a3d73e2050ff42dc3cf60f6912e59cd2dc412a5228bf466d460a06dda34817c5"`,
@@ -84,9 +83,7 @@ test('it keeps the hash when a profile the binding does not use is edited or add
     ]),
   );
 
-  if (!('binding' in before) || !('binding' in after)) {
-    throw new Error('expected both selections to resolve');
-  }
+  invariant('binding' in before && 'binding' in after, 'expected both selections to resolve');
 
   expect(after.binding.hash).toBe(before.binding.hash);
 });
@@ -129,9 +126,7 @@ test.each([
     ]),
   );
 
-  if (!('binding' in before) || !('binding' in after)) {
-    throw new Error('expected both selections to resolve');
-  }
+  invariant('binding' in before && 'binding' in after, 'expected both selections to resolve');
 
   expect(after.binding.hash).not.toBe(before.binding.hash);
 });
@@ -160,9 +155,7 @@ test('it keeps the hash when the selection lists the same profiles in another or
     profiles,
   );
 
-  if (!('binding' in before) || !('binding' in after)) {
-    throw new Error('expected both selections to resolve');
-  }
+  invariant('binding' in before && 'binding' in after, 'expected both selections to resolve');
 
   expect(after.binding.hash).toBe(before.binding.hash);
 });
@@ -236,9 +229,7 @@ test('it hashes the secrets alone when the profiles set no variables', () => {
     ]),
   );
 
-  if (!('binding' in planned)) {
-    throw new Error('expected the selection to resolve');
-  }
+  invariant('binding' in planned, 'expected the selection to resolve');
 
   expect(planned.binding.hash).toMatchInlineSnapshot(
     `"ea1419dcafb7cf04a0a5b311faa3d32d7ed336ece08f75ba2cdc627b0d27bf4c"`,
@@ -292,9 +283,7 @@ test.each([
     new Map([['op', { ...op, env: after }]]),
   );
 
-  if (!('binding' in first) || !('binding' in second)) {
-    throw new Error('expected both selections to resolve');
-  }
+  invariant('binding' in first && 'binding' in second, 'expected both selections to resolve');
 
   expect(second.binding.hash).not.toBe(first.binding.hash);
 });
@@ -323,9 +312,7 @@ test('it carries the merged profile variables in the binding', () => {
     ]),
   );
 
-  if (!('binding' in planned)) {
-    throw new Error('expected the selection to resolve');
-  }
+  invariant('binding' in planned, 'expected the selection to resolve');
 
   expect(planned.binding.hash).toMatchInlineSnapshot(
     `"f45088069e3f7be8d9f4e9d7eab1b6a6c0ed9fb84084a4fa8296a15649397cb8"`,

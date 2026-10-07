@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import type { EventMsg } from '../src/protocol/protocol';
 import { getRecord } from '../src/shared/get-record';
 import { createStubClaude } from '../src/test-utils/create-stub-claude';
@@ -298,9 +299,7 @@ test('it names a message event sent before SessionStart by the restored session'
 
   const [restored] = getRecords(listed, 'sessions');
 
-  if (restored === undefined) {
-    throw new Error('no session restored');
-  }
+  invariant(restored !== undefined, 'no session restored');
 
   expect(restored['id']).toBe(originalID);
 

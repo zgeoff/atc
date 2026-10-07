@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { buildCodexAuthFile } from './build-codex-auth-file';
@@ -49,15 +50,11 @@ test('it writes an unsigned ID token of three segments that holds only the email
     ),
   );
 
-  if (!isRecord(file)) {
-    throw new TypeError('the sign-in file is not an object');
-  }
+  invariant(isRecord(file), 'the sign-in file is not an object');
 
   const idToken = getRecord(file, 'tokens')['id_token'];
 
-  if (typeof idToken !== 'string') {
-    throw new TypeError('the sign-in file holds no ID token');
-  }
+  invariant(typeof idToken === 'string', 'the sign-in file holds no ID token');
 
   const segments = idToken.split('.');
   const header: unknown = JSON.parse(Buffer.from(segments[0] ?? '', 'base64url').toString('utf8'));
@@ -87,15 +84,11 @@ test('it leaves out a kept claim that the ID token lacks', () => {
     buildCodexAuthFile({ 'https://api.openai.com/auth': { chatgpt_account_id: 'a' } }, 'a'),
   );
 
-  if (!isRecord(file)) {
-    throw new TypeError('the sign-in file is not an object');
-  }
+  invariant(isRecord(file), 'the sign-in file is not an object');
 
   const idToken = getRecord(file, 'tokens')['id_token'];
 
-  if (typeof idToken !== 'string') {
-    throw new TypeError('the sign-in file holds no ID token');
-  }
+  invariant(typeof idToken === 'string', 'the sign-in file holds no ID token');
 
   const payload = Buffer.from(idToken.split('.')[1] ?? '', 'base64url').toString('utf8');
   const claims: unknown = JSON.parse(payload);
@@ -116,15 +109,11 @@ test('it writes an access token that is not a JWT, so Codex never refreshes it a
     ),
   );
 
-  if (!isRecord(file)) {
-    throw new TypeError('the sign-in file is not an object');
-  }
+  invariant(isRecord(file), 'the sign-in file is not an object');
 
   const accessToken = getRecord(file, 'tokens')['access_token'];
 
-  if (typeof accessToken !== 'string') {
-    throw new TypeError('the sign-in file holds no access token');
-  }
+  invariant(typeof accessToken === 'string', 'the sign-in file holds no access token');
 
   expect(accessToken).not.toInclude('.');
 });
