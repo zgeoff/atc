@@ -11,7 +11,7 @@ test('it reads the features a hello answer announces', () => {
 });
 
 test('it reads a hello answer without a feature list as no features', () => {
-  expect(parseDaemonFeatures({ daemon: 'atc/old' }).size).toBe(0);
+  expect(parseDaemonFeatures({ daemon: 'atc/old' })).toBeEmpty();
 });
 
 test('it drops a feature name this build does not know', () => {

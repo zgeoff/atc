@@ -4,24 +4,32 @@ import { join } from 'node:path';
 import { setupTempDir } from '../../test/setup-temp-dir';
 import { collectBuiltinSources } from './collect-builtin-sources';
 
-test('it offers GitHub only when gh is on the host', () => {
+test('it leaves GitHub out when gh is not on the host', () => {
   using temp = setupTempDir('atc-builtin-sources-');
 
-  const gh = join(temp.dir, 'gh');
-
-  const options = {
+  const sources = collectBuiltinSources({
     roots: [],
     githubOwner: null,
+    ghBin: join(temp.dir, 'gh'),
     homeDir: temp.dir,
     collectZoxideDirs: () => Promise.resolve([]),
-  };
+  });
 
-  const withoutGH = collectBuiltinSources({ ...options, ghBin: gh });
+  expect(sources.map((source) => source.id)).toStrictEqual(['dirs', 'git']);
+});
 
-  writeFileSync(gh, '#!/bin/sh\n', { mode: 0o755 });
+test('it offers GitHub when gh is on the host', () => {
+  using temp = setupTempDir('atc-builtin-sources-');
 
-  const withGH = collectBuiltinSources({ ...options, ghBin: gh });
+  writeFileSync(join(temp.dir, 'gh'), '#!/bin/sh\n', { mode: 0o755 });
 
-  expect(withoutGH.map((source) => source.id)).toStrictEqual(['dirs', 'git']);
-  expect(withGH.map((source) => source.id)).toStrictEqual(['dirs', 'github', 'git']);
+  const sources = collectBuiltinSources({
+    roots: [],
+    githubOwner: null,
+    ghBin: join(temp.dir, 'gh'),
+    homeDir: temp.dir,
+    collectZoxideDirs: () => Promise.resolve([]),
+  });
+
+  expect(sources.map((source) => source.id)).toStrictEqual(['dirs', 'github', 'git']);
 });

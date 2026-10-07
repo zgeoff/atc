@@ -15,11 +15,15 @@ test('it decodes a transcript cursor it encoded', () => {
   expect(decodeCursor(encodeCursor(cursor))).toStrictEqual(cursor);
 });
 
-test.each([
-  'not-a-cursor',
-  '',
-  Buffer.from('{"k":"ev","i":-1}').toString('base64url'),
-  Buffer.from('{"k":"zz"}').toString('base64url'),
-])('it decodes %p to null', (raw) => {
+test.each(['not-a-cursor', ''])('it decodes the text %p that holds no JSON to null', (raw) => {
   expect(decodeCursor(raw)).toBeNull();
+});
+
+test.each([
+  '{"k":"ev","i":-1}',
+  '{"k":"zz","i":42}',
+  '{"k":"tr","p":"/tmp/a b.jsonl","o":-1}',
+  '{"k":"tr","p":42,"o":12}',
+])('it decodes the encoded wire cursor %s to null', (wire) => {
+  expect(decodeCursor(Buffer.from(wire).toString('base64url'))).toBeNull();
 });
