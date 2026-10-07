@@ -1,34 +1,23 @@
 import { expect, test } from 'bun:test';
+import { buildMockSortableSessionView } from '../test-utils/build-mock-sortable-session-view';
 import { sortSessionViews } from './sort-session-views';
-import type { SortableSessionView } from './sortable-session-view';
 
 test('it leads with pinned sessions in most-recently-attached order', () => {
-  const fleet: SortableSessionView[] = [
-    { id: 'busy', parent: null, state: 'running', pinned: false, lastAttachedAt: 9, createdAt: 9 },
-    {
+  const fleet = [
+    buildMockSortableSessionView({ id: 'busy', state: 'running', lastAttachedAt: 9 }),
+    buildMockSortableSessionView({
       id: 'pinned-old',
-      parent: null,
       state: 'running',
       pinned: true,
       lastAttachedAt: 1,
-      createdAt: 1,
-    },
-    {
-      id: 'urgent',
-      parent: null,
-      state: 'needs_you',
-      pinned: false,
-      lastAttachedAt: 5,
-      createdAt: 5,
-    },
-    {
+    }),
+    buildMockSortableSessionView({ id: 'urgent', state: 'needs_you', lastAttachedAt: 5 }),
+    buildMockSortableSessionView({
       id: 'pinned-new',
-      parent: null,
       state: 'done',
       pinned: true,
       lastAttachedAt: 2,
-      createdAt: 2,
-    },
+    }),
   ];
 
   const ids = sortSessionViews(fleet).map((s) => s.id);
@@ -37,33 +26,12 @@ test('it leads with pinned sessions in most-recently-attached order', () => {
 });
 
 test('it orders unpinned sessions by urgency, then most recently attached', () => {
-  const fleet: SortableSessionView[] = [
-    { id: 'dead', parent: null, state: 'exited', pinned: false, lastAttachedAt: 9, createdAt: 9 },
-    {
-      id: 'busy-stale',
-      parent: null,
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 1,
-      createdAt: 1,
-    },
-    {
-      id: 'busy-fresh',
-      parent: null,
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 8,
-      createdAt: 8,
-    },
-    { id: 'finished', parent: null, state: 'done', pinned: false, lastAttachedAt: 2, createdAt: 2 },
-    {
-      id: 'urgent',
-      parent: null,
-      state: 'needs_you',
-      pinned: false,
-      lastAttachedAt: 3,
-      createdAt: 3,
-    },
+  const fleet = [
+    buildMockSortableSessionView({ id: 'dead', state: 'exited', lastAttachedAt: 9 }),
+    buildMockSortableSessionView({ id: 'busy-stale', state: 'running', lastAttachedAt: 1 }),
+    buildMockSortableSessionView({ id: 'busy-fresh', state: 'running', lastAttachedAt: 8 }),
+    buildMockSortableSessionView({ id: 'finished', state: 'done', lastAttachedAt: 2 }),
+    buildMockSortableSessionView({ id: 'urgent', state: 'needs_you', lastAttachedAt: 3 }),
   ];
 
   const ids = sortSessionViews(fleet).map((s) => s.id);
@@ -72,24 +40,15 @@ test('it orders unpinned sessions by urgency, then most recently attached', () =
 });
 
 test('it lists a sub-session directly under its parent', () => {
-  const fleet: SortableSessionView[] = [
-    { id: 'other', parent: null, state: 'running', pinned: false, lastAttachedAt: 9, createdAt: 9 },
-    {
+  const fleet = [
+    buildMockSortableSessionView({ id: 'other', state: 'running', lastAttachedAt: 9 }),
+    buildMockSortableSessionView({
       id: 'worker',
       parent: 'wrangler',
       state: 'running',
-      pinned: false,
       lastAttachedAt: 8,
-      createdAt: 8,
-    },
-    {
-      id: 'wrangler',
-      parent: null,
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 1,
-      createdAt: 1,
-    },
+    }),
+    buildMockSortableSessionView({ id: 'wrangler', state: 'running', lastAttachedAt: 1 }),
   ];
 
   const ids = sortSessionViews(fleet).map((s) => s.id);
@@ -98,24 +57,15 @@ test('it lists a sub-session directly under its parent', () => {
 });
 
 test('it never moves a parent for the attention of its sub-sessions', () => {
-  const fleet: SortableSessionView[] = [
-    { id: 'other', parent: null, state: 'done', pinned: false, lastAttachedAt: 9, createdAt: 9 },
-    {
+  const fleet = [
+    buildMockSortableSessionView({ id: 'other', state: 'done', lastAttachedAt: 9 }),
+    buildMockSortableSessionView({
       id: 'worker',
       parent: 'wrangler',
       state: 'needs_you',
-      pinned: false,
       lastAttachedAt: 8,
-      createdAt: 8,
-    },
-    {
-      id: 'wrangler',
-      parent: null,
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 1,
-      createdAt: 1,
-    },
+    }),
+    buildMockSortableSessionView({ id: 'wrangler', state: 'running', lastAttachedAt: 1 }),
   ];
 
   const ids = sortSessionViews(fleet).map((s) => s.id);
@@ -124,39 +74,26 @@ test('it never moves a parent for the attention of its sub-sessions', () => {
 });
 
 test('it orders sub-sessions by urgency among their siblings', () => {
-  const fleet: SortableSessionView[] = [
-    {
-      id: 'wrangler',
-      parent: null,
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 1,
-      createdAt: 1,
-    },
-    {
+  const fleet = [
+    buildMockSortableSessionView({ id: 'wrangler', state: 'running', lastAttachedAt: 1 }),
+    buildMockSortableSessionView({
       id: 'idle',
       parent: 'wrangler',
       state: 'running',
-      pinned: false,
       lastAttachedAt: 3,
-      createdAt: 3,
-    },
-    {
+    }),
+    buildMockSortableSessionView({
       id: 'urgent',
       parent: 'wrangler',
       state: 'needs_you',
-      pinned: false,
       lastAttachedAt: 2,
-      createdAt: 2,
-    },
-    {
+    }),
+    buildMockSortableSessionView({
       id: 'finished',
       parent: 'wrangler',
       state: 'done',
-      pinned: false,
       lastAttachedAt: 4,
-      createdAt: 4,
-    },
+    }),
   ];
 
   const ids = sortSessionViews(fleet).map((s) => s.id);
@@ -165,16 +102,14 @@ test('it orders sub-sessions by urgency among their siblings', () => {
 });
 
 test('it ranks a sub-session whose parent is not listed as a top-level row', () => {
-  const fleet: SortableSessionView[] = [
-    { id: 'busy', parent: null, state: 'running', pinned: false, lastAttachedAt: 9, createdAt: 9 },
-    {
+  const fleet = [
+    buildMockSortableSessionView({ id: 'busy', state: 'running', lastAttachedAt: 9 }),
+    buildMockSortableSessionView({
       id: 'orphan',
       parent: 'gone',
       state: 'needs_you',
-      pinned: false,
       lastAttachedAt: 1,
-      createdAt: 1,
-    },
+    }),
   ];
 
   const ids = sortSessionViews(fleet).map((s) => s.id);
@@ -183,31 +118,20 @@ test('it ranks a sub-session whose parent is not listed as a top-level row', () 
 });
 
 test('it keeps a pinned parent and its sub-sessions together at the top', () => {
-  const fleet: SortableSessionView[] = [
-    {
-      id: 'urgent',
-      parent: null,
-      state: 'needs_you',
-      pinned: false,
-      lastAttachedAt: 9,
-      createdAt: 9,
-    },
-    {
+  const fleet = [
+    buildMockSortableSessionView({ id: 'urgent', state: 'needs_you', lastAttachedAt: 9 }),
+    buildMockSortableSessionView({
       id: 'worker',
       parent: 'wrangler',
       state: 'running',
-      pinned: false,
       lastAttachedAt: 8,
-      createdAt: 8,
-    },
-    {
+    }),
+    buildMockSortableSessionView({
       id: 'wrangler',
-      parent: null,
       state: 'running',
       pinned: true,
       lastAttachedAt: 1,
-      createdAt: 1,
-    },
+    }),
   ];
 
   const ids = sortSessionViews(fleet).map((s) => s.id);

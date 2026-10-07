@@ -29,7 +29,7 @@ test('it ships the allow-listed files and folders of the host config folder', ()
   writeFileSync(join(host, 'settings.json.bak'), '{}');
   writeFileSync(join(host, 'projects', 'p1', 'transcript.jsonl'), '{}');
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
 
   expect(bundle).toStrictEqual({
     'CLAUDE.md': Buffer.from('# rules'),
@@ -69,7 +69,7 @@ test('it never ships credentials, account state, or a secret the host env block 
     }),
   );
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
 
   expect(bundle).toStrictEqual({
     'settings.json': JSON.stringify(
@@ -98,7 +98,7 @@ test('it copies a symlinked skill and leaves out a skills folder without a SKILL
   symlinkSync(shared, join(host, 'skills', 'gh-stack'));
   symlinkSync(join(ctx.dir, 'missing'), join(host, 'skills', 'dangling'));
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
 
   expect(bundle).toStrictEqual({
     'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),
@@ -126,13 +126,13 @@ test('it never ships a symlink that resolves to credentials, account state, or t
   symlinkSync(join(ctx.dir, '.claude.json'), join(skill, 'account'));
   symlinkSync(join(ctx.dir, 'notes.md'), join(skill, 'notes.md'));
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
 
-  expect(Object.keys(bundle).toSorted()).toStrictEqual([
-    'settings.json',
-    'skills/leaky/SKILL.md',
-    'skills/leaky/notes.md',
-  ]);
+  expect(bundle).toStrictEqual({
+    'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),
+    'skills/leaky/SKILL.md': Buffer.from('leaky'),
+    'skills/leaky/notes.md': Buffer.from('shared notes'),
+  });
 });
 
 test('it ends a symlink that loops back up a skill folder', () => {
@@ -145,9 +145,12 @@ test('it ends a symlink that loops back up a skill folder', () => {
   writeFileSync(join(skill, 'SKILL.md'), 'looped');
   symlinkSync(skill, join(skill, 'again'));
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
 
-  expect(Object.keys(bundle).toSorted()).toStrictEqual(['settings.json', 'skills/looped/SKILL.md']);
+  expect(bundle).toStrictEqual({
+    'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),
+    'skills/looped/SKILL.md': Buffer.from('looped'),
+  });
 });
 
 test('it ships an executable file with an executable mode and any other file as bytes', () => {
@@ -162,16 +165,13 @@ test('it ships an executable file with an executable mode and any other file as 
   chmodSync(join(host, 'statusline.sh'), 0o700);
   chmodSync(join(host, 'skills', 'tool', 'scripts', 'run.sh'), 0o755);
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
 
-  expect({
-    statusline: bundle['statusline.sh'],
-    script: bundle['skills/tool/scripts/run.sh'],
-    skill: bundle['skills/tool/SKILL.md'],
-  }).toStrictEqual({
-    statusline: { content: Buffer.from('echo status'), mode: 0o755 },
-    script: { content: Buffer.from('echo run'), mode: 0o755 },
-    skill: Buffer.from('tool'),
+  expect(bundle).toStrictEqual({
+    'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),
+    'statusline.sh': { content: Buffer.from('echo status'), mode: 0o755 },
+    'skills/tool/SKILL.md': Buffer.from('tool'),
+    'skills/tool/scripts/run.sh': { content: Buffer.from('echo run'), mode: 0o755 },
   });
 });
 
@@ -204,7 +204,11 @@ test("it points a home-relative statusline at the guest when the host folder is 
 test('it ships auto mode alone when the host has no Claude config folder', () => {
   using ctx = setupTest();
 
-  const bundle = loadClaudeConfigBundle(join(ctx.dir, 'missing'), '/guest/claude-config');
+  const bundle = loadClaudeConfigBundle(
+    join(ctx.dir, 'missing'),
+    '/guest/claude-config',
+    join(ctx.dir, 'home'),
+  );
 
   expect(bundle).toStrictEqual({
     'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),

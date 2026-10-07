@@ -3,7 +3,6 @@ import { readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ATC_BRIDGE_FILES } from './atc-bridge-files';
-import { buildCLIArgv } from './build-cli-argv';
 import { writeATCBridge } from './write-atc-bridge';
 
 // A temp root with an empty folder for a first write, and a folder the mod
@@ -20,21 +19,20 @@ function setupTest() {
 test('it writes the mod files and the atc command into the folder', () => {
   using ctx = setupTest();
 
-  const dir = ctx.empty;
-  const written = writeATCBridge(dir);
+  const written = writeATCBridge(ctx.empty, ['/opt/atc/bin/atc']);
 
   expect({
     written,
-    plugin: readFileSync(join(dir, '.claude-plugin', 'plugin.json'), 'utf8'),
-    hooks: readFileSync(join(dir, 'hooks', 'hooks.json'), 'utf8'),
-    register: readFileSync(join(dir, 'hooks', 'register.ts'), 'utf8'),
-    cli: readFileSync(join(dir, 'hooks', 'atc-cli.ts'), 'utf8'),
+    plugin: readFileSync(join(ctx.empty, '.claude-plugin', 'plugin.json'), 'utf8'),
+    hooks: readFileSync(join(ctx.empty, 'hooks', 'hooks.json'), 'utf8'),
+    register: readFileSync(join(ctx.empty, 'hooks', 'register.ts'), 'utf8'),
+    cli: readFileSync(join(ctx.empty, 'hooks', 'atc-cli.ts'), 'utf8'),
   }).toStrictEqual({
-    written: dir,
+    written: ctx.empty,
     plugin: ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
     hooks: ATC_BRIDGE_FILES['hooks/hooks.json'],
     register: ATC_BRIDGE_FILES['hooks/register.ts'],
-    cli: `export const ATC_CLI: readonly string[] = ${JSON.stringify(buildCLIArgv())};\n`,
+    cli: 'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
   });
 });
 

@@ -9,6 +9,7 @@ import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-head
 import { KEYS } from '../test-utils/keys';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
+import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { GatewayAdapter } from './gateway-adapter';
 
 // A folder for the files a test writes: transcripts, the atc-bridge mod, or a
@@ -314,8 +315,8 @@ test("it runs a headless turn with the gateway's settings file, its permission h
     readFileSync(join(ctx.dir, 'state', 'hook-settings-manual-hook.json'), 'utf8'),
   );
 
-  expect({ request: runner.mock.calls[0]?.[0], settings }).toStrictEqual({
-    request: {
+  expect(runner).toHaveBeenCalledExactlyOnceWith(
+    {
       cwd: '/tmp',
       prompt: 'go',
       claudeBin: 'claude',
@@ -323,23 +324,75 @@ test("it runs a headless turn with the gateway's settings file, its permission h
       pluginDir: join(ctx.dir, 'atc-bridge'),
       settings: join(ctx.dir, 'state', 'hook-settings-manual-hook.json'),
     },
-    settings: {
-      permissions: { defaultMode: 'default' },
-      hooks: {
-        SessionStart: expect.toBeArray(),
-        Notification: expect.toBeArray(),
-        Stop: expect.toBeArray(),
-        UserPromptSubmit: expect.toBeArray(),
-        SessionEnd: expect.toBeArray(),
-        PermissionRequest: [{ hooks: [{ type: 'command', command: 'decide-permission' }] }],
-      },
-      statusLine: {
-        type: 'command',
-        command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'manual-hook'`,
-        padding: 0,
-      },
-      env: { ANTHROPIC_BASE_URL: 'https://gateway.example/anthropic' },
+    expect.anything(),
+  );
+
+  expect(settings).toStrictEqual({
+    permissions: { defaultMode: 'default' },
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'manual-hook'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'manual-hook'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'manual-hook'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'manual-hook'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'manual-hook'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      PermissionRequest: [{ hooks: [{ type: 'command', command: 'decide-permission' }] }],
     },
+    statusLine: {
+      type: 'command',
+      command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'manual-hook'`,
+      padding: 0,
+    },
+    env: { ANTHROPIC_BASE_URL: 'https://gateway.example/anthropic' },
   });
 });
 
@@ -546,9 +599,14 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
   const settings: unknown = JSON.parse(settingsFile);
   const onboarding: unknown = JSON.parse(onboardingFile);
 
-  expect({ bin: plan.bin, args: plan.args.slice(2), env: plan.env }).toStrictEqual({
+  // The launch script is pinned by the guest launch's own tests.
+  const args: readonly unknown[] = plan.args;
+
+  expect({ bin: plan.bin, args, env: plan.env }).toStrictEqual({
     bin: 'sh',
     args: [
+      '-c',
+      expect.any(String),
       'sh',
       '/tmp/atc/sessions/s1/claude-config',
       '/tmp/atc/sessions/s1/claude-config-seed.json',
@@ -569,13 +627,63 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
   });
 
   expect(settings).toStrictEqual({
-    hooks: expect.toContainAllKeys([
-      'SessionStart',
-      'Notification',
-      'Stop',
-      'UserPromptSubmit',
-      'SessionEnd',
-    ]),
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
     statusLine: {
       type: 'command',
       command: '"/opt/atc/bin/atc" statusline --agent \'glm\'',
@@ -591,14 +699,15 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
 
   expect(onboarding).toStrictEqual({ hasCompletedOnboarding: true });
 
-  expect(Object.keys(plan.files)).toIncludeSameMembers([
-    'auth-r3/settings.json',
-    'claude-config-seed.json',
-    'atc-bridge/.claude-plugin/plugin.json',
-    'atc-bridge/hooks/hooks.json',
-    'atc-bridge/hooks/register.ts',
-    'atc-bridge/hooks/atc-cli.ts',
-  ]);
+  expect(plan.files).toStrictEqual({
+    'auth-r3/settings.json': settingsFile,
+    'claude-config-seed.json': onboardingFile,
+    'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
+    'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
+    'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
+    'atc-bridge/hooks/atc-cli.ts':
+      'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
+  });
 });
 
 test("it keeps the gateway's permission hook and mode in a brokered guest's settings and restore arguments", () => {
@@ -649,7 +758,18 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
 
   const settings: unknown = JSON.parse(settingsFile);
 
-  expect(plan.args.slice(8)).toStrictEqual([
+  // The launch script is pinned by the guest launch's own tests.
+  const args: readonly unknown[] = plan.args;
+
+  expect(args).toStrictEqual([
+    '-c',
+    expect.any(String),
+    'sh',
+    '/tmp/atc/sessions/s1/claude-config',
+    '/tmp/atc/sessions/s1/claude-config-seed.json',
+    '/tmp/atc/sessions/s1/claude-config-bundle',
+    '/tmp/atc/sessions/s1/claude-config-bundle/none',
+    'claude',
     '--permission-mode',
     'default',
     '--settings',
@@ -663,11 +783,61 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
   expect(settings).toStrictEqual({
     permissions: { defaultMode: 'default' },
     hooks: {
-      SessionStart: expect.toBeArray(),
-      Notification: expect.toBeArray(),
-      Stop: expect.toBeArray(),
-      UserPromptSubmit: expect.toBeArray(),
-      SessionEnd: expect.toBeArray(),
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
       PermissionRequest: [hook],
     },
     statusLine: {
@@ -723,7 +893,7 @@ test.each([
   );
 });
 
-test('it refuses no start of a gateway with auth that sets an extra placeholder variable', () => {
+test('it allows the start of a gateway with auth that sets an extra placeholder variable', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
@@ -806,8 +976,13 @@ test('it carries an extra placeholder variable and the gateway args into a broke
 
   const settings: unknown = JSON.parse(settingsFile);
 
-  expect({ args: plan.args.slice(2), env: plan.env, settings }).toStrictEqual({
+  // The launch script is pinned by the guest launch's own tests.
+  const args: readonly unknown[] = plan.args;
+
+  expect({ args, env: plan.env, settings }).toStrictEqual({
     args: [
+      '-c',
+      expect.any(String),
       'sh',
       '/tmp/atc/sessions/s1/claude-config',
       '/tmp/atc/sessions/s1/claude-config-seed.json',
@@ -829,13 +1004,63 @@ test('it carries an extra placeholder variable and the gateway args into a broke
       TYPESAFE_API_KEY: 'imp-broker-placeholder',
     },
     settings: {
-      hooks: expect.toContainAllKeys([
-        'SessionStart',
-        'Notification',
-        'Stop',
-        'UserPromptSubmit',
-        'SessionEnd',
-      ]),
+      hooks: {
+        SessionStart: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+                timeout: 5,
+              },
+            ],
+          },
+        ],
+        Notification: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+                timeout: 5,
+              },
+            ],
+          },
+        ],
+        Stop: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+                timeout: 5,
+              },
+            ],
+          },
+        ],
+        UserPromptSubmit: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+                timeout: 5,
+              },
+            ],
+          },
+        ],
+        SessionEnd: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+                timeout: 5,
+              },
+            ],
+          },
+        ],
+      },
       statusLine: {
         type: 'command',
         command: '"/opt/atc/bin/atc" statusline --agent \'glm\'',
@@ -1162,7 +1387,9 @@ test('it starts a brokered guest in the permission mode its configured arguments
     },
   );
 
-  expect(plan?.args.slice(2)).toStrictEqual([
+  expect(plan?.args).toStrictEqual([
+    '-c',
+    expect.any(String),
     'sh',
     '/tmp/atc/sessions/s1/claude-config',
     '/tmp/atc/sessions/s1/claude-config-seed.json',
@@ -1209,7 +1436,9 @@ test("it starts a fresh spawn of a brokered guest in Claude's manual mode when t
     },
   );
 
-  expect(plan?.args.slice(2)).toStrictEqual([
+  expect(plan?.args).toStrictEqual([
+    '-c',
+    expect.any(String),
     'sh',
     '/tmp/atc/sessions/s1/claude-config',
     '/tmp/atc/sessions/s1/claude-config-seed.json',
@@ -1256,7 +1485,9 @@ test("it starts a resume of a brokered guest in Claude's manual mode when the ga
     },
   );
 
-  expect(plan?.args.slice(2)).toStrictEqual([
+  expect(plan?.args).toStrictEqual([
+    '-c',
+    expect.any(String),
     'sh',
     '/tmp/atc/sessions/s1/claude-config',
     '/tmp/atc/sessions/s1/claude-config-seed.json',
@@ -1321,7 +1552,7 @@ test('it selects no broker credential for a gateway without auth', () => {
   expect(adapter.findAuthSelection()).toBeNull();
 });
 
-test('it refuses no start of a gateway with auth whose placeholder pairs with the bearer header', () => {
+test('it allows the start of a gateway with auth whose placeholder pairs with the bearer header', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
@@ -1460,13 +1691,63 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
       ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
     },
     settings: {
-      hooks: expect.toContainAllKeys([
-        'SessionStart',
-        'Notification',
-        'Stop',
-        'UserPromptSubmit',
-        'SessionEnd',
-      ]),
+      hooks: {
+        SessionStart: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+                timeout: 5,
+              },
+            ],
+          },
+        ],
+        Notification: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+                timeout: 5,
+              },
+            ],
+          },
+        ],
+        Stop: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+                timeout: 5,
+              },
+            ],
+          },
+        ],
+        UserPromptSubmit: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+                timeout: 5,
+              },
+            ],
+          },
+        ],
+        SessionEnd: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+                timeout: 5,
+              },
+            ],
+          },
+        ],
+      },
       statusLine: {
         type: 'command',
         command: '"/opt/atc/bin/atc" statusline --agent \'glm\'',
