@@ -5,6 +5,10 @@ export interface StoredRow {
   readonly id: string;
   readonly name: string;
   readonly exited: boolean;
+
+  // The agent's own session id, which matches the row when its atc id is
+  // assigned only as the new daemon migrates the store; null when unknown.
+  readonly agentSessionID: string | null;
 }
 
 /**
@@ -27,5 +31,6 @@ export async function readStoredRows(
       id: String(entry['sessionID']),
       name: String(entry['name']),
       exited: entry['exited'] === true,
+      agentSessionID: typeof entry['agentSessionID'] === 'string' ? entry['agentSessionID'] : null,
     }));
 }

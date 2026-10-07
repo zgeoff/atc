@@ -7,7 +7,7 @@ import { PROTOCOL_V } from './protocol/protocol';
 import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from './restart-plan';
 import { runSystemctl } from './run-systemctl';
 import { buildATCCommand } from './shared/build-atc-command';
-import { daemonPidFile, daemonRecordFile, daemonSocketPath } from './shared/config';
+import { daemonPidFile, daemonRecordFile, daemonSocketPath, stateDir } from './shared/config';
 import { findDaemonRecord } from './shared/find-daemon-record';
 import { findPidFilePID } from './shared/find-pid-file-pid';
 import { getBuild } from './shared/get-build';
@@ -66,7 +66,9 @@ export async function collectRestartPlan(callerSession: string | null): Promise<
 
 function pickLivePID(...candidates: readonly (number | null)[]): number | null {
   return (
-    candidates.find((pid) => pid !== null && isProcessAlive(pid) && isDaemonProcess(pid)) ?? null
+    candidates.find(
+      (pid) => pid !== null && isProcessAlive(pid) && isDaemonProcess(pid, stateDir),
+    ) ?? null
   );
 }
 

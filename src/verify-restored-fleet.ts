@@ -41,7 +41,10 @@ export async function verifyRestoredFleet(
   // not known until they are read, so that read gets the fixed allowance.
   const read =
     snapshot === null
-      ? await sendBounded(() => readStoredRows(client), startedAt + UNSIZED_READ_MS)
+      ? await sendBounded(
+          () => readStoredRows(client),
+          startedAt + (timeoutSeconds === null ? UNSIZED_READ_MS : timeoutSeconds * 1000),
+        )
       : null;
 
   const stored = snapshot ?? read ?? [];
@@ -59,10 +62,6 @@ export async function verifyRestoredFleet(
   return { total: stored.length, failed: found.failed };
 }
 
-// The least a request is given, so one sent just before the deadline can
-// still be answered.
-const MIN_REQUEST_MS = 2000;
-
 /**
  * Runs a request and rejects once the deadline passes, so a daemon that
  * stops answering cannot hold the restart, and its lock, open.
@@ -75,7 +74,7 @@ async function sendBounded<T>(send: () => Promise<T>, deadline: number): Promise
       () => {
         reject(new Error('the new daemon stopped answering before the restore deadline'));
       },
-      Math.max(MIN_REQUEST_MS, deadline - Date.now()),
+      Math.max(0, deadline - Date.now()),
     );
   });
 
@@ -121,11 +120,19 @@ async function collectFailedRows(
 
   const byID = new Map(sessions.map((session) => [String(session['id']), session]));
 
+  const byAgentID = new Map(
+    sessions
+      .filter((session) => typeof session['agentSessionID'] === 'string')
+      .map((session) => [String(session['agentSessionID']), session]),
+  );
+
   const failed: RestartFailedRow[] = [];
   let pending = false;
 
   for (const row of stored) {
-    const session = byID.get(row.id);
+    const session =
+      byID.get(row.id) ??
+      (row.agentSessionID === null ? undefined : byAgentID.get(row.agentSessionID));
 
     if (session === undefined) {
       failed.push({ name: row.name, id: row.id, reason: 'not listed after the restore' });

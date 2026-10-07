@@ -30,23 +30,37 @@ test('it reads the rows this state directory owns with their exit status', async
   db.close();
 
   expect(readStoredFleetFile(fixture.dbPath)).toStrictEqual([
-    { id: 's-a', name: 'a', exited: false },
-    { id: 's-b', name: 'b', exited: true },
+    { id: 's-a', name: 'a', exited: false, agentSessionID: null },
+    { id: 's-b', name: 'b', exited: true, agentSessionID: null },
   ]);
 });
 
-test('it reads every row as live on a schema from before exit tracking and ownership', async () => {
+test('it reads rows keyed by the agent session id on a schema from before atc session ids', async () => {
   await using fixture = await setupTest();
 
   const db = new Database(fixture.dbPath);
 
-  db.run('CREATE TABLE fleet (session_id TEXT, name TEXT)');
-  db.run("INSERT INTO fleet VALUES ('s-a', 'a'), ('s-b', NULL)");
+  db.run('CREATE TABLE fleet (agent_session_id TEXT, name TEXT, cwd TEXT, exited INTEGER)');
+  db.run("INSERT INTO fleet VALUES ('a-a', 'a', '/tmp', 0), ('a-b', NULL, '/tmp', 1)");
   db.close();
 
   expect(readStoredFleetFile(fixture.dbPath)).toStrictEqual([
-    { id: 's-a', name: 'a', exited: false },
-    { id: 's-b', name: 's-b', exited: false },
+    { id: 'a-a', name: 'a', exited: false, agentSessionID: 'a-a' },
+    { id: 'a-b', name: 'a-b', exited: true, agentSessionID: 'a-b' },
+  ]);
+});
+
+test('it reads every row as live on the first schema, keyed by the claude id', async () => {
+  await using fixture = await setupTest();
+
+  const db = new Database(fixture.dbPath);
+
+  db.run('CREATE TABLE fleet (claude_id TEXT PRIMARY KEY, name TEXT NOT NULL, cwd TEXT NOT NULL)');
+  db.run("INSERT INTO fleet VALUES ('c-a', 'a', '/tmp')");
+  db.close();
+
+  expect(readStoredFleetFile(fixture.dbPath)).toStrictEqual([
+    { id: 'c-a', name: 'a', exited: false, agentSessionID: 'c-a' },
   ]);
 });
 
