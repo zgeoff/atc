@@ -1,9 +1,6 @@
 import { expect, test } from 'bun:test';
 import { formatRestartPreflight } from './format-restart-preflight';
 
-const POLICY =
-  'Stopping the daemon ends every agent process it hosts. A session that is mid-turn loses that turn; the restore resumes each session from its transcript, and the interrupted turn does not continue.';
-
 test('it lists the mid-turn sessions and marks the one that asked for the restart', () => {
   const lines = formatRestartPreflight({
     pid: 77,
@@ -24,7 +21,7 @@ test('it lists the mid-turn sessions and marks the one that asked for the restar
     '  api (s-1)',
     '  web (s-3) (this session)',
     'replacement: build atc/3.1.1+abc, started with atc daemon',
-    POLICY,
+    'Stopping the daemon ends every agent process it hosts. A session that is mid-turn loses that turn; the restore resumes each session from its transcript, and the interrupted turn does not continue.',
   ]);
 });
 
@@ -46,7 +43,7 @@ test('it prints the refusal and parses the daemon build from a protocol mismatch
     'daemon build atc/legacy-build speaks protocol v6',
     'The session states cannot be read across the protocol mismatch, so the sessions that are mid-turn are unknown.',
     'replacement: build atc/x, started with atc daemon',
-    POLICY,
+    'Stopping the daemon ends every agent process it hosts. A session that is mid-turn loses that turn; the restore resumes each session from its transcript, and the interrupted turn does not continue.',
   ]);
 });
 
@@ -60,9 +57,11 @@ test('it says that the restart only starts a daemon when none answers and no pid
     replacement: { kind: 'plain', build: 'atc/x', command: 'atc daemon' },
   });
 
-  expect(lines[0]).toBe(
+  expect(lines).toStrictEqual([
     'no daemon answers and no live pid is recorded; the restart only starts one and restores the fleet',
-  );
+    'replacement: build atc/x, started with atc daemon',
+    'Stopping the daemon ends every agent process it hosts. A session that is mid-turn loses that turn; the restore resumes each session from its transcript, and the interrupted turn does not continue.',
+  ]);
 });
 
 test('it names the unit and its ExecStart path and says that the unit decides the build', () => {
@@ -75,9 +74,11 @@ test('it names the unit and its ExecStart path and says that the unit decides th
     replacement: { kind: 'unit', unit: 'atc-daemon.service', execStart: '/home/u/.local/bin/atc' },
   });
 
-  expect(lines).toIncludeAllMembers([
+  expect(lines).toStrictEqual([
+    'daemon: pid 77, build atc/3.1.1+abc, protocol v7',
     'no session is mid-turn',
     'replacement: systemd unit atc-daemon.service, ExecStart /home/u/.local/bin/atc',
     'The unit decides the build the replacement runs.',
+    'Stopping the daemon ends every agent process it hosts. A session that is mid-turn loses that turn; the restore resumes each session from its transcript, and the interrupted turn does not continue.',
   ]);
 });

@@ -22,7 +22,7 @@ test.each([
     env: {},
     expected: null,
   },
-])('it reads the state directory $expected from $argv', (row) => {
+])('it reads the state directory $expected from $argv with the environment $env', (row) => {
   expect(
     parseGatewayStateDir(row.argv, row.env, {
       values: new Set(['port', 'redirect-uri', 'state-dir']),

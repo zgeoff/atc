@@ -4,40 +4,32 @@ import { join } from 'node:path';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 import { waitFor } from './test-utils/wait-for';
 
-// The command every test runs the gateway as: the source entry under the
-// test's own bun, or the compiled binary a smoke run points ATC_GATEWAY_BIN
-// at, so one suite proves both.
-const gatewayCommand =
-  process.env['ATC_GATEWAY_BIN'] === undefined
-    ? [process.execPath, join(import.meta.dir, 'gateway.ts')]
-    : [process.env['ATC_GATEWAY_BIN']];
-
 /**
- * A temp directory holding a registry file whose one daemon, `cloud`, has
- * an address nothing listens on, and a free port for the gateway. `env`
- * holds `PATH` and a `HOME` inside the temp directory that nothing creates,
- * so a write under it shows in the directory listing. `run` and `start` run
- * the gateway in the temp directory, so a relative path lands there. `start`
- * appends the free port to its arguments and waits until the readiness
- * probe returns 200; disposal kills it and removes the directory.
+ * A temp directory to run the gateway in, so a relative path lands there,
+ * and a free port for it. Every gateway runs with `PATH` and a `HOME` inside
+ * the temp directory that nothing creates, so a write under it shows in the
+ * directory listing. `run` runs the gateway to its exit; `start` appends
+ * the port to its arguments and waits until the readiness probe returns
+ * 200. Disposal kills every gateway either started and removes the
+ * directory.
  */
 async function setupTest() {
-  const tmp = setupTempDir('atc-gateway-bin-');
+  await using stack = new AsyncDisposableStack();
 
-  writeFileSync(
-    join(tmp.dir, 'registry.json'),
-    JSON.stringify({
-      daemons: {
-        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
-      },
-      defaultDaemon: 'cloud',
-    }),
-  );
+  const tmp = stack.use(setupTempDir('atc-gateway-bin-'));
 
+  // The gateway refuses port 0, so it takes a port the kernel handed out
+  // and released just before.
   const probe = Bun.serve({ port: 0, fetch: () => new Response(null) });
   const port = probe.port ?? 0;
 
   await probe.stop(true);
+
+  // A smoke run points ATC_GATEWAY_BIN at the compiled binary; otherwise the
+  // source entry runs under the test's own bun, so one suite proves both.
+  const command = [
+    process.env['ATC_GATEWAY_BIN'] ?? [process.execPath, join(import.meta.dir, 'gateway.ts')],
+  ].flat();
 
   // Bun's transpiler cache would write under HOME when the source entry runs.
   const env = {
@@ -46,80 +38,88 @@ async function setupTest() {
     BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
   };
 
-  const running: Bun.Subprocess[] = [];
+  const owned = stack.move();
+
+  const spawnGateway = (args: readonly string[], extraEnv: Readonly<Record<string, string>>) => {
+    const proc = Bun.spawn([...command, ...args], {
+      cwd: tmp.dir,
+      env: { ...env, ...extraEnv },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    owned.defer(async () => {
+      proc.kill();
+
+      await proc.exited;
+    });
+
+    return proc;
+  };
 
   return {
     dir: tmp.dir,
     port,
-    env,
-    run(args: readonly string[], extraEnv: Readonly<Record<string, string>>) {
-      const result = Bun.spawnSync([...gatewayCommand, ...args], {
-        cwd: tmp.dir,
-        env: { ...env, ...extraEnv },
-      });
+    async run(args: readonly string[], extraEnv: Readonly<Record<string, string>>) {
+      const proc = spawnGateway(args, extraEnv);
 
-      return {
-        exitCode: result.exitCode,
-        stdout: result.stdout.toString(),
-        stderr: result.stderr.toString(),
-      };
+      const [exitCode, stdout, stderr] = await Promise.all([
+        proc.exited,
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ]);
+
+      return { exitCode, stdout, stderr };
     },
     async start(args: readonly string[], extraEnv: Readonly<Record<string, string>>) {
-      const proc = Bun.spawn([...gatewayCommand, ...args, '--port', String(port)], {
-        cwd: tmp.dir,
-        env: { ...env, ...extraEnv },
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      running.push(proc);
+      const proc = spawnGateway([...args, '--port', String(port)], extraEnv);
 
       await waitFor(
         async () => {
           const ready = await fetch(`http://127.0.0.1:${port}/readyz`);
 
-          if (ready.status !== 200) {
-            throw new Error(`readyz returned ${ready.status}`);
-          }
+          expect(ready.status).toBe(200);
         },
         { timeoutMs: 15_000 },
       );
 
       return proc;
     },
-    async [Symbol.asyncDispose]() {
-      for (const proc of running) {
-        proc.kill();
-
-        await proc.exited;
-      }
-
-      tmp[Symbol.dispose]();
-    },
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it answers both probes for the host of its public URL', async () => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  await gateway.start(
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  await ctx.start(
     [
       'serve',
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
-      join(gateway.dir, 'registry.json'),
+      join(ctx.dir, 'registry.json'),
       '--state-dir',
-      join(gateway.dir, 'state'),
+      join(ctx.dir, 'state'),
     ],
     { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
   );
 
-  const health = await fetch(`http://127.0.0.1:${gateway.port}/healthz`, {
+  const health = await fetch(`http://127.0.0.1:${ctx.port}/healthz`, {
     headers: { host: 'atc.geoff.cloud' },
   });
 
-  const ready = await fetch(`http://127.0.0.1:${gateway.port}/readyz`, {
+  const ready = await fetch(`http://127.0.0.1:${ctx.port}/readyz`, {
     headers: { host: 'atc.geoff.cloud' },
   });
 
@@ -127,22 +127,32 @@ test('it answers both probes for the host of its public URL', async () => {
 });
 
 test('it refuses a probe from a foreign host', async () => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  await gateway.start(
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  await ctx.start(
     [
       'serve',
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
-      join(gateway.dir, 'registry.json'),
+      join(ctx.dir, 'registry.json'),
       '--state-dir',
-      join(gateway.dir, 'state'),
+      join(ctx.dir, 'state'),
     ],
     { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
   );
 
-  const health = await fetch(`http://127.0.0.1:${gateway.port}/healthz`, {
+  const health = await fetch(`http://127.0.0.1:${ctx.port}/healthz`, {
     headers: { host: 'evil.example' },
   });
 
@@ -150,132 +160,150 @@ test('it refuses a probe from a foreign host', async () => {
 });
 
 test('it keeps both databases in the state directory', async () => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  await gateway.start(
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  await ctx.start(
     [
       'serve',
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
-      join(gateway.dir, 'registry.json'),
+      join(ctx.dir, 'registry.json'),
     ],
-    { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32), ATC_GATEWAY_STATE_DIR: join(gateway.dir, 'state') },
+    { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32), ATC_GATEWAY_STATE_DIR: join(ctx.dir, 'state') },
   );
 
-  expect(readdirSync(join(gateway.dir, 'state'))).toIncludeAllMembers([
-    'gateway.db',
-    'mcp-auth.db',
-  ]);
-
-  expect(readdirSync(gateway.dir).toSorted()).toStrictEqual(['registry.json', 'state']);
+  expect({
+    state: readdirSync(join(ctx.dir, 'state')),
+    entries: readdirSync(ctx.dir).toSorted(),
+  }).toStrictEqual({
+    state: expect.toIncludeAllMembers(['gateway.db', 'mcp-auth.db']),
+    entries: ['registry.json', 'state'],
+  });
 });
 
 test('it exits 1 naming the token variable a daemon lacks', async () => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  const proc = Bun.spawn(
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  const result = await ctx.run(
     [
-      ...gatewayCommand,
       'serve',
       '--port',
-      String(gateway.port),
+      String(ctx.port),
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
-      join(gateway.dir, 'registry.json'),
+      join(ctx.dir, 'registry.json'),
       '--state-dir',
-      join(gateway.dir, 'state'),
+      join(ctx.dir, 'state'),
     ],
-    { env: gateway.env, stdout: 'pipe', stderr: 'pipe' },
+    {},
   );
 
-  const exitCode = await proc.exited;
-
-  const stderr = await new Response(proc.stderr).text();
-
-  expect({ exitCode, stderr }).toStrictEqual({
+  expect({ exitCode: result.exitCode, stderr: result.stderr }).toStrictEqual({
     exitCode: 1,
     stderr: "atc-gateway: daemon 'cloud' has no token: set ATC_GATEWAY_TOKEN_CLOUD\n",
   });
 });
 
 test('it exits 1 on a registry that is not JSON', async () => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  writeFileSync(join(gateway.dir, 'bad.json'), 'not json');
+  writeFileSync(join(ctx.dir, 'bad.json'), 'not json');
 
-  const proc = Bun.spawn(
+  const result = await ctx.run(
     [
-      ...gatewayCommand,
       'serve',
       '--port',
-      String(gateway.port),
+      String(ctx.port),
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
-      join(gateway.dir, 'bad.json'),
+      join(ctx.dir, 'bad.json'),
       '--state-dir',
-      join(gateway.dir, 'state'),
+      join(ctx.dir, 'state'),
     ],
-    {
-      env: { ...gateway.env, ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
+    { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
   );
 
-  const exitCode = await proc.exited;
-
-  const stderr = await new Response(proc.stderr).text();
-
-  expect(exitCode).toBe(1);
-  expect(stderr).toMatch(/^atc-gateway: cannot read the registry at .*bad\.json: .+\n$/);
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toMatch(/^atc-gateway: cannot read the registry at .*bad\.json: .+\n$/u);
 });
 
 test('it exits 1 when it has no state directory', async () => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  const proc = Bun.spawn(
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  const result = await ctx.run(
     [
-      ...gatewayCommand,
       'serve',
       '--port',
-      String(gateway.port),
+      String(ctx.port),
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
-      join(gateway.dir, 'registry.json'),
+      join(ctx.dir, 'registry.json'),
     ],
-    {
-      env: { ...gateway.env, ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
+    { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
   );
 
-  const exitCode = await proc.exited;
-
-  const stderr = await new Response(proc.stderr).text();
-
-  expect({ exitCode, stderr }).toStrictEqual({
+  expect({ exitCode: result.exitCode, stderr: result.stderr }).toStrictEqual({
     exitCode: 1,
     stderr: 'atc-gateway: give --state-dir or set ATC_GATEWAY_STATE_DIR\n',
   });
 });
 
 test('it exits 0 on SIGTERM', async () => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  const proc = await gateway.start(
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  const proc = await ctx.start(
     [
       'serve',
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
-      join(gateway.dir, 'registry.json'),
+      join(ctx.dir, 'registry.json'),
       '--state-dir',
-      join(gateway.dir, 'state'),
+      join(ctx.dir, 'state'),
     ],
     { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
   );
@@ -293,19 +321,30 @@ test.each([
   { args: ['serve', '--state-dir', 'flagged'] },
   { args: ['serve', '--state-dir=flagged'] },
 ])('it serves from the state directory in $args over the environment', async (row) => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  await gateway.start(
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  await ctx.start(
     [...row.args, '--public-url', 'https://atc.geoff.cloud', '--registry', 'registry.json'],
     { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32), ATC_GATEWAY_STATE_DIR: 'from-env' },
   );
 
-  expect(readdirSync(gateway.dir).toSorted()).toStrictEqual(['flagged', 'registry.json']);
-
-  expect(readdirSync(join(gateway.dir, 'flagged'))).toIncludeAllMembers([
-    'gateway.db',
-    'mcp-auth.db',
-  ]);
+  expect({
+    entries: readdirSync(ctx.dir).toSorted(),
+    flagged: readdirSync(join(ctx.dir, 'flagged')),
+  }).toStrictEqual({
+    entries: ['flagged', 'registry.json'],
+    flagged: expect.toIncludeAllMembers(['gateway.db', 'mcp-auth.db']),
+  });
 });
 
 test.each([
@@ -318,9 +357,9 @@ test.each([
 ])(
   'it adds a client to the state directory in $before $after over the environment',
   async (row) => {
-    await using gateway = await setupTest();
+    await using ctx = await setupTest();
 
-    const added = gateway.run(
+    const added = await ctx.run(
       [
         ...row.before,
         'Claude',
@@ -331,16 +370,17 @@ test.each([
       { ATC_GATEWAY_STATE_DIR: 'from-env' },
     );
 
-    const listed = gateway.run(['clients', 'list', '--state-dir=flagged'], {});
-    const clientID = /client ID is (?<id>\w+)/.exec(added.stdout)?.groups?.['id'];
+    const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
 
     if (clientID === undefined) {
       throw new Error(`no client ID in: ${added.stdout}${added.stderr}`);
     }
 
-    expect({ listed: listed.stdout, entries: readdirSync(gateway.dir).toSorted() }).toStrictEqual({
+    const listed = await ctx.run(['clients', 'list', '--state-dir=flagged'], {});
+
+    expect({ listed: listed.stdout, entries: readdirSync(ctx.dir).toSorted() }).toStrictEqual({
       listed: `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`,
-      entries: ['flagged', 'registry.json'],
+      entries: ['flagged'],
     });
   },
 );
@@ -353,9 +393,9 @@ test.each([
   { args: ['clients', 'list', '--state-dir', 'flagged'] },
   { args: ['clients', 'list', '--state-dir=flagged'] },
 ])('it lists the clients in the state directory in $args over the environment', async (row) => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  const added = gateway.run(
+  const added = await ctx.run(
     [
       'clients',
       'add',
@@ -367,21 +407,22 @@ test.each([
     {},
   );
 
-  const listed = gateway.run(row.args, { ATC_GATEWAY_STATE_DIR: 'from-env' });
-  const clientID = /client ID is (?<id>\w+)/.exec(added.stdout)?.groups?.['id'];
+  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
 
   if (clientID === undefined) {
     throw new Error(`no client ID in: ${added.stdout}${added.stderr}`);
   }
 
+  const listed = await ctx.run(row.args, { ATC_GATEWAY_STATE_DIR: 'from-env' });
+
   expect({
     exitCode: listed.exitCode,
     listed: listed.stdout,
-    entries: readdirSync(gateway.dir).toSorted(),
+    entries: readdirSync(ctx.dir).toSorted(),
   }).toStrictEqual({
     exitCode: 0,
     listed: `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`,
-    entries: ['flagged', 'registry.json'],
+    entries: ['flagged'],
   });
 });
 
@@ -395,9 +436,9 @@ test.each([
 ])(
   'it removes a client from the state directory in $before $after over the environment',
   async (row) => {
-    await using gateway = await setupTest();
+    await using ctx = await setupTest();
 
-    const added = gateway.run(
+    const added = await ctx.run(
       [
         'clients',
         'add',
@@ -409,34 +450,34 @@ test.each([
       {},
     );
 
-    const clientID = /client ID is (?<id>\w+)/.exec(added.stdout)?.groups?.['id'];
+    const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
 
     if (clientID === undefined) {
       throw new Error(`no client ID in: ${added.stdout}${added.stderr}`);
     }
 
-    const removed = gateway.run([...row.before, clientID, ...row.after], {
+    const removed = await ctx.run([...row.before, clientID, ...row.after], {
       ATC_GATEWAY_STATE_DIR: 'from-env',
     });
 
-    const listed = gateway.run(['clients', 'list', '--state-dir=flagged'], {});
+    const listed = await ctx.run(['clients', 'list', '--state-dir=flagged'], {});
 
     expect({
       removed: removed.stdout,
       listed: listed.stdout,
-      entries: readdirSync(gateway.dir).toSorted(),
+      entries: readdirSync(ctx.dir).toSorted(),
     }).toStrictEqual({
       removed: `Removed client ${clientID} and revoked every grant it held\n`,
       listed: 'No clients. Add one with: atc-gateway clients add <name> --redirect-uri <uri>\n',
-      entries: ['flagged', 'registry.json'],
+      entries: ['flagged'],
     });
   },
 );
 
 test('it exits 1 on two state directories that differ', async () => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  const added = gateway.run(
+  const added = await ctx.run(
     [
       '--state-dir=first',
       'clients',
@@ -450,34 +491,34 @@ test('it exits 1 on two state directories that differ', async () => {
     {},
   );
 
-  expect({ ...added, entries: readdirSync(gateway.dir) }).toStrictEqual({
+  expect({ ...added, entries: readdirSync(ctx.dir) }).toStrictEqual({
     exitCode: 1,
     stdout: '',
     stderr: "atc-gateway: --state-dir gives different directories: 'first', 'second'\n",
-    entries: ['registry.json'],
+    entries: [],
   });
 });
 
 test('it exits 1 when a flag takes the state directory flag as its value', async () => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  const added = gateway.run(
+  const added = await ctx.run(
     ['clients', 'add', 'Claude', '--redirect-uri', '--state-dir', 'flagged'],
     { ATC_GATEWAY_STATE_DIR: 'from-env' },
   );
 
-  expect({ ...added, entries: readdirSync(gateway.dir) }).toStrictEqual({
+  expect({ ...added, entries: readdirSync(ctx.dir) }).toStrictEqual({
     exitCode: 1,
     stdout: '',
     stderr: 'atc-gateway: --redirect-uri needs a value; write --redirect-uri=<value>\n',
-    entries: ['registry.json'],
+    entries: [],
   });
 });
 
 test('it exits 1 on a flag it does not know at the root', async () => {
-  await using gateway = await setupTest();
+  await using ctx = await setupTest();
 
-  const added = gateway.run(
+  const added = await ctx.run(
     [
       '--stat-dir=flagged',
       'clients',
@@ -489,10 +530,10 @@ test('it exits 1 on a flag it does not know at the root', async () => {
     { ATC_GATEWAY_STATE_DIR: 'from-env' },
   );
 
-  expect({ ...added, entries: readdirSync(gateway.dir) }).toStrictEqual({
+  expect({ ...added, entries: readdirSync(ctx.dir) }).toStrictEqual({
     exitCode: 1,
     stdout: '',
     stderr: "atc-gateway: unknown flag '--stat-dir=flagged'\n",
-    entries: ['registry.json'],
+    entries: [],
   });
 });

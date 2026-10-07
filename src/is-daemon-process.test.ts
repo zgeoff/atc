@@ -1,16 +1,13 @@
 import { expect, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isDaemonProcess } from './is-daemon-process';
+import { setupTempDir } from './test-utils/setup-temp-dir';
 
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
-  const dir = await mkdtemp(join(tmpdir(), 'is-daemon-process-'));
-
-  stack.defer(() => rm(dir, { recursive: true, force: true }));
-
+  const dir = stack.use(setupTempDir('is-daemon-process-')).dir;
   const cliPath = join(dir, 'checkout', 'src', 'cli.ts');
 
   await mkdir(join(dir, 'checkout', 'src'), { recursive: true });
@@ -38,27 +35,23 @@ async function setupTest() {
 }
 
 test('it accepts a daemon process whose home holds this state directory', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  expect(
-    isDaemonProcess(daemon.proc.pid, join(daemon.dir, 'home', '.local', 'state', 'atc')),
-  ).toBeTrue();
+  expect(isDaemonProcess(ctx.proc.pid, join(ctx.dir, 'home', '.local', 'state', 'atc'))).toBeTrue();
 });
 
 test('it rejects a daemon process of another home', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   expect(
-    isDaemonProcess(daemon.proc.pid, join(daemon.dir, 'other', '.local', 'state', 'atc')),
+    isDaemonProcess(ctx.proc.pid, join(ctx.dir, 'other', '.local', 'state', 'atc')),
   ).toBeFalse();
 });
 
 test('it rejects a live process that is not an atc daemon', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  expect(
-    isDaemonProcess(process.pid, join(daemon.dir, 'home', '.local', 'state', 'atc')),
-  ).toBeFalse();
+  expect(isDaemonProcess(process.pid, join(ctx.dir, 'home', '.local', 'state', 'atc'))).toBeFalse();
 });
 
 test('it rejects a pid with no process', () => {

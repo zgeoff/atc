@@ -27,7 +27,17 @@ const DAEMON_WAIT_MS = 30_000;
  */
 export async function runMCPHTTPServer(build: string, flags: MCPHTTPFlags): Promise<void> {
   const config = loadMCPHTTPConfig();
-  const bootOptions = flags.waitForDaemon ? { waitForDaemonMs: DAEMON_WAIT_MS } : {};
+
+  const bootOptions = flags.waitForDaemon
+    ? {
+        waitForDaemonMs: DAEMON_WAIT_MS,
+        onWaitForDaemon: () => {
+          console.error(
+            `atc mcp --http: no daemon answers yet; waiting up to ${DAEMON_WAIT_MS / 1000}s for one, without starting it`,
+          );
+        },
+      }
+    : {};
 
   const boot = await bootDaemonClient(bootOptions).catch((error: unknown) => {
     console.error(`atc mcp --http: ${error instanceof Error ? error.message : String(error)}`);

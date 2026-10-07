@@ -42,6 +42,10 @@ export interface DaemonBootOptions {
   // manager starts beside a managed daemon sets it, so the two never race
   // for the state directory.
   readonly waitForDaemonMs?: number;
+
+  // Called once when a waiting boot finds no daemon on its first try and
+  // starts to wait instead of starting one.
+  readonly onWaitForDaemon?: () => void;
 }
 
 /**
@@ -62,7 +66,11 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
   const wait =
     options.waitForDaemonMs === undefined
       ? null
-      : { deadline: Date.now() + options.waitForDaemonMs, timeoutMs: options.waitForDaemonMs };
+      : {
+          deadline: Date.now() + options.waitForDaemonMs,
+          timeoutMs: options.waitForDaemonMs,
+          onWait: options.onWaitForDaemon ?? (() => {}),
+        };
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const build = getBuild();
@@ -142,17 +150,27 @@ async function openOrBootDaemon(): Promise<OpenedDaemon> {
 interface DaemonWait {
   readonly deadline: number;
   readonly timeoutMs: number;
+  readonly onWait: () => void;
 }
 
 /**
- * Polls the known sockets until a daemon answers, and never starts one.
+ * Polls the known sockets until a daemon answers, and never starts one. The
+ * first miss reports that the wait has begun.
  */
 async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
+  let waiting = false;
+
   for (;;) {
     const opened = await tryOpenKnownDaemon();
 
     if (opened !== null) {
       return opened;
+    }
+
+    if (!waiting) {
+      waiting = true;
+
+      wait.onWait();
     }
 
     if (Date.now() >= wait.deadline) {
