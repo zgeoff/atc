@@ -28,7 +28,9 @@ const UNSIZED_READ_MS = 30_000;
  * passes (`timeoutSeconds` when set, else the rows that are not exited times the restore boot cap, plus 30 s), and an exited row must be listed. A stored row that is not listed
  * failed to restore, and a listed row that is still without a live terminal
  * at the deadline failed to revive. The deadline counts from the call, and
- * every request to the daemon is held to it.
+ * every request to the daemon is held to it: the daemon must answer the first
+ * list before it, and when it overtakes a later list, the verdict comes from
+ * the last list the daemon answered.
  */
 export async function verifyRestoredFleet(
   client: Pick<DaemonClient, 'sendRequest'>,
@@ -54,9 +56,15 @@ export async function verifyRestoredFleet(
   let found = await sendBounded(() => collectFailedRows(client, stored, restored), deadline);
 
   while (found.pending && Date.now() < deadline) {
-    await Bun.sleep(250);
+    await Bun.sleep(Math.min(250, deadline - Date.now()));
 
-    found = await sendBounded(() => collectFailedRows(client, stored, restored), deadline);
+    const polled = await tryCollectFailedRows(client, stored, restored, deadline);
+
+    if (polled === null) {
+      break;
+    }
+
+    found = polled;
   }
 
   return { total: stored.length, failed: found.failed };
@@ -106,6 +114,34 @@ async function tryRestore(
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Lists the rows again, or returns null when the deadline passes before the
+ * daemon answers, so the caller keeps the verdict of the last list it got.
+ */
+async function tryCollectFailedRows(
+  client: Pick<DaemonClient, 'sendRequest'>,
+  stored: readonly StoredRow[],
+  restored: boolean,
+  deadline: number,
+): Promise<FailedRows | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const expired = new Promise<null>((resolve) => {
+    timer = setTimeout(
+      () => {
+        resolve(null);
+      },
+      Math.max(0, deadline - Date.now()),
+    );
+  });
+
+  try {
+    return await Promise.race([collectFailedRows(client, stored, restored), expired]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
