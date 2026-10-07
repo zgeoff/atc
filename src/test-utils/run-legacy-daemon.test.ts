@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { PROTOCOL_V } from '../protocol/protocol';
 import { setupTempDir } from './setup-temp-dir';
+import { waitFor } from './wait-for';
 
 // A temp directory that holds the legacy daemon's socket and serves as its
 // state directory.
@@ -39,6 +40,7 @@ test('it keeps the session it hosts running while it runs', async () => {
   );
 
   const printed = await proc.stdout.getReader().read();
+
   const sessionPID = Number(new TextDecoder().decode(printed.value).trim().split(' ')[1]);
 
   expect(() => process.kill(sessionPID, 0)).not.toThrow();
@@ -97,4 +99,45 @@ test('it stops with a usage error when given no socket path and state directory'
     exitCode: 1,
     stderr: expect.toInclude('usage: run-legacy-daemon.ts <socket path> <state dir>'),
   });
+});
+
+test.each([['SIGTERM'], ['SIGINT']] as const)(
+  'it ends the session it hosts when %p stops it',
+  async (signal) => {
+    using ctx = setupTest();
+
+    const proc = Bun.spawn(
+      [process.execPath, join(import.meta.dir, 'run-legacy-daemon.ts'), ctx.socketPath, ctx.dir],
+      { stdout: 'pipe', stderr: 'ignore' },
+    );
+
+    const printed = await proc.stdout.getReader().read();
+
+    const sessionPID = Number(new TextDecoder().decode(printed.value).trim().split(' ')[1]);
+
+    proc.kill(signal);
+
+    await proc.exited;
+
+    await waitFor(() => {
+      expect(() => process.kill(sessionPID, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
+    });
+  },
+);
+
+test('it dies of the signal that stopped it', async () => {
+  using ctx = setupTest();
+
+  const proc = Bun.spawn(
+    [process.execPath, join(import.meta.dir, 'run-legacy-daemon.ts'), ctx.socketPath, ctx.dir],
+    { stdout: 'pipe', stderr: 'ignore' },
+  );
+
+  await proc.stdout.getReader().read();
+
+  proc.kill('SIGTERM');
+
+  await proc.exited;
+
+  expect(proc.signalCode).toBe('SIGTERM');
 });

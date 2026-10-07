@@ -141,7 +141,7 @@ test('it leaves a daemon on another protocol running and rejects with both build
   );
 
   ctx.stack.defer(async () => {
-    legacy.kill('SIGKILL');
+    legacy.kill('SIGTERM');
 
     await legacy.exited;
   });
@@ -149,10 +149,6 @@ test('it leaves a daemon on another protocol running and rejects with both build
   const up = await legacy.stdout.getReader().read();
 
   const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
-
-  ctx.stack.defer(() => {
-    process.kill(sessionPID, 'SIGKILL');
-  });
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -206,18 +202,12 @@ test('it stops a daemon on another protocol and boots its own build when the cal
   );
 
   ctx.stack.defer(async () => {
-    legacy.kill('SIGKILL');
+    legacy.kill('SIGTERM');
 
     await legacy.exited;
   });
 
-  const up = await legacy.stdout.getReader().read();
-
-  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
-
-  ctx.stack.defer(() => {
-    process.kill(sessionPID, 'SIGKILL');
-  });
+  await legacy.stdout.getReader().read();
 
   // The probe quits the daemon it booted, so nothing outlives the test.
   writeFileSync(
@@ -263,7 +253,7 @@ test('it leaves a daemon on another protocol running and rejects when the caller
   );
 
   ctx.stack.defer(async () => {
-    legacy.kill('SIGKILL');
+    legacy.kill('SIGTERM');
 
     await legacy.exited;
   });
@@ -271,10 +261,6 @@ test('it leaves a daemon on another protocol running and rejects when the caller
   const up = await legacy.stdout.getReader().read();
 
   const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
-
-  ctx.stack.defer(() => {
-    process.kill(sessionPID, 'SIGKILL');
-  });
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -325,7 +311,7 @@ test('it never asks to restart a daemon on another protocol whose pid it cannot 
   );
 
   ctx.stack.defer(async () => {
-    legacy.kill('SIGKILL');
+    legacy.kill('SIGTERM');
 
     await legacy.exited;
   });
@@ -333,10 +319,6 @@ test('it never asks to restart a daemon on another protocol whose pid it cannot 
   const up = await legacy.stdout.getReader().read();
 
   const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
-
-  ctx.stack.defer(() => {
-    process.kill(sessionPID, 'SIGKILL');
-  });
 
   rmSync(join(ctx.stateDir, 'daemon.json'));
 

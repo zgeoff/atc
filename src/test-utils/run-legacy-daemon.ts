@@ -10,7 +10,10 @@ import { startLegacyDaemon } from './start-legacy-daemon';
  * listen on and the state directory. It refuses every handshake with
  * `protocol_mismatch` and hosts one session, a child process that sleeps for
  * a minute. Once it listens it prints `up` and the session's pid on one
- * line, and it runs until it is killed.
+ * line, and it runs until it is killed. On SIGTERM or SIGINT it kills and
+ * reaps the session, then dies of the same signal, and it kills the session
+ * whenever it exits, so a caller that stops only the daemon leaves nothing
+ * behind.
  */
 function main() {
   const socketPath = process.argv.at(2);
@@ -23,6 +26,22 @@ function main() {
   startLegacyDaemon(socketPath, { protocol: PROTOCOL_V + 1 });
 
   const session = Bun.spawn(['sleep', '60']);
+
+  process.on('exit', () => {
+    session.kill('SIGKILL');
+  });
+
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(signal, () => {
+      void (async () => {
+        session.kill('SIGKILL');
+
+        await session.exited;
+
+        process.kill(process.pid, signal);
+      })();
+    });
+  }
 
   writeFileSync(
     join(stateDir, 'daemon.json'),
