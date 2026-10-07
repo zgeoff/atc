@@ -1,26 +1,48 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { statSync, utimesSync } from 'node:fs';
+import { expect, test } from 'bun:test';
+import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setupTempDir } from '../../test/setup-temp-dir';
 import { getBuild } from './get-build';
 
+function setupTest() {
+  const tmp = setupTempDir('atc-get-build-');
+
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+}
+
 test('it changes the build string when a .ts file in a sibling directory changes', () => {
-  const target = join(import.meta.dir, '..', 'daemon', 'sessions.ts');
-  const original = statSync(target);
+  using ctx = setupTest();
 
-  onTestFinished(() => {
-    utimesSync(target, original.atime, original.mtime);
-  });
+  mkdirSync(join(ctx.dir, 'daemon'));
+  mkdirSync(join(ctx.dir, 'shared'));
+  writeFileSync(join(ctx.dir, 'daemon', 'sessions.ts'), '');
+  writeFileSync(join(ctx.dir, 'shared', 'config.ts'), '');
 
-  const before = getBuild();
+  const before = getBuild(ctx.dir);
 
-  // One second past the newest mtime in the tree is enough to move the
-  // stamp, and an interrupted run leaves the file stale for a second rather
-  // than pinning the build string for an hour.
-  const future = new Date(Math.max(Date.now(), original.mtime.getTime()) + 1000);
+  const future = new Date(Date.now() + 60_000);
 
-  utimesSync(target, future, future);
+  utimesSync(join(ctx.dir, 'daemon', 'sessions.ts'), future, future);
 
-  const after = getBuild();
+  expect(getBuild(ctx.dir)).not.toBe(before);
+});
 
-  expect(after).not.toBe(before);
+test('it keeps the build string when a file that is not .ts changes', () => {
+  using ctx = setupTest();
+
+  mkdirSync(join(ctx.dir, 'daemon'));
+  writeFileSync(join(ctx.dir, 'daemon', 'sessions.ts'), '');
+  writeFileSync(join(ctx.dir, 'daemon', 'notes.md'), '');
+
+  const before = getBuild(ctx.dir);
+
+  const future = new Date(Date.now() + 60_000);
+
+  utimesSync(join(ctx.dir, 'daemon', 'notes.md'), future, future);
+
+  expect(getBuild(ctx.dir)).toBe(before);
+});
+
+test('it walks the src tree of its own checkout when no root is passed', () => {
+  expect(getBuild()).toBe(getBuild(join(import.meta.dir, '..')));
 });
