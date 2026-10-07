@@ -1,5 +1,7 @@
 import type { DaemonClient } from './client/daemon-client';
 import type { RestartFailedRow } from './parse-restart-result';
+import type { StoredRow } from './read-stored-rows';
+import { readStoredRows } from './read-stored-rows';
 import { isRecord } from './shared/report';
 
 interface FleetVerdict {
@@ -15,15 +17,11 @@ interface FailedRows {
   readonly pending: boolean;
 }
 
-interface StoredRow {
-  readonly id: string;
-  readonly name: string;
-  readonly exited: boolean;
-}
-
 /**
  * Restores the stored fleet on a daemon and waits for every stored row to
- * show up. The call joins a restore the daemon already started by itself. A
+ * show up. `snapshot` holds the rows read from the old daemon before it
+ * stopped, with their original exit status; without one, the new daemon's
+ * rows are read instead. The call joins a restore the daemon already started by itself. A
  * row that is not exited must be listed with a live terminal before the deadline
  * passes (`timeoutSeconds` when set, else the rows that are not exited times the restore boot cap, plus 30 s), and an exited row must be listed. A stored row that is not listed
  * failed to restore, and a listed row that is still without a live terminal
@@ -32,8 +30,11 @@ interface StoredRow {
 export async function verifyRestoredFleet(
   client: Pick<DaemonClient, 'sendRequest'>,
   timeoutSeconds: number | null,
+  snapshot: readonly StoredRow[] | null,
 ): Promise<FleetVerdict> {
-  const stored = await readStoredRows(client);
+  const read = snapshot === null ? await readStoredRows(client) : null;
+  const stored = snapshot ?? read ?? [];
+
   const restored = await tryRestore(client);
 
   const deadline = Date.now() + pickDeadlineMs(stored, timeoutSeconds);
@@ -58,24 +59,6 @@ function pickDeadlineMs(stored: readonly StoredRow[], timeoutSeconds: number | n
   const bootMs = Number.isFinite(cap) && cap >= 0 ? cap : 15_000;
 
   return stored.filter((row) => !row.exited).length * bootMs + 30_000;
-}
-
-async function readStoredRows(client: Pick<DaemonClient, 'sendRequest'>): Promise<StoredRow[]> {
-  const listed = await client.sendRequest('fleet.list');
-
-  const fleet = listed['fleet'];
-
-  if (!Array.isArray(fleet)) {
-    return [];
-  }
-
-  return fleet
-    .filter((entry) => isRecord(entry))
-    .map((entry) => ({
-      id: String(entry['sessionID']),
-      name: String(entry['name']),
-      exited: entry['exited'] === true,
-    }));
 }
 
 async function tryRestore(client: Pick<DaemonClient, 'sendRequest'>): Promise<boolean> {

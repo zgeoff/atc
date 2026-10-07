@@ -33,7 +33,7 @@ export async function waitForReplacement(
     const record = findDaemonRecord(daemonRecordFile);
 
     if (record !== null && record.pid !== oldPID && isProcessAlive(record.pid)) {
-      const attempt = await tryHello(record.socketPath);
+      const attempt = await tryHello(record.socketPath, deadline);
 
       if (attempt.kind === 'ok') {
         if (expectedBuild !== null && attempt.build !== expectedBuild) {
@@ -76,7 +76,7 @@ type Hello =
   | { readonly kind: 'refused'; readonly message: string }
   | { readonly kind: 'none' };
 
-async function tryHello(socketPath: string): Promise<Hello> {
+async function tryHello(socketPath: string, deadline: number): Promise<Hello> {
   let client: DaemonClient;
 
   try {
@@ -84,6 +84,15 @@ async function tryHello(socketPath: string): Promise<Hello> {
   } catch {
     return { kind: 'none' };
   }
+
+  // A daemon that accepts the socket and never answers must not outlast the
+  // startup deadline: closing the client rejects the handshake.
+  const expiry = setTimeout(
+    () => {
+      client.stop();
+    },
+    Math.max(0, deadline - Date.now()),
+  );
 
   try {
     const hello = await client.sendHello(getBuild());
@@ -97,5 +106,7 @@ async function tryHello(socketPath: string): Promise<Hello> {
     return error instanceof DaemonError && error.code === 'protocol_mismatch'
       ? { kind: 'refused', message: error.message }
       : { kind: 'none' };
+  } finally {
+    clearTimeout(expiry);
   }
 }

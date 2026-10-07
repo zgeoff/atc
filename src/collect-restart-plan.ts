@@ -1,6 +1,7 @@
 import { DaemonClient } from './client/daemon-client';
 import { pickStaleDaemonPID } from './client/pick-stale-daemon-pid';
 import { findRestartUnit } from './find-restart-unit';
+import { isDaemonProcess } from './is-daemon-process';
 import { DaemonError } from './protocol/daemon-error';
 import { PROTOCOL_V } from './protocol/protocol';
 import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from './restart-plan';
@@ -64,7 +65,9 @@ export async function collectRestartPlan(callerSession: string | null): Promise<
 }
 
 function pickLivePID(...candidates: readonly (number | null)[]): number | null {
-  return candidates.find((pid) => pid !== null && isProcessAlive(pid)) ?? null;
+  return (
+    candidates.find((pid) => pid !== null && isProcessAlive(pid) && isDaemonProcess(pid)) ?? null
+  );
 }
 
 async function planReplacement(pid: number | null): Promise<ReplacementPlan> {

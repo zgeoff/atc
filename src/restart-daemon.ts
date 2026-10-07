@@ -5,6 +5,7 @@ import { collectRestartPlan } from './collect-restart-plan';
 import { formatRestartPreflight } from './format-restart-preflight';
 import type { RestartResult } from './parse-restart-result';
 import { readDaemonProcess } from './read-daemon-process';
+import { readFleetSnapshot } from './read-fleet-snapshot';
 import { runSystemctl } from './run-systemctl';
 import { getBuild } from './shared/get-build';
 import { loadListenerTokens } from './shared/load-listener-tokens';
@@ -38,6 +39,13 @@ export async function restartDaemon(options: RestartOptions): Promise<RestartRes
   const interrupted = (plan.sessions ?? [])
     .filter((session) => session.state === 'running')
     .map((session) => ({ name: session.name, id: session.id }));
+
+  // Taken while the old daemon still runs, so a row that the restore marks
+  // exited is not mistaken for one that was archived before.
+  const snapshot =
+    plan.answer?.kind === 'ok' && plan.socketPath !== null
+      ? await readFleetSnapshot(plan.socketPath)
+      : null;
 
   const buildFailure = (error: string): RestartResult =>
     buildRestartFailure(options.runID, error, interrupted);
@@ -103,7 +111,7 @@ export async function restartDaemon(options: RestartOptions): Promise<RestartRes
   try {
     console.log(`daemon pid ${replacement.pid} is up (${replacement.build}); restoring the fleet`);
 
-    const verdict = await verifyRestoredFleet(replacement.client, options.timeoutSeconds);
+    const verdict = await verifyRestoredFleet(replacement.client, options.timeoutSeconds, snapshot);
 
     return {
       runID: options.runID,
