@@ -11,6 +11,8 @@ import { getBuild } from '../shared/get-build';
 import { isProcessAlive } from '../shared/is-process-alive';
 import { makeSingleFlight } from '../shared/make-single-flight';
 import { spawnATCDetached } from '../shared/spawn-atc-detached';
+import { systemClock } from '../shared/system-clock';
+import type { Clock } from '../shared/system-clock';
 import { toAgentID } from '../shared/to-agent-id';
 import { DaemonClient } from './daemon-client';
 import { formatProtocolMismatch } from './format-protocol-mismatch';
@@ -47,6 +49,10 @@ export interface DaemonBootOptions {
   // starts to wait instead of starting one; a retry after a protocol
   // mismatch that waits again does not call it a second time.
   readonly onWaitForDaemon?: () => void;
+
+  // The time and the timers a waiting boot reads for its deadline and its
+  // polls; the wall clock when absent.
+  readonly clock?: Clock;
 }
 
 /**
@@ -65,13 +71,15 @@ export interface DaemonBootOptions {
  */
 export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise<DaemonBoot> {
   let waited = false;
+  const clock = options.clock ?? systemClock;
 
   const wait =
     options.waitForDaemonMs === undefined
       ? null
       : {
-          deadline: Date.now() + options.waitForDaemonMs,
+          deadline: clock.now() + options.waitForDaemonMs,
           timeoutMs: options.waitForDaemonMs,
+          clock,
           onWait: () => {
             if (!waited) {
               waited = true;
@@ -158,6 +166,7 @@ async function openOrBootDaemon(): Promise<OpenedDaemon> {
 interface DaemonWait {
   readonly deadline: number;
   readonly timeoutMs: number;
+  readonly clock: Clock;
 
   // Called on every miss; the boot reports only the first to its caller.
   readonly onWait: () => void;
@@ -177,11 +186,15 @@ async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
 
     wait.onWait();
 
-    if (Date.now() >= wait.deadline) {
+    if (wait.clock.now() >= wait.deadline) {
       throw new Error(formatWaitFailure(wait.timeoutMs));
     }
 
-    await Bun.sleep(100);
+    const polled = Promise.withResolvers<void>();
+
+    wait.clock.schedule(polled.resolve, 100);
+
+    await polled.promise;
   }
 }
 
@@ -194,21 +207,19 @@ async function waitForHello(
   sendHello: () => Promise<Readonly<Record<string, unknown>>>,
   wait: DaemonWait,
 ): Promise<Readonly<Record<string, unknown>>> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = Promise.withResolvers<never>();
 
-  const expired = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(
-      () => {
-        reject(new Error(formatWaitFailure(wait.timeoutMs)));
-      },
-      Math.max(0, wait.deadline - Date.now()),
-    );
-  });
+  const cancel = wait.clock.schedule(
+    () => {
+      expired.reject(new Error(formatWaitFailure(wait.timeoutMs)));
+    },
+    Math.max(0, wait.deadline - wait.clock.now()),
+  );
 
   try {
-    return await Promise.race([sendHello(), expired]);
+    return await Promise.race([sendHello(), expired.promise]);
   } finally {
-    clearTimeout(timer);
+    cancel();
   }
 }
 

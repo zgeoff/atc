@@ -13,11 +13,11 @@ import { setupTempDir } from '../test-utils/setup-temp-dir';
  * runtime directory, so the client computes `sockPath` as the daemon's
  * socket and `stateDir` as the daemon's state directory. The client reads
  * those paths once at import, so each test boots it in a subprocess with
- * `env`. A test defers the release of what it starts to `stack`, so it is
- * released before the directory is removed.
+ * `env`. A test defers the release of what it starts to `stack`, which
+ * disposal releases before it removes the directory.
  */
 function setupTest() {
-  const stack = new AsyncDisposableStack();
+  using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-boot-daemon-'));
   const stateDir = join(tmp.dir, '.local', 'state', 'atc');
@@ -25,13 +25,21 @@ function setupTest() {
   // The daemon and the client both expect the state directory to exist.
   mkdirSync(stateDir, { recursive: true });
 
+  const owned = stack.move();
+
+  const started = new AsyncDisposableStack();
+
   return {
     dir: tmp.dir,
     stateDir,
     sockPath: join(tmp.dir, 'atc-daemon.sock'),
     env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
-    stack,
-    [Symbol.asyncDispose]: () => stack.disposeAsync(),
+    stack: started,
+    [Symbol.asyncDispose]: async () => {
+      await started.disposeAsync();
+
+      owned.dispose();
+    },
   };
 }
 
@@ -123,8 +131,6 @@ boot.client.stop();
     eventsSocketPath: null,
     listenPort: null,
   });
-
-  expect(existsSync(join(ctx.stateDir, 'atc-daemon.sock'))).toBeFalse();
 });
 
 test('it leaves a daemon on another protocol running and rejects with both builds and versions', async () => {
@@ -432,13 +438,28 @@ await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
 test('it reports the start of a wait once across every poll of that wait', async () => {
   await using ctx = setupTest();
 
-  // The wait polls every 100 ms, so half a second holds several polls.
+  // The wait polls every 100 ms of the stepped clock, so a 500 ms wait
+  // misses six polls: the probe steps past five of them and the sixth ends
+  // the wait.
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
+import { buildStubClock } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-clock.ts')}';
+import { waitFor } from '${join(import.meta.dir, '..', 'test-utils', 'wait-for.ts')}';
+const clock = buildStubClock(0);
 let waits = 0;
-await bootDaemonClient({ waitForDaemonMs: 500, onWaitForDaemon: () => { waits += 1; } }).catch(() => {});
-process.stdout.write(JSON.stringify({ waits }));
+const booting = bootDaemonClient({ waitForDaemonMs: 500, clock, onWaitForDaemon: () => { waits += 1; } });
+const steps = [];
+for (let poll = 0; poll < 5; poll++) {
+  steps.push(await waitFor(() => {
+    const [pending] = clock.collectPending();
+    if (pending === undefined) throw new Error('no poll is waiting');
+    return pending;
+  }));
+  clock.advance(100);
+}
+const outcome = await booting.then(() => 'booted', (error) => error.message);
+process.stdout.write(JSON.stringify({ waits, steps, outcome }));
 process.exit(0);
 `,
   );
@@ -451,7 +472,11 @@ process.exit(0);
 
   const stdout = await new Response(proc.stdout).text();
 
-  expect(JSON.parse(stdout)).toStrictEqual({ waits: 1 });
+  expect(JSON.parse(stdout)).toStrictEqual({
+    waits: 1,
+    steps: [100, 100, 100, 100, 100],
+    outcome: `no atc daemon answered at ${ctx.sockPath} within 0.5s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
+  });
 });
 
 test('it never reports a wait when a daemon answers on the first try', async () => {

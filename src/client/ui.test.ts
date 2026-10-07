@@ -1,148 +1,100 @@
 import { expect, test } from 'bun:test';
+import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session';
+import { buildStubTerminal } from '../test-utils/build-stub-terminal';
 import { KEYS } from '../test-utils/keys';
 import { planOverlayColumns } from './plan-overlay-columns';
 import type { OverlayColumnPlan } from './plan-overlay-columns';
 import { buildOverlayHint, buildSessionRow, drawOverlay } from './ui';
-import type { OverlaySessionView, OverlayView } from './ui';
+import type { OverlayView } from './ui';
 
 test('#buildOverlayHint includes headless on a row whose agent can run a headless turn', () => {
   expect(
-    buildOverlayHint({
-      id: 'auth',
-      parent: null,
-      name: 'auth',
-      cwd: '/x',
-      state: 'running',
-      unread: false,
-      lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: true,
-      agent: 'claude',
-      pinned: false,
-      repoRoot: '/x',
-      target: 'local',
-      model: null,
-      harness: 'running',
-    }),
-  ).toInclude('H headless');
+    buildOverlayHint(
+      buildMockMirrorSession({
+        state: 'running',
+        alive: true,
+        kind: 'pty',
+        canEject: true,
+        agent: 'claude',
+        pinned: false,
+      }),
+    ),
+  ).toBe('⏎ attach · H headless · y yank · Y eject · K kill · p pin ▏ g groups · n new · ? keys');
 });
 
 test('#buildOverlayHint omits headless on a row whose agent cannot run one', () => {
   expect(
-    buildOverlayHint({
-      id: 'auth',
-      parent: null,
-      name: 'auth',
-      cwd: '/x',
-      state: 'running',
-      unread: false,
-      lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: false,
-      agent: 'grok',
-      pinned: false,
-      repoRoot: '/x',
-      target: 'local',
-      model: null,
-      harness: 'running',
-    }),
-  ).not.toInclude('H');
+    buildOverlayHint(
+      buildMockMirrorSession({
+        state: 'running',
+        alive: true,
+        kind: 'pty',
+        canEject: false,
+        agent: 'grok',
+        pinned: false,
+      }),
+    ),
+  ).toBe('⏎ attach · y yank · Y eject · K kill · p pin ▏ g groups · n new · ? keys');
 });
 
 test('#buildOverlayHint still names yank on a live Grok row', () => {
   expect(
-    buildOverlayHint({
-      id: 'auth',
-      parent: null,
-      name: 'auth',
-      cwd: '/x',
-      state: 'running',
-      unread: false,
-      lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: false,
-      agent: 'grok',
-      pinned: false,
-      repoRoot: '/x',
-      target: 'local',
-      model: null,
-      harness: 'running',
-    }),
-  ).toInclude('y yank');
+    buildOverlayHint(
+      buildMockMirrorSession({
+        state: 'running',
+        alive: true,
+        kind: 'pty',
+        canEject: false,
+        agent: 'grok',
+        pinned: false,
+      }),
+    ),
+  ).toBe('⏎ attach · y yank · Y eject · K kill · p pin ▏ g groups · n new · ? keys');
 });
 
 test('#buildOverlayHint points the pin action of a sub-session at its parent', () => {
-  const parent: OverlaySessionView = {
+  const parent = buildMockMirrorSession({
     id: 'wrangler',
     parent: null,
-    name: 'auth',
-    cwd: '/x',
     state: 'running',
-    unread: false,
-    lastMsg: 'started',
     alive: true,
     kind: 'pty',
-    resumable: true,
     canEject: true,
     agent: 'claude',
     pinned: true,
-    repoRoot: '/x',
-    target: 'local',
-    model: null,
-    harness: 'running',
-  };
+  });
 
-  const child: OverlaySessionView = {
+  const child = buildMockMirrorSession({
     id: 'worker',
     parent: 'wrangler',
-    name: 'auth',
-    cwd: '/x',
     state: 'running',
-    unread: false,
-    lastMsg: 'started',
     alive: true,
     kind: 'pty',
-    resumable: true,
     canEject: true,
     agent: 'claude',
     pinned: false,
-    repoRoot: '/x',
-    target: 'local',
-    model: null,
-    harness: 'running',
-  };
+  });
 
-  expect(buildOverlayHint(child, [parent, child])).toInclude('p unpin parent');
+  expect(buildOverlayHint(child, [parent, child])).toBe(
+    '⏎ attach · H headless · y yank · Y eject · K kill · p unpin parent ▏ g groups · n new · ? keys',
+  );
 });
 
 test('#buildOverlayHint keeps the plain pin action on a top-level session', () => {
-  const session: OverlaySessionView = {
+  const session = buildMockMirrorSession({
     id: 'auth',
     parent: null,
-    name: 'auth',
-    cwd: '/x',
     state: 'running',
-    unread: false,
-    lastMsg: 'started',
     alive: true,
     kind: 'pty',
-    resumable: true,
     canEject: true,
     agent: 'claude',
     pinned: false,
-    repoRoot: '/x',
-    target: 'local',
-    model: null,
-    harness: 'running',
-  };
+  });
 
-  expect(buildOverlayHint(session, [session])).toInclude('p pin ');
+  expect(buildOverlayHint(session, [session])).toBe(
+    '⏎ attach · H headless · y yank · Y eject · K kill · p pin ▏ g groups · n new · ? keys',
+  );
 });
 
 test('#buildSessionRow labels a gateway row with its readable harness name', () => {
@@ -170,31 +122,28 @@ test('#buildSessionRow labels a gateway row with its readable harness name', () 
   };
 
   const row = buildSessionRow(
-    {
-      id: 'auth',
-      parent: null,
+    buildMockMirrorSession({
       name: 'auth',
-      cwd: '/x',
       state: 'running',
       unread: false,
       lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: true,
       agent: 'zai',
       pinned: false,
-      repoRoot: '/x',
       target: 'local',
       model: null,
       harness: 'running',
-    },
+    }),
     plan,
     view,
     false,
   );
 
-  expect(row.styled).toInclude('GLM (z.ai)');
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             GLM (z.ai) running   started",
+      "width": 49,
+    }
+  `);
 });
 
 test('#buildSessionRow resolves a model alias through the daemon answer map', () => {
@@ -222,31 +171,28 @@ test('#buildSessionRow resolves a model alias through the daemon answer map', ()
   };
 
   const row = buildSessionRow(
-    {
-      id: 'auth',
-      parent: null,
+    buildMockMirrorSession({
       name: 'auth',
-      cwd: '/x',
       state: 'running',
       unread: false,
       lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: true,
       agent: 'zai',
       pinned: false,
-      repoRoot: '/x',
       target: 'local',
       model: 'opus',
       harness: 'running',
-    },
+    }),
     plan,
     view,
     false,
   );
 
-  expect(row.styled).toInclude('glm-5.3');
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             GLM (… glm-5.3  running   started",
+      "width": 54,
+    }
+  `);
 });
 
 test('#buildSessionRow falls back to the raw model string when the alias map has no entry', () => {
@@ -274,31 +220,28 @@ test('#buildSessionRow falls back to the raw model string when the alias map has
   };
 
   const row = buildSessionRow(
-    {
-      id: 'auth',
-      parent: null,
+    buildMockMirrorSession({
       name: 'auth',
-      cwd: '/x',
       state: 'running',
       unread: false,
       lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: true,
       agent: 'zai',
       pinned: false,
-      repoRoot: '/x',
       target: 'local',
       model: 'opus',
       harness: 'running',
-    },
+    }),
     plan,
     view,
     false,
   );
 
-  expect(row.styled).toInclude('opus');
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             GLM (… opus     running   started",
+      "width": 54,
+    }
+  `);
 });
 
 test('#buildSessionRow shows the target column when several targets are available even if every row uses one', () => {
@@ -326,31 +269,28 @@ test('#buildSessionRow shows the target column when several targets are availabl
   };
 
   const row = buildSessionRow(
-    {
-      id: 'auth',
-      parent: null,
+    buildMockMirrorSession({
       name: 'auth',
-      cwd: '/x',
       state: 'running',
       unread: false,
       lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: true,
       agent: 'claude',
       pinned: false,
-      repoRoot: '/x',
       target: 'local',
       model: null,
       harness: 'running',
-    },
+    }),
     plan,
     view,
     false,
   );
 
-  expect(row.styled).toInclude('local');
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             local Claude running   started",
+      "width": 51,
+    }
+  `);
 });
 
 test('#buildSessionRow hides the target column when a single target is available', () => {
@@ -378,31 +318,28 @@ test('#buildSessionRow hides the target column when a single target is available
   };
 
   const row = buildSessionRow(
-    {
-      id: 'auth',
-      parent: null,
+    buildMockMirrorSession({
       name: 'auth',
-      cwd: '/x',
       state: 'running',
       unread: false,
       lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: true,
       agent: 'claude',
       pinned: false,
-      repoRoot: '/x',
       target: 'imp-box',
       model: null,
       harness: 'running',
-    },
+    }),
     plan,
     view,
     false,
   );
 
-  expect(row.styled).not.toInclude('imp-box');
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             Claude running   started",
+      "width": 45,
+    }
+  `);
 });
 
 test('#buildSessionRow keeps the harness lifecycle distinct from the attention state', () => {
@@ -430,32 +367,28 @@ test('#buildSessionRow keeps the harness lifecycle distinct from the attention s
   };
 
   const row = buildSessionRow(
-    {
-      id: 'auth',
-      parent: null,
+    buildMockMirrorSession({
       name: 'auth',
-      cwd: '/x',
       state: 'needs_you',
       unread: false,
       lastMsg: 'asleep',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: true,
       agent: 'claude',
       pinned: false,
-      repoRoot: '/x',
       target: 'local',
       model: null,
       harness: 'suspended',
-    },
+    }),
     plan,
     view,
     false,
   );
 
-  expect(row.styled).toInclude('suspended');
-  expect(row.styled).toInclude('asleep');
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[31m●\u001B[0m   auth             Claude suspended asleep         ",
+      "width": 53,
+    }
+  `);
 });
 
 test('#buildSessionRow highlights the selected row with inverse video', () => {
@@ -483,31 +416,28 @@ test('#buildSessionRow highlights the selected row with inverse video', () => {
   };
 
   const row = buildSessionRow(
-    {
-      id: 'auth',
-      parent: null,
+    buildMockMirrorSession({
       name: 'auth',
-      cwd: '/x',
       state: 'running',
       unread: false,
       lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: true,
       agent: 'claude',
       pinned: false,
-      repoRoot: '/x',
       target: 'local',
       model: null,
       harness: 'running',
-    },
+    }),
     plan,
     view,
     true,
   );
 
-  expect(row.styled).toInclude('\u001B[7m');
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   \u001B[7mauth             Claude running   started\u001B[0m",
+      "width": 45,
+    }
+  `);
 });
 
 test('#buildSessionRow draws the harness and no model in a narrow grouped overlay', () => {
@@ -534,59 +464,39 @@ test('#buildSessionRow draws the harness and no model in a narrow grouped overla
   };
 
   const row = buildSessionRow(
-    {
-      id: 'auth',
-      parent: null,
+    buildMockMirrorSession({
       name: 'auth',
-      cwd: '/x',
       state: 'running',
       unread: false,
       lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: true,
       agent: 'claude',
       pinned: false,
-      repoRoot: '/x',
       target: 'local',
       model: 'opus',
       harness: 'running',
-    },
+    }),
     plan,
     view,
     false,
   );
 
-  expect(row.styled).toInclude('Claude');
-  expect(row.styled).not.toInclude('sonnet-x');
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             local Claude running   sta…",
+      "width": 48,
+    }
+  `);
 });
 
 test('#drawOverlay draws session rows inside the overlay box borders', () => {
-  const writes: string[] = [];
+  const terminal = buildStubTerminal();
 
   drawOverlay(
     {
       sessions: [
-        {
-          id: 'auth',
-          parent: null,
+        buildMockMirrorSession({
           name: 'auth',
-          cwd: '/x',
-          state: 'running',
-          unread: false,
-          lastMsg: 'started',
-          alive: true,
-          kind: 'pty',
-          resumable: true,
-          canEject: true,
-          agent: 'claude',
-          pinned: false,
-          repoRoot: '/x',
-          target: 'local',
-          model: null,
-          harness: 'running',
-        },
+        }),
       ],
       agentLabels: { claude: 'Claude' },
       agentModels: {},
@@ -598,13 +508,11 @@ test('#drawOverlay draws session rows inside the overlay box borders', () => {
       stale: false,
       grouped: true,
     },
-    (chunk) => {
-      writes.push(chunk);
-    },
+    terminal.write,
   );
 
-  const drawnRows = writes
-    .join('')
+  const drawnRows = terminal
+    .getText()
     .replaceAll(KEYS.esc, '')
     .split(/\[[0-9;]+H/u)
     .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim());
@@ -637,31 +545,28 @@ test('#buildSessionRow falls back to the raw id when the harness name would hit 
   };
 
   const row = buildSessionRow(
-    {
-      id: 'auth',
-      parent: null,
+    buildMockMirrorSession({
       name: 'auth',
-      cwd: '/x',
       state: 'running',
       unread: false,
       lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: true,
       agent: 'constructor',
       pinned: false,
-      repoRoot: '/x',
       target: 'local',
       model: null,
       harness: 'running',
-    },
+    }),
     plan,
     view,
     false,
   );
 
-  expect(row.styled).toInclude('constructor');
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             constructor running   started",
+      "width": 50,
+    }
+  `);
 });
 
 test('#buildSessionRow falls back to the raw model when the alias would hit an inherited property', () => {
@@ -689,29 +594,26 @@ test('#buildSessionRow falls back to the raw model when the alias would hit an i
   };
 
   const row = buildSessionRow(
-    {
-      id: 'auth',
-      parent: null,
+    buildMockMirrorSession({
       name: 'auth',
-      cwd: '/x',
       state: 'running',
       unread: false,
       lastMsg: 'started',
-      alive: true,
-      kind: 'pty',
-      resumable: true,
-      canEject: true,
       agent: 'claude',
       pinned: false,
-      repoRoot: '/x',
       target: 'local',
       model: 'constructor',
       harness: 'running',
-    },
+    }),
     plan,
     view,
     false,
   );
 
-  expect(row.styled).toInclude('constructor');
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             Claude constructor  running   started",
+      "width": 58,
+    }
+  `);
 });

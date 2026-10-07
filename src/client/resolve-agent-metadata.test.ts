@@ -19,7 +19,10 @@ test('it labels a configured gateway by its configured label', () => {
     {},
   );
 
-  expect(meta.labels['zai']).toBe('GLM (z.ai)');
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex', zai: 'GLM (z.ai)' },
+    models: {},
+  });
 });
 
 test('it labels a gateway without a label by its id', () => {
@@ -28,7 +31,10 @@ test('it labels a gateway without a label by its id', () => {
     {},
   );
 
-  expect(meta.labels['kimi']).toBe('kimi');
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex', kimi: 'kimi' },
+    models: {},
+  });
 });
 
 test('it lets the agents.list answer win over the config label', () => {
@@ -39,7 +45,10 @@ test('it lets the agents.list answer win over the config label', () => {
     { agents: [{ id: 'zai', label: 'GLM staged' }] },
   );
 
-  expect(meta.labels['zai']).toBe('GLM staged');
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex', zai: 'GLM staged' },
+    models: {},
+  });
 });
 
 test('it keeps the config label when the answer entry carries none', () => {
@@ -50,7 +59,10 @@ test('it keeps the config label when the answer entry carries none', () => {
     { agents: [{ id: 'zai' }] },
   );
 
-  expect(meta.labels['zai']).toBe('GLM (z.ai)');
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex', zai: 'GLM (z.ai)' },
+    models: {},
+  });
 });
 
 test('it reads an agents.list model alias map', () => {
@@ -58,7 +70,10 @@ test('it reads an agents.list model alias map', () => {
     agents: [{ id: 'zai', models: { opus: 'glm-5.3' } }],
   });
 
-  expect(meta.models['zai']).toStrictEqual({ opus: 'glm-5.3' });
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex' },
+    models: { zai: { opus: 'glm-5.3' } },
+  });
 });
 
 test('it keeps the non-string values of an agents.list model map out', () => {
@@ -66,13 +81,19 @@ test('it keeps the non-string values of an agents.list model map out', () => {
     agents: [{ id: 'zai', models: { opus: 7, sonnet: 'glm-5.2' } }],
   });
 
-  expect(meta.models['zai']).toStrictEqual({ sonnet: 'glm-5.2' });
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex' },
+    models: { zai: { sonnet: 'glm-5.2' } },
+  });
 });
 
 test('it reports no model map for an agent whose answer entry has none', () => {
   const meta = resolveAgentMetadata(parseConfig({ gateways: {} }), { agents: [{ id: 'claude' }] });
 
-  expect(meta.models).not.toContainKey('claude');
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex' },
+    models: {},
+  });
 });
 
 test('it falls back to the config alone when the answer holds no agents array', () => {
@@ -95,8 +116,12 @@ test('it leaves a __proto__ agent id out instead of changing the prototype', () 
   });
 
   expect(Object.getPrototypeOf(meta.labels)).toBe(Object.prototype);
-  expect(meta.labels).not.toContainKey('__proto__');
-  expect(meta.models).not.toContainKey('__proto__');
+  expect(Object.getPrototypeOf(meta.models)).toBe(Object.prototype);
+
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex' },
+    models: {},
+  });
 });
 
 test('it leaves a __proto__ model alias out of the map', () => {
@@ -106,12 +131,17 @@ test('it leaves a __proto__ model alias out of the map', () => {
     agents: [{ id: 'zai', models }],
   });
 
-  expect(meta.models['zai']).toStrictEqual({ opus: 'glm-5.3' });
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex' },
+    models: { zai: { opus: 'glm-5.3' } },
+  });
 });
 
 test('it reports no entries under constructor for a plain answer', () => {
   const meta = resolveAgentMetadata(parseConfig({ gateways: {} }), { agents: [{ id: 'claude' }] });
 
-  expect(meta.labels).not.toContainKey('constructor');
-  expect(meta.models).not.toContainKey('constructor');
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex' },
+    models: {},
+  });
 });

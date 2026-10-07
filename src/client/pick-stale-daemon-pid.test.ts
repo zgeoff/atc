@@ -1,17 +1,12 @@
 import { expect, test } from 'bun:test';
+import { buildMockDaemonRecord } from '../test-utils/build-mock-daemon-record';
 import { pickStaleDaemonPID } from './pick-stale-daemon-pid';
 
 test('it picks the recorded pid when the record lists the refusing socket', () => {
   expect(
     pickStaleDaemonPID({
       socketPath: '/run/user/1000/atc-daemon.sock',
-      record: {
-        pid: 200,
-        socketPath: '/run/user/1000/atc-daemon.sock',
-        reporterSocketPath: '/run/user/1000/atc.sock',
-        eventsSocketPath: null,
-        listenPort: null,
-      },
+      record: buildMockDaemonRecord({ pid: 200, socketPath: '/run/user/1000/atc-daemon.sock' }),
       pidFileSocketPath: '/run/user/1000/atc-daemon.sock',
       pidFilePID: 100,
     }),
@@ -22,13 +17,10 @@ test('it picks the pid file beside the refusing socket when the record lists ano
   expect(
     pickStaleDaemonPID({
       socketPath: '/run/user/1000/atc-daemon.sock',
-      record: {
+      record: buildMockDaemonRecord({
         pid: 200,
         socketPath: '/home/geoff/.local/state/atc/atc-daemon.sock',
-        reporterSocketPath: '/home/geoff/.local/state/atc/atc.sock',
-        eventsSocketPath: null,
-        listenPort: null,
-      },
+      }),
       pidFileSocketPath: '/run/user/1000/atc-daemon.sock',
       pidFilePID: 100,
     }),
@@ -39,13 +31,10 @@ test('it picks no pid when neither the record nor the pid file belongs to the re
   expect(
     pickStaleDaemonPID({
       socketPath: '/run/user/1000/atc-daemon.sock',
-      record: {
+      record: buildMockDaemonRecord({
         pid: 200,
         socketPath: '/home/geoff/.local/state/atc/atc-daemon.sock',
-        reporterSocketPath: '/home/geoff/.local/state/atc/atc.sock',
-        eventsSocketPath: null,
-        listenPort: null,
-      },
+      }),
       pidFileSocketPath: '/home/geoff/.local/state/atc/atc-daemon.sock',
       pidFilePID: 100,
     }),

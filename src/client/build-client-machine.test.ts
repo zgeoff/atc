@@ -1,43 +1,22 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { createActor } from 'xstate';
+import { buildStubClientScreens } from '../test-utils/build-stub-client-screens';
 import { buildClientMachine } from './build-client-machine';
 
 /**
- * A started client machine whose side effects each append their name, and
- * the session or mode they were given, to `calls` in the order they run.
+ * A started client machine whose screens each record their name, and the
+ * session or mode they were given, in `calls` in the order they open.
  * Disposal stops the machine.
  */
 function setupTest() {
-  const calls: string[] = [];
-
-  const actor = createActor(
-    buildClientMachine({
-      openHome: () => {
-        calls.push('openHome');
-      },
-      openAttached: (sessionID) => {
-        calls.push(`openAttached:${sessionID}`);
-      },
-      openOverlay: () => {
-        calls.push('openOverlay');
-      },
-      openHelp: () => {
-        calls.push('openHelp');
-      },
-      openPicker: (resume) => {
-        calls.push(`openPicker:${resume}`);
-      },
-      openEject: (sessionID) => {
-        calls.push(`openEject:${sessionID}`);
-      },
-    }),
-  );
+  const screens = buildStubClientScreens();
+  const actor = createActor(buildClientMachine(screens.deps));
 
   actor.start();
 
   return {
     actor,
-    calls,
+    calls: screens.calls,
     [Symbol.dispose]: () => {
       actor.stop();
     },
@@ -45,10 +24,17 @@ function setupTest() {
 }
 
 test('it starts on the home screen and draws it', () => {
-  using ctx = setupTest();
+  const screens = buildStubClientScreens();
+  const actor = createActor(buildClientMachine(screens.deps));
 
-  expect(ctx.actor.getSnapshot().value).toBe('home');
-  expect(ctx.calls).toStrictEqual(['openHome']);
+  onTestFinished(() => {
+    actor.stop();
+  });
+
+  actor.start();
+
+  expect(actor.getSnapshot().value).toBe('home');
+  expect(screens.calls).toStrictEqual(['openHome']);
 });
 
 test('it opens the overlay from the home screen', () => {
