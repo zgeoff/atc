@@ -89,7 +89,7 @@ export async function collectGitHubRepos(
 
   const timeoutMs = request.timeoutMs ?? GH_TIMEOUT_MS;
 
-  const listed = await runGH(bin, timeoutMs, [
+  const listed = await runGH(bin, AbortSignal.timeout(timeoutMs), [
     'repo',
     'list',
     ...(request.owner === null ? [] : [request.owner]),

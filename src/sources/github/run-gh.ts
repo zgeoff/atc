@@ -6,14 +6,14 @@ export interface GHRun {
 }
 
 /**
- * Runs gh with arguments and a time limit, killing its whole process group
- * once the limit passes, so a wrapper or extension leaves no process
+ * Runs gh with arguments until it exits or the signal aborts, killing its
+ * whole process group on abort, so a wrapper or extension leaves no process
  * behind. gh reads its own config and the host's environment for its
  * token, and is kept from prompting, colouring, or checking for updates.
  */
 export async function runGH(
   bin: string,
-  timeoutMs: number,
+  signal: Readonly<AbortSignal>,
   args: readonly string[],
 ): Promise<GHRun> {
   const proc = Bun.spawn([bin, ...args], {
@@ -40,15 +40,21 @@ export async function runGH(
     proc.exited,
   ]);
 
-  const limit = Promise.withResolvers<null>();
+  const aborted = Promise.withResolvers<null>();
 
-  const timer = setTimeout(() => {
-    limit.resolve(null);
-  }, timeoutMs);
+  const onAbort = () => {
+    aborted.resolve(null);
+  };
 
-  const settled = await Promise.race([finished, limit.promise]);
+  if (signal.aborted) {
+    onAbort();
+  } else {
+    signal.addEventListener('abort', onAbort, { once: true });
+  }
 
-  clearTimeout(timer);
+  const settled = await Promise.race([finished, aborted.promise]);
+
+  signal.removeEventListener('abort', onAbort);
 
   if (settled === null) {
     try {
