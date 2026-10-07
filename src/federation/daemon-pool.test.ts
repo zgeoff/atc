@@ -1,88 +1,83 @@
-import { expect, test } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { expect, onTestFinished, test } from 'bun:test';
+import { randomBytes } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
-import { startDaemon } from '../daemon/daemon';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { DaemonPool } from './daemon-pool';
 
 /**
- * Two real daemons with TCP listeners on loopback ports, each on its own
- * state and token. `cloud` and `pc` hold each daemon's port, token, and
- * the state identity its handshake returns.
+ * Two real daemons, `cloud` and `pc`, each with a TCP listener on a
+ * loopback port that takes `token`, and `cloudID` and `pcID`, the state
+ * identity each one's handshake returns.
  */
 async function setupTest() {
-  const tmp = setupTempDir('atc-daemon-pool-');
+  await using stack = new AsyncDisposableStack();
 
-  const started: {
-    readonly daemon: Awaited<ReturnType<typeof startDaemon>>;
-    readonly port: number;
-    readonly token: string;
-    readonly daemonID: string;
-  }[] = [];
+  const tmp = stack.use(setupTempDir('atc-daemon-pool-'));
 
-  for (const name of ['cloud', 'pc']) {
-    const tokenFile = join(tmp.dir, `${name}-token`);
-    const token = name.repeat(32);
+  // The token both listeners take, which every pool presents.
+  const token = randomBytes(16).toString('hex');
 
-    writeFileSync(tokenFile, `${token}\n`);
-    mkdirSync(join(tmp.dir, name));
+  writeFileSync(join(tmp.dir, 'token'), `${token}\n`);
 
-    const daemon = await startDaemon({
-      socketPath: join(tmp.dir, `${name}.sock`),
-      reporterSocketPath: join(tmp.dir, `${name}-reporter.sock`),
-      build: `atc/${name}`,
-      adapter: {
-        id: 'claude',
-        screenDetector: null,
-        takesMessages: true,
-        headlessRunner: null,
-        planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-        normalizeHook: () => ({ kind: 'prompt-submitted' }),
-        loadName: () => Promise.resolve(null),
-        canResume: () => true,
-        buildResumeCommand: () => 'claude --resume',
-      },
-      dbPath: join(tmp.dir, name, 'state.db'),
-      statusPath: join(tmp.dir, `${name}-status.json`),
+  const cloud = await startTestDaemon({
+    prefix: 'atc-daemon-pool-cloud-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+
+      // Lets the pool's principal use the local target.
       principals: new Map([['gw', ['local']]]),
-      listen: { host: '127.0.0.1', port: 0, tokenFile },
-    });
+      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'token') },
+    }),
+  });
 
-    const owner = await DaemonClient.open(join(tmp.dir, `${name}.sock`));
-    const hello = await owner.sendHello('atc/test-build');
+  stack.use(cloud);
 
-    owner.stop();
+  const pc = await startTestDaemon({
+    prefix: 'atc-daemon-pool-pc-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
 
-    started.push({
-      daemon,
-      port: daemon.listenPort ?? 0,
-      token,
-      daemonID: String(hello['daemonID']),
-    });
-  }
+      // Lets the pool's principal use the local target.
+      principals: new Map([['gw', ['local']]]),
+      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'token') },
+    }),
+  });
 
-  const [cloud, pc] = started;
+  stack.use(pc);
 
-  if (cloud === undefined || pc === undefined) {
-    throw new Error('a daemon did not start');
-  }
+  const cloudProber = await DaemonClient.open(cloud.socketPath);
+
+  stack.defer(() => {
+    cloudProber.stop();
+  });
+
+  const pcProber = await DaemonClient.open(pc.socketPath);
+
+  stack.defer(() => {
+    pcProber.stop();
+  });
+
+  const cloudHello = await cloudProber.sendHello(cloud.build);
+  const pcHello = await pcProber.sendHello(pc.build);
+
+  const owned = stack.move();
 
   return {
+    token,
     cloud,
     pc,
-    async [Symbol.asyncDispose]() {
-      for (const entry of started) {
-        await entry.daemon.stop();
-      }
-
-      tmp[Symbol.dispose]();
-    },
+    cloudID: String(cloudHello['daemonID']),
+    pcID: String(pcHello['daemonID']),
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it gives each registry daemon its own caller that reaches only that daemon', async () => {
-  await using daemons = await setupTest();
+  await using ctx = await setupTest();
 
   const pool = new DaemonPool({
     registry: {
@@ -91,20 +86,20 @@ test('it gives each registry daemon its own caller that reaches only that daemon
           'cloud',
           {
             name: 'cloud',
-            address: { host: '127.0.0.1', port: daemons.cloud.port },
-            daemonID: daemons.cloud.daemonID,
-            incarnation: daemons.cloud.daemonID.slice(0, 8),
-            token: daemons.cloud.token,
+            address: { host: '127.0.0.1', port: Number(ctx.cloud.daemon.listenPort) },
+            daemonID: ctx.cloudID,
+            incarnation: ctx.cloudID.slice(0, 8),
+            token: ctx.token,
           },
         ],
         [
           'pc',
           {
             name: 'pc',
-            address: { host: '127.0.0.1', port: daemons.pc.port },
-            daemonID: daemons.pc.daemonID,
-            incarnation: daemons.pc.daemonID.slice(0, 8),
-            token: daemons.pc.token,
+            address: { host: '127.0.0.1', port: Number(ctx.pc.daemon.listenPort) },
+            daemonID: ctx.pcID,
+            incarnation: ctx.pcID.slice(0, 8),
+            token: ctx.token,
           },
         ],
       ]),
@@ -114,16 +109,23 @@ test('it gives each registry daemon its own caller that reaches only that daemon
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  const cloudHello = await pool.getCaller('cloud').readHello();
-  const pcHello = await pool.getCaller('pc').readHello();
+  onTestFinished(() => pool.stop());
 
-  await pool.stop();
+  await ctx.cloud.client.sendRequest('session.spawn', {
+    cwd: ctx.cloud.dir,
+    name: 'on-cloud',
+    cols: 80,
+    rows: 24,
+  });
 
-  expect([cloudHello.build, pcHello.build]).toStrictEqual(['atc/cloud', 'atc/pc']);
+  const listed = await Promise.all([
+    pool.getCaller('cloud').sendRequest('session.list', {}, 'gw'),
+    pool.getCaller('pc').sendRequest('session.list', {}, 'gw'),
+  ]);
 
-  expect([cloudHello.daemonID, pcHello.daemonID]).toStrictEqual([
-    daemons.cloud.daemonID,
-    daemons.pc.daemonID,
+  expect(listed).toStrictEqual([
+    { sessions: [expect.objectContaining({ name: 'on-cloud' })] },
+    { sessions: [] },
   ]);
 });
 

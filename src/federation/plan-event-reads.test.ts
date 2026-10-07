@@ -110,3 +110,48 @@ test('it asks only the daemon that owns the session a read is filtered to', () =
     new Map([['pc', { kind: 'after', cursor: 'c-2' }]]),
   );
 });
+
+test('it starts a daemon whose position the cursor holds as null at its latest events', () => {
+  const registry = {
+    daemons: new Map([
+      [
+        'cloud',
+        {
+          name: 'cloud',
+          address: { host: 'h', port: 1 },
+          daemonID: 'd1',
+          incarnation: '0f6c2a8e',
+          token: 't',
+        },
+      ],
+      [
+        'pc',
+        {
+          name: 'pc',
+          address: { host: 'h', port: 2 },
+          daemonID: 'd2',
+          incarnation: '9a1b2c3d',
+          token: 't',
+        },
+      ],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const filter = buildEventsFilterHash(null, null);
+
+  const cursor = encodeGatewayCursor(
+    filter,
+    new Map([
+      ['cloud.0f6c2a8e', 'c-4'],
+      ['pc.9a1b2c3d', null],
+    ]),
+  );
+
+  expect(planEventReads(cursor, filter, null, registry)).toStrictEqual(
+    new Map([
+      ['cloud', { kind: 'after', cursor: 'c-4' }],
+      ['pc', { kind: 'latest' }],
+    ]),
+  );
+});

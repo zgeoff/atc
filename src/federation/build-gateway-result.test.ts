@@ -127,22 +127,24 @@ test('it rewrites the session inside a structured turn', () => {
   });
 });
 
-test('it rewrites the message of session.message and message.ack answers', () => {
-  const daemon = { name: 'cloud', incarnation: '0f6c2a8e' };
-
+test('it rewrites the message of a session.message answer', () => {
   expect(
-    buildGatewayResult('session.message', { message: 'm-1', status: 'accepted' }, daemon),
-  ).toStrictEqual({
-    message: 'cloud.0f6c2a8e.m-1',
-    status: 'accepted',
-  });
+    buildGatewayResult(
+      'session.message',
+      { message: 'm-1', status: 'accepted' },
+      { name: 'cloud', incarnation: '0f6c2a8e' },
+    ),
+  ).toStrictEqual({ message: 'cloud.0f6c2a8e.m-1', status: 'accepted' });
+});
 
+test('it rewrites the message of a message.ack answer', () => {
   expect(
-    buildGatewayResult('message.ack', { message: 'm-1', status: 'delivered' }, daemon),
-  ).toStrictEqual({
-    message: 'cloud.0f6c2a8e.m-1',
-    status: 'delivered',
-  });
+    buildGatewayResult(
+      'message.ack',
+      { message: 'm-1', status: 'delivered' },
+      { name: 'cloud', incarnation: '0f6c2a8e' },
+    ),
+  ).toStrictEqual({ message: 'cloud.0f6c2a8e.m-1', status: 'delivered' });
 });
 
 test('it passes the opaque fields of an answer unchanged', () => {
@@ -176,10 +178,15 @@ test('it routes every rewritten id back to the daemon id it came from', () => {
     cloud,
   );
 
-  expect(parseGatewayID(String(result['message']), registry)).toMatchObject({ id: 'm-1' });
-  expect(parseGatewayID(String(result['session']), registry)).toMatchObject({ id: 's1' });
-  expect(result['answeredWith']).toStrictEqual(['cloud.0f6c2a8e.m-0']);
-  expect(parseGatewayID('cloud.0f6c2a8e.m-0', registry)).toMatchObject({ id: 'm-0' });
+  expect(
+    [result['message'], result['session'], result['answeredWith']]
+      .flat()
+      .map((id) => parseGatewayID(String(id), registry)),
+  ).toStrictEqual([
+    { daemon: cloud, id: 'm-1' },
+    { daemon: cloud, id: 's1' },
+    { daemon: cloud, id: 'm-0' },
+  ]);
 });
 
 test('it refuses to rewrite an events.read answer outside the event merge', () => {

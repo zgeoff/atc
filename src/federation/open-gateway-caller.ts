@@ -1,4 +1,4 @@
-import type { GatewayChannel } from './daemon-caller';
+import type { GatewayChannel, TimeoutScheduler } from './daemon-caller';
 import { DaemonPool } from './daemon-pool';
 import { GatewayStore } from './gateway-store';
 import { RoutingCaller } from './routing-caller';
@@ -16,6 +16,10 @@ interface GatewayCallerOptions {
 
   // How long each daemon may take to answer a call asked of every daemon.
   readonly fanOutTimeoutMs?: number;
+
+  // Starts each daemon connection's connect and response timers; real
+  // timers when unset.
+  readonly scheduleTimeout?: TimeoutScheduler;
 }
 
 /**
@@ -35,6 +39,7 @@ export function openGatewayCaller(opts: GatewayCallerOptions): {
     registry: opts.registry,
     build: opts.build,
     openChannel: opts.openChannel,
+    ...(opts.scheduleTimeout === undefined ? {} : { scheduleTimeout: opts.scheduleTimeout }),
   });
 
   const caller = new RoutingCaller({
