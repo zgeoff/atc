@@ -36,7 +36,8 @@ interface MCPToolResult {
  * result holds anything but one text item, or its structured content is not
  * an object. `spawnSession` spawns through `atc_session_spawn` and resolves
  * with the new session's id. A request still unanswered when the server's
- * stdout ends rejects. Disposal stops the server and waits for it to exit,
+ * stdout ends rejects. When `initialize` fails, the server is stopped
+ * before the start rejects. Disposal stops the server and waits for it to exit,
  * and a second disposal waits for the same exit; the daemon stays up for
  * the home to stop.
  */
@@ -91,6 +92,21 @@ export async function startMCPStdio(options: MCPStdioOptions) {
 
   let stopped = false;
 
+  const stopServer = async (): Promise<void> => {
+    if (!stopped) {
+      stopped = true;
+      void proc.stdin.end();
+      proc.kill();
+    }
+
+    await proc.exited;
+  };
+
+  // A failed initialize stops the server here, before the caller holds it.
+  await using stack = new AsyncDisposableStack();
+
+  stack.defer(stopServer);
+
   const server = {
     sendRequest,
     sendToolCall,
@@ -105,15 +121,7 @@ export async function startMCPStdio(options: MCPStdioOptions) {
 
       return id;
     },
-    async [Symbol.asyncDispose]() {
-      if (!stopped) {
-        stopped = true;
-        void proc.stdin.end();
-        proc.kill();
-      }
-
-      await proc.exited;
-    },
+    [Symbol.asyncDispose]: stopServer,
   };
 
   await sendRequest('initialize', {
@@ -121,6 +129,8 @@ export async function startMCPStdio(options: MCPStdioOptions) {
     capabilities: {},
     clientInfo: { name: 'atc-test' },
   });
+
+  stack.move();
 
   return server;
 }

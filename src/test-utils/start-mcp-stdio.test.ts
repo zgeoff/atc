@@ -1,4 +1,6 @@
 import { expect, test } from 'bun:test';
+import { join } from 'node:path';
+import { isProcessAlive } from '../shared/is-process-alive';
 import { createStubBin } from './create-stub-bin';
 import { setupMCPHome } from './setup-mcp-home';
 import { startMCPStdio } from './start-mcp-stdio';
@@ -195,4 +197,29 @@ test('it waits for the same exit when disposed twice', async () => {
   await ctx.mcp[Symbol.asyncDispose]();
 
   expect(ctx.mcp[Symbol.asyncDispose]()).resolves.toBeUndefined();
+});
+
+test('it stops a server whose initialize fails before rejecting', async () => {
+  await using ctx = await setupTest();
+
+  const bin = createStubBin(
+    ctx.home,
+    'bad-init',
+    `#!/usr/bin/env bash
+echo $$ > "$HOME/bad-init-pid"
+read -r _
+echo 'not json'
+exec cat > /dev/null
+`,
+  );
+
+  const starting = startMCPStdio({ home: ctx.home, command: [bin] });
+
+  expect(starting).rejects.toThrowWithMessage(Error, 'atc mcp stopped answering before request 1');
+
+  const recorded = await Bun.file(join(ctx.home, 'bad-init-pid')).text();
+
+  const pid = Number(recorded);
+
+  expect(isProcessAlive(pid)).toBeFalse();
 });
