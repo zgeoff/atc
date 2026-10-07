@@ -194,3 +194,13 @@ test('it counts a connection the client closed as accepted and no longer open', 
     expect(daemon.connections).toStrictEqual({ accepted: 1, open: 0 });
   });
 });
+
+test('it stops listening when disposed', () => {
+  using ctx = setupTest();
+
+  const legacy = startLegacyDaemon(ctx.socketPath);
+
+  legacy[Symbol.dispose]();
+
+  expect(DaemonClient.open(ctx.socketPath)).rejects.toThrow();
+});

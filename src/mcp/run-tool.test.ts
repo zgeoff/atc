@@ -7,6 +7,7 @@ import { DaemonError } from '../protocol/daemon-error';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ReconnectingCaller } from './reconnecting-caller';
@@ -33,10 +34,8 @@ async function setupTest() {
   const owned = stack.move();
 
   return {
-    daemon,
     caller,
     dir: daemon.dir,
-    socketPath: daemon.socketPath,
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
@@ -345,21 +344,21 @@ test('it spawns on the target the call gives and needs a daemon that takes targe
   ]);
 });
 
-test('it refuses a spawn on a target unsent when the daemon predates targets', async () => {
-  await using ctx = await setupTest();
+test('it refuses a spawn on a target unsent when the daemon predates targets', () => {
+  using tmp = setupTempDir('atc-run-tool-');
 
-  await ctx.daemon.stop();
-
-  const legacy = startLegacyDaemon(ctx.socketPath, {
+  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
   });
 
-  onTestFinished(() => {
-    legacy.stop();
-  });
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
 
   const spawn = runTool(
-    ctx.caller,
+    caller,
     'atc_session_spawn',
     { cwd: '/tmp', target: 'box' },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
@@ -390,11 +389,24 @@ test('it spawns with the workspace the call gives and needs a daemon that takes 
 });
 
 test('it spawns a git workspace without a cwd and returns the directory the daemon picked under the home', async () => {
-  await using ctx = await setupTest();
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-run-tool-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['file'],
+      homeDir: join(paths.dir, 'home'),
+    }),
+  });
 
-  const home = join(ctx.dir, 'home');
-  const upstream = join(ctx.dir, 'upstream.git');
-  const work = join(ctx.dir, 'work');
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
+
+  const home = join(daemon.dir, 'home');
+  const upstream = join(daemon.dir, 'upstream.git');
+  const work = join(daemon.dir, 'work');
 
   const env = {
     ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
@@ -412,14 +424,8 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
 
   await $`git push --quiet origin main`.env(env).cwd(work).quiet();
 
-  await ctx.daemon.restart(() => ({
-    adapter: buildMockAgentAdapter(),
-    gitTransports: ['file'],
-    homeDir: home,
-  }));
-
   const result = await runTool(
-    ctx.caller,
+    caller,
     'atc_session_spawn',
     { workspace: { kind: 'git', url: upstream, ref: 'main' } },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
@@ -433,21 +439,21 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
   expect(existsSync(join(home, '.local/share/atc/workspaces/upstream-main', '.git'))).toBeTrue();
 });
 
-test('it refuses a git workspace without a cwd unsent when the daemon predates picking its directory', async () => {
-  await using ctx = await setupTest();
+test('it refuses a git workspace without a cwd unsent when the daemon predates picking its directory', () => {
+  using tmp = setupTempDir('atc-run-tool-');
 
-  await ctx.daemon.stop();
-
-  const legacy = startLegacyDaemon(ctx.socketPath, {
+  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace.autoDir'),
   });
 
-  onTestFinished(() => {
-    legacy.stop();
-  });
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
 
   const spawn = runTool(
-    ctx.caller,
+    caller,
     'atc_session_spawn',
     { workspace: { kind: 'git', url: 'https://example.com/r.git', ref: 'main' } },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
@@ -475,21 +481,21 @@ test('it returns the warnings a workspace spawn left with the session', async ()
   expect(result.structured).toStrictEqual({ id: 's-1', warnings: ['changes stay behind'] });
 });
 
-test('it refuses a spawn with a workspace unsent when the daemon predates workspaces', async () => {
-  await using ctx = await setupTest();
+test('it refuses a spawn with a workspace unsent when the daemon predates workspaces', () => {
+  using tmp = setupTempDir('atc-run-tool-');
 
-  await ctx.daemon.stop();
-
-  const legacy = startLegacyDaemon(ctx.socketPath, {
+  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
   });
 
-  onTestFinished(() => {
-    legacy.stop();
-  });
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
 
   const spawn = runTool(
-    ctx.caller,
+    caller,
     'atc_session_spawn',
     { cwd: '/tmp/ws', workspace: { kind: 'path', path: '/src/repo' } },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
@@ -514,21 +520,21 @@ test('it submits a session input line and needs a daemon that submits lines', as
   ]);
 });
 
-test('it refuses a session input line unsent when the daemon predates line submission', async () => {
-  await using ctx = await setupTest();
+test('it refuses a session input line unsent when the daemon predates line submission', () => {
+  using tmp = setupTempDir('atc-run-tool-');
 
-  await ctx.daemon.stop();
-
-  const legacy = startLegacyDaemon(ctx.socketPath, {
+  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: DAEMON_FEATURES.filter((feature) => feature !== 'session.submit'),
   });
 
-  onTestFinished(() => {
-    legacy.stop();
-  });
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
 
   const input = runTool(
-    ctx.caller,
+    caller,
     'atc_session_input',
     { session: 's1', text: 'hello' },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
@@ -553,21 +559,21 @@ test('it reads a report through a daemon that serves report reads', async () => 
   ]);
 });
 
-test('it refuses a report read unsent when the daemon predates report reads', async () => {
-  await using ctx = await setupTest();
+test('it refuses a report read unsent when the daemon predates report reads', () => {
+  using tmp = setupTempDir('atc-run-tool-');
 
-  await ctx.daemon.stop();
-
-  const legacy = startLegacyDaemon(ctx.socketPath, {
+  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: DAEMON_FEATURES.filter((feature) => feature !== 'report.get'),
   });
 
-  onTestFinished(() => {
-    legacy.stop();
-  });
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
 
   const read = runTool(
-    ctx.caller,
+    caller,
     'atc_report_get',
     { report: 'r1' },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
@@ -597,12 +603,10 @@ test('it forwards an explicit clone trust decision and requires daemon support',
   ]);
 });
 
-test('it refuses an explicit trust decision unsent when the daemon predates clone trust', async () => {
-  await using ctx = await setupTest();
+test('it refuses an explicit trust decision unsent when the daemon predates clone trust', () => {
+  using tmp = setupTempDir('atc-run-tool-');
 
-  await ctx.daemon.stop();
-
-  const legacy = startLegacyDaemon(ctx.socketPath, {
+  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: [
       'agents.list',
       'events.more',
@@ -613,12 +617,14 @@ test('it refuses an explicit trust decision unsent when the daemon predates clon
     ],
   });
 
-  onTestFinished(() => {
-    legacy.stop();
-  });
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
 
   const spawn = runTool(
-    ctx.caller,
+    caller,
     'atc_session_spawn',
     { cwd: '/tmp/ws', workspace: { kind: 'path', path: '/src/repo' }, trustClonedWorkspace: true },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },

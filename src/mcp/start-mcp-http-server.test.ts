@@ -1343,27 +1343,7 @@ test('it refuses a request whose Host header it does not serve', async () => {
 });
 
 test('it serves a request whose Host header is a configured allowed host', async () => {
-  await using ctx = await setupTest();
-
-  const caller = new ReconnectingCaller(join(ctx.home, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
-  );
-
-  onTestFinished(() => caller.stop());
-
-  const allowing = await startMCPHTTPServer({
-    caller,
-    build: 'atc/test-build',
-    host: '127.0.0.1',
-    port: 0,
-    publicURL: null,
-    allowedHosts: ['pc.tailnet.example'],
-    dbPath: ctx.dbPath,
-    printApproval: () => {},
-    printRequest: () => {},
-  });
-
-  onTestFinished(() => allowing.stop());
+  await using allowing = await setupMCPHTTP({ allowedHosts: ['pc.tailnet.example'] });
 
   const answered = await fetch(`${allowing.url}/.well-known/oauth-protected-resource/mcp`, {
     headers: { host: 'pc.tailnet.example' },

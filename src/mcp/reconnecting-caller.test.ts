@@ -1,6 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { PROTOCOL_V } from '../protocol/protocol';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
 import { startStubDroppingDaemon } from '../test-utils/start-stub-dropping-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -42,17 +44,16 @@ test('it answers a read-only request sent right after the daemon restarts', asyn
 });
 
 test('it closes a connection whose handshake the daemon rejects', async () => {
-  await using ctx = await setupTest();
+  using tmp = setupTempDir('atc-reconnecting-caller-');
+  using mismatched = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), { protocol: PROTOCOL_V + 1 });
 
-  await ctx.daemon.stop();
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
-  const mismatched = startLegacyDaemon(ctx.socketPath, { protocol: PROTOCOL_V + 1 });
+  onTestFinished(() => caller.stop());
 
-  onTestFinished(() => {
-    mismatched.stop();
-  });
-
-  const first = ctx.caller.sendRequest('session.list');
+  const first = caller.sendRequest('session.list');
 
   expect(first).rejects.toMatchObject({ code: 'protocol_mismatch' });
 
@@ -62,19 +63,18 @@ test('it closes a connection whose handshake the daemon rejects', async () => {
 });
 
 test('it opens a fresh connection for the request after one whose handshake the daemon rejected', async () => {
-  await using ctx = await setupTest();
+  using tmp = setupTempDir('atc-reconnecting-caller-');
+  using mismatched = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), { protocol: PROTOCOL_V + 1 });
 
-  await ctx.daemon.stop();
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
-  const mismatched = startLegacyDaemon(ctx.socketPath, { protocol: PROTOCOL_V + 1 });
+  onTestFinished(() => caller.stop());
 
-  onTestFinished(() => {
-    mismatched.stop();
-  });
+  await caller.sendRequest('session.list').catch(() => null);
 
-  await ctx.caller.sendRequest('session.list').catch(() => null);
-
-  const second = ctx.caller.sendRequest('session.list');
+  const second = caller.sendRequest('session.list');
 
   expect(second).rejects.toMatchObject({ code: 'protocol_mismatch' });
   expect(mismatched.connections.accepted).toBe(2);
@@ -120,34 +120,38 @@ test('it refuses a filtered read unsent when an older daemon replaced the one it
 });
 
 test('it retries a spawn on a fresh connection under the key it minted when the connection drops', async () => {
-  await using ctx = await setupTest();
+  using tmp = setupTempDir('atc-reconnecting-caller-');
 
-  await ctx.daemon.stop();
-
-  const dropping = startStubDroppingDaemon(ctx.socketPath, { features: ['spawn.idempotency'] });
-
-  onTestFinished(() => {
-    dropping.stop();
+  using dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: ['spawn.idempotency'],
   });
 
-  const ok = await ctx.caller.sendRequest('session.spawn', { cwd: '/tmp' });
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
+
+  const ok = await caller.sendRequest('session.spawn', { cwd: '/tmp' });
 
   expect(ok).toStrictEqual({ session: { id: 's-1' } });
   expect(dropping.keys).toStrictEqual([expect.any(String), dropping.keys[0]]);
 });
 
 test('it retries a message on a fresh connection under the key its caller passed', async () => {
-  await using ctx = await setupTest();
+  using tmp = setupTempDir('atc-reconnecting-caller-');
 
-  await ctx.daemon.stop();
-
-  const dropping = startStubDroppingDaemon(ctx.socketPath, { features: ['message.idempotency'] });
-
-  onTestFinished(() => {
-    dropping.stop();
+  using dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: ['message.idempotency'],
   });
 
-  await ctx.caller.sendRequest('session.message', {
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
+
+  await caller.sendRequest('session.message', {
     session: 's-1',
     text: 'hi',
     idempotencyKey: 'k-1',
@@ -156,38 +160,37 @@ test('it retries a message on a fresh connection under the key its caller passed
   expect(dropping.keys).toStrictEqual(['k-1', 'k-1']);
 });
 
-test('it refuses to retry a keyed spawn unsent when the daemon behind the socket stopped taking keys', async () => {
-  await using ctx = await setupTest();
+test('it refuses to retry a keyed spawn unsent when the daemon behind the socket stopped taking keys', () => {
+  using tmp = setupTempDir('atc-reconnecting-caller-');
 
-  await ctx.daemon.stop();
-
-  const dropping = startStubDroppingDaemon(ctx.socketPath, {
+  using dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), {
     features: ['spawn.idempotency'],
     retryFeatures: [],
   });
 
-  onTestFinished(() => {
-    dropping.stop();
-  });
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
-  const spawn = ctx.caller.sendRequest('session.spawn', { cwd: '/tmp' });
+  onTestFinished(() => caller.stop());
+
+  const spawn = caller.sendRequest('session.spawn', { cwd: '/tmp' });
 
   expect(spawn).rejects.toThrow(/^daemon_outdated: /);
   expect(dropping.keys).toHaveLength(1);
 });
 
-test('it fails a spawn whose connection drops when the daemon takes no keys', async () => {
-  await using ctx = await setupTest();
+test('it fails a spawn whose connection drops when the daemon takes no keys', () => {
+  using tmp = setupTempDir('atc-reconnecting-caller-');
+  using dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), { features: [] });
 
-  await ctx.daemon.stop();
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
 
-  const dropping = startStubDroppingDaemon(ctx.socketPath, { features: [] });
+  onTestFinished(() => caller.stop());
 
-  onTestFinished(() => {
-    dropping.stop();
-  });
-
-  const spawn = ctx.caller.sendRequest('session.spawn', { cwd: '/tmp' });
+  const spawn = caller.sendRequest('session.spawn', { cwd: '/tmp' });
 
   expect(spawn).rejects.toMatchObject({ code: 'internal', message: 'connection closed' });
   expect(dropping.keys).toStrictEqual([undefined]);

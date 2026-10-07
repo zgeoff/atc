@@ -1,8 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { answerRPCRequest } from './answer-rpc-request';
@@ -30,10 +32,8 @@ async function setupTest() {
   const owned = stack.move();
 
   return {
-    daemon,
     caller,
     dir: daemon.dir,
-    socketPath: daemon.socketPath,
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
@@ -246,20 +246,24 @@ test('it lists the agents to a caller holding only the read scope', async () => 
 });
 
 test('it leaves the agents tool out of the list when the connected daemon does not announce it', async () => {
-  await using ctx = await setupTest();
+  using tmp = setupTempDir('atc-answer-rpc-');
 
-  await ctx.daemon.stop();
-
-  const legacy = startLegacyDaemon(ctx.socketPath);
+  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
   onTestFinished(() => {
     legacy.stop();
   });
 
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
+
   const outcome = await answerRPCRequest(
     { jsonrpc: '2.0', id: 1, method: 'tools/list' },
     {
-      caller: ctx.caller,
+      caller,
       build: 'atc/test-build',
       toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
     },
@@ -279,20 +283,24 @@ test('it leaves the agents tool out of the list when the connected daemon does n
 });
 
 test('it lists the message tool in its older form when the connected daemon announces no features', async () => {
-  await using ctx = await setupTest();
+  using tmp = setupTempDir('atc-answer-rpc-');
 
-  await ctx.daemon.stop();
-
-  const legacy = startLegacyDaemon(ctx.socketPath);
+  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
   onTestFinished(() => {
     legacy.stop();
   });
 
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
+
   const outcome = await answerRPCRequest(
     { jsonrpc: '2.0', id: 1, method: 'tools/list' },
     {
-      caller: ctx.caller,
+      caller,
       build: 'atc/test-build',
       toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
     },
@@ -332,20 +340,19 @@ test.each([
 ])(
   'it refuses %p called with %p with a restart hint when the connected daemon predates it, sending nothing',
   async (name, args) => {
-    await using ctx = await setupTest();
+    using tmp = setupTempDir('atc-answer-rpc-');
+    using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
-    await ctx.daemon.stop();
+    const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+      DaemonClient.open(path),
+    );
 
-    const legacy = startLegacyDaemon(ctx.socketPath);
-
-    onTestFinished(() => {
-      legacy.stop();
-    });
+    onTestFinished(() => caller.stop());
 
     const outcome = await answerRPCRequest(
       { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
       {
-        caller: ctx.caller,
+        caller,
         build: 'atc/test-build',
         toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
       },
@@ -373,11 +380,9 @@ test.each([
 );
 
 test('it reads a message from an older daemon when the call asks for no wait', async () => {
-  await using ctx = await setupTest();
+  using tmp = setupTempDir('atc-answer-rpc-');
 
-  await ctx.daemon.stop();
-
-  const legacy = startLegacyDaemon(ctx.socketPath, {
+  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     replies: {
       'message.get': {
         message: 'm-legacy',
@@ -394,6 +399,12 @@ test('it reads a message from an older daemon when the call asks for no wait', a
     legacy.stop();
   });
 
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
+
   const outcome = await answerRPCRequest(
     {
       jsonrpc: '2.0',
@@ -402,7 +413,7 @@ test('it reads a message from an older daemon when the call asks for no wait', a
       params: { name: 'atc_message_get', arguments: { message: 'm-legacy' } },
     },
     {
-      caller: ctx.caller,
+      caller,
       build: 'atc/test-build',
       toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
     },
@@ -447,11 +458,9 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
 });
 
 test('it lists the agents tool without an output schema when the connected daemon predates spawn options', async () => {
-  await using ctx = await setupTest();
+  using tmp = setupTempDir('atc-answer-rpc-');
 
-  await ctx.daemon.stop();
-
-  const legacy = startLegacyDaemon(ctx.socketPath, {
+  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
   });
 
@@ -459,10 +468,16 @@ test('it lists the agents tool without an output schema when the connected daemo
     legacy.stop();
   });
 
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
+
   const outcome = await answerRPCRequest(
     { jsonrpc: '2.0', id: 1, method: 'tools/list' },
     {
-      caller: ctx.caller,
+      caller,
       build: 'atc/test-build',
       toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
     },
@@ -490,11 +505,9 @@ test('it lists the agents tool without an output schema when the connected daemo
 });
 
 test('it returns the agents a daemon without spawn options lists, without spawn options', async () => {
-  await using ctx = await setupTest();
+  using tmp = setupTempDir('atc-answer-rpc-');
 
-  await ctx.daemon.stop();
-
-  const legacy = startLegacyDaemon(ctx.socketPath, {
+  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
     replies: {
       'agents.list': {
@@ -529,6 +542,12 @@ test('it returns the agents a daemon without spawn options lists, without spawn 
     legacy.stop();
   });
 
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
+
   const outcome = await answerRPCRequest(
     {
       jsonrpc: '2.0',
@@ -537,7 +556,7 @@ test('it returns the agents a daemon without spawn options lists, without spawn 
       params: { name: 'atc_agents_list', arguments: {} },
     },
     {
-      caller: ctx.caller,
+      caller,
       build: 'atc/test-build',
       toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
     },

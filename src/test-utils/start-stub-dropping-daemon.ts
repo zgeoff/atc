@@ -16,7 +16,7 @@ interface DroppingDaemonOptions {
  * that carries the first request of any other method without answering it,
  * and answers every later one with a session `s-1`. `keys` records the
  * idempotency key each of those requests carried, `undefined` for one that
- * carried none. Stop it with `stop`.
+ * carried none. Stop it with `stop`, or hold it with `using`.
  */
 export function startStubDroppingDaemon(socketPath: string, options: DroppingDaemonOptions) {
   const keys: unknown[] = [];
@@ -64,6 +64,9 @@ export function startStubDroppingDaemon(socketPath: string, options: DroppingDae
   return {
     keys,
     stop() {
+      server.stop(true);
+    },
+    [Symbol.dispose]() {
       server.stop(true);
     },
   };

@@ -10,12 +10,14 @@ function setupTest() {
   return {
     dir: tmp.dir,
     dbPath: join(tmp.dir, 'mcp-auth.db'),
-    [Symbol.asyncDispose]: () => tmp[Symbol.asyncDispose](),
+    [Symbol.dispose]: () => {
+      tmp[Symbol.dispose]();
+    },
   };
 }
 
 test('it sends no telemetry when the environment turns it on', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const received: string[] = [];
 
@@ -65,7 +67,7 @@ await store.close();`,
 });
 
 test('it refuses a resource an earlier public URL served', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const before = await openMCPAuth({ dbPath: ctx.dbPath, origin: 'https://old.example' });
 
@@ -103,7 +105,7 @@ test('it refuses a resource an earlier public URL served', async () => {
 });
 
 test('it creates the database and its write-ahead log readable by their owner only', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const store = await openMCPAuth({ dbPath: ctx.dbPath, origin: null });
 
@@ -114,7 +116,7 @@ test('it creates the database and its write-ahead log readable by their owner on
 });
 
 test('it makes an existing database readable by its owner only', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(ctx.dbPath, '', { mode: 0o644 });
   chmodSync(ctx.dbPath, 0o644);

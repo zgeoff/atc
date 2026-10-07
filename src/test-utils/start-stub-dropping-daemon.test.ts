@@ -106,3 +106,13 @@ test('it answers a later request with a session and records each request key', a
   expect(answered).toStrictEqual({ session: { id: 's-1' } });
   expect(ctx.daemon.keys).toStrictEqual(['k-1', undefined]);
 });
+
+test('it stops listening when disposed', () => {
+  using tmp = setupTempDir('atc-dropping-daemon-');
+
+  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), { features: [] });
+
+  dropping[Symbol.dispose]();
+
+  expect(DaemonClient.open(join(tmp.dir, 'daemon.sock'))).rejects.toThrow();
+});
