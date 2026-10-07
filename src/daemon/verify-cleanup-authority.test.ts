@@ -38,7 +38,14 @@ test('it allows cleanup of the recorded imp after its secret was rebound', async
 
   const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
 
-  expect(imp).toMatchObject({ id: created.id, name: 'atc-s1' });
+  expect(imp).toStrictEqual({
+    id: created.id,
+    name: 'atc-s1',
+    state: 'running',
+    leases: [],
+    otherLeaseCount: 0,
+  });
+
   expect(ctx.port.calls).toStrictEqual(['tokens.whoami', 'imps.get atc-s1']);
 });
 
@@ -67,7 +74,14 @@ test('it allows cleanup of the recorded imp after its secret was deleted', async
 
   const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
 
-  expect(imp).toMatchObject({ id: created.id, name: 'atc-s1' });
+  expect(imp).toStrictEqual({
+    id: created.id,
+    name: 'atc-s1',
+    state: 'running',
+    leases: [],
+    otherLeaseCount: 0,
+  });
+
   expect(ctx.port.calls).toStrictEqual(['tokens.whoami', 'imps.get atc-s1']);
 });
 
@@ -86,7 +100,13 @@ test('it allows cleanup by a token that may no longer grant the bound secret', a
 
   const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
 
-  expect(imp).toMatchObject({ id: created.id, name: 'atc-s1' });
+  expect(imp).toStrictEqual({
+    id: created.id,
+    name: 'atc-s1',
+    state: 'running',
+    leases: [],
+    otherLeaseCount: 0,
+  });
 });
 
 test('it reports a recorded imp that impd no longer holds as nothing to clean up', async () => {
@@ -266,5 +286,11 @@ test('it allows cleanup by a token whose literal imp name is the recorded imp', 
 
   const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
 
-  expect(imp).toMatchObject({ id: created.id, name: 'atc-s1' });
+  expect(imp).toStrictEqual({
+    id: created.id,
+    name: 'atc-s1',
+    state: 'running',
+    leases: [],
+    otherLeaseCount: 0,
+  });
 });

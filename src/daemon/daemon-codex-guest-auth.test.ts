@@ -6,6 +6,7 @@ import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubBin } from '../test-utils/create-stub-bin';
+import { createStubRecordingCodex } from '../test-utils/create-stub-recording-codex';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
@@ -15,22 +16,17 @@ import { ImpProvider } from './imp-provider';
  * A real daemon whose one target `box` is an imp provider over a stub
  * imp port that holds no identity or secret until the test adds them. The
  * guest has an atc stand-in, and the codex agent signs in through an oauth
- * secret for chatgpt.com and runs `fakeCodex`, which appends its Codex home
- * and arguments to `marker`.
+ * secret for chatgpt.com and runs a stand-in Codex, which appends its
+ * Codex home and arguments to the `starts` log.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-codex-guest-auth-'));
   const guestDir = join(tmp.dir, 'g');
-  const marker = join(tmp.dir, 'started');
 
   // The codex agent entry runs this binary for every spawn.
-  const fakeCodex = createStubBin(
-    tmp.dir,
-    'fake-codex',
-    `#!/bin/sh\necho "$CODEX_HOME $*" >> "${marker}"\nexec sleep 30\n`,
-  );
+  const fakeCodex = createStubRecordingCodex(tmp.dir);
 
   // The imp provider hands the guest this atc binary.
   const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
@@ -72,7 +68,7 @@ async function setupTest() {
     dir: tmp.dir,
     daemon,
     port,
-    marker,
+    starts: join(tmp.dir, 'codex-starts.log'),
     guestDir,
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
@@ -119,14 +115,14 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
   );
 
   await waitFor(() => {
-    expect(existsSync(ctx.marker)).toBeTrue();
+    expect(existsSync(ctx.starts)).toBeTrue();
   });
 
   const auth: unknown = JSON.parse(readFileSync(join(home, 'auth.json'), 'utf8'));
   const hooks: unknown = JSON.parse(readFileSync(join(home, 'hooks.json'), 'utf8'));
 
   expect({
-    started: readFileSync(ctx.marker, 'utf8'),
+    started: readFileSync(ctx.starts, 'utf8'),
     auth,
     config: readFileSync(join(home, 'config.toml'), 'utf8'),
     hooks,

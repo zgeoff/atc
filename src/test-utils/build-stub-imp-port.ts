@@ -60,6 +60,9 @@ class StubImpPort implements ImpPort {
   // Every session request the port received, in order.
   readonly sessionRequests: ImpSessionRequest[] = [];
 
+  // The spec of every imp create the port received, in order.
+  readonly createSpecs: ImpCreateSpec[] = [];
+
   features: ImpFeatures = {
     sessionOffsets: true,
     leases: true,
@@ -297,6 +300,7 @@ class StubImpPort implements ImpPort {
 
   createImp(spec: ImpCreateSpec): Promise<ImpView> {
     this.calls.push(`imps.create ${spec.name}`);
+    this.createSpecs.push(spec);
 
     if (this.imps.has(spec.name)) {
       return Promise.reject(

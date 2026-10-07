@@ -42,7 +42,10 @@ test('it destroys the imp a failed prepare created, since no session holds it', 
     provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
   ]);
 
-  expect(ctx.port.collectImpNames()).toBeEmpty();
+  expect({ calls: ctx.port.calls, imps: ctx.port.collectImpNames() }).toStrictEqual({
+    calls: expect.toIncludeAllMembers(['imps.create atc-s1', 'imps.destroy atc-s1']),
+    imps: [],
+  });
 });
 
 test('it refuses a prepare that installs atc when the guest atc is missing', () => {
@@ -389,8 +392,13 @@ test("it creates a host's imp for the broker with the target's image and memory"
 
   const created = await provider.brokerAuth.createImp('s1');
 
-  expect<Record<string, unknown>>({ created, calls: ctx.port.calls }).toStrictEqual({
+  expect<Record<string, unknown>>({
+    created,
+    calls: ctx.port.calls,
+    specs: ctx.port.createSpecs,
+  }).toStrictEqual({
     created: expect.objectContaining({ name: 'atc-s1', state: 'running' }),
     calls: ['imps.create atc-s1'],
+    specs: [{ name: 'atc-s1', image: 'base', memoryMib: 512 }],
   });
 });

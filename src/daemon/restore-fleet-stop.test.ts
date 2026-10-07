@@ -128,7 +128,7 @@ test('it starts no harness once the daemon stops while the first one starts', as
   }).toStrictEqual({ outcome: 'stopped', prepares: ['s-a'], harnesses: [] });
 });
 
-test('it starts no harness once the daemon stops while the last queued one starts', async () => {
+test('it starts no harness for a queued session once the daemon stops during its start', async () => {
   await using ctx = await setupTest();
 
   await ctx.store.writeFleet([

@@ -17,6 +17,7 @@ import { getRecord } from '../shared/get-record';
 import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
+import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -28,8 +29,8 @@ import { LocalPTYProvider } from './local-pty-provider';
 // The fixed parts every test's daemon runs on: a stub imp port behind
 // the imp provider `box` serves, a local provider, a `glm` gateway and stock
 // Claude, and a git repository a spawn can clone, in a temp directory. Each
-// agent run appends a line to `marker`. `options` holds the daemon options
-// besides its targets.
+// agent run appends its arguments to the `starts` log. `options` holds the
+// daemon options besides its targets.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
@@ -54,15 +55,9 @@ async function setupTest() {
 
   stack.use(git);
 
-  const marker = join(tmp.dir, 'started');
-
-  // Each agent run records that it started, so a test sees whether a launch
-  // went ahead.
-  const fakeClaude = createStubBin(
-    tmp.dir,
-    'fake-claude',
-    `#!/bin/sh\necho started >> "${marker}"\nexec sleep 30\n`,
-  );
+  // Each agent run records its start, so a test sees whether a launch went
+  // ahead.
+  const fakeClaude = createStubRecordingClaude(tmp.dir);
 
   // The imp provider installs this as the guest's atc.
   const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
@@ -98,7 +93,7 @@ async function setupTest() {
   return {
     dir: tmp.dir,
     guestDir: join(tmp.dir, 'guest'),
-    marker,
+    starts: join(tmp.dir, 'claude-starts.log'),
     port,
     work: git.work,
     box,
@@ -151,7 +146,7 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
   });
 
   await waitFor(() => {
-    expect(existsSync(ctx.marker)).toBeTrue();
+    expect(existsSync(ctx.starts)).toBeTrue();
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
@@ -208,7 +203,7 @@ test.each([
   });
 
   await waitFor(() => {
-    expect(existsSync(ctx.marker)).toBeTrue();
+    expect(existsSync(ctx.starts)).toBeTrue();
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
@@ -254,7 +249,65 @@ test.each([
   ['unset', 'true', {}, { trustClonedWorkspace: true }],
   ['true', 'unset', { trustClonedWorkspace: true }, {}],
 ])(
-  'it does not seed trust before clone verification or launch after a mismatch with target %s and launch %s',
+  'it seeds no trust before the clone is verified with target %s and launch %s',
+  async (_targetLabel, _launchLabel, targetOptions, launch) => {
+    await using ctx = await setupTest();
+
+    await using daemon = await startTestDaemon({
+      options: () => ({
+        ...ctx.options,
+        targets: [
+          {
+            id: 'box',
+            kind: 'imp',
+            options: targetOptions,
+            identity: 'imp:test',
+            provider: ctx.box,
+          },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: targetOptions,
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      }),
+    });
+
+    using hold = ctx.port.startCommandHold('rev-parse');
+
+    const spawn = daemon.client.sendRequest('session.spawn', {
+      ...launch,
+      cwd: join(ctx.dir, 'clone'),
+      agent: 'glm',
+      target: 'box',
+      workspace: { kind: 'path', path: ctx.work },
+    });
+
+    // The spawn goes on once the hold stops; settling it keeps a failure
+    // from the daemon's disposal from going unhandled.
+    void Promise.allSettled([spawn]);
+
+    await hold.entered;
+
+    const [id] = readdirSync(join(ctx.guestDir, 'sessions'));
+
+    invariant(id !== undefined, 'expected prepared guest');
+
+    const seed: unknown = JSON.parse(
+      readFileSync(join(ctx.guestDir, 'sessions', id, 'claude-config-seed.json'), 'utf8'),
+    );
+
+    expect(seed).toStrictEqual({ hasCompletedOnboarding: true });
+  },
+);
+
+test.each([
+  ['unset', 'true', {}, { trustClonedWorkspace: true }],
+  ['true', 'unset', { trustClonedWorkspace: true }, {}],
+])(
+  'it launches nothing once the clone no longer matches its source with target %s and launch %s',
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
     await using ctx = await setupTest();
 
@@ -294,19 +347,11 @@ test.each([
 
     await hold.entered;
 
-    const [id] = readdirSync(join(ctx.guestDir, 'sessions'));
-
-    invariant(id !== undefined, 'expected prepared guest');
-
-    const seed: unknown = JSON.parse(
-      readFileSync(join(ctx.guestDir, 'sessions', id, 'claude-config-seed.json'), 'utf8'),
-    );
-
     writeFileSync(join(root, 'README.md'), 'changed\n');
 
     hold.stop();
 
-    expect(seed).toStrictEqual({ hasCompletedOnboarding: true });
+    await Promise.allSettled([spawn]);
 
     expect(spawn).rejects.toMatchObject({
       code: 'workspace_mismatch',
@@ -314,7 +359,7 @@ test.each([
     });
 
     expect(ctx.port.sessionRequests).toStrictEqual([]);
-    expect(existsSync(ctx.marker)).toBeFalse();
+    expect(existsSync(ctx.starts)).toBeFalse();
   },
 );
 
@@ -350,7 +395,7 @@ test('it refuses clone trust for stock Claude on an imp target before preparing 
   expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
   expect(ctx.port.calls).toStrictEqual([]);
   expect(existsSync(root)).toBeFalse();
-  expect(existsSync(ctx.marker)).toBeFalse();
+  expect(existsSync(ctx.starts)).toBeFalse();
 });
 
 test('it refuses clone trust for a gateway on the local target before cloning', async () => {
@@ -384,7 +429,7 @@ test('it refuses clone trust for a gateway on the local target before cloning', 
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
   expect(existsSync(root)).toBeFalse();
-  expect(existsSync(ctx.marker)).toBeFalse();
+  expect(existsSync(ctx.starts)).toBeFalse();
 });
 
 test.each([
@@ -446,7 +491,7 @@ test.each([
     await spawn;
 
     await waitFor(() => {
-      expect(existsSync(ctx.marker)).toBeTrue();
+      expect(existsSync(ctx.starts)).toBeTrue();
     });
 
     expect(readFileSync(join(configDir, '.claude.json'), 'utf8')).toBe(existing);
@@ -655,7 +700,7 @@ test.each([
     });
 
     await waitFor(() => {
-      expect(existsSync(ctx.marker)).toBeTrue();
+      expect(existsSync(ctx.starts)).toBeTrue();
     });
 
     const id = String(getRecord(spawned, 'session')['id']);
@@ -711,7 +756,7 @@ test.each([
     });
 
     await waitFor(() => {
-      expect(existsSync(ctx.marker)).toBeTrue();
+      expect(existsSync(ctx.starts)).toBeTrue();
     });
 
     const id = String(getRecord(spawned, 'session')['id']);
@@ -831,7 +876,7 @@ test('it permits an ordinary folder launch when false overrides inherited trust'
   });
 
   await waitFor(() => {
-    expect(existsSync(ctx.marker)).toBeTrue();
+    expect(existsSync(ctx.starts)).toBeTrue();
   });
 
   const id = String(getRecord(spawned, 'session')['id']);

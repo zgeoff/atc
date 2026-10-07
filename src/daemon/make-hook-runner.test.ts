@@ -2,31 +2,29 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { EventMsg } from '../protocol/protocol';
+import { buildStubTimeoutScheduler } from '../test-utils/build-stub-timeout-scheduler';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookOutcome } from './make-hook-runner';
 
 // A temp directory for the hooks to write into, the outcomes of the hooks a
 // runner call started, which resolve once every one of them has ended, and
-// the kills the runner armed, which the test fires in place of the timer.
+// a scheduler that holds the kills the runner armed until the test runs
+// one in place of the timer.
 function setupTest() {
   const tmp = setupTempDir('atc-hook-runner-');
   const settled = Promise.withResolvers<readonly HookOutcome[]>();
-  const kills: { readonly kill: () => void; readonly timeoutMs: number }[] = [];
+  const scheduler = buildStubTimeoutScheduler();
 
   return {
     dir: tmp.dir,
     settled: settled.promise,
-    kills,
+    scheduler,
     options: {
       onSettled: (_event: EventMsg, outcomes: readonly HookOutcome[]) => {
         settled.resolve(outcomes);
       },
-      scheduleKill: (kill: () => void, timeoutMs: number) => {
-        kills.push({ kill, timeoutMs });
-
-        return () => {};
-      },
+      scheduleKill: scheduler.schedule,
     },
     [Symbol.dispose]: tmp[Symbol.dispose],
   };
@@ -151,13 +149,11 @@ test('it kills a hook that runs past its timeout', async () => {
 
   run({ v: 4, ev: 'SessionAttached' }, null);
 
-  for (const armed of ctx.kills) {
-    armed.kill();
-  }
+  ctx.scheduler.runTimer(500);
 
   const outcomes = await ctx.settled;
 
-  expect({ timeouts: ctx.kills.map((armed) => armed.timeoutMs), outcomes }).toStrictEqual({
+  expect({ timeouts: ctx.scheduler.collectDelays(), outcomes }).toStrictEqual({
     timeouts: [500],
     outcomes: [{ command, exitCode: null, signalCode: 'SIGTERM' }],
   });
@@ -172,5 +168,5 @@ test('it arms the default timeout for a hook that sets none', async () => {
 
   await ctx.settled;
 
-  expect(ctx.kills.map((armed) => armed.timeoutMs)).toStrictEqual([10_000]);
+  expect(ctx.scheduler.collectDelays()).toStrictEqual([10_000]);
 });

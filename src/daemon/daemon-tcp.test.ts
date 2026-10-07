@@ -191,7 +191,7 @@ test('it serves a TCP request that acts as a listed principal', async () => {
   });
 });
 
-test('it refuses a TCP request without as', async () => {
+test('it refuses a TCP request that carries no principal to act as', async () => {
   await using daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
