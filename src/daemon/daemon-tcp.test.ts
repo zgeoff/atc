@@ -17,6 +17,29 @@ import { buildTargetIdentity } from './build-target-identity';
 import { startDaemon } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';
 
+/**
+ * A temp directory for a test that starts its daemon itself, with the paths
+ * the daemon takes inside it. Disposal removes the directory.
+ */
+function setupTest() {
+  using stack = new DisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-daemon-tcp-'));
+  const owned = stack.move();
+
+  return {
+    dir: tmp.dir,
+    socketPath: join(tmp.dir, 'daemon.sock'),
+    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+    dbPath: join(tmp.dir, 'state.db'),
+    statusPath: join(tmp.dir, 'status.json'),
+    tokenFile: join(tmp.dir, 'gateway-token'),
+    [Symbol.dispose]: () => {
+      owned.dispose();
+    },
+  };
+}
+
 test('it answers a TCP handshake that carries a token from the token file', async () => {
   await using daemon = await startTestDaemon({
     options: (paths) => {
@@ -920,37 +943,37 @@ test('it answers the handshake at once before an address has failed five times',
 });
 
 test('it refuses to start a listener on an address outside the allowed ranges', () => {
-  using tmp = setupTempDir('atc-daemon-tcp-');
+  using ctx = setupTest();
 
-  writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
   expect(
     startDaemon({
-      socketPath: join(tmp.dir, 'daemon.sock'),
-      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+      socketPath: ctx.socketPath,
+      reporterSocketPath: ctx.reporterSocketPath,
       build: 'atc/test-build',
       adapter: buildMockAgentAdapter(),
-      dbPath: join(tmp.dir, 'state.db'),
-      statusPath: join(tmp.dir, 'status.json'),
-      listen: { host: '0.0.0.0', port: 0, tokenFile: join(tmp.dir, 'gateway-token') },
+      dbPath: ctx.dbPath,
+      statusPath: ctx.statusPath,
+      listen: { host: '0.0.0.0', port: 0, tokenFile: ctx.tokenFile },
     }),
   ).rejects.toMatchObject({ code: 'listen_refused' });
 });
 
 test('it refuses to start a listener whose token file holds a short token', () => {
-  using tmp = setupTempDir('atc-daemon-tcp-');
+  using ctx = setupTest();
 
-  writeFileSync(join(tmp.dir, 'gateway-token'), 'short\n');
+  writeFileSync(ctx.tokenFile, 'short\n');
 
   expect(
     startDaemon({
-      socketPath: join(tmp.dir, 'daemon.sock'),
-      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+      socketPath: ctx.socketPath,
+      reporterSocketPath: ctx.reporterSocketPath,
       build: 'atc/test-build',
       adapter: buildMockAgentAdapter(),
-      dbPath: join(tmp.dir, 'state.db'),
-      statusPath: join(tmp.dir, 'status.json'),
-      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'gateway-token') },
+      dbPath: ctx.dbPath,
+      statusPath: ctx.statusPath,
+      listen: { host: '127.0.0.1', port: 0, tokenFile: ctx.tokenFile },
     }),
   ).rejects.toMatchObject({ code: 'listen_refused' });
 });
@@ -974,7 +997,7 @@ test('it logs the address and port the TCP listener bound', async () => {
 });
 
 test('it logs no listener start when the TCP listener cannot bind', async () => {
-  using tmp = setupTempDir('atc-daemon-tcp-');
+  using ctx = setupTest();
 
   const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
 
@@ -984,23 +1007,24 @@ test('it logs no listener start when the TCP listener cannot bind', async () => 
 
   const logged: string[] = [];
 
-  writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
-  await Promise.allSettled([
-    startDaemon({
-      socketPath: join(tmp.dir, 'daemon.sock'),
-      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-      build: 'atc/test-build',
-      adapter: buildMockAgentAdapter(),
-      dbPath: join(tmp.dir, 'state.db'),
-      statusPath: join(tmp.dir, 'status.json'),
-      listen: { host: '127.0.0.1', port: held.port, tokenFile: join(tmp.dir, 'gateway-token') },
-      log: (line) => {
-        logged.push(line);
-      },
-    }),
-  ]);
+  const started = startDaemon({
+    socketPath: ctx.socketPath,
+    reporterSocketPath: ctx.reporterSocketPath,
+    build: 'atc/test-build',
+    adapter: buildMockAgentAdapter(),
+    dbPath: ctx.dbPath,
+    statusPath: ctx.statusPath,
+    listen: { host: '127.0.0.1', port: held.port, tokenFile: ctx.tokenFile },
+    log: (line) => {
+      logged.push(line);
+    },
+  });
 
+  await Promise.allSettled([started]);
+
+  expect(started).rejects.toMatchObject({ code: 'listen_refused' });
   expect(logged).toStrictEqual([]);
 });
 
@@ -1409,7 +1433,7 @@ test.skipIf(!canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5
 );
 
 test('it refuses a listener whose port another socket holds', () => {
-  using tmp = setupTempDir('atc-daemon-tcp-');
+  using ctx = setupTest();
 
   const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
 
@@ -1417,17 +1441,17 @@ test('it refuses a listener whose port another socket holds', () => {
     held.stop(true);
   });
 
-  writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
   expect(
     startDaemon({
-      socketPath: join(tmp.dir, 'daemon.sock'),
-      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+      socketPath: ctx.socketPath,
+      reporterSocketPath: ctx.reporterSocketPath,
       build: 'atc/test-build',
       adapter: buildMockAgentAdapter(),
-      dbPath: join(tmp.dir, 'state.db'),
-      statusPath: join(tmp.dir, 'status.json'),
-      listen: { host: '127.0.0.1', port: held.port, tokenFile: join(tmp.dir, 'gateway-token') },
+      dbPath: ctx.dbPath,
+      statusPath: ctx.statusPath,
+      listen: { host: '127.0.0.1', port: held.port, tokenFile: ctx.tokenFile },
     }),
   ).rejects.toMatchObject({
     code: 'listen_refused',
@@ -1436,7 +1460,7 @@ test('it refuses a listener whose port another socket holds', () => {
 });
 
 test('it releases the daemon lock and leaves no socket or record behind when the listener cannot bind', async () => {
-  using tmp = setupTempDir('atc-daemon-tcp-');
+  using ctx = setupTest();
 
   const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
 
@@ -1444,21 +1468,21 @@ test('it releases the daemon lock and leaves no socket or record behind when the
     held.stop(true);
   });
 
-  writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
   await Promise.allSettled([
     startDaemon({
-      socketPath: join(tmp.dir, 'daemon.sock'),
-      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+      socketPath: ctx.socketPath,
+      reporterSocketPath: ctx.reporterSocketPath,
       build: 'atc/test-build',
       adapter: buildMockAgentAdapter(),
-      dbPath: join(tmp.dir, 'state.db'),
-      statusPath: join(tmp.dir, 'status.json'),
-      listen: { host: '127.0.0.1', port: held.port, tokenFile: join(tmp.dir, 'gateway-token') },
+      dbPath: ctx.dbPath,
+      statusPath: ctx.statusPath,
+      listen: { host: '127.0.0.1', port: held.port, tokenFile: ctx.tokenFile },
     }),
   ]);
 
-  const lock = await claimDaemonLock(join(tmp.dir, 'daemon.lock'), 0);
+  const lock = await claimDaemonLock(join(ctx.dir, 'daemon.lock'), 0);
 
   onTestFinished(() => {
     lock?.dispose();
@@ -1466,8 +1490,8 @@ test('it releases the daemon lock and leaves no socket or record behind when the
 
   expect<Record<string, unknown>>({
     lock,
-    socket: existsSync(join(tmp.dir, 'daemon.sock')),
-    record: existsSync(join(tmp.dir, 'daemon.json')),
+    socket: existsSync(ctx.socketPath),
+    record: existsSync(join(ctx.dir, 'daemon.json')),
   }).toStrictEqual({ lock: expect.anything(), socket: false, record: false });
 });
 
@@ -1788,7 +1812,7 @@ test('it answers the held handshakes once the delay passes after the cap refused
   ]);
 });
 
-test('it ends a delayed handshake once its socket closes and frees its place in the cap', async () => {
+test('it cancels the delay timer of a delayed handshake once its socket closes', async () => {
   const clock = buildStubClock(0);
 
   await using daemon = await startTestDaemon({
@@ -1832,7 +1856,56 @@ test('it ends a delayed handshake once its socket closes and frees its place in 
 
   await abandonedHellos;
 
-  // A closed socket cancels the timer of its delayed handshake.
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([]);
+  });
+});
+
+test('it delays a new handshake in the place in the cap that a closed delayed handshake freed', async () => {
+  const clock = buildStubClock(0);
+
+  await using daemon = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 1500,
+          maxDelayedHandshakes: 2,
+        },
+      };
+    },
+  });
+
+  const failing = await Promise.all(Array.from({ length: 5 }, () => daemon.openTCPClient()));
+
+  await Promise.allSettled(
+    failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
+
+  const abandoned = await Promise.all(Array.from({ length: 2 }, () => daemon.openTCPClient()));
+
+  const abandonedHellos = Promise.allSettled(
+    abandoned.map((client) => client.sendHello('atc/test-gateway', 'a'.repeat(32))),
+  );
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([1500, 1500]);
+  });
+
+  for (const client of abandoned) {
+    client.stop();
+  }
+
+  await abandonedHellos;
+
+  // The closed sockets have cancelled their timers and left the cap.
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([]);
   });
@@ -1947,9 +2020,13 @@ test('it answers a local ping as the delay of every held handshake ends at once'
 
   expect({
     pinged,
-    refused: settled.filter((result) => result.status === 'rejected').length,
+    statuses: settled.map((result) => result.status),
     pending: clock.collectPending(),
-  }).toStrictEqual({ pinged: {}, refused: 300, pending: [] });
+  }).toStrictEqual({
+    pinged: {},
+    statuses: Array.from({ length: 300 }, () => 'rejected'),
+    pending: [],
+  });
 });
 
 test('it pushes a TCP connection whose handshake gives a principal the removal of a session that leaves its reach', async () => {

@@ -2337,8 +2337,8 @@ test('it reads the first of many large reports a principal may see while another
   // read on a promise that never resolves, so whatever the daemon sends it
   // backs up.
   const held = Promise.withResolvers<void>();
-  const slow = createConnection(daemon.socketPath);
   const reads: unknown[] = [];
+  const slow = createConnection(daemon.socketPath);
 
   onTestFinished(() => {
     slow.destroy();
@@ -3058,9 +3058,11 @@ test('it answers a second kill of a dead session with a dead sub-session out of 
 
   const refused = daemon.client.sendRequest('session.kill', { session: parent }, 'narrow');
 
-  expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
+  await Promise.allSettled([refused]);
 
   const listed = await daemon.client.sendRequest('session.list');
+
+  expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
 
   expect(listed).toMatchObject({
     sessions: [
@@ -3115,9 +3117,11 @@ test('it answers a second kill that would move a live sub-session out of reach a
 
   const refused = daemon.client.sendRequest('session.kill', { session: parent }, 'narrow');
 
-  expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
+  await Promise.allSettled([refused]);
 
   const listed = await daemon.client.sendRequest('session.list');
+
+  expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
 
   expect(listed).toMatchObject({
     sessions: [
@@ -3176,9 +3180,11 @@ test.each([
       'narrow',
     );
 
-    expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
+    await Promise.allSettled([refused]);
 
     const listed = await daemon.client.sendRequest('session.list');
+
+    expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
 
     expect(listed).toMatchObject({
       sessions: [{ id: parent, name: basename(daemon.dir), pinned: false }, {}],
@@ -3368,13 +3374,15 @@ test("it refuses the replay of a held spawn key after a restart once its stored 
     };
   });
 
-  const listed = await daemon.client.sendRequest('session.list', {});
-
   const replayed = daemon.client.sendRequest(
     'session.spawn',
     { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
     'narrow',
   );
+
+  await Promise.allSettled([replayed]);
+
+  const listed = await daemon.client.sendRequest('session.list', {});
 
   expect(listed).toStrictEqual({ sessions: [] });
 

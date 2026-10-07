@@ -86,6 +86,7 @@ import { requireGitTransports } from './require-git-transports';
 import { restoreFleet } from './restore-fleet';
 import type { RestoreSettled } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
+import type { SettleScheduler } from './run-eject-handoff';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 import { ScreenModel } from './screen-model';
 import { SessionRuntime } from './session-runtime';
@@ -157,6 +158,9 @@ export interface DaemonOptions {
   // How long an eject waits for the dying terminal to report SessionEnd
   // before starting the headless run anyway.
   readonly ejectSettleMs?: number;
+
+  // Starts the eject settle timer; defaults to a real `setTimeout`.
+  readonly scheduleEjectSettle?: SettleScheduler;
 
   // A fleet-wide restore revives one session at a time, waiting for each to
   // report it has booted before starting the next so the machine is not
@@ -1737,6 +1741,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         sessionID: id,
         prompt,
         settleMs: opts.ejectSettleMs ?? 4000,
+        scheduleSettle: opts.scheduleEjectSettle,
         runtime,
         startHeadlessTurn: (sid, p) =>
           startHeadlessTurn(mgr, findRuntime, sid, p, recordHeadlessTurnEvent),

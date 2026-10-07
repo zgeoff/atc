@@ -10,51 +10,15 @@ import { createStubBin } from '../test-utils/create-stub-bin';
 import { FixtureDirProvider } from '../test-utils/fixture-dir-provider';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
-import type { DaemonOptions } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';
 
-/**
- * The daemon's targets: a `local` target, a `box` target that takes a
- * workspace, and a `bare` target whose provider cannot transfer.
- */
-function setupTest() {
-  const targets: DaemonOptions['targets'] = [
-    {
-      id: 'local',
-      kind: 'local-pty',
-      options: {},
-      identity: 'test:local',
-      provider: new LocalPTYProvider(),
-    },
-    {
-      id: 'box',
-      kind: 'fixture-dir',
-      options: {},
-      identity: 'test:box',
-      provider: new FixtureDirProvider(),
-    },
-    {
-      id: 'bare',
-      kind: 'fixture-dir',
-      options: {},
-      identity: 'test:bare',
-      provider: new FixtureDirProvider({ lacking: ['transfer'] }),
-    },
-  ];
-
-  return { targets };
-}
-
 test('it lists the sources it offers in order in agents.list', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [
         buildDirsSource({
@@ -78,15 +42,12 @@ test('it lists the sources it offers in order in agents.list', async () => {
 });
 
 test('it lists the spawn history, then the roots, then zoxide, as directories on the daemon host', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [
         buildDirsSource({
@@ -123,15 +84,28 @@ test('it lists the spawn history, then the roots, then zoxide, as directories on
 });
 
 test('it lists the owner the directories spawned on every target', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
       principals: new Map([['alice', ['box']]]),
       sources: [
         buildDirsSource({
@@ -169,15 +143,28 @@ test('it lists the owner the directories spawned on every target', async () => {
 });
 
 test('it lists a principal only the directories spawned on targets it may use', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
       principals: new Map([['alice', ['box']]]),
       sources: [
         buildDirsSource({
@@ -215,15 +202,12 @@ test('it lists a principal only the directories spawned on targets it may use', 
 });
 
 test('it lists the configured GitHub owner through gh at the clone URL gh prefers', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: 'acme' })],
     }),
@@ -261,15 +245,12 @@ esac
 });
 
 test('it lists the scope a request holds over the configured owner, at https URLs by default', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: 'acme' })],
     }),
@@ -309,15 +290,12 @@ esac
 });
 
 test('it refuses a GitHub scope gh could read as an option, running no gh', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null })],
     }),
@@ -334,7 +312,7 @@ test('it refuses a GitHub scope gh could read as an option, running no gh', asyn
     scope: '--hostname=evil',
   });
 
-  await listed.catch(() => null);
+  await Promise.allSettled([listed]);
 
   const ran = await Bun.file(join(daemon.dir, 'gh-argv')).exists();
 
@@ -343,15 +321,12 @@ test('it refuses a GitHub scope gh could read as an option, running no gh', asyn
 });
 
 test('it refuses a GitHub listing on a host without gh as github_unavailable', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null })],
     }),
@@ -366,15 +341,30 @@ test('it refuses a GitHub listing on a host without gh as github_unavailable', a
 });
 
 test('it refuses a git source listing for a target that cannot take a workspace', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+
+        // The bare target's provider cannot transfer, so it takes no workspace.
+        {
+          id: 'bare',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:bare',
+          provider: new FixtureDirProvider({ lacking: ['transfer'] }),
+        },
+      ],
       principals: null,
       sources: [buildGitSource()],
     }),
@@ -386,15 +376,30 @@ test('it refuses a git source listing for a target that cannot take a workspace'
 });
 
 test('it lists directories for a target that cannot take a workspace', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+
+        // The bare target's provider cannot transfer, so it takes no workspace.
+        {
+          id: 'bare',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:bare',
+          provider: new FixtureDirProvider({ lacking: ['transfer'] }),
+        },
+      ],
       principals: null,
       sources: [
         buildDirsSource({
@@ -423,15 +428,28 @@ test('it lists directories for a target that cannot take a workspace', async () 
 });
 
 test('it refuses a principal a source listing for the default target it may not use', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
       principals: new Map([['alice', ['box']]]),
       sources: [
         buildDirsSource({
@@ -451,15 +469,12 @@ test('it refuses a principal a source listing for the default target it may not 
 });
 
 test('it refuses a source the daemon does not offer as unsupported', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [buildGitSource()],
     }),
@@ -481,15 +496,12 @@ test.each([
   ['dirs', '/srv/work', { kind: 'path', dir: '/srv/work' }],
   ['dirs', 'work', { kind: 'none' }],
 ] as const)('it reads %s input %p as %p', async (source, input, expected) => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [
         buildDirsSource({
@@ -511,15 +523,12 @@ test.each([
 });
 
 test('it reads a leading ~ in directory input as the daemon home', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [
         buildDirsSource({
@@ -540,8 +549,6 @@ test('it reads a leading ~ in directory input as the daemon home', async () => {
 });
 
 test('it probes a git source for the target a principal may use', async () => {
-  const ctx = setupTest();
-
   await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
 
   await using daemon = await startTestDaemon({
@@ -550,7 +557,22 @@ test('it probes a git source for the target a principal may use', async () => {
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
       principals: new Map([['alice', ['box']]]),
       sources: [buildGitSource()],
     }),
@@ -573,8 +595,6 @@ test('it probes a git source for the target a principal may use', async () => {
 });
 
 test('it refuses a principal a probe for a target it may not use', async () => {
-  const ctx = setupTest();
-
   await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
 
   await using daemon = await startTestDaemon({
@@ -583,7 +603,22 @@ test('it refuses a principal a probe for a target it may not use', async () => {
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: new FixtureDirProvider(),
+        },
+      ],
       principals: new Map([['alice', ['box']]]),
       sources: [buildGitSource()],
     }),
@@ -597,8 +632,6 @@ test('it refuses a principal a probe for a target it may not use', async () => {
 });
 
 test('it refuses a probe for a ref the upstream does not have as ref_not_found', async () => {
-  const ctx = setupTest();
-
   await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
 
   await using daemon = await startTestDaemon({
@@ -607,7 +640,6 @@ test('it refuses a probe for a ref the upstream does not have as ref_not_found',
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [buildGitSource()],
     }),
@@ -619,8 +651,6 @@ test('it refuses a probe for a ref the upstream does not have as ref_not_found',
 });
 
 test('it refuses a probe of an upstream git cannot read as clone_failed', async () => {
-  const ctx = setupTest();
-
   await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
 
   await using daemon = await startTestDaemon({
@@ -629,7 +659,6 @@ test('it refuses a probe of an upstream git cannot read as clone_failed', async 
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [buildGitSource()],
     }),
@@ -641,15 +670,12 @@ test('it refuses a probe of an upstream git cannot read as clone_failed', async 
 });
 
 test("it refuses a GitHub probe git cannot read with the repository's other URL form", async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null }), buildGitSource()],
     }),
@@ -673,15 +699,12 @@ test("it refuses a GitHub probe git cannot read with the repository's other URL 
 });
 
 test('it refuses a probe of the owner/repo shorthand, which only a spawn expands', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null }), buildGitSource()],
     }),
@@ -702,15 +725,12 @@ test('it refuses a probe of the owner/repo shorthand, which only a spawn expands
 });
 
 test('it refuses a GitHub probe with no alternates when the daemon offers no GitHub source', async () => {
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
       // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
-      targets: ctx.targets,
       principals: null,
       sources: [buildGitSource()],
     }),

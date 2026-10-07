@@ -6,32 +6,31 @@ import { parseConfig } from '../shared/config';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
-import { createStubBin } from '../test-utils/create-stub-bin';
+import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
+import type { RestoreSettled } from './restore-fleet';
 
 /**
  * A real daemon with a `local` target and an imp target `box` over a
  * fixture imp port, and two gateways whose binary is a fake Claude that
- * appends its arguments to `marker` on each start: `glm` takes its
- * credential through `auth`, and `zai` takes none.
+ * records each start in `marker`: `glm` takes its credential through
+ * `auth`, and `zai` takes none. `settles` records each fleet restore once
+ * its terminal adoption ends.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
   const port = stack.use(new FixtureImpPort());
+  const settles: RestoreSettled[] = [];
 
   const daemon = await startTestDaemon({
     prefix: 'atc-auth-gateway-',
     options: (paths) => {
-      const fakeClaude = createStubBin(
-        paths.dir,
-        'fake-claude',
-        `#!/bin/sh\necho "$@" >> "${join(paths.dir, 'started')}"\nexec sleep 30\n`,
-      );
+      const fakeClaude = createStubRecordingClaude(paths.dir);
 
       // The gateways and their auth profile are what every test spawns or
       // lists.
@@ -77,6 +76,9 @@ async function setupTest() {
           },
         ],
         defaultTarget: 'local',
+        onRestoreSettled: (settled) => {
+          settles.push(settled);
+        },
       };
     },
   });
@@ -87,7 +89,8 @@ async function setupTest() {
 
   return Object.assign(daemon, {
     port,
-    marker: join(daemon.dir, 'started'),
+    settles,
+    marker: join(daemon.dir, 'claude-starts.log'),
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   });
 }
@@ -101,11 +104,11 @@ test('it refuses a local spawn of a gateway with auth and starts no harness', as
     target: 'local',
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
-
-  await spawn.catch(() => null);
+  await Promise.allSettled([spawn]);
 
   const listed = await ctx.client.sendRequest('session.list');
+
+  expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
 
   expect({ listed, started: existsSync(ctx.marker) }).toStrictEqual({
     listed: { sessions: [] },
@@ -122,9 +125,9 @@ test('it refuses an imp spawn of a gateway with auth before touching impd', asyn
     target: 'box',
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
+  await Promise.allSettled([spawn]);
 
-  await spawn.catch(() => null);
+  expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
 
   expect({
     calls: ctx.port.calls,
@@ -167,11 +170,11 @@ test('it refuses a local spawn that resumes a session of a gateway with auth and
     resume: 'a1',
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
-
-  await spawn.catch(() => null);
+  await Promise.allSettled([spawn]);
 
   const listed = await ctx.client.sendRequest('session.list');
+
+  expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
 
   expect({ listed, started: existsSync(ctx.marker) }).toStrictEqual({
     listed: { sessions: [] },
@@ -212,10 +215,9 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
 
   const adopt = ctx.client.sendRequest('session.adopt', { session: 's1' });
 
+  await Promise.allSettled([adopt]);
+
   expect(adopt).rejects.toMatchObject({ code: 'auth_target_unsupported' });
-
-  await adopt.catch(() => null);
-
   expect(existsSync(ctx.marker)).toBeFalse();
 });
 
@@ -248,5 +250,12 @@ test('it restores a local session of a gateway with auth without starting its ha
   await ctx.restart();
   await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  expect(existsSync(ctx.marker)).toBeFalse();
+  await waitFor(() => {
+    expect(ctx.settles).toHaveLength(1);
+  });
+
+  expect({ settles: ctx.settles, started: existsSync(ctx.marker) }).toStrictEqual({
+    settles: [{ restored: 1, outcome: 'finished' }],
+    started: false,
+  });
 });

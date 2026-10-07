@@ -10,6 +10,7 @@ import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubFailingAgentAdapter } from '../test-utils/build-stub-failing-agent-adapter';
 import { buildStubSoftKillProvider } from '../test-utils/build-stub-soft-kill-provider';
+import { getOnlyEffectRef } from '../test-utils/get-only-effect-ref';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
@@ -108,6 +109,8 @@ test('it answers a spawn retried after an interrupted run with outcome_unknown a
 
   const seed = await StateStore.open(daemon.dbPath);
 
+  onTestFinished(() => seed.stop());
+
   await seed.claimIdempotencyKey({
     principal: 'local',
     operation: 'session.spawn',
@@ -145,6 +148,8 @@ test('it refuses a spawn retried after an interrupted run whose session reached 
   await daemon.stop();
 
   const seed = await StateStore.open(daemon.dbPath);
+
+  onTestFinished(() => seed.stop());
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -185,6 +190,8 @@ test('it completes an interrupted spawn whose session reached the fleet and repl
   await daemon.stop();
 
   const seed = await StateStore.open(daemon.dbPath);
+
+  onTestFinished(() => seed.stop());
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -401,7 +408,7 @@ test('it answers outcome_unknown with its claim when killing a failed spawn thro
 
   using db = new Database(daemon.dbPath, { readonly: true });
 
-  const claim = readEffectRef(db);
+  const claim = getOnlyEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
@@ -428,7 +435,7 @@ test('it keeps the key as outcome_unknown when killing a failed spawn throws, so
 
   using db = new Database(daemon.dbPath, { readonly: true });
 
-  const claim = readEffectRef(db);
+  const claim = getOnlyEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
@@ -532,7 +539,7 @@ test('it answers outcome_unknown with the session id when the fleet write after 
 
   const list = await daemon.client.sendRequest('session.list');
 
-  const claim = readEffectRef(db);
+  const claim = getOnlyEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
@@ -560,7 +567,7 @@ test('it keeps the key as outcome_unknown when the fleet write after a successfu
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const ref = readEffectRef(db);
+  const ref = getOnlyEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
@@ -604,7 +611,7 @@ test('it answers outcome_unknown with the session id when completing the key fai
 
   const list = await daemon.client.sendRequest('session.list');
 
-  const claim = readEffectRef(db);
+  const claim = getOnlyEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
@@ -634,7 +641,7 @@ test('it keeps the key in progress when completing it fails, so a retry spawns n
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const ref = readEffectRef(db);
+  const ref = getOnlyEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
@@ -678,7 +685,7 @@ test('it answers outcome_unknown with the session id when the fleet write and th
 
   const list = await daemon.client.sendRequest('session.list');
 
-  const claim = readEffectRef(db);
+  const claim = getOnlyEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
@@ -708,7 +715,7 @@ test('it keeps the key in progress when the fleet write and the key update both 
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const ref = readEffectRef(db);
+  const ref = getOnlyEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
@@ -757,7 +764,7 @@ test('it answers outcome_unknown with its claim when a failed spawn cannot leave
 
   await Promise.allSettled([spawned]);
 
-  const claim = readEffectRef(db);
+  const claim = getOnlyEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
@@ -790,7 +797,7 @@ test('it keeps the key in progress when a failed spawn cannot leave the fleet an
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const ref = readEffectRef(db);
+  const ref = getOnlyEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
@@ -927,7 +934,7 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
 
   using db = new Database(daemon.dbPath, { readonly: true });
 
-  const claim = readEffectRef(db);
+  const claim = getOnlyEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
@@ -988,7 +995,7 @@ test('it keeps the key of a failed spawn whose provider cannot confirm the exit 
 
   using db = new Database(daemon.dbPath, { readonly: true });
 
-  const claim = readEffectRef(db);
+  const claim = getOnlyEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   expect(retried).rejects.toMatchObject({
@@ -1050,7 +1057,7 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
 
   using db = new Database(daemon.dbPath, { readonly: true });
 
-  const claim = readEffectRef(db);
+  const claim = getOnlyEffectRef(db);
 
   const adopted = daemon.client.sendRequest('session.adopt', {
     session: claim,
@@ -1377,6 +1384,8 @@ test('it completes an interrupted message whose row was written and replays it',
 
   const seed = await StateStore.open(daemon.dbPath);
 
+  onTestFinished(() => seed.stop());
+
   await seed.claimIdempotencyKey({
     principal: 'local',
     operation: 'session.message',
@@ -1414,6 +1423,8 @@ test('it answers a message retried after an interrupted send with outcome_unknow
   await daemon.stop();
 
   const seed = await StateStore.open(daemon.dbPath);
+
+  onTestFinished(() => seed.stop());
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -1545,15 +1556,3 @@ test('it refuses a replay-only spawn without an idempotency key as bad_args and 
   expect(refused).rejects.toMatchObject({ code: 'bad_args' });
   expect(list['sessions']).toStrictEqual([]);
 });
-
-// The effect ref of the one claim the daemon recorded, which every test that
-// reads it expects to exist.
-function readEffectRef(db: Database): string {
-  const row = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
-
-  if (row === null) {
-    throw new Error('the daemon recorded no idempotency claim');
-  }
-
-  return row.effect_ref;
-}

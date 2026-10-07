@@ -396,9 +396,7 @@ test('it lists a session as reattaching while its connection is lost and as atta
   const [request] = ctx.port.sessionRequests;
 
   await waitFor(() => {
-    if (ctx.port.getEnd(String(imp), String(request?.session)) === 0) {
-      throw new Error('the harness has written nothing yet');
-    }
+    expect(ctx.port.getEnd(String(imp), String(request?.session))).toBeGreaterThan(0);
   });
 
   ctx.port.stopConnection(String(imp), String(request?.session), 1011);
@@ -432,13 +430,12 @@ test('it lists a session whose imp another owner put to sleep as asleep', async 
   await ctx.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
-    if (
-      !ctx.events.some(
-        (event) => event.ev === 'SessionOutput' && String(event['d']).includes('UP:'),
-      )
-    ) {
-      throw new Error('the harness has not started');
-    }
+    expect(
+      ctx.events
+        .filter((event) => event.ev === 'SessionOutput')
+        .map((event) => String(event['d']))
+        .join(''),
+    ).toInclude('UP:');
   });
 
   ctx.port.suspendWithForce(String(imp));
@@ -494,14 +491,7 @@ test('it revives a session whose imp another owner put to sleep in the same proc
   await waitFor(async () => {
     const listed = await ctx.client.sendRequest('session.list');
 
-    const sessions = listed['sessions'];
-
-    if (
-      !Array.isArray(sessions) ||
-      getRecord({ session: sessions[0] }, 'session')['lastMsg'] !== 'asleep'
-    ) {
-      throw new Error('the session is not listed as asleep yet');
-    }
+    expect(listed).toMatchObject({ sessions: [{ id, lastMsg: 'asleep' }] });
   });
 
   await ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });

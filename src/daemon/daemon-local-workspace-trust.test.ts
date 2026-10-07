@@ -10,16 +10,16 @@ import { createStubBin } from '../test-utils/create-stub-bin';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
 import { LocalPTYProvider } from './local-pty-provider';
 
 /**
  * What a local clone launch needs before its daemon starts: a git fixture
- * whose upstream a spawn clones, a Claude config folder of its own, a stock
- * Claude adapter whose CLI is a script that appends its arguments to
- * `marker` and then sleeps, and a gateway adapter named `plain`. Each test
- * starts its own daemon with the adapters and the target options it needs.
+ * whose upstream a spawn clones, a user home of its own for the Claude
+ * config, a stock Claude adapter whose CLI is a script that appends its
+ * arguments to `marker` and then sleeps, and a gateway adapter named
+ * `plain`. Each test starts its own daemon with the adapters and the target
+ * options it needs.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
@@ -29,7 +29,7 @@ async function setupTest() {
   stack.use(git);
 
   const marker = join(git.dir, 'started');
-  const claudeConfigDir = join(git.dir, 'claude-home');
+  const homeDir = join(git.dir, 'home');
 
   const fakeClaude = createStubBin(
     join(git.dir, 'bin'),
@@ -37,9 +37,8 @@ async function setupTest() {
     `#!/bin/sh\nprintf '%s\\n' "$@" >> "${marker}"\nexec sleep 30\n`,
   );
 
-  // The adapter reads and writes the user's Claude config under this folder.
-  mkdirSync(claudeConfigDir);
-  updateEnv('CLAUDE_CONFIG_DIR', claudeConfigDir);
+  // The adapter reads and writes the user's Claude config under this home.
+  mkdirSync(homeDir);
 
   const config = parseConfig({
     claudeBin: fakeClaude,
@@ -51,10 +50,11 @@ async function setupTest() {
   return {
     dir: git.dir,
     upstream: git.upstream,
+    work: git.work,
     marker,
-    claudeConfig: join(claudeConfigDir, '.claude.json'),
+    claudeConfig: join(homeDir, '.claude.json'),
     adapters: [
-      new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, { homeDir }),
       new GatewayAdapter(getGatewayConfig(config, 'plain'), config),
     ],
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
@@ -130,7 +130,7 @@ test('it trusts only the resolved clone root in the user config after an opted-i
         [join(parent, 'clone')]: { hasTrustDialogAccepted: true },
       },
     },
-    readme: 'hello\n',
+    readme: readFileSync(join(ctx.work, 'README.md'), 'utf8'),
   });
 });
 

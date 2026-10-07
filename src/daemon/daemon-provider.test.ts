@@ -7,28 +7,19 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { LocalPTYProvider } from './local-pty-provider';
 
-// An agent that prints a marker, then echoes each line it reads, for a
-// daemon whose one target runs on the provider the test chooses.
-function setupTest() {
-  return {
-    adapter: buildMockAgentAdapter({
-      planSpawn: () => ({
-        bin: 'bash',
-        args: ['-c', 'echo FAKE_CLAUDE_UP; while read -r line; do echo "GOT:$line"; done'],
-      }),
-    }),
-  };
-}
-
 test('it streams the output of a session harness on the local pty provider', async () => {
   const provider = new LocalPTYProvider();
-
-  const ctx = setupTest();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      adapter: ctx.adapter,
+      // The agent prints a marker, then echoes each line it reads.
+      adapter: buildMockAgentAdapter({
+        planSpawn: () => ({
+          bin: 'bash',
+          args: ['-c', 'echo FAKE_CLAUDE_UP; while read -r line; do echo "GOT:$line"; done'],
+        }),
+      }),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
       ],
@@ -60,12 +51,16 @@ test('it streams the output of a session harness on the local pty provider', asy
 test('it types input into a session harness on the local pty provider', async () => {
   const provider = new LocalPTYProvider();
 
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      adapter: ctx.adapter,
+      // The agent prints a marker, then echoes each line it reads.
+      adapter: buildMockAgentAdapter({
+        planSpawn: () => ({
+          bin: 'bash',
+          args: ['-c', 'echo FAKE_CLAUDE_UP; while read -r line; do echo "GOT:$line"; done'],
+        }),
+      }),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
       ],
@@ -96,12 +91,10 @@ test('it types input into a session harness on the local pty provider', async ()
 test('it kills a session harness on the local pty provider', async () => {
   const provider = new LocalPTYProvider();
 
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      adapter: ctx.adapter,
+      adapter: buildMockAgentAdapter(),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
       ],
@@ -118,19 +111,20 @@ test('it kills a session harness on the local pty provider', async () => {
 
   await daemon.client.sendRequest('session.kill', { session: id });
 
-  expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toStrictEqual({
     sessions: [expect.objectContaining({ id, state: 'exited', alive: false })],
   });
 });
 
 test('it refuses a spawn with unsupported_operation when the provider cannot spawn', async () => {
   const provider = buildStubExecutionProvider({ kind: 'no-spawn', capabilities: { spawn: false } });
-  const ctx = setupTest();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      adapter: ctx.adapter,
+      adapter: buildMockAgentAdapter(),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
       ],
@@ -143,18 +137,21 @@ test('it refuses a spawn with unsupported_operation when the provider cannot spa
     rows: 24,
   });
 
+  await Promise.allSettled([spawned]);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
   expect(spawned).rejects.toMatchObject({ code: 'unsupported_operation' });
-  expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
+  expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses input with unsupported_operation when the provider takes no input', async () => {
   const provider = buildStubExecutionProvider({ kind: 'no-input', capabilities: { input: false } });
-  const ctx = setupTest();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      adapter: ctx.adapter,
+      adapter: buildMockAgentAdapter(),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
       ],
@@ -177,12 +174,11 @@ test('it refuses input with unsupported_operation when the provider takes no inp
 
 test('it refuses a kill with unsupported_operation when the provider cannot end a harness', async () => {
   const provider = buildStubExecutionProvider({ kind: 'no-kill', capabilities: { kill: false } });
-  const ctx = setupTest();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      adapter: ctx.adapter,
+      adapter: buildMockAgentAdapter(),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
       ],
@@ -198,11 +194,12 @@ test('it refuses a kill with unsupported_operation when the provider cannot end 
   const id = getRecord(spawned, 'session')['id'];
   const killed = daemon.client.sendRequest('session.kill', { session: id });
 
-  expect(killed).rejects.toMatchObject({ code: 'unsupported_operation' });
+  await Promise.allSettled([killed]);
 
-  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
-    sessions: [expect.objectContaining({ id, alive: true })],
-  });
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(killed).rejects.toMatchObject({ code: 'unsupported_operation' });
+  expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id, alive: true })] });
 });
 
 test('it refuses an attach with unsupported_operation when the provider streams no output', async () => {
@@ -211,12 +208,10 @@ test('it refuses an attach with unsupported_operation when the provider streams 
     capabilities: { attach: false },
   });
 
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      adapter: ctx.adapter,
+      adapter: buildMockAgentAdapter(),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
       ],
@@ -244,12 +239,10 @@ test('it takes a resize from an attached client on a provider that cannot resize
     capabilities: { resize: false },
   });
 
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      adapter: ctx.adapter,
+      adapter: buildMockAgentAdapter(),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
       ],
@@ -285,12 +278,10 @@ test('it puts the host of a killed session to sleep on a provider that can suspe
     capabilities: { suspend: true, destroy: true },
   });
 
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      adapter: ctx.adapter,
+      adapter: buildMockAgentAdapter(),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
       ],
@@ -307,9 +298,11 @@ test('it puts the host of a killed session to sleep on a provider that can suspe
 
   await daemon.client.sendRequest('session.kill', { session: id });
 
+  const listed = await daemon.client.sendRequest('session.list');
+
   expect<readonly unknown[]>(provider.suspended).toStrictEqual([id]);
 
-  expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({
+  expect(listed).toStrictEqual({
     sessions: [
       expect.objectContaining({
         id,
@@ -328,12 +321,10 @@ test('it refuses a second kill with confirmation_required on a provider that can
     capabilities: { suspend: true, destroy: true },
   });
 
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      adapter: ctx.adapter,
+      adapter: buildMockAgentAdapter(),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
       ],
@@ -352,12 +343,16 @@ test('it refuses a second kill with confirmation_required on a provider that can
 
   const killedAgain = daemon.client.sendRequest('session.kill', { session: id });
 
+  await Promise.allSettled([killedAgain]);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
   expect(killedAgain).rejects.toMatchObject({
     code: 'confirmation_required',
     data: { session: id },
   });
 
-  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+  expect(listed).toStrictEqual({
     sessions: [expect.objectContaining({ id, lastMsg: 'asleep' })],
   });
 });
@@ -375,12 +370,10 @@ test('it keeps a session running when its host refuses to sleep', async () => {
     }),
   );
 
-  const ctx = setupTest();
-
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      adapter: ctx.adapter,
+      adapter: buildMockAgentAdapter(),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
       ],
@@ -396,12 +389,16 @@ test('it keeps a session running when its host refuses to sleep', async () => {
   const id = getRecord(spawned, 'session')['id'];
   const killed = daemon.client.sendRequest('session.kill', { session: id });
 
+  await Promise.allSettled([killed]);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
   expect(killed).rejects.toMatchObject({
     code: 'host_leased',
     data: { leases: [], otherCount: 1 },
   });
 
-  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+  expect(listed).toStrictEqual({
     sessions: [
       expect.objectContaining({
         id,

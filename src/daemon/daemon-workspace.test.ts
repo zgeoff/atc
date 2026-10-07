@@ -57,6 +57,9 @@ async function setupTest() {
 test('it materializes a path source at its pushed HEAD on the target and verifies it there', async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   const box = new FixtureDirProvider();
 
   await using daemon = await startTestDaemon({
@@ -100,7 +103,7 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
   });
 
   expect(head.trim()).toBe(ctx.sha);
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
   expect(spawned).not.toContainKey('warnings');
 
   // The verify unsets every variable that could point git at another
@@ -504,6 +507,9 @@ test('it refuses a path source with uncommitted changes as workspace_dirty when 
 test('it materializes the committed HEAD of a dirty path source and leaves its changes behind', async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
@@ -559,7 +565,7 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
     `cloned commit ${ctx.sha.slice(0, 12)}; left 2 uncommitted or untracked paths behind in ${ctx.work}`,
   ]);
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
   expect(existsSync(join(dest, 'scratch.txt'))).toBeFalse();
   expect(after).toBe(before);
   expect(readFileSync(join(ctx.work, 'README.md'), 'utf8')).toBe('edited\n');
@@ -1024,6 +1030,8 @@ test('it starts a revived harness after a restart without the workspace credenti
       // workspace credential leaves it.
       const store = await StateStore.open(paths.dbPath);
 
+      onTestFinished(() => store.stop());
+
       await store.createMaterialization(
         {
           sessionID: toSessionID('s-ws'),
@@ -1375,6 +1383,9 @@ test('it removes the checkout it created and keeps the files beside it when its 
 test('it spawns a retry into the directory a harness that failed to start left', async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   // A provider whose first harness start throws, as a refused launch does.
   const box = buildStubExecutionProvider({
     kind: 'fixture-dir',
@@ -1416,7 +1427,7 @@ test('it spawns a retry into the directory a harness that failed to start left',
   });
 
   expect(getRecord(retried, 'session')['alive']).toBeTrue();
-  expect(readFileSync(join(ctx.dir, 'box', 'ws', 'README.md'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(ctx.dir, 'box', 'ws', 'README.md'), 'utf8')).toBe(committed);
 });
 
 test.each([
@@ -1821,6 +1832,9 @@ test('it materializes a git source on the local target like on any other', async
 test('it materializes a git source without a cwd under the home on the local target and answers with its directory', async () => {
   await using ctx = await setupTest();
 
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
   const home = join(ctx.dir, 'home');
 
   await using daemon = await startTestDaemon({
@@ -1867,11 +1881,14 @@ test('it materializes a git source without a cwd under the home on the local tar
     },
   });
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
 });
 
 test('it lands concurrent spawns of one repository without a cwd beside a directory that exists and leaves that directory as it was', async () => {
   await using ctx = await setupTest();
+
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const home = join(ctx.dir, 'home');
   const base = join(home, '.local/share/atc/workspaces', 'upstream-main');
@@ -1919,12 +1936,15 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
   ]);
 
   expect(readdirSync(base)).toStrictEqual(['mine.txt']);
-  expect(readFileSync(join(`${base}-2`, 'README.md'), 'utf8')).toBe('hello\n');
-  expect(readFileSync(join(`${base}-3`, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(`${base}-2`, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(`${base}-3`, 'README.md'), 'utf8')).toBe(committed);
 });
 
 test('it lands a git source without a cwd under the root the config sets for its target', async () => {
   await using ctx = await setupTest();
+
+  // The README as the fixture committed it.
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const root = join(ctx.dir, 'roots', 'box');
 
@@ -1962,7 +1982,7 @@ test('it lands a git source without a cwd under the root the config sets for its
   });
 
   expect(spawned).toMatchObject({ session: { cwd: join(root, 'upstream-main') } });
-  expect(readFileSync(join(root, 'upstream-main', 'README.md'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(root, 'upstream-main', 'README.md'), 'utf8')).toBe(committed);
 });
 
 test('it refuses a git source without a cwd whose root it cannot write after one attempt, with the cause', async () => {

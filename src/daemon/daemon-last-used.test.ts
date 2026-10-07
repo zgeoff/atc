@@ -45,8 +45,9 @@ test('it keeps the last-used agent when a restored session reports its start', a
   });
 
   const probe = await daemon.openClient();
+  const hello = await probe.sendHello(daemon.build);
 
-  expect(probe.sendHello(daemon.build)).resolves.toMatchObject({ lastUsedAgent: 'claude' });
+  expect(hello).toMatchObject({ lastUsedAgent: 'claude' });
 });
 
 test('it writes the last-used agent when a spawned session reports its start', async () => {
