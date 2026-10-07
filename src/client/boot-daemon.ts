@@ -1,7 +1,4 @@
-import { spawn as spawnChild } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
@@ -9,9 +6,11 @@ import { PROTOCOL_V } from '../protocol/protocol';
 import type { AgentID } from '../shared/agent-id';
 import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '../shared/config';
 import { findDaemonRecord } from '../shared/find-daemon-record';
+import { findPidFilePID } from '../shared/find-pid-file-pid';
 import { getBuild } from '../shared/get-build';
-import { isCompiledBinary } from '../shared/is-compiled-binary';
+import { isProcessAlive } from '../shared/is-process-alive';
 import { makeSingleFlight } from '../shared/make-single-flight';
+import { spawnATCDetached } from '../shared/spawn-atc-detached';
 import { toAgentID } from '../shared/to-agent-id';
 import { DaemonClient } from './daemon-client';
 import { formatProtocolMismatch } from './format-protocol-mismatch';
@@ -275,23 +274,13 @@ function formatWaitFailure(timeoutMs: number): string {
   );
 }
 
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 // The pid of the daemon behind the socket that refused the handshake.
 function findDaemonPID(socketPath: string): number | null {
   return pickStaleDaemonPID({
     socketPath,
     record: findDaemonRecord(daemonRecordFile),
     pidFileSocketPath: daemonSocketPath,
-    pidFilePID: findPidFilePID(),
+    pidFilePID: findPidFilePID(daemonPidFile),
   });
 }
 
@@ -315,22 +304,6 @@ async function stopDaemon(pid: number): Promise<void> {
   }
 }
 
-// The pid file beside the sockets this environment computes.
-function findPidFilePID(): number | null {
-  try {
-    const pid = Number(readFileSync(daemonPidFile, 'utf8'));
-
-    return Number.isInteger(pid) && pid > 1 ? pid : null;
-  } catch {
-    return null;
-  }
-}
-
 function spawnDaemonDetached(): ChildProcess {
-  const args = isCompiledBinary() ? ['daemon'] : [join(import.meta.dir, '..', 'cli.ts'), 'daemon'];
-  const child = spawnChild(process.execPath, args, { detached: true, stdio: 'ignore' });
-
-  child.unref();
-
-  return child;
+  return spawnATCDetached(['daemon']);
 }

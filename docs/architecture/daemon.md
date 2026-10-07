@@ -44,6 +44,96 @@ subscriptions and the fleet runs on. Each client has its own focused session, an
 to every attached client. Per-client focus is a subscription (`session.attach`/`detach`) — an
 unfocused session costs a client zero bytes.
 
+## Restarting the daemon
+
+`atc daemon restart` stops the running daemon, starts one in its place, restores the stored fleet on
+it, and reports what came back. It exits 0 when every stored row came back on the expected build and
+1 otherwise. `--dry-run` prints the preflight and stops, `--timeout <seconds>` caps the wait for the
+restored fleet, and `--listen` and `--token-file` override the listener flags the replacement
+inherits.
+
+### The handoff
+
+A restart can end the process that asked for it: `atc daemon restart` run inside a hosted session
+dies with the daemon it stops. The command therefore hands the work to a worker, a detached process
+in a session of its own that outlives the daemon. The worker writes a run log at
+`restarts/<run id>.log` in the state directory, and the command prints `progress: <log path>`,
+follows the log line by line, and exits with the code in the log's final result record. When the
+worker ends without a result record, the command exits 1 and names the log. Each run removes logs
+older than 7 days.
+
+The worker starts through the same exec logic the daemon boot uses, and it drops `ATC_SESSION_ID`
+and `ATC_SOCKET` from every environment it passes on, so a replacement daemon never mistakes itself
+for a hosted session. The command passes its own session id to the worker, which marks that session
+in the report.
+
+### The preflight
+
+The worker prints the preflight before it stops anything. The preflight reads `daemon.json` and
+probes the computed socket and the recorded one, then prints the daemon's pid, build, and protocol,
+and the sessions in state `running`, which are mid-turn, by name and id. The session that ran the
+command carries `(this session)`. When the daemon refuses the handshake on another protocol version,
+the preflight prints the refusal and the daemon's build and version parsed from it, and says the
+session states cannot be read. When no daemon answers and no live pid is recorded, the restart only
+starts a daemon and restores the fleet.
+
+Stopping the daemon ends every agent process it hosts. A session that is mid-turn loses that turn;
+the restore resumes each session from its transcript, and the interrupted turn does not continue.
+
+### The unit path
+
+The restart goes through a systemd user unit only when two facts hold. The daemon's
+`/proc/<pid>/cgroup` places it in a `<name>.service` below `user@<uid>.service`, and
+`systemctl --user show -p MainPID --value <name>.service` returns exactly the daemon's pid. The
+cgroup alone proves nothing: every process started from a session inside the unit, such as a daemon
+a test starts, shares the unit's cgroup without being the process the unit runs.
+
+On the unit path, the worker runs `systemctl --user restart <unit>`. `systemctl restart` stops the
+unit's whole cgroup, which holds a hosted caller and its children, so the command starts the worker
+through `systemd-run --user --collect --unit atc-daemon-restart-<run id>` as a transient unit of its
+own. The transient unit takes `HOME`, `XDG_RUNTIME_DIR`, `PATH`, and every `ATC_` variable through
+`--setenv`, because it would otherwise inherit the user manager's environment and with it the real
+state directory. The unit decides the build, so the preflight prints the unit name and its
+`ExecStart` path, and the listener overrides are ignored.
+
+### The plain path
+
+Every other daemon takes the plain path. The worker sends the daemon SIGTERM and waits 10 s for it
+to exit, then sends SIGKILL and reports the kill. It then starts exactly one replacement, detached,
+with the `--listen` and `--token-file` values from the old daemon's `/proc/<pid>/cmdline` unless the
+restart flags override them, the environment from `/proc/<pid>/environ`, and the working directory
+from `/proc/<pid>/cwd`. Reading the environment from the old daemon keeps the daemon's own `TERM`
+instead of the caller's. Where `/proc` has no entry, as on macOS, the replacement takes the worker's
+environment without the session variables, and the worker says so.
+
+The worker waits up to 30 s for a daemon to answer whose pid differs from the old one and whose
+record matches it. On the plain path that daemon must report this build. A different build means
+another client won the start, and the restart fails.
+
+### Restoring and verifying the fleet
+
+On the new daemon the worker reads the stored rows with `fleet.list`, then calls `fleet.restore`,
+which joins an automatic restore already in flight. It then polls `session.list` until every stored
+row that is not exited is listed with a live terminal, or until the deadline passes. The deadline is
+`--timeout` when set, else the number of live rows times `ATC_RESTORE_BOOT_TIMEOUT_MS` (15 s by
+default) plus 30 s. An exited row counts as restored when it is listed. A stored row that is not
+listed failed to restore, and a listed row without a live terminal at the deadline failed to revive.
+
+### One restart at a time
+
+The worker takes an exclusive `flock` on `daemon-restart.lock` in the state directory. A worker that
+finds the lock held prints that it joins the restart in flight and waits up to 15 minutes for the
+lock. It then reports the result the finished restart wrote to `restarts/last.json` and exits with
+that result's code. A joined worker never stops or starts a daemon and never calls `fleet.restore`,
+so two restarts requested at once restore the fleet once.
+
+### The report
+
+The report holds the final pid and build, the listen port when `daemon.json` records one,
+`restored <n> of <m>`, each failed row by name, id, and reason, and the sessions the restart
+interrupted. The worker writes the same data as a JSON result record to `restarts/last.json` and as
+the final line of the run log.
+
 ## The listeners
 
 The daemon runs three socket listeners with different peers and different dialects, and they stay

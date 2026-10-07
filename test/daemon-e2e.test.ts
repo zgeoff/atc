@@ -19,9 +19,11 @@ import type { EventMsg } from '../src/protocol/protocol';
 import { findDaemonRecord } from '../src/shared/find-daemon-record';
 import { getRecord } from '../src/shared/get-record';
 import { isRecord } from '../src/shared/report';
+import { toAgentID } from '../src/shared/to-agent-id';
 import { toAgentSessionID } from '../src/shared/to-agent-session-id';
 import { toSessionID } from '../src/shared/to-session-id';
 import { StateStore } from '../src/store/state-store';
+import { setupFakeSystemd } from './setup-fake-systemd';
 import { updateEnv } from './update-env';
 import { waitFor } from './wait-for';
 
@@ -3964,3 +3966,489 @@ async function runDaemonID(
 
   return { exitCode: await proc.exited, stderr };
 }
+
+// The fake Claude of the restart tests: it reports its own atc session id as
+// its agent session id, so every session restores under its own row, and it
+// runs `atc daemon restart` from inside the session when a trigger file
+// asks for it.
+function writeRestartFakeClaude(home: string): void {
+  writeFileSync(
+    join(home, 'fake-claude'),
+    `#!/usr/bin/env bash
+sleep 0.1
+printf '{"hook_event_name":"SessionStart","session_id":"'"$ATC_SESSION_ID"'","transcript_path":"/nonexistent"}' | ${hookReportCommand}
+if [ -f "$HOME/restart-trigger" ]; then
+  rm "$HOME/restart-trigger"
+  ${atcLine} daemon restart > "$HOME/restart.out" 2>&1
+fi
+sleep 30
+`,
+    { mode: 0o755 },
+  );
+}
+
+function readDaemonPID(home: string): number {
+  const record = findDaemonRecord(join(home, '.local', 'state', 'atc', 'daemon.json'));
+
+  if (record === null) {
+    throw new Error('no daemon record');
+  }
+
+  return record.pid;
+}
+
+// Stops whichever daemon the state directory records when the test ends: a
+// restart starts a daemon the test never spawned. Hooks run in the order
+// they register, so call this before the hook that removes the home registers, and give the returned function the home once it exists.
+function registerRecordedDaemonKill(): (home: string) => void {
+  let watched: string | null = null;
+
+  onTestFinished(() => {
+    try {
+      if (watched !== null) {
+        process.kill(readDaemonPID(watched), 'SIGKILL');
+      }
+    } catch {}
+  });
+
+  return (home) => {
+    watched = home;
+  };
+}
+
+function spawnRestart(
+  home: string,
+  extraEnv: Readonly<Record<string, string>>,
+  args: readonly string[] = [],
+) {
+  return Bun.spawn([...atcCommand, 'daemon', 'restart', ...args], {
+    env: collectEnv({ HOME: home, XDG_RUNTIME_DIR: home, ...extraEnv }),
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+}
+
+interface SeedRow {
+  readonly id: string;
+  readonly name: string;
+  readonly cwd: string;
+  readonly agent?: string;
+}
+
+async function writeFleetRows(home: string, rows: readonly SeedRow[]): Promise<void> {
+  const seed = await StateStore.open(join(home, '.local', 'state', 'atc', 'atc.db'));
+
+  await seed.writeFleet(
+    rows.map((row) => ({
+      sessionID: toSessionID(row.id),
+      agentSessionID: toAgentSessionID(`agent-${row.id}`),
+      name: row.name,
+      cwd: row.cwd,
+      agent: toAgentID(row.agent ?? 'claude'),
+    })),
+  );
+
+  await seed.stop();
+}
+
+function waitForAliveSessions(
+  client: Pick<DaemonClient, 'sendRequest'>,
+  count: number,
+): Promise<string[]> {
+  return waitFor(
+    async () => {
+      const listed = await client.sendRequest('session.list');
+
+      const sessions = getRecords(listed, 'sessions');
+
+      expect(sessions).toHaveLength(count);
+      expect(sessions.every((session) => session['alive'] === true)).toBeTrue();
+
+      return sessions.map((session) => getString(session, 'id'));
+    },
+    { timeoutMs: 20_000 },
+  );
+}
+
+test('it restarts the daemon in place and restores a saved fleet of two live sessions', async () => {
+  using fake = setupFakeSystemd(atcCommand);
+
+  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
+  const watchDaemon = registerRecordedDaemonKill();
+  const ctx = setupDaemonProc(undefined, { PATH: path });
+
+  writeRestartFakeClaude(ctx.home);
+  watchDaemon(ctx.home);
+
+  const client = await ctx.openClient();
+  const hello = await client.sendHello('atc/test');
+
+  const oldBuild = getString(hello, 'daemon');
+  const oldPID = readDaemonPID(ctx.home);
+
+  await writeFleetRows(ctx.home, [
+    { id: 's-one', name: 'one', cwd: ctx.home },
+    { id: 's-two', name: 'two', cwd: ctx.home },
+  ]);
+
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  await waitForAliveSessions(client, 2);
+
+  const restart = spawnRestart(ctx.home, { PATH: path });
+
+  const output = await new Response(restart.stdout).text();
+
+  const code = await restart.exited;
+  const replacement = await ctx.openClient();
+
+  await replacement.sendHello('atc/test');
+
+  const ids = await waitForAliveSessions(replacement, 2);
+
+  expect(code).toBe(0);
+  expect(readDaemonPID(ctx.home)).not.toBe(oldPID);
+  expect(() => process.kill(oldPID, 0)).toThrow();
+  expect(ids).toIncludeSameMembers(['s-one', 's-two']);
+  expect(output).toInclude(`daemon: pid ${oldPID}, build ${oldBuild}`);
+  expect(output).toInclude(`replacement: build ${oldBuild}`);
+  expect(output).toInclude('the interrupted turn does not continue');
+  expect(output).toInclude('restored 2 of 2');
+  expect(fake.readSystemctlCalls().filter((call) => call.includes('restart'))).toStrictEqual([]);
+}, 60_000);
+
+test('it exits 1 and names a row whose agent is gone while the good row comes back alive', async () => {
+  using fake = setupFakeSystemd(atcCommand);
+
+  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
+  const watchDaemon = registerRecordedDaemonKill();
+  const ctx = setupDaemonProc(undefined, { PATH: path });
+
+  writeRestartFakeClaude(ctx.home);
+  watchDaemon(ctx.home);
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  await writeFleetRows(ctx.home, [
+    { id: 's-good', name: 'good', cwd: ctx.home },
+    { id: 's-dropped', name: 'dropped', cwd: ctx.home, agent: 'dropped-backend' },
+  ]);
+
+  const restart = spawnRestart(ctx.home, { PATH: path }, ['--timeout', '3']);
+
+  const output = await new Response(restart.stdout).text();
+
+  const code = await restart.exited;
+  const replacement = await ctx.openClient();
+
+  await replacement.sendHello('atc/test');
+
+  const listed = await replacement.sendRequest('session.list');
+
+  const sessions = getRecords(listed, 'sessions');
+
+  expect(code).toBe(1);
+
+  expect(sessions.filter((session) => session['kind'] === 'pty').map((s) => s['id'])).toStrictEqual(
+    ['s-good'],
+  );
+
+  expect(output).toInclude(
+    'failed: dropped (s-dropped): listed in state running without a terminal: no adapter for',
+  );
+
+  expect(output).toInclude('restored 1 of 2');
+}, 60_000);
+
+test('it leaves the daemon running when the token file for the replacement cannot be read', async () => {
+  using fake = setupFakeSystemd(atcCommand);
+
+  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
+  const watchDaemon = registerRecordedDaemonKill();
+  const ctx = setupDaemonProc(undefined, { PATH: path });
+
+  watchDaemon(ctx.home);
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = readDaemonPID(ctx.home);
+
+  const restart = spawnRestart(ctx.home, { PATH: path }, [
+    '--listen',
+    '127.0.0.1:0',
+    '--token-file',
+    join(ctx.home, 'missing-tokens'),
+  ]);
+
+  const output = await new Response(restart.stdout).text();
+
+  const code = await restart.exited;
+
+  expect(code).toBe(1);
+  expect(output).toInclude('the daemon was left running');
+  expect(readDaemonPID(ctx.home)).toBe(oldPID);
+  expect(() => process.kill(oldPID, 0)).not.toThrow();
+}, 60_000);
+
+test('it joins a restart already in flight and reports its result without a second restore', async () => {
+  using fake = setupFakeSystemd(atcCommand);
+
+  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
+  const watchDaemon = registerRecordedDaemonKill();
+  const ctx = setupDaemonProc(undefined, { PATH: path });
+
+  writeRestartFakeClaude(ctx.home);
+  watchDaemon(ctx.home);
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  await writeFleetRows(ctx.home, [
+    { id: 's-one', name: 'one', cwd: ctx.home },
+    { id: 's-two', name: 'two', cwd: ctx.home },
+  ]);
+
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  await waitForAliveSessions(client, 2);
+
+  const first = spawnRestart(ctx.home, { PATH: path });
+  const second = spawnRestart(ctx.home, { PATH: path });
+
+  const [firstOutput, secondOutput] = await Promise.all([
+    new Response(first.stdout).text(),
+    new Response(second.stdout).text(),
+  ]);
+
+  const codes = await Promise.all([first.exited, second.exited]);
+
+  const finalPID = readDaemonPID(ctx.home);
+
+  const replacement = await ctx.openClient();
+
+  await replacement.sendHello('atc/test');
+
+  const ids = await waitForAliveSessions(replacement, 2);
+
+  const reported = [firstOutput, secondOutput].map(
+    (output) => /^daemon pid (?<pid>\d+), build/m.exec(output)?.groups?.['pid'],
+  );
+
+  expect(codes).toStrictEqual([0, 0]);
+  expect(reported).toStrictEqual([String(finalPID), String(finalPID)]);
+  expect(new Set(ids).size).toBe(2);
+
+  expect([firstOutput, secondOutput].filter((output) => output.includes('joins it'))).toHaveLength(
+    1,
+  );
+}, 90_000);
+
+test('it completes a restart run from inside a hosted session after the session dies with the old daemon', async () => {
+  using fake = setupFakeSystemd(atcCommand);
+
+  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
+  const watchDaemon = registerRecordedDaemonKill();
+  const ctx = setupDaemonProc(undefined, { PATH: path });
+
+  writeRestartFakeClaude(ctx.home);
+  watchDaemon(ctx.home);
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = readDaemonPID(ctx.home);
+
+  await writeFleetRows(ctx.home, [{ id: 's-host', name: 'host', cwd: ctx.home }]);
+
+  writeFileSync(join(ctx.home, 'restart-trigger'), '');
+
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const lastPath = join(ctx.home, '.local', 'state', 'atc', 'restarts', 'last.json');
+
+  const last = await waitFor(
+    () => {
+      const record: unknown = JSON.parse(readFileSync(lastPath, 'utf8'));
+
+      if (!isRecord(record)) {
+        throw new TypeError('last.json holds no record');
+      }
+
+      return record;
+    },
+    { timeoutMs: 40_000, intervalMs: 100 },
+  );
+
+  const replacement = await ctx.openClient();
+
+  await replacement.sendHello('atc/test');
+
+  const ids = await waitForAliveSessions(replacement, 1);
+
+  expect(last['code']).toBe(0);
+  expect(readDaemonPID(ctx.home)).not.toBe(oldPID);
+  expect(ids).toStrictEqual(['s-host']);
+  expect(existsSync(join(ctx.home, 'restart-trigger'))).toBeFalse();
+}, 90_000);
+
+test('it restarts through the unit when the daemon is the unit main process, handing off through systemd-run', async () => {
+  using fake = setupFakeSystemd(atcCommand);
+
+  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
+  const watchDaemon = registerRecordedDaemonKill();
+  const ctx = setupDaemonProc(undefined, { PATH: path });
+
+  writeRestartFakeClaude(ctx.home);
+  watchDaemon(ctx.home);
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = readDaemonPID(ctx.home);
+
+  fake.writeMainPID(oldPID);
+  fake.placeInUnit(oldPID, 'atc-daemon.service');
+
+  await writeFleetRows(ctx.home, [
+    { id: 's-one', name: 'one', cwd: ctx.home },
+    { id: 's-two', name: 'two', cwd: ctx.home },
+  ]);
+
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  await waitForAliveSessions(client, 2);
+
+  const restart = spawnRestart(ctx.home, { PATH: path, ATC_PROC_ROOT: fake.procRoot });
+
+  const output = await new Response(restart.stdout).text();
+
+  const code = await restart.exited;
+  const replacement = await ctx.openClient();
+
+  await replacement.sendHello('atc/test');
+
+  const ids = await waitForAliveSessions(replacement, 2);
+
+  expect(code).toBe(0);
+  expect(readDaemonPID(ctx.home)).not.toBe(oldPID);
+  expect(ids).toIncludeSameMembers(['s-one', 's-two']);
+  expect(output).toInclude('replacement: systemd unit atc-daemon.service');
+
+  expect(fake.readSystemctlCalls().filter((call) => call.includes('restart'))).toStrictEqual([
+    '--user restart atc-daemon.service',
+  ]);
+
+  const runs = fake.readSystemdRunCalls();
+
+  expect(runs).toHaveLength(1);
+  expect(runs[0]).toInclude(`--setenv=HOME=${ctx.home}`);
+  expect(runs[0]).toInclude('--unit atc-daemon-restart-');
+}, 90_000);
+
+test('it replaces a daemon on another protocol version and prints its refusal', async () => {
+  using fake = setupFakeSystemd(atcCommand);
+
+  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
+  const watchDaemon = registerRecordedDaemonKill();
+  const ctx = setupDaemonProc(undefined, { PATH: path });
+
+  watchDaemon(ctx.home);
+
+  const stateDir = join(ctx.home, '.local', 'state', 'atc');
+
+  const first = await ctx.openClient();
+
+  await first.sendHello('atc/test');
+
+  ctx.proc.kill();
+
+  await ctx.proc.exited;
+
+  rmSync(ctx.daemonSock, { force: true });
+
+  const legacy = Bun.spawn(
+    [process.execPath, join(repo, 'test', 'run-legacy-daemon.ts'), ctx.daemonSock, stateDir],
+    {
+      env: collectEnv({ HOME: ctx.home, XDG_RUNTIME_DIR: ctx.home, PATH: path }),
+      stdout: 'ignore',
+      stderr: 'inherit',
+    },
+  );
+
+  onTestFinished(() => {
+    legacy.kill();
+  });
+
+  await waitFor(() => {
+    expect(readDaemonPID(ctx.home)).toBe(legacy.pid);
+  });
+
+  const restart = spawnRestart(ctx.home, { PATH: path });
+
+  const output = await new Response(restart.stdout).text();
+
+  const code = await restart.exited;
+  const replacement = await ctx.openClient();
+  const hello = await replacement.sendHello('atc/test');
+
+  expect(code).toBe(0);
+  expect(readDaemonPID(ctx.home)).not.toBe(legacy.pid);
+  expect(getString(hello, 'daemon')).toStartWith('atc/');
+  expect(output).toInclude('refused this build');
+  expect(output).toInclude('daemon atc/legacy-build speaks v');
+  expect(output).toInclude('daemon build atc/legacy-build speaks protocol v');
+}, 60_000);
+
+test('it prints the preflight and stops the daemon nowhere on a dry run', async () => {
+  using fake = setupFakeSystemd(atcCommand);
+
+  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
+  const ctx = setupDaemonProc(undefined, { PATH: path });
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = readDaemonPID(ctx.home);
+  const restart = spawnRestart(ctx.home, { PATH: path }, ['--dry-run']);
+
+  const output = await new Response(restart.stdout).text();
+
+  const code = await restart.exited;
+
+  expect(code).toBe(0);
+  expect(output).toInclude(`daemon: pid ${oldPID}`);
+  expect(output).toInclude('the interrupted turn does not continue');
+  expect(readDaemonPID(ctx.home)).toBe(oldPID);
+  expect(ctx.proc.exitCode).toBeNull();
+});
+
+test('it refuses a --listen without a token file before it stops the daemon', async () => {
+  using fake = setupFakeSystemd(atcCommand);
+
+  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
+  const ctx = setupDaemonProc(undefined, { PATH: path });
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = readDaemonPID(ctx.home);
+  const restart = spawnRestart(ctx.home, { PATH: path }, ['--listen', '127.0.0.1:8499']);
+
+  const output = await new Response(restart.stdout).text();
+
+  const code = await restart.exited;
+
+  expect(code).toBe(1);
+  expect(output).toInclude('--listen and --token-file go together; the daemon was left running');
+  expect(readDaemonPID(ctx.home)).toBe(oldPID);
+  expect(ctx.proc.exitCode).toBeNull();
+});

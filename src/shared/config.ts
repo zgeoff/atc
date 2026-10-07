@@ -141,6 +141,11 @@ export const daemonPidFile = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'a
 // on, for a client whose environment computes other socket paths.
 export const daemonRecordFile = join(stateDir, 'daemon.json');
 
+// Where `atc daemon restart` keeps its run logs and the record of the last
+// finished restart, and the lock that admits one restart at a time.
+export const restartsDir = join(stateDir, 'restarts');
+export const restartLockFile = join(stateDir, 'daemon-restart.lock');
+
 // A user-written config.json's top-level keys. An absent or wrong-typed
 // field parses to undefined rather than failing the file, so a bad config
 // falls back to a default instead of refusing to start atc.

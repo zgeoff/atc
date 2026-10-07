@@ -6,7 +6,8 @@
     "test/**/*.test.ts",
     "src/**/*.test.ts",
     "test/run-source-daemon.ts",
-    "test/run-listener-daemon.ts"
+    "test/run-listener-daemon.ts",
+    "test/run-legacy-daemon.ts"
   ],
   "project": ["src/**/*.ts", "test/**/*.ts"],
   "ignore": ["mods/**"],
