@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { updateEnv } from '../test-utils/update-env';
+import { waitFor } from '../test-utils/wait-for';
 import { runGit } from './run-git';
 
 test('it drops git config that the host environment injects', async () => {
@@ -21,12 +22,23 @@ test('it reads no system attributes file in an isolated command', async () => {
 });
 
 test('it stops a command that runs past its time limit and reports it timed out', async () => {
-  const started = Date.now();
+  const groups: number[] = [];
 
-  const run = await runGit(['-c', 'alias.wait=!sleep 30', 'wait'], { timeoutMs: 200 });
+  const run = await runGit(['-c', 'alias.wait=!sleep 30', 'wait'], {
+    timeoutMs: 200,
+    onSpawn: (pid) => {
+      groups.push(pid);
+    },
+  });
 
   expect(run).toStrictEqual({ exitCode: -1, stdout: '', stderr: '', timedOut: true });
-  expect(Date.now() - started).toBeLessThan(5000);
+  expect(groups).toHaveLength(1);
+
+  // The timed git leads its own process group. A killed group is gone once
+  // the kernel reaps it, a moment after the signal.
+  await waitFor(() => {
+    expect(() => process.kill(-(groups[0] ?? 0), 0)).toThrow('ESRCH');
+  });
 });
 
 test('it reports the pid of the git it starts', async () => {

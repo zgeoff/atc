@@ -143,7 +143,15 @@ test('it loads a gateway with auth through the gateway checks', () => {
       },
     },
     new Map<string, AuthProfile>([
-      ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai', header: 'authorization' })],
+      [
+        'glm',
+        buildMockAuthProfile({
+          name: 'glm',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
     ]),
   );
 
@@ -179,7 +187,15 @@ test('it refuses a gateway whose apiKeyHelper is set beside auth', () => {
       },
     },
     new Map<string, AuthProfile>([
-      ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai', header: 'authorization' })],
+      [
+        'glm',
+        buildMockAuthProfile({
+          name: 'glm',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
     ]),
   );
 
@@ -201,6 +217,7 @@ test('it loads a stock claude entry with subscription auth as profiles alone', (
           name: 'claude',
           host: 'api.anthropic.com',
           header: 'authorization',
+          scheme: 'bearer',
         }),
       ],
     ]),
@@ -240,11 +257,17 @@ test("it loads a stock claude entry's MCP servers with the header of each server
           name: 'claude',
           host: 'api.anthropic.com',
           header: 'authorization',
+          scheme: 'bearer',
         }),
       ],
       [
         'linear',
-        buildMockAuthProfile({ name: 'linear', host: 'mcp.linear.app', header: 'authorization' }),
+        buildMockAuthProfile({
+          name: 'linear',
+          host: 'mcp.linear.app',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
       ],
     ]),
   );
@@ -291,11 +314,17 @@ test('it loads a stock claude entry without an MCP server that breaks a rule, an
           name: 'claude',
           host: 'api.anthropic.com',
           header: 'authorization',
+          scheme: 'bearer',
         }),
       ],
       [
         'linear',
-        buildMockAuthProfile({ name: 'linear', host: 'mcp.linear.app', header: 'authorization' }),
+        buildMockAuthProfile({
+          name: 'linear',
+          host: 'mcp.linear.app',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
       ],
     ]),
   );
@@ -336,6 +365,7 @@ test('it refuses a stock entry whose auth sets placeholderEnv', () => {
           name: 'claude',
           host: 'api.anthropic.com',
           header: 'authorization',
+          scheme: 'bearer',
         }),
       ],
     ]),
@@ -353,7 +383,15 @@ test('it refuses a stock entry whose auth names a profile that sends no bearer h
   const result = collectAgents(
     { claude: { auth: { profiles: ['glm'] } } },
     new Map<string, AuthProfile>([
-      ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai', header: 'authorization' })],
+      [
+        'glm',
+        buildMockAuthProfile({
+          name: 'glm',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
     ]),
   );
 
@@ -376,6 +414,7 @@ test('it loads a codex entry whose auth signs it in through an oauth profile for
           kind: 'oauth',
           host: 'chatgpt.com',
           header: 'authorization',
+          scheme: 'bearer',
         }),
       ],
       ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
@@ -399,45 +438,9 @@ test('it loads a codex entry whose auth signs it in through an oauth profile for
   });
 });
 
-test.each([
-  [
-    'no oauth profile for chatgpt.com',
-    { profiles: ['github'] },
-    'agents.codex: auth needs an oauth profile that sets a bearer authorization header for chatgpt.com, where Codex sends its ChatGPT sign-in',
-  ],
-  [
-    'a custom profile for chatgpt.com',
-    { profiles: ['codex-custom'] },
-    'agents.codex: auth needs an oauth profile that sets a bearer authorization header for chatgpt.com, where Codex sends its ChatGPT sign-in',
-  ],
-  [
-    'an oauth profile with another header',
-    { profiles: ['codex-raw'] },
-    'agents.codex: auth needs an oauth profile that sets a bearer authorization header for chatgpt.com, where Codex sends its ChatGPT sign-in',
-  ],
-  [
-    'two profiles for chatgpt.com',
-    { profiles: ['codex', 'codex-custom'] },
-    'agents.codex: auth: profiles codex and codex-custom both send a credential to chatgpt.com',
-  ],
-  [
-    'an unknown profile',
-    { profiles: ['missing'] },
-    'agents.codex: auth: profile missing is selected, but authProfiles has no usable profile by that name',
-  ],
-  [
-    'an empty profiles array',
-    { profiles: [] },
-    'agents.codex: auth must be an object with a non-empty profiles array',
-  ],
-  [
-    'placeholderEnv',
-    { profiles: ['codex'], placeholderEnv: {} },
-    'agents.codex: auth.placeholderEnv cannot be set: atc fixes the endpoint and the sign-in of a Codex session',
-  ],
-])('it refuses a codex entry whose auth has %s', (_name, auth, error) => {
+test('it refuses a codex entry whose auth has no oauth profile for chatgpt.com', () => {
   const result = collectAgents(
-    { codex: { auth } },
+    { codex: { auth: { profiles: ['github'] } } },
     new Map<string, AuthProfile>([
       [
         'codex',
@@ -446,6 +449,7 @@ test.each([
           kind: 'oauth',
           host: 'chatgpt.com',
           header: 'authorization',
+          scheme: 'bearer',
         }),
       ],
       [
@@ -454,6 +458,7 @@ test.each([
           name: 'codex-custom',
           host: 'chatgpt.com',
           header: 'authorization',
+          scheme: 'bearer',
         }),
       ],
       [
@@ -463,13 +468,287 @@ test.each([
           kind: 'oauth',
           host: 'chatgpt.com',
           header: 'x-token',
+          scheme: 'bearer',
         }),
       ],
       ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
     ]),
   );
 
-  expect(result).toStrictEqual({ agents: [], errors: [error] });
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.codex: auth needs an oauth profile that sets a bearer authorization header for chatgpt.com, where Codex sends its ChatGPT sign-in',
+    ],
+  });
+});
+
+test('it refuses a codex entry whose auth has a custom profile for chatgpt.com', () => {
+  const result = collectAgents(
+    { codex: { auth: { profiles: ['codex-custom'] } } },
+    new Map<string, AuthProfile>([
+      [
+        'codex',
+        buildMockAuthProfile({
+          name: 'codex',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-custom',
+        buildMockAuthProfile({
+          name: 'codex-custom',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-raw',
+        buildMockAuthProfile({
+          name: 'codex-raw',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'x-token',
+          scheme: 'bearer',
+        }),
+      ],
+      ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.codex: auth needs an oauth profile that sets a bearer authorization header for chatgpt.com, where Codex sends its ChatGPT sign-in',
+    ],
+  });
+});
+
+test('it refuses a codex entry whose auth has an oauth profile with another header', () => {
+  const result = collectAgents(
+    { codex: { auth: { profiles: ['codex-raw'] } } },
+    new Map<string, AuthProfile>([
+      [
+        'codex',
+        buildMockAuthProfile({
+          name: 'codex',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-custom',
+        buildMockAuthProfile({
+          name: 'codex-custom',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-raw',
+        buildMockAuthProfile({
+          name: 'codex-raw',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'x-token',
+          scheme: 'bearer',
+        }),
+      ],
+      ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.codex: auth needs an oauth profile that sets a bearer authorization header for chatgpt.com, where Codex sends its ChatGPT sign-in',
+    ],
+  });
+});
+
+test('it refuses a codex entry whose auth has two profiles for chatgpt.com', () => {
+  const result = collectAgents(
+    { codex: { auth: { profiles: ['codex', 'codex-custom'] } } },
+    new Map<string, AuthProfile>([
+      [
+        'codex',
+        buildMockAuthProfile({
+          name: 'codex',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-custom',
+        buildMockAuthProfile({
+          name: 'codex-custom',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-raw',
+        buildMockAuthProfile({
+          name: 'codex-raw',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'x-token',
+          scheme: 'bearer',
+        }),
+      ],
+      ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.codex: auth: profiles codex and codex-custom both send a credential to chatgpt.com',
+    ],
+  });
+});
+
+test('it refuses a codex entry whose auth has an unknown profile', () => {
+  const result = collectAgents(
+    { codex: { auth: { profiles: ['missing'] } } },
+    new Map<string, AuthProfile>([
+      [
+        'codex',
+        buildMockAuthProfile({
+          name: 'codex',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-custom',
+        buildMockAuthProfile({
+          name: 'codex-custom',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-raw',
+        buildMockAuthProfile({
+          name: 'codex-raw',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'x-token',
+          scheme: 'bearer',
+        }),
+      ],
+      ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.codex: auth: profile missing is selected, but authProfiles has no usable profile by that name',
+    ],
+  });
+});
+
+test('it refuses a codex entry whose auth has an empty profiles array', () => {
+  const result = collectAgents(
+    { codex: { auth: { profiles: [] } } },
+    new Map<string, AuthProfile>([
+      [
+        'codex',
+        buildMockAuthProfile({
+          name: 'codex',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-custom',
+        buildMockAuthProfile({
+          name: 'codex-custom',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-raw',
+        buildMockAuthProfile({
+          name: 'codex-raw',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'x-token',
+          scheme: 'bearer',
+        }),
+      ],
+      ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: ['agents.codex: auth must be an object with a non-empty profiles array'],
+  });
+});
+
+test('it refuses a codex entry whose auth has placeholderEnv', () => {
+  const result = collectAgents(
+    { codex: { auth: { profiles: ['codex'], placeholderEnv: {} } } },
+    new Map<string, AuthProfile>([
+      [
+        'codex',
+        buildMockAuthProfile({
+          name: 'codex',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-custom',
+        buildMockAuthProfile({
+          name: 'codex-custom',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'codex-raw',
+        buildMockAuthProfile({
+          name: 'codex-raw',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'x-token',
+          scheme: 'bearer',
+        }),
+      ],
+      ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.codex: auth.placeholderEnv cannot be set: atc fixes the endpoint and the sign-in of a Codex session',
+    ],
+  });
 });
 
 test('it refuses auth on a grok entry', () => {
@@ -483,6 +762,7 @@ test('it refuses auth on a grok entry', () => {
           kind: 'oauth',
           host: 'chatgpt.com',
           header: 'authorization',
+          scheme: 'bearer',
         }),
       ],
     ]),
@@ -501,44 +781,8 @@ test('it refuses apiKeyHelper on an entry without a baseURL', () => {
   });
 });
 
-test.each([
-  ['an unknown field', { claude: { colour: 'red' } }, 'agents.claude: unknown field colour'],
-  [
-    'a wrong-typed args',
-    { claude: { args: 'x' } },
-    'agents.claude: args must be an array of strings',
-  ],
-  ['an empty bin', { claude: { bin: '' } }, 'agents.claude: bin must be a non-empty string'],
-  [
-    'a non-string env value',
-    { claude: { env: { A: 1 } } },
-    'agents.claude: env must be an object of strings',
-  ],
-  [
-    'a baseURL on codex',
-    { codex: { baseURL: 'https://x.example.com' } },
-    'agents.codex: baseURL is not valid for kind codex',
-  ],
-  ['env on grok', { grok: { env: { A: 'b' } } }, 'agents.grok: env is not valid for kind grok'],
-  [
-    'a kind that contradicts its id',
-    { codex: { kind: 'claude' } },
-    'agents.codex: kind claude contradicts the id codex',
-  ],
-  [
-    'no kind on a custom id',
-    { fast: {} },
-    'agents.fast: kind is required for an id other than claude, codex, or grok',
-  ],
-  [
-    'an unknown kind',
-    { fast: { kind: 'vim' } },
-    'agents.fast: kind must be claude, codex, or grok',
-  ],
-  ['a non-object entry', { claude: 7 }, 'agents.claude: the entry must be an object'],
-  ['an empty id', { '': { kind: 'claude' } }, 'agents.: the id cannot be used'],
-])('it refuses an entry with %s and reports it alone', (_name, raw, error) => {
-  const result = collectAgents({ ...raw, 'claude-ok': { kind: 'claude' } });
+test('it refuses an entry with an unknown field and reports it alone', () => {
+  const result = collectAgents({ claude: { colour: 'red' }, 'claude-ok': { kind: 'claude' } });
 
   expect(result).toStrictEqual({
     agents: [
@@ -552,7 +796,200 @@ test.each([
         env: {},
       },
     ],
-    errors: [error],
+    errors: ['agents.claude: unknown field colour'],
+  });
+});
+
+test('it refuses an entry with a wrong-typed args and reports it alone', () => {
+  const result = collectAgents({ claude: { args: 'x' }, 'claude-ok': { kind: 'claude' } });
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude-ok',
+        kind: 'claude',
+        label: 'claude-ok',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    errors: ['agents.claude: args must be an array of strings'],
+  });
+});
+
+test('it refuses an entry with an empty bin and reports it alone', () => {
+  const result = collectAgents({ claude: { bin: '' }, 'claude-ok': { kind: 'claude' } });
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude-ok',
+        kind: 'claude',
+        label: 'claude-ok',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    errors: ['agents.claude: bin must be a non-empty string'],
+  });
+});
+
+test('it refuses an entry with a non-string env value and reports it alone', () => {
+  const result = collectAgents({ claude: { env: { A: 1 } }, 'claude-ok': { kind: 'claude' } });
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude-ok',
+        kind: 'claude',
+        label: 'claude-ok',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    errors: ['agents.claude: env must be an object of strings'],
+  });
+});
+
+test('it refuses an entry with a baseURL on codex and reports it alone', () => {
+  const result = collectAgents({
+    codex: { baseURL: 'https://x.example.com' },
+    'claude-ok': { kind: 'claude' },
+  });
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude-ok',
+        kind: 'claude',
+        label: 'claude-ok',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    errors: ['agents.codex: baseURL is not valid for kind codex'],
+  });
+});
+
+test('it refuses an entry with env on grok and reports it alone', () => {
+  const result = collectAgents({ grok: { env: { A: 'b' } }, 'claude-ok': { kind: 'claude' } });
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude-ok',
+        kind: 'claude',
+        label: 'claude-ok',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    errors: ['agents.grok: env is not valid for kind grok'],
+  });
+});
+
+test('it refuses an entry with a kind that contradicts its id and reports it alone', () => {
+  const result = collectAgents({ codex: { kind: 'claude' }, 'claude-ok': { kind: 'claude' } });
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude-ok',
+        kind: 'claude',
+        label: 'claude-ok',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    errors: ['agents.codex: kind claude contradicts the id codex'],
+  });
+});
+
+test('it refuses an entry with no kind on a custom id and reports it alone', () => {
+  const result = collectAgents({ fast: {}, 'claude-ok': { kind: 'claude' } });
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude-ok',
+        kind: 'claude',
+        label: 'claude-ok',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    errors: ['agents.fast: kind is required for an id other than claude, codex, or grok'],
+  });
+});
+
+test('it refuses an entry with an unknown kind and reports it alone', () => {
+  const result = collectAgents({ fast: { kind: 'vim' }, 'claude-ok': { kind: 'claude' } });
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude-ok',
+        kind: 'claude',
+        label: 'claude-ok',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    errors: ['agents.fast: kind must be claude, codex, or grok'],
+  });
+});
+
+test('it refuses an entry with a non-object entry and reports it alone', () => {
+  const result = collectAgents({ claude: 7, 'claude-ok': { kind: 'claude' } });
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude-ok',
+        kind: 'claude',
+        label: 'claude-ok',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    errors: ['agents.claude: the entry must be an object'],
+  });
+});
+
+test('it refuses an entry with an empty id and reports it alone', () => {
+  const result = collectAgents({ '': { kind: 'claude' }, 'claude-ok': { kind: 'claude' } });
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude-ok',
+        kind: 'claude',
+        label: 'claude-ok',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    errors: ['agents.: the id cannot be used'],
   });
 });
 
@@ -565,68 +1002,156 @@ test('it refuses the __proto__ id', () => {
   });
 });
 
-test.each([
-  ['an array', []],
-  ['a string', 'claude'],
-  ['null', null],
-])('it leaves an empty registry and one error when agents is %s', (_name, raw) => {
-  expect(collectAgents(raw)).toStrictEqual({
+test('it leaves an empty registry and one error when agents is an array', () => {
+  expect(collectAgents([])).toStrictEqual({
     agents: [],
     errors: ['agents must be an object of agent entries'],
   });
 });
 
-test.each([
-  [
-    'env.ANTHROPIC_BASE_URL',
-    { env: { ANTHROPIC_BASE_URL: 'https://x.example.com' } },
-    'env',
-    'ANTHROPIC_BASE_URL',
-  ],
-  ['env.HTTPS_PROXY', { env: { HTTPS_PROXY: 'http://p.example:3128' } }, 'env', 'HTTPS_PROXY'],
-  [
-    'env.CLAUDE_CODE_OAUTH_TOKEN',
-    { env: { CLAUDE_CODE_OAUTH_TOKEN: 'x' } },
-    'env',
-    'CLAUDE_CODE_OAUTH_TOKEN',
-  ],
-  [
-    'settings.env.CLAUDE_CODE_USE_BEDROCK',
-    { settings: { env: { CLAUDE_CODE_USE_BEDROCK: '1' } } },
-    'settings.env',
-    'CLAUDE_CODE_USE_BEDROCK',
-  ],
-  [
-    'settings.env.SSL_CERT_FILE',
-    { settings: { env: { SSL_CERT_FILE: '/x' } } },
-    'settings.env',
-    'SSL_CERT_FILE',
-  ],
-])(
-  'it refuses a stock entry with auth whose %s would route around the subscription sign-in',
-  (_name, fields, source, variable) => {
-    const result = collectAgents(
-      { claude: { auth: { profiles: ['claude'] }, ...fields } },
-      new Map<string, AuthProfile>([
-        [
-          'claude',
-          buildMockAuthProfile({
-            name: 'claude',
-            host: 'api.anthropic.com',
-            header: 'authorization',
-          }),
-        ],
-      ]),
-    );
+test('it leaves an empty registry and one error when agents is a string', () => {
+  expect(collectAgents('claude')).toStrictEqual({
+    agents: [],
+    errors: ['agents must be an object of agent entries'],
+  });
+});
 
-    expect(result).toStrictEqual({
-      agents: [],
-      errors: [
-        `agents.claude: ${source} must not set ${variable}, which would override or route around the subscription sign-in`,
+test('it leaves an empty registry and one error when agents is null', () => {
+  expect(collectAgents(null)).toStrictEqual({
+    agents: [],
+    errors: ['agents must be an object of agent entries'],
+  });
+});
+
+test('it refuses a stock entry with auth whose env.ANTHROPIC_BASE_URL would route around the subscription sign-in', () => {
+  const result = collectAgents(
+    {
+      claude: {
+        auth: { profiles: ['claude'] },
+        env: { ANTHROPIC_BASE_URL: 'https://x.example.com' },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
       ],
-    });
-  },
-);
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.claude: env must not set ANTHROPIC_BASE_URL, which would override or route around the subscription sign-in',
+    ],
+  });
+});
+
+test('it refuses a stock entry with auth whose env.HTTPS_PROXY would route around the subscription sign-in', () => {
+  const result = collectAgents(
+    { claude: { auth: { profiles: ['claude'] }, env: { HTTPS_PROXY: 'http://p.example:3128' } } },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.claude: env must not set HTTPS_PROXY, which would override or route around the subscription sign-in',
+    ],
+  });
+});
+
+test('it refuses a stock entry with auth whose env.CLAUDE_CODE_OAUTH_TOKEN would route around the subscription sign-in', () => {
+  const result = collectAgents(
+    { claude: { auth: { profiles: ['claude'] }, env: { CLAUDE_CODE_OAUTH_TOKEN: 'x' } } },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.claude: env must not set CLAUDE_CODE_OAUTH_TOKEN, which would override or route around the subscription sign-in',
+    ],
+  });
+});
+
+test('it refuses a stock entry with auth whose settings.env.CLAUDE_CODE_USE_BEDROCK would route around the subscription sign-in', () => {
+  const result = collectAgents(
+    {
+      claude: {
+        auth: { profiles: ['claude'] },
+        settings: { env: { CLAUDE_CODE_USE_BEDROCK: '1' } },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.claude: settings.env must not set CLAUDE_CODE_USE_BEDROCK, which would override or route around the subscription sign-in',
+    ],
+  });
+});
+
+test('it refuses a stock entry with auth whose settings.env.SSL_CERT_FILE would route around the subscription sign-in', () => {
+  const result = collectAgents(
+    { claude: { auth: { profiles: ['claude'] }, settings: { env: { SSL_CERT_FILE: '/x' } } } },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.claude: settings.env must not set SSL_CERT_FILE, which would override or route around the subscription sign-in',
+    ],
+  });
+});
 
 test('it refuses a stock entry with auth whose settings set apiKeyHelper', () => {
   const result = collectAgents(
@@ -638,6 +1163,7 @@ test('it refuses a stock entry with auth whose settings set apiKeyHelper', () =>
           name: 'claude',
           host: 'api.anthropic.com',
           header: 'authorization',
+          scheme: 'bearer',
         }),
       ],
     ]),
@@ -676,12 +1202,9 @@ test('it loads the same env and settings on a stock entry without auth', () => {
   });
 });
 
-test.each([
-  ['env', { env: { OP_CONNECT_TOKEN: 'x' } }],
-  ['settings.env', { settings: { env: { OP_CONNECT_TOKEN: 'x' } } }],
-])('it refuses a stock claude entry whose %s sets a variable its profile sets', (source, extra) => {
+test('it refuses a stock claude entry whose env sets a variable its profile sets', () => {
   const result = collectAgents(
-    { claude: { ...extra, auth: { profiles: ['claude', 'op'] } } },
+    { claude: { env: { OP_CONNECT_TOKEN: 'x' }, auth: { profiles: ['claude', 'op'] } } },
     new Map<string, AuthProfile>([
       [
         'claude',
@@ -689,6 +1212,7 @@ test.each([
           name: 'claude',
           host: 'api.anthropic.com',
           header: 'authorization',
+          scheme: 'bearer',
         }),
       ],
       [
@@ -697,6 +1221,7 @@ test.each([
           name: 'op',
           host: 'op-connect.example.com',
           header: 'authorization',
+          scheme: 'bearer',
           env: { OP_CONNECT_TOKEN: 'imp-broker-placeholder' },
         }),
       ],
@@ -705,31 +1230,74 @@ test.each([
 
   expect(result).toStrictEqual({
     agents: [],
-    errors: [`agents.claude: ${source} sets OP_CONNECT_TOKEN, which auth profile op sets`],
+    errors: ['agents.claude: env sets OP_CONNECT_TOKEN, which auth profile op sets'],
   });
 });
 
-test.each([
-  ['env', { env: { OP_CONNECT_TOKEN: 'x' } }],
-  ['settings.env', { settings: { env: { OP_CONNECT_TOKEN: 'x' } } }],
-])('it refuses a gateway whose %s sets a variable its profile sets', (source, extra) => {
+test('it refuses a stock claude entry whose settings.env sets a variable its profile sets', () => {
+  const result = collectAgents(
+    {
+      claude: {
+        settings: { env: { OP_CONNECT_TOKEN: 'x' } },
+        auth: { profiles: ['claude', 'op'] },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'op',
+        buildMockAuthProfile({
+          name: 'op',
+          host: 'op-connect.example.com',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: { OP_CONNECT_TOKEN: 'imp-broker-placeholder' },
+        }),
+      ],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: ['agents.claude: settings.env sets OP_CONNECT_TOKEN, which auth profile op sets'],
+  });
+});
+
+test('it refuses a gateway whose env sets a variable its profile sets', () => {
   const result = collectAgents(
     {
       glm: {
         kind: 'claude',
         baseURL: 'https://api.z.ai/api/anthropic',
-        ...extra,
+        env: { OP_CONNECT_TOKEN: 'x' },
         auth: { profiles: ['glm', 'op'] },
       },
     },
     new Map<string, AuthProfile>([
-      ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai', header: 'authorization' })],
+      [
+        'glm',
+        buildMockAuthProfile({
+          name: 'glm',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
       [
         'op',
         buildMockAuthProfile({
           name: 'op',
           host: 'op-connect.example.com',
           header: 'authorization',
+          scheme: 'bearer',
           env: { OP_CONNECT_TOKEN: 'imp-broker-placeholder' },
         }),
       ],
@@ -738,7 +1306,46 @@ test.each([
 
   expect(result).toStrictEqual({
     agents: [],
-    errors: [`agents.glm: ${source} sets OP_CONNECT_TOKEN, which auth profile op sets`],
+    errors: ['agents.glm: env sets OP_CONNECT_TOKEN, which auth profile op sets'],
+  });
+});
+
+test('it refuses a gateway whose settings.env sets a variable its profile sets', () => {
+  const result = collectAgents(
+    {
+      glm: {
+        kind: 'claude',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        settings: { env: { OP_CONNECT_TOKEN: 'x' } },
+        auth: { profiles: ['glm', 'op'] },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'glm',
+        buildMockAuthProfile({
+          name: 'glm',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'op',
+        buildMockAuthProfile({
+          name: 'op',
+          host: 'op-connect.example.com',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: { OP_CONNECT_TOKEN: 'imp-broker-placeholder' },
+        }),
+      ],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: ['agents.glm: settings.env sets OP_CONNECT_TOKEN, which auth profile op sets'],
   });
 });
 
@@ -752,6 +1359,7 @@ test('it allows an entry to set a variable that none of its selected profiles se
           name: 'claude',
           host: 'api.anthropic.com',
           header: 'authorization',
+          scheme: 'bearer',
         }),
       ],
       [
@@ -760,6 +1368,7 @@ test('it allows an entry to set a variable that none of its selected profiles se
           name: 'op',
           host: 'op-connect.example.com',
           header: 'authorization',
+          scheme: 'bearer',
           env: { OP_CONNECT_TOKEN: 'imp-broker-placeholder' },
         }),
       ],

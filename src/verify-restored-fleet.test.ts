@@ -1,48 +1,19 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { DaemonClient } from './client/daemon-client';
-import { LineDecoder } from './protocol/line-decoder';
-import { PROTOCOL_V, decodeMessage, encodeMessage } from './protocol/protocol';
+import { buildStubClock } from './test-utils/build-stub-clock';
 import { setupTempDir } from './test-utils/setup-temp-dir';
+import { startStubRestoreDaemon } from './test-utils/start-stub-restore-daemon';
+import { waitFor } from './test-utils/wait-for';
 import { verifyRestoredFleet } from './verify-restored-fleet';
 
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-verify-restored-fleet-'));
-  const socketPath = join(tmp.dir, 'daemon.sock');
-  const lists: Readonly<Record<string, unknown>>[] = [];
+  const daemon = stack.use(startStubRestoreDaemon(join(tmp.dir, 'daemon.sock')));
 
-  const lines = new LineDecoder();
-
-  // A daemon on the real wire format that accepts the restore and answers one
-  // session list for each reply the test queues, then withholds every answer.
-  const server = Bun.listen({
-    unix: socketPath,
-    socket: {
-      data(socket, buf) {
-        for (const line of lines.splitChunk(buf)) {
-          const decoded = decodeMessage(line);
-
-          if (decoded.kind !== 'request') {
-            continue;
-          }
-
-          const ok = decoded.msg.m === 'fleet.restore' ? {} : lists.shift();
-
-          if (ok !== undefined) {
-            socket.write(encodeMessage({ v: PROTOCOL_V, id: decoded.msg.id, ok }));
-          }
-        }
-      },
-    },
-  });
-
-  stack.defer(() => {
-    server.stop(true);
-  });
-
-  const client = await DaemonClient.open(socketPath);
+  const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
 
   stack.defer(() => {
     client.stop();
@@ -50,26 +21,50 @@ async function setupTest() {
 
   const owned = stack.move();
 
-  return { client, lists, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { daemon, client, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
 test('it reports the last answered list when the deadline overtakes a later list', async () => {
   await using ctx = await setupTest();
 
-  ctx.lists.push({
+  const clock = buildStubClock(0);
+
+  ctx.daemon.lists.push({
     sessions: [
       { id: 's-good', kind: 'pty', alive: true, state: 'running', lastMsg: null },
       { id: 's-dropped', kind: 'stub', alive: false, state: 'running', lastMsg: 'no adapter' },
     ],
   });
 
-  // The deadline leaves room for two socket round trips on a loaded machine.
-  const verdict = await verifyRestoredFleet(ctx.client, 1, [
-    { id: 's-good', name: 'good', exited: false, agentSessionID: null },
-    { id: 's-dropped', name: 'dropped', exited: false, agentSessionID: null },
-  ]);
+  const verdict = verifyRestoredFleet(
+    ctx.client,
+    1,
+    [
+      { id: 's-good', name: 'good', exited: false, agentSessionID: null },
+      { id: 's-dropped', name: 'dropped', exited: false, agentSessionID: null },
+    ],
+    clock,
+  );
 
-  expect(verdict).toStrictEqual({
+  // The first list answers with a row still without a terminal, so the
+  // check waits a poll interval before it lists again.
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([250]);
+  });
+
+  clock.advance(250);
+
+  // The daemon withholds the second list, which only the deadline ends.
+  await waitFor(() => {
+    expect(ctx.daemon.methods).toStrictEqual(['fleet.restore', 'session.list', 'session.list']);
+    expect(clock.collectPending()).toStrictEqual([750]);
+  });
+
+  clock.advance(750);
+
+  const outcome = await verdict;
+
+  expect(outcome).toStrictEqual({
     total: 2,
     failed: [
       {
@@ -84,9 +79,21 @@ test('it reports the last answered list when the deadline overtakes a later list
 test('it rejects when the first list gets no answer before the deadline', async () => {
   await using ctx = await setupTest();
 
-  const verdict = verifyRestoredFleet(ctx.client, 0.05, [
-    { id: 's-good', name: 'good', exited: false, agentSessionID: null },
-  ]);
+  const clock = buildStubClock(0);
+
+  const verdict = verifyRestoredFleet(
+    ctx.client,
+    1,
+    [{ id: 's-good', name: 'good', exited: false, agentSessionID: null }],
+    clock,
+  );
+
+  await waitFor(() => {
+    expect(ctx.daemon.methods).toStrictEqual(['fleet.restore', 'session.list']);
+    expect(clock.collectPending()).toStrictEqual([1000]);
+  });
+
+  clock.advance(1000);
 
   expect(verdict).rejects.toThrowWithMessage(
     Error,

@@ -7,8 +7,16 @@ import { createGitFixture } from '../test-utils/create-git-fixture';
 import { sanitizeWorkspaceClone } from './sanitize-workspace-clone';
 
 // A work clone of a bare upstream, holding one pushed commit, for the sanitizer to strip.
-function setupTest() {
-  return createGitFixture({ prefix: 'atc-sanitize-' });
+async function setupTest() {
+  const fixture = await createGitFixture({ prefix: 'atc-sanitize-' });
+
+  return {
+    dir: fixture.dir,
+    env: fixture.env,
+    upstream: fixture.upstream,
+    work: fixture.work,
+    [Symbol.asyncDispose]: () => fixture[Symbol.asyncDispose](),
+  };
 }
 
 test('it removes every credential setting from the clone config', async () => {
@@ -55,6 +63,12 @@ test('it removes an http extra header that could carry a token', async () => {
 test('it resets a token-bearing origin URL to the token-free one', async () => {
   await using ctx = await setupTest();
 
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
+
   await $`git config --local remote.origin.url https://x-access-token:tok@github.com/zgeoff/atc.git`
     .env(ctx.env)
     .cwd(ctx.work)
@@ -69,7 +83,7 @@ test('it resets a token-bearing origin URL to the token-free one', async () => {
 
   expect(sanitized).toStrictEqual({
     ok: true,
-    provenance: { repoURL: 'https://github.com/zgeoff/atc.git', sha: ctx.sha },
+    provenance: { repoURL: 'https://github.com/zgeoff/atc.git', sha: pushed },
   });
 
   expect(origin.trim()).toBe('https://github.com/zgeoff/atc.git');
@@ -93,11 +107,17 @@ test('it removes a token-bearing push URL from another remote', async () => {
 test('it keeps an ssh origin user, which is a login rather than a credential', async () => {
   await using ctx = await setupTest();
 
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
+
   const sanitized = await sanitizeWorkspaceClone(ctx.work, 'ssh://git@github.com/zgeoff/atc.git');
 
   expect(sanitized).toStrictEqual({
     ok: true,
-    provenance: { repoURL: 'ssh://git@github.com/zgeoff/atc.git', sha: ctx.sha },
+    provenance: { repoURL: 'ssh://git@github.com/zgeoff/atc.git', sha: pushed },
   });
 });
 
@@ -166,6 +186,12 @@ test('it removes the reflogs that record the clone URL', async () => {
 test('it keeps HEAD, the branch, and a readable history', async () => {
   await using ctx = await setupTest();
 
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
+
   await $`git config --local credential.helper store`.env(ctx.env).cwd(ctx.work).quiet();
 
   const sanitized = await sanitizeWorkspaceClone(ctx.work, 'https://github.com/zgeoff/atc.git');
@@ -174,10 +200,10 @@ test('it keeps HEAD, the branch, and a readable history', async () => {
 
   expect(sanitized).toStrictEqual({
     ok: true,
-    provenance: { repoURL: 'https://github.com/zgeoff/atc.git', sha: ctx.sha },
+    provenance: { repoURL: 'https://github.com/zgeoff/atc.git', sha: pushed },
   });
 
-  expect(logged.trim()).toBe(ctx.sha);
+  expect(logged.trim()).toBe(pushed);
   expect(branch.trim()).toBe('main');
 });
 

@@ -8,19 +8,33 @@ import { resolvePathSource } from './resolve-path-source';
 
 // A work clone of a bare upstream, holding one pushed commit, for a test to
 // change before it resolves the checkout.
-function setupTest() {
-  return createGitFixture({ prefix: 'atc-path-source-' });
+async function setupTest() {
+  const fixture = await createGitFixture({ prefix: 'atc-path-source-' });
+
+  return {
+    dir: fixture.dir,
+    env: fixture.env,
+    upstream: fixture.upstream,
+    work: fixture.work,
+    [Symbol.asyncDispose]: () => fixture[Symbol.asyncDispose](),
+  };
 }
 
 test('it resolves a clean pushed checkout to its origin URL and HEAD', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   const resolved = await resolvePathSource(ctx.work, { transports: ['https', 'ssh', 'file'] });
 
   expect(resolved).toStrictEqual({
     ok: true,
     url: ctx.upstream,
-    sha: ctx.sha,
+    sha: pushed,
     branch: 'main',
     dirty: false,
     warnings: [],
@@ -29,6 +43,12 @@ test('it resolves a clean pushed checkout to its origin URL and HEAD', async () 
 
 test('it resolves a subdirectory to the checkout that holds it', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   await mkdir(join(ctx.work, 'nested'));
 
@@ -39,7 +59,7 @@ test('it resolves a subdirectory to the checkout that holds it', async () => {
   expect(resolved).toStrictEqual({
     ok: true,
     url: ctx.upstream,
-    sha: ctx.sha,
+    sha: pushed,
     branch: 'main',
     dirty: false,
     warnings: [],
@@ -48,6 +68,12 @@ test('it resolves a subdirectory to the checkout that holds it', async () => {
 
 test('it strips a token from the origin URL', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   await $`git remote set-url origin https://x-access-token:ghp_secret@github.com/zgeoff/atc.git`
     .env(ctx.env)
@@ -61,7 +87,7 @@ test('it strips a token from the origin URL', async () => {
   expect(resolved).toStrictEqual({
     ok: true,
     url: 'https://github.com/zgeoff/atc.git',
-    sha: ctx.sha,
+    sha: pushed,
     branch: 'main',
     dirty: false,
     warnings: [],
@@ -71,6 +97,12 @@ test('it strips a token from the origin URL', async () => {
 test('it resolves a checkout with an uncommitted change to HEAD with a warning that counts it', async () => {
   await using ctx = await setupTest();
 
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
+
   await writeFile(join(ctx.work, 'README.md'), 'edited\n');
 
   const resolved = await resolvePathSource(ctx.work, { transports: ['https', 'ssh', 'file'] });
@@ -78,17 +110,23 @@ test('it resolves a checkout with an uncommitted change to HEAD with a warning t
   expect(resolved).toStrictEqual({
     ok: true,
     url: ctx.upstream,
-    sha: ctx.sha,
+    sha: pushed,
     branch: 'main',
     dirty: true,
     warnings: [
-      `cloned commit ${ctx.sha.slice(0, 12)}; left 1 uncommitted or untracked path behind in ${ctx.work}`,
+      `cloned commit ${pushed.slice(0, 12)}; left 1 uncommitted or untracked path behind in ${ctx.work}`,
     ],
   });
 });
 
 test('it resolves a checkout with untracked files to HEAD without naming them', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   await writeFile(join(ctx.work, '.env'), 'TOKEN=secret\n');
   await writeFile(join(ctx.work, 'notes.txt'), 'scratch\n');
@@ -98,17 +136,23 @@ test('it resolves a checkout with untracked files to HEAD without naming them', 
   expect(resolved).toStrictEqual({
     ok: true,
     url: ctx.upstream,
-    sha: ctx.sha,
+    sha: pushed,
     branch: 'main',
     dirty: true,
     warnings: [
-      `cloned commit ${ctx.sha.slice(0, 12)}; left 2 uncommitted or untracked paths behind in ${ctx.work}`,
+      `cloned commit ${pushed.slice(0, 12)}; left 2 uncommitted or untracked paths behind in ${ctx.work}`,
     ],
   });
 });
 
 test('it counts each file inside an untracked directory', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   await mkdir(join(ctx.work, 'drafts'));
   await writeFile(join(ctx.work, 'drafts', 'a.txt'), 'a\n');
@@ -120,11 +164,11 @@ test('it counts each file inside an untracked directory', async () => {
   expect(resolved).toStrictEqual({
     ok: true,
     url: ctx.upstream,
-    sha: ctx.sha,
+    sha: pushed,
     branch: 'main',
     dirty: true,
     warnings: [
-      `cloned commit ${ctx.sha.slice(0, 12)}; left 3 uncommitted or untracked paths behind in ${ctx.work}`,
+      `cloned commit ${pushed.slice(0, 12)}; left 3 uncommitted or untracked paths behind in ${ctx.work}`,
     ],
   });
 });
@@ -211,6 +255,12 @@ test('it refuses a dirty checkout whose HEAD origin does not hold rather than re
 test('it resolves a dirty checkout to HEAD with a warning when dirt is allowed', async () => {
   await using ctx = await setupTest();
 
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
+
   await writeFile(join(ctx.work, 'README.md'), 'edited\n');
 
   const resolved = await resolvePathSource(ctx.work, {
@@ -221,11 +271,11 @@ test('it resolves a dirty checkout to HEAD with a warning when dirt is allowed',
   expect(resolved).toStrictEqual({
     ok: true,
     url: ctx.upstream,
-    sha: ctx.sha,
+    sha: pushed,
     branch: 'main',
     dirty: true,
     warnings: [
-      `cloned commit ${ctx.sha.slice(0, 12)}; left 1 uncommitted or untracked path behind in ${ctx.work}`,
+      `cloned commit ${pushed.slice(0, 12)}; left 1 uncommitted or untracked path behind in ${ctx.work}`,
     ],
   });
 });
@@ -402,6 +452,12 @@ test('it refuses a checkout that uses submodules', async () => {
 test('it resolves the checkout it is given when a git hook exports another GIT_DIR', async () => {
   await using ctx = await setupTest();
 
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
+
   await $`git init --quiet --template= ${join(ctx.dir, 'other')}`.env(ctx.env).quiet();
 
   updateEnv('GIT_DIR', join(ctx.dir, 'other', '.git'));
@@ -411,7 +467,7 @@ test('it resolves the checkout it is given when a git hook exports another GIT_D
   expect(resolved).toStrictEqual({
     ok: true,
     url: ctx.upstream,
-    sha: ctx.sha,
+    sha: pushed,
     branch: 'main',
     dirty: false,
     warnings: [],
@@ -420,6 +476,12 @@ test('it resolves the checkout it is given when a git hook exports another GIT_D
 
 test('it refuses a checkout whose HEAD tree cannot be listed', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   const tree = await $`git rev-parse HEAD^{tree}`.env(ctx.env).cwd(ctx.work).text();
 
@@ -432,7 +494,7 @@ test('it refuses a checkout whose HEAD tree cannot be listed', async () => {
   expect(resolved).toStrictEqual({
     ok: false,
     code: 'unreadable_tree',
-    message: expect.toStartWith(`cannot list the tree of ${ctx.sha} in ${ctx.work}: `),
+    message: expect.toStartWith(`cannot list the tree of ${pushed} in ${ctx.work}: `),
   });
 });
 

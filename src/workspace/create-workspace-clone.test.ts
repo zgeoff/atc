@@ -38,7 +38,6 @@ async function setupTest() {
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
-    sha: fixture.sha,
     httpURL: `${server.url}upstream.git`,
     authorizations: server.authorizations,
     processes,
@@ -48,6 +47,12 @@ async function setupTest() {
 
 test('it checks out the commit a branch points at, on that branch', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
@@ -62,13 +67,19 @@ test('it checks out the commit a branch points at, on that branch', async () => 
     .cwd(join(ctx.dir, 'clone'))
     .text();
 
-  expect(clone).toStrictEqual({ ok: true, sha: ctx.sha, branch: 'main' });
-  expect(head.trim()).toBe(ctx.sha);
+  expect(clone).toStrictEqual({ ok: true, sha: pushed, branch: 'main' });
+  expect(head.trim()).toBe(pushed);
   expect(branch.trim()).toBe('main');
 });
 
 test('it checks out the commit an annotated tag points at, detached', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   await $`git tag -a v1 -m v1`.env(ctx.env).cwd(ctx.work).quiet();
 
@@ -85,12 +96,18 @@ test('it checks out the commit an annotated tag points at, detached', async () =
 
   const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(join(ctx.dir, 'clone')).text();
 
-  expect(clone).toStrictEqual({ ok: true, sha: ctx.sha, branch: null });
-  expect(head.trim()).toBe(ctx.sha);
+  expect(clone).toStrictEqual({ ok: true, sha: pushed, branch: null });
+  expect(head.trim()).toBe(pushed);
 });
 
 test('it checks out a full commit id detached', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   await writeFile(join(ctx.work, 'README.md'), 'later\n');
 
@@ -99,14 +116,14 @@ test('it checks out a full commit id detached', async () => {
 
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
-    source: { kind: 'git', url: ctx.upstream, ref: ctx.sha },
+    source: { kind: 'git', url: ctx.upstream, ref: pushed },
     dir: join(ctx.dir, 'clone'),
   });
 
   const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(join(ctx.dir, 'clone')).text();
 
-  expect(clone).toStrictEqual({ ok: true, sha: ctx.sha, branch: null });
-  expect(head.trim()).toBe(ctx.sha);
+  expect(clone).toStrictEqual({ ok: true, sha: pushed, branch: null });
+  expect(head.trim()).toBe(pushed);
 });
 
 test('it copies objects instead of hard-linking them from a local upstream', async () => {
@@ -211,6 +228,12 @@ test.skipIf(process.platform !== 'linux')(
   async () => {
     await using ctx = await setupTest();
 
+    const pushed = await $`git rev-parse HEAD`
+      .env(ctx.env)
+      .cwd(ctx.work)
+      .text()
+      .then((text) => text.trim());
+
     updateEnv('ATC_TEST_GIT_TOKEN', 'tok-4f9c2e');
 
     const clone = await createWorkspaceClone({
@@ -226,7 +249,7 @@ test.skipIf(process.platform !== 'linux')(
       .map((entry) => entry.env['GIT_ASKPASS'])
       .filter((helper) => helper !== undefined);
 
-    expect(clone).toStrictEqual({ ok: true, sha: ctx.sha, branch: 'main' });
+    expect(clone).toStrictEqual({ ok: true, sha: pushed, branch: 'main' });
     expect(ctx.authorizations).not.toBeEmpty();
 
     expect(ctx.authorizations).toSatisfyAll(
@@ -251,7 +274,13 @@ test.skipIf(process.platform !== 'linux')(
 test('it refuses a git source whose commit holds a gitlink and leaves no directory', async () => {
   await using ctx = await setupTest();
 
-  await $`git update-index --add --cacheinfo ${`160000,${ctx.sha},vendored`}`
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
+
+  await $`git update-index --add --cacheinfo ${`160000,${pushed},vendored`}`
     .env(ctx.env)
     .cwd(ctx.work)
     .quiet();
@@ -332,6 +361,12 @@ test('it refuses a git source that tracks LFS paths without running the host LFS
 test('it checks out without running a filter from the host global git config', async () => {
   await using ctx = await setupTest();
 
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
+
   const marker = join(ctx.dir, 'filter-ran');
 
   createStubBin(ctx.dir, 'trap', `#!/bin/sh\necho ran >> ${marker}\ncat\n`);
@@ -353,7 +388,7 @@ test('it checks out without running a filter from the host global git config', a
 
   const readme = await readFile(join(ctx.dir, 'clone', 'README.md'), 'utf8');
 
-  expect(clone).toStrictEqual({ ok: true, sha: ctx.sha, branch: 'main' });
+  expect(clone).toStrictEqual({ ok: true, sha: pushed, branch: 'main' });
   expect(existsSync(marker)).toBeFalse();
   expect(readme).toBe('hello\n');
 });

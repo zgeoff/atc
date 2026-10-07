@@ -247,7 +247,7 @@ test('it clears a bridge report from the outbox once the bridge refuses it as fo
   });
 });
 
-test('it keeps a bridge report in the outbox when the bridge never answers', async () => {
+test('it keeps a bridge report in the outbox when the bridge closes without answering', async () => {
   using ctx = setupTest();
 
   const sock = join(ctx.dir, 'bridge.sock');

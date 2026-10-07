@@ -7,7 +7,7 @@ test('it resolves the dependency closure into the complete rule set grouped by s
   const profiles = new Map<string, AuthProfile>([
     [
       'glm',
-      {
+      buildMockAuthProfile({
         name: 'glm',
         secret: 'glm',
         kind: 'custom',
@@ -16,11 +16,11 @@ test('it resolves the dependency closure into the complete rule set grouped by s
         scheme: 'bearer',
         env: {},
         dependencies: ['glm-open', 'judge'],
-      },
+      }),
     ],
     [
       'glm-open',
-      {
+      buildMockAuthProfile({
         name: 'glm-open',
         secret: 'glm',
         kind: 'custom',
@@ -29,11 +29,11 @@ test('it resolves the dependency closure into the complete rule set grouped by s
         scheme: 'bearer',
         env: {},
         dependencies: [],
-      },
+      }),
     ],
     [
       'judge',
-      {
+      buildMockAuthProfile({
         name: 'judge',
         secret: 'judge',
         kind: 'custom',
@@ -42,7 +42,7 @@ test('it resolves the dependency closure into the complete rule set grouped by s
         scheme: 'bearer',
         env: {},
         dependencies: [],
-      },
+      }),
     ],
     ['unused', buildMockAuthProfile({ name: 'unused' })],
   ]);
@@ -129,6 +129,7 @@ test('it refuses two profiles of one secret whose rules differ for one host', ()
       buildMockAuthProfile({
         name: 'glm',
         secret: 'glm',
+        kind: 'custom',
         host: 'api.z.ai',
         header: 'authorization',
       }),
@@ -138,6 +139,7 @@ test('it refuses two profiles of one secret whose rules differ for one host', ()
       buildMockAuthProfile({
         name: 'glm-key',
         secret: 'glm',
+        kind: 'custom',
         host: 'api.z.ai',
         header: 'x-api-key',
       }),
@@ -153,39 +155,36 @@ test('it refuses two profiles of one secret whose rules differ for one host', ()
 });
 
 test('it merges two profiles that hold the same rule for one host into one rule', () => {
-  expect(
-    resolveAuthProfiles(
-      new Map([
-        [
-          'glm',
-          {
-            name: 'glm',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: [],
-          },
-        ],
-        [
-          'glm-again',
-          {
-            name: 'glm-again',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: [],
-          },
-        ],
-      ]),
-      ['glm', 'glm-again'],
-    ),
-  ).toStrictEqual({
+  const profiles = new Map<string, AuthProfile>([
+    [
+      'glm',
+      buildMockAuthProfile({
+        name: 'glm',
+        secret: 'glm',
+        kind: 'custom',
+        host: 'api.z.ai',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: {},
+        dependencies: [],
+      }),
+    ],
+    [
+      'glm-again',
+      buildMockAuthProfile({
+        name: 'glm-again',
+        secret: 'glm',
+        kind: 'custom',
+        host: 'api.z.ai',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: {},
+        dependencies: [],
+      }),
+    ],
+  ]);
+
+  expect(resolveAuthProfiles(profiles, ['glm', 'glm-again'])).toStrictEqual({
     resolved: {
       profiles: ['glm', 'glm-again'],
       hosts: ['api.z.ai'],
@@ -209,16 +208,16 @@ test('it resolves a 40-profile chain where each profile depends on every profile
     new Map(
       names.map((name, i) => [
         name,
-        {
+        buildMockAuthProfile({
           name,
           secret: name,
-          kind: 'custom' as const,
+          kind: 'custom',
           host: `${name}.example.com`,
           header: 'authorization',
-          scheme: 'bearer' as const,
+          scheme: 'bearer',
           env: {},
           dependencies: names.slice(0, i),
-        },
+        }),
       ]),
     ),
     ['p39'],
@@ -240,36 +239,33 @@ test('it resolves a 40-profile chain where each profile depends on every profile
 });
 
 test('it expands a github profile into the rules of the github kind beside a custom profile', () => {
-  expect(
-    resolveAuthProfiles(
-      new Map([
-        [
-          'glm',
-          {
-            name: 'glm',
-            secret: 'glm',
-            kind: 'custom',
-            host: 'api.z.ai',
-            header: 'authorization',
-            scheme: 'bearer',
-            env: {},
-            dependencies: [],
-          },
-        ],
-        [
-          'github',
-          {
-            name: 'github',
-            secret: 'github-imp-agents',
-            kind: 'github',
-            env: {},
-            dependencies: [],
-          },
-        ],
-      ]),
-      ['glm', 'github'],
-    ),
-  ).toStrictEqual({
+  const profiles = new Map<string, AuthProfile>([
+    [
+      'glm',
+      buildMockAuthProfile({
+        name: 'glm',
+        secret: 'glm',
+        kind: 'custom',
+        host: 'api.z.ai',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: {},
+        dependencies: [],
+      }),
+    ],
+    [
+      'github',
+      buildMockAuthProfile({
+        kind: 'github',
+        name: 'github',
+        secret: 'github-imp-agents',
+        env: {},
+        dependencies: [],
+      }),
+    ],
+  ]);
+
+  expect(resolveAuthProfiles(profiles, ['glm', 'github'])).toStrictEqual({
     resolved: {
       profiles: ['github', 'glm'],
       hosts: ['api.github.com', 'api.z.ai', 'github.com', 'uploads.github.com'],

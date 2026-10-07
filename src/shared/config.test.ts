@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { loadConfig, parseConfig, renderDefaultConfig } from './config';
@@ -1024,6 +1024,75 @@ test('#loadConfig returns the defaults when the file is missing', () => {
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
+});
+
+test('#loadConfig reads an existing file against the home it is given', () => {
+  using ctx = setupTest();
+
+  const file = join(ctx.dir, 'config.json');
+
+  writeFileSync(
+    file,
+    JSON.stringify({ agents: { claude: { bin: '/opt/claude' } }, dirs: { roots: ['~/projects'] } }),
+  );
+
+  expect(loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'))).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: '/opt/claude',
+        args: [],
+        env: {},
+      },
+    ],
+    agentErrors: [],
+    legacyAgentKeys: [],
+    defaultAgent: 'claude',
+    dirs: { roots: [join(ctx.dir, 'home', 'projects')] },
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+    },
+    authProfiles: new Map(),
+    authProfileErrors: [],
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    targetErrors: [],
+    principals: null,
+    principalErrors: [],
+    workspaceErrors: [],
+    restoreFleetOnRestart: true,
+    removedKeys: [],
+  });
+});
+
+test('#loadConfig creates the state directory it is given', () => {
+  using ctx = setupTest();
+
+  const state = join(ctx.dir, 'state', 'atc');
+
+  loadConfig(join(ctx.dir, 'config.json'), join(ctx.dir, 'home'), state);
+
+  expect(readdirSync(state)).toBeEmpty();
+});
+
+test('#loadConfig never overwrites an existing file it cannot use', () => {
+  using ctx = setupTest();
+
+  const file = join(ctx.dir, 'config.json');
+
+  writeFileSync(file, '{ "agents": ');
+  loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'));
+
+  expect(readFileSync(file, 'utf8')).toBe('{ "agents": ');
 });
 
 test('#loadConfig leaves every target unusable when the file cannot be read', () => {

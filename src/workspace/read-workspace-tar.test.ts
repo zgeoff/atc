@@ -6,12 +6,26 @@ import { createGitFixture } from '../test-utils/create-git-fixture';
 import { readWorkspaceTar } from './read-workspace-tar';
 
 // A work clone holding one commit, for the archive to stream.
-function setupTest() {
-  return createGitFixture({ prefix: 'atc-tar-' });
+async function setupTest() {
+  const fixture = await createGitFixture({ prefix: 'atc-tar-' });
+
+  return {
+    dir: fixture.dir,
+    env: fixture.env,
+    upstream: fixture.upstream,
+    work: fixture.work,
+    [Symbol.asyncDispose]: () => fixture[Symbol.asyncDispose](),
+  };
 }
 
 test('it streams a tar that unpacks to the same checkout and commit', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   const unpacked = join(ctx.dir, 'unpacked');
 
@@ -29,7 +43,7 @@ test('it streams a tar that unpacks to the same checkout and commit', async () =
   const readme = await readFile(join(unpacked, 'README.md'), 'utf8');
 
   expect(outcome).toStrictEqual({ ok: true });
-  expect(unpackedHead.trim()).toBe(ctx.sha);
+  expect(unpackedHead.trim()).toBe(pushed);
   expect(readme).toBe('hello\n');
 });
 

@@ -1,5 +1,7 @@
 import { FFIType, dlopen, ptr } from 'bun:ffi';
 import { closeSync, writeFileSync } from 'node:fs';
+import type { Clock } from './system-clock';
+import { systemClock } from './system-clock';
 
 export interface DaemonLock {
   // Releases the lock; safe to call more than once.
@@ -24,11 +26,13 @@ const RETRY_MS = 50;
  * racing at the same instant cannot both win, and the kernel drops it when
  * the holding process dies, so a crashed daemon never blocks the next one.
  * The file is never removed: removing it would let a newcomer lock a fresh
- * inode while an older daemon still holds the unlinked one.
+ * inode while an older daemon still holds the unlinked one. The wait reads
+ * its deadline from `clock` and waits out each retry through it.
  */
 export async function claimDaemonLock(
   lockPath: string,
   waitMs: number,
+  clock: Clock = systemClock,
 ): Promise<DaemonLock | null> {
   writeFileSync(lockPath, '', { flag: 'a' });
 
@@ -39,16 +43,18 @@ export async function claimDaemonLock(
     throw new Error(`atc daemon: cannot open the lock file ${lockPath}`);
   }
 
-  const deadline = Date.now() + waitMs;
+  const deadline = clock.now() + waitMs;
 
   while (libc.symbols.flock(fd, LOCK_EX | LOCK_NB) !== 0) {
-    if (Date.now() >= deadline) {
+    if (clock.now() >= deadline) {
       closeSync(fd);
 
       return null;
     }
 
-    await Bun.sleep(RETRY_MS);
+    await new Promise<void>((resolve) => {
+      clock.schedule(resolve, RETRY_MS);
+    });
   }
 
   let held = true;

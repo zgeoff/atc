@@ -5,10 +5,9 @@ import { setupTempDir } from './test-utils/setup-temp-dir';
 import { waitFor } from './test-utils/wait-for';
 
 /**
- * A fresh home whose computed daemon socket sits in it, and a free loopback
- * port for the HTTP server. `runCLI` starts the CLI with that home as its
- * home and runtime directory. Disposal stops every process `runCLI` started,
- * then removes the home.
+ * A fresh home whose computed daemon socket sits in it, a free loopback port
+ * for the HTTP server, and the CLI entry with an environment that makes that
+ * home its home and runtime directory. Disposal removes the home.
  */
 function setupTest() {
   using stack = new DisposableStack();
@@ -24,39 +23,25 @@ function setupTest() {
 
   const owned = stack.move();
 
-  const running = new AsyncDisposableStack();
-
   return {
     dir: tmp.dir,
     port,
-    runCLI(args: readonly string[]) {
-      const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'cli.ts'), ...args], {
-        env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
-        stdin: 'ignore',
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      running.defer(async () => {
-        proc.kill('SIGTERM');
-
-        await proc.exited;
-      });
-
-      return proc;
-    },
-    async [Symbol.asyncDispose]() {
-      await running.disposeAsync();
-
+    cli: join(import.meta.dir, 'cli.ts'),
+    env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
+    [Symbol.dispose]: () => {
       owned.dispose();
     },
   };
 }
 
 test('it waits for a daemon started after it, starting none of its own, and serves through that daemon', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
-  const mcp = ctx.runCLI(['mcp', '--http', '--wait-for-daemon', '--port', String(ctx.port)]);
+  await using mcp = Bun.spawn(
+    [process.execPath, ctx.cli, 'mcp', '--http', '--wait-for-daemon', '--port', String(ctx.port)],
+    { env: ctx.env, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+  );
+
   let stderr = '';
 
   const drained = (async () => {
@@ -71,7 +56,12 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     expect(stderr).toEndWith('\n');
   });
 
-  const daemon = ctx.runCLI(['daemon']);
+  await using daemon = Bun.spawn([process.execPath, ctx.cli, 'daemon'], {
+    env: ctx.env,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
 
   const served = await waitFor(
     async () => {

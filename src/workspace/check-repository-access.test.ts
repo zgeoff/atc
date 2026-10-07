@@ -6,6 +6,7 @@ import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
 import { startGitHTTPServer } from '../test-utils/start-git-http-server';
+import { startStubSilentServer } from '../test-utils/start-stub-silent-server';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
 import { checkRepositoryAccess } from './check-repository-access';
@@ -23,14 +24,7 @@ async function setupTest() {
 
   stack.defer(() => server.stop());
 
-  const silent = Bun.serve({
-    port: 0,
-    hostname: '127.0.0.1',
-    fetch: () => new Promise<Response>(() => {}),
-  });
-
-  stack.defer(() => silent.stop(true));
-
+  const silent = stack.use(startStubSilentServer());
   const owned = stack.move();
 
   return {
@@ -38,16 +32,21 @@ async function setupTest() {
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
-    sha: fixture.sha,
     httpURL: `${server.url}upstream.git`,
     authorizations: server.authorizations,
-    silentURL: `http://127.0.0.1:${silent.port}/silent.git`,
+    silentURL: `${silent.url}silent.git`,
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it resolves a branch to the commit it points at and lists the upstream refs', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
@@ -59,13 +58,19 @@ test('it resolves a branch to the commit it points at and lists the upstream ref
     ok: true,
     url: ctx.upstream,
     head: 'main',
-    refs: [{ name: 'main', kind: 'branch', sha: ctx.sha }],
-    resolved: { sha: ctx.sha, branch: 'main' },
+    refs: [{ name: 'main', kind: 'branch', sha: pushed }],
+    resolved: { sha: pushed, branch: 'main' },
   });
 });
 
 test('it resolves an annotated tag to the commit it points at', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   await $`git tag --no-sign -a v1 -m release`.env(ctx.env).cwd(ctx.work).quiet();
   await $`git push --quiet origin v1`.env(ctx.env).cwd(ctx.work).quiet();
@@ -81,15 +86,21 @@ test('it resolves an annotated tag to the commit it points at', async () => {
     url: ctx.upstream,
     head: 'main',
     refs: [
-      { name: 'main', kind: 'branch', sha: ctx.sha },
-      { name: 'v1', kind: 'tag', sha: ctx.sha },
+      { name: 'main', kind: 'branch', sha: pushed },
+      { name: 'v1', kind: 'tag', sha: pushed },
     ],
-    resolved: { sha: ctx.sha, branch: null },
+    resolved: { sha: pushed, branch: null },
   });
 });
 
 test('it answers a probe without a ref with the refs alone', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
@@ -100,13 +111,19 @@ test('it answers a probe without a ref with the refs alone', async () => {
     ok: true,
     url: ctx.upstream,
     head: 'main',
-    refs: [{ name: 'main', kind: 'branch', sha: ctx.sha }],
+    refs: [{ name: 'main', kind: 'branch', sha: pushed }],
     resolved: null,
   });
 });
 
 test('it takes a full commit id as it is', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   const sha = 'f'.repeat(40);
 
@@ -120,7 +137,7 @@ test('it takes a full commit id as it is', async () => {
     ok: true,
     url: ctx.upstream,
     head: 'main',
-    refs: [{ name: 'main', kind: 'branch', sha: ctx.sha }],
+    refs: [{ name: 'main', kind: 'branch', sha: pushed }],
     resolved: { sha, branch: null },
   });
 });
@@ -185,6 +202,12 @@ test("it refuses an upstream that asks for a sign-in the host cannot give, with 
 test('it authenticates through a credential helper in the host git config', async () => {
   await using ctx = await setupTest();
 
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
+
   await writeFile(
     join(ctx.dir, 'gitconfig'),
     '[credential]\n\thelper = "!f() { echo username=atc; echo password=host-tok; }; f"\n',
@@ -202,8 +225,8 @@ test('it authenticates through a credential helper in the host git config', asyn
     ok: true,
     url: ctx.httpURL,
     head: 'main',
-    refs: [{ name: 'main', kind: 'branch', sha: ctx.sha }],
-    resolved: { sha: ctx.sha, branch: 'main' },
+    refs: [{ name: 'main', kind: 'branch', sha: pushed }],
+    resolved: { sha: pushed, branch: 'main' },
   });
 
   expect(ctx.authorizations).not.toBeEmpty();
@@ -215,6 +238,12 @@ test('it authenticates through a credential helper in the host git config', asyn
 
 test('it authenticates with an env credential through the askpass helper', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   updateEnv('ATC_TEST_PROBE_TOKEN', 'tok-77a1');
 
@@ -229,8 +258,8 @@ test('it authenticates with an env credential through the askpass helper', async
     ok: true,
     url: ctx.httpURL,
     head: 'main',
-    refs: [{ name: 'main', kind: 'branch', sha: ctx.sha }],
-    resolved: { sha: ctx.sha, branch: 'main' },
+    refs: [{ name: 'main', kind: 'branch', sha: pushed }],
+    resolved: { sha: pushed, branch: 'main' },
   });
 
   expect(ctx.authorizations).not.toBeEmpty();
@@ -245,7 +274,6 @@ test('it refuses an upstream that does not answer within its time limit and leav
   await using ctx = await setupTest();
 
   const groups: number[] = [];
-  const started = Date.now();
 
   const access = await checkRepositoryAccess({
     url: ctx.silentURL,
@@ -256,15 +284,12 @@ test('it refuses an upstream that does not answer within its time limit and leav
     },
   });
 
-  const elapsed = Date.now() - started;
-
   expect(access).toStrictEqual({
     ok: false,
     code: 'clone_failed',
     message: 'git ls-remote did not answer within 0.3 s',
   });
 
-  expect(elapsed).toBeLessThan(5000);
   expect(groups).toHaveLength(1);
 
   // The listing's git leads its own process group. A killed group is gone
@@ -276,31 +301,17 @@ test('it refuses an upstream that does not answer within its time limit and leav
 
 test.each([
   [
-    'a file URL',
     'file:///srv/git/app.git',
     "git transport 'file' is not allowed; the daemon fetches over https and ssh",
   ],
+  ['ext::sh -c touch% /tmp/atc-ext', 'not a git repository URL'],
+  ['fd::17', "git transport 'fd' is not allowed; the daemon fetches over https and ssh"],
   [
-    'an ext helper that runs a command',
-    'ext::sh -c touch% /tmp/atc-ext',
-    'not a git repository URL',
-  ],
-  [
-    'an fd helper',
-    'fd::17',
-    "git transport 'fd' is not allowed; the daemon fetches over https and ssh",
-  ],
-  [
-    'a local path',
     '/srv/git/app.git',
     "git transport 'file' is not allowed; the daemon fetches over https and ssh",
   ],
-  [
-    'a URL that reads as an option',
-    '-uhttps://example.com/app.git',
-    'a git URL must not start with -',
-  ],
-])('it refuses %s before any git runs', async (_, url, message) => {
+  ['-uhttps://example.com/app.git', 'a git URL must not start with -'],
+])('it refuses the URL %s before any git runs', async (url, message) => {
   await using ctx = await setupTest();
 
   // A git first on the PATH records each run, so a refusal that runs git

@@ -5,12 +5,26 @@ import { createGitFixture } from '../test-utils/create-git-fixture';
 import { collectRemoteRefs } from './collect-remote-refs';
 
 // A bare upstream holding one commit and a work clone that pushes to it.
-function setupTest() {
-  return createGitFixture({ prefix: 'atc-remote-refs-' });
+async function setupTest() {
+  const fixture = await createGitFixture({ prefix: 'atc-remote-refs-' });
+
+  return {
+    dir: fixture.dir,
+    env: fixture.env,
+    upstream: fixture.upstream,
+    work: fixture.work,
+    [Symbol.asyncDispose]: () => fixture[Symbol.asyncDispose](),
+  };
 }
 
 test('it lists the branches, the peeled tags, and the default branch of an upstream', async () => {
   await using ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   await $`git tag --no-sign -a v1 -m release`.env(ctx.env).cwd(ctx.work).quiet();
   await $`git tag light`.env(ctx.env).cwd(ctx.work).quiet();
@@ -30,17 +44,17 @@ test('it lists the branches, the peeled tags, and the default branch of an upstr
     ok: true,
     head: 'main',
     refs: [
-      { name: 'feat/x', kind: 'branch', sha: ctx.sha },
-      { name: 'main', kind: 'branch', sha: ctx.sha },
-      { name: 'light', kind: 'tag', sha: ctx.sha },
-      { name: 'v1', kind: 'tag', sha: ctx.sha },
+      { name: 'feat/x', kind: 'branch', sha: pushed },
+      { name: 'main', kind: 'branch', sha: pushed },
+      { name: 'light', kind: 'tag', sha: pushed },
+      { name: 'v1', kind: 'tag', sha: pushed },
     ],
     byName: new Map([
-      ['refs/heads/feat/x', ctx.sha],
-      ['refs/heads/main', ctx.sha],
-      ['refs/tags/light', ctx.sha],
+      ['refs/heads/feat/x', pushed],
+      ['refs/heads/main', pushed],
+      ['refs/tags/light', pushed],
       ['refs/tags/v1', tagObject],
-      ['refs/tags/v1^{}', ctx.sha],
+      ['refs/tags/v1^{}', pushed],
     ]),
   });
 });

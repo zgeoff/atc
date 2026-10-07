@@ -3,30 +3,15 @@ import { join } from 'node:path';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 /**
- * A temp directory standing in for a repo root, and a run of the checker
- * over it. Disposal removes the directory.
+ * A temp directory standing in for a repo root, and the path of the checker
+ * that each test runs over it. Disposal removes the directory.
  */
 function setupTest() {
   const tmp = setupTempDir('check-imports-');
-  const dir = tmp.dir;
 
   return {
-    dir,
-    run() {
-      const result = Bun.spawnSync(
-        [process.execPath, join(import.meta.dir, 'check-imports.ts'), dir],
-        {
-          stdout: 'pipe',
-          stderr: 'pipe',
-        },
-      );
-
-      return {
-        exitCode: result.exitCode,
-        stdout: result.stdout.toString(),
-        stderr: result.stderr.toString(),
-      };
-    },
+    dir: tmp.dir,
+    script: join(import.meta.dir, 'check-imports.ts'),
     [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
@@ -46,7 +31,13 @@ test('it passes a tree whose imports follow the directory rules', async () => {
     "import type { HookEvent } from '../protocol/hook-event';\n\nexport const HOOKS: HookEvent[] = [];\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 0,
     stdout: 'check-imports: 3 files, 0 cycles, 0 other findings\n',
     stderr: '',
@@ -66,7 +57,13 @@ test('it fails on a cycle closed by a type-only import', async () => {
     "import type { Auth } from './types';\n\nexport function openAuth(): Auth | null {\n  return null;\n}\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 1 cycles, 0 other findings\n',
     stderr: 'cycle among: src/mcp/open-auth.ts, src/mcp/types.ts\n',
@@ -83,7 +80,13 @@ test('it fails on an import of a directory the importer may not use', async () =
     "import type {\n  HookEvent,\n} from '../daemon/hooks';\n\nexport type Row = HookEvent;\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
@@ -106,7 +109,13 @@ test('it lets a sources module import workspace and the daemon import sources', 
     "export { PROBE } from '../sources/types';\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 0,
     stdout: 'check-imports: 3 files, 0 cycles, 0 other findings\n',
     stderr: '',
@@ -119,7 +128,13 @@ test('it fails on a sources module importing the daemon', async () => {
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
   await Bun.write(join(ctx.dir, 'src/sources/types.ts'), "export { ID } from '../daemon/ids';\n");
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/sources/types.ts imports src/daemon/ids.ts (sources -> daemon)\n',
@@ -136,7 +151,13 @@ test('it fails on a directory module importing a src root module', async () => {
     "export { REPORT } from '../hook-report';\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/shared/config.ts imports src/hook-report.ts (shared -> root)\n',
@@ -159,7 +180,13 @@ test('it lets the composition root and a test file import any directory', async 
     "import { CLIENT } from '../client/daemon-client';\n\nexport const USED = CLIENT;\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 0,
     stdout: 'check-imports: 4 files, 0 cycles, 0 other findings\n',
     stderr: '',
@@ -181,7 +208,13 @@ test('it fails on a gateway entry that reaches an agent adapter through an allow
     "const gateway = await import('./run-gateway');\n\nexport const LOADED = gateway;\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 3 files, 0 cycles, 1 other findings\n',
     stderr: 'unreachable module: src/gateway.ts reaches src/agents/claude-adapter.ts\n',
@@ -201,7 +234,13 @@ test('it fails on a confined package imported outside the file that owns it', as
     "import type { IPty } from 'bun-pty';\n\nexport type Handle = IPty;\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
@@ -214,7 +253,13 @@ test('it fails on a module in a directory with no import rule', async () => {
 
   await Bun.write(join(ctx.dir, 'src/elsewhere/registry.ts'), 'export const REGISTRY = 1;\n');
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
     stderr:
@@ -232,7 +277,13 @@ test('it ignores import text inside a one-line string literal', async () => {
     "export const FILES = {\n  'register.ts': \"import { DAEMON } from '../daemon/daemon';\\n\",\n};\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 0,
     stdout: 'check-imports: 2 files, 0 cycles, 0 other findings\n',
     stderr: '',
@@ -249,7 +300,13 @@ test('it fails on a src root module that is not the composition root importing t
     "import { DAEMON } from './daemon/daemon';\n\nexport const USED = DAEMON;\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/statusline.ts imports src/daemon/daemon.ts (root -> daemon)\n',
@@ -266,7 +323,13 @@ test('it reads an import whose list holds a comment with an apostrophe', async (
     "import {\n  ID, // the daemon's id, `quoted`\n} from '../daemon/ids';\n\nexport const USED = ID;\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
@@ -283,7 +346,13 @@ test('it reads a require call', async () => {
     "const ids = require('../daemon/ids');\n\nexport const USED = ids;\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
@@ -300,7 +369,13 @@ test('it reads an import-equals require', async () => {
     "import ids = require('../daemon/ids');\n\nexport const USED = ids;\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
@@ -317,7 +392,13 @@ test('it reads a dynamic import whose specifier is a template literal', async ()
     'export const LOADED = await import(`../daemon/ids`);\n',
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
@@ -332,7 +413,13 @@ test('it fails on a dynamic import whose specifier is computed', async () => {
 
   await Bun.write(join(ctx.dir, 'src/store/rows.ts'), source);
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
     stderr: 'non-literal import: src/store/rows.ts:2 imports a computed specifier\n',
@@ -347,7 +434,13 @@ test('it fails on a require call whose specifier is computed', async () => {
     "const path = '../daemon/ids';\nexport const LOADED = require(path);\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
     stderr: 'non-literal import: src/store/rows.ts:2 imports a computed specifier\n',
@@ -364,7 +457,13 @@ test('it reads an import that follows a regular expression holding a quote', asy
     "export const QUOTE = /['\"`]/;\n\nexport { ID } from '../daemon/ids';\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
@@ -381,7 +480,13 @@ test('it reads an import that follows a regular expression after a control condi
     "const ok = true;\nif (ok) /`/.test('a');\n\nexport { ID } from '../daemon/ids';\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
@@ -398,7 +503,13 @@ test('it reads an import that follows a regular expression after a block', async
     "{\n  const a = 1;\n}\n/`/.test('a');\n\nexport { ID } from '../daemon/ids';\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
@@ -415,7 +526,13 @@ test('it reads a literal module resolved through import.meta.resolve', async () 
     "export const PATH = import.meta.resolve('../daemon/ids');\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
@@ -432,7 +549,13 @@ test('it reads a literal module resolved through Bun.resolveSync', async () => {
     "export const PATH = Bun.resolveSync('../daemon/ids', import.meta.dir);\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
@@ -449,7 +572,13 @@ test('it reads a literal module located with a URL relative to import.meta.url',
     "export const PATH = new URL('../daemon/ids.ts', import.meta.url);\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr: 'forbidden edge: src/store/rows.ts imports src/daemon/ids.ts (store -> daemon)\n',
@@ -464,7 +593,13 @@ test('it fails on a module resolved from a computed specifier', async () => {
     "const name = '../daemon/ids';\nexport const A = import.meta.resolve(name);\nexport const B = Bun.resolveSync(name, import.meta.dir);\nexport const C = new URL(name, import.meta.url);\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 1 files, 0 cycles, 3 other findings\n',
     stderr:
@@ -480,7 +615,13 @@ test('it ignores a URL that is not relative to the module', async () => {
     "const base = 'https://example.com';\nexport const SITE = new URL(base);\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 0,
     stdout: 'check-imports: 1 files, 0 cycles, 0 other findings\n',
     stderr: '',
@@ -497,7 +638,13 @@ test('it fails on a federation module that imports the mcp layer', async () => {
     "import { TOOLS } from '../mcp/types';\nexport const ROUTER = TOOLS;\n",
   );
 
-  expect(ctx.run()).toStrictEqual({
+  const result = Bun.spawnSync([process.execPath, ctx.script, ctx.dir]);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
