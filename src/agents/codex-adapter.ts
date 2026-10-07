@@ -161,7 +161,7 @@ export class CodexAdapter implements AgentAdapter {
     }
 
     const authDir = `auth-r${guest.auth.revision}`;
-    const signIn = this.findSignIn(guest.auth.oauth ?? {});
+    const signIn = this.requireSignIn(guest.auth.oauth ?? {});
     const plan = this.planSpawn(opts);
 
     const launch = buildCodexGuestLaunch(guest.dir, authDir, [
@@ -196,7 +196,7 @@ export class CodexAdapter implements AgentAdapter {
   // The ID token claims and account id of the oauth secret this entry's
   // profiles send to chatgpt.com, or the refusal for a sign-in that is not
   // ready or that holds no account id.
-  private findSignIn(states: Readonly<Record<string, GuestOAuthState>>): {
+  private requireSignIn(states: Readonly<Record<string, GuestOAuthState>>): {
     readonly idClaims: Readonly<Record<string, unknown>>;
     readonly accountID: string;
   } {
