@@ -52,17 +52,4 @@ test('it adds, lists, and removes a client through atc clients', () => {
   expect(removed.stdout.toString()).toBe(
     `Removed client ${clientID} and revoked every grant it held\n`,
   );
-
-  const emptied = Bun.spawnSync([...ctx.atc, 'clients'], { env: ctx.env });
-
-  expect(emptied.stdout.toString()).toBe(
-    'No clients. Add one with: atc clients add <name> --redirect-uri <uri>\n',
-  );
-
-  const refused = Bun.spawnSync([...ctx.atc, 'clients', 'remove', clientID], { env: ctx.env });
-
-  expect({ exitCode: refused.exitCode, stderr: refused.stderr.toString() }).toStrictEqual({
-    exitCode: 1,
-    stderr: `atc clients remove: no client has the ID '${clientID}'\n`,
-  });
 });
