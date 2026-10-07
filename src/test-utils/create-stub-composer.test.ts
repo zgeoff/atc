@@ -83,7 +83,9 @@ test('it keeps the line breaks of a bracketed paste in the submission', async ()
   ctx.pty.write('\u001B[200~first\rsecond\u001B[201~');
 
   await waitFor(() => {
-    expect(ctx.output.text).toInclude('RECEIVED:');
+    expect(ctx.output.text).toInclude(
+      `RECEIVED:${JSON.stringify('\u001B[200~first\rsecond\u001B[201~')}`,
+    );
   });
 
   ctx.pty.write('\r');

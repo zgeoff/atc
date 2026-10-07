@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DaemonClient } from '../client/daemon-client';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import { resolveATCCommand } from './resolve-atc-command';
 import { setupTempDir } from './setup-temp-dir';
@@ -73,6 +74,29 @@ test('it rejects a client with the daemon stderr when the daemon exits before it
     Error,
     /^the daemon exited \(1\) before it listened:\n.*--listen and --token-file go together/s,
   );
+});
+
+test('it opens a client on the socket a replacement holds when the daemon exits before it listens', async () => {
+  using ctx = setupTest();
+
+  const nextPath = join(ctx.dir, 'next.sock');
+  const replacement = Bun.listen({ unix: nextPath, socket: { data() {} } });
+
+  onTestFinished(() => {
+    replacement.stop(true);
+  });
+
+  // The stand-in daemon moves the listening socket into place and exits, as
+  // a daemon handing its socket to a replacement does.
+  await using daemon = startDaemonProcess({
+    command: ['bash', '-c', `mv '${nextPath}' "$HOME/atc-daemon.sock"`, 'stand-in-atc'],
+    home: ctx.dir,
+  });
+
+  const client = await daemon.openClient();
+
+  expect(client).toBeInstanceOf(DaemonClient);
+  expect(daemon.proc.exitCode).toBe(0);
 });
 
 test('it lays the config variables over the environment of the daemon', async () => {

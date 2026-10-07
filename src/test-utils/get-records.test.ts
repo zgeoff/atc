@@ -8,7 +8,7 @@ test('it returns an array of records', () => {
   ]);
 });
 
-test('it returns an empty array', () => {
+test('it returns an empty array for an empty field', () => {
   expect(getRecords({ sessions: [] }, 'sessions')).toStrictEqual([]);
 });
 

@@ -84,12 +84,64 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     }
   };
 
-  const openTrackedClient = async () => {
+  // A client that opens after the wait for it ended, or after disposal,
+  // closes at once, so nothing outlives the daemon it reached.
+  const openTrackedClient = async (isAbandoned: () => boolean) => {
     const client = await DaemonClient.open(socketPath);
+
+    if (disposed || isAbandoned()) {
+      client.stop();
+      throw new Error('the wait for the daemon ended before this client opened');
+    }
 
     clients.add(client);
 
     return client;
+  };
+
+  const openClient = async (): Promise<DaemonClient> => {
+    const watched = current.proc;
+    let settled = false;
+    const isSettled = () => settled;
+
+    // Once the other wait settles or the daemon is disposed, each attempt
+    // resolves empty, which ends the polling.
+    const listening = waitFor(() => (settled || disposed ? null : openTrackedClient(isSettled)), {
+      timeoutMs: 15_000,
+      intervalMs: 50,
+    });
+
+    // A daemon that exits mid-wait either refused to start or handed its
+    // socket to a replacement, so one more connect tells the two apart.
+    const openAfterExit = async () => {
+      await watched.exited;
+
+      if (settled || disposed) {
+        return null;
+      }
+
+      try {
+        return await openTrackedClient(isSettled);
+      } catch {
+        throw new Error(
+          `the daemon exited (${String(watched.exitCode ?? watched.signalCode)}) before it listened:\n${readStderr()}`,
+        );
+      }
+    };
+
+    const exitedBefore = watched.exitCode !== null || watched.signalCode !== null;
+
+    try {
+      const client = await (exitedBefore ? listening : Promise.race([listening, openAfterExit()]));
+
+      if (client === null) {
+        throw new Error('the wait for the daemon settled without a client');
+      }
+
+      return client;
+    } finally {
+      settled = true;
+    }
   };
 
   return {
@@ -101,31 +153,8 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
       return current.proc;
     },
     readStderr,
-    openClient(): Promise<DaemonClient> {
-      const watched = current.proc;
-      const listening = waitFor(openTrackedClient, { timeoutMs: 15_000, intervalMs: 50 });
-
-      if (watched.exitCode !== null || watched.signalCode !== null) {
-        return listening;
-      }
-
-      // A daemon that exits mid-wait either refused to start or handed its
-      // socket to a replacement, so one more connect tells the two apart.
-      const openAfterExit = async () => {
-        await watched.exited;
-
-        try {
-          return await openTrackedClient();
-        } catch {
-          throw new Error(
-            `the daemon exited (${String(watched.exitCode ?? watched.signalCode)}) before it listened:\n${readStderr()}`,
-          );
-        }
-      };
-
-      return Promise.race([listening, openAfterExit()]);
-    },
-    async restart(signal: NodeJS.Signals = 'SIGTERM'): Promise<void> {
+    openClient,
+    async restart(signal: NodeJS.Signals): Promise<void> {
       current.proc.kill(signal);
 
       await current.proc.exited;

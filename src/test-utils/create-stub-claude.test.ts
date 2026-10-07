@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStubBin } from './create-stub-bin';
@@ -72,7 +72,7 @@ test('it prints its arguments, its TERM, and the parent-session variable it inhe
     env: { ...process.env, HOME: ctx.dir, TERM: 'dumb', CLAUDE_CODE_ATC_TEST: 'parent' },
   });
 
-  expect(run.stdout.toString()).toStartWith(
+  expect(run.stdout.toString()).toBe(
     `FAKE_CLAUDE_UP args: --settings ${ctx.settings}\nFAKE_CLAUDE_TERM:[dumb]\nFAKE_CLAUDE_PARENT:[parent]\n`,
   );
 });
@@ -115,11 +115,15 @@ test('it reports the payloads of the events file after the permission prompt', (
     .split('\n')
     .map((line): unknown => JSON.parse(line));
 
-  expect(names).toMatchObject([
-    { hook_event_name: 'SessionStart' },
-    { hook_event_name: 'Notification' },
-    { hook_event_name: 'Stop' },
-    { hook_event_name: 'SessionEnd' },
+  expect(names).toStrictEqual([
+    {
+      hook_event_name: 'SessionStart',
+      session_id: 'fake-1',
+      transcript_path: join(ctx.dir, 'fake-transcript.jsonl'),
+    },
+    { hook_event_name: 'Notification', session_id: 'fake-1', message: 'needs permission' },
+    { hook_event_name: 'Stop', session_id: 'fake-1' },
+    { hook_event_name: 'SessionEnd', session_id: 'fake-1' },
   ]);
 });
 
@@ -145,8 +149,19 @@ test('it reports its atc session id as the agent session when the home asks it t
     env: { ...process.env, HOME: ctx.dir, ATC_SESSION_ID: 's-own' },
   });
 
-  expect(readFileSync(join(ctx.dir, 'hooks.jsonl'), 'utf8')).toInclude('"session_id":"s-own"');
-  expect(readFileSync(join(ctx.dir, 'hooks.jsonl'), 'utf8')).not.toInclude('fake-1');
+  const hooks = readFileSync(join(ctx.dir, 'hooks.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line): unknown => JSON.parse(line));
+
+  expect(hooks).toStrictEqual([
+    {
+      hook_event_name: 'SessionStart',
+      session_id: 's-own',
+      transcript_path: join(ctx.dir, 'fake-transcript.jsonl'),
+    },
+    { hook_event_name: 'Notification', session_id: 's-own', message: 'needs permission' },
+  ]);
 });
 
 test('it exits at once without a report when it resumes an agent session the home marks dying', () => {
@@ -200,6 +215,10 @@ test('it holds its reports at the gate until an input line arrives, removing the
     env: { ...process.env, HOME: ctx.dir },
     stdin: 'pipe',
     stdout: 'ignore',
+  });
+
+  onTestFinished(() => {
+    proc.kill();
   });
 
   await waitFor(() => {
