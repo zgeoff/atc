@@ -531,7 +531,13 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
     data: { missing: ['glm'] },
   });
 
-  expect(ctx.port.calls).not.toContain('grants.add atc-s1 glm');
+  expect(ctx.port.calls).toStrictEqual([
+    'system.info',
+    'tokens.whoami',
+    'secrets.list',
+    'imps.get atc-s1',
+    'grants.list atc-s1',
+  ]);
 });
 
 test('it refuses a host that holds a grant its binding does not', async () => {
