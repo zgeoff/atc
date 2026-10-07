@@ -66,6 +66,10 @@ export interface SpawnPickerDeps<TMirror> {
   // source the flow has left, which fills nothing and only clears the
   // pending listing so that source lists again when its step reopens.
   readonly onDropAnswer?: () => void;
+
+  // Records any other decision the flow takes without drawing anything,
+  // such as text it ignores on a step that takes none.
+  readonly log?: (line: string) => void;
 }
 
 // One source `agents.list` returned, in the order the daemon offers them.
@@ -695,6 +699,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private applyInput(value: string) {
     // The target step takes no text: its list is short and fixed.
     if (this.step === 'target') {
+      this.deps.log?.('ignored text on the target step');
+
       return;
     }
 
@@ -1072,6 +1078,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const sources = this.sources ?? [];
 
     if (sources.length < 2) {
+      this.deps.log?.('ignored tab with one source');
+
       return;
     }
 
@@ -1292,7 +1300,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
       this.deps.write(ansi.clear);
       this.render();
+
+      return;
     }
+
+    this.deps.log?.(`kept the ${this.step} step through a listing answer`);
   }
 
   // Takes the git source step's choice: the other URL form on offer, a

@@ -16,6 +16,7 @@ import { collectTargetPicks } from './collect-target-picks';
 import { findFuzzyScore, formatDir } from './dirs';
 import type { ProtocolMismatch } from './format-protocol-mismatch';
 import { KEY, isDown, isUp, planTextEdit } from './keys';
+import { logClientEvent } from './log-client-event';
 import { parseDaemonEvent } from './parse-daemon-event';
 import { pickTabTarget } from './pick-tab-target';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
@@ -346,6 +347,10 @@ const picker = new SpawnPicker<MirrorSession>({
   },
   cwd: process.cwd(),
   configPath: configFile,
+  onDropAnswer: () => {
+    logClientEvent('dropped answer');
+  },
+  log: logClientEvent,
 });
 
 function openPicker(resume: boolean) {
@@ -722,6 +727,12 @@ function applyOverlayKey(buf: Buffer) {
 
   if (ch === 'H' && sel !== undefined && sel.kind === 'pty' && sel.alive && sel.canEject) {
     service.send({ type: 'EJECT', sessionID: sel.id });
+
+    return;
+  }
+
+  if (ch === 'H') {
+    logClientEvent('ignored H on a session that cannot eject');
 
     return;
   }

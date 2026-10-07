@@ -1,0 +1,136 @@
+import { expect, test } from 'bun:test';
+import { KEYS } from '../src/test-utils/keys';
+import { startTUIHarness } from '../src/test-utils/start-tui-harness';
+
+function setupTest() {
+  return startTUIHarness();
+}
+
+test('it adopts a session with --resume and yanks its resume command', async () => {
+  await using ctx = setupTest();
+
+  ctx.boot();
+
+  await ctx.waitFor('adopt an existing session');
+
+  ctx.write('r');
+
+  await ctx.waitFor('adopt: agent');
+
+  ctx.write(KEYS.enter);
+
+  await ctx.waitFor('adopt: directory');
+
+  ctx.write(KEYS.enter);
+
+  await ctx.waitFor('adopt: name');
+
+  ctx.write(`adopted${KEYS.enter}`);
+
+  await ctx.waitFor('FAKE_CLAUDE_UP');
+
+  expect(ctx.read()).toInclude('--resume');
+
+  ctx.write(KEYS.ctrlSpace);
+
+  await ctx.waitFor('need you: adopted');
+  await ctx.waitFor('y yank');
+
+  ctx.reset();
+  ctx.write('y');
+
+  await ctx.waitFor('resume cmd copied');
+
+  const b64 = ctx.read().split(']52;c;')[1]?.split(KEYS.bel)[0];
+
+  if (b64 === undefined) {
+    throw new Error('no OSC52 sequence in output');
+  }
+
+  const cmd = Buffer.from(b64, 'base64').toString();
+
+  expect(cmd).toInclude('claude --resume fake-1');
+  expect(cmd).toStartWith("cd '");
+}, 15_000);
+
+test('it adopts grok with --no-leader and without --resume', async () => {
+  await using ctx = setupTest();
+
+  ctx.boot();
+
+  await ctx.waitFor('adopt an existing session');
+
+  ctx.write('r');
+
+  await ctx.waitFor('adopt: agent');
+
+  ctx.reset();
+  ctx.write(KEYS.down);
+
+  await ctx.waitFor('\u001B[7mGrok');
+
+  ctx.write(KEYS.enter);
+
+  await ctx.waitFor('adopt: directory');
+
+  ctx.write(KEYS.enter);
+
+  await ctx.waitFor('adopt: name');
+
+  ctx.write(`adoptedg${KEYS.enter}`);
+
+  await ctx.waitFor('FAKE_GROK_UP');
+
+  const captured = ctx.read();
+
+  // The TUI paints with cursor moves and no newlines, so the args reach the
+  // capture on the same line as a whole screen of session names.
+  const args = /FAKE_GROK_UP args:[^\r\n]*/u.exec(captured);
+
+  if (args === null) {
+    throw new Error('no FAKE_GROK_UP args line was captured');
+  }
+
+  const [argsLine] = args;
+
+  expect(argsLine).toInclude('FAKE_GROK_UP args: --no-leader');
+  expect(argsLine).not.toInclude('--resume');
+  expect(argsLine).not.toInclude('-p');
+  expect(captured).not.toInclude('FAKE_CLAUDE_UP');
+}, 15_000);
+
+test('it offers an adopt only the targets that run on this host', async () => {
+  await using ctx = setupTest();
+
+  ctx.writeConfig({
+    targets: {
+      local: { provider: 'local-pty' },
+      alt: { provider: 'local-pty', tag: 'alt' },
+      box: { provider: 'imp', url: 'http://127.0.0.1:9' },
+    },
+    defaultTarget: 'local',
+  });
+
+  ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  ctx.write('r');
+
+  await ctx.waitFor('adopt: agent');
+
+  ctx.write(KEYS.enter);
+
+  await ctx.waitFor('adopt: directory');
+
+  ctx.reset();
+  ctx.write(KEYS.enter);
+
+  await ctx.waitFor('adopt: target');
+
+  const menu = ctx.read();
+
+  expect(menu).toInclude('local  local-pty · default');
+  expect(menu).toInclude('alt  local-pty');
+  expect(menu).not.toInclude('box  imp');
+}, 15_000);
