@@ -45,7 +45,10 @@ function setupTest() {
 
 test('it reports a codex hello as the last-used agent instead of coercing it to claude', async () => {
   await using ctx = setupTest();
-  await using store = await StateStore.open(join(ctx.dir, 'state.db'));
+
+  const store = await StateStore.open(join(ctx.dir, 'state.db'));
+
+  ctx.stack.use(store);
 
   await store.writeLastUsedAgent('codex');
 

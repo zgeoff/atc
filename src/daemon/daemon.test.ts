@@ -857,7 +857,10 @@ test('it releases nothing again when a stopped handle is disposed', async () => 
   const stopped = ctx.daemon;
 
   await ctx.restart();
-  await stopped[Symbol.asyncDispose]();
+
+  const disposed = stopped[Symbol.asyncDispose]();
+
+  await expect(disposed).toResolve();
 
   expect(existsSync(join(ctx.dir, 'daemon.json'))).toBeTrue();
 });

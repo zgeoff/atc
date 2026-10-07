@@ -1155,7 +1155,7 @@ test('it ends each harness on this machine when disposed', async () => {
   expect(exited).toBeTrue();
 });
 
-test('it lets go of nothing again when disposed a second time', async () => {
+test('it allows a second disposal', async () => {
   await using ctx = await setupTest();
 
   using mgr = new SessionManager(

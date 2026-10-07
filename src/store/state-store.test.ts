@@ -3769,13 +3769,14 @@ test('it closes its connection when disposed', async () => {
   expect(ctx.store.loadFleet()).rejects.toThrow();
 });
 
-test('it closes nothing again when disposed after a stop', async () => {
+test('it stays closed when disposed after a stop', async () => {
   await using ctx = await setupTest();
 
-  const stopped = ctx.store.stop();
+  await ctx.store.stop();
+
   const disposed = ctx.store[Symbol.asyncDispose]();
 
-  await disposed;
+  await expect(disposed).toResolve();
 
-  expect(disposed).toBe(stopped);
+  expect(ctx.store.loadFleet()).rejects.toThrow();
 });

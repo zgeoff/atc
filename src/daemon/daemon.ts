@@ -2347,11 +2347,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
-  // The stop already started, which a quit, a second stop, and a disposal
-  // all wait on instead of releasing anything twice.
+  // The stop under way or done, which a quit, a second stop, and a disposal
+  // all wait on instead of releasing anything twice; a stop that fails is
+  // forgotten, so the next one retries the release.
   let stopping: Promise<void> | null = null;
 
-  stopDaemon = () => {
+  stopDaemon = async () => {
     stopping ??= (async () => {
       // Ends each client itself so every peer sees the close: a stopped
       // listener does not reliably end the connections it already accepted.
@@ -2370,7 +2371,17 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       await listenerLog?.drain(LOG_DRAIN_TIMEOUT_MS);
     })();
 
-    return stopping;
+    const current = stopping;
+
+    try {
+      await current;
+    } catch (error) {
+      if (stopping === current) {
+        stopping = null;
+      }
+
+      throw error;
+    }
   };
 
   writeDaemonRecord(recordPath, {
