@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectRootDirs } from './collect-root-dirs';
 
 test('it lists each child directory of a root and the worktrees under it, sorted', () => {

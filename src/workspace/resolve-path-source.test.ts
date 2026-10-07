@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
-import { updateEnv } from '../../test/update-env';
+import { updateEnv } from '../test-utils/update-env';
 import { resolvePathSource } from './resolve-path-source';
 
 // The transports a fixture upstream on the local filesystem is reached over.

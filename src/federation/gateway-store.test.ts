@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { GatewayStore } from './gateway-store';
 

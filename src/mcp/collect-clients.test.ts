@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { setupMCPHTTP } from '../../test/setup-mcp-http';
+import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
 import { collectClients } from './collect-clients';
 
 test('it lists every client with its redirect URIs, oldest first', async () => {

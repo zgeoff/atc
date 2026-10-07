@@ -1,5 +1,5 @@
-import type { GatewayConfig } from '../src/shared/collect-gateways';
-import type { Config } from '../src/shared/config';
+import type { GatewayConfig } from '../shared/collect-gateways';
+import type { Config } from '../shared/config';
 import { getAgentEntry } from './get-agent-entry';
 
 /**

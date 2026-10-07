@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { FixtureImpPort } from '../../test/fixture-imp-port';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 import { restoreFleet } from './restore-fleet';
 import type { SessionRuntime } from './session-runtime';

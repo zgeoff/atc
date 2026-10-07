@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { chmodSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { openMCPAuth } from './open-mcp-auth';
 
 test('it sends no telemetry when the environment turns it on', async () => {

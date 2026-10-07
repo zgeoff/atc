@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { updateEnv } from '../../test/update-env';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { updateEnv } from '../test-utils/update-env';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
 test('it leaves the SDK on its own CLI copy under a source run', () => {

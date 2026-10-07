@@ -191,7 +191,7 @@ test('it fails on a confined package imported outside the file that owns it', as
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'confined package: src/daemon/imp-provider.ts imports bun-pty, allowed only in src/daemon/local-pty-provider.ts\n',
+      'confined package: src/daemon/imp-provider.ts imports bun-pty, allowed only in src/daemon/local-pty-provider.ts, src/test-utils/fixture-imp-port.ts\n',
   });
 });
 

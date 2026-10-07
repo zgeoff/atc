@@ -2,8 +2,6 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
 import { parseClaudeTranscriptLine } from '../agents/parse-claude-transcript-line';
 import { DaemonClient } from '../client/daemon-client';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
@@ -13,6 +11,8 @@ import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import { getRecord } from '../shared/get-record';
 import { isRecord, sendReport } from '../shared/report';
 import { StateStore } from '../store/state-store';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { collectUnruledIDPaths } from './collect-unruled-id-paths';
 import { ERROR_DATA_RULES, ID_RULES } from './id-rules';
 

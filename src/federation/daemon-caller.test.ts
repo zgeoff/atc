@@ -3,12 +3,12 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { startCutProxy } from '../../test/start-cut-proxy';
-import { startLegacyDaemon } from '../../test/start-legacy-daemon';
 import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import { getRecord } from '../shared/get-record';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startCutProxy } from '../test-utils/start-cut-proxy';
+import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
 import { DaemonCaller } from './daemon-caller';
 
 const TOKEN = 'g'.repeat(32);

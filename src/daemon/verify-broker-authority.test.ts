@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { FixtureImpPort } from '../../test/fixture-imp-port';
+import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { BrokerAuthorityError } from './broker-authority-error';
 import { ImpClientPort } from './imp-client-port';
 import { verifyBrokerAuthority } from './verify-broker-authority';

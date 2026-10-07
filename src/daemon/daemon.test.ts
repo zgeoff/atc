@@ -3,11 +3,6 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { getAgentEntry } from '../../test/get-agent-entry';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { spawnNamedSession } from '../../test/spawn-named-session';
-import { updateEnv } from '../../test/update-env';
-import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -17,10 +12,15 @@ import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
 import { parseConfig } from '../shared/config';
 import { isRecord } from '../shared/report';
+import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { spawnNamedSession } from '../test-utils/spawn-named-session';
+import { updateEnv } from '../test-utils/update-env';
+import { waitFor } from '../test-utils/wait-for';
 import { startDaemon } from './daemon';
 
 // Protocol-level tests: handshake, errors, and spawn-parameter validation.
-// Session behavior against a real fake-claude lives in test/daemon-e2e.test.ts.
+// Session behavior against a real fake-claude lives in e2e/daemon-e2e.test.ts.
 const idleAdapter: AgentAdapter = {
   id: 'claude',
   headlessRunner: null,

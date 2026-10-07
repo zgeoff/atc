@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { FixtureImpPort } from '../../test/fixture-imp-port';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ImpProvider } from './imp-provider';
 import type { ImpTargetOptions } from './imp-provider';
 import { verifyBrokerAuthority } from './verify-broker-authority';

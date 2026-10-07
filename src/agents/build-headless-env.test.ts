@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { updateEnv } from '../../test/update-env';
 import { toSessionID } from '../shared/to-session-id';
+import { updateEnv } from '../test-utils/update-env';
 import { buildHeadlessEnv } from './build-headless-env';
 
 test('it loads the mod and names the session and socket for a session run', () => {

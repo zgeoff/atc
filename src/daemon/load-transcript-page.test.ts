@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
 import { parseClaudeTranscriptLine } from '../agents/parse-claude-transcript-line';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { loadTranscriptPage } from './load-transcript-page';
 
 test('it reads every row from the start of a transcript', async () => {

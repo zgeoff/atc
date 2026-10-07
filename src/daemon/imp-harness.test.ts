@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { FixtureImpPort } from '../../test/fixture-imp-port';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
+import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import type { HarnessAttachment, HarnessExit } from './execution-provider';
 import { ImpHarness } from './imp-harness';
 

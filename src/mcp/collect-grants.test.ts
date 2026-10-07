@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { readJSONRecord } from '../../test/read-json-record';
-import { runMCPAuthorization } from '../../test/run-mcp-authorization';
-import { setupMCPHTTP } from '../../test/setup-mcp-http';
+import { readJSONRecord } from '../test-utils/read-json-record';
+import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
+import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
 import { collectGrants } from './collect-grants';
 
 test('it lists a grant with its client, scopes, and when it was last used', async () => {

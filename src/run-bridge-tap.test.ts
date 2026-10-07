@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../test/setup-temp-dir';
 import { isRecord } from './shared/report';
+import { setupTempDir } from './test-utils/setup-temp-dir';
 
 // A tap inside a remote host against a listener standing in for the
 // session bridge. The listener opens the tap, hands each request line to

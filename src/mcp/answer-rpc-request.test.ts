@@ -1,10 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupMCPHTTP } from '../../test/setup-mcp-http';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { startLegacyDaemon } from '../../test/start-legacy-daemon';
 import { DaemonClient } from '../client/daemon-client';
 import { isRecord } from '../shared/report';
+import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
 import { answerRPCRequest } from './answer-rpc-request';
 import { ReconnectingCaller } from './reconnecting-caller';
 

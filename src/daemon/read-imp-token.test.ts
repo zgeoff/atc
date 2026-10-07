@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { readImpToken } from './read-imp-token';
 
 test('it reads a token file without its one trailing newline', () => {

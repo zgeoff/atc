@@ -1,10 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { spawnNamedSession } from '../../test/spawn-named-session';
-import { subscribeToSocketLines } from '../../test/subscribe-to-socket-lines';
-import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { encodeCursor } from '../protocol/encode-cursor';
@@ -14,6 +10,10 @@ import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import { StateStore } from '../store/state-store';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { spawnNamedSession } from '../test-utils/spawn-named-session';
+import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
+import { waitFor } from '../test-utils/wait-for';
 import { startDaemon } from './daemon';
 
 // Message-inbox behavior through the real daemon: acceptance rules, the tap

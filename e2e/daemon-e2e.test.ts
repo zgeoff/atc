@@ -23,9 +23,9 @@ import { toAgentID } from '../src/shared/to-agent-id';
 import { toAgentSessionID } from '../src/shared/to-agent-session-id';
 import { toSessionID } from '../src/shared/to-session-id';
 import { StateStore } from '../src/store/state-store';
-import { setupFakeSystemd } from './setup-fake-systemd';
-import { updateEnv } from './update-env';
-import { waitFor } from './wait-for';
+import { setupFakeSystemd } from '../src/test-utils/setup-fake-systemd';
+import { updateEnv } from '../src/test-utils/update-env';
+import { waitFor } from '../src/test-utils/wait-for';
 
 const repo = dirname(import.meta.dir);
 
@@ -4374,7 +4374,12 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
   rmSync(ctx.daemonSock, { force: true });
 
   const legacy = Bun.spawn(
-    [process.execPath, join(repo, 'test', 'run-legacy-daemon.ts'), ctx.daemonSock, stateDir],
+    [
+      process.execPath,
+      join(repo, 'src', 'test-utils', 'run-legacy-daemon.ts'),
+      ctx.daemonSock,
+      stateDir,
+    ],
     {
       env: collectEnv({ HOME: ctx.home, XDG_RUNTIME_DIR: ctx.home, PATH: path }),
       stdout: 'ignore',

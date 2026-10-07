@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { updateEnv } from '../../test/update-env';
+import { updateEnv } from '../test-utils/update-env';
 import { collectCleanEnv } from './collect-clean-env';
 
 test('it strips parent-session grok keys and keeps home and api keys', () => {

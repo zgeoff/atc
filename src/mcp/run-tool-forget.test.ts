@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
 import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 import { collectPrincipals } from '../shared/collect-principals';
 import { getRecord } from '../shared/get-record';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildPrincipalCaller } from './build-principal-caller';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { runTool } from './run-tool';

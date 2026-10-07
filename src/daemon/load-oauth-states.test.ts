@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { FixtureImpPort } from '../../test/fixture-imp-port';
 import { collectAuthProfiles } from '../shared/collect-auth-profiles';
+import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';

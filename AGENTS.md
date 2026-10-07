@@ -196,9 +196,11 @@ import cycle and on an import a directory's rule forbids; the rules live in
 `scripts/check-imports.ts`. `mcp/` holds the MCP tool definitions and request handling that
 `mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the better-auth
 authorization server and its pages. `federation/` holds the gateway's daemon registry, per-daemon
-callers, and id and cursor rewriting, and imports only `shared/` and `protocol/`. `test/` holds the
-PTY-driven e2e suite, `bin/atc` is the executable shim. `mods/` holds the `atc-bridge` Claude Code
-mod. `scripts/` holds repo tooling, not app code.
+callers, and id and cursor rewriting, and imports only `shared/` and `protocol/`. `test-utils/`
+holds the shared test helpers, stand-ins, and factories, each with its test beside it, and no
+production module imports it. `e2e/` at the repo root holds the end-to-end suites that run the whole
+program, `bin/atc` is the executable shim. `mods/` holds the `atc-bridge` Claude Code mod.
+`scripts/` holds repo tooling, not app code.
 
 ## Runtime rules
 

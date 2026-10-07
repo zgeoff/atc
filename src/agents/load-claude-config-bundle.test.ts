@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { updateEnv } from '../../test/update-env';
 import { resolveHomeDir } from '../shared/resolve-home-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { updateEnv } from '../test-utils/update-env';
 import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 
 test('it ships the allow-listed files and folders of the host config folder', () => {

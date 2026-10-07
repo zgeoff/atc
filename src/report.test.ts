@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../test/setup-temp-dir';
 import { isRecord } from './shared/report';
+import { setupTempDir } from './test-utils/setup-temp-dir';
 
 // The report subcommand against a listener standing in for the daemon's
 // reporter socket; it must exit 0 on every path.

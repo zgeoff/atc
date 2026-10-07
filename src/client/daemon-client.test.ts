@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { DaemonClient } from './daemon-client';
 
 test('it rejects a request sent after the daemon closed the connection', async () => {

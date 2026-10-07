@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { FixtureImpPort } from '../../test/fixture-imp-port';
-import { setupTempDir } from '../../test/setup-temp-dir';
 import { DaemonClient } from '../client/daemon-client';
 import { getRecord } from '../shared/get-record';
+import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';

@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
-import { updateEnv } from '../../test/update-env';
+import { updateEnv } from '../test-utils/update-env';
 import { createWorkspaceClone } from './create-workspace-clone';
 
 // The transports a fixture upstream is reached over: a local path, and

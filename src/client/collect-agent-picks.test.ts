@@ -2,8 +2,8 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { updateEnv } from '../../test/update-env';
 import { parseConfig } from '../shared/config';
+import { updateEnv } from '../test-utils/update-env';
 import { collectAgentPicks } from './collect-agent-picks';
 
 function setupBinDir(bins: readonly { readonly name: string; readonly executable: boolean }[]) {

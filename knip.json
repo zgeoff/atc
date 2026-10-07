@@ -3,13 +3,13 @@
   "entry": [
     "bin/atc",
     "src/gateway.ts",
-    "test/**/*.test.ts",
+    "e2e/**/*.test.ts",
     "src/**/*.test.ts",
-    "test/run-source-daemon.ts",
-    "test/run-listener-daemon.ts",
-    "test/run-legacy-daemon.ts"
+    "src/test-utils/run-source-daemon.ts",
+    "src/test-utils/run-listener-daemon.ts",
+    "src/test-utils/run-legacy-daemon.ts"
   ],
-  "project": ["src/**/*.ts", "test/**/*.ts"],
+  "project": ["src/**/*.ts", "e2e/**/*.ts"],
   "ignore": ["mods/**"],
   "ignoreDependencies": ["@stylistic/eslint-plugin", "@zgeoff/oxlint-config"]
 }

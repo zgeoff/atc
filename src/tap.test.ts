@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '../test/setup-temp-dir';
-import { spawnNamedSession } from '../test/spawn-named-session';
-import { waitFor } from '../test/wait-for';
 import type { AgentAdapter } from './agents/agent-adapter';
 import { DaemonClient } from './client/daemon-client';
 import { startDaemon } from './daemon/daemon';
 import type { EventMsg } from './protocol/protocol';
+import { setupTempDir } from './test-utils/setup-temp-dir';
+import { spawnNamedSession } from './test-utils/spawn-named-session';
+import { waitFor } from './test-utils/wait-for';
 
 // The tap subcommand against an in-process daemon: it dials the default
 // daemon socket under XDG_RUNTIME_DIR, so the daemon listens exactly there.

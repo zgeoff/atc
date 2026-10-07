@@ -1,9 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { connect } from 'node:net';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { subscribeToSocketLines } from '../../test/subscribe-to-socket-lines';
-import { waitFor } from '../../test/wait-for';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
+import { waitFor } from '../test-utils/wait-for';
 import { startEventsServer } from './start-events-server';
 import type { EventsServer } from './start-events-server';
 

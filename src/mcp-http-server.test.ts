@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Subprocess } from 'bun';
-import { setupTempDir } from '../test/setup-temp-dir';
-import { waitFor } from '../test/wait-for';
+import { setupTempDir } from './test-utils/setup-temp-dir';
+import { waitFor } from './test-utils/wait-for';
 
 /**
  * A fresh home whose computed daemon socket sits in it, and a way to run

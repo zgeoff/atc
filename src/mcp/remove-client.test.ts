@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { setupMCPHTTP } from '../../test/setup-mcp-http';
+import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
 import { collectClients } from './collect-clients';
 import { removeClient } from './remove-client';
 

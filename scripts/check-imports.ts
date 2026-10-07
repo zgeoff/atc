@@ -366,7 +366,8 @@ function resolveImport(file: string, specifier: string, known: ReadonlySet<strin
 }
 
 const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
-  'bun-pty': ['src/daemon/local-pty-provider.ts'],
+  // the fake impd runs its guests in real PTYs, as impd does
+  'bun-pty': ['src/daemon/local-pty-provider.ts', 'src/test-utils/fixture-imp-port.ts'],
   '@zgeoff/imp-client': ['src/daemon/imp-client-port.ts'],
   '@anthropic-ai/claude-agent-sdk': [
     'src/agents/build-claude-query-options.ts',
@@ -408,6 +409,22 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
 
   // modules at the src/ root: the subcommand modules beside the entrypoints
   root: ['shared', 'protocol', 'agents', 'client', 'mcp', 'federation'],
+
+  // the shared test helpers wire real modules together the way a test does,
+  // and no production row lists them, so no production module imports one
+  'test-utils': [
+    'shared',
+    'protocol',
+    'agents',
+    'workspace',
+    'sources',
+    'store',
+    'daemon',
+    'client',
+    'mcp',
+    'federation',
+    'root',
+  ],
 };
 
 function checkDirection(file: string, targets: readonly string[]): string[] {

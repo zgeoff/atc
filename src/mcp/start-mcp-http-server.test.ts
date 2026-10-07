@@ -1,11 +1,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { readJSONRecord } from '../../test/read-json-record';
-import { runMCPAuthorization } from '../../test/run-mcp-authorization';
-import { setupMCPHTTP } from '../../test/setup-mcp-http';
-import { setupTempDir } from '../../test/setup-temp-dir';
 import { DaemonClient } from '../client/daemon-client';
+import { readJSONRecord } from '../test-utils/read-json-record';
+import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
+import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectGrants } from './collect-grants';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { removeClient } from './remove-client';

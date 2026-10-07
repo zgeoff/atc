@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { $ } from 'bun';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { checkURLCredentials } from './check-url-credentials';
 
 // A repository whose own config holds the rewrites a test adds, with the

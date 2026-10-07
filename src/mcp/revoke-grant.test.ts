@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { runMCPAuthorization } from '../../test/run-mcp-authorization';
-import { setupMCPHTTP } from '../../test/setup-mcp-http';
+import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
+import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
 import { collectGrants } from './collect-grants';
 import { revokeGrant } from './revoke-grant';
 

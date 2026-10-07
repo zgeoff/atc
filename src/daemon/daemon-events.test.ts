@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { spawnNamedSession } from '../../test/spawn-named-session';
-import { subscribeToSocketLines } from '../../test/subscribe-to-socket-lines';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { decodeMessage } from '../protocol/protocol';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { spawnNamedSession } from '../test-utils/spawn-named-session';
+import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
 import { startDaemon } from './daemon';
 
 // Events-socket tests: snapshot-then-stream and read-only behavior. The

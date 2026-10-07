@@ -1,4 +1,4 @@
-import { isRecord } from '../src/shared/report';
+import { isRecord } from '../shared/report';
 
 type SendRequest = (
   m: string,

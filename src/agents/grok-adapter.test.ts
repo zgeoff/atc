@@ -2,12 +2,12 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getAgentEntry } from '../../test/get-agent-entry';
-import { updateEnv } from '../../test/update-env';
 import type { HookEvent } from '../protocol/hook-event';
 import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
+import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { updateEnv } from '../test-utils/update-env';
 import { GrokAdapter } from './grok-adapter';
 
 function setupGrokHome(): string {

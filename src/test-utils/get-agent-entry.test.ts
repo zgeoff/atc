@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { parseConfig } from '../src/shared/config';
+import { parseConfig } from '../shared/config';
 import { getAgentEntry } from './get-agent-entry';
 
 test('it returns the entry a config holds under an id', () => {

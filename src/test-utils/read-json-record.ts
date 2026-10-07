@@ -1,4 +1,4 @@
-import { isRecord } from '../src/shared/report';
+import { isRecord } from '../shared/report';
 
 interface JSONBody {
   readonly json: () => Promise<unknown>;

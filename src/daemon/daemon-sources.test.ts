@@ -3,12 +3,12 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
-import { FixtureDirProvider } from '../../test/fixture-dir-provider';
-import { updateEnv } from '../../test/update-env';
 import { DaemonClient } from '../client/daemon-client';
 import { buildDirsSource } from '../sources/dirs/build-dirs-source';
 import { buildGitSource } from '../sources/git/build-git-source';
 import { buildGitHubSource } from '../sources/github/build-github-source';
+import { FixtureDirProvider } from '../test-utils/fixture-dir-provider';
+import { updateEnv } from '../test-utils/update-env';
 import { startDaemon } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';
 

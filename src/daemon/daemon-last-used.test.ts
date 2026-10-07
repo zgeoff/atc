@@ -2,8 +2,6 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getAgentEntry } from '../../test/get-agent-entry';
-import { updateEnv } from '../../test/update-env';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -12,6 +10,8 @@ import { isRecord } from '../shared/report';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { updateEnv } from '../test-utils/update-env';
 import { startDaemon } from './daemon';
 
 const idleAdapter: AgentAdapter = {

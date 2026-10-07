@@ -1,9 +1,9 @@
 import { appendFileSync } from 'node:fs';
-import { buildAgentAdapters } from '../src/agents/build-agent-adapters';
-import { startClaudeHeadlessRun } from '../src/agents/start-claude-headless-run';
-import { buildExecutionTargets } from '../src/daemon/build-execution-targets';
-import { startDaemon } from '../src/daemon/daemon';
-import { collectZoxideDirs } from '../src/shared/collect-zoxide-dirs';
+import { buildAgentAdapters } from '../agents/build-agent-adapters';
+import { startClaudeHeadlessRun } from '../agents/start-claude-headless-run';
+import { buildExecutionTargets } from '../daemon/build-execution-targets';
+import { startDaemon } from '../daemon/daemon';
+import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
 import {
   daemonPidFile,
   daemonSocketPath,
@@ -11,12 +11,12 @@ import {
   eventsSocketPath,
   loadConfig,
   socketPath,
-} from '../src/shared/config';
-import { getBuild } from '../src/shared/get-build';
-import { resolveHomeDir } from '../src/shared/resolve-home-dir';
-import { buildSources } from '../src/sources/build-sources';
-import { collectBuiltinSources } from '../src/sources/collect-builtin-sources';
-import type { SourceProvider } from '../src/sources/types';
+} from '../shared/config';
+import { getBuild } from '../shared/get-build';
+import { resolveHomeDir } from '../shared/resolve-home-dir';
+import { buildSources } from '../sources/build-sources';
+import { collectBuiltinSources } from '../sources/collect-builtin-sources';
+import type { SourceProvider } from '../sources/types';
 
 /**
  * Runs a daemon for the e2e suite, composed as `atc daemon` composes its

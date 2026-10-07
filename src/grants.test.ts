@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { readJSONRecord } from '../test/read-json-record';
-import { runMCPAuthorization } from '../test/run-mcp-authorization';
-import { setupMCPHTTP } from '../test/setup-mcp-http';
+import { readJSONRecord } from './test-utils/read-json-record';
+import { runMCPAuthorization } from './test-utils/run-mcp-authorization';
+import { setupMCPHTTP } from './test-utils/setup-mcp-http';
 
 // A grant id is random base64url, so one in 64 starts with a dash; this one
 // does, with an underscore after it, the shape an argument parser reads as a

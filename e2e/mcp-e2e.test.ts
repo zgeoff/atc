@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Subprocess } from 'bun';
 import { isRecord } from '../src/shared/report';
-import { startLegacyDaemon } from './start-legacy-daemon';
-import { waitFor } from './wait-for';
+import { startLegacyDaemon } from '../src/test-utils/start-legacy-daemon';
+import { waitFor } from '../src/test-utils/wait-for';
 
 const repo = dirname(import.meta.dir);
 

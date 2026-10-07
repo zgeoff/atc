@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../test/setup-temp-dir';
-import { waitFor } from '../test/wait-for';
+import { setupTempDir } from './test-utils/setup-temp-dir';
+import { waitFor } from './test-utils/wait-for';
 
 // The command every test runs the gateway as: the source entry under the
 // test's own bun, or the compiled binary a smoke run points ATC_GATEWAY_BIN

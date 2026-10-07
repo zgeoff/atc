@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROTOCOL_V } from '../src/protocol/protocol';
+import { PROTOCOL_V } from '../protocol/protocol';
 import { startLegacyDaemon } from './start-legacy-daemon';
 
 /**

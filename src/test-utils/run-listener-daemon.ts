@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { startDaemon } from '../src/daemon/daemon';
+import { startDaemon } from '../daemon/daemon';
 
 /**
  * Runs a daemon with a TCP listener on a kernel-chosen loopback port, its

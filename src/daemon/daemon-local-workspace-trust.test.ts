@@ -9,15 +9,15 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
-import { getAgentEntry } from '../../test/get-agent-entry';
-import { getGatewayConfig } from '../../test/get-gateway-config';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { updateEnv } from '../../test/update-env';
-import { waitFor } from '../../test/wait-for';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
+import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { getGatewayConfig } from '../test-utils/get-gateway-config';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { updateEnv } from '../test-utils/update-env';
+import { waitFor } from '../test-utils/wait-for';
 import { startDaemon } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';
 

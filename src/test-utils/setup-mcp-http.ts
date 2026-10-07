@@ -1,12 +1,12 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AgentAdapter } from '../src/agents/agent-adapter';
-import { DaemonClient } from '../src/client/daemon-client';
-import { startDaemon } from '../src/daemon/daemon';
-import type { DaemonHandle } from '../src/daemon/daemon';
-import { openMCPAuth } from '../src/mcp/open-mcp-auth';
-import { ReconnectingCaller } from '../src/mcp/reconnecting-caller';
-import { startMCPHTTPServer } from '../src/mcp/start-mcp-http-server';
+import type { AgentAdapter } from '../agents/agent-adapter';
+import { DaemonClient } from '../client/daemon-client';
+import { startDaemon } from '../daemon/daemon';
+import type { DaemonHandle } from '../daemon/daemon';
+import { openMCPAuth } from '../mcp/open-mcp-auth';
+import { ReconnectingCaller } from '../mcp/reconnecting-caller';
+import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
 import { setupTempDir } from './setup-temp-dir';
 
 const SLEEP_ADAPTER: AgentAdapter = {

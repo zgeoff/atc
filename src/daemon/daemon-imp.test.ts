@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { FixtureImpPort } from '../../test/fixture-imp-port';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { updateEnv } from '../../test/update-env';
-import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
 import type { EventMsg } from '../protocol/protocol';
 import { getRecord } from '../shared/get-record';
+import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { updateEnv } from '../test-utils/update-env';
+import { waitFor } from '../test-utils/wait-for';
 import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
 

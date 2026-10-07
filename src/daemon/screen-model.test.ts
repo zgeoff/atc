@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { waitFor } from '../../test/wait-for';
 import { RESET_INPUT_MODES } from '../shared/reset-input-modes';
+import { waitFor } from '../test-utils/wait-for';
 import { ScreenModel } from './screen-model';
 
 interface ModelContext {

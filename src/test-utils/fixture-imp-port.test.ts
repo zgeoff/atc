@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ImpSessionStarted } from '../src/daemon/imp-port';
+import type { ImpSessionStarted } from '../daemon/imp-port';
 import { FixtureImpPort } from './fixture-imp-port';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
