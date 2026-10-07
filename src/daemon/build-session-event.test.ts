@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockSession } from '../test-utils/build-mock-session';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildSessionEvent } from './build-session-event';
 import { SessionManager } from './sessions';
@@ -30,32 +31,11 @@ async function setupTest() {
 test('it builds nothing for a SessionState notification whose id has no descriptor', async () => {
   await using ctx = await setupTest();
 
-  const event = buildSessionEvent(ctx.mgr, 'state', {
-    id: toSessionID('ghost-session'),
-    name: 'ghost',
-    cwd: '/work/ghost',
-    kind: 'pty',
-    pty: null,
-    state: 'exited',
-    unread: false,
-    lastMsg: '',
-    agent: 'claude',
-    pinned: false,
-    lastAttachedAt: 1_700_000_000_000,
-    repoRoot: '/work/ghost',
-    namedBy: 'auto',
-    createdAt: 1_700_000_000_000,
-    parent: null,
-    target: 'local',
-    targetIdentity: 'local-pty:test',
-    withheldEnv: [],
-    desired: 'run',
-    vm: 'none',
-    attachment: 'local',
-    suspended: false,
-    hostKey: toSessionID('ghost-session'),
-    bridgeEpoch: 0,
-  });
+  const event = buildSessionEvent(
+    ctx.mgr,
+    'state',
+    buildMockSession({ id: toSessionID('ghost-session') }),
+  );
 
   expect(event).toBeNull();
 });
@@ -63,32 +43,11 @@ test('it builds nothing for a SessionState notification whose id has no descript
 test('it builds nothing for a SessionAdded notification whose id has no descriptor', async () => {
   await using ctx = await setupTest();
 
-  const event = buildSessionEvent(ctx.mgr, 'added', {
-    id: toSessionID('ghost-session'),
-    name: 'ghost',
-    cwd: '/work/ghost',
-    kind: 'pty',
-    pty: null,
-    state: 'exited',
-    unread: false,
-    lastMsg: '',
-    agent: 'claude',
-    pinned: false,
-    lastAttachedAt: 1_700_000_000_000,
-    repoRoot: '/work/ghost',
-    namedBy: 'auto',
-    createdAt: 1_700_000_000_000,
-    parent: null,
-    target: 'local',
-    targetIdentity: 'local-pty:test',
-    withheldEnv: [],
-    desired: 'run',
-    vm: 'none',
-    attachment: 'local',
-    suspended: false,
-    hostKey: toSessionID('ghost-session'),
-    bridgeEpoch: 0,
-  });
+  const event = buildSessionEvent(
+    ctx.mgr,
+    'added',
+    buildMockSession({ id: toSessionID('ghost-session') }),
+  );
 
   expect(event).toBeNull();
 });

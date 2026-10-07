@@ -6,14 +6,14 @@ import { startTestDaemon } from './start-test-daemon';
 import { waitFor } from './wait-for';
 
 test('it takes every pending message in the order the daemon accepted them', async () => {
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
-  const first = await ctx.client.sendRequest('session.message', { session: id, text: 'one' });
-  const second = await ctx.client.sendRequest('session.message', { session: id, text: 'two' });
-  const tapClient = await ctx.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const first = await daemon.client.sendRequest('session.message', { session: id, text: 'one' });
+  const second = await daemon.client.sendRequest('session.message', { session: id, text: 'two' });
+  const tapClient = await daemon.openClient();
   const tap = await startStubTap(tapClient, id);
 
   await waitFor(() => {
@@ -25,32 +25,32 @@ test('it takes every pending message in the order the daemon accepted them', asy
 });
 
 test('it acks each message it takes', async () => {
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
-  const sent = await ctx.client.sendRequest('session.message', { session: id, text: 'one' });
-  const tapClient = await ctx.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'one' });
+  const tapClient = await daemon.openClient();
 
   await startStubTap(tapClient, id);
 
   await waitFor(async () => {
-    const got = await ctx.client.sendRequest('message.get', { message: sent['message'] });
+    const got = await daemon.client.sendRequest('message.get', { message: sent['message'] });
 
     expect(got['status']).toBe('delivered');
   });
 });
 
 test('it records the end of its subscription', async () => {
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
-  const tapClient = await ctx.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const tapClient = await daemon.openClient();
   const tap = await startStubTap(tapClient, id);
-  const replacement = await ctx.openClient();
+  const replacement = await daemon.openClient();
 
   await replacement.sendRequest('session.tap', { session: id });
 

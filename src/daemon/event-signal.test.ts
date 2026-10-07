@@ -46,8 +46,12 @@ test('it holds a wait with no event on a timer of its timeout', () => {
 
   const signal = new EventSignal(clock);
 
-  void signal.waitForNext(signal.generation, 100);
-  expect(clock.collectPending()).toStrictEqual([100]);
+  const waiting = signal.waitForNext(signal.generation, 100);
+
+  expect({ timers: clock.collectPending(), wait: Bun.peek.status(waiting) }).toStrictEqual({
+    timers: [100],
+    wait: 'pending',
+  });
 });
 
 test('it resolves a wait with no event once the timeout passes', async () => {

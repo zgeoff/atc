@@ -22,13 +22,7 @@ test('it replays text written to the screen', async () => {
 
   ctx.model.record('hello fleet');
 
-  const replay = await waitFor(async () => {
-    const rendered = await ctx.model.renderReplay();
-
-    expect(rendered).toInclude('hello fleet');
-
-    return rendered;
-  });
+  const replay = await ctx.model.renderReplay();
 
   expect(replay).toInclude('hello fleet');
 });
@@ -38,21 +32,12 @@ test('it drops cleared content from the replay', async () => {
 
   ctx.model.record('stale screen\r\n');
 
-  await waitFor(async () => {
-    const rendered = await ctx.model.renderReplay();
-
-    expect(rendered).toInclude('stale screen');
-  });
+  // A replay waits for every byte recorded before it.
+  await ctx.model.renderReplay();
 
   ctx.model.record('\u001B[2J\u001B[Hfresh screen');
 
-  const replay = await waitFor(async () => {
-    const rendered = await ctx.model.renderReplay();
-
-    expect(rendered).toInclude('fresh screen');
-
-    return rendered;
-  });
+  const replay = await ctx.model.renderReplay();
 
   expect(replay).not.toInclude('stale screen');
 });
@@ -62,11 +47,8 @@ test('it includes bytes recorded while a replay is pending', async () => {
 
   ctx.model.record('first');
 
-  await waitFor(async () => {
-    const rendered = await ctx.model.renderReplay();
-
-    expect(rendered).toInclude('first');
-  });
+  // A replay waits for every byte recorded before it.
+  await ctx.model.renderReplay();
 
   const replay = ctx.model.renderReplay();
 
@@ -82,13 +64,7 @@ test('it replays only the visible screen for a session on the alternate buffer',
 
   ctx.model.record('normal residue\r\n\u001B[?1049haltscreen content');
 
-  const replay = await waitFor(async () => {
-    const rendered = await ctx.model.renderReplay();
-
-    expect(rendered).toInclude('altscreen content');
-
-    return rendered;
-  });
+  const replay = await ctx.model.renderReplay();
 
   expect(replay).not.toInclude('\u001B[?1049h');
   expect(replay).not.toInclude('normal residue');
@@ -99,15 +75,11 @@ test('it preserves colors and cursor positioning in the replay', async () => {
 
   ctx.model.record('\u001B[5;10H\u001B[1;31malert\u001B[0m');
 
-  const replay = await waitFor(async () => {
-    const rendered = await ctx.model.renderReplay();
+  const replay = await ctx.model.renderReplay();
 
-    expect(rendered).toInclude('alert');
-
-    return rendered;
-  });
-
-  expect(replay).toInclude('\u001B[');
+  // The replay reaches row 5 by four line breaks and column 10 by a
+  // nine-column move, then sets bold red.
+  expect(replay).toEndWith('\r\n\r\n\r\n\r\n\u001B[9C\u001B[31;1malert\u001B[0m');
 });
 
 test('it keeps replaying after a resize', async () => {
@@ -115,22 +87,13 @@ test('it keeps replaying after a resize', async () => {
 
   ctx.model.record('before resize\r\n');
 
-  await waitFor(async () => {
-    const rendered = await ctx.model.renderReplay();
-
-    expect(rendered).toInclude('before resize');
-  });
+  // A replay waits for every byte recorded before it.
+  await ctx.model.renderReplay();
 
   ctx.model.updateDims(30, 8);
   ctx.model.record('after resize');
 
-  const replay = await waitFor(async () => {
-    const rendered = await ctx.model.renderReplay();
-
-    expect(rendered).toInclude('after resize');
-
-    return rendered;
-  });
+  const replay = await ctx.model.renderReplay();
 
   expect(replay).toInclude('after resize');
 });
@@ -212,11 +175,8 @@ test('it renders only the alternate buffer as text for a session on the alternat
 
   ctx.model.record('normal screen\r\n');
 
-  await waitFor(async () => {
-    const rendered = await ctx.model.renderReplay();
-
-    expect(rendered).toInclude('normal screen');
-  });
+  // A replay waits for every byte recorded before it.
+  await ctx.model.renderReplay();
 
   ctx.model.record('\u001B[?1049h\u001B[Halternate screen');
 

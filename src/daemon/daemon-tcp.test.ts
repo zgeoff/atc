@@ -633,10 +633,10 @@ test('it closes a TCP connection whose token a reload removes', async () => {
 
   const removed = await daemon.openTCPClient();
 
-  const closed = Promise.withResolvers<'closed'>();
+  const closed = Promise.withResolvers<void>();
 
   removed.onClose = () => {
-    closed.resolve('closed');
+    closed.resolve();
   };
 
   await removed.sendHello('atc/test-gateway', 'a'.repeat(32));
@@ -645,9 +645,12 @@ test('it closes a TCP connection whose token a reload removes', async () => {
 
   daemon.daemon.refreshTokens();
 
-  const ended = await closed.promise;
+  await closed.promise;
 
-  expect(ended).toBe('closed');
+  expect(removed.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
+    code: 'internal',
+    message: 'connection closed',
+  });
 });
 
 test('it keeps serving a TCP connection whose token a reload keeps', async () => {
@@ -715,10 +718,10 @@ test('it closes every TCP connection after an invalid reload', async () => {
 
   const open = await daemon.openTCPClient();
 
-  const closed = Promise.withResolvers<'closed'>();
+  const closed = Promise.withResolvers<void>();
 
   open.onClose = () => {
-    closed.resolve('closed');
+    closed.resolve();
   };
 
   await open.sendHello('atc/test-gateway', 'a'.repeat(32));
@@ -727,9 +730,12 @@ test('it closes every TCP connection after an invalid reload', async () => {
 
   daemon.daemon.refreshTokens();
 
-  const ended = await closed.promise;
+  await closed.promise;
 
-  expect(ended).toBe('closed');
+  expect(open.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
+    code: 'internal',
+    message: 'connection closed',
+  });
 });
 
 test('it refuses every handshake after an invalid reload and logs the failed reload', async () => {
@@ -825,6 +831,8 @@ test('it delays the next handshake from an address by the failure delay after fi
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([600]);
   });
+
+  expect(Bun.peek.status(hello)).toBe('pending');
 });
 
 test('it answers a delayed handshake once the failure delay passes', async () => {
@@ -863,11 +871,16 @@ test('it answers a delayed handshake once the failure delay passes', async () =>
     expect(clock.collectPending()).toStrictEqual([600]);
   });
 
+  const before = Bun.peek.status(hello);
+
   clock.advance(600);
 
   const answered = await hello;
 
-  expect(answered).toContainKey('daemonID');
+  expect<Record<string, unknown>>({ before, answered }).toStrictEqual({
+    before: 'pending',
+    answered: expect.objectContaining({ daemonID: expect.toBeString() }),
+  });
 });
 
 test('it answers the handshake at once before an address has failed five times', async () => {
@@ -1311,12 +1324,20 @@ test.skipIf(!canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5
     ]) {
       const closed = Promise.withResolvers<void>();
 
-      createConnection({ host: '127.0.0.1', port: daemon.daemon.listenPort ?? 0, localAddress })
+      const peer = createConnection({
+        host: '127.0.0.1',
+        port: daemon.daemon.listenPort ?? 0,
+        localAddress,
+      })
         .on('error', closed.reject)
         .on('close', () => {
           closed.resolve();
         })
         .end('not a handshake\n');
+
+      onTestFinished(() => {
+        peer.destroy();
+      });
 
       await closed.promise;
     }
@@ -1361,12 +1382,20 @@ test.skipIf(!canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5
     ]).flat()) {
       const closed = Promise.withResolvers<void>();
 
-      createConnection({ host: '127.0.0.1', port: daemon.daemon.listenPort ?? 0, localAddress })
+      const peer = createConnection({
+        host: '127.0.0.1',
+        port: daemon.daemon.listenPort ?? 0,
+        localAddress,
+      })
         .on('error', closed.reject)
         .on('close', () => {
           closed.resolve();
         })
         .end('not a handshake\n');
+
+      onTestFinished(() => {
+        peer.destroy();
+      });
 
       await closed.promise;
     }
@@ -1458,7 +1487,7 @@ test('it closes an unauthenticated TCP connection that sends a malformed line wi
   const closed = Promise.withResolvers<void>();
   const received: string[] = [];
 
-  await Bun.connect({
+  const peer = await Bun.connect({
     hostname: '127.0.0.1',
     port: daemon.daemon.listenPort ?? 0,
     socket: {
@@ -1473,6 +1502,10 @@ test('it closes an unauthenticated TCP connection that sends a malformed line wi
       },
       error() {},
     },
+  });
+
+  onTestFinished(() => {
+    peer.terminate();
   });
 
   await closed.promise;
@@ -1510,7 +1543,7 @@ test('it counts lines before the handshake as failed handshakes toward the delay
   ]) {
     const closed = Promise.withResolvers<void>();
 
-    await Bun.connect({
+    const peer = await Bun.connect({
       hostname: '127.0.0.1',
       port: daemon.daemon.listenPort ?? 0,
       socket: {
@@ -1525,6 +1558,10 @@ test('it counts lines before the handshake as failed handshakes toward the delay
       },
     });
 
+    onTestFinished(() => {
+      peer.terminate();
+    });
+
     await closed.promise;
   }
 
@@ -1537,6 +1574,8 @@ test('it counts lines before the handshake as failed handshakes toward the delay
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([600]);
   });
+
+  expect(Bun.peek.status(hello)).toBe('pending');
 });
 
 test('it refuses a second handshake on a TCP connection and closes it', async () => {
@@ -1591,7 +1630,7 @@ test('it refuses a second handshake on a TCP connection and closes it', async ()
   await closed.promise;
 });
 
-test('it answers a local ping while a TCP peer floods handshakes past the failure limit', async () => {
+test('it closes a TCP peer that floods lines behind its delayed handshake', async () => {
   const clock = buildStubClock(0);
 
   await using daemon = await startTestDaemon({
@@ -1618,10 +1657,10 @@ test('it answers a local ping while a TCP peer floods handshakes past the failur
     failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
   );
 
-  const hello = `${JSON.stringify({ v: 4, id: 1, m: 'daemon.hello', p: { auth: { scheme: 'bearer', token: 'b'.repeat(40) } } })}\n`;
-  const flooded = Promise.withResolvers<'closed'>();
+  const hello = `${JSON.stringify({ v: 4, id: 1, m: 'daemon.hello', p: { client: 'atc/test-gateway', auth: { scheme: 'bearer', token: 'a'.repeat(32) } } })}\n`;
+  const flooded = Promise.withResolvers<void>();
 
-  await Bun.connect({
+  const flood = await Bun.connect({
     hostname: '127.0.0.1',
     port: daemon.daemon.listenPort ?? 0,
     socket: {
@@ -1630,15 +1669,22 @@ test('it answers a local ping while a TCP peer floods handshakes past the failur
       },
       data() {},
       close() {
-        flooded.resolve('closed');
+        flooded.resolve();
       },
       error() {},
     },
   });
 
-  const pinged = await Promise.all([daemon.client.sendRequest('daemon.ping', {}), flooded.promise]);
+  onTestFinished(() => {
+    flood.terminate();
+  });
 
-  expect(pinged).toStrictEqual([{}, 'closed']);
+  await flooded.promise;
+
+  expect(daemon.logs.slice(2)).toStrictEqual([
+    'atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=1',
+    'atc tcp event=handshake_refused peer=127.0.0.1 reason=closed_during_delay count=1',
+  ]);
 });
 
 test('it refuses at once a handshake that would wait while the cap of delayed handshakes is full', async () => {
@@ -1853,6 +1899,57 @@ test('it answers a local ping while many TCP sockets each send a handshake durin
     pinged: {},
     pending: Array.from({ length: 64 }, () => 1500),
   });
+});
+
+test('it answers a local ping as the delay of every held handshake ends at once', async () => {
+  const clock = buildStubClock(0);
+
+  await using daemon = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 1500,
+        },
+      };
+    },
+  });
+
+  const failing = await Promise.all(Array.from({ length: 5 }, () => daemon.openTCPClient()));
+
+  await Promise.allSettled(
+    failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
+
+  const flood = await Promise.all(Array.from({ length: 300 }, () => daemon.openTCPClient()));
+
+  const floodHellos = Promise.allSettled(
+    flood.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
+
+  onTestFinished(() => floodHellos);
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toHaveLength(64);
+  });
+
+  clock.advance(1500);
+
+  const pinged = await daemon.client.sendRequest('daemon.ping', {});
+  const settled = await floodHellos;
+
+  expect({
+    pinged,
+    refused: settled.filter((result) => result.status === 'rejected').length,
+    pending: clock.collectPending(),
+  }).toStrictEqual({ pinged: {}, refused: 300, pending: [] });
 });
 
 test('it pushes a TCP connection whose handshake gives a principal the removal of a session that leaves its reach', async () => {

@@ -1,5 +1,7 @@
 import { DaemonError } from '../protocol/daemon-error';
 import type { SessionID } from '../shared/session-id';
+import { systemClock } from '../shared/system-clock';
+import type { Clock } from '../shared/system-clock';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { StateStore } from '../store/state-store';
 import type { SessionRuntime } from './session-runtime';
@@ -17,17 +19,33 @@ export interface RestoreFleetParams {
   // alone.
   readonly capMs: number;
 
-  // Whether the daemon has begun to stop; never when unset.
+  // Whether the daemon has begun to stop; never when unset. A restore
+  // checks it before each terminal it starts and after each one it has
+  // started, and starts no more once it holds.
   readonly isStopped?: () => boolean;
+
+  // The clock behind the per-session cap; the wall clock when unset.
+  readonly clock?: Clock;
+}
+
+// How the staggered terminal adoption behind a restore ended: every queued
+// session was tried, the daemon began to stop first, or a revive threw.
+export type RestoreOutcome = 'finished' | 'stopped' | 'failed';
+
+// How many sessions a restore registered, and how its staggered terminal
+// adoption ended.
+export interface RestoreSettled {
+  readonly restored: number;
+  readonly outcome: RestoreOutcome;
 }
 
 export interface RestoreFleetResult {
   // How many sessions the restore registered.
   readonly restored: number;
 
-  // Resolves once the staggered terminal adoption behind the restore has
-  // finished, also when it failed, and at once when nothing was queued.
-  readonly settled: Promise<void>;
+  // Resolves with how the staggered terminal adoption behind the restore
+  // ended, at once when nothing was queued.
+  readonly settled: Promise<RestoreOutcome>;
 }
 
 /**
@@ -44,6 +62,8 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const cols = params.cols;
   const rows = params.rows;
   const capMs = params.capMs;
+  const clock = params.clock ?? systemClock;
+  const isStopped = () => params.isStopped?.() === true;
 
   const hasLiveSession = (entry: FleetEntry) =>
     mgr.sessions.some(
@@ -111,7 +131,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // A session whose target refuses to start a terminal stays listed without
   // one, and the restore moves on to the next.
   const adoptQueued = async (s: Session): Promise<boolean> => {
-    const adopted = await tryAdoptTerminal(mgr, s.id, cols, rows);
+    const adopted = await tryAdoptTerminal(mgr, s.id, cols, rows, () => !isStopped());
 
     return adopted !== null;
   };
@@ -131,29 +151,24 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
       return Promise.resolve();
     }
 
+    // The runtime's dispose releases the waiter, which cancels the cap.
     const settled = Promise.withResolvers<void>();
-    const timer = capMs > 0 ? setTimeout(settled.resolve, capMs) : undefined;
+    const cancelCap = capMs > 0 ? clock.schedule(settled.resolve, capMs) : null;
 
     runtime.bootWaiter = settled.resolve;
-    runtime.bootTimer = timer;
 
     return (async () => {
       await settled.promise;
 
       runtime.bootWaiter = null;
-
-      if (timer !== undefined) {
-        clearTimeout(timer);
-
-        runtime.bootTimer = undefined;
-      }
+      cancelCap?.();
     })();
   };
 
   const [first, ...rest] = queued;
 
   if (first === undefined) {
-    return { restored: registered.length, settled: Promise.resolve() };
+    return { restored: registered.length, settled: Promise.resolve('finished') };
   }
 
   // The first terminal attaches before the restore answers so a caller can
@@ -164,10 +179,14 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // A session whose revive fails is logged and left without a terminal,
   // and the restore moves on: one host's failure never keeps the sessions on
   // other hosts down, and a later one's runs where nothing awaits it.
+  let failed = false;
+
   const tryAdoptQueued = async (s: Session): Promise<boolean> => {
     try {
       return await adoptQueued(s);
     } catch (error) {
+      failed = true;
+
       mgr.log(
         `atc could not revive session ${s.id} (${error instanceof Error ? error.message : String(error)})`,
       );
@@ -176,7 +195,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     }
   };
 
-  const adoptRest = async (previous: Session | null) => {
+  // A daemon that stopped before a terminal started, or while one started
+  // or the previous session booted, starts no more terminals.
+  const adoptRest = async (previous: Session | null): Promise<RestoreOutcome> => {
     let prev = previous;
 
     for (const s of rest) {
@@ -184,29 +205,43 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
         await waitForBoot(prev.id);
       }
 
-      // A daemon that stopped while the previous session booted starts no
-      // more terminals.
-      if (params.isStopped?.() === true) {
-        return;
+      if (isStopped()) {
+        return 'stopped';
       }
 
       const booted = await tryAdoptQueued(s);
 
+      if (isStopped()) {
+        return 'stopped';
+      }
+
       prev = booted ? s : null;
     }
+
+    return failed ? 'failed' : 'finished';
   };
+
+  if (isStopped()) {
+    return { restored: registered.length, settled: Promise.resolve('stopped') };
+  }
 
   const firstAdopted = await tryAdoptQueued(first);
 
+  if (isStopped()) {
+    return { restored: registered.length, settled: Promise.resolve('stopped') };
+  }
+
   const firstBooted = firstAdopted ? first : null;
 
-  const adoptRestLogged = async (): Promise<void> => {
+  const adoptRestLogged = async (): Promise<RestoreOutcome> => {
     try {
-      await adoptRest(firstBooted);
+      return await adoptRest(firstBooted);
     } catch (error) {
       mgr.log(
         `atc could not finish restoring the fleet (${error instanceof Error ? error.message : String(error)})`,
       );
+
+      return 'failed';
     }
   };
 
@@ -256,9 +291,10 @@ async function tryAdoptTerminal(
   id: SessionID,
   cols: number,
   rows: number,
+  canProceed: () => boolean,
 ): Promise<Session | null> {
   try {
-    return await mgr.adoptTerminal(id, cols, rows);
+    return await mgr.adoptTerminal(id, cols, rows, canProceed);
   } catch (error) {
     if (error instanceof DaemonError && REFUSED_ADOPT_CODES.has(error.code)) {
       return null;

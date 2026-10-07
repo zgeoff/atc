@@ -658,8 +658,8 @@ test('it closes a session connection whose gate throws as it opens, sending impd
 
   const outcome = await connection.outcome;
 
-  expect({ outcome, opens: ctx.impd.execOpens }).toMatchObject({
-    outcome: { kind: 'closed' },
+  expect({ outcome, opens: ctx.impd.execOpens }).toStrictEqual({
+    outcome: { kind: 'closed', reason: 'closed before sending' },
     opens: [],
   });
 });
@@ -692,9 +692,31 @@ test('it sends the request of a session connection whose gate stays open as it o
     () => true,
   );
 
-  await connection.outcome;
+  const outcome = await connection.outcome;
 
-  expect(ctx.impd.execOpens).toMatchObject([{ type: 'start', name: 'atc-s1' }]);
+  // The stand-in refuses every start it is sent.
+  expect({ outcome, opens: ctx.impd.execOpens }).toStrictEqual({
+    outcome: {
+      kind: 'failed',
+      code: 'PRECONDITION_FAILED',
+      message: 'the broker is not ready',
+      data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
+    },
+    opens: [
+      {
+        type: 'start',
+        name: 'atc-s1',
+        session: 'atc-s1',
+        argv: ['claude'],
+        env: {},
+        cwd: '/work',
+        cols: 80,
+        rows: 24,
+        tty: true,
+        require: ['broker'],
+      },
+    ],
+  });
 });
 
 test('it sends the requirements of an attach to impd', async () => {

@@ -2,12 +2,16 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import type { HarnessHandle } from './execution-provider';
 import { ImpProvider } from './imp-provider';
+import type { ImpTargetOptions } from './imp-provider';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
 /**
- * A fixture imp port and a temp directory, under which a test points its
- * provider's guest directory and a guest atc that no imp holds.
+ * A fixture imp port and a temp directory. `createProvider` builds a
+ * provider over the port with its guest directory under the temp directory
+ * and a guest atc that no imp holds, plus the target options given, and
+ * disposes it before the port and the directory.
  */
 function setupTest() {
   using stack = new DisposableStack();
@@ -19,6 +23,19 @@ function setupTest() {
   return {
     dir: tmp.dir,
     port,
+    createProvider(target: Partial<ImpTargetOptions> = {}): ImpProvider {
+      const provider = new ImpProvider(port, {
+        guestDir: join(tmp.dir, 'g'),
+        guestATC: join(tmp.dir, 'missing-atc'),
+        ...target,
+      });
+
+      owned.defer(() => {
+        provider.dispose();
+      });
+
+      return provider;
+    },
     [Symbol.dispose]: () => {
       owned.dispose();
     },
@@ -28,14 +45,7 @@ function setupTest() {
 test('it destroys the imp a failed prepare created, since no session holds it', async () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider();
 
   await Promise.allSettled([
     provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
@@ -47,14 +57,7 @@ test('it destroys the imp a failed prepare created, since no session holds it', 
 test('it refuses a prepare that installs atc when the guest atc is missing', () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider();
 
   expect(
     provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
@@ -67,14 +70,7 @@ test('it refuses a prepare that installs atc when the guest atc is missing', () 
 test('it keeps an imp that existed before a failed prepare and gives back only its own lease', async () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider();
 
   await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -92,14 +88,7 @@ test('it keeps an imp that existed before a failed prepare and gives back only i
 test('it names each imp under the atc- prefix when the target sets none', async () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider();
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1' });
 
@@ -112,15 +101,7 @@ test('it names each imp under the atc- prefix when the target sets none', async 
 test("it names each imp under the target's configured prefix", async () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-    impPrefix: 'harness-',
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider({ impPrefix: 'harness-' });
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1' });
 
@@ -130,15 +111,7 @@ test("it names each imp under the target's configured prefix", async () => {
 test("it lets a token scoped to the target's configured prefix activate the broker for its imps", async () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-    impPrefix: 'harness-',
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider({ impPrefix: 'harness-' });
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -160,15 +133,7 @@ test("it lets a token scoped to the target's configured prefix activate the brok
 test("it refuses a token scoped beyond the target's configured prefix", () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-    impPrefix: 'harness-',
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider({ impPrefix: 'harness-' });
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -190,14 +155,7 @@ test("it refuses a token scoped beyond the target's configured prefix", () => {
 test('it asks impd to require the broker on a harness start that requires one', async () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider();
 
   await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -217,7 +175,7 @@ test('it asks impd to require the broker on a harness start that requires one', 
     harness.kill();
   });
 
-  await Promise.allSettled([harness.waitForStart?.()]);
+  await Promise.allSettled([getWaitForStart(harness)()]);
 
   expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
     expect.objectContaining({ kind: 'start', name: 'atc-s1', require: ['broker'] }),
@@ -227,14 +185,7 @@ test('it asks impd to require the broker on a harness start that requires one', 
 test('it keeps a full UUID imp session name inside the session limit', async () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider();
 
   await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -253,7 +204,7 @@ test('it keeps a full UUID imp session name inside the session limit', async () 
     harness.kill();
   });
 
-  await Promise.allSettled([harness.waitForStart?.()]);
+  await Promise.allSettled([getWaitForStart(harness)()]);
 
   const requests = ctx.port.sessionRequests.map((request) => `${request.kind} ${request.session}`);
 
@@ -265,14 +216,7 @@ test('it keeps a full UUID imp session name inside the session limit', async () 
 test('it derives one imp session name per session', async () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider();
 
   await ctx.port.createImp({ name: 'atc-s1' });
   await ctx.port.createImp({ name: 'atc-s2' });
@@ -324,9 +268,9 @@ test('it derives one imp session name per session', async () => {
   });
 
   await Promise.allSettled([
-    first.waitForStart?.(),
-    repeat.waitForStart?.(),
-    other.waitForStart?.(),
+    getWaitForStart(first)(),
+    getWaitForStart(repeat)(),
+    getWaitForStart(other)(),
   ]);
 
   const sessions = ctx.port.sessionRequests.map((request) => request.session);
@@ -342,14 +286,7 @@ test('it derives one imp session name per session', async () => {
 test('it asks impd to require nothing on a harness start that requires no broker', async () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider();
 
   await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -368,7 +305,7 @@ test('it asks impd to require nothing on a harness start that requires no broker
     harness.kill();
   });
 
-  await harness.waitForStart?.();
+  await getWaitForStart(harness)();
 
   const [request] = ctx.port.sessionRequests;
 
@@ -382,16 +319,7 @@ test('it asks impd to require nothing on a harness start that requires no broker
 test("it creates a host's imp for the broker with the target's image and memory", async () => {
   using ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, {
-    guestDir: join(ctx.dir, 'g'),
-    guestATC: join(ctx.dir, 'missing-atc'),
-    image: 'base',
-    memoryMib: 512,
-  });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
+  const provider = ctx.createProvider({ image: 'base', memoryMib: 512 });
 
   const created = await provider.brokerAuth.createImp('s1');
 
@@ -400,3 +328,12 @@ test("it creates a host's imp for the broker with the target's image and memory"
     calls: ['imps.create atc-s1'],
   });
 });
+
+// An imp harness reports when impd has started it.
+function getWaitForStart(harness: HarnessHandle): () => Promise<void> {
+  if (harness.waitForStart === undefined) {
+    throw new Error('the imp harness reports no start');
+  }
+
+  return harness.waitForStart;
+}

@@ -33,14 +33,16 @@ export class EventSignal {
 
     const deferred = Promise.withResolvers<void>();
 
-    const onWake = () => {
-      cancel();
+    // Holds the timer's cancel once it is scheduled.
+    let cancel: (() => void) | null = null;
 
+    const onWake = () => {
+      cancel?.();
       this.waiters.delete(onWake);
       deferred.resolve();
     };
 
-    const cancel = this.clock.schedule(onWake, timeoutMs);
+    cancel = this.clock.schedule(onWake, timeoutMs);
 
     this.waiters.add(onWake);
 

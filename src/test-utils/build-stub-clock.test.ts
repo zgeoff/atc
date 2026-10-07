@@ -86,3 +86,15 @@ test('it collects the time left on each callback still waiting in due order', ()
 
   expect(clock.collectPending()).toStrictEqual([100, 300]);
 });
+
+test('it leaves the other waiting callbacks alone when a callback that ran is cancelled', () => {
+  const clock = buildStubClock(0);
+  const cancel = clock.schedule(() => {}, 100);
+
+  clock.advance(100);
+  clock.schedule(() => {}, 50);
+
+  cancel();
+
+  expect(clock.collectPending()).toStrictEqual([50]);
+});

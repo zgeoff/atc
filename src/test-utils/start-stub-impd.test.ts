@@ -158,3 +158,74 @@ test('it answers a tunnel listen as listening and keeps its control socket', asy
     controls: [expect.anything()],
   });
 });
+
+test('it records the authorization header of a WebSocket upgrade and no call', async () => {
+  using impd = startStubImpd();
+
+  const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`, {
+    headers: { authorization: 'Bearer w' },
+  });
+
+  const opened = Promise.withResolvers<void>();
+
+  socket.addEventListener('open', () => {
+    opened.resolve();
+  });
+
+  await opened.promise;
+
+  socket.close();
+
+  expect({ authorizations: impd.authorizations, calls: impd.calls }).toStrictEqual({
+    authorizations: ['Bearer w'],
+    calls: [],
+  });
+});
+
+test('it closes a WebSocket that sends a message over 2 MiB', async () => {
+  using impd = startStubImpd();
+
+  const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
+
+  const closed = Promise.withResolvers<number>();
+
+  socket.addEventListener('open', () => {
+    socket.send(new Uint8Array(2 * 1024 * 1024 + 1));
+  });
+
+  socket.addEventListener('close', (event) => {
+    closed.resolve(event.code);
+  });
+
+  const code = await closed.promise;
+
+  // The server drops the connection without a close frame, which the client
+  // reports as an abnormal closure.
+  expect(code).toBe(1006);
+});
+
+test('it drops an open WebSocket on disposal', async () => {
+  const impd = startStubImpd();
+
+  const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
+
+  const opened = Promise.withResolvers<void>();
+  const closed = Promise.withResolvers<number>();
+
+  socket.addEventListener('open', () => {
+    opened.resolve();
+  });
+
+  socket.addEventListener('close', (event) => {
+    closed.resolve(event.code);
+  });
+
+  await opened.promise;
+
+  impd[Symbol.dispose]();
+
+  const code = await closed.promise;
+
+  // Disposal drops the connection at once, without a close frame.
+  expect(code).toBe(1006);
+});

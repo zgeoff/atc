@@ -83,6 +83,7 @@ import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
 import { requireGitTransports } from './require-git-transports';
 import { restoreFleet } from './restore-fleet';
+import type { RestoreSettled } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 import { ScreenModel } from './screen-model';
@@ -166,13 +167,28 @@ export interface DaemonOptions {
 
   // The clock the event trail stamps each hook event with, and the clock
   // behind the tap grace window, the held-read waits, the time a note is
-  // reported at, and the TCP listener's failure times, delays, and refusal
+  // reported at, the permission request timeouts, the restore's per-session
+  // boot cap, and the TCP listener's failure times, delays, and refusal
   // windows; the wall clock when unset.
   readonly clock?: Clock;
 
   // Whether the daemon restores the stored fleet by itself once it is
   // listening, when that fleet holds sessions; off when unset.
   readonly restoreFleetOnRestart?: boolean;
+
+  // Called once each fleet restore has ended its staggered terminal
+  // adoption, with how many sessions it registered and how it ended; a
+  // restore that threw before registering any reports none and failed.
+  readonly onRestoreSettled?: (settled: RestoreSettled) => void;
+
+  // Called when a start declines to restore the stored fleet by itself:
+  // the option is off, or the stored fleet holds no sessions.
+  readonly onRestoreSkipped?: (reason: 'disabled' | 'empty') => void;
+
+  // Called when a Report line changes nothing: a note from a session the
+  // fleet does not list, or an answer that matches no unanswered message
+  // the reporting session owns.
+  readonly onReportIgnored?: (sessionID: string, kind: 'note' | 'answered') => void;
 
   // How long a confirm token from `session.forget` stays usable.
   readonly forgetConfirmMs?: number;
@@ -433,7 +449,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     return s === undefined ? null : { cwd: s.cwd, repoRoot: s.repoRoot };
   };
 
-  const registry = new PermissionRegistry();
+  const registry = new PermissionRegistry(undefined, clock);
   const eventSignal = new EventSignal(clock);
 
   // A trail write that fails never fails the message request or report behind it.
@@ -590,7 +606,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     if (report.kind === 'note') {
       const sender = mgr.sessions.find((x) => x.id === e.atcId);
 
-      if (sender !== undefined) {
+      if (sender === undefined) {
+        opts.onReportIgnored?.(e.atcId, 'note');
+      } else {
         const capped = { ...report, text: truncateToBytes(report.text, ANSWER_BYTE_CAP) };
         const reportedAt = clock.now();
 
@@ -628,6 +646,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         Date.now(),
         report.turn,
       );
+
+      if (answered.length === 0) {
+        opts.onReportIgnored?.(e.atcId, 'answered');
+      }
 
       for (const record of answered) {
         await recordMessageStatus(e.atcId, record);
@@ -1417,15 +1439,17 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           rows,
           capMs: opts.restoreBootTimeoutMs ?? 0,
           isStopped: () => released,
+          clock,
         });
 
         restored.resolve(result.restored);
 
-        await result.settled;
+        const outcome = await result.settled;
 
-        mgr.log(`atc fleet event=restore_settled restored=${String(result.restored)}`);
+        opts.onRestoreSettled?.({ restored: result.restored, outcome });
       } catch (error) {
         restored.reject(error);
+        opts.onRestoreSettled?.({ restored: 0, outcome: 'failed' });
       } finally {
         fleetRestore = null;
       }
@@ -2336,14 +2360,16 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
-  const stored = await store.loadFleet();
+  if (opts.restoreFleetOnRestart === true) {
+    const stored = await store.loadFleet();
 
-  // A stored fleet left for a client's fleet.restore is logged, so the
-  // decision not to restore it shows.
-  if (stored.length > 0 && opts.restoreFleetOnRestart === true) {
-    void tryRunFleetRestore();
-  } else if (stored.length > 0) {
-    mgr.log(`atc fleet event=restore_skipped stored=${String(stored.length)}`);
+    if (stored.length > 0) {
+      void tryRunFleetRestore();
+    } else {
+      opts.onRestoreSkipped?.('empty');
+    }
+  } else {
+    opts.onRestoreSkipped?.('disabled');
   }
 
   return {
