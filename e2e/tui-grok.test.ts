@@ -206,7 +206,7 @@ test('it ignores H on a grok row instead of opening the eject picker', async () 
 
   ctx.write('?');
 
-  await ctx.waitFor('adopt an external session');
+  await ctx.waitFor('┌ keys ');
 
   expect(ctx.read()).not.toInclude('eject: headless instruction');
 }, 15_000);

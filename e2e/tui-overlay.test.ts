@@ -45,7 +45,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 
   ctx.write('/');
 
-  await ctx.waitFor('type to filter');
+  await ctx.waitFor('/ \u001B[93m█');
 
   ctx.reset();
   ctx.write('brav');
@@ -227,7 +227,7 @@ test('it opens the key reference from the overlay and returns on esc', async () 
 
   ctx.write('?');
 
-  await ctx.waitFor('adopt an external session');
+  await ctx.waitFor('┌ keys ');
 
   ctx.reset();
   ctx.write(KEYS.esc);

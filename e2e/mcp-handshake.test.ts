@@ -46,7 +46,15 @@ test('it answers an unsupported protocol version with the latest supported one',
     clientInfo: { name: 'test' },
   });
 
-  expect(response).toMatchObject({ result: { protocolVersion: '2025-11-25' } });
+  expect(response).toStrictEqual({
+    jsonrpc: '2.0',
+    id: 2,
+    result: {
+      protocolVersion: '2025-11-25',
+      capabilities: { tools: {} },
+      serverInfo: { name: 'atc', version: expect.toBeString() },
+    },
+  });
 });
 
 test('it answers an unknown rpc method with a json-rpc error', async () => {

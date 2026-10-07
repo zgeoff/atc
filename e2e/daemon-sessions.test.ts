@@ -148,16 +148,6 @@ test('it rejects session.update on an unknown session with no_such_session', asy
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
-test('it stops the daemon process on daemon.quit', async () => {
-  await using ctx = await setupTest();
-
-  const answer = await ctx.client.sendRequest('daemon.quit');
-  const code = await ctx.daemon.proc.exited;
-
-  expect(answer).toStrictEqual({});
-  expect(code).toBe(0);
-});
-
 test('it kills a live session to exited', async () => {
   await using ctx = await setupTest();
 

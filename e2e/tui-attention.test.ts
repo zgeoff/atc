@@ -35,7 +35,7 @@ test('it clears the need state when attaching a needy session', async () => {
   );
 });
 
-test('it jumps to the most urgent needs-you session on tab', async () => {
+test('it attaches and acks the session that needs you on tab', async () => {
   await using ctx = setupTest();
 
   const statusPath = join(ctx.home, '.local', 'state', 'atc', 'status.json');
@@ -74,9 +74,13 @@ test('it jumps to the most urgent needs-you session on tab', async () => {
 
   await ctx.waitFor('sessions');
 
+  ctx.reset();
   ctx.write(KEYS.tab);
 
-  // Tab attaches the needy session and attaching acks it.
+  // The attach jiggle repaints the fake, whose marker only reaches the
+  // screen while attached, and only attaching urgent acks the one need left.
+  await ctx.waitFor('FAKE_CLAUDE_UP');
+
   await waitFor(() => {
     expect(readFileSync(statusPath, 'utf8')).toInclude('"needs_you":0');
   });

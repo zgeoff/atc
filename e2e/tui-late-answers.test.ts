@@ -33,7 +33,9 @@ test('it stops a repository listing on esc and keeps taking typed input', async 
 
   await openRepoStep(ctx);
 
-  await ctx.waitFor('listing…');
+  await waitFor(() => {
+    expect(existsSync(join(ctx.home, 'gh-held'))).toBe(true);
+  });
 
   ctx.reset();
   ctx.write(KEYS.esc);
@@ -81,10 +83,11 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   await openRepoStep(ctx);
 
-  ctx.reset();
   ctx.write(`${server.url}silent.git${KEYS.enter}`);
 
-  await ctx.waitFor('checking access');
+  await waitFor(() => {
+    expect(server.authorizations).not.toBeEmpty();
+  });
 
   ctx.reset();
   ctx.write(KEYS.esc);
@@ -200,10 +203,13 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
   // it, so the spawn is still in flight when esc stops waiting on it.
   hold = gate.promise;
 
-  ctx.reset();
+  const served = server.authorizations.length;
+
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('esc stops waiting; the session still lists');
+  await waitFor(() => {
+    expect(server.authorizations.length).toBeGreaterThan(served);
+  });
 
   ctx.reset();
   ctx.write(KEYS.esc);
