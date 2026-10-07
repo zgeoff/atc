@@ -19,10 +19,10 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
-import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
 import { startGitHTTPServer } from '../test-utils/start-git-http-server';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
@@ -1989,7 +1989,6 @@ test('it refuses a git source without a cwd whose root it cannot write after one
   await using ctx = await setupTest();
 
   const root = join(ctx.dir, 'read-only');
-
   const box = buildStubDirProvider();
 
   mkdirSync(root, { mode: 0o555 });
