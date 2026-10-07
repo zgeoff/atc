@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '../daemon/daemon';
@@ -78,6 +78,10 @@ boot.client.stop();
     stderr: 'pipe',
   });
 
+  onTestFinished(() => {
+    proc.kill();
+  });
+
   const stdout = await new Response(proc.stdout).text();
 
   await proc.exited;
@@ -116,6 +120,10 @@ boot.client.stop();
     stderr: 'pipe',
   });
 
+  onTestFinished(() => {
+    proc.kill();
+  });
+
   const stdout = await new Response(proc.stdout).text();
 
   await proc.exited;
@@ -131,6 +139,8 @@ boot.client.stop();
     eventsSocketPath: null,
     listenPort: null,
   });
+
+  expect(existsSync(join(ctx.stateDir, 'atc-daemon.sock'))).toBeFalse();
 });
 
 test('it leaves a daemon on another protocol running and rejects with both builds and versions', async () => {
@@ -172,6 +182,10 @@ process.exit(0);
     env: ctx.env,
     stdout: 'pipe',
     stderr: 'pipe',
+  });
+
+  onTestFinished(() => {
+    proc.kill();
   });
 
   const stdout = await new Response(proc.stdout).text();
@@ -236,6 +250,10 @@ process.exit(0);
     stderr: 'pipe',
   });
 
+  onTestFinished(() => {
+    proc.kill();
+  });
+
   const stdout = await new Response(proc.stdout).text();
 
   await proc.exited;
@@ -287,6 +305,10 @@ process.exit(0);
     env: ctx.env,
     stdout: 'pipe',
     stderr: 'pipe',
+  });
+
+  onTestFinished(() => {
+    proc.kill();
   });
 
   const stdout = await new Response(proc.stdout).text();
@@ -349,6 +371,10 @@ process.exit(0);
     stderr: 'pipe',
   });
 
+  onTestFinished(() => {
+    proc.kill();
+  });
+
   const stdout = await new Response(proc.stdout).text();
 
   await proc.exited;
@@ -362,13 +388,31 @@ process.exit(0);
 test('it rejects with the socket it waited on, and starts no daemon, when none answers before the wait ends', async () => {
   await using ctx = setupTest();
 
+  // The wait polls every 100 ms of the stepped clock, so a 300 ms wait
+  // misses four polls: the probe steps past three of them and the fourth
+  // ends the wait.
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-await bootDaemonClient({
+import { buildStubClock } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-clock.ts')}';
+import { waitFor } from '${join(import.meta.dir, '..', 'test-utils', 'wait-for.ts')}';
+const clock = buildStubClock(0);
+const booting = bootDaemonClient({
   waitForDaemonMs: 300,
+  clock,
   onWaitForDaemon: () => { process.stdout.write('waiting without starting a daemon\\n'); },
-}).catch((error: Error) => {
+});
+const steps = [];
+for (let poll = 0; poll < 3; poll++) {
+  steps.push(await waitFor(() => {
+    const [pending] = clock.collectPending();
+    if (pending === undefined) throw new Error('no poll is waiting');
+    return pending;
+  }));
+  clock.advance(100);
+}
+await booting.catch((error: Error) => {
+  process.stdout.write(JSON.stringify({ steps }));
   process.stderr.write(error.message);
   process.exit(3);
 });
@@ -381,6 +425,10 @@ await bootDaemonClient({
     stderr: 'pipe',
   });
 
+  onTestFinished(() => {
+    proc.kill();
+  });
+
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
@@ -388,7 +436,7 @@ await bootDaemonClient({
 
   await proc.exited;
 
-  expect(stdout).toBe('waiting without starting a daemon\n');
+  expect(stdout).toBe('waiting without starting a daemon\n{"steps":[100,100,100]}');
   expect(proc.exitCode).toBe(3);
 
   expect(stderr).toBe(
@@ -408,10 +456,23 @@ test('it rejects when a socket takes the connection but never answers the handsh
     silent.stop(true);
   });
 
+  // The socket takes the connection, so the boot waits on the handshake
+  // until the stepped clock reaches the end of the wait.
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
+import { buildStubClock } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-clock.ts')}';
+import { waitFor } from '${join(import.meta.dir, '..', 'test-utils', 'wait-for.ts')}';
+const clock = buildStubClock(0);
+const booting = bootDaemonClient({ waitForDaemonMs: 300, clock });
+const step = await waitFor(() => {
+  const [pending] = clock.collectPending();
+  if (pending === undefined) throw new Error('no handshake wait is pending');
+  return pending;
+});
+clock.advance(step);
+await booting.catch((error: Error) => {
+  process.stdout.write(JSON.stringify({ step }));
   process.stderr.write(error.message);
   process.exit(3);
 });
@@ -420,14 +481,22 @@ await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
 
   const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
     env: ctx.env,
-    stdout: 'ignore',
+    stdout: 'pipe',
     stderr: 'pipe',
   });
 
-  const stderr = await new Response(proc.stderr).text();
+  onTestFinished(() => {
+    proc.kill();
+  });
+
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
 
   await proc.exited;
 
+  expect(stdout).toBe('{"step":300}');
   expect(proc.exitCode).toBe(3);
 
   expect(stderr).toBe(
@@ -470,6 +539,10 @@ process.exit(0);
     stderr: 'ignore',
   });
 
+  onTestFinished(() => {
+    proc.kill();
+  });
+
   const stdout = await new Response(proc.stdout).text();
 
   expect(JSON.parse(stdout)).toStrictEqual({
@@ -497,7 +570,7 @@ test('it never reports a wait when a daemon answers on the first try', async () 
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 let waits = 0;
-const boot = await bootDaemonClient({ waitForDaemonMs: 5000, onWaitForDaemon: () => { waits += 1; } });
+const boot = await bootDaemonClient({ waitForDaemonMs: 2000, onWaitForDaemon: () => { waits += 1; } });
 boot.client.stop();
 process.stdout.write(JSON.stringify({ waits }));
 process.exit(0);
@@ -508,6 +581,10 @@ process.exit(0);
     env: ctx.env,
     stdout: 'pipe',
     stderr: 'ignore',
+  });
+
+  onTestFinished(() => {
+    proc.kill();
   });
 
   const stdout = await new Response(proc.stdout).text();

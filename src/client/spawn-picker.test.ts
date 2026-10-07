@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import type { DaemonFeature } from '../protocol/daemon-features';
@@ -7,50 +7,38 @@ import { buildStubDaemonRequests } from '../test-utils/build-stub-daemon-request
 import { buildStubPickerHost } from '../test-utils/build-stub-picker-host';
 import { buildStubTerminal } from '../test-utils/build-stub-terminal';
 import { KEYS } from '../test-utils/keys';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { SpawnPicker } from './spawn-picker';
-
-interface SetupConfig {
-  // The features the daemon announces.
-  readonly features?: readonly DaemonFeature[];
-
-  // The rows of the terminal a spawned session gets.
-  readonly ptyRows?: number;
-
-  // The client's own directory, which the directory step lists first.
-  readonly cwd?: string;
-}
 
 /**
  * A spawn picker reading its config from `configPath` in a fresh temp
- * directory, drawing into `terminal`, and talking to a daemon that answers
- * only when a test says so. `counts` records each draw, each return to the
- * screen the flow came from, each attach, and each answer the picker
- * dropped, and `dropped` holds the kind of each dropped answer in order.
- * Disposal removes the directory.
+ * directory, which is also the client's own directory `cwd`, drawing into
+ * `terminal` with `ptyRows` rows, and talking to a daemon that answers only
+ * when a test says so and serves the daemon `features`, every one until a
+ * test removes some. `counts` records each draw, each return to the screen
+ * the flow came from, each attach, and each answer the picker dropped, and
+ * `dropped` holds the kind of each dropped answer in order. Disposal
+ * removes the directory.
  */
-function setupTest(config: SetupConfig = {}) {
+function setupTest() {
   using stack = new DisposableStack();
 
-  const tmp = stack.use(setupTempDir('atc-spawn-picker-'));
+  // Typed text fuzzy-filters the directories the directory step lists, the
+  // client's own first, by every character in order. The temp root sits
+  // directly under /tmp, whatever TMPDIR holds, so the only separators in
+  // its path come before any letter a filter such as `acme/` needs.
+  const cwd = mkdtempSync('/tmp/atc-spawn-picker-');
 
-  // A test that checks the client's directory passes its own; the others
-  // run from an empty one under the temp root, which the directory step
-  // needs to exist.
-  const cwd = config.cwd ?? join(tmp.dir, 'cwd');
+  stack.defer(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
 
-  mkdirSync(join(tmp.dir, 'cwd'));
+  const features = new Set<DaemonFeature>(DAEMON_FEATURES);
 
-  // A test that checks a spawn's rows passes its own, and a test that needs
-  // an older daemon passes its features; the others run in a 24-row
-  // terminal and talk to a current daemon, which announces every feature.
-  const features = new Set<DaemonFeature>(config.features ?? DAEMON_FEATURES);
-
-  const ptyRows = config.ptyRows ?? 24;
+  const ptyRows = 24;
   const host = buildStubPickerHost();
   const terminal = buildStubTerminal();
   const daemon = buildStubDaemonRequests({ countReactions: host.countReactions });
-  const configPath = join(tmp.dir, 'config.json');
+  const configPath = join(cwd, 'config.json');
 
   const picker = new SpawnPicker<{ readonly id: string }>({
     sendRequest: (m, p) => daemon.sendRequest(m, p),
@@ -81,6 +69,8 @@ function setupTest(config: SetupConfig = {}) {
     counts: host.counts,
     dropped: host.dropped,
     cwd,
+    ptyRows,
+    features,
     configPath,
     [Symbol.dispose]: () => {
       owned.dispose();
@@ -361,7 +351,7 @@ test('it neither attaches nor draws a spawn that answers after esc stops waiting
 });
 
 test('it materializes a directory on the one target when that target is remote', async () => {
-  using ctx = setupTest({ ptyRows: 24 });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -395,7 +385,7 @@ test('it materializes a directory on the one target when that target is remote',
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       agent: 'claude',
       target: 'box',
       workspace: { kind: 'path', path: ctx.cwd },
@@ -438,16 +428,17 @@ test("it shows the daemon's pick for the destination of a repository on a remote
     resolved: null,
   });
 
-  ctx.terminal.reset();
+  const mark = ctx.terminal.mark();
+
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
 
-  expect(ctx.terminal.getText()).toInclude(
+  expect(ctx.terminal.getTextSince(mark)).toInclude(
     'dest    box:~/.local/share/atc/workspaces/app-main-aaaaaaa',
   );
 });
 
 test('it spawns a repository on a remote target with no destination typed and leaves the directory to the daemon', async () => {
-  using ctx = setupTest({ ptyRows: 24 });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -491,7 +482,7 @@ test('it spawns a repository on a remote target with no destination typed and le
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       agent: 'claude',
       target: 'box',
       workspace: {
@@ -505,7 +496,7 @@ test('it spawns a repository on a remote target with no destination typed and le
 });
 
 test('it sends the directory of a directory spawn after a flow left a repository to the daemon', async () => {
-  using ctx = setupTest({ ptyRows: 24 });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -568,7 +559,7 @@ test('it sends the directory of a directory spawn after a flow left a repository
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       agent: 'claude',
       target: 'box',
       workspace: { kind: 'path', path: ctx.cwd },
@@ -577,10 +568,10 @@ test('it sends the directory of a directory spawn after a flow left a repository
 });
 
 test('it shows the refusal of a remote target without a workspace root when the daemon cannot pick the directory', async () => {
+  using ctx = setupTest();
+
   // A daemon that serves every feature but picking the directory itself.
-  using ctx = setupTest({
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace.autoDir'),
-  });
+  ctx.features.delete('spawn.workspace.autoDir');
 
   writeFileSync(
     ctx.configPath,
@@ -614,17 +605,18 @@ test('it shows the refusal of a remote target without a workspace root when the 
     resolved: null,
   });
 
-  ctx.terminal.reset();
+  const mark = ctx.terminal.mark();
+
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
 
-  expect(ctx.terminal.getText()).toInclude('set workspaces.targets.box in config.json');
+  expect(ctx.terminal.getTextSince(mark)).toInclude('set workspaces.targets.box in config.json');
 });
 
 test('it sends no spawn to a remote target without a workspace root when the daemon cannot pick the directory', async () => {
+  using ctx = setupTest();
+
   // A daemon that serves every feature but picking the directory itself.
-  using ctx = setupTest({
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace.autoDir'),
-  });
+  ctx.features.delete('spawn.workspace.autoDir');
 
   writeFileSync(
     ctx.configPath,
@@ -776,7 +768,8 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.terminal.reset();
+
+  const mark = ctx.terminal.mark();
 
   await ctx.daemon.answer('session.spawn', {
     session: { id: 's-1' },
@@ -785,7 +778,7 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
     ],
   });
 
-  const shown = ctx.terminal.getText();
+  const shown = ctx.terminal.getTextSince(mark);
 
   expect(shown).toInclude('/home/me/src/a-project-with-a-long-name');
   expect(shown).toInclude('0123456789ab');
@@ -793,7 +786,7 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
 });
 
 test('it leaves a session whose workspace left changes behind running when esc returns', async () => {
-  using ctx = setupTest({ ptyRows: 24 });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -839,7 +832,7 @@ test('it leaves a session whose workspace left changes behind running when esc r
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       agent: 'claude',
       target: 'box',
       workspace: { kind: 'path', path: ctx.cwd },
@@ -882,7 +875,7 @@ test('it attaches a session spawned without warnings at once', async () => {
 });
 
 test('it runs a directory in place on the one target when that target is local', async () => {
-  using ctx = setupTest({ ptyRows: 24 });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -916,7 +909,7 @@ test('it runs a directory in place on the one target when that target is local',
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       agent: 'claude',
       target: 'local',
     },
@@ -924,7 +917,7 @@ test('it runs a directory in place on the one target when that target is local',
 });
 
 test('it adopts in place on the one local target it offers', async () => {
-  using ctx = setupTest({ ptyRows: 24 });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -964,7 +957,7 @@ test('it adopts in place on the one local target it offers', async () => {
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       resume: true,
       agent: 'claude',
       target: 'local',
@@ -973,7 +966,7 @@ test('it adopts in place on the one local target it offers', async () => {
 });
 
 test('it offers an agent that takes the broker credential only the targets that reach the broker', async () => {
-  using ctx = setupTest({ ptyRows: 24 });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -1016,7 +1009,7 @@ test('it offers an agent that takes the broker credential only the targets that 
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       agent: 'claude',
       target: 'box',
       workspace: { kind: 'path', path: ctx.cwd },
@@ -1025,7 +1018,7 @@ test('it offers an agent that takes the broker credential only the targets that 
 });
 
 test('it offers an agent that takes no broker credential every target', async () => {
-  using ctx = setupTest({ ptyRows: 24 });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -1069,7 +1062,7 @@ test('it offers an agent that takes no broker credential every target', async ()
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       agent: 'claude',
       target: 'local',
     },
@@ -1077,7 +1070,7 @@ test('it offers an agent that takes no broker credential every target', async ()
 });
 
 test('it offers every target to an agent whose broker credential is optional', async () => {
-  using ctx = setupTest({ ptyRows: 24 });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -1121,7 +1114,7 @@ test('it offers every target to an agent whose broker credential is optional', a
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       agent: 'claude',
       target: 'local',
     },
@@ -1129,10 +1122,7 @@ test('it offers every target to an agent whose broker credential is optional', a
 });
 
 test('it lists a scope read from typed text once, on the target chosen after it', async () => {
-  // Typed text fuzzy-filters the directories the step lists before the
-  // sources read it, and a path under the temp root can hold every letter
-  // of the scope in order, so the client runs from the filesystem root.
-  using ctx = setupTest({ cwd: '/' });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -1175,13 +1165,14 @@ test('it lists a scope read from typed text once, on the target chosen after it'
   ctx.picker.applyKey(Buffer.from(KEYS.down));
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
 
-  expect(
-    ctx.daemon.collectSent('sources.list').filter((p) => p['source'] === 'fake'),
-  ).toStrictEqual([{ source: 'fake', scope: 'acme', target: 'box' }]);
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([
+    { source: 'dirs' },
+    { source: 'fake', scope: 'acme', target: 'box' },
+  ]);
 });
 
 test('it starts a new flow on the default target, not the one the last flow chose', async () => {
-  using ctx = setupTest({ ptyRows: 24 });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -1255,7 +1246,7 @@ test('it starts a new flow on the default target, not the one the last flow chos
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       agent: 'claude',
       target: 'box',
       workspace: { kind: 'path', path: ctx.cwd },
@@ -1265,7 +1256,7 @@ test('it starts a new flow on the default target, not the one the last flow chos
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       agent: 'claude',
       target: 'local',
     },
@@ -1405,10 +1396,11 @@ test('it returns esc from the directory step to the agent step when more than on
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.terminal.reset();
+  const mark = ctx.terminal.mark();
+
   ctx.picker.applyKey(Buffer.from(KEYS.esc));
 
-  expect(ctx.terminal.getText()).toInclude('spawn: agent');
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: agent');
   expect(ctx.counts.exits).toBe(0);
 });
 
@@ -1467,10 +1459,11 @@ test('it opens the name step after the directory when one agent and one target l
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.terminal.reset();
+  const mark = ctx.terminal.mark();
+
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
 
-  const shown = ctx.terminal.getText();
+  const shown = ctx.terminal.getTextSince(mark);
 
   expect(shown).toInclude('spawn: name');
   expect(shown).not.toInclude('spawn: target');
@@ -1502,10 +1495,12 @@ test('it returns esc from the name step to the directory step when one target le
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.terminal.reset();
+
+  const mark = ctx.terminal.mark();
+
   ctx.picker.applyKey(Buffer.from(KEYS.esc));
 
-  expect(ctx.terminal.getText()).toInclude('spawn: directory on the daemon host');
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: directory on the daemon host');
   expect(ctx.counts.exits).toBe(0);
 });
 
@@ -1568,7 +1563,7 @@ test('it leaves the flow on esc from a git source when one agent and one target 
 });
 
 test('it takes the one available target for a directory when the other is unavailable', async () => {
-  using ctx = setupTest({ ptyRows: 24 });
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -1609,7 +1604,7 @@ test('it takes the one available target for a directory when the other is unavai
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: 24,
+      rows: ctx.ptyRows,
       agent: 'claude',
       target: 'local',
     },
@@ -1669,10 +1664,11 @@ test('it offers both targets for a directory when only one takes a workspace', a
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.terminal.reset();
+  const mark = ctx.terminal.mark();
+
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
 
-  expect(ctx.terminal.getText()).toInclude('spawn: target');
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: target');
 });
 
 test('it shows why no target can run a directory when the one target is unavailable', async () => {
@@ -1700,10 +1696,11 @@ test('it shows why no target can run a directory when the one target is unavaila
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.terminal.reset();
+  const mark = ctx.terminal.mark();
+
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
 
-  const shown = ctx.terminal.getText();
+  const shown = ctx.terminal.getTextSince(mark);
 
   expect(shown).toInclude('spawn: target');
   expect(shown).toInclude('none of these targets can run');
@@ -1756,10 +1753,14 @@ test('it shows why no target can run an agent whose broker no target reaches', a
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.terminal.reset();
+  const mark = ctx.terminal.mark();
+
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
 
-  expect(ctx.terminal.getText()).toInclude('no target reaches the credential broker claude needs');
+  expect(ctx.terminal.getTextSince(mark)).toInclude(
+    'no target reaches the credential broker claude needs',
+  );
+
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([]);
 });
 
@@ -1788,10 +1789,11 @@ test('it shows why no target can adopt when none runs on the daemon host', async
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.terminal.reset();
+  const mark = ctx.terminal.mark();
+
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
 
-  expect(ctx.terminal.getText()).toInclude('no target on this host can adopt a session');
+  expect(ctx.terminal.getTextSince(mark)).toInclude('no target on this host can adopt a session');
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([]);
 });
 
@@ -1821,10 +1823,12 @@ test('it returns esc from a target step with no usable target to the directory s
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
   ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.terminal.reset();
+
+  const mark = ctx.terminal.mark();
+
   ctx.picker.applyKey(Buffer.from(KEYS.esc));
 
-  expect(ctx.terminal.getText()).toInclude('spawn: directory on the daemon host');
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: directory on the daemon host');
   expect(ctx.counts.exits).toBe(0);
 });
 
@@ -1894,9 +1898,10 @@ test('it returns esc from a git source to the agent step when one target left no
 
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  ctx.terminal.reset();
+  const mark = ctx.terminal.mark();
+
   ctx.picker.applyKey(Buffer.from(KEYS.esc));
 
-  expect(ctx.terminal.getText()).toInclude('spawn: agent');
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: agent');
   expect(ctx.counts.exits).toBe(0);
 });

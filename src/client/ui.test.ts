@@ -22,22 +22,7 @@ test('#buildOverlayHint includes headless on a row whose agent can run a headles
   ).toBe('⏎ attach · H headless · y yank · Y eject · K kill · p pin ▏ g groups · n new · ? keys');
 });
 
-test('#buildOverlayHint omits headless on a row whose agent cannot run one', () => {
-  expect(
-    buildOverlayHint(
-      buildMockMirrorSession({
-        state: 'running',
-        alive: true,
-        kind: 'pty',
-        canEject: false,
-        agent: 'grok',
-        pinned: false,
-      }),
-    ),
-  ).toBe('⏎ attach · y yank · Y eject · K kill · p pin ▏ g groups · n new · ? keys');
-});
-
-test('#buildOverlayHint still names yank on a live Grok row', () => {
+test('#buildOverlayHint omits headless and keeps yank on a Grok row, whose agent cannot run a headless turn', () => {
   expect(
     buildOverlayHint(
       buildMockMirrorSession({

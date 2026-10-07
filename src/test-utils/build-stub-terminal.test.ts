@@ -14,12 +14,25 @@ test('it returns every chunk written, in order', () => {
   expect(terminal.getText()).toBe('\u001B[2Jsessions');
 });
 
-test('it drops the chunks written before a reset', () => {
+test('it returns only the chunks written after a mark', () => {
   const terminal = buildStubTerminal();
 
   terminal.write('stale frame');
-  terminal.reset();
-  terminal.write('fresh frame');
 
-  expect(terminal.getText()).toBe('fresh frame');
+  const mark = terminal.mark();
+
+  terminal.write('fresh ');
+  terminal.write('frame');
+
+  expect(terminal.getTextSince(mark)).toBe('fresh frame');
+});
+
+test('it returns no text since a mark when nothing is written after it', () => {
+  const terminal = buildStubTerminal();
+
+  terminal.write('stale frame');
+
+  const mark = terminal.mark();
+
+  expect(terminal.getTextSince(mark)).toBe('');
 });

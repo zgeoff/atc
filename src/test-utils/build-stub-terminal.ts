@@ -1,8 +1,9 @@
 /**
  * A terminal that keeps every chunk written to it, in order, and draws
- * nothing. `getText` returns everything written since the start or the
- * last `reset`, which drops what came before, so a test reads only the
- * output of the action it checks.
+ * nothing. `getText` returns everything written. `mark` returns a position
+ * at the end of what is written so far, and `getTextSince` returns only
+ * what was written after that position, so a test reads only the output of
+ * the action it checks.
  */
 export function buildStubTerminal() {
   const chunks: string[] = [];
@@ -12,8 +13,7 @@ export function buildStubTerminal() {
       chunks.push(chunk);
     },
     getText: (): string => chunks.join(''),
-    reset: (): void => {
-      chunks.length = 0;
-    },
+    mark: (): number => chunks.length,
+    getTextSince: (mark: number): string => chunks.slice(mark).join(''),
   };
 }
