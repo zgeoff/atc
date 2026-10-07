@@ -29,6 +29,24 @@ const SEEN_LIMIT = 10_000;
 // opened the tap.
 type TapEnd = 'closed' | 'refused' | 'lost' | 'unreachable';
 
+// Where the tap prints and how it exits: stdout, stderr, and the process by
+// default.
+interface BridgeTapIO {
+  readonly writeStdout: (text: string) => Promise<unknown>;
+  readonly printError: (line: string) => void;
+  readonly exit: (code: number) => void;
+}
+
+const PROCESS_IO: BridgeTapIO = {
+  writeStdout: (text) => Bun.write(Bun.stdout, text),
+  printError: (line) => {
+    console.error(line);
+  },
+  exit: (code) => {
+    process.exit(code);
+  },
+};
+
 /**
  * Streams the session's inbox to stdout from inside a remote host, through
  * the session bridge at the given socket. It prints each message once as
@@ -40,21 +58,29 @@ type TapEnd = 'closed' | 'refused' | 'lost' | 'unreachable';
  * outbox still holds. Exits 0 once the inbox closes and 1 when the bridge
  * refuses the tap.
  */
-export async function runBridgeTap(socketPath: string, outbox: string): Promise<void> {
+export async function runBridgeTap(
+  socketPath: string,
+  outbox: string,
+  io: BridgeTapIO = PROCESS_IO,
+): Promise<void> {
   const seen = new Set<string>();
 
   let wait = FIRST_RETRY_MS;
 
   for (;;) {
-    const end = await runTapConnection(socketPath, outbox, seen);
+    const end = await runTapConnection(socketPath, outbox, seen, io);
 
     if (end === 'closed') {
-      process.exit(0);
+      io.exit(0);
+
+      return;
     }
 
     if (end === 'refused') {
-      console.error('atc tap: the session bridge refused the tap');
-      process.exit(1);
+      io.printError('atc tap: the session bridge refused the tap');
+      io.exit(1);
+
+      return;
     }
 
     if (end === 'lost') {
@@ -73,6 +99,7 @@ async function runTapConnection(
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the ids the tap printed, which every connection adds to
   seen: Set<string>,
+  io: BridgeTapIO,
 ): Promise<TapEnd> {
   const ended = Promise.withResolvers<TapEnd>();
   let opened = false;
@@ -139,9 +166,11 @@ async function runTapConnection(
         const printed = `${JSON.stringify({ id: message.message, from: message.from, text: message.text, sentAt: message.sentAt })}\n`;
 
         try {
-          await Bun.write(Bun.stdout, printed);
+          await io.writeStdout(printed);
         } catch {
-          process.exit(1);
+          io.exit(1);
+
+          return;
         }
 
         updateSeenIDs(seen, message.message);

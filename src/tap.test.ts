@@ -1,29 +1,31 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from './client/daemon-client';
 import { startDaemon } from './daemon/daemon';
 import type { EventMsg } from './protocol/protocol';
+import { runTap } from './tap';
 import { buildMockAgentAdapter } from './test-utils/build-mock-agent-adapter';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 import { spawnNamedSession } from './test-utils/spawn-named-session';
+import { startStubSessionBridge } from './test-utils/start-stub-session-bridge';
+import { updateEnv } from './test-utils/update-env';
 import { waitFor } from './test-utils/wait-for';
 
 /**
- * A real daemon listening at the socket path the tap subcommand computes
- * from `XDG_RUNTIME_DIR`, which `env` points at the temp directory, and a
- * client that has sent its handshake and collects every event. Disposal
- * stops the client and the daemon, which a test may already have stopped,
- * and removes the directory.
+ * A real daemon listening in a temp directory, and a client that has sent
+ * its handshake and collects every event. Disposal stops the client and the
+ * daemon, which a test may already have stopped, and removes the directory.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-tap-'));
+  const socketPath = join(tmp.dir, 'atc-daemon.sock');
 
-  // The tap dials this path, so the daemon listens exactly there; the
-  // adapter takes messages, so a session has an inbox to tap.
+  // The adapter takes messages, so a session has an inbox to tap.
   const daemon = await startDaemon({
-    socketPath: join(tmp.dir, 'atc-daemon.sock'),
+    socketPath,
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -35,7 +37,7 @@ async function setupTest() {
 
   const events: EventMsg[] = [];
 
-  const actor = await DaemonClient.open(join(tmp.dir, 'atc-daemon.sock'));
+  const actor = await DaemonClient.open(socketPath);
 
   stack.defer(() => {
     actor.stop();
@@ -51,7 +53,7 @@ async function setupTest() {
 
   return {
     dir: tmp.dir,
-    env: { ...process.env, XDG_RUNTIME_DIR: tmp.dir, HOME: tmp.dir },
+    socketPath,
     actor,
     events,
     daemon,
@@ -76,10 +78,19 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
     from: 'bob',
   });
 
-  await using proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'cli.ts'), 'tap', '--session', id],
-    { env: ctx.env, stdout: 'pipe', stderr: 'pipe' },
-  );
+  const printed: string[] = [];
+
+  const tapped = runTap(id, ctx.socketPath, {
+    writeStdout: (text) => {
+      printed.push(text);
+
+      return Promise.resolve();
+    },
+    printError: () => {},
+    exit: () => {},
+  });
+
+  onTestFinished(() => tapped);
 
   await waitFor(() => {
     expect(
@@ -87,16 +98,7 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
     ).toHaveLength(2);
   });
 
-  proc.kill();
-
-  const stdout = await new Response(proc.stdout).text();
-
-  expect(
-    stdout
-      .trim()
-      .split('\n')
-      .map((line): unknown => JSON.parse(line)),
-  ).toStrictEqual([
+  expect(printed.map((line): unknown => JSON.parse(line))).toStrictEqual([
     { id: first['message'], from: 'alice', text: 'one', sentAt: expect.toBeNumber() },
     { id: second['message'], from: 'bob', text: 'two', sentAt: expect.toBeNumber() },
   ]);
@@ -105,40 +107,46 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
 test('it exits 1 with a hint when no daemon listens', async () => {
   await using ctx = await setupTest();
 
-  await using proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'cli.ts'), 'tap', '--session', 's1'],
-    {
-      env: { ...process.env, XDG_RUNTIME_DIR: join(ctx.dir, 'no-daemon'), HOME: ctx.dir },
-      stdout: 'pipe',
-      stderr: 'pipe',
+  const errors: string[] = [];
+  const codes: number[] = [];
+
+  await runTap('s1', join(ctx.dir, 'no-daemon', 'atc-daemon.sock'), {
+    writeStdout: () => Promise.resolve(),
+    printError: (line) => {
+      errors.push(line);
     },
-  );
+    exit: (code) => {
+      codes.push(code);
+    },
+  });
 
-  const code = await proc.exited;
-
-  const stderr = await new Response(proc.stderr).text();
-
-  expect({ code, stderr }).toStrictEqual({
-    code: 1,
-    stderr: `atc tap: no daemon at ${join(ctx.dir, 'no-daemon', 'atc-daemon.sock')} — start atc first\n`,
+  expect({ codes, errors }).toStrictEqual({
+    codes: [1],
+    errors: [
+      `atc tap: no daemon at ${join(ctx.dir, 'no-daemon', 'atc-daemon.sock')} — start atc first`,
+    ],
   });
 });
 
 test('it exits 1 with the refusal when the session cannot be tapped', async () => {
   await using ctx = await setupTest();
 
-  await using proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'cli.ts'), 'tap', '--session', 'nope'],
-    { env: ctx.env, stdout: 'pipe', stderr: 'pipe' },
-  );
+  const errors: string[] = [];
+  const codes: number[] = [];
 
-  const code = await proc.exited;
+  await runTap('nope', ctx.socketPath, {
+    writeStdout: () => Promise.resolve(),
+    printError: (line) => {
+      errors.push(line);
+    },
+    exit: (code) => {
+      codes.push(code);
+    },
+  });
 
-  const stderr = await new Response(proc.stderr).text();
-
-  expect({ code, stderr }).toStrictEqual({
-    code: 1,
-    stderr: "atc tap: no_such_session: no session 'nope'\n",
+  expect({ codes, errors }).toStrictEqual({
+    codes: [1],
+    errors: ["atc tap: no_such_session: no session 'nope'"],
   });
 });
 
@@ -147,10 +155,17 @@ test('it exits 0 once the daemon closes the connection', async () => {
 
   const id = await spawnNamedSession((m, p) => ctx.actor.sendRequest(m, p), 'one', ctx.dir);
 
-  await using proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'cli.ts'), 'tap', '--session', id],
-    { env: ctx.env, stdout: 'pipe', stderr: 'pipe' },
-  );
+  const codes: number[] = [];
+
+  const tapped = runTap(id, ctx.socketPath, {
+    writeStdout: () => Promise.resolve(),
+    printError: () => {},
+    exit: (code) => {
+      codes.push(code);
+    },
+  });
+
+  onTestFinished(() => tapped);
 
   await ctx.actor.sendRequest('session.message', { session: id, text: 'ping' });
 
@@ -162,9 +177,9 @@ test('it exits 0 once the daemon closes the connection', async () => {
 
   await ctx.daemon.stop();
 
-  const code = await proc.exited;
+  await tapped;
 
-  expect(code).toBe(0);
+  expect(codes).toStrictEqual([0]);
 });
 
 test('it exits 0 when another tap replaces it', async () => {
@@ -172,10 +187,17 @@ test('it exits 0 when another tap replaces it', async () => {
 
   const id = await spawnNamedSession((m, p) => ctx.actor.sendRequest(m, p), 'one', ctx.dir);
 
-  await using proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'cli.ts'), 'tap', '--session', id],
-    { env: ctx.env, stdout: 'pipe', stderr: 'pipe' },
-  );
+  const codes: number[] = [];
+
+  const tapped = runTap(id, ctx.socketPath, {
+    writeStdout: () => Promise.resolve(),
+    printError: () => {},
+    exit: (code) => {
+      codes.push(code);
+    },
+  });
+
+  onTestFinished(() => tapped);
 
   await ctx.actor.sendRequest('session.message', { session: id, text: 'ping' });
 
@@ -184,7 +206,7 @@ test('it exits 0 when another tap replaces it', async () => {
     expect(ctx.events).toPartiallyContain({ ev: 'SessionMessage', status: 'delivered' });
   });
 
-  const replacement = await DaemonClient.open(join(ctx.dir, 'atc-daemon.sock'));
+  const replacement = await DaemonClient.open(ctx.socketPath);
 
   onTestFinished(() => {
     replacement.stop();
@@ -193,7 +215,55 @@ test('it exits 0 when another tap replaces it', async () => {
   await replacement.sendHello('atc/test-build');
   await replacement.sendRequest('session.tap', { session: id });
 
-  const code = await proc.exited;
+  await tapped;
 
-  expect(code).toBe(0);
+  expect(codes).toStrictEqual([0]);
+});
+
+test('it taps through the session bridge inside a remote host', async () => {
+  await using ctx = await setupTest();
+
+  const sock = join(ctx.dir, 'bridge.sock');
+  const outbox = join(ctx.dir, 'outbox');
+
+  // The bridge closes the inbox once it answers the report the tap sends.
+  using bridge = startStubSessionBridge(sock, (request) => [
+    { id: request['id'], ok: true },
+    { ev: 'InboxClosed' },
+  ]);
+
+  mkdirSync(outbox);
+
+  writeFileSync(
+    join(outbox, 'r1.json'),
+    JSON.stringify({ reportID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
+  );
+
+  updateEnv('ATC_BRIDGE', '1');
+  updateEnv('ATC_SOCKET', sock);
+  updateEnv('ATC_OUTBOX', outbox);
+
+  const codes: number[] = [];
+
+  await runTap('s1', ctx.socketPath, {
+    writeStdout: () => Promise.resolve(),
+    printError: () => {},
+    exit: (code) => {
+      codes.push(code);
+    },
+  });
+
+  expect({ codes, requests: bridge.requests }).toStrictEqual({
+    codes: [0],
+    requests: [
+      { v: 1, id: 'tap.open', op: 'tap.open' },
+      {
+        v: 1,
+        id: 'report:r1',
+        op: 'report',
+        reportID: 'r1',
+        payload: { kind: 'note', label: 'progress', text: 'hi' },
+      },
+    ],
+  });
 });

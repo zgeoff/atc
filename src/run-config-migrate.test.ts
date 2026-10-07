@@ -1,23 +1,19 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
+import { runConfigMigrate } from './run-config-migrate';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 
 /**
- * A temp directory for the config file under migration, and the CLI entry
- * the test runs under its own bun. Disposal removes the directory.
+ * A temp directory for the config file under migration. Disposal removes the
+ * directory.
  */
 function setupTest() {
-  const tmp = setupTempDir('atc-config-migrate-');
-
-  return {
-    dir: tmp.dir,
-    cli: join(import.meta.dir, 'cli.ts'),
-    [Symbol.dispose]: tmp[Symbol.dispose],
-  };
+  return setupTempDir('atc-config-migrate-');
 }
 
-test('it prints the migrated config and leaves the file alone without --write', async () => {
+test('it prints the migrated config and leaves the file alone without --write', () => {
   using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
@@ -25,16 +21,20 @@ test('it prints the migrated config and leaves the file alone without --write', 
 
   writeFileSync(file, original);
 
-  const proc = Bun.spawn([process.execPath, ctx.cli, 'config', 'migrate', '--file', file], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  let stdout = '';
+  let stderr = '';
 
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
+  const code = runConfigMigrate(file, false, {
+    printText: (text) => {
+      stdout += text;
+    },
+    print: (line) => {
+      stdout += `${line}\n`;
+    },
+    printError: (line) => {
+      stderr += `${line}\n`;
+    },
+  });
 
   expect({ stdout, stderr, code, kept: readFileSync(file, 'utf8') }).toStrictEqual({
     stdout: `${JSON.stringify(
@@ -48,7 +48,7 @@ test('it prints the migrated config and leaves the file alone without --write', 
   });
 });
 
-test('it backs the file up, rewrites it, and prints both paths with --write', async () => {
+test('it backs the file up, rewrites it, and prints both paths with --write', () => {
   using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
@@ -56,22 +56,24 @@ test('it backs the file up, rewrites it, and prints both paths with --write', as
 
   writeFileSync(file, original);
 
-  const proc = Bun.spawn(
-    [process.execPath, ctx.cli, 'config', 'migrate', '--file', file, '--write'],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  let stdout = '';
+  let stderr = '';
 
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
+  const code = runConfigMigrate(file, true, {
+    printText: (text) => {
+      stdout += text;
+    },
+    print: (line) => {
+      stdout += `${line}\n`;
+    },
+    printError: (line) => {
+      stderr += `${line}\n`;
+    },
+  });
 
   const [backupName, ...others] = readdirSync(ctx.dir).filter((name) => name !== 'config.json');
 
-  if (backupName === undefined) {
-    throw new Error('the migration wrote no backup');
-  }
+  invariant(backupName !== undefined, 'the migration wrote no backup');
 
   const backup = join(ctx.dir, backupName);
 
@@ -94,23 +96,27 @@ test('it backs the file up, rewrites it, and prints both paths with --write', as
   });
 });
 
-test('it says nothing to migrate and writes nothing for a file that uses agents', async () => {
+test('it says nothing to migrate and writes nothing for a file that uses agents', () => {
   using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
 
   writeFileSync(file, JSON.stringify({ agents: { claude: {} } }));
 
-  const proc = Bun.spawn(
-    [process.execPath, ctx.cli, 'config', 'migrate', '--file', file, '--write'],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  let stdout = '';
+  let stderr = '';
 
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
+  const code = runConfigMigrate(file, true, {
+    printText: (text) => {
+      stdout += text;
+    },
+    print: (line) => {
+      stdout += `${line}\n`;
+    },
+    printError: (line) => {
+      stderr += `${line}\n`;
+    },
+  });
 
   expect({ stdout, stderr, code, entries: readdirSync(ctx.dir) }).toStrictEqual({
     stdout: 'config.json already uses agents; nothing to migrate\n',
@@ -120,7 +126,7 @@ test('it says nothing to migrate and writes nothing for a file that uses agents'
   });
 });
 
-test('it exits 1 and writes nothing for a file that sets agents beside an old key', async () => {
+test('it exits 1 and writes nothing for a file that sets agents beside an old key', () => {
   using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
@@ -128,16 +134,20 @@ test('it exits 1 and writes nothing for a file that sets agents beside an old ke
 
   writeFileSync(file, original);
 
-  const proc = Bun.spawn(
-    [process.execPath, ctx.cli, 'config', 'migrate', '--file', file, '--write'],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  let stdout = '';
+  let stderr = '';
 
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
+  const code = runConfigMigrate(file, true, {
+    printText: (text) => {
+      stdout += text;
+    },
+    print: (line) => {
+      stdout += `${line}\n`;
+    },
+    printError: (line) => {
+      stderr += `${line}\n`;
+    },
+  });
 
   expect({
     stdout,
@@ -154,7 +164,7 @@ test('it exits 1 and writes nothing for a file that sets agents beside an old ke
   });
 });
 
-test('it notes each dropped gateway on stderr without printing a value', async () => {
+test('it notes each dropped gateway on stderr without printing a value', () => {
   using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
@@ -164,16 +174,20 @@ test('it notes each dropped gateway on stderr without printing a value', async (
     JSON.stringify({ gateways: { broken: { env: { TOKEN: 'sk-secret-value' } } } }),
   );
 
-  const proc = Bun.spawn([process.execPath, ctx.cli, 'config', 'migrate', '--file', file], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  let stdout = '';
+  let stderr = '';
 
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
+  const code = runConfigMigrate(file, false, {
+    printText: (text) => {
+      stdout += text;
+    },
+    print: (line) => {
+      stdout += `${line}\n`;
+    },
+    printError: (line) => {
+      stderr += `${line}\n`;
+    },
+  });
 
   expect({ stdout, stderr, code }).toStrictEqual({
     stdout: `${JSON.stringify({ agents: { claude: {}, grok: {}, codex: {} } }, null, 2)}\n`,
@@ -182,23 +196,27 @@ test('it notes each dropped gateway on stderr without printing a value', async (
   });
 });
 
-test('it exits 1 for a file that is not valid JSON', async () => {
+test('it exits 1 for a file that is not valid JSON', () => {
   using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
 
   writeFileSync(file, '{ "claudeBin": ');
 
-  const proc = Bun.spawn([process.execPath, ctx.cli, 'config', 'migrate', '--file', file], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  let stdout = '';
+  let stderr = '';
 
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
+  const code = runConfigMigrate(file, false, {
+    printText: (text) => {
+      stdout += text;
+    },
+    print: (line) => {
+      stdout += `${line}\n`;
+    },
+    printError: (line) => {
+      stderr += `${line}\n`;
+    },
+  });
 
   expect({ stdout, stderr, code }).toStrictEqual({
     stdout: '',
@@ -207,21 +225,24 @@ test('it exits 1 for a file that is not valid JSON', async () => {
   });
 });
 
-test('it exits 1 for a file that does not exist', async () => {
+test('it exits 1 for a file that does not exist', () => {
   using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
+  let stdout = '';
+  let stderr = '';
 
-  const proc = Bun.spawn([process.execPath, ctx.cli, 'config', 'migrate', '--file', file], {
-    stdout: 'pipe',
-    stderr: 'pipe',
+  const code = runConfigMigrate(file, false, {
+    printText: (text) => {
+      stdout += text;
+    },
+    print: (line) => {
+      stdout += `${line}\n`;
+    },
+    printError: (line) => {
+      stderr += `${line}\n`;
+    },
   });
-
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
 
   expect({ stdout, stderr, code, created: existsSync(file) }).toStrictEqual({
     stdout: '',

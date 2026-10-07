@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runBridgeTap } from './run-bridge-tap';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 import { startStubSessionBridge } from './test-utils/start-stub-session-bridge';
 
@@ -20,7 +21,6 @@ function setupTest() {
     dir: tmp.dir,
     sock: join(tmp.dir, 'bridge.sock'),
     outbox,
-    cli: join(import.meta.dir, 'cli.ts'),
     [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
@@ -38,20 +38,22 @@ test('it removes the outbox file of a report the bridge took', async () => {
     JSON.stringify({ reportID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
   );
 
-  await using proc = Bun.spawn([process.execPath, ctx.cli, 'tap', '--session', 's1'], {
-    env: { ...process.env, ATC_BRIDGE: '1', ATC_SOCKET: ctx.sock, ATC_OUTBOX: ctx.outbox },
-    stdout: 'ignore',
-    stderr: 'ignore',
+  const codes: number[] = [];
+
+  await runBridgeTap(ctx.sock, ctx.outbox, {
+    writeStdout: () => Promise.resolve(),
+    printError: () => {},
+    exit: (code) => {
+      codes.push(code);
+    },
   });
 
-  const code = await proc.exited;
-
   expect({
-    code,
+    codes,
     kept: existsSync(join(ctx.outbox, 'r1.json')),
     requests: bridge.requests,
   }).toStrictEqual({
-    code: 0,
+    codes: [0],
     kept: false,
     requests: [
       { v: 1, id: 'tap.open', op: 'tap.open' },
@@ -81,21 +83,23 @@ test('it removes no file for an answer to a report id it never sent', async () =
     JSON.stringify({ reportID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
   );
 
-  await using proc = Bun.spawn([process.execPath, ctx.cli, 'tap', '--session', 's1'], {
-    env: { ...process.env, ATC_BRIDGE: '1', ATC_SOCKET: ctx.sock, ATC_OUTBOX: ctx.outbox },
-    stdout: 'ignore',
-    stderr: 'ignore',
+  const codes: number[] = [];
+
+  await runBridgeTap(ctx.sock, ctx.outbox, {
+    writeStdout: () => Promise.resolve(),
+    printError: () => {},
+    exit: (code) => {
+      codes.push(code);
+    },
   });
 
-  const code = await proc.exited;
-
   expect({
-    code,
+    codes,
     victim: existsSync(join(ctx.dir, 'victim.json')),
     report: existsSync(join(ctx.outbox, 'r1.json')),
     requests: bridge.requests,
   }).toStrictEqual({
-    code: 0,
+    codes: [0],
     victim: true,
     report: true,
     requests: [

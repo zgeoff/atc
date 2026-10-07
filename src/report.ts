@@ -16,6 +16,20 @@ interface ReportOptions {
   readonly turn: string;
 }
 
+// Where the reporter reads its text and how it exits: stdin and the process
+// by default.
+interface ReportIO {
+  readonly readStdin: () => Promise<string>;
+  readonly exit: (code: number) => void;
+}
+
+const PROCESS_IO: ReportIO = {
+  readStdin: () => new Response(Bun.stdin.stream()).text(),
+  exit: (code) => {
+    process.exit(code);
+  },
+};
+
 /**
  * Runs inside wrangled sessions: reads stdin verbatim and forwards it to the
  * atc socket as a Report envelope of the given kind. An `answered` report
@@ -26,7 +40,11 @@ interface ReportOptions {
  * given. Inside a remote host it goes to the session bridge instead. Always
  * exits 0 so it never blocks the session it reports on.
  */
-export async function runReport(kind: string, options: ReportOptions): Promise<void> {
+export async function runReport(
+  kind: string,
+  options: ReportOptions,
+  io: ReportIO = PROCESS_IO,
+): Promise<void> {
   try {
     const sock = process.env['ATC_SOCKET'];
     const atcId = process.env['ATC_SESSION_ID'];
@@ -38,7 +56,7 @@ export async function runReport(kind: string, options: ReportOptions): Promise<v
       atcId !== '' &&
       REPORT_KINDS.some((known) => known === kind)
     ) {
-      const stdin = await new Response(Bun.stdin.stream()).text();
+      const stdin = await io.readStdin();
 
       const payload = buildReportPayload(kind, options, stdin);
 
@@ -52,7 +70,7 @@ export async function runReport(kind: string, options: ReportOptions): Promise<v
     }
   } catch {}
 
-  process.exit(0);
+  io.exit(0);
 }
 
 // Inside a remote host, a report goes to the session bridge under an id of
