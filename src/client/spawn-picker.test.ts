@@ -40,7 +40,8 @@ const LEADER = Buffer.from([0x1d]);
  * Claude, at the running Bun, as the one installed agent, whatever the host
  * machine has on its PATH. The daemon serves every feature, picking the
  * directory of a git workspace spawned without one unless the test says
- * it does not.
+ * it does not. The picker runs from the filesystem root, so typed text
+ * never fuzzy-matches the path of the checkout the suite runs in.
  */
 function setupTest(picksWorkspaceDir = true) {
   mkdirSync(dirname(configFile), { recursive: true });
@@ -58,8 +59,13 @@ function setupTest(picksWorkspaceDir = true) {
     return true;
   });
 
+  const cwd = process.cwd();
+
+  process.chdir('/');
+
   onTestFinished(() => {
     write.mockRestore();
+    process.chdir(cwd);
 
     rmSync(configFile, { force: true });
   });
