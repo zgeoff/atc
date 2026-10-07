@@ -12,7 +12,7 @@ import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 /**
- * A real daemon whose one target `box` is an imp provider over a fixture
+ * A real daemon whose one target `box` is an imp provider over a stub
  * imp port that holds no identity or secret until the test adds them. The
  * guest has an atc stand-in, and the codex agent signs in through an oauth
  * secret for chatgpt.com and runs `fakeCodex`, which appends its Codex home

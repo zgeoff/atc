@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
-import { createStubHarnessGuest } from '../test-utils/create-stub-harness-guest';
 import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
+import { createStubHarnessGuest } from '../test-utils/create-stub-harness-guest';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import type { HarnessAttachment, HarnessExit } from './execution-provider';
