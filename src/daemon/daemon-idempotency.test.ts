@@ -15,56 +15,55 @@ import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { buildPayloadHash } from './build-payload-hash';
-import type { DaemonOptions } from './daemon';
-
-// The daemon options a test wires: the adapter, and the execution targets,
-// which are the daemon's own local terminal when unset.
-type IdempotencyTestConfig = Pick<DaemonOptions, 'adapter' | 'targets'>;
-
-// A real daemon running the given adapter on the given targets.
-function setupTest(config: IdempotencyTestConfig) {
-  return startTestDaemon({ prefix: 'atc-idempotency-', options: () => config });
-}
 
 test('it answers a retried keyed spawn with the first session and spawns once', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  const first = await ctx.client.sendRequest('session.spawn', params);
-  const second = await ctx.client.sendRequest('session.spawn', params);
-  const list = await ctx.client.sendRequest('session.list');
+  const first = await daemon.client.sendRequest('session.spawn', params);
+  const second = await daemon.client.sendRequest('session.spawn', params);
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(second).toMatchObject({ session: { id: getRecord(first, 'session')['id'] } });
   expect(list['sessions']).toHaveLength(1);
 });
 
 test('it spawns once for two keyed spawns that arrive together', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   const [first, second] = await Promise.all([
-    ctx.client.sendRequest('session.spawn', params),
-    ctx.client.sendRequest('session.spawn', params),
+    daemon.client.sendRequest('session.spawn', params),
+    daemon.client.sendRequest('session.spawn', params),
   ]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(second).toMatchObject({ session: { id: getRecord(first, 'session')['id'] } });
   expect(list['sessions']).toHaveLength(1);
 });
 
 test('it replays a retried spawn whose params differ only in defaults and fields the daemon ignores', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const first = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const first = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     idempotencyKey: 'k-1',
   });
 
-  const second = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const second = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     name: '',
@@ -76,18 +75,21 @@ test('it replays a retried spawn whose params differ only in defaults and fields
 });
 
 test('it refuses a key reused with a different spawn payload as idempotency_conflict', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
   });
 
   expect(
-    ctx.client.sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'other'),
+    daemon.client.sendRequest('session.spawn', {
+      cwd: join(daemon.dir, 'other'),
       cols: 80,
       rows: 24,
       idempotencyKey: 'k-1',
@@ -96,13 +98,16 @@ test('it refuses a key reused with a different spawn payload as idempotency_conf
 });
 
 test('it answers a spawn retried after an interrupted run with outcome_unknown and spawns nothing', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  await ctx.stop();
+  await daemon.stop();
 
-  const seed = await StateStore.open(ctx.dbPath);
+  const seed = await StateStore.open(daemon.dbPath);
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -114,13 +119,13 @@ test('it answers a spawn retried after an interrupted run with outcome_unknown a
   });
 
   await seed.stop();
-  await ctx.restart();
+  await daemon.restart();
 
-  const spawned = ctx.client.sendRequest('session.spawn', params);
+  const spawned = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([spawned]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
@@ -131,13 +136,16 @@ test('it answers a spawn retried after an interrupted run with outcome_unknown a
 });
 
 test('it refuses a spawn retried after an interrupted run whose session reached the fleet until the fleet is restored', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  await ctx.stop();
+  await daemon.stop();
 
-  const seed = await StateStore.open(ctx.dbPath);
+  const seed = await StateStore.open(daemon.dbPath);
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -152,29 +160,32 @@ test('it refuses a spawn retried after an interrupted run whose session reached 
     {
       sessionID: toSessionID('spawned-before-crash'),
       name: 'work',
-      cwd: ctx.dir,
+      cwd: daemon.dir,
       agent: 'claude',
       exited: true,
     },
   ]);
 
   await seed.stop();
-  await ctx.restart();
+  await daemon.restart();
 
-  expect(ctx.client.sendRequest('session.spawn', params)).rejects.toMatchObject({
+  expect(daemon.client.sendRequest('session.spawn', params)).rejects.toMatchObject({
     code: 'no_such_session',
     data: { effectRef: 'spawned-before-crash' },
   });
 });
 
 test('it completes an interrupted spawn whose session reached the fleet and replays it once restored', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  await ctx.stop();
+  await daemon.stop();
 
-  const seed = await StateStore.open(ctx.dbPath);
+  const seed = await StateStore.open(daemon.dbPath);
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -189,19 +200,19 @@ test('it completes an interrupted spawn whose session reached the fleet and repl
     {
       sessionID: toSessionID('spawned-before-crash'),
       name: 'work',
-      cwd: ctx.dir,
+      cwd: daemon.dir,
       agent: 'claude',
       exited: true,
     },
   ]);
 
   await seed.stop();
-  await ctx.restart();
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.restart();
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const replayed = await ctx.client.sendRequest('session.spawn', params);
-  const list = await ctx.client.sendRequest('session.list');
+  const replayed = await daemon.client.sendRequest('session.spawn', params);
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(replayed).toMatchObject({ session: { id: 'spawned-before-crash' } });
   expect(list['sessions']).toHaveLength(1);
@@ -214,11 +225,14 @@ test('it refuses a keyed spawn whose agent fails to start as internal', async ()
     throw new Error('no binary');
   });
 
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ planSpawn }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ planSpawn }) }),
+  });
 
   expect(
-    ctx.client.sendRequest('session.spawn', {
-      cwd: ctx.dir,
+    daemon.client.sendRequest('session.spawn', {
+      cwd: daemon.dir,
       cols: 80,
       rows: 24,
       idempotencyKey: 'k-1',
@@ -233,22 +247,28 @@ test('it drops the claim of a spawn that failed to start so a retry spawns', asy
     throw new Error('no binary');
   });
 
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ planSpawn }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ planSpawn }) }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const retried = await ctx.client.sendRequest('session.spawn', params);
+  const retried = await daemon.client.sendRequest('session.spawn', params);
 
-  expect(retried).toMatchObject({ session: { cwd: ctx.dir } });
+  expect(retried).toMatchObject({ session: { cwd: daemon.dir } });
 });
 
 test('it records no claim for a keyed spawn refused before it starts', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     parent: 'ghost',
     cols: 80,
     rows: 24,
@@ -257,7 +277,7 @@ test('it records no claim for a keyed spawn refused before it starts', async () 
 
   await Promise.allSettled([spawned]);
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const rows = db.query('SELECT key FROM idempotency').all();
 
@@ -266,32 +286,38 @@ test('it records no claim for a keyed spawn refused before it starts', async () 
 });
 
 test('it replays a completed keyed spawn even once its parent is gone', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const parent = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const params = { cwd: ctx.dir, parent: parentID, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, parent: parentID, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  const first = await ctx.client.sendRequest('session.spawn', params);
+  const first = await daemon.client.sendRequest('session.spawn', params);
 
-  await ctx.client.sendRequest('session.kill', { session: parentID });
-  await ctx.client.sendRequest('session.kill', { session: parentID });
+  await daemon.client.sendRequest('session.kill', { session: parentID });
+  await daemon.client.sendRequest('session.kill', { session: parentID });
 
-  const retried = await ctx.client.sendRequest('session.spawn', params);
+  const retried = await daemon.client.sendRequest('session.spawn', params);
 
   expect(retried).toMatchObject({ session: { id: getRecord(first, 'session')['id'] } });
 });
 
 test('it refuses a spawn with fractional rows as bad_args before any session starts', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24.5,
     idempotencyKey: 'k-1',
@@ -299,7 +325,7 @@ test('it refuses a spawn with fractional rows as bad_args before any session sta
 
   await Promise.allSettled([spawned]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(spawned).rejects.toMatchObject({ code: 'bad_args' });
   expect(list['sessions']).toStrictEqual([]);
@@ -313,11 +339,14 @@ test('it refuses a keyed spawn that fails after its process starts as internal',
     readyFile: null,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
   expect(
-    ctx.client.sendRequest('session.spawn', {
-      cwd: ctx.dir,
+    daemon.client.sendRequest('session.spawn', {
+      cwd: daemon.dir,
       cols: 80,
       rows: 24,
       idempotencyKey: 'k-1',
@@ -333,14 +362,17 @@ test('it leaves no session behind from a keyed spawn that fails after its proces
     readyFile: null,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const retried = await ctx.client.sendRequest('session.spawn', params);
-  const list = await ctx.client.sendRequest('session.list');
+  const retried = await daemon.client.sendRequest('session.spawn', params);
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(stub.countPlans()).toBe(2);
   expect(list['sessions']).toStrictEqual([getRecord(retried, 'session')]);
@@ -354,10 +386,13 @@ test('it answers outcome_unknown with its claim when killing a failed spawn thro
     readyFile: null,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -365,7 +400,7 @@ test('it answers outcome_unknown with its claim when killing a failed spawn thro
 
   await Promise.allSettled([spawned]);
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
 
@@ -383,20 +418,23 @@ test('it keeps the key as outcome_unknown when killing a failed spawn throws, so
     readyFile: null,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
-  const retried = ctx.client.sendRequest('session.spawn', params);
+  const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(retried).rejects.toMatchObject({
     code: 'outcome_unknown',
@@ -415,18 +453,21 @@ test('it answers outcome_unknown when a failed spawn cannot be removed from the 
     readyFile: null,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
   // Another connection drops the fleet table, so no fleet write can land.
   {
-    using db = new Database(ctx.dbPath);
+    using db = new Database(daemon.dbPath);
 
     db.run('DROP TABLE fleet');
   }
 
   expect(
-    ctx.client.sendRequest('session.spawn', {
-      cwd: ctx.dir,
+    daemon.client.sendRequest('session.spawn', {
+      cwd: daemon.dir,
       cols: 80,
       rows: 24,
       idempotencyKey: 'k-1',
@@ -442,24 +483,27 @@ test('it keeps the key as outcome_unknown when a failed spawn cannot be removed 
     readyFile: null,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   // Another connection drops the fleet table, so no fleet write can land.
   {
-    using db = new Database(ctx.dbPath);
+    using db = new Database(daemon.dbPath);
 
     db.run('DROP TABLE fleet');
   }
 
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const retried = ctx.client.sendRequest('session.spawn', params);
+  const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(stub.countPlans()).toBe(1);
@@ -467,16 +511,19 @@ test('it keeps the key as outcome_unknown when a failed spawn cannot be removed 
 });
 
 test('it answers outcome_unknown with the session id when the fleet write after a successful spawn fails', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
   // Another connection drops the fleet table, so the spawn starts but its
   // fleet write cannot land.
-  using db = new Database(ctx.dbPath);
+  using db = new Database(daemon.dbPath);
 
   db.run('DROP TABLE fleet');
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -484,7 +531,7 @@ test('it answers outcome_unknown with the session id when the fleet write after 
 
   await Promise.allSettled([spawned]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
 
@@ -501,24 +548,27 @@ test('it answers outcome_unknown with the session id when the fleet write after 
 test('it keeps the key as outcome_unknown when the fleet write after a successful spawn fails, so a retry spawns nothing', async () => {
   const planSpawn = mock<AgentAdapter['planSpawn']>(() => ({ bin: 'sleep', args: ['30'] }));
 
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ planSpawn }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ planSpawn }) }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   // Another connection drops the fleet table, so the spawn starts but its
   // fleet write cannot land.
-  using db = new Database(ctx.dbPath);
+  using db = new Database(daemon.dbPath);
 
   db.run('DROP TABLE fleet');
 
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
   const ref = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
-  const retried = ctx.client.sendRequest('session.spawn', params);
+  const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   const claims = db.query('SELECT state, effect_ref FROM idempotency').all();
 
@@ -537,18 +587,21 @@ test('it keeps the key as outcome_unknown when the fleet write after a successfu
 });
 
 test('it answers outcome_unknown with the session id when completing the key fails', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
   // Another connection makes every update of a key fail, so the claim lands
   // but neither its completion nor its outcome can.
-  using db = new Database(ctx.dbPath);
+  using db = new Database(daemon.dbPath);
 
   db.run(
     "CREATE TRIGGER fail_key_update BEFORE UPDATE ON idempotency BEGIN SELECT RAISE(ABORT, 'injected key write failure'); END",
   );
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -556,7 +609,7 @@ test('it answers outcome_unknown with the session id when completing the key fai
 
   await Promise.allSettled([spawned]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
 
@@ -573,26 +626,29 @@ test('it answers outcome_unknown with the session id when completing the key fai
 test('it keeps the key in progress when completing it fails, so a retry spawns nothing', async () => {
   const planSpawn = mock<AgentAdapter['planSpawn']>(() => ({ bin: 'sleep', args: ['30'] }));
 
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ planSpawn }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ planSpawn }) }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   // Another connection makes every update of a key fail, so the claim lands
   // but neither its completion nor its outcome can.
-  using db = new Database(ctx.dbPath);
+  using db = new Database(daemon.dbPath);
 
   db.run(
     "CREATE TRIGGER fail_key_update BEFORE UPDATE ON idempotency BEGIN SELECT RAISE(ABORT, 'injected key write failure'); END",
   );
 
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
   const ref = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
-  const retried = ctx.client.sendRequest('session.spawn', params);
+  const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   const claims = db.query('SELECT state, effect_ref FROM idempotency').all();
 
@@ -611,9 +667,12 @@ test('it keeps the key in progress when completing it fails, so a retry spawns n
 });
 
 test('it answers outcome_unknown with the session id when the fleet write and the key update both fail after a successful spawn', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  using db = new Database(ctx.dbPath);
+  using db = new Database(daemon.dbPath);
 
   db.run('DROP TABLE fleet');
 
@@ -621,8 +680,8 @@ test('it answers outcome_unknown with the session id when the fleet write and th
     "CREATE TRIGGER fail_key_update BEFORE UPDATE ON idempotency BEGIN SELECT RAISE(ABORT, 'injected key write failure'); END",
   );
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -630,7 +689,7 @@ test('it answers outcome_unknown with the session id when the fleet write and th
 
   await Promise.allSettled([spawned]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
 
@@ -647,11 +706,14 @@ test('it answers outcome_unknown with the session id when the fleet write and th
 test('it keeps the key in progress when the fleet write and the key update both fail after a successful spawn, so a retry spawns nothing', async () => {
   const planSpawn = mock<AgentAdapter['planSpawn']>(() => ({ bin: 'sleep', args: ['30'] }));
 
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ planSpawn }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ planSpawn }) }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  using db = new Database(ctx.dbPath);
+  using db = new Database(daemon.dbPath);
 
   db.run('DROP TABLE fleet');
 
@@ -659,14 +721,14 @@ test('it keeps the key in progress when the fleet write and the key update both 
     "CREATE TRIGGER fail_key_update BEFORE UPDATE ON idempotency BEGIN SELECT RAISE(ABORT, 'injected key write failure'); END",
   );
 
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
   const ref = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
-  const retried = ctx.client.sendRequest('session.spawn', params);
+  const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   const claims = db.query('SELECT state, effect_ref FROM idempotency').all();
 
@@ -692,9 +754,12 @@ test('it answers outcome_unknown with its claim when a failed spawn cannot leave
     readyFile: null,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  using db = new Database(ctx.dbPath);
+  using db = new Database(daemon.dbPath);
 
   db.run('DROP TABLE fleet');
 
@@ -702,8 +767,8 @@ test('it answers outcome_unknown with its claim when a failed spawn cannot leave
     "CREATE TRIGGER fail_key_update BEFORE UPDATE ON idempotency BEGIN SELECT RAISE(ABORT, 'injected key write failure'); END",
   );
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -727,11 +792,14 @@ test('it keeps the key in progress when a failed spawn cannot leave the fleet an
     readyFile: null,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  using db = new Database(ctx.dbPath);
+  using db = new Database(daemon.dbPath);
 
   db.run('DROP TABLE fleet');
 
@@ -739,10 +807,10 @@ test('it keeps the key in progress when a failed spawn cannot leave the fleet an
     "CREATE TRIGGER fail_key_update BEFORE UPDATE ON idempotency BEGIN SELECT RAISE(ABORT, 'injected key write failure'); END",
   );
 
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
   const ref = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
-  const retried = ctx.client.sendRequest('session.spawn', params);
+  const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
 
@@ -777,10 +845,13 @@ test('it ends a failed spawn that ignores its kill with a forced kill before it 
     readyFile: pidPath,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -814,14 +885,17 @@ test('it completes the rollback of a failed spawn that ignores its kill, so a re
     readyFile: pidPath,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const retried = await ctx.client.sendRequest('session.spawn', params);
-  const list = await ctx.client.sendRequest('session.list');
+  const retried = await daemon.client.sendRequest('session.spawn', params);
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(stub.countPlans()).toBe(2);
   expect(list['sessions']).toStrictEqual([getRecord(retried, 'session')]);
@@ -847,21 +921,24 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
     readyFile: pidPath,
   });
 
-  await using ctx = await setupTest({
-    adapter: stub.adapter,
-    targets: [
-      {
-        id: 'local',
-        kind: 'no-forced-kill',
-        options: {},
-        identity: 'test:local',
-        provider: buildStubSoftKillProvider(),
-      },
-    ],
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({
+      adapter: stub.adapter,
+      targets: [
+        {
+          id: 'local',
+          kind: 'no-forced-kill',
+          options: {},
+          identity: 'test:local',
+          provider: buildStubSoftKillProvider(),
+        },
+      ],
+    }),
   });
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -876,7 +953,7 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
     process.kill(pid, 'SIGKILL');
   });
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
 
@@ -908,28 +985,31 @@ test('it keeps the key of a failed spawn whose provider cannot confirm the exit 
     readyFile: pidPath,
   });
 
-  await using ctx = await setupTest({
-    adapter: stub.adapter,
-    targets: [
-      {
-        id: 'local',
-        kind: 'no-forced-kill',
-        options: {},
-        identity: 'test:local',
-        provider: buildStubSoftKillProvider(),
-      },
-    ],
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({
+      adapter: stub.adapter,
+      targets: [
+        {
+          id: 'local',
+          kind: 'no-forced-kill',
+          options: {},
+          identity: 'test:local',
+          provider: buildStubSoftKillProvider(),
+        },
+      ],
+    }),
   });
 
   const params = {
-    cwd: ctx.dir,
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
     idempotencyKey: 'k-1',
   };
 
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
   const pid = Number(readFileSync(pidPath, 'utf8'));
 
@@ -937,10 +1017,10 @@ test('it keeps the key of a failed spawn whose provider cannot confirm the exit 
     process.kill(pid, 'SIGKILL');
   });
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
-  const retried = ctx.client.sendRequest('session.spawn', params);
+  const retried = daemon.client.sendRequest('session.spawn', params);
 
   expect(retried).rejects.toMatchObject({
     code: 'outcome_unknown',
@@ -970,22 +1050,25 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
     readyFile: pidPath,
   });
 
-  await using ctx = await setupTest({
-    adapter: stub.adapter,
-    targets: [
-      {
-        id: 'local',
-        kind: 'no-forced-kill',
-        options: {},
-        identity: 'test:local',
-        provider: buildStubSoftKillProvider(),
-      },
-    ],
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({
+      adapter: stub.adapter,
+      targets: [
+        {
+          id: 'local',
+          kind: 'no-forced-kill',
+          options: {},
+          identity: 'test:local',
+          provider: buildStubSoftKillProvider(),
+        },
+      ],
+    }),
   });
 
   await Promise.allSettled([
-    ctx.client.sendRequest('session.spawn', {
-      cwd: ctx.dir,
+    daemon.client.sendRequest('session.spawn', {
+      cwd: daemon.dir,
       cols: 80,
       rows: 24,
       resume: 'agent-session-1',
@@ -999,11 +1082,11 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
     process.kill(pid, 'SIGKILL');
   });
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
 
-  const adopted = ctx.client.sendRequest('session.adopt', {
+  const adopted = daemon.client.sendRequest('session.adopt', {
     session: claim?.effect_ref,
     cols: 80,
     rows: 24,
@@ -1011,7 +1094,7 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
 
   await Promise.allSettled([adopted]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(adopted).rejects.toMatchObject({ code: 'no_such_session' });
   expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: claim?.effect_ref })]);
@@ -1037,10 +1120,13 @@ test('it answers a failed spawn only once its killed process has exited', async 
     readyFile: pidPath,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -1074,14 +1160,17 @@ test('it lets a retry spawn once after a failed spawn whose killed process took 
     readyFile: pidPath,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  await Promise.allSettled([ctx.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const retried = await ctx.client.sendRequest('session.spawn', params);
-  const list = await ctx.client.sendRequest('session.list');
+  const retried = await daemon.client.sendRequest('session.spawn', params);
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(stub.countPlans()).toBe(2);
   expect(list['sessions']).toStrictEqual([getRecord(retried, 'session')]);
@@ -1107,10 +1196,13 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
     readyFile: pidPath,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -1118,7 +1210,7 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
   });
 
   const listed = await waitFor(async () => {
-    const list = await ctx.client.sendRequest('session.list');
+    const list = await daemon.client.sendRequest('session.list');
 
     expect(list['sessions']).toHaveLength(1);
 
@@ -1127,7 +1219,7 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
 
   const id = getRecord(getRecord(listed, 'sessions'), '0')['id'];
 
-  const adopted = ctx.client.sendRequest('session.adopt', {
+  const adopted = daemon.client.sendRequest('session.adopt', {
     session: id,
     cols: 80,
     rows: 24,
@@ -1158,10 +1250,13 @@ test('it leaves no session behind from a failed spawn whose revive was refused d
     readyFile: pidPath,
   });
 
-  await using ctx = await setupTest({ adapter: stub.adapter });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: stub.adapter }),
+  });
 
-  const spawned = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -1169,7 +1264,7 @@ test('it leaves no session behind from a failed spawn whose revive was refused d
   });
 
   const listed = await waitFor(async () => {
-    const list = await ctx.client.sendRequest('session.list');
+    const list = await daemon.client.sendRequest('session.list');
 
     expect(list['sessions']).toHaveLength(1);
 
@@ -1179,7 +1274,7 @@ test('it leaves no session behind from a failed spawn whose revive was refused d
   const id = getRecord(getRecord(listed, 'sessions'), '0')['id'];
 
   await Promise.allSettled([
-    ctx.client.sendRequest('session.adopt', {
+    daemon.client.sendRequest('session.adopt', {
       session: id,
       cols: 80,
       rows: 24,
@@ -1188,7 +1283,7 @@ test('it leaves no session behind from a failed spawn whose revive was refused d
 
   await Promise.allSettled([spawned]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(spawned).rejects.toMatchObject({ code: 'internal' });
   expect(stub.countPlans()).toBe(1);
@@ -1196,10 +1291,13 @@ test('it leaves no session behind from a failed spawn whose revive was refused d
 });
 
 test('it answers a retried keyed message with the first message and sends once', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ takesMessages: true }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
   });
@@ -1210,10 +1308,10 @@ test('it answers a retried keyed message with the first message and sends once',
     idempotencyKey: 'm-key',
   };
 
-  const first = await ctx.client.sendRequest('session.message', params);
-  const second = await ctx.client.sendRequest('session.message', params);
+  const first = await daemon.client.sendRequest('session.message', params);
+  const second = await daemon.client.sendRequest('session.message', params);
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const rows = db.query('SELECT id FROM messages').all();
 
@@ -1222,23 +1320,26 @@ test('it answers a retried keyed message with the first message and sends once',
 });
 
 test('it replays a retried message whose params differ only in a default and a field the daemon ignores', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ takesMessages: true }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
   });
 
   const session = getRecord(spawned, 'session')['id'];
 
-  const first = await ctx.client.sendRequest('session.message', {
+  const first = await daemon.client.sendRequest('session.message', {
     session,
     text: 'hello',
     idempotencyKey: 'm-key',
   });
 
-  const second = await ctx.client.sendRequest('session.message', {
+  const second = await daemon.client.sendRequest('session.message', {
     session,
     text: 'hello',
     from: 'unknown',
@@ -1250,31 +1351,37 @@ test('it replays a retried message whose params differ only in a default and a f
 });
 
 test('it refuses a message key reused with different text as idempotency_conflict', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ takesMessages: true }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
   });
 
   const session = getRecord(spawned, 'session')['id'];
 
-  await ctx.client.sendRequest('session.message', {
+  await daemon.client.sendRequest('session.message', {
     session,
     text: 'one',
     idempotencyKey: 'm-key',
   });
 
   expect(
-    ctx.client.sendRequest('session.message', { session, text: 'two', idempotencyKey: 'm-key' }),
+    daemon.client.sendRequest('session.message', { session, text: 'two', idempotencyKey: 'm-key' }),
   ).rejects.toMatchObject({ code: 'idempotency_conflict' });
 });
 
 test('it drops the claim of a keyed message its session refuses', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ takesMessages: true }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
 
-  const sent = ctx.client.sendRequest('session.message', {
+  const sent = daemon.client.sendRequest('session.message', {
     session: 'ghost',
     text: 'hello',
     idempotencyKey: 'm-key',
@@ -1282,7 +1389,7 @@ test('it drops the claim of a keyed message its session refuses', async () => {
 
   await Promise.allSettled([sent]);
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  using db = new Database(daemon.dbPath, { readonly: true });
 
   const rows = db.query('SELECT key FROM idempotency').all();
 
@@ -1291,13 +1398,16 @@ test('it drops the claim of a keyed message its session refuses', async () => {
 });
 
 test('it completes an interrupted message whose row was written and replays it', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ takesMessages: true }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
 
   const params = { session: 's-gone', text: 'hello', idempotencyKey: 'm-key' };
 
-  await ctx.stop();
+  await daemon.stop();
 
-  const seed = await StateStore.open(ctx.dbPath);
+  const seed = await StateStore.open(daemon.dbPath);
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -1318,21 +1428,24 @@ test('it completes an interrupted message whose row was written and replays it',
   });
 
   await seed.stop();
-  await ctx.restart();
+  await daemon.restart();
 
-  const replayed = await ctx.client.sendRequest('session.message', params);
+  const replayed = await daemon.client.sendRequest('session.message', params);
 
   expect(replayed).toStrictEqual({ message: 'm-written', status: 'accepted' });
 });
 
 test('it answers a message retried after an interrupted send with outcome_unknown', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ takesMessages: true }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
 
   const params = { session: 's-gone', text: 'hello', idempotencyKey: 'm-key' };
 
-  await ctx.stop();
+  await daemon.stop();
 
-  const seed = await StateStore.open(ctx.dbPath);
+  const seed = await StateStore.open(daemon.dbPath);
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -1344,19 +1457,22 @@ test('it answers a message retried after an interrupted send with outcome_unknow
   });
 
   await seed.stop();
-  await ctx.restart();
+  await daemon.restart();
 
-  expect(ctx.client.sendRequest('session.message', params)).rejects.toMatchObject({
+  expect(daemon.client.sendRequest('session.message', params)).rejects.toMatchObject({
     code: 'outcome_unknown',
     data: { effectRef: 'm-never-written' },
   });
 });
 
 test('it refuses a replay-only spawn whose key it never held as idempotency_key_unknown and spawns nothing', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const refused = ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const refused = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     idempotencyKey: 'never-held',
@@ -1365,53 +1481,67 @@ test('it refuses a replay-only spawn whose key it never held as idempotency_key_
 
   await Promise.allSettled([refused]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(refused).rejects.toMatchObject({ code: 'idempotency_key_unknown' });
   expect(list['sessions']).toStrictEqual([]);
 });
 
 test('it refuses a replay-only spawn whose completed key was swept and spawns nothing more', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'swept' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'swept' };
 
-  await ctx.client.sendRequest('session.spawn', params);
+  await daemon.client.sendRequest('session.spawn', params);
 
   {
-    using db = new Database(ctx.dbPath);
+    using db = new Database(daemon.dbPath);
 
     db.run("DELETE FROM idempotency WHERE state = 'completed'");
   }
 
-  const refused = ctx.client.sendRequest('session.spawn', { ...params, replayOnly: true });
+  const refused = daemon.client.sendRequest('session.spawn', { ...params, replayOnly: true });
 
   await Promise.allSettled([refused]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(refused).rejects.toMatchObject({ code: 'idempotency_key_unknown' });
   expect(list['sessions']).toHaveLength(1);
 });
 
 test('it replays a held key for a replay-only spawn and spawns nothing more', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const params = { cwd: ctx.dir, cols: 80, rows: 24, idempotencyKey: 'held' };
+  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'held' };
 
-  const first = await ctx.client.sendRequest('session.spawn', params);
-  const replayed = await ctx.client.sendRequest('session.spawn', { ...params, replayOnly: true });
-  const list = await ctx.client.sendRequest('session.list');
+  const first = await daemon.client.sendRequest('session.spawn', params);
+
+  const replayed = await daemon.client.sendRequest('session.spawn', {
+    ...params,
+    replayOnly: true,
+  });
+
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(replayed).toMatchObject({ session: { id: getRecord(first, 'session')['id'] } });
   expect(list['sessions']).toHaveLength(1);
 });
 
 test('it replays a held key for a replay-only message', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ takesMessages: true }) });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
   });
@@ -1422,20 +1552,27 @@ test('it replays a held key for a replay-only message', async () => {
     idempotencyKey: 'held-message',
   };
 
-  const sent = await ctx.client.sendRequest('session.message', params);
-  const resent = await ctx.client.sendRequest('session.message', { ...params, replayOnly: true });
+  const sent = await daemon.client.sendRequest('session.message', params);
+
+  const resent = await daemon.client.sendRequest('session.message', {
+    ...params,
+    replayOnly: true,
+  });
 
   expect(resent).toStrictEqual(sent);
 });
 
 test('it refuses a replay-only spawn without an idempotency key as bad_args and spawns nothing', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter() });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
 
-  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, replayOnly: true });
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, replayOnly: true });
 
   await Promise.allSettled([refused]);
 
-  const list = await ctx.client.sendRequest('session.list');
+  const list = await daemon.client.sendRequest('session.list');
 
   expect(refused).rejects.toMatchObject({ code: 'bad_args' });
   expect(list['sessions']).toStrictEqual([]);
