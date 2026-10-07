@@ -252,6 +252,64 @@ const main = defineCommand({
                 await id.runDaemonID(getBuild());
               },
             }),
+          restart: () =>
+            defineCommand({
+              meta: {
+                name: 'restart',
+                description: 'Restart the running daemon and restore its fleet',
+              },
+              args: {
+                ...DAEMON_ARGS,
+                timeout: {
+                  type: 'string',
+                  description: 'Seconds to wait for the restored fleet to come alive',
+                },
+                'dry-run': {
+                  type: 'boolean',
+                  default: false,
+                  description: 'Print what the restart would do and stop',
+                },
+              },
+              async run(ctx) {
+                const options = parseRestartArgs(ctx.args);
+
+                const restart = await import('./run-daemon-restart');
+
+                const code = await restart.runDaemonRestart({
+                  ...options,
+                  dryRun: ctx.args['dry-run'],
+                });
+
+                process.exit(code);
+              },
+            }),
+          'restart-worker': () =>
+            defineCommand({
+              meta: {
+                name: 'restart-worker',
+                description: 'Run one daemon restart for atc daemon restart',
+                hidden: true,
+              },
+              args: {
+                ...DAEMON_ARGS,
+                runID: { type: 'positional', required: true, description: 'The run id' },
+                session: { type: 'string', description: 'The session that asked for the restart' },
+                timeout: { type: 'string', description: 'Seconds to wait for the restored fleet' },
+              },
+              async run(ctx) {
+                const options = parseRestartArgs(ctx.args);
+
+                const worker = await import('./run-daemon-restart-worker');
+
+                const code = await worker.runDaemonRestartWorker({
+                  ...options,
+                  runID: ctx.args.runID,
+                  callerSession: ctx.args.session ?? null,
+                });
+
+                process.exit(code);
+              },
+            }),
         },
       }),
     events: () =>
@@ -378,6 +436,39 @@ const main = defineCommand({
       }),
   },
 });
+
+interface RestartArgs {
+  readonly listen?: string | undefined;
+  readonly 'token-file'?: string | undefined;
+  readonly timeout?: string | undefined;
+}
+
+interface RestartFlags {
+  readonly listen: string | null;
+  readonly tokenFile: string | null;
+  readonly timeoutSeconds: number | null;
+}
+
+// Reads the flags the restart commands share, and stops the command on one
+// the replacement daemon would refuse after the old one is already gone.
+function parseRestartArgs(args: RestartArgs): RestartFlags {
+  const listen = args.listen ?? null;
+  const parsedListen = listen === null ? null : parseListenAddress(listen);
+
+  if (parsedListen !== null && !parsedListen.ok) {
+    console.error(`atc daemon restart: ${parsedListen.message}`);
+    process.exit(1);
+  }
+
+  const timeout = args.timeout === undefined ? null : Number(args.timeout);
+
+  if (timeout !== null && (!Number.isFinite(timeout) || timeout <= 0)) {
+    console.error('atc daemon restart: --timeout takes a number of seconds above 0');
+    process.exit(1);
+  }
+
+  return { listen, tokenFile: args['token-file'] ?? null, timeoutSeconds: timeout };
+}
 
 // Runs the daemon in the foreground until SIGTERM, with a TCP listener when
 // --listen and --token-file are given.
