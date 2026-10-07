@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.3.0...@zgeoff/atc@3.3.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **daemon:** keep the last fleet verdict at the restore deadline ([#369](https://github.com/zgeoff/atc/issues/369)) ([b87af82](https://github.com/zgeoff/atc/commit/b87af82af74991c7dfbba2b21334a9f59e8d7aad))
+
 ## [3.3.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.2.0...@zgeoff/atc@3.3.0) (2026-10-07)
 
 ### Features
