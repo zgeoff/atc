@@ -1,15 +1,18 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { updateEnv } from '../test-utils/update-env';
 import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 
-test('it ships the allow-listed files and folders of the host config folder', () => {
-  using tmp = setupTempDir('atc-claude-bundle-');
+// The folder the host's Claude config folder and its symlink targets sit in.
+function setupTest() {
+  return setupTempDir('atc-claude-bundle-');
+}
 
-  const host = join(tmp.dir, '.claude');
+test('it ships the allow-listed files and folders of the host config folder', () => {
+  using ctx = setupTest();
+
+  const host = join(ctx.dir, '.claude');
 
   mkdirSync(join(host, 'agents'), { recursive: true });
   mkdirSync(join(host, 'output-styles'), { recursive: true });
@@ -28,29 +31,25 @@ test('it ships the allow-listed files and folders of the host config folder', ()
 
   const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
 
-  expect(Object.keys(bundle).toSorted()).toStrictEqual([
-    'CLAUDE.md',
-    'agents/locator.md',
-    'output-styles/ste-direct.md',
-    'settings.json',
-    'skills/delegate/SKILL.md',
-    'skills/delegate/references/cli.md',
-    'statusline.sh',
-  ]);
-
-  const rules = bundle['CLAUDE.md'];
-
-  if (!(rules instanceof Uint8Array)) {
-    throw new TypeError('expected CLAUDE.md in the bundle');
-  }
-
-  expect(Buffer.from(rules).toString()).toBe('# rules');
+  expect(bundle).toStrictEqual({
+    'CLAUDE.md': Buffer.from('# rules'),
+    'agents/locator.md': Buffer.from('locator'),
+    'output-styles/ste-direct.md': Buffer.from('style'),
+    'settings.json': JSON.stringify(
+      { model: 'opus', permissions: { defaultMode: 'auto' } },
+      null,
+      2,
+    ),
+    'skills/delegate/SKILL.md': Buffer.from('delegate'),
+    'skills/delegate/references/cli.md': Buffer.from('cli'),
+    'statusline.sh': Buffer.from('echo status'),
+  });
 });
 
 test('it never ships credentials, account state, or a secret the host env block holds', () => {
-  using tmp = setupTempDir('atc-claude-bundle-');
+  using ctx = setupTest();
 
-  const host = join(tmp.dir, '.claude');
+  const host = join(ctx.dir, '.claude');
 
   mkdirSync(join(host, 'skills', 'delegate'), { recursive: true });
   writeFileSync(join(host, '.credentials.json'), '{"claudeAiOauth":{"accessToken":"oat-secret"}}');
@@ -72,47 +71,24 @@ test('it never ships credentials, account state, or a secret the host env block 
 
   const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
 
-  const text = Object.values(bundle)
-    .map((file) => {
-      const content = typeof file === 'string' || file instanceof Uint8Array ? file : file.content;
-
-      return Buffer.from(content).toString();
-    })
-    .join('\n');
-
-  const settings = bundle['settings.json'];
-
-  if (typeof settings !== 'string') {
-    throw new TypeError('expected settings.json in the bundle');
-  }
-
-  expect(Object.keys(bundle).toSorted()).toStrictEqual([
-    'settings.json',
-    'skills/delegate/SKILL.md',
-  ]);
-
-  for (const secret of [
-    'oat-secret',
-    'acct-secret',
-    'dotenv-secret',
-    'ghp-secret',
-    'ops-secret',
-    'helper-secret',
-  ]) {
-    expect(text).not.toInclude(secret);
-  }
-
-  expect(JSON.parse(settings)).toStrictEqual({
-    env: { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' },
-    permissions: { defaultMode: 'auto' },
+  expect(bundle).toStrictEqual({
+    'settings.json': JSON.stringify(
+      {
+        env: { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' },
+        permissions: { defaultMode: 'auto' },
+      },
+      null,
+      2,
+    ),
+    'skills/delegate/SKILL.md': Buffer.from('delegate'),
   });
 });
 
 test('it copies a symlinked skill and leaves out a skills folder without a SKILL.md', () => {
-  using tmp = setupTempDir('atc-claude-bundle-');
+  using ctx = setupTest();
 
-  const host = join(tmp.dir, '.claude');
-  const shared = join(tmp.dir, 'shared-skills', 'gh-stack');
+  const host = join(ctx.dir, '.claude');
+  const shared = join(ctx.dir, 'shared-skills', 'gh-stack');
 
   mkdirSync(join(host, 'skills', 'synced', 'abc', 'docx'), { recursive: true });
   mkdirSync(join(shared, 'references'), { recursive: true });
@@ -120,29 +96,21 @@ test('it copies a symlinked skill and leaves out a skills folder without a SKILL
   writeFileSync(join(shared, 'references', 'commands.md'), 'commands');
   writeFileSync(join(host, 'skills', 'synced', 'abc', 'docx', 'SKILL.md'), 'docx');
   symlinkSync(shared, join(host, 'skills', 'gh-stack'));
-  symlinkSync(join(tmp.dir, 'missing'), join(host, 'skills', 'dangling'));
+  symlinkSync(join(ctx.dir, 'missing'), join(host, 'skills', 'dangling'));
 
   const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
 
-  expect(Object.keys(bundle).toSorted()).toStrictEqual([
-    'settings.json',
-    'skills/gh-stack/SKILL.md',
-    'skills/gh-stack/references/commands.md',
-  ]);
-
-  const skill = bundle['skills/gh-stack/SKILL.md'];
-
-  if (!(skill instanceof Uint8Array)) {
-    throw new TypeError('expected the symlinked skill in the bundle');
-  }
-
-  expect(Buffer.from(skill).toString()).toBe('stack');
+  expect(bundle).toStrictEqual({
+    'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),
+    'skills/gh-stack/SKILL.md': Buffer.from('stack'),
+    'skills/gh-stack/references/commands.md': Buffer.from('commands'),
+  });
 });
 
 test('it never ships a symlink that resolves to credentials, account state, or the unfiltered settings', () => {
-  using tmp = setupTempDir('atc-claude-bundle-');
+  using ctx = setupTest();
 
-  const host = join(tmp.dir, '.claude');
+  const host = join(ctx.dir, '.claude');
   const skill = join(host, 'skills', 'leaky');
 
   mkdirSync(skill, { recursive: true });
@@ -150,13 +118,13 @@ test('it never ships a symlink that resolves to credentials, account state, or t
   writeFileSync(join(host, '.credentials.json'), '{"token":"oat-secret"}');
   writeFileSync(join(host, 'settings.json'), '{"env":{"GITHUB_TOKEN":"ghp-secret"}}');
   writeFileSync(join(host, 'history.jsonl'), '{"display":"history-secret"}');
-  writeFileSync(join(tmp.dir, '.claude.json'), '{"oauthAccount":"acct-secret"}');
-  writeFileSync(join(tmp.dir, 'notes.md'), 'shared notes');
+  writeFileSync(join(ctx.dir, '.claude.json'), '{"oauthAccount":"acct-secret"}');
+  writeFileSync(join(ctx.dir, 'notes.md'), 'shared notes');
   symlinkSync(join(host, '.credentials.json'), join(skill, 'credentials'));
   symlinkSync(join(host, 'settings.json'), join(skill, 'settings'));
   symlinkSync(join(host, 'history.jsonl'), join(skill, 'history'));
-  symlinkSync(join(tmp.dir, '.claude.json'), join(skill, 'account'));
-  symlinkSync(join(tmp.dir, 'notes.md'), join(skill, 'notes.md'));
+  symlinkSync(join(ctx.dir, '.claude.json'), join(skill, 'account'));
+  symlinkSync(join(ctx.dir, 'notes.md'), join(skill, 'notes.md'));
 
   const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
 
@@ -168,9 +136,9 @@ test('it never ships a symlink that resolves to credentials, account state, or t
 });
 
 test('it ends a symlink that loops back up a skill folder', () => {
-  using tmp = setupTempDir('atc-claude-bundle-');
+  using ctx = setupTest();
 
-  const host = join(tmp.dir, '.claude');
+  const host = join(ctx.dir, '.claude');
   const skill = join(host, 'skills', 'looped');
 
   mkdirSync(skill, { recursive: true });
@@ -183,9 +151,9 @@ test('it ends a symlink that loops back up a skill folder', () => {
 });
 
 test('it ships an executable file with an executable mode and any other file as bytes', () => {
-  using tmp = setupTempDir('atc-claude-bundle-');
+  using ctx = setupTest();
 
-  const host = join(tmp.dir, '.claude');
+  const host = join(ctx.dir, '.claude');
 
   mkdirSync(join(host, 'skills', 'tool', 'scripts'), { recursive: true });
   writeFileSync(join(host, 'statusline.sh'), 'echo status');
@@ -208,11 +176,9 @@ test('it ships an executable file with an executable mode and any other file as 
 });
 
 test("it points a home-relative statusline at the guest when the host folder is the home's own", () => {
-  using tmp = setupTempDir('atc-claude-bundle-home-');
+  using ctx = setupTest();
 
-  updateEnv('HOME', tmp.dir);
-
-  const host = join(resolveHomeDir(), '.claude');
+  const host = join(ctx.dir, '.claude');
 
   mkdirSync(host, { recursive: true });
 
@@ -221,23 +187,24 @@ test("it points a home-relative statusline at the guest when the host folder is 
     JSON.stringify({ statusLine: { type: 'command', command: 'bash ~/.claude/statusline.sh' } }),
   );
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config');
-  const settings = bundle['settings.json'];
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', ctx.dir);
 
-  if (typeof settings !== 'string') {
-    throw new TypeError('expected settings.json in the bundle');
-  }
-
-  expect(JSON.parse(settings)).toHaveProperty(
-    'statusLine.command',
-    'bash /guest/claude-config/statusline.sh',
-  );
+  expect(bundle).toStrictEqual({
+    'settings.json': JSON.stringify(
+      {
+        statusLine: { type: 'command', command: 'bash /guest/claude-config/statusline.sh' },
+        permissions: { defaultMode: 'auto' },
+      },
+      null,
+      2,
+    ),
+  });
 });
 
 test('it ships auto mode alone when the host has no Claude config folder', () => {
-  using tmp = setupTempDir('atc-claude-bundle-');
+  using ctx = setupTest();
 
-  const bundle = loadClaudeConfigBundle(join(tmp.dir, 'missing'), '/guest/claude-config');
+  const bundle = loadClaudeConfigBundle(join(ctx.dir, 'missing'), '/guest/claude-config');
 
   expect(bundle).toStrictEqual({
     'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),

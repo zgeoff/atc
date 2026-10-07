@@ -7,12 +7,12 @@ import { resolveHomeDir } from '../shared/resolve-home-dir';
  * in, folder trust included, resolved as the CLI resolves it: a legacy
  * `.config.json` in its config folder when one exists, otherwise
  * `.claude.json` in `$CLAUDE_CONFIG_DIR`, or in the user's home when that
- * is unset or empty.
+ * is unset or empty, where `homeDir` is the user's home.
  */
-export function resolveClaudeGlobalConfigPath(): string {
+export function resolveClaudeGlobalConfigPath(homeDir: string = resolveHomeDir()): string {
   const configDir = process.env['CLAUDE_CONFIG_DIR'];
   const custom = configDir !== undefined && configDir !== '' ? configDir : null;
-  const legacy = join(custom ?? join(resolveHomeDir(), '.claude'), '.config.json');
+  const legacy = join(custom ?? join(homeDir, '.claude'), '.config.json');
 
-  return existsSync(legacy) ? legacy : join(custom ?? resolveHomeDir(), '.claude.json');
+  return existsSync(legacy) ? legacy : join(custom ?? homeDir, '.claude.json');
 }

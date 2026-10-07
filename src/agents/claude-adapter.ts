@@ -19,6 +19,7 @@ import type {
   AgentAdapter,
   AgentProfile,
   AuthSelection,
+  ClaudeHostPaths,
   GuestPaths,
   GuestSpawnPlan,
   HeadlessRunner,
@@ -106,13 +107,17 @@ export class ClaudeAdapter implements AgentAdapter {
 
   private readonly bridgeTarget: string | undefined;
 
+  private readonly hostPaths: ClaudeHostPaths;
+
   constructor(
     entry: AgentEntry,
     config: Pick<Config, 'authProfiles'>,
     headlessRun: ClaudeHeadlessRun | null = null,
     bridgeTarget?: string,
+    hostPaths: ClaudeHostPaths = {},
   ) {
     this.bridgeTarget = bridgeTarget;
+    this.hostPaths = hostPaths;
     this.entry = entry;
     this.authProfiles = config.authProfiles;
     this.id = entry.id;
@@ -282,8 +287,9 @@ export class ClaudeAdapter implements AgentAdapter {
     );
 
     const bundle = loadClaudeConfigBundle(
-      resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude'),
+      resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude', this.hostPaths.homeDir),
       launch.env.CLAUDE_CONFIG_DIR,
+      this.hostPaths.homeDir,
     );
 
     const userSettings = bundle['settings.json'];
@@ -406,7 +412,11 @@ export class ClaudeAdapter implements AgentAdapter {
   }
 
   private writeSettings(): string {
-    this.settingsFile ??= writeHookSettings(this.buildSettingsProfile({}));
+    this.settingsFile ??= writeHookSettings(
+      this.buildSettingsProfile({}),
+      this.hostPaths.stateDir,
+      this.hostPaths.homeDir,
+    );
 
     return this.settingsFile;
   }

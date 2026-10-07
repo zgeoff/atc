@@ -17,17 +17,19 @@ import { buildClaudeBundleSettings } from './build-claude-bundle-settings';
  * starts with a dot. A symlink ships only when what it resolves to could
  * ship by its own path: a file whose name starts with a dot never does, and
  * neither does a file in the host's folder outside the shipped entries. A
- * missing entry ships nothing.
+ * missing entry ships nothing. `homeDir` is the user's home, which decides
+ * whether the host folder is the default one.
  */
 export function loadClaudeConfigBundle(
   hostDir: string,
   guestDir: string,
+  homeDir: string = resolveHomeDir(),
 ): Record<string, GuestFile> {
   const hostSettings = readSettings(join(hostDir, 'settings.json'));
 
   const settings = buildClaudeBundleSettings(
     hostSettings,
-    buildHostDirSpellings(hostDir),
+    buildHostDirSpellings(hostDir, homeDir),
     guestDir,
   );
 
@@ -66,10 +68,8 @@ export function loadClaudeConfigBundle(
 // The ways a command can spell the host's config folder: its path, and
 // when it is the default folder in the user's home, the home-relative forms
 // a shell expands.
-function buildHostDirSpellings(hostDir: string): string[] {
-  return hostDir === join(resolveHomeDir(), '.claude')
-    ? [hostDir, '~/.claude', '$HOME/.claude']
-    : [hostDir];
+function buildHostDirSpellings(hostDir: string, homeDir: string): string[] {
+  return hostDir === join(homeDir, '.claude') ? [hostDir, '~/.claude', '$HOME/.claude'] : [hostDir];
 }
 
 // The host's settings, or none when the file is missing or is not JSON,

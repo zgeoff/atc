@@ -13,6 +13,7 @@ import type {
   AgentAdapter,
   AgentProfile,
   AuthSelection,
+  ClaudeHostPaths,
   GuestPaths,
   GuestSpawnPlan,
   HeadlessRunner,
@@ -87,13 +88,17 @@ export class GatewayAdapter implements AgentAdapter {
 
   private readonly bridgeTarget: string | undefined;
 
+  private readonly hostPaths: ClaudeHostPaths;
+
   constructor(
     gateway: GatewayConfig,
     config: Config,
     headlessRun: ClaudeHeadlessRun | null = null,
     bridgeTarget?: string,
+    hostPaths: ClaudeHostPaths = {},
   ) {
     this.bridgeTarget = bridgeTarget;
+    this.hostPaths = hostPaths;
     this.gateway = gateway;
     this.config = config;
     this.id = gateway.id;
@@ -121,6 +126,9 @@ export class GatewayAdapter implements AgentAdapter {
         env: {},
       },
       config,
+      null,
+      undefined,
+      hostPaths,
     );
 
     this.headlessRunner =
@@ -433,14 +441,18 @@ export class GatewayAdapter implements AgentAdapter {
   }
 
   private writeSettings(): string {
-    this.settingsFile ??= writeHookSettings({
-      id: this.id,
-      env: { ANTHROPIC_BASE_URL: this.gateway.baseURL, ...this.gateway.env },
-      ...(this.gateway.apiKeyHelper === undefined
-        ? {}
-        : { apiKeyHelper: this.gateway.apiKeyHelper }),
-      ...(this.gateway.settings === undefined ? {} : { settings: this.gateway.settings }),
-    });
+    this.settingsFile ??= writeHookSettings(
+      {
+        id: this.id,
+        env: { ANTHROPIC_BASE_URL: this.gateway.baseURL, ...this.gateway.env },
+        ...(this.gateway.apiKeyHelper === undefined
+          ? {}
+          : { apiKeyHelper: this.gateway.apiKeyHelper }),
+        ...(this.gateway.settings === undefined ? {} : { settings: this.gateway.settings }),
+      },
+      this.hostPaths.stateDir,
+      this.hostPaths.homeDir,
+    );
 
     return this.settingsFile;
   }

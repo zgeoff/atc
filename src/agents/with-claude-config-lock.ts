@@ -13,6 +13,15 @@ const WAIT_MS = 5000;
 const RETRY_MS = 50;
 
 /**
+ * Tuning a caller may pass: how often a held lock's age is refreshed, and a
+ * callback run each time the lock is found held by someone else.
+ */
+export interface ClaudeConfigLockOptions {
+  readonly refreshMs?: number;
+  readonly onBusy?: () => void;
+}
+
+/**
  * Runs the callback while holding the lock the Claude CLI takes before it
  * writes its global config: a directory beside the file named for it with
  * a `.lock` suffix, created with `mkdir` so only one holder succeeds. The
@@ -25,6 +34,7 @@ const RETRY_MS = 50;
 export async function withClaudeConfigLock<T>(
   configPath: string,
   run: () => Promise<T>,
+  options: ClaudeConfigLockOptions = {},
 ): Promise<T> {
   const lockPath = `${configPath}.lock`;
   const deadline = Date.now() + WAIT_MS;
@@ -34,6 +44,8 @@ export async function withClaudeConfigLock<T>(
   let held = await tryCreateLockDir(lockPath);
 
   while (held === null) {
+    options.onBusy?.();
+
     if (Date.now() > deadline) {
       throw new Error(`timed out waiting for the Claude config lock ${lockPath}`);
     }
@@ -52,7 +64,7 @@ export async function withClaudeConfigLock<T>(
 
       owned = refreshed ?? owned;
     })();
-  }, REFRESH_MS);
+  }, options.refreshMs ?? REFRESH_MS);
 
   try {
     return await run();

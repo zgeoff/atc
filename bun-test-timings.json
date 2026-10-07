@@ -210,7 +210,7 @@
     "src/shared/resolve-auth-profiles.test.ts": 10,
     "src/test-utils/env-originals.test.ts": 10,
     "src/test-utils/read-json-record.test.ts": 10,
-    "src/agents/agent-adapter.test.ts": 9,
+    "src/shared/to-agent-id.test.ts": 9,
     "src/agents/build-claude-bundle-settings.test.ts": 9,
     "src/agents/build-headless-env.test.ts": 9,
     "src/agents/find-claude-permission-mode.test.ts": 9,

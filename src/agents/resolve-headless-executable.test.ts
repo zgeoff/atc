@@ -1,9 +1,14 @@
 import { expect, test } from 'bun:test';
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubBin } from '../test-utils/create-stub-bin';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
+
+// The folder the PATH entry with a stand-in claude binary sits in.
+function setupTest() {
+  return setupTempDir('atc-headless-exec-');
+}
 
 test('it leaves the SDK on its own CLI copy under a source run', () => {
   expect(resolveHeadlessExecutable('claude', false)).toBeNull();
@@ -23,14 +28,12 @@ test('it runs a JavaScript claude entry under node', () => {
 });
 
 test('it resolves a bare binary name on PATH for a compiled binary', () => {
-  using temp = setupTempDir('atc-headless-exec-');
+  using ctx = setupTest();
 
-  mkdirSync(join(temp.dir, 'bin'));
-  writeFileSync(join(temp.dir, 'bin', 'fake-claude'), '#!/bin/sh\n');
-  chmodSync(join(temp.dir, 'bin', 'fake-claude'), 0o755);
-  updateEnv('PATH', join(temp.dir, 'bin'));
+  createStubBin(join(ctx.dir, 'bin'), 'fake-claude', '#!/bin/sh\n');
+  updateEnv('PATH', join(ctx.dir, 'bin'));
 
   expect(resolveHeadlessExecutable('fake-claude', true)).toStrictEqual({
-    pathToClaudeCodeExecutable: join(temp.dir, 'bin', 'fake-claude'),
+    pathToClaudeCodeExecutable: join(ctx.dir, 'bin', 'fake-claude'),
   });
 });

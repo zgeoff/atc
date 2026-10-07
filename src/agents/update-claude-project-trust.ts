@@ -3,6 +3,7 @@ import { readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promise
 import { dirname, join } from 'node:path';
 import { isRecord } from '../shared/report';
 import { withClaudeConfigLock } from './with-claude-config-lock';
+import type { ClaudeConfigLockOptions } from './with-claude-config-lock';
 
 /**
  * Accepts the Claude CLI's folder trust for one exact directory in its
@@ -15,30 +16,36 @@ import { withClaudeConfigLock } from './with-claude-config-lock';
  * Resolves to a function that takes the trust back, for a launch that
  * fails before the CLI starts: it puts back the entry as it was, unless
  * something has changed the entry since, which leaves it as it stands.
+ * The lock options apply to both the trust and its taking back.
  */
 export async function updateClaudeProjectTrust(
   configPath: string,
   root: string,
+  lockOptions: ClaudeConfigLockOptions = {},
 ): Promise<() => Promise<void>> {
-  const previous = await withClaudeConfigLock(configPath, async () => {
-    const config = await loadClaudeConfig(configPath);
+  const previous = await withClaudeConfigLock(
+    configPath,
+    async () => {
+      const config = await loadClaudeConfig(configPath);
 
-    const projects = isRecord(config['projects']) ? config['projects'] : {};
-    const entry = projects[root];
+      const projects = isRecord(config['projects']) ? config['projects'] : {};
+      const entry = projects[root];
 
-    if (isRecord(entry) && entry['hasTrustDialogAccepted'] === true) {
-      return null;
-    }
+      if (isRecord(entry) && entry['hasTrustDialogAccepted'] === true) {
+        return null;
+      }
 
-    const base = isRecord(entry) ? entry : {};
+      const base = isRecord(entry) ? entry : {};
 
-    await writeClaudeConfig(configPath, {
-      ...config,
-      projects: { ...projects, [root]: { ...base, hasTrustDialogAccepted: true } },
-    });
+      await writeClaudeConfig(configPath, {
+        ...config,
+        projects: { ...projects, [root]: { ...base, hasTrustDialogAccepted: true } },
+      });
 
-    return { entry: isRecord(entry) ? entry : null };
-  });
+      return { entry: isRecord(entry) ? entry : null };
+    },
+    lockOptions,
+  );
 
   if (previous === null) {
     return () => Promise.resolve();
@@ -50,22 +57,26 @@ export async function updateClaudeProjectTrust(
   });
 
   return () =>
-    withClaudeConfigLock(configPath, async () => {
-      const config = await loadClaudeConfig(configPath);
+    withClaudeConfigLock(
+      configPath,
+      async () => {
+        const config = await loadClaudeConfig(configPath);
 
-      const projects = isRecord(config['projects']) ? config['projects'] : {};
+        const projects = isRecord(config['projects']) ? config['projects'] : {};
 
-      if (JSON.stringify(projects[root]) !== written) {
-        return;
-      }
+        if (JSON.stringify(projects[root]) !== written) {
+          return;
+        }
 
-      const { [root]: _trusted, ...others } = projects;
+        const { [root]: _trusted, ...others } = projects;
 
-      await writeClaudeConfig(configPath, {
-        ...config,
-        projects: previous.entry === null ? others : { ...others, [root]: previous.entry },
-      });
-    });
+        await writeClaudeConfig(configPath, {
+          ...config,
+          projects: previous.entry === null ? others : { ...others, [root]: previous.entry },
+        });
+      },
+      lockOptions,
+    );
 }
 
 // The config as the CLI last wrote it; a missing file is an empty config,

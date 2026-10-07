@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentID } from '../shared/to-agent-id';
+import { toAgentID } from './to-agent-id';
 
 test.each([['claude'], ['grok'], ['codex'], ['zai'], ['gemini']])(
   'it reads %p as itself',

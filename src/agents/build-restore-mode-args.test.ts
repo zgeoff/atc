@@ -8,12 +8,14 @@ test('it carries a settings-only default mode as an explicit argument', () => {
   ]);
 });
 
-test.each([
-  ['a separate flag', ['--permission-mode', 'plan']],
-  ['an inline flag', ['--permission-mode=plan']],
-])('it adds nothing when the arguments already carry %s', (_case, args) => {
-  expect(buildRestoreModeArgs(args, { permissions: { defaultMode: 'default' } })).toStrictEqual([]);
-});
+test.each([[['--permission-mode', 'plan']], [['--permission-mode=plan']]])(
+  'it adds nothing when the arguments %p already carry a mode',
+  (args) => {
+    expect(buildRestoreModeArgs(args, { permissions: { defaultMode: 'default' } })).toStrictEqual(
+      [],
+    );
+  },
+);
 
 test('it adds nothing when no mode is configured', () => {
   expect(buildRestoreModeArgs([], undefined)).toStrictEqual([]);

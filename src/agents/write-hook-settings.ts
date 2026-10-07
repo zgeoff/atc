@@ -8,13 +8,19 @@ import type { HookSettingsProfile } from './build-hook-settings';
 
 /**
  * Writes the settings file passed to a wrangled session as
- * `claude --settings`, one per agent id, and returns its path.
+ * `claude --settings`, one per agent id, into the folder `dir`, and returns
+ * its path. The statusline padding comes from the Claude settings in the
+ * user's home `homeDir`.
  */
-export function writeHookSettings(profile: HookSettingsProfile): string {
-  const file = join(stateDir, `hook-settings-${profile.id}.json`);
-  const settings = buildHookSettings(profile, readStatuslinePadding());
+export function writeHookSettings(
+  profile: HookSettingsProfile,
+  dir: string = stateDir,
+  homeDir: string = resolveHomeDir(),
+): string {
+  const file = join(dir, `hook-settings-${profile.id}.json`);
+  const settings = buildHookSettings(profile, readStatuslinePadding(homeDir));
 
-  mkdirSync(stateDir, { recursive: true });
+  mkdirSync(dir, { recursive: true });
   writeFileSync(file, JSON.stringify(settings, null, 2));
 
   return file;
@@ -24,9 +30,9 @@ export function writeHookSettings(profile: HookSettingsProfile): string {
  * The padding on the user's own statusline, so the chained one lines up with
  * it. An unreadable or unconfigured setting is no padding.
  */
-function readStatuslinePadding(): number {
+function readStatuslinePadding(homeDir: string): number {
   try {
-    const raw = readFileSync(join(resolveHomeDir(), '.claude', 'settings.json'), 'utf8');
+    const raw = readFileSync(join(homeDir, '.claude', 'settings.json'), 'utf8');
     const user: unknown = JSON.parse(raw);
     const statusLine = isRecord(user) ? user['statusLine'] : undefined;
     const padding = isRecord(statusLine) ? statusLine['padding'] : undefined;
