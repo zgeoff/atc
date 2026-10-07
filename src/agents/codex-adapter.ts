@@ -178,7 +178,7 @@ export class CodexAdapter implements AgentAdapter {
         [`${authDir}/config.toml`]: buildCodexConfig(),
         [`${authDir}/hooks.json`]: buildCodexHookFile([guest.atc]),
       },
-      env: { ...launch.env, ...guest.auth.env },
+      env: { ...launch.env, ...guest.auth.profileEnv, ...guest.auth.env },
     };
   }
 

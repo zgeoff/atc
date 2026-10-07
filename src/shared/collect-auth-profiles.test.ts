@@ -90,6 +90,7 @@ test('it reads an oauth profile with the same rule as a custom one', () => {
           host: 'chatgpt.com',
           header: 'authorization',
           scheme: 'bearer',
+          env: {},
           dependencies: [],
         },
       ],

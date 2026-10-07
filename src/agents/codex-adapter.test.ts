@@ -313,7 +313,7 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
     {
       atc: '/opt/atc',
       dir,
-      auth: { revision: 2, env: {}, oauth: { 'codex-chatgpt': READY } },
+      auth: { revision: 2, env: {}, profileEnv: {}, oauth: { 'codex-chatgpt': READY } },
     },
   );
 
@@ -350,7 +350,7 @@ test("it writes the sign-in file from the oauth secret's claims and account id",
     {
       atc: '/opt/atc',
       dir: '/tmp/atc/sessions/s1',
-      auth: { revision: 1, env: {}, oauth: { 'codex-chatgpt': READY } },
+      auth: { revision: 1, env: {}, profileEnv: {}, oauth: { 'codex-chatgpt': READY } },
     },
   );
 
@@ -371,7 +371,7 @@ test('it reports every hook through the atc inside the host', () => {
     {
       atc: '/opt/atc',
       dir: '/tmp/atc/sessions/s1',
-      auth: { revision: 1, env: {}, oauth: { 'codex-chatgpt': READY } },
+      auth: { revision: 1, env: {}, profileEnv: {}, oauth: { 'codex-chatgpt': READY } },
     },
   );
 
@@ -398,7 +398,7 @@ test('it plans no spawn behind the broker on a host without atc', () => {
       {
         atc: null,
         dir: '/tmp/atc/sessions/s1',
-        auth: { revision: 1, env: {}, oauth: { 'codex-chatgpt': READY } },
+        auth: { revision: 1, env: {}, profileEnv: {}, oauth: { 'codex-chatgpt': READY } },
       },
     ),
   ).toBeNull();
@@ -414,7 +414,11 @@ test.each([
   const plan = () =>
     adapter.planGuestSpawn?.(
       { prompt: '', resume: false },
-      { atc: '/opt/atc', dir: '/tmp/atc/sessions/s1', auth: { revision: 1, env: {}, oauth } },
+      {
+        atc: '/opt/atc',
+        dir: '/tmp/atc/sessions/s1',
+        auth: { revision: 1, env: {}, profileEnv: {}, oauth },
+      },
     );
 
   expect(plan).toThrow(
@@ -439,7 +443,12 @@ test.each([
       {
         atc: '/opt/atc',
         dir: '/tmp/atc/sessions/s1',
-        auth: { revision: 1, env: {}, oauth: { 'codex-chatgpt': { status: 'ready', idClaims } } },
+        auth: {
+          revision: 1,
+          env: {},
+          profileEnv: {},
+          oauth: { 'codex-chatgpt': { status: 'ready', idClaims } },
+        },
       },
     );
 
