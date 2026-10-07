@@ -108,7 +108,8 @@ test('it rejects when the test home is unset', () => {
 
   updateEnv('ATC_TEST_HOME', undefined);
 
-  expect(createMigratedStateDB(join(ctx.dir, 'state.db'))).rejects.toThrow(
+  expect(createMigratedStateDB(join(ctx.dir, 'state.db'))).rejects.toThrowWithMessage(
+    Error,
     'ATC_TEST_HOME is unset; run the tests through `bun run test`',
   );
 });

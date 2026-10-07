@@ -34,7 +34,7 @@ test('it records its own ID and the ID of a child that is still running', async 
   });
 });
 
-test('it keeps running until it is killed, and the kill stops its child too', async () => {
+test('it keeps running after it records the IDs', async () => {
   using ctx = setupTest();
 
   const pidsFile = join(ctx.dir, 'pids');
@@ -42,20 +42,33 @@ test('it keeps running until it is killed, and the kill stops its child too', as
   const proc = Bun.spawn([gh, 'repo', 'list'], { detached: true });
 
   onTestFinished(() => {
-    if (proc.signalCode === null) {
-      process.kill(-proc.pid, 'SIGKILL');
-    }
+    process.kill(-proc.pid, 'SIGKILL');
+  });
+
+  await waitFor(() => readFile(pidsFile, 'utf8'));
+
+  expect({ exitCode: proc.exitCode, running: process.kill(proc.pid, 0) }).toStrictEqual({
+    exitCode: null,
+    running: true,
+  });
+});
+
+test('it stops its child too when its process group is killed', async () => {
+  using ctx = setupTest();
+
+  const pidsFile = join(ctx.dir, 'pids');
+  const gh = createStubBin(ctx.dir, 'gh', buildStubForkingGH(pidsFile));
+  const proc = Bun.spawn([gh, 'repo', 'list'], { detached: true });
+
+  // kill(1) exits nonzero without throwing once the test's own kill has
+  // emptied the group.
+  onTestFinished(() => {
+    Bun.spawnSync(['kill', '-KILL', '--', `-${proc.pid}`]);
   });
 
   const pids = await waitFor(() => readFile(pidsFile, 'utf8'));
 
   const child = Number(pids.trim().split('\n')[1]);
-
-  expect({
-    exitCode: proc.exitCode,
-    running: process.kill(proc.pid, 0),
-    childRunning: process.kill(child, 0),
-  }).toStrictEqual({ exitCode: null, running: true, childRunning: true });
 
   process.kill(-proc.pid, 'SIGKILL');
 

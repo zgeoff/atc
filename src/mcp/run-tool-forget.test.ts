@@ -460,11 +460,11 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
         : DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
+  onTestFinished(() => pool.stop());
+
   const store = GatewayStore.open(join(current.dir, 'gateway.db'));
 
-  onTestFinished(async () => {
-    await pool.stop();
-
+  onTestFinished(() => {
     store.stop();
   });
 

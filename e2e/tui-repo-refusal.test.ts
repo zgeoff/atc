@@ -13,29 +13,23 @@ import { startTUIHarness } from '../src/test-utils/start-tui-harness';
  * The client's harness with a signed-out `gh` on the PATH of the client and
  * its daemons.
  */
-function setupTest() {
-  using setup = new DisposableStack();
+// oxlint-disable-next-line require-await -- the await is the `await using` declaration that releases the stack when a later setup step throws
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
-  const tui = startTUIHarness();
-
-  // A step below that throws stops the harness; the setup is synchronous,
-  // so it starts that stop without waiting for it.
-  setup.defer(() => {
-    void tui[Symbol.asyncDispose]();
-  });
+  const tui = stack.use(startTUIHarness());
 
   // The repository step lists the account's repositories through gh; a
   // signed-out one keeps the step from reaching the host's own gh.
   createStubBin(join(tui.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  // The test holds the harness from here, so its disposal stops it.
-  setup.move();
+  const owned = stack.move();
 
-  return tui;
+  return { ...tui, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
 test('it returns a spawn into an existing destination to the confirm screen with a suffix offered', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
   await using fixture = await createGitFixture();
 
   writeFileSync(join(fixture.work, 'notes.md'), 'from the upstream\n');
@@ -109,7 +103,7 @@ test('it returns a spawn into an existing destination to the confirm screen with
 }, 30_000);
 
 test('it returns a spawn whose clone fails to the repository step', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
   await using fixture = await createGitFixture();
 
   ctx.boot();
@@ -145,7 +139,7 @@ test('it returns a spawn whose clone fails to the repository step', async () => 
 }, 30_000);
 
 test('it returns a spawn whose commit left the upstream to the ref step with the refs re-read', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
   await using fixture = await createGitFixture();
 
   ctx.boot();

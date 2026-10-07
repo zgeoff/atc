@@ -79,7 +79,7 @@ test('it throws from the first headless runner read once the first spawn is plan
   );
 });
 
-test('it throws from as many headless runner reads as the config holds, then finds none', () => {
+test('it throws from the second headless runner read when the config holds two', async () => {
   const stub = createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
     laterPlan: { bin: 'later', args: [] },
@@ -89,15 +89,30 @@ test('it throws from as many headless runner reads as the config holds, then fin
 
   stub.adapter.planSpawn({ prompt: '', resume: false });
 
-  expect(() => stub.adapter.headlessRunner).toThrowWithMessage(
-    Error,
-    'adapter failed after the process started',
-  );
+  // Spends the first failing read, whose throw another test checks.
+  await Promise.allSettled([Promise.try(() => stub.adapter.headlessRunner)]);
 
   expect(() => stub.adapter.headlessRunner).toThrowWithMessage(
     Error,
     'adapter failed after the process started',
   );
+});
+
+test('it finds no headless runner once the failing reads the config holds are spent', async () => {
+  const stub = createStubFailingAgentAdapter({
+    firstPlan: { bin: 'first', args: [] },
+    laterPlan: { bin: 'later', args: [] },
+    failedReads: 2,
+    ready: null,
+  });
+
+  stub.adapter.planSpawn({ prompt: '', resume: false });
+
+  // Spends both failing reads, whose throws other tests check.
+  await Promise.allSettled([
+    Promise.try(() => stub.adapter.headlessRunner),
+    Promise.try(() => stub.adapter.headlessRunner),
+  ]);
 
   expect(stub.adapter.headlessRunner).toBeNull();
 });

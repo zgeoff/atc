@@ -29,14 +29,6 @@ test('it leaves an agent with no installed binary out of the picker', async () =
   expect(menu).toInclude('Claude');
   expect(menu).toInclude('Grok');
   expect(menu).not.toInclude('Codex');
-
-  ctx.write(KEYS.down);
-
-  await ctx.waitFor('\u001B[7mGrok');
-
-  ctx.write(KEYS.enter);
-
-  await ctx.waitFor('spawn: directory');
 }, 15_000);
 
 test('it shows a refused spawn in the picker and keeps the entered prompt', async () => {

@@ -1,6 +1,6 @@
-import { expect, test } from 'bun:test';
-import { join } from 'node:path';
+import { expect, onTestFinished, test } from 'bun:test';
 import { isProcessAlive } from '../shared/is-process-alive';
+import { buildStubMCPStdioServer } from './build-stub-mcp-stdio-server';
 import { createStubBin } from './create-stub-bin';
 import { setupMCPHome } from './setup-mcp-home';
 import { startMCPStdio } from './start-mcp-stdio';
@@ -71,9 +71,9 @@ test('it rejects a request still pending when the server stops', async () => {
   const held = ctx.mcp.sendToolCall('atc_events_read', { waitMs: 4000 });
   const stopping = ctx.mcp[Symbol.asyncDispose]();
 
-  expect(held).rejects.toThrowWithMessage(Error, /^atc mcp stopped answering before request 2$/);
+  onTestFinished(() => stopping);
 
-  await stopping;
+  expect(held).rejects.toThrowWithMessage(Error, /^atc mcp stopped answering before request 2$/);
 });
 
 test('it rejects a tool call whose response holds no result', async () => {
@@ -82,13 +82,10 @@ test('it rejects a tool call whose response holds no result', async () => {
   const bin = createStubBin(
     ctx.home,
     'no-result',
-    `#!/usr/bin/env bash
-read -r _
-echo '{"jsonrpc":"2.0","id":1,"result":{}}'
-read -r _
-echo '{"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"nope"}}'
-exec cat > /dev/null
-`,
+    buildStubMCPStdioServer([
+      '{"jsonrpc":"2.0","id":1,"result":{}}',
+      '{"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"nope"}}',
+    ]),
   );
 
   await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
@@ -105,13 +102,10 @@ test('it rejects a tool call whose result holds no text item', async () => {
   const bin = createStubBin(
     ctx.home,
     'no-item',
-    `#!/usr/bin/env bash
-read -r _
-echo '{"jsonrpc":"2.0","id":1,"result":{}}'
-read -r _
-echo '{"jsonrpc":"2.0","id":2,"result":{"content":[]}}'
-exec cat > /dev/null
-`,
+    buildStubMCPStdioServer([
+      '{"jsonrpc":"2.0","id":1,"result":{}}',
+      '{"jsonrpc":"2.0","id":2,"result":{"content":[]}}',
+    ]),
   );
 
   await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
@@ -128,13 +122,10 @@ test('it rejects a tool call whose result holds two text items', async () => {
   const bin = createStubBin(
     ctx.home,
     'two-items',
-    `#!/usr/bin/env bash
-read -r _
-echo '{"jsonrpc":"2.0","id":1,"result":{}}'
-read -r _
-echo '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"a"},{"type":"text","text":"b"}]}}'
-exec cat > /dev/null
-`,
+    buildStubMCPStdioServer([
+      '{"jsonrpc":"2.0","id":1,"result":{}}',
+      '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"a"},{"type":"text","text":"b"}]}}',
+    ]),
   );
 
   await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
@@ -151,13 +142,10 @@ test('it rejects a tool call whose structured content is not an object', async (
   const bin = createStubBin(
     ctx.home,
     'scalar-structured',
-    `#!/usr/bin/env bash
-read -r _
-echo '{"jsonrpc":"2.0","id":1,"result":{}}'
-read -r _
-echo '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"5"}],"structuredContent":5}}'
-exec cat > /dev/null
-`,
+    buildStubMCPStdioServer([
+      '{"jsonrpc":"2.0","id":1,"result":{}}',
+      '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"5"}],"structuredContent":5}}',
+    ]),
   );
 
   await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
@@ -174,13 +162,7 @@ test('it rejects a pending request once the server prints a line that is not JSO
   const bin = createStubBin(
     ctx.home,
     'not-json',
-    `#!/usr/bin/env bash
-read -r _
-echo '{"jsonrpc":"2.0","id":1,"result":{}}'
-read -r _
-echo 'not json'
-exec cat > /dev/null
-`,
+    buildStubMCPStdioServer(['{"jsonrpc":"2.0","id":1,"result":{}}', 'not json']),
   );
 
   await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
@@ -202,22 +184,12 @@ test('it resolves a second disposal', async () => {
 test('it stops a server whose initialize fails before rejecting', async () => {
   await using ctx = await setupTest();
 
-  const bin = createStubBin(
-    ctx.home,
-    'bad-init',
-    `#!/usr/bin/env bash
-echo $$ > "$HOME/bad-init-pid"
-read -r _
-echo 'not json'
-exec cat > /dev/null
-`,
-  );
-
+  const bin = createStubBin(ctx.home, 'bad-init', buildStubMCPStdioServer(['not json']));
   const starting = startMCPStdio({ home: ctx.home, command: [bin] });
 
   expect(starting).rejects.toThrowWithMessage(Error, 'atc mcp stopped answering before request 1');
 
-  const recorded = await Bun.file(join(ctx.home, 'bad-init-pid')).text();
+  const recorded = await Bun.file(`${bin}.pid`).text();
 
   const pid = Number(recorded);
 
