@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { buildHookSettings } from './build-hook-settings';
 
-test('it never writes a credential into the settings a session is started with', () => {
+test('it points the settings at the credential helper command', () => {
   const settings = buildHookSettings(
     {
       id: 'zai',

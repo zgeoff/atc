@@ -105,3 +105,64 @@ test('it reports an unknown grant id as not revoked', async () => {
 
   expect(revoked).toBeFalse();
 });
+
+test("it never removes another grant's tokens or another client's consent", async () => {
+  await using ctx = await setupTest();
+
+  const revoked = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const kept = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Cursor', redirectURIs: ['https://cursor.com/oauth/callback'] },
+  });
+
+  for (const client of [
+    { clientID: revoked.clientID, redirectURI: 'https://claude.ai/api/mcp/auth_callback' },
+    { clientID: kept.clientID, redirectURI: 'https://cursor.com/oauth/callback' },
+  ]) {
+    const authorized = await runMCPAuthorization(ctx, {
+      ...client,
+      scope: 'read',
+      ticked: ['read'],
+    });
+
+    await fetch(`${ctx.url}/oauth2/token`, {
+      method: 'POST',
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: authorized.code,
+        redirect_uri: client.redirectURI,
+        client_id: client.clientID,
+        code_verifier: authorized.verifier,
+      }),
+    });
+  }
+
+  const grants = await collectGrants(ctx.store.db);
+
+  const revokedGrant = grants.find((grant) => grant.clientID === revoked.clientID);
+  const keptGrant = grants.find((grant) => grant.clientID === kept.clientID);
+
+  invariant(revokedGrant !== undefined && keptGrant !== undefined, 'the exchanges left no grants');
+
+  await revokeGrant(ctx.store.db, revokedGrant.grantID);
+
+  const left = {
+    accessTokens: await ctx.store.db
+      .selectFrom('oauthAccessToken')
+      .select('authorizationCodeId')
+      .execute(),
+    refreshTokens: await ctx.store.db
+      .selectFrom('oauthRefreshToken')
+      .select('authorizationCodeId')
+      .execute(),
+    consents: await ctx.store.db.selectFrom('oauthConsent').select('clientId').execute(),
+  };
+
+  expect(left).toStrictEqual({
+    accessTokens: [{ authorizationCodeId: keptGrant.grantID }],
+    refreshTokens: [{ authorizationCodeId: keptGrant.grantID }],
+    consents: [{ clientId: kept.clientID }],
+  });
+});

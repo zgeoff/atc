@@ -81,6 +81,7 @@ test('it returns at the redirect URI with an authorization code its verifier exc
     }),
   });
 
+  expect(`${authorized.consent.origin}${authorized.consent.pathname}`).toBe(`${ctx.url}/consent`);
   expect(authorized.callback.href).toStartWith('https://dots.example/cb?code=');
   expect(authorized.callback.searchParams.get('code')).toBe(authorized.code);
   expect(authorized.verifier).toStartWith('test-verifier-');

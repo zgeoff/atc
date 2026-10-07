@@ -462,7 +462,6 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
     args: plan?.args,
     env: plan?.env,
     files: plan?.files,
-    config: plan?.files['auth-r2/config.toml'],
   }).toStrictEqual({
     bin: 'sh',
     args: [
@@ -481,12 +480,69 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
       'go',
     ],
     env: { CODEX_HOME: '/tmp/atc/sessions/s1/codex-home' },
-    files: expect.toContainAllKeys([
-      'auth-r2/auth.json',
-      'auth-r2/config.toml',
-      'auth-r2/hooks.json',
-    ]),
-    config: 'cli_auth_credentials_store = "file"\ncheck_for_update_on_startup = false\n',
+    files: {
+      'auth-r2/auth.json': `${JSON.stringify(
+        {
+          auth_mode: 'chatgpt',
+          OPENAI_API_KEY: null,
+          tokens: {
+            id_token:
+              'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
+            access_token: 'imp-broker-placeholder',
+            refresh_token: 'imp-broker-placeholder',
+            account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+          },
+          last_refresh: '2099-01-01T00:00:00Z',
+        },
+        null,
+        2,
+      )}\n`,
+      'auth-r2/config.toml':
+        'cli_auth_credentials_store = "file"\ncheck_for_update_on_startup = false\n',
+      'auth-r2/hooks.json': `${JSON.stringify(
+        {
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  { type: 'command', command: '"/opt/atc" hook-report --agent codex', timeout: 5 },
+                ],
+              },
+            ],
+            UserPromptSubmit: [
+              {
+                hooks: [
+                  { type: 'command', command: '"/opt/atc" hook-report --agent codex', timeout: 5 },
+                ],
+              },
+            ],
+            PermissionRequest: [
+              {
+                hooks: [
+                  { type: 'command', command: '"/opt/atc" hook-report --agent codex', timeout: 5 },
+                ],
+              },
+            ],
+            Stop: [
+              {
+                hooks: [
+                  { type: 'command', command: '"/opt/atc" hook-report --agent codex', timeout: 5 },
+                ],
+              },
+            ],
+            SessionEnd: [
+              {
+                hooks: [
+                  { type: 'command', command: '"/opt/atc" hook-report --agent codex', timeout: 3 },
+                ],
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    },
   });
 });
 

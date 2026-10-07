@@ -1,11 +1,7 @@
 import type { On } from 'claude-code';
 import { expect, mock, test } from 'claude-code/testing';
 
-interface SetupConfig {
-  readonly on: On;
-}
-
-function setupTest({ on }: SetupConfig) {
+function setupTest({ on }: { readonly on: On }) {
   const clock = mock.clock(on);
   const logs: string[] = [];
   const ran: { argv: string[]; stdin: string | undefined }[] = [];

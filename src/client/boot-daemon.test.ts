@@ -1,6 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import invariant from 'tiny-invariant';
 import { startDaemon } from '../daemon/daemon';
 import { PROTOCOL_V } from '../protocol/protocol';
 import { getBuild } from '../shared/get-build';
@@ -98,6 +100,24 @@ test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR
 
   onTestFinished(() => daemon.stop());
 
+  const record: unknown = JSON.parse(readFileSync(join(ctx.stateDir, 'daemon.json'), 'utf8'));
+
+  invariant(
+    isDeepStrictEqual(record, {
+      pid: process.pid,
+      socketPath: join(ctx.dir, 'run', 'atc-daemon.sock'),
+      reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
+      eventsSocketPath: null,
+      listenPort: null,
+    }),
+    'the daemon records its runtime sockets in the state directory',
+  );
+
+  invariant(
+    !existsSync(join(ctx.stateDir, 'atc-daemon.sock')),
+    'the daemon serves no socket from the state directory',
+  );
+
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
@@ -121,19 +141,7 @@ boot.client.stop();
 
   await proc.exited;
 
-  const record: unknown = JSON.parse(readFileSync(join(ctx.stateDir, 'daemon.json'), 'utf8'));
-
   expect(JSON.parse(stdout)).toStrictEqual({ socketPath: join(ctx.dir, 'run', 'atc-daemon.sock') });
-
-  expect(record).toStrictEqual({
-    pid: process.pid,
-    socketPath: join(ctx.dir, 'run', 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
-    eventsSocketPath: null,
-    listenPort: null,
-  });
-
-  expect(existsSync(join(ctx.stateDir, 'atc-daemon.sock'))).toBeFalse();
 });
 
 test('it leaves a daemon on another protocol running and rejects with both builds and versions', async () => {

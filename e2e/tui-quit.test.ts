@@ -16,7 +16,7 @@ test('it quits the client on q from the overlay', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('no sessions — n to spawn');
+  await ctx.waitFor('no sessions');
 
   ctx.write('q');
 

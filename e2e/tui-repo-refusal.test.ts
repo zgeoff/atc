@@ -11,9 +11,8 @@ import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 
 /**
  * The client's harness with a signed-out `gh` on the PATH of the client and
- * its daemons.
+ * its daemons, and a git upstream for the spawn to clone.
  */
-// oxlint-disable-next-line require-await -- the await is the `await using` declaration that releases the stack when a later setup step throws
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
@@ -23,24 +22,31 @@ async function setupTest() {
   // signed-out one keeps the step from reaching the host's own gh.
   createStubBin(join(tui.home, 'bin'), 'gh', buildStubSignedOutGH());
 
+  const created = await createGitFixture();
+
+  const fixture = stack.use(created);
   const owned = stack.move();
 
-  return { ...tui, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { ...tui, fixture, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
 test('it returns a spawn into an existing destination to the confirm screen with a suffix offered', async () => {
   await using ctx = await setupTest();
-  await using fixture = await createGitFixture();
 
-  writeFileSync(join(fixture.work, 'notes.md'), 'from the upstream\n');
+  writeFileSync(join(ctx.fixture.work, 'notes.md'), 'from the upstream\n');
 
-  await $`git add notes.md`.env(fixture.env).cwd(fixture.work).quiet();
-  await $`git commit --quiet --no-gpg-sign -m notes`.env(fixture.env).cwd(fixture.work).quiet();
-  await $`git push --quiet origin main`.env(fixture.env).cwd(fixture.work).quiet();
+  await $`git add notes.md`.env(ctx.fixture.env).cwd(ctx.fixture.work).quiet();
+
+  await $`git commit --quiet --no-gpg-sign -m notes`
+    .env(ctx.fixture.env)
+    .cwd(ctx.fixture.work)
+    .quiet();
+
+  await $`git push --quiet origin main`.env(ctx.fixture.env).cwd(ctx.fixture.work).quiet();
 
   const sha = await $`git rev-parse HEAD`
-    .env(fixture.env)
-    .cwd(fixture.work)
+    .env(ctx.fixture.env)
+    .cwd(ctx.fixture.work)
     .text()
     .then((text) => text.trim());
 
@@ -61,7 +67,7 @@ test('it returns a spawn into an existing destination to the confirm screen with
 
   await openRepoStep(ctx);
 
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(`${ctx.fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
 
@@ -104,7 +110,6 @@ test('it returns a spawn into an existing destination to the confirm screen with
 
 test('it returns a spawn whose clone fails to the repository step', async () => {
   await using ctx = await setupTest();
-  await using fixture = await createGitFixture();
 
   ctx.boot();
 
@@ -112,7 +117,7 @@ test('it returns a spawn whose clone fails to the repository step', async () => 
 
   await openRepoStep(ctx);
 
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(`${ctx.fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
 
@@ -128,7 +133,7 @@ test('it returns a spawn whose clone fails to the repository step', async () => 
 
   await ctx.waitFor('spawn: initial prompt');
 
-  rmSync(fixture.upstream, { recursive: true, force: true });
+  rmSync(ctx.fixture.upstream, { recursive: true, force: true });
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -140,7 +145,6 @@ test('it returns a spawn whose clone fails to the repository step', async () => 
 
 test('it returns a spawn whose commit left the upstream to the ref step with the refs re-read', async () => {
   await using ctx = await setupTest();
-  await using fixture = await createGitFixture();
 
   ctx.boot();
 
@@ -148,7 +152,7 @@ test('it returns a spawn whose commit left the upstream to the ref step with the
 
   await openRepoStep(ctx);
 
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(`${ctx.fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
 
@@ -166,16 +170,27 @@ test('it returns a spawn whose commit left the upstream to the ref step with the
 
   // Main moves to an unrelated commit and the old one is pruned, so the
   // pinned commit is no longer in the upstream.
-  await $`git checkout --quiet --orphan rewritten`.env(fixture.env).cwd(fixture.work).quiet();
-  await $`git commit --quiet --no-gpg-sign -m rewritten`.env(fixture.env).cwd(fixture.work).quiet();
-
-  await $`git push --quiet --force origin rewritten:main`
-    .env(fixture.env)
-    .cwd(fixture.work)
+  await $`git checkout --quiet --orphan rewritten`
+    .env(ctx.fixture.env)
+    .cwd(ctx.fixture.work)
     .quiet();
 
-  await $`git reflog expire --expire=now --all`.env(fixture.env).cwd(fixture.upstream).quiet();
-  await $`git gc --quiet --prune=now`.env(fixture.env).cwd(fixture.upstream).quiet();
+  await $`git commit --quiet --no-gpg-sign -m rewritten`
+    .env(ctx.fixture.env)
+    .cwd(ctx.fixture.work)
+    .quiet();
+
+  await $`git push --quiet --force origin rewritten:main`
+    .env(ctx.fixture.env)
+    .cwd(ctx.fixture.work)
+    .quiet();
+
+  await $`git reflog expire --expire=now --all`
+    .env(ctx.fixture.env)
+    .cwd(ctx.fixture.upstream)
+    .quiet();
+
+  await $`git gc --quiet --prune=now`.env(ctx.fixture.env).cwd(ctx.fixture.upstream).quiet();
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -183,8 +198,8 @@ test('it returns a spawn whose commit left the upstream to the ref step with the
   await ctx.waitFor('refs re-read', 10_000);
 
   const rewritten = await $`git rev-parse HEAD`
-    .env(fixture.env)
-    .cwd(fixture.work)
+    .env(ctx.fixture.env)
+    .cwd(ctx.fixture.work)
     .text()
     .then((text) => text.trim());
 

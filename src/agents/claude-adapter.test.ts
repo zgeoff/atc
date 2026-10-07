@@ -10,6 +10,7 @@ import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-head
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { KEYS } from '../test-utils/keys';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { ClaudeAdapter } from './claude-adapter';
 
 // A folder for the files a test writes: transcripts, the atc-bridge mod, a
@@ -265,13 +266,82 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
       '--resume',
       'sess-1',
     ],
-    files: expect.toContainAllKeys([
-      'atc-bridge/.claude-plugin/plugin.json',
-      'atc-bridge/hooks/hooks.json',
-      'atc-bridge/hooks/register.ts',
-      'atc-bridge/hooks/atc-cli.ts',
-      'settings.json',
-    ]),
+    files: {
+      'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
+      'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
+      'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
+      'atc-bridge/hooks/atc-cli.ts':
+        'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
+      'settings.json': JSON.stringify(
+        {
+          permissions: { defaultMode: 'plan' },
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            Notification: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            Stop: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            UserPromptSubmit: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            SessionEnd: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+          },
+          statusLine: {
+            type: 'command',
+            command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+            padding: 0,
+          },
+        },
+        null,
+        2,
+      ),
+    },
   });
 });
 
@@ -295,13 +365,81 @@ test('it plans a remote spawn in the permission mode its configured arguments se
       '--plugin-dir',
       '/tmp/atc/sessions/s1/atc-bridge',
     ],
-    files: expect.toContainAllKeys([
-      'atc-bridge/.claude-plugin/plugin.json',
-      'atc-bridge/hooks/hooks.json',
-      'atc-bridge/hooks/register.ts',
-      'atc-bridge/hooks/atc-cli.ts',
-      'settings.json',
-    ]),
+    files: {
+      'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
+      'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
+      'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
+      'atc-bridge/hooks/atc-cli.ts':
+        'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
+      'settings.json': JSON.stringify(
+        {
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            Notification: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            Stop: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            UserPromptSubmit: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            SessionEnd: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+          },
+          statusLine: {
+            type: 'command',
+            command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+            padding: 0,
+          },
+        },
+        null,
+        2,
+      ),
+    },
   });
 });
 
@@ -897,13 +1035,81 @@ test('it plans a guest spawn without a broker binding in the config of the host 
       '--plugin-dir',
       '/tmp/atc/sessions/s1/atc-bridge',
     ],
-    files: expect.toContainAllKeys([
-      'atc-bridge/.claude-plugin/plugin.json',
-      'atc-bridge/hooks/hooks.json',
-      'atc-bridge/hooks/register.ts',
-      'atc-bridge/hooks/atc-cli.ts',
-      'settings.json',
-    ]),
+    files: {
+      'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
+      'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
+      'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
+      'atc-bridge/hooks/atc-cli.ts':
+        'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
+      'settings.json': JSON.stringify(
+        {
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            Notification: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            Stop: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            UserPromptSubmit: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+            SessionEnd: [
+              {
+                hooks: [
+                  {
+                    type: 'command',
+                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+                    timeout: 5,
+                  },
+                ],
+              },
+            ],
+          },
+          statusLine: {
+            type: 'command',
+            command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+            padding: 0,
+          },
+        },
+        null,
+        2,
+      ),
+    },
   });
 });
 

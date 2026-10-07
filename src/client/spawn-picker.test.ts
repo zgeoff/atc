@@ -927,6 +927,7 @@ test('it leaves a session whose workspace left changes behind running when esc r
 
   expect(ctx.counts.attached).toBe(0);
   expect(ctx.counts.exits).toBe(1);
+  expect(ctx.daemon.collectSent('session.kill')).toStrictEqual([]);
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
     {

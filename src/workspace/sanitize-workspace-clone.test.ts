@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { createGitFixture } from '../test-utils/create-git-fixture';
@@ -173,6 +173,29 @@ test('it removes credential files from the work tree and the git directory', asy
     join(ctx.work, '.netrc'),
     join(ctx.work, '.git', '.git-credentials'),
   ]).toSatisfyAll((file: string) => !existsSync(file));
+});
+
+test('it never removes an ordinary work-tree file', async () => {
+  await using ctx = await setupTest();
+
+  await mkdir(join(ctx.work, 'src'), { recursive: true });
+  await writeFile(join(ctx.work, 'notes.md'), 'remember the milk\n');
+  await writeFile(join(ctx.work, 'src', 'index.ts'), 'export {};\n');
+
+  const sanitized = await sanitizeWorkspaceClone(ctx.work, 'https://github.com/zgeoff/atc.git');
+
+  const kept = {
+    notes: await readFile(join(ctx.work, 'notes.md'), 'utf8'),
+    index: await readFile(join(ctx.work, 'src', 'index.ts'), 'utf8'),
+  };
+
+  expect({ sanitized, kept }).toStrictEqual({
+    sanitized: {
+      ok: true,
+      provenance: { repoURL: 'https://github.com/zgeoff/atc.git', sha: expect.toBeString() },
+    },
+    kept: { notes: 'remember the milk\n', index: 'export {};\n' },
+  });
 });
 
 test('it removes the reflogs that record the clone URL', async () => {
