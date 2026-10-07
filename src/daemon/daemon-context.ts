@@ -63,6 +63,15 @@ type ForgetResult =
   | { readonly confirmToken: string; readonly expiresAt: number }
   | { readonly forgotten: true; readonly destroyed: boolean };
 
+/**
+ * The states a forget refuses to act on: a pinned session, or a sub-session
+ * of a pinned one, and a live session.
+ */
+interface ForgetRefusals {
+  readonly pinned: boolean;
+  readonly live: boolean;
+}
+
 // A transcript page with the file it came from, so a cursor into a replaced
 // transcript is distinguishable from one into a grown transcript.
 interface SessionTranscriptRead {
@@ -223,10 +232,12 @@ export interface DaemonContext {
   readonly killSession: (id: SessionID) => Promise<boolean>;
 
   // Forgets a session, or answers with the token a forget that destroys a
-  // host must carry. Throws the refusal for a token it does not take.
+  // host must carry. Throws the refusal for a token it does not take, and
+  // for a pinned or live session when the caller asks it to refuse one.
   readonly forgetSession: (
     id: SessionID,
     confirmToken: string | undefined,
+    refuse: ForgetRefusals,
   ) => Promise<ForgetResult | 'missing'>;
 
   // Withdraws the grants of the runtime auth binding on a session's host,

@@ -213,6 +213,12 @@ export const REQUEST_PARAM_SCHEMAS = {
       .string({ error: 'session.forget confirmToken must be a string' })
       .min(1, 'session.forget confirmToken must not be empty')
       .optional(),
+
+    // Refuse a pinned session, or a sub-session of a pinned one.
+    refusePinned: z.boolean({ error: 'session.forget refusePinned must be a boolean' }).optional(),
+
+    // Refuse a live session.
+    refuseLive: z.boolean({ error: 'session.forget refuseLive must be a boolean' }).optional(),
   }),
 
   // Owner-only: withdraw the grants of the runtime auth binding on the

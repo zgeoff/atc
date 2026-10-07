@@ -650,7 +650,10 @@ export class DaemonConnection {
 
         const id = parsed.data.session;
 
-        const forgotten = await ctx.forgetSession(id, parsed.data.confirmToken);
+        const forgotten = await ctx.forgetSession(id, parsed.data.confirmToken, {
+          pinned: parsed.data.refusePinned === true,
+          live: parsed.data.refuseLive === true,
+        });
 
         if (forgotten === 'missing') {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);

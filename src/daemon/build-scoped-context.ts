@@ -137,8 +137,10 @@ export function buildScopedContext(
 
     // A session out of reach answers before any confirm token is handed
     // out or taken, so its host is never touched.
-    forgetSession: (id, confirmToken) =>
-      canSee(id) ? ctx.forgetSession(id, confirmToken) : Promise.resolve('missing' as const),
+    forgetSession: (id, confirmToken, refuse) =>
+      canSee(id)
+        ? ctx.forgetSession(id, confirmToken, refuse)
+        : Promise.resolve('missing' as const),
     revokeSessionAuth: (id) => (canSee(id) ? ctx.revokeSessionAuth(id) : Promise.resolve(false)),
     updateSessionAuth: (id) => (canSee(id) ? ctx.updateSessionAuth(id) : Promise.resolve(null)),
     updateSession: (id, name, pinned) => canSee(id) && ctx.updateSession(id, name, pinned),
