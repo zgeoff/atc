@@ -54,3 +54,21 @@ test('it rewrites the session, message, and parent of error data and keeps other
     target: 'box',
   });
 });
+
+test('it rewrites the host session of a refusal that names a sleeping host', () => {
+  const error = buildGatewayError(
+    new DaemonError('unsupported_operation', 'host asleep', {
+      provider: 'imp',
+      problem: 'host_asleep',
+      host: 's0',
+    }),
+    { name: 'cloud', incarnation: '0f6c2a8e' },
+    new Map(),
+  );
+
+  expect(error.data).toStrictEqual({
+    provider: 'imp',
+    problem: 'host_asleep',
+    host: 'cloud.0f6c2a8e.s0',
+  });
+});

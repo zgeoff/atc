@@ -69,13 +69,15 @@ export const ID_RULES: Readonly<Record<string, ReadonlyMap<string, IDRule>>> = {
 /**
  * The rule for every id-bearing field of an error's `data`, whatever the
  * method: `effectRef` holds the session or message an uncertain or
- * conflicting keyed request made.
+ * conflicting keyed request made, and `host` holds the session that owns
+ * a host a refusal concerns.
  */
 export const ERROR_DATA_RULES: ReadonlyMap<string, IDRule> = new Map([
   ['effectRef', 'id'],
   ['session', 'id'],
   ['message', 'id'],
   ['parent', 'id'],
+  ['host', 'id'],
 ]);
 
 function buildPrefixedRules(
