@@ -503,10 +503,10 @@ refuses the request before anything starts:
   guest plan whose variables set a proxy or CA variable is `auth_target_unsupported` too, with
   `guest_env_conflict` as `data.problem` and the variable as `data.variable`, before impd is
   touched. [Runtime auth](#runtime-auth) covers the refusals on a target that has one.
-- A gateway with `auth` whose placeholder variables are anything but `ANTHROPIC_AUTH_TOKEN` alone,
-  holding the placeholder, for a profile that sets a bearer `authorization` header on the base URL's
-  host, is `auth_placeholder_unsupported`, with `data.agent`, before any workspace is materialized
-  or host prepared.
+- A gateway with `auth` whose placeholder variables leave out `ANTHROPIC_AUTH_TOKEN`, hold
+  `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`, or pair the bearer variable with no profile that
+  sets a bearer `authorization` header on the base URL's host, is `auth_placeholder_unsupported`,
+  with `data.agent`, before any workspace is materialized or host prepared.
 
 A refused spawn under an idempotency key leaves the key free for a retry. A restore lists a session
 whose target the daemon cannot use as exited, and input or `session.adopt` on it answers with the

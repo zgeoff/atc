@@ -614,6 +614,13 @@ test.each([
       ANTHROPIC_API_KEY: 'imp-broker-placeholder',
     },
   },
+  {
+    name: 'CLAUDE_CODE_OAUTH_TOKEN beside the bearer variable',
+    env: {
+      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    },
+  },
   { name: 'a value other than the placeholder', env: { ANTHROPIC_AUTH_TOKEN: 'sk-real' } },
 ])('it refuses a brokered guest spawn whose placeholders hold $name', (row) => {
   const config = parseConfig({
@@ -644,6 +651,65 @@ test.each([
   ).toThrow(
     expect.objectContaining({ code: 'auth_placeholder_unsupported', data: { agent: 'glm' } }),
   );
+});
+
+test('it carries an extra placeholder variable and the gateway args into a brokered guest launch', () => {
+  const placeholderEnv = {
+    ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+    TYPESAFE_API_KEY: 'imp-broker-placeholder',
+  };
+
+  const adapter = new GatewayAdapter(
+    {
+      id: 'glm',
+      label: 'glm',
+      mark: 'g',
+      bin: 'claude',
+      args: ['--plugin-dir', '/opt/auto-mode/mods/auto-mode'],
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: {},
+      auth: { profiles: ['glm', 'jev'], placeholderEnv },
+    },
+    parseConfig({
+      authProfiles: {
+        glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+        jev: {
+          secret: 'jev-imp-agents',
+          host: 'api.typesafe.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+      },
+    }),
+  );
+
+  expect(adapter.findSpawnRefusal()).toBeNull();
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: { revision: 1, env: placeholderEnv },
+    },
+  );
+
+  if (plan === null) {
+    throw new Error('expected a guest spawn plan');
+  }
+
+  const settingsFile = plan.files['auth-r1/settings.json'];
+
+  if (typeof settingsFile !== 'string') {
+    throw new TypeError('expected the revision settings file');
+  }
+
+  const settings: unknown = JSON.parse(settingsFile);
+
+  expect(plan.env).toMatchObject(placeholderEnv);
+  expect(settings).toHaveProperty('env', expect.objectContaining(placeholderEnv));
+  expect(plan.args).toContain('/opt/auto-mode/mods/auto-mode');
+  expect(plan.args[plan.args.indexOf('/opt/auto-mode/mods/auto-mode') - 1]).toBe('--plugin-dir');
 });
 
 test("it refuses a brokered guest spawn whose profile sets a header other than a bearer authorization for the base URL's host", () => {
