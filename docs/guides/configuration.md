@@ -609,7 +609,7 @@ leaves out a profile, and refuses an entry that selects it, when its `env` sets:
 
 - A proxy or CA variable, any variable that overrides the subscription sign-in, `PATH`, or `HOME`.
 - `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR`, or a name starting with `ANTHROPIC_`, `CLAUDE_`,
-  or `ATC_`.
+  `ATC_`, `CODEX_`, or `OPENAI_`.
 
 Two selected profiles that set one variable to different values are refused, and so is an entry
 whose `env` or `settings.env` sets a variable that one of its profiles sets. A change to a profile's

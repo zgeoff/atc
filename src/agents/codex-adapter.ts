@@ -164,9 +164,13 @@ export class CodexAdapter implements AgentAdapter {
     const signIn = this.requireSignIn(guest.auth.oauth ?? {});
     const plan = this.planSpawn(opts);
 
+    // the flag outranks a trusted clone's own config, which could move the
+    // sign-in out of the file atc writes
     const launch = buildCodexGuestLaunch(guest.dir, authDir, [
       plan.bin,
       HOOK_TRUST_FLAG,
+      '-c',
+      FILE_CREDENTIALS_OVERRIDE,
       ...plan.args,
     ]);
 
@@ -178,7 +182,7 @@ export class CodexAdapter implements AgentAdapter {
         [`${authDir}/config.toml`]: buildCodexConfig(),
         [`${authDir}/hooks.json`]: buildCodexHookFile([guest.atc]),
       },
-      env: { ...launch.env, ...guest.auth.profileEnv, ...guest.auth.env },
+      env: { ...guest.auth.profileEnv, ...guest.auth.env, ...launch.env },
     };
   }
 
@@ -380,6 +384,9 @@ const OPENAI_AUTH_CLAIM = 'https://api.openai.com/auth';
 // Codex's documented flag that runs hooks without the trust a person
 // gives them in the TUI, meant for automation that vets its hook sources.
 const HOOK_TRUST_FLAG = '--dangerously-bypass-hook-trust';
+
+// A config override on the command line, which outranks every config file.
+const FILE_CREDENTIALS_OVERRIDE = 'cli_auth_credentials_store="file"';
 
 // What a Codex spawn can override. Codex documents its reasoning effort as
 // whatever the selected model advertises, with no closed list of levels, so

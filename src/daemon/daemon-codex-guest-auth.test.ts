@@ -123,7 +123,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
     hooks,
     grants: daemon.port.calls.filter((call) => call.startsWith('grants.add')),
   }).toMatchObject({
-    started: `${home} --dangerously-bypass-hook-trust go\n`,
+    started: `${home} --dangerously-bypass-hook-trust -c cli_auth_credentials_store="file" go\n`,
     auth: {
       auth_mode: 'chatgpt',
       tokens: {

@@ -164,7 +164,7 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
 // other value, so a credential is never written into a profile.
 const ENV_PLACEHOLDER = 'imp-broker-placeholder';
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/;
-const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_'];
+const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_', 'CODEX_', 'OPENAI_'];
 
 const RESERVED_ENV_NAMES: ReadonlySet<string> = new Set(['PATH', 'HOME']);
 

@@ -309,6 +309,10 @@ test.each([
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_BASE_URL',
   'ATC_SESSION_ID',
+  'CODEX_HOME',
+  'CODEX_API_KEY',
+  'OPENAI_API_KEY',
+  'OPENAI_BASE_URL',
   'PATH',
   'HOME',
 ])('it refuses a profile that sets the reserved variable %s', (name) => {

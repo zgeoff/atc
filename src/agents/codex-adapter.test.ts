@@ -332,6 +332,8 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
       `${dir}/codex-trust.toml`,
       'codex',
       '--dangerously-bypass-hook-trust',
+      '-c',
+      'cli_auth_credentials_store="file"',
       'resume',
       'c-1',
       'go',
@@ -339,6 +341,30 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
     env: { CODEX_HOME: `${dir}/codex-home` },
     files: ['auth-r2/auth.json', 'auth-r2/config.toml', 'auth-r2/hooks.json'],
     config: 'cli_auth_credentials_store = "file"\ncheck_for_update_on_startup = false\n',
+  });
+});
+
+test("it keeps its own Codex home over a profile's variables", () => {
+  const adapter = setupSignedInAdapter();
+  const dir = '/tmp/atc/sessions/s1';
+
+  const plan = adapter.planGuestSpawn?.(
+    { prompt: 'go', resume: false },
+    {
+      atc: '/opt/atc',
+      dir,
+      auth: {
+        revision: 1,
+        env: {},
+        profileEnv: { CODEX_HOME: '/elsewhere', OP_CONNECT_HOST: 'https://op.example.com' },
+        oauth: { 'codex-chatgpt': READY },
+      },
+    },
+  );
+
+  expect(plan?.env).toStrictEqual({
+    CODEX_HOME: `${dir}/codex-home`,
+    OP_CONNECT_HOST: 'https://op.example.com',
   });
 });
 
