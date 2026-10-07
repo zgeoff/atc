@@ -11,7 +11,8 @@ let template: Promise<string> | undefined;
  * that needs a ready store skips the migration ladder. Each copy is a file of
  * its own; every copy holds the same daemon id, minted when the template was
  * migrated. The template sits in the test home, which the test script removes
- * on exit.
+ * on exit, under a name of its own per process, since parallel test processes
+ * share that home.
  */
 export async function createMigratedStateDB(dbPath: string): Promise<void> {
   template ??= createTemplateStateDB();
@@ -28,7 +29,7 @@ async function createTemplateStateDB(): Promise<string> {
     throw new Error('ATC_TEST_HOME is unset; run the tests through `bun run test`');
   }
 
-  const path = join(home, 'migrated-state.db');
+  const path = join(home, `migrated-state-${String(process.pid)}.db`);
 
   const store = await StateStore.open(path);
 
