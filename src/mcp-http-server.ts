@@ -72,19 +72,8 @@ export async function runMCPHTTPServer(build: string, flags: MCPHTTPFlags): Prom
     },
   });
 
-  console.log(`atc mcp --http: serving ${server.origin}/mcp, listening on ${server.listening}`);
-
-  const admin = await openMCPAuth({ dbPath: mcpAuthDBFile, origin: null });
-  const clients = await collectClients(admin.db);
-
-  await admin.close();
-
-  if (clients.length === 0) {
-    console.log(
-      'No clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>',
-    );
-  }
-
+  // The handlers go in before the serving line, so a signal sent once the
+  // line appears always finds them.
   const stopServing = async () => {
     await server.stop();
     await caller.stop();
@@ -99,4 +88,17 @@ export async function runMCPHTTPServer(build: string, flags: MCPHTTPFlags): Prom
   process.on('SIGTERM', () => {
     void stopServing();
   });
+
+  console.log(`atc mcp --http: serving ${server.origin}/mcp, listening on ${server.listening}`);
+
+  const admin = await openMCPAuth({ dbPath: mcpAuthDBFile, origin: null });
+  const clients = await collectClients(admin.db);
+
+  await admin.close();
+
+  if (clients.length === 0) {
+    console.log(
+      'No clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>',
+    );
+  }
 }

@@ -74,8 +74,8 @@ export async function runGateway(build: string, flags: GatewayFlags): Promise<vo
     process.exit(1);
   }
 
-  console.log(`atc-gateway: serving ${server.origin}/mcp, listening on ${server.listening}`);
-
+  // The handlers go in before the serving line, so a signal sent once the
+  // line appears always finds them.
   const stopServing = async () => {
     await server.stop();
     await gateway.stop();
@@ -90,4 +90,6 @@ export async function runGateway(build: string, flags: GatewayFlags): Promise<vo
   process.on('SIGTERM', () => {
     void stopServing();
   });
+
+  console.log(`atc-gateway: serving ${server.origin}/mcp, listening on ${server.listening}`);
 }
