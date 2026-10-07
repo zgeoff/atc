@@ -6,7 +6,7 @@ import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
 import { buildStubPTYProvider } from '../test-utils/build-stub-pty-provider';
 import { createGitFixture } from '../test-utils/create-git-fixture';
-import { createStubBin } from '../test-utils/create-stub-bin';
+import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -17,7 +17,7 @@ import { LocalPTYProvider } from './local-pty-provider';
  * What a local clone launch needs before its daemon starts: a git fixture
  * whose upstream a spawn clones, a user home of its own for the Claude
  * config, a stock Claude adapter whose CLI is a script that appends its
- * arguments to `marker` and then sleeps, and a gateway adapter named
+ * arguments to its `starts` log and then sleeps, and a gateway adapter named
  * `plain`. Each test starts its own daemon with the adapters and the target
  * options it needs.
  */
@@ -28,14 +28,8 @@ async function setupTest() {
 
   stack.use(git);
 
-  const marker = join(git.dir, 'started');
   const homeDir = join(git.dir, 'home');
-
-  const fakeClaude = createStubBin(
-    join(git.dir, 'bin'),
-    'claude',
-    `#!/bin/sh\nprintf '%s\\n' "$@" >> "${marker}"\nexec sleep 30\n`,
-  );
+  const fakeClaude = createStubRecordingClaude(join(git.dir, 'bin'));
 
   // The adapter reads and writes the user's Claude config under this home.
   mkdirSync(homeDir);
@@ -51,7 +45,7 @@ async function setupTest() {
     dir: git.dir,
     upstream: git.upstream,
     work: git.work,
-    marker,
+    starts: join(git.dir, 'bin', 'claude-starts.log'),
     claudeConfig: join(homeDir, '.claude.json'),
     adapters: [
       new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, { homeDir }),
@@ -113,7 +107,7 @@ test('it trusts only the resolved clone root in the user config after an opted-i
   });
 
   await waitFor(() => {
-    expect(readFileSync(ctx.marker, 'utf8').trimEnd().split('\n').at(-1)).toBe('start the task');
+    expect(readFileSync(ctx.starts, 'utf8').trimEnd().split('\n').at(-1)).toBe('start the task');
   });
 
   const config: unknown = JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'));
@@ -167,7 +161,7 @@ test('it leaves the user config byte for byte after a local clone launch with no
   });
 
   await waitFor(() => {
-    expect(existsSync(ctx.marker)).toBeTrue();
+    expect(existsSync(ctx.starts)).toBeTrue();
   });
 
   expect(readFileSync(ctx.claudeConfig, 'utf8')).toBe(
@@ -209,7 +203,7 @@ test('it leaves the user config byte for byte after a local clone launch that op
   });
 
   await waitFor(() => {
-    expect(existsSync(ctx.marker)).toBeTrue();
+    expect(existsSync(ctx.starts)).toBeTrue();
   });
 
   expect(readFileSync(ctx.claudeConfig, 'utf8')).toBe(
@@ -247,7 +241,7 @@ test('it trusts a local clone when the target defaults trust on', async () => {
   });
 
   await waitFor(() => {
-    expect(existsSync(ctx.marker)).toBeTrue();
+    expect(existsSync(ctx.starts)).toBeTrue();
   });
 
   expect(JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'))).toStrictEqual({
@@ -322,7 +316,7 @@ test('it leaves the user config and starts nothing when it refuses local trust f
 
   expect({
     config: readFileSync(ctx.claudeConfig, 'utf8'),
-    started: existsSync(ctx.marker),
+    started: existsSync(ctx.starts),
   }).toStrictEqual({ config: '{"projects":{}}', started: false });
 });
 
@@ -497,7 +491,7 @@ test('it removes the clone, keeps the user config, and starts nothing when the t
   expect({
     config: readFileSync(ctx.claudeConfig, 'utf8'),
     cloned: existsSync(join(ctx.dir, 'clone')),
-    started: existsSync(ctx.marker),
+    started: existsSync(ctx.starts),
   }).toStrictEqual({ config: '{"projects":', cloned: false, started: false });
 });
 
@@ -573,6 +567,6 @@ test('it refuses local trust for a gateway before cloning or touching the user c
   expect({
     config: readFileSync(ctx.claudeConfig, 'utf8'),
     cloned: existsSync(join(ctx.dir, 'clone')),
-    started: existsSync(ctx.marker),
+    started: existsSync(ctx.starts),
   }).toStrictEqual({ config: '{"projects":{}}', cloned: false, started: false });
 });

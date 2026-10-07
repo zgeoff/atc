@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
+import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubImpd } from '../test-utils/start-stub-impd';
 import { waitFor } from '../test-utils/wait-for';
@@ -552,20 +553,8 @@ test('it sends the requirements of a start to impd and ends the connection with 
 
   const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
-  const connection = port.openSession(
-    {
-      kind: 'start',
-      name: 'atc-s1',
-      session: 'atc-s1',
-      argv: ['claude'],
-      env: {},
-      cwd: '/work',
-      cols: 80,
-      rows: 24,
-      require: ['broker'],
-    },
-    { onStarted: () => {}, onOutput: () => {} },
-  );
+  const request = buildMockImpSessionRequest({ require: ['broker'] });
+  const connection = port.openSession(request, { onStarted: () => {}, onOutput: () => {} });
 
   const outcome = await connection.outcome;
 
@@ -573,14 +562,14 @@ test('it sends the requirements of a start to impd and ends the connection with 
     opens: [
       {
         type: 'start',
-        name: 'atc-s1',
-        session: 'atc-s1',
-        argv: ['claude'],
+        name: request.name,
+        session: request.session,
+        argv: request.argv,
         tty: true,
-        env: {},
-        cwd: '/work',
-        cols: 80,
-        rows: 24,
+        env: request.env,
+        cwd: request.cwd,
+        cols: request.cols,
+        rows: request.rows,
         require: ['broker'],
       },
     ],

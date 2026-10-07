@@ -1904,11 +1904,25 @@ test("it wakes a held events.read only for the filtered session's event", async 
   });
 
   await daemon.client.sendRequest('session.message', { session: one, text: 'to one' });
-  await daemon.client.sendRequest('session.message', { session: two, text: 'to two' });
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: two,
+    text: 'to two',
+  });
 
   const woken = await pending;
 
-  expect(woken['events']).toMatchObject([{ session: two, detail: 'to two' }]);
+  expect(woken['events']).toStrictEqual([
+    {
+      cursor: expect.toBeString(),
+      at: expect.toBeNumber(),
+      session: two,
+      name: 'two',
+      kind: 'message-accepted',
+      detail: 'to two',
+      message: sent['message'],
+    },
+  ]);
 });
 
 test('it marks an events.read page that stopped before the end of the trail', async () => {
@@ -1920,9 +1934,9 @@ test('it marks an events.read page that stopped before the end of the trail', as
 
   const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
   const start = await daemon.client.sendRequest('events.read', {});
+  const a = await daemon.client.sendRequest('session.message', { session: id, text: 'a' });
+  const b = await daemon.client.sendRequest('session.message', { session: id, text: 'b' });
 
-  await daemon.client.sendRequest('session.message', { session: id, text: 'a' });
-  await daemon.client.sendRequest('session.message', { session: id, text: 'b' });
   await daemon.client.sendRequest('session.message', { session: id, text: 'c' });
 
   const page = await daemon.client.sendRequest('events.read', {
@@ -1930,7 +1944,30 @@ test('it marks an events.read page that stopped before the end of the trail', as
     limit: 2,
   });
 
-  expect(page).toMatchObject({ events: [{ detail: 'a' }, { detail: 'b' }], more: true });
+  expect(page).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'one',
+        kind: 'message-accepted',
+        detail: 'a',
+        message: a['message'],
+      },
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'one',
+        kind: 'message-accepted',
+        detail: 'b',
+        message: b['message'],
+      },
+    ],
+    cursor: expect.toBeString(),
+    more: true,
+  });
 });
 
 test('it marks the events.read page that reaches the end of the trail as the last', async () => {
@@ -1945,7 +1982,8 @@ test('it marks the events.read page that reaches the end of the trail as the las
 
   await daemon.client.sendRequest('session.message', { session: id, text: 'a' });
   await daemon.client.sendRequest('session.message', { session: id, text: 'b' });
-  await daemon.client.sendRequest('session.message', { session: id, text: 'c' });
+
+  const c = await daemon.client.sendRequest('session.message', { session: id, text: 'c' });
 
   const page = await daemon.client.sendRequest('events.read', {
     cursor: start['cursor'],
@@ -1957,7 +1995,21 @@ test('it marks the events.read page that reaches the end of the trail as the las
     limit: 2,
   });
 
-  expect(rest).toMatchObject({ events: [{ detail: 'c' }], more: false });
+  expect(rest).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'one',
+        kind: 'message-accepted',
+        detail: 'c',
+        message: c['message'],
+      },
+    ],
+    cursor: expect.toBeString(),
+    more: false,
+  });
 });
 
 test('it records a note in events.read with its label', async () => {

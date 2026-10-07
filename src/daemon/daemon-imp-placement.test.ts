@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
+import { createStubEchoClaude } from '../test-utils/create-stub-echo-claude';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
@@ -21,14 +21,10 @@ async function setupTest() {
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'fake-claude'), '#!/usr/bin/env bash\necho UP\nexec cat\n', {
-        mode: 0o755,
-      });
+      const fakeClaude = createStubEchoClaude(paths.dir);
 
       return {
-        adapter: buildMockAgentAdapter({
-          planSpawn: () => ({ bin: join(paths.dir, 'fake-claude'), args: [] }),
-        }),
+        adapter: buildMockAgentAdapter({ planSpawn: () => ({ bin: fakeClaude, args: [] }) }),
         targets: [
           {
             id: 'local',

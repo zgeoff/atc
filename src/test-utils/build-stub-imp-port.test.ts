@@ -3176,3 +3176,15 @@ test('it finds no undelivered exit for a session the imp does not hold', async (
 
   expect(ctx.port.findUndeliveredExit('imp-a', 's-unknown')).toBeNull();
 });
+
+test('it records the spec of each imp it is asked to create, in order', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a', image: 'base', memoryMib: 512 });
+  await ctx.port.createImp({ name: 'imp-b' });
+
+  expect(ctx.port.createSpecs).toStrictEqual([
+    { name: 'imp-a', image: 'base', memoryMib: 512 },
+    { name: 'imp-b' },
+  ]);
+});

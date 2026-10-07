@@ -15,7 +15,10 @@ import type { Session } from './sessions';
 /**
  * A session manager over a fresh state store, as one daemon life sees it,
  * and `restarted`, a second manager over the same store, as the next life
- * sees it.
+ * sees it. Before the store closes, disposal waits for every session the
+ * restarted manager holds to get its terminal and writes its fleet once
+ * more: each adopted terminal fires a fleet write, and the last write
+ * queues behind them, so none lands after the store closes.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
@@ -24,20 +27,18 @@ async function setupTest() {
 
   const store = await StateStore.open(join(tmp.dir, 'state.db'));
 
-  stack.defer(() => store.stop());
+  stack.use(store);
 
   const statusPath = join(tmp.dir, 'status.json');
+  const mgr = stack.use(new SessionManager(buildMockAgentAdapter(), store, statusPath, []));
+  const restarted = stack.use(new SessionManager(buildMockAgentAdapter(), store, statusPath, []));
 
-  const mgr = new SessionManager(buildMockAgentAdapter(), store, statusPath, []);
+  stack.defer(async () => {
+    await waitFor(() => {
+      expect(restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
+    });
 
-  stack.defer(() => {
-    mgr.detachAll();
-  });
-
-  const restarted = new SessionManager(buildMockAgentAdapter(), store, statusPath, []);
-
-  stack.defer(() => {
-    restarted.detachAll();
+    await restarted.writeFleet();
   });
 
   const runtimes = new Map<string, SessionRuntime>();
@@ -149,14 +150,6 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
     capMs: 0,
   });
 
-  // Every adopted terminal fires a fleet write; the last write queues
-  // behind them, so none lands after the store closes.
-  await waitFor(() => {
-    expect(ctx.restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
-  });
-
-  await ctx.restarted.writeFleet();
-
   const restoredChild = ctx.restarted.sessions.find((s) => s.id === child.id);
 
   expect(restoredChild?.parent).toBe(resumed.id);
@@ -211,12 +204,6 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
     rows: 24,
     capMs: 0,
   });
-
-  await waitFor(() => {
-    expect(ctx.restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
-  });
-
-  await ctx.restarted.writeFleet();
 
   const restored = ctx.restarted.sessions.map((s) => [s.id, s.parent]);
 
@@ -283,12 +270,6 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
     rows: 24,
     capMs: 0,
   });
-
-  await waitFor(() => {
-    expect(ctx.restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
-  });
-
-  await ctx.restarted.writeFleet();
 
   const restored = ctx.restarted.sessions.map((s) => [s.id, s.parent]);
 

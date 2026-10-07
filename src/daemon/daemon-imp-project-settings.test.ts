@@ -8,6 +8,7 @@ import { parseConfig } from '../shared/config';
 import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
+import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -19,8 +20,8 @@ import { ImpProvider } from './imp-provider';
  * A real daemon whose only target is the imp target `box`, over a stub
  * imp port, with two agents that sign in through impd's broker: `claude` on
  * a subscription and the gateway `glm`. Both run a fake Claude that appends
- * a line to `marker` when it starts. Beside it, `work` is a git clone with
- * one commit, holding `README.md`.
+ * its arguments to the `starts` log when it starts. Beside it, `work` is a
+ * git clone with one commit, holding `README.md`.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
@@ -31,14 +32,8 @@ async function setupTest() {
 
   stack.use(git);
 
-  const marker = join(tmp.dir, 'started');
-
   // Both agent entries run this binary for every spawn.
-  const fakeClaude = createStubBin(
-    tmp.dir,
-    'fake-claude',
-    `#!/bin/sh\necho started >> "${marker}"\nexec sleep 30\n`,
-  );
+  const fakeClaude = createStubRecordingClaude(tmp.dir);
 
   // The imp provider hands the guest this atc binary.
   const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
@@ -116,7 +111,7 @@ async function setupTest() {
   return {
     client: harness.client,
     port,
-    marker,
+    starts: join(tmp.dir, 'claude-starts.log'),
     work: git.work,
     gitEnv: git.env,
     dir: tmp.dir,
@@ -190,7 +185,7 @@ test.each([
 
     expect(ctx.port.sessionRequests).toStrictEqual([]);
     expect(existsSync(root)).toBeFalse();
-    expect(existsSync(ctx.marker)).toBeFalse();
+    expect(existsSync(ctx.starts)).toBeFalse();
   },
 );
 
@@ -224,7 +219,7 @@ test('it refuses an untrusted subscription clone whose settings set apiKeyHelper
     },
   });
 
-  expect(existsSync(ctx.marker)).toBeFalse();
+  expect(existsSync(ctx.starts)).toBeFalse();
 });
 
 test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
@@ -260,7 +255,7 @@ test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
       },
     });
 
-    expect(existsSync(ctx.marker)).toBeFalse();
+    expect(existsSync(ctx.starts)).toBeFalse();
   },
 );
 
@@ -294,7 +289,7 @@ test('it refuses a subscription clone whose settings file is a dangling symlink'
     },
   });
 
-  expect(existsSync(ctx.marker)).toBeFalse();
+  expect(existsSync(ctx.starts)).toBeFalse();
 });
 
 test('it starts a trusted subscription clone whose settings set neither a credential nor a provider', async () => {
@@ -320,7 +315,7 @@ test('it starts a trusted subscription clone whose settings set neither a creden
   });
 
   await waitFor(() => {
-    expect(existsSync(ctx.marker)).toBeTrue();
+    expect(existsSync(ctx.starts)).toBeTrue();
   });
 });
 
@@ -336,7 +331,7 @@ test('it starts a trusted subscription clone with no project settings files', as
   });
 
   await waitFor(() => {
-    expect(existsSync(ctx.marker)).toBeTrue();
+    expect(existsSync(ctx.starts)).toBeTrue();
   });
 });
 
@@ -370,7 +365,7 @@ test('it refuses a subscription launch in an existing folder whose local setting
   });
 
   expect(ctx.port.sessionRequests).toStrictEqual([]);
-  expect(existsSync(ctx.marker)).toBeFalse();
+  expect(existsSync(ctx.starts)).toBeFalse();
 });
 
 test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async () => {
@@ -404,7 +399,7 @@ test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async
     },
   });
 
-  expect(existsSync(ctx.marker)).toBeFalse();
+  expect(existsSync(ctx.starts)).toBeFalse();
 });
 
 test('it refuses a subscription clone whose settings file is a symlink to an endless device', async () => {
@@ -437,7 +432,7 @@ test('it refuses a subscription clone whose settings file is a symlink to an end
     },
   });
 
-  expect(existsSync(ctx.marker)).toBeFalse();
+  expect(existsSync(ctx.starts)).toBeFalse();
 });
 
 test('it refuses a subscription launch in a subfolder whose repository root holds local settings with a credential', async () => {
@@ -466,7 +461,7 @@ test('it refuses a subscription launch in a subfolder whose repository root hold
     },
   });
 
-  expect(existsSync(ctx.marker)).toBeFalse();
+  expect(existsSync(ctx.starts)).toBeFalse();
 });
 
 test('it refuses a subscription launch in a worktree whose main checkout holds local settings with a credential', async () => {
@@ -502,7 +497,7 @@ test('it refuses a subscription launch in a worktree whose main checkout holds l
     },
   });
 
-  expect(existsSync(ctx.marker)).toBeFalse();
+  expect(existsSync(ctx.starts)).toBeFalse();
 });
 
 test('it refuses a launch path whose symlink and parent step resolve to a folder with conflicting settings', async () => {
@@ -533,5 +528,5 @@ test('it refuses a launch path whose symlink and parent step resolve to a folder
     },
   });
 
-  expect(existsSync(ctx.marker)).toBeFalse();
+  expect(existsSync(ctx.starts)).toBeFalse();
 });

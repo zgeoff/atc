@@ -8,7 +8,7 @@ import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
-import { createStubBin } from '../test-utils/create-stub-bin';
+import { createStubEchoClaude } from '../test-utils/create-stub-echo-claude';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
@@ -27,17 +27,7 @@ async function setupTest() {
       // Every session runs this agent, which prints its pid, echoes each
       // line it reads with its pid, and exits 3 on `quit`, so a test sees
       // which process took its input.
-      const fakeClaude = createStubBin(
-        paths.dir,
-        'fake-claude',
-        `#!/usr/bin/env bash
-echo "UP:$$"
-while read -r line; do
-  if [ "$line" = "quit" ]; then exit 3; fi
-  echo "GOT:$line:$$"
-done
-`,
-      );
+      const fakeClaude = createStubEchoClaude(paths.dir);
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn: () => ({ bin: fakeClaude, args: [] }) }),

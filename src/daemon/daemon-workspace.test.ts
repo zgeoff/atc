@@ -19,6 +19,7 @@ import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
@@ -69,14 +70,18 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -223,20 +228,18 @@ test('it verifies the target checkout itself when the daemon env points git at a
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -271,14 +274,18 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -336,14 +343,18 @@ test('it removes only the directory it created when a symlink in the requested p
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -370,20 +381,18 @@ test('it records a ready workspace and lists it again on the session after a res
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -402,20 +411,18 @@ test('it records a ready workspace and lists it again on the session after a res
     adapter: buildMockAgentAdapter(),
     gitTransports: ['https', 'ssh', 'http', 'file'],
     targets: [
-      {
+      buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
-        options: {},
         identity: 'test:local',
         provider: new LocalPTYProvider(),
-      },
-      {
+      }),
+      buildMockExecutionTarget({
         id: 'box',
         kind: 'fixture-dir',
-        options: {},
         identity: 'test:box',
         provider: buildStubDirProvider(),
-      },
+      }),
     ],
   }));
 
@@ -437,14 +444,18 @@ test('it refuses a path source whose HEAD was never pushed, transferring nothing
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -479,14 +490,18 @@ test('it refuses a path source with uncommitted changes as workspace_dirty when 
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -517,20 +532,18 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -582,20 +595,18 @@ test('it materializes the committed HEAD of a dirty path source when dirt is all
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -635,14 +646,18 @@ test('it refuses a dirty path source whose HEAD was never pushed, transferring n
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -676,14 +691,18 @@ test('it refuses a path source that uses submodules, transferring nothing', asyn
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -719,14 +738,18 @@ test('it refuses a git source that tracks LFS paths, transferring nothing and le
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -764,14 +787,18 @@ test('it refuses a path source whose git config rewrites its origin into a URL w
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -804,14 +831,18 @@ test('it refuses a git source whose URL carries a token', async () => {
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -837,20 +868,18 @@ test('it keeps a workspace credential out of every row, the session, the fleet, 
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -889,20 +918,18 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -961,14 +988,18 @@ test('it clones with the workspace credential and starts the harness without it 
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -1060,14 +1091,18 @@ test('it starts a revived harness after a restart without the workspace credenti
         adapter: buildMockAgentAdapter(),
         gitTransports: ['https', 'ssh', 'http', 'file'],
         targets: [
-          {
+          buildMockExecutionTarget({
             id: 'local',
             kind: 'local-pty',
-            options: {},
             identity: 'test:local',
             provider: new LocalPTYProvider(),
-          },
-          { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+          }),
+          buildMockExecutionTarget({
+            id: 'box',
+            kind: box.kind,
+            identity: 'test:box',
+            provider: box,
+          }),
         ],
       };
     },
@@ -1112,14 +1147,18 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -1166,14 +1205,18 @@ test.each([['transfer'], ['run']] as const)(
         adapter: buildMockAgentAdapter(),
         gitTransports: ['https', 'ssh', 'http', 'file'],
         targets: [
-          {
+          buildMockExecutionTarget({
             id: 'local',
             kind: 'local-pty',
-            options: {},
             identity: 'test:local',
             provider: new LocalPTYProvider(),
-          },
-          { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+          }),
+          buildMockExecutionTarget({
+            id: 'box',
+            kind: box.kind,
+            identity: 'test:box',
+            provider: box,
+          }),
         ],
       }),
     });
@@ -1221,14 +1264,18 @@ test('it fails a materialization that a restart interrupts and lists no session 
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -1250,20 +1297,18 @@ test('it fails a materialization that a restart interrupts and lists no session 
     adapter: buildMockAgentAdapter(),
     gitTransports: ['https', 'ssh', 'http', 'file'],
     targets: [
-      {
+      buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
-        options: {},
         identity: 'test:local',
         provider: new LocalPTYProvider(),
-      },
-      {
+      }),
+      buildMockExecutionTarget({
         id: 'box',
         kind: 'fixture-dir',
-        options: {},
         identity: 'test:box',
         provider: buildStubDirProvider(),
-      },
+      }),
     ],
   }));
 
@@ -1275,16 +1320,82 @@ test('it fails a materialization that a restart interrupts and lists no session 
 
   const rows = db.query('SELECT phase, error_code FROM workspace_materialization').all();
 
+  expect(listed).toStrictEqual({ sessions: [] });
+  expect(rows).toStrictEqual([{ phase: 'failed', error_code: 'workspace_interrupted' }]);
+});
+
+test("it logs the failure of an interrupted materialization that resumes into the stopped daemon's closed store", async () => {
+  await using ctx = await setupTest();
+
+  const held = Promise.withResolvers<undefined>();
+
+  onTestFinished(() => {
+    held.resolve(undefined);
+  });
+
+  const box = buildStubDirProvider({ afterTransfer: () => held.promise });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        buildMockExecutionTarget({
+          id: 'local',
+          kind: 'local-pty',
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
+      ],
+    }),
+  });
+
+  // The restart ends the spawn's connection, so its answer never comes.
+  const spawn = Promise.allSettled([
+    daemon.client.sendRequest('session.spawn', {
+      cwd: join(ctx.dir, 'box', 'ws'),
+      target: 'box',
+      workspace: { kind: 'path', path: ctx.work },
+    }),
+  ]);
+
+  await waitFor(() => {
+    expect(box.calls).toPartiallyContain({ op: 'transfer' });
+  });
+
+  await daemon.restart(() => ({
+    adapter: buildMockAgentAdapter(),
+    gitTransports: ['https', 'ssh', 'http', 'file'],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: 'test:local',
+        provider: new LocalPTYProvider(),
+      }),
+      buildMockExecutionTarget({
+        id: 'box',
+        kind: 'fixture-dir',
+        identity: 'test:box',
+        provider: buildStubDirProvider(),
+      }),
+    ],
+  }));
+
+  await spawn;
+
   held.resolve(undefined);
 
-  // The stopped daemon's materialization resumes into its closed store and
-  // fails there.
   await waitFor(() => {
     expect(daemon.logs).toSatisfyAny((line: string) => line.includes('failed while transferring'));
   });
-
-  expect(listed).toStrictEqual({ sessions: [] });
-  expect(rows).toStrictEqual([{ phase: 'failed', error_code: 'workspace_interrupted' }]);
 });
 
 test('it refuses to materialize into a directory that already exists and leaves it as it was', async () => {
@@ -1298,14 +1409,18 @@ test('it refuses to materialize into a directory that already exists and leaves 
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -1345,14 +1460,18 @@ test('it removes the checkout it created and keeps the files beside it when its 
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -1393,14 +1512,18 @@ test('it spawns a retry into the directory a harness that failed to start left',
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -1450,14 +1573,18 @@ test.each([
         adapter: buildMockAgentAdapter(),
         gitTransports: ['https', 'ssh', 'http', 'file'],
         targets: [
-          {
+          buildMockExecutionTarget({
             id: 'local',
             kind: 'local-pty',
-            options: {},
             identity: 'test:local',
             provider: new LocalPTYProvider(),
-          },
-          { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+          }),
+          buildMockExecutionTarget({
+            id: 'box',
+            kind: box.kind,
+            identity: 'test:box',
+            provider: box,
+          }),
         ],
       }),
     });
@@ -1504,14 +1631,18 @@ test('it refuses a workspace spawn whose cwd is relative before anything runs', 
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -1539,14 +1670,18 @@ test('it refuses a directory outside git as the workspace of a target off the da
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -1576,20 +1711,18 @@ test('it runs a local session in a directory outside git as it stands', async ()
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -1622,20 +1755,18 @@ test('it refuses to run a local repository in place when git cannot read its con
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -1662,20 +1793,18 @@ test('it refuses to run a local repository in place when git does not trust its 
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -1707,20 +1836,18 @@ test('it runs a local spawn without a workspace in a repository git cannot read'
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -1744,20 +1871,18 @@ test('it refuses a local directory outside git as the workspace of a spawn elsew
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -1787,20 +1912,18 @@ test('it materializes a git source on the local target like on any other', async
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -1837,20 +1960,18 @@ test('it materializes a git source without a cwd under the home on the local tar
       gitTransports: ['https', 'ssh', 'http', 'file'],
       homeDir: home,
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -1896,20 +2017,18 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
       gitTransports: ['https', 'ssh', 'http', 'file'],
       homeDir: home,
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -1951,20 +2070,18 @@ test('it lands a git source without a cwd under the root the config sets for its
         targetRoots: new Map([['box', root]]),
       },
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -1993,14 +2110,18 @@ test('it refuses a git source without a cwd whose root it cannot write after one
       gitTransports: ['https', 'ssh', 'http', 'file'],
       workspaceRoots: { root, targetRoots: new Map() },
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2033,20 +2154,18 @@ test('it refuses a spawn without a cwd or a workspace as bad_args', async () => 
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -2072,14 +2191,18 @@ test('it refuses a spawn without a cwd whose workspace is not a git source befor
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2108,20 +2231,18 @@ test('it runs a local spawn without a workspace in its directory as it stands', 
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -2151,20 +2272,18 @@ test('it checks out the sha of a git source that holds both on the branch its re
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -2214,14 +2333,18 @@ test("it runs git from the daemon's PATH for a git spawn on an allowed transport
     options: () => ({
       adapter: buildMockAgentAdapter(),
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2251,14 +2374,18 @@ test('it refuses a git source on a local transport before it runs git, transferr
     options: () => ({
       adapter: buildMockAgentAdapter(),
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2298,14 +2425,18 @@ test('it refuses a path source whose origin is a local repository, in git, trans
     options: () => ({
       adapter: buildMockAgentAdapter(),
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2335,14 +2466,18 @@ test('it holds a probe to the configured transports whatever transports it carri
     options: () => ({
       adapter: buildMockAgentAdapter(),
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2370,14 +2505,18 @@ test('it holds a spawn to the configured transports whatever transports it carri
     options: () => ({
       adapter: buildMockAgentAdapter(),
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2405,14 +2544,18 @@ test('it refuses a git source that carries transports of its own as bad_args', a
     options: () => ({
       adapter: buildMockAgentAdapter(),
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2447,14 +2590,18 @@ test('it holds git to the configured transports whatever the daemon environment 
     options: () => ({
       adapter: buildMockAgentAdapter(),
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2492,20 +2639,18 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -2533,14 +2678,18 @@ test("it runs git from the daemon's PATH for a probe under a valid transport lis
     options: () => ({
       adapter: buildMockAgentAdapter(),
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2570,14 +2719,18 @@ test('it refuses a probe under an invalid transport list before any git runs', a
           "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
       },
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2618,14 +2771,18 @@ test('it refuses a git spawn under an invalid transport list before any git runs
           "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
       },
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2663,14 +2820,18 @@ test("it runs git from the daemon's PATH for a checkout spawn under a valid tran
     options: () => ({
       adapter: buildMockAgentAdapter(),
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2704,14 +2865,18 @@ test('it refuses a checkout spawn under an invalid transport list before any git
           "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
       },
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        { id: 'box', kind: box.kind, options: {}, identity: 'test:box', provider: box },
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
       ],
     }),
   });
@@ -2751,20 +2916,18 @@ test('it spawns a local session under an invalid transport list', async () => {
           "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
       },
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });
@@ -2789,20 +2952,18 @@ test('it spawns a local session in a directory outside git under an invalid tran
           "workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
       },
       targets: [
-        {
+        buildMockExecutionTarget({
           id: 'local',
           kind: 'local-pty',
-          options: {},
           identity: 'test:local',
           provider: new LocalPTYProvider(),
-        },
-        {
+        }),
+        buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
-          options: {},
           identity: 'test:box',
           provider: buildStubDirProvider(),
-        },
+        }),
       ],
     }),
   });

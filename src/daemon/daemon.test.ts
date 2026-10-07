@@ -10,6 +10,7 @@ import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildStubClock } from '../test-utils/build-stub-clock';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { spawnNamedSession } from '../test-utils/spawn-named-session';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -303,13 +304,12 @@ test('it refuses session.spawn with agent grok as unsupported and records no ses
 
   const spawn = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'grok' });
 
-  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
-
-  await spawn.catch(() => null);
+  await Promise.allSettled([spawn]);
 
   const list = await ctx.client.sendRequest('session.list');
   const fleet = await ctx.client.sendRequest('fleet.list');
 
+  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
   expect({ list, fleet }).toStrictEqual({ list: { sessions: [] }, fleet: { fleet: [] } });
 });
 
@@ -762,9 +762,22 @@ test('it holds events.read open while no event arrives within waitMs', async () 
 });
 
 test('it answers events.read with no events once waitMs passes without one', async () => {
-  await using ctx = await setupTest();
+  const clock = buildStubClock(0);
 
-  const answer = await ctx.client.sendRequest('events.read', { waitMs: 1 });
+  await using ctx = await startTestDaemon({
+    prefix: 'atc-daemon-',
+    options: () => ({ adapter: buildMockAgentAdapter(), clock }),
+  });
+
+  const read = ctx.client.sendRequest('events.read', { waitMs: 30_000 });
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([30_000]);
+  });
+
+  clock.advance(30_000);
+
+  const answer = await read;
 
   expect(answer).toStrictEqual({ events: [], cursor: expect.any(String), more: false });
 });
