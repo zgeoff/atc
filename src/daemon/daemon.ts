@@ -206,6 +206,11 @@ export interface DaemonOptions {
     root: string | null;
     targetRoots: ReadonlyMap<string, string>;
   }>;
+
+  // The home a git workspace without a directory lands under on a target
+  // on the daemon's own machine when no root applies; the daemon user's
+  // home when unset.
+  readonly homeDir?: string;
 }
 
 // The TCP listener's address and the file holding the tokens a handshake
@@ -1492,7 +1497,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       buildDefaultWorkspaceDir(source, {
         root: opts.workspaceRoots?.targetRoots.get(target) ?? opts.workspaceRoots?.root ?? null,
         remote: mgr.requireExecution({ target, targetIdentity: null }, 'run').provider.remote,
-        home: resolveHomeDir(),
+        home: opts.homeDir ?? resolveHomeDir(),
       }),
     requireAgentTarget: (agent, target) => {
       mgr.requireAgentTarget(agent, target);

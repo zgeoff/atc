@@ -1,4 +1,4 @@
-import { expect, spyOn, test } from 'bun:test';
+import { expect, jest, mock, onTestFinished, spyOn, test } from 'bun:test';
 import { ScreenModel } from './screen-model';
 import { SessionRuntime } from './session-runtime';
 
@@ -12,115 +12,91 @@ test('it stops its screen model on dispose', () => {
 
   runtime.dispose();
 
-  expect(stop).toHaveBeenCalledTimes(1);
+  expect(stop).toHaveBeenCalledOnce();
   expect(runtime.screen).toBeNull();
 });
 
-test('it clears its resize, detect, and boot timers on dispose so they never fire', async () => {
+test('it clears its resize, detect, and boot timers on dispose so they never fire', () => {
+  jest.useFakeTimers();
+
+  onTestFinished(() => jest.useRealTimers());
+
   const runtime = new SessionRuntime();
 
-  let resizeFired = false;
-  let detectFired = false;
-  let bootFired = false;
+  const resize = mock(() => {});
+  const detect = mock(() => {});
+  const boot = mock(() => {});
 
-  runtime.resizeTimer = setTimeout(() => {
-    resizeFired = true;
-  }, 20);
-
-  runtime.detectTimer = setTimeout(() => {
-    detectFired = true;
-  }, 20);
-
-  runtime.bootTimer = setTimeout(() => {
-    bootFired = true;
-  }, 20);
+  runtime.resizeTimer = setTimeout(resize, 20);
+  runtime.detectTimer = setTimeout(detect, 20);
+  runtime.bootTimer = setTimeout(boot, 20);
 
   runtime.dispose();
+  jest.advanceTimersByTime(20);
 
-  await Bun.sleep(40);
-
-  expect(resizeFired).toBe(false);
-  expect(detectFired).toBe(false);
-  expect(bootFired).toBe(false);
+  expect(resize).not.toHaveBeenCalled();
+  expect(detect).not.toHaveBeenCalled();
+  expect(boot).not.toHaveBeenCalled();
 });
 
 test('it stops a live headless run on dispose', () => {
   const runtime = new SessionRuntime();
 
-  let stopped = false;
+  const stop = mock(() => {});
 
-  runtime.headlessRun = {
-    stop() {
-      stopped = true;
-    },
-  };
+  runtime.headlessRun = { stop };
 
   runtime.dispose();
 
-  expect(stopped).toBe(true);
+  expect(stop).toHaveBeenCalledOnce();
   expect(runtime.headlessRun).toBeNull();
 });
 
 test('it settles a pending eject waiter on dispose', () => {
   const runtime = new SessionRuntime();
 
-  let resolved = false;
+  const resolve = mock(() => {});
 
-  runtime.pendingEject = () => {
-    resolved = true;
-  };
+  runtime.pendingEject = resolve;
 
   runtime.dispose();
 
-  expect(resolved).toBe(true);
+  expect(resolve).toHaveBeenCalledOnce();
   expect(runtime.pendingEject).toBeNull();
 });
 
 test('it settles a pending boot waiter on dispose', () => {
   const runtime = new SessionRuntime();
 
-  let resolved = false;
+  const resolve = mock(() => {});
 
-  runtime.bootWaiter = () => {
-    resolved = true;
-  };
+  runtime.bootWaiter = resolve;
 
   runtime.dispose();
 
-  expect(resolved).toBe(true);
+  expect(resolve).toHaveBeenCalledOnce();
   expect(runtime.bootWaiter).toBeNull();
 });
 
-test('it is safe to dispose twice', () => {
+test('it releases each resource only once when disposed twice', () => {
   const runtime = new SessionRuntime();
   const model = new ScreenModel(20, 5);
 
-  const stop = spyOn(model, 'stop');
-  let headlessStops = 0;
-  let ejectResolves = 0;
-  let bootResolves = 0;
+  const stopScreen = spyOn(model, 'stop');
+  const stopHeadless = mock(() => {});
+  const resolveEject = mock(() => {});
+  const resolveBoot = mock(() => {});
 
   runtime.screen = model;
-
-  runtime.headlessRun = {
-    stop() {
-      headlessStops++;
-    },
-  };
-
-  runtime.pendingEject = () => {
-    ejectResolves++;
-  };
-
-  runtime.bootWaiter = () => {
-    bootResolves++;
-  };
+  runtime.headlessRun = { stop: stopHeadless };
+  runtime.pendingEject = resolveEject;
+  runtime.bootWaiter = resolveBoot;
 
   runtime.dispose();
   runtime.dispose();
 
-  expect(stop).toHaveBeenCalledTimes(1);
-  expect(headlessStops).toBe(1);
-  expect(ejectResolves).toBe(1);
-  expect(bootResolves).toBe(1);
+  expect(stopScreen).toHaveBeenCalledOnce();
+  expect(stopHeadless).toHaveBeenCalledOnce();
+  expect(resolveEject).toHaveBeenCalledOnce();
+  expect(resolveBoot).toHaveBeenCalledOnce();
 });

@@ -30,7 +30,31 @@ test('it reads every row from the start of a transcript', async () => {
   expect(page.more).toBe(false);
 });
 
-test('it stops at the row limit and resumes from the returned offset', async () => {
+test('it stops at the row limit and reports more rows', async () => {
+  await using temp = setupTempDir('atc-transcript-');
+
+  const path = join(temp.dir, 't.jsonl');
+
+  writeFileSync(
+    path,
+    '{"type":"user","message":{"role":"user","content":"one"}}\n' +
+      '{"type":"user","message":{"role":"user","content":"two"}}\n' +
+      '{"type":"user","message":{"role":"user","content":"three"}}\n',
+  );
+
+  const page = await loadTranscriptPage({
+    path,
+    from: null,
+    limit: 2,
+    maxBytes: 262_144,
+    parseLine: parseClaudeTranscriptLine,
+  });
+
+  expect(page.rows.map((row) => row.text)).toStrictEqual(['one', 'two']);
+  expect(page.more).toBe(true);
+});
+
+test('it resumes from the offset a page at the row limit returns', async () => {
   await using temp = setupTempDir('atc-transcript-');
 
   const path = join(temp.dir, 't.jsonl');
@@ -58,8 +82,6 @@ test('it stops at the row limit and resumes from the returned offset', async () 
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(first.rows).toHaveLength(2);
-  expect(first.more).toBe(true);
   expect(second.rows.map((row) => row.text)).toStrictEqual(['three']);
   expect(second.more).toBe(false);
 });
@@ -92,14 +114,36 @@ test('it picks up rows appended after the last read', async () => {
   expect(second.rows.map((row) => row.text)).toStrictEqual(['two']);
 });
 
-test('it leaves a trailing partial line for the next read', async () => {
+test('it leaves a trailing partial line unread', async () => {
   await using temp = setupTempDir('atc-transcript-');
 
   const path = join(temp.dir, 't.jsonl');
   const complete = '{"type":"user","message":{"role":"user","content":"one"}}\n';
-  const partial = '{"type":"user","message":{"role":"user","content":"two"}}\n'.trimEnd();
 
-  writeFileSync(path, complete + partial);
+  writeFileSync(path, `${complete}{"type":"user","message":{"role":"user","content":"two"}}`);
+
+  const page = await loadTranscriptPage({
+    path,
+    from: null,
+    limit: 50,
+    maxBytes: 262_144,
+    parseLine: parseClaudeTranscriptLine,
+  });
+
+  expect(page.rows.map((row) => row.text)).toStrictEqual(['one']);
+  expect(page.offset).toBe(Buffer.byteLength(complete));
+});
+
+test('it reads a partial line once a later write completes it', async () => {
+  await using temp = setupTempDir('atc-transcript-');
+
+  const path = join(temp.dir, 't.jsonl');
+
+  writeFileSync(
+    path,
+    '{"type":"user","message":{"role":"user","content":"one"}}\n' +
+      '{"type":"user","message":{"role":"user","content":"two"}}',
+  );
 
   const first = await loadTranscriptPage({
     path,
@@ -119,8 +163,6 @@ test('it leaves a trailing partial line for the next read', async () => {
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(first.rows.map((row) => row.text)).toStrictEqual(['one']);
-  expect(first.offset).toBe(Buffer.byteLength(complete));
   expect(second.rows.map((row) => row.text)).toStrictEqual(['two']);
 });
 
@@ -233,6 +275,8 @@ test('it returns when the file shrinks while it is being read', async () => {
   const path = join(temp.dir, 't.jsonl');
   const line = '{"type":"user","message":{"role":"user","content":"row"}}\n';
 
+  // The file spans more than one 1 MiB read window, so a read runs after the
+  // shrink.
   writeFileSync(path, line.repeat(30_000));
 
   let truncated = false;

@@ -1,7 +1,9 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, onTestFinished, test } from 'bun:test';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
+import { DaemonError } from '../protocol/daemon-error';
 import { buildStubExecutionProvider } from './build-stub-execution-provider';
 import { setupTempDir } from './setup-temp-dir';
+import { waitFor } from './wait-for';
 
 test('it builds a provider with the capabilities of a local pseudo-terminal', () => {
   expect(buildStubExecutionProvider()).toStrictEqual({
@@ -103,5 +105,123 @@ test('it suspends and destroys again once a failure is cleared', async () => {
   expect({ suspended: provider.suspended, destroyed: provider.destroyed }).toStrictEqual({
     suspended: ['host-a'],
     destroyed: ['host-a'],
+  });
+});
+
+test('it reports a harness spec and starts the harness on a local terminal', async () => {
+  using tmp = setupTempDir('atc-stub-provider-');
+
+  const onSpawn = mock(() => {});
+  const provider = buildStubExecutionProvider({ onSpawn });
+
+  const spec = {
+    session: 's1',
+    host: 's1',
+    bin: 'sh',
+    args: ['-c', 'exit 7'],
+    cwd: tmp.dir,
+    env: {},
+    cols: 80,
+    rows: 24,
+  };
+
+  const exited = Promise.withResolvers<number>();
+  const harness = provider.spawnHarness(spec);
+
+  harness.onExit((exit) => {
+    exited.resolve(exit.exitCode);
+  });
+
+  const exitCode = await exited.promise;
+
+  expect(onSpawn).toHaveBeenCalledExactlyOnceWith(spec);
+  expect(exitCode).toBe(7);
+});
+
+test('it aborts the spawn with the error the spawn report throws, before the local start runs', () => {
+  using tmp = setupTempDir('atc-stub-provider-');
+
+  const failure = new Error('the harness could not start');
+
+  const provider = buildStubExecutionProvider({
+    onSpawn: () => {
+      throw failure;
+    },
+  });
+
+  // The local start refuses a spec that requires a broker with an error of
+  // its own before it starts a process, so the error that comes back shows
+  // which ran first.
+  const spawn = () =>
+    provider.spawnHarness({
+      session: 's1',
+      host: 's1',
+      bin: 'sh',
+      args: ['-c', 'exit 0'],
+      cwd: tmp.dir,
+      env: {},
+      cols: 80,
+      rows: 24,
+      requireBroker: true,
+    });
+
+  expect(spawn).toThrow(failure);
+});
+
+test('it refuses a spec that requires a broker through the local start when the spawn report passes', () => {
+  using tmp = setupTempDir('atc-stub-provider-');
+
+  const provider = buildStubExecutionProvider();
+
+  const spawn = () =>
+    provider.spawnHarness({
+      session: 's1',
+      host: 's1',
+      bin: 'sh',
+      args: ['-c', 'exit 0'],
+      cwd: tmp.dir,
+      env: {},
+      cols: 80,
+      rows: 24,
+      requireBroker: true,
+    });
+
+  expect(spawn).toThrow(
+    new DaemonError(
+      'auth_target_unsupported',
+      "the daemon's own machine has no credential broker to start the harness behind",
+      { provider: 'local-pty' },
+    ),
+  );
+});
+
+test('it starts a harness that runs until it is killed', async () => {
+  using tmp = setupTempDir('atc-stub-provider-');
+
+  const provider = buildStubExecutionProvider();
+
+  const harness = provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sh',
+    args: ['-c', 'echo harness-up; exec sleep 30'],
+    cwd: tmp.dir,
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  onTestFinished(() => {
+    harness.kill();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('harness-up');
   });
 });
