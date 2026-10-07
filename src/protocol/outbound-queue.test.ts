@@ -1,29 +1,25 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { expect, test } from 'bun:test';
+import { once } from 'node:events';
 import { connect } from 'node:net';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { Socket } from 'bun';
+import { setupTempDir } from '../../test/setup-temp-dir';
+import { waitFor } from '../../test/wait-for';
 import { OutboundQueue } from './outbound-queue';
 
-interface QueueContext {
-  readonly sockPath: string;
-  readonly waitForQueue: () => Promise<OutboundQueue>;
-}
+// A Unix socket server and a paused client connected to it. The server's
+// drain callback flushes whatever queue the test hangs on the socket.
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
-function setupQueueServer(capacity?: number): QueueContext {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-queue-'));
-  const sockPath = join(dir, 'q.sock');
-  const resolvers = Promise.withResolvers<OutboundQueue>();
+  const temp = stack.use(setupTempDir('atc-queue-'));
+  const opened = Promise.withResolvers<Socket<{ queue: OutboundQueue }>>();
 
   const server = Bun.listen<{ queue: OutboundQueue }>({
-    unix: sockPath,
+    unix: join(temp.dir, 'q.sock'),
     socket: {
       open(socket) {
-        const queue = new OutboundQueue(socket, capacity);
-
-        socket.data = { queue };
-
-        resolvers.resolve(queue);
+        opened.resolve(socket);
       },
       drain(socket) {
         socket.data.queue.drain();
@@ -33,134 +29,139 @@ function setupQueueServer(capacity?: number): QueueContext {
     },
   });
 
-  onTestFinished(() => {
+  stack.defer(() => {
     server.stop(true);
-
-    rmSync(dir, { recursive: true, force: true });
   });
 
-  return { sockPath, waitForQueue: () => resolvers.promise };
-}
+  const client = connect(join(temp.dir, 'q.sock'));
 
-test('it delivers every byte to a slow reader without loss', async () => {
-  const ctx = setupQueueServer(8 * 1024 * 1024);
-  const client = connect(ctx.sockPath);
-
-  onTestFinished(() => {
+  stack.defer(() => {
     client.destroy();
   });
 
   client.pause();
 
-  await new Promise<void>((resolve) => {
-    client.once('connect', () => {
-      resolve();
-    });
-  });
+  await once(client, 'connect');
 
-  const queue = await ctx.waitForQueue();
+  const socket = await opened.promise;
 
-  const lines: string[] = [];
+  const owned = stack.move();
 
-  for (let i = 0; i < 10_000; i++) {
-    lines.push(`{"v":1,"ev":"SessionOutput","s":"s1","seq":${i},"d":"${'x'.repeat(120)}"}\n`);
-  }
+  return { client, socket, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+}
+
+test('it parks what a paused reader cannot take instead of refusing it', async () => {
+  await using ctx = await setupTest();
+
+  const queue = new OutboundQueue(ctx.socket, 8 * 1024 * 1024);
+
+  ctx.socket.data = { queue };
+
+  const accepted = Array.from({ length: 10_000 }, (_, i) =>
+    queue.send(`{"v":1,"ev":"SessionOutput","s":"s1","seq":${i},"d":"${'x'.repeat(120)}"}\n`),
+  );
+
+  expect(accepted).toSatisfyAll((ok: boolean) => ok);
+  expect(queue.queuedBytes).toBePositive();
+});
+
+test('it delivers every byte to a slow reader without loss', async () => {
+  await using ctx = await setupTest();
+
+  const queue = new OutboundQueue(ctx.socket, 8 * 1024 * 1024);
+
+  ctx.socket.data = { queue };
+
+  const lines = Array.from(
+    { length: 10_000 },
+    (_, i) => `{"v":1,"ev":"SessionOutput","s":"s1","seq":${i},"d":"${'x'.repeat(120)}"}\n`,
+  );
+
+  const expected = lines.join('');
 
   for (const line of lines) {
-    const accepted = queue.send(line);
-
-    if (!accepted) {
-      throw new Error('queue refused a payload below capacity');
-    }
+    queue.send(line);
   }
-
-  expect(queue.queuedBytes).toBePositive();
 
   let received = '';
 
-  client.on('data', (chunk: Buffer) => {
+  ctx.client.on('data', (chunk: Buffer) => {
     received += chunk.toString('utf8');
   });
 
-  client.resume();
+  ctx.client.resume();
 
-  const expected = lines.join('');
-  const deadline = Date.now() + 10_000;
-
-  while (received.length < expected.length && Date.now() < deadline) {
-    await Bun.sleep(20);
-  }
+  await waitFor(
+    () => {
+      expect(received.length).toBeGreaterThanOrEqual(expected.length);
+    },
+    { timeoutMs: 4000 },
+  );
 
   expect(received).toBe(expected);
   expect(queue.queuedBytes).toBe(0);
 });
 
-test('it refuses a whole payload once the queue is over capacity', async () => {
-  const ctx = setupQueueServer(64);
-  const client = connect(ctx.sockPath);
+test('it queues the unwritten rest of a payload past its capacity', async () => {
+  await using ctx = await setupTest();
 
-  onTestFinished(() => {
-    client.destroy();
-  });
+  const queue = new OutboundQueue(ctx.socket, 64);
 
-  client.pause();
-
-  await new Promise<void>((resolve) => {
-    client.once('connect', () => {
-      resolve();
-    });
-  });
-
-  const queue = await ctx.waitForQueue();
+  ctx.socket.data = { queue };
 
   // Large enough that the kernel buffer cannot absorb it, so a remainder
   // parks in the queue and pushes it past its 64-byte capacity.
-  const first = queue.send('a'.repeat(4 * 1024 * 1024));
+  const accepted = queue.send('a'.repeat(4 * 1024 * 1024));
 
-  expect(first).toBeTrue();
-  expect(queue.queuedBytes).toBeGreaterThan(64);
-
-  const second = queue.send('b');
-
-  expect(second).toBeFalse();
+  expect(accepted).toBeTrue();
   expect(queue.queuedBytes).toBeGreaterThan(64);
 });
 
+test('it refuses a whole payload once the queue is over capacity', async () => {
+  await using ctx = await setupTest();
+
+  const queue = new OutboundQueue(ctx.socket, 64);
+
+  ctx.socket.data = { queue };
+
+  // Large enough that the kernel buffer cannot absorb it, so a remainder
+  // parks in the queue and pushes it past its 64-byte capacity.
+  queue.send('a'.repeat(4 * 1024 * 1024));
+
+  const queuedBefore = queue.queuedBytes;
+  const accepted = queue.send('b');
+
+  expect(accepted).toBeFalse();
+  expect(queue.queuedBytes).toBe(queuedBefore);
+});
+
 test('it preserves payload order across short writes and drains', async () => {
-  const ctx = setupQueueServer(8 * 1024 * 1024);
-  const client = connect(ctx.sockPath);
+  await using ctx = await setupTest();
 
-  onTestFinished(() => {
-    client.destroy();
-  });
+  const queue = new OutboundQueue(ctx.socket, 8 * 1024 * 1024);
 
-  client.pause();
+  ctx.socket.data = { queue };
 
-  await new Promise<void>((resolve) => {
-    client.once('connect', () => {
-      resolve();
-    });
-  });
+  const lines = Array.from({ length: 5000 }, (_, i) => `line-${i}\n`);
 
-  const queue = await ctx.waitForQueue();
-
-  for (let i = 0; i < 5000; i++) {
-    queue.send(`line-${i}\n`);
+  for (const line of lines) {
+    queue.send(line);
   }
 
   let received = '';
 
-  client.on('data', (chunk: Buffer) => {
+  ctx.client.on('data', (chunk: Buffer) => {
     received += chunk.toString('utf8');
   });
 
-  client.resume();
+  ctx.client.resume();
 
-  const deadline = Date.now() + 10_000;
-
-  while (!received.endsWith('line-4999\n') && Date.now() < deadline) {
-    await Bun.sleep(20);
-  }
+  await waitFor(
+    () => {
+      expect(received).toEndWith('line-4999\n');
+    },
+    { timeoutMs: 4000 },
+  );
 
   const numbers = received
     .trimEnd()

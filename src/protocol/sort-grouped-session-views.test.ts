@@ -1,166 +1,147 @@
 import { expect, test } from 'bun:test';
-import type { SessionState } from './session-state';
 import { sortGroupedSessionViews } from './sort-grouped-session-views';
-import { sortSessionViews } from './sort-session-views';
-
-interface View {
-  readonly id: string;
-  readonly parent: string | null;
-  readonly state: SessionState;
-  readonly pinned: boolean;
-  readonly lastAttachedAt: number;
-  readonly createdAt: number;
-  readonly repoRoot: string;
-}
-
-function buildView(
-  id: string,
-  state: SessionState,
-  lastAttachedAt: number,
-  overrides: Partial<Pick<View, 'pinned' | 'repoRoot' | 'parent'>> = {},
-): View {
-  return {
-    id,
-    parent: overrides.parent ?? null,
-    state,
-    pinned: overrides.pinned ?? false,
-    lastAttachedAt,
-    createdAt: lastAttachedAt,
-    repoRoot: overrides.repoRoot ?? `/repo/${id}`,
-  };
-}
-
-test('it leads with pinned sessions in most-recently-attached order', () => {
-  const fleet = [
-    buildView('busy', 'running', 9),
-    buildView('pinned-old', 'running', 1, { pinned: true }),
-    buildView('urgent', 'needs_you', 5),
-    buildView('pinned-new', 'done', 2, { pinned: true }),
-  ];
-
-  const ids = sortSessionViews(fleet).map((s) => s.id);
-
-  expect(ids).toEqual(['pinned-new', 'pinned-old', 'urgent', 'busy']);
-});
-
-test('it orders unpinned sessions by urgency, then most recently attached', () => {
-  const fleet = [
-    buildView('dead', 'exited', 9),
-    buildView('busy-stale', 'running', 1),
-    buildView('busy-fresh', 'running', 8),
-    buildView('finished', 'done', 2),
-    buildView('urgent', 'needs_you', 3),
-  ];
-
-  const ids = sortSessionViews(fleet).map((s) => s.id);
-
-  expect(ids).toEqual(['urgent', 'finished', 'busy-fresh', 'busy-stale', 'dead']);
-});
+import type { SortableSessionView } from './sortable-session-view';
 
 test('it clusters sessions sharing a repository even when states interleave', () => {
-  const fleet = [
-    buildView('a', 'running', 1, { repoRoot: '/repo/pocketknife' }),
-    buildView('b', 'running', 2, { repoRoot: '/repo/spicers' }),
-    buildView('c', 'needs_you', 3, { repoRoot: '/repo/pocketknife' }),
-    buildView('d', 'done', 4, { repoRoot: '/repo/spicers' }),
-    buildView('e', 'running', 5, { repoRoot: '/repo/pocketknife' }),
+  const fleet: (SortableSessionView & { readonly repoRoot: string })[] = [
+    {
+      id: 'a',
+      parent: null,
+      state: 'running',
+      pinned: false,
+      lastAttachedAt: 1,
+      createdAt: 1,
+      repoRoot: '/repo/pocketknife',
+    },
+    {
+      id: 'b',
+      parent: null,
+      state: 'running',
+      pinned: false,
+      lastAttachedAt: 2,
+      createdAt: 2,
+      repoRoot: '/repo/spicers',
+    },
+    {
+      id: 'c',
+      parent: null,
+      state: 'needs_you',
+      pinned: false,
+      lastAttachedAt: 3,
+      createdAt: 3,
+      repoRoot: '/repo/pocketknife',
+    },
+    {
+      id: 'd',
+      parent: null,
+      state: 'done',
+      pinned: false,
+      lastAttachedAt: 4,
+      createdAt: 4,
+      repoRoot: '/repo/spicers',
+    },
+    {
+      id: 'e',
+      parent: null,
+      state: 'running',
+      pinned: false,
+      lastAttachedAt: 5,
+      createdAt: 5,
+      repoRoot: '/repo/pocketknife',
+    },
   ];
 
   const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
 
-  expect(ids).toEqual(['c', 'e', 'a', 'd', 'b']);
+  expect(ids).toStrictEqual(['c', 'e', 'a', 'd', 'b']);
 });
 
 test('it orders repository clusters by their most urgent member', () => {
-  const fleet = [
-    buildView('calm', 'running', 9, { repoRoot: '/repo/alpha' }),
-    buildView('urgent', 'needs_you', 1, { repoRoot: '/repo/beta' }),
+  const fleet: (SortableSessionView & { readonly repoRoot: string })[] = [
+    {
+      id: 'calm',
+      parent: null,
+      state: 'running',
+      pinned: false,
+      lastAttachedAt: 9,
+      createdAt: 9,
+      repoRoot: '/repo/alpha',
+    },
+    {
+      id: 'urgent',
+      parent: null,
+      state: 'needs_you',
+      pinned: false,
+      lastAttachedAt: 1,
+      createdAt: 1,
+      repoRoot: '/repo/beta',
+    },
   ];
 
   const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
 
-  expect(ids).toEqual(['urgent', 'calm']);
+  expect(ids).toStrictEqual(['urgent', 'calm']);
 });
 
 test('it pulls pinned sessions out of their repositories into a leading cluster', () => {
-  const fleet = [
-    buildView('worker', 'needs_you', 9, { repoRoot: '/repo/alpha' }),
-    buildView('starred', 'running', 1, { pinned: true, repoRoot: '/repo/alpha' }),
+  const fleet: (SortableSessionView & { readonly repoRoot: string })[] = [
+    {
+      id: 'worker',
+      parent: null,
+      state: 'needs_you',
+      pinned: false,
+      lastAttachedAt: 9,
+      createdAt: 9,
+      repoRoot: '/repo/alpha',
+    },
+    {
+      id: 'starred',
+      parent: null,
+      state: 'running',
+      pinned: true,
+      lastAttachedAt: 1,
+      createdAt: 1,
+      repoRoot: '/repo/alpha',
+    },
   ];
 
   const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
 
-  expect(ids).toEqual(['starred', 'worker']);
-});
-
-test('it lists a sub-session directly under its parent', () => {
-  const fleet = [
-    buildView('other', 'running', 9),
-    buildView('worker', 'running', 8, { parent: 'wrangler' }),
-    buildView('wrangler', 'running', 1),
-  ];
-
-  const ids = sortSessionViews(fleet).map((s) => s.id);
-
-  expect(ids).toEqual(['other', 'wrangler', 'worker']);
-});
-
-test('it never moves a parent for the attention of its sub-sessions', () => {
-  const fleet = [
-    buildView('other', 'done', 9),
-    buildView('worker', 'needs_you', 8, { parent: 'wrangler' }),
-    buildView('wrangler', 'running', 1),
-  ];
-
-  const ids = sortSessionViews(fleet).map((s) => s.id);
-
-  expect(ids).toEqual(['other', 'wrangler', 'worker']);
-});
-
-test('it orders sub-sessions by urgency among their siblings', () => {
-  const fleet = [
-    buildView('wrangler', 'running', 1),
-    buildView('idle', 'running', 3, { parent: 'wrangler' }),
-    buildView('urgent', 'needs_you', 2, { parent: 'wrangler' }),
-    buildView('finished', 'done', 4, { parent: 'wrangler' }),
-  ];
-
-  const ids = sortSessionViews(fleet).map((s) => s.id);
-
-  expect(ids).toEqual(['wrangler', 'urgent', 'finished', 'idle']);
-});
-
-test('it ranks a sub-session whose parent is not listed as a top-level row', () => {
-  const fleet = [
-    buildView('busy', 'running', 9),
-    buildView('orphan', 'needs_you', 1, { parent: 'gone' }),
-  ];
-
-  const ids = sortSessionViews(fleet).map((s) => s.id);
-
-  expect(ids).toEqual(['orphan', 'busy']);
-});
-
-test('it keeps a pinned parent and its sub-sessions together at the top', () => {
-  const fleet = [
-    buildView('urgent', 'needs_you', 9),
-    buildView('worker', 'running', 8, { parent: 'wrangler' }),
-    buildView('wrangler', 'running', 1, { pinned: true }),
-  ];
-
-  const ids = sortSessionViews(fleet).map((s) => s.id);
-
-  expect(ids).toEqual(['wrangler', 'worker', 'urgent']);
+  expect(ids).toStrictEqual(['starred', 'worker']);
 });
 
 test('it groups a sub-session under its parent repository, not its own', () => {
-  const fleet = [
-    buildView('wrangler', 'running', 1, { repoRoot: '/repo/alpha' }),
-    buildView('worker', 'running', 2, { parent: 'wrangler', repoRoot: '/repo/beta' }),
-    buildView('other', 'running', 3, { repoRoot: '/repo/beta' }),
+  const fleet: (SortableSessionView & { readonly repoRoot: string })[] = [
+    {
+      id: 'wrangler',
+      parent: null,
+      state: 'running',
+      pinned: false,
+      lastAttachedAt: 1,
+      createdAt: 1,
+      repoRoot: '/repo/alpha',
+    },
+    {
+      id: 'worker',
+      parent: 'wrangler',
+      state: 'running',
+      pinned: false,
+      lastAttachedAt: 2,
+      createdAt: 2,
+      repoRoot: '/repo/beta',
+    },
+    {
+      id: 'other',
+      parent: null,
+      state: 'running',
+      pinned: false,
+      lastAttachedAt: 3,
+      createdAt: 3,
+      repoRoot: '/repo/beta',
+    },
   ];
 
   const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
 
-  expect(ids).toEqual(['other', 'wrangler', 'worker']);
+  expect(ids).toStrictEqual(['other', 'wrangler', 'worker']);
 });
