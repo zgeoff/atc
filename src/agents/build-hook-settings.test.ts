@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test';
-import { z } from 'zod';
 import { buildHookSettings } from './build-hook-settings';
 
 test('it never writes a credential into the settings a session is started with', () => {
@@ -102,7 +101,7 @@ test('it carries the backend in an env block, which outranks a shell export', ()
 test('it leaves out the env block and the helper for an agent that needs neither', () => {
   const settings = buildHookSettings({ id: 'claude' }, 0);
 
-  expect(Object.keys(settings)).toStrictEqual(['hooks', 'statusLine']);
+  expect(settings).toContainAllKeys(['hooks', 'statusLine']);
 });
 
 test('it leaves out an env block that was given with nothing in it', () => {
@@ -111,13 +110,8 @@ test('it leaves out an env block that was given with nothing in it', () => {
 
 test('it reports every hook the fleet needs to track a session', () => {
   const settings = buildHookSettings({ id: 'claude' }, 0);
-  const hooks = settings['hooks'];
 
-  if (typeof hooks !== 'object' || hooks === null) {
-    throw new TypeError('settings carry no hooks object');
-  }
-
-  expect(Object.keys(hooks)).toStrictEqual([
+  expect(settings['hooks']).toContainAllKeys([
     'SessionStart',
     'Notification',
     'Stop',
@@ -206,9 +200,8 @@ test('it passes through a configured key it sets nothing of its own for', () => 
 // A hooks block that is not one costs its own entries and none of atc's.
 test('it keeps its own hooks when the configured ones are malformed', () => {
   const settings = buildHookSettings({ id: 'zai', settings: { hooks: 'all of them' } }, 0);
-  const hooks = z.record(z.string(), z.unknown()).parse(settings['hooks']);
 
-  expect(Object.keys(hooks)).toStrictEqual([
+  expect(settings['hooks']).toContainAllKeys([
     'SessionStart',
     'Notification',
     'Stop',

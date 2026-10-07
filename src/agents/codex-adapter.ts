@@ -91,9 +91,14 @@ export class CodexAdapter implements AgentAdapter {
 
   private readonly authProfiles: Config['authProfiles'];
 
-  constructor(entry: AgentEntry, config?: Pick<Config, 'authProfiles'>) {
+  // The Codex home whose session index holds session titles; unset, it follows
+  // `CODEX_HOME` or the user's home at each read.
+  private readonly codexHome: string | undefined;
+
+  constructor(entry: AgentEntry, config?: Pick<Config, 'authProfiles'>, codexHome?: string) {
     this.entry = entry;
     this.authProfiles = config?.authProfiles ?? new Map();
+    this.codexHome = codexHome;
     this.id = entry.id;
 
     if (entry.auth !== undefined) {
@@ -323,7 +328,11 @@ export class CodexAdapter implements AgentAdapter {
       return Promise.resolve(null);
     }
 
-    const index = join(resolveAgentHome('CODEX_HOME', '.codex'), 'session_index.jsonl');
+    const index = join(
+      this.codexHome ?? resolveAgentHome('CODEX_HOME', '.codex'),
+      'session_index.jsonl',
+    );
+
     let text: string;
 
     try {

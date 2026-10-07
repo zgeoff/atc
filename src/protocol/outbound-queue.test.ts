@@ -129,6 +129,8 @@ test('it refuses a whole payload once the queue is over capacity', async () => {
   queue.send('a'.repeat(4 * 1024 * 1024));
 
   const queuedBefore = queue.queuedBytes;
+
+  // Even one byte more is refused whole once the queue is past capacity.
   const accepted = queue.send('b');
 
   expect(accepted).toBeFalse();

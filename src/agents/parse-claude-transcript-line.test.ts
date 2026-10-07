@@ -69,7 +69,7 @@ test.each([
   expect(parseClaudeTranscriptLine(line)).toBeNull();
 });
 
-test('it leaves at null when a line has no timestamp', () => {
+test('it reads a row with no time when a line has no timestamp', () => {
   const line = '{"type":"user","message":{"role":"user","content":"hi"}}';
 
   expect(parseClaudeTranscriptLine(line)).toStrictEqual({

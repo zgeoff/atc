@@ -1,52 +1,27 @@
 import { expect, test } from 'bun:test';
+import { buildMockSortableSessionView } from '../test-utils/build-mock-sortable-session-view';
 import { sortGroupedSessionViews } from './sort-grouped-session-views';
-import type { SortableSessionView } from './sortable-session-view';
 
 test('it clusters sessions sharing a repository even when states interleave', () => {
-  const fleet: (SortableSessionView & { readonly repoRoot: string })[] = [
+  const fleet = [
     {
-      id: 'a',
-      parent: null,
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 1,
-      createdAt: 1,
+      ...buildMockSortableSessionView({ id: 'a', state: 'running', lastAttachedAt: 1 }),
       repoRoot: '/repo/pocketknife',
     },
     {
-      id: 'b',
-      parent: null,
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 2,
-      createdAt: 2,
+      ...buildMockSortableSessionView({ id: 'b', state: 'running', lastAttachedAt: 2 }),
       repoRoot: '/repo/spicers',
     },
     {
-      id: 'c',
-      parent: null,
-      state: 'needs_you',
-      pinned: false,
-      lastAttachedAt: 3,
-      createdAt: 3,
+      ...buildMockSortableSessionView({ id: 'c', state: 'needs_you', lastAttachedAt: 3 }),
       repoRoot: '/repo/pocketknife',
     },
     {
-      id: 'd',
-      parent: null,
-      state: 'done',
-      pinned: false,
-      lastAttachedAt: 4,
-      createdAt: 4,
+      ...buildMockSortableSessionView({ id: 'd', state: 'done', lastAttachedAt: 4 }),
       repoRoot: '/repo/spicers',
     },
     {
-      id: 'e',
-      parent: null,
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 5,
-      createdAt: 5,
+      ...buildMockSortableSessionView({ id: 'e', state: 'running', lastAttachedAt: 5 }),
       repoRoot: '/repo/pocketknife',
     },
   ];
@@ -57,23 +32,13 @@ test('it clusters sessions sharing a repository even when states interleave', ()
 });
 
 test('it orders repository clusters by their most urgent member', () => {
-  const fleet: (SortableSessionView & { readonly repoRoot: string })[] = [
+  const fleet = [
     {
-      id: 'calm',
-      parent: null,
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 9,
-      createdAt: 9,
+      ...buildMockSortableSessionView({ id: 'calm', state: 'running', lastAttachedAt: 9 }),
       repoRoot: '/repo/alpha',
     },
     {
-      id: 'urgent',
-      parent: null,
-      state: 'needs_you',
-      pinned: false,
-      lastAttachedAt: 1,
-      createdAt: 1,
+      ...buildMockSortableSessionView({ id: 'urgent', state: 'needs_you', lastAttachedAt: 1 }),
       repoRoot: '/repo/beta',
     },
   ];
@@ -84,23 +49,18 @@ test('it orders repository clusters by their most urgent member', () => {
 });
 
 test('it pulls pinned sessions out of their repositories into a leading cluster', () => {
-  const fleet: (SortableSessionView & { readonly repoRoot: string })[] = [
+  const fleet = [
     {
-      id: 'worker',
-      parent: null,
-      state: 'needs_you',
-      pinned: false,
-      lastAttachedAt: 9,
-      createdAt: 9,
+      ...buildMockSortableSessionView({ id: 'worker', state: 'needs_you', lastAttachedAt: 9 }),
       repoRoot: '/repo/alpha',
     },
     {
-      id: 'starred',
-      parent: null,
-      state: 'running',
-      pinned: true,
-      lastAttachedAt: 1,
-      createdAt: 1,
+      ...buildMockSortableSessionView({
+        id: 'starred',
+        state: 'running',
+        pinned: true,
+        lastAttachedAt: 1,
+      }),
       repoRoot: '/repo/alpha',
     },
   ];
@@ -111,32 +71,22 @@ test('it pulls pinned sessions out of their repositories into a leading cluster'
 });
 
 test('it groups a sub-session under its parent repository, not its own', () => {
-  const fleet: (SortableSessionView & { readonly repoRoot: string })[] = [
+  const fleet = [
     {
-      id: 'wrangler',
-      parent: null,
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 1,
-      createdAt: 1,
+      ...buildMockSortableSessionView({ id: 'wrangler', state: 'running', lastAttachedAt: 1 }),
       repoRoot: '/repo/alpha',
     },
     {
-      id: 'worker',
-      parent: 'wrangler',
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 2,
-      createdAt: 2,
+      ...buildMockSortableSessionView({
+        id: 'worker',
+        parent: 'wrangler',
+        state: 'running',
+        lastAttachedAt: 2,
+      }),
       repoRoot: '/repo/beta',
     },
     {
-      id: 'other',
-      parent: null,
-      state: 'running',
-      pinned: false,
-      lastAttachedAt: 3,
-      createdAt: 3,
+      ...buildMockSortableSessionView({ id: 'other', state: 'running', lastAttachedAt: 3 }),
       repoRoot: '/repo/beta',
     },
   ];

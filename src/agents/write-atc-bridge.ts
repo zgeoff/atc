@@ -6,14 +6,17 @@ import { buildCLIArgv } from './build-cli-argv';
 
 /**
  * Writes the atc-bridge mod that every Claude session loads with
- * `--plugin-dir`, with the atc command it runs rendered for this install,
- * and returns its folder. A file whose content already matches is left
- * untouched, since any write reloads the mod in every running session, and
- * the folder is never cleared, since Claude Code keeps its own type files
- * there.
+ * `--plugin-dir`, with the atc command it runs rendered in (by default this
+ * install's own), and returns its folder. A file whose content already
+ * matches is left untouched, since any write reloads the mod in every running
+ * session, and the folder is never cleared, since Claude Code keeps its own
+ * type files there.
  */
-export function writeATCBridge(dir: string = join(stateDir, 'atc-bridge')): string {
-  const files = buildATCBridgeFiles(buildCLIArgv());
+export function writeATCBridge(
+  dir: string = join(stateDir, 'atc-bridge'),
+  argv: readonly string[] = buildCLIArgv(),
+): string {
+  const files = buildATCBridgeFiles(argv);
 
   for (const [path, content] of Object.entries(files)) {
     const file = join(dir, path);

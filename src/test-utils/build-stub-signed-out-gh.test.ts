@@ -17,5 +17,10 @@ test('it refuses every command with the sign-in hint and exit code 4', () => {
     exitCode: result.exitCode,
     stdout: result.stdout.toString(),
     stderr: result.stderr.toString(),
-  }).toStrictEqual({ exitCode: 4, stdout: '', stderr: 'gh auth login\n' });
+  }).toStrictEqual({
+    exitCode: 4,
+    stdout: '',
+    stderr:
+      'To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.\n',
+  });
 });

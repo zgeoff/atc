@@ -9,13 +9,10 @@ import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
 import { CodexAdapter } from './codex-adapter';
 
-// A Codex home of the test's own, where the adapter reads the session index.
+// A folder for the files a test writes: a Codex home with its session index,
+// or a rollout.
 function setupTest() {
-  const temp = setupTempDir('atc-codex-');
-
-  updateEnv('CODEX_HOME', temp.dir);
-
-  return temp;
+  return setupTempDir('atc-codex-');
 }
 
 test('it spawns a fresh codex command with the prompt', () => {
@@ -180,7 +177,7 @@ test('it maps a codex session end to ended', () => {
 });
 
 test('it loads the latest indexed thread name', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'session_index.jsonl'),
@@ -191,15 +188,34 @@ test('it loads the latest indexed thread name', async () => {
     ].join('\n'),
   );
 
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'), undefined, ctx.dir);
 
   const name = await adapter.loadName('c-1', 'auto');
 
   expect(name).toStrictEqual({ name: 'renamed title' });
 });
 
+test('it loads the indexed thread name from CODEX_HOME when built without a Codex home', async () => {
+  using ctx = setupTest();
+
+  updateEnv('CODEX_HOME', ctx.dir);
+
+  writeFileSync(
+    join(ctx.dir, 'session_index.jsonl'),
+    '{"id":"c-1","thread_name":"env title","updated_at":"2026-08-20T00:00:00Z"}\n',
+  );
+
+  const config = parseConfig({});
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
+
+  const name = await adapter.loadName('c-1', 'auto');
+
+  expect(name).toStrictEqual({ name: 'env title' });
+});
+
 test('it never loads an indexed thread name over a user-typed name', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'session_index.jsonl'),
@@ -210,7 +226,7 @@ test('it never loads an indexed thread name over a user-typed name', async () =>
     ].join('\n'),
   );
 
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'), undefined, ctx.dir);
 
   const name = await adapter.loadName('c-1', 'user');
 
@@ -218,7 +234,7 @@ test('it never loads an indexed thread name over a user-typed name', async () =>
 });
 
 test('it loads no name for a session the index lacks', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'session_index.jsonl'),
@@ -229,7 +245,7 @@ test('it loads no name for a session the index lacks', async () => {
     ].join('\n'),
   );
 
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'), undefined, ctx.dir);
 
   const name = await adapter.loadName('c-missing', 'auto');
 
@@ -442,13 +458,15 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
 
   expect({
     bin: plan?.bin,
-    args: plan?.args.slice(2),
+    args: plan?.args,
     env: plan?.env,
-    files: Object.keys(plan?.files ?? {}),
+    files: plan?.files,
     config: plan?.files['auth-r2/config.toml'],
   }).toStrictEqual({
     bin: 'sh',
     args: [
+      '-c',
+      expect.any(String),
       'sh',
       '/tmp/atc/sessions/s1/codex-home',
       '/tmp/atc/sessions/s1/auth-r2',
@@ -462,7 +480,11 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
       'go',
     ],
     env: { CODEX_HOME: '/tmp/atc/sessions/s1/codex-home' },
-    files: ['auth-r2/auth.json', 'auth-r2/config.toml', 'auth-r2/hooks.json'],
+    files: expect.toContainAllKeys([
+      'auth-r2/auth.json',
+      'auth-r2/config.toml',
+      'auth-r2/hooks.json',
+    ]),
     config: 'cli_auth_credentials_store = "file"\ncheck_for_update_on_startup = false\n',
   });
 });
