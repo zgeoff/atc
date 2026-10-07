@@ -10,12 +10,12 @@ function setupTest() {
 
   return {
     socketPath: join(tmp.dir, 'daemon.sock'),
-    [Symbol.asyncDispose]: tmp[Symbol.asyncDispose],
+    [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
 test('it answers the handshake without a feature list when given none', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const daemon = startLegacyDaemon(ctx.socketPath);
 
@@ -39,7 +39,7 @@ test('it answers the handshake without a feature list when given none', async ()
 });
 
 test('it announces the features it was given in the handshake', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const daemon = startLegacyDaemon(ctx.socketPath, { features: ['agents.list', 'message.wait'] });
 
@@ -64,14 +64,10 @@ test('it announces the features it was given in the handshake', async () => {
 });
 
 test('it answers a method with the reply it was given and records the request', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
-  const daemon = startLegacyDaemon(ctx.socketPath, {
+  using daemon = startLegacyDaemon(ctx.socketPath, {
     replies: { 'message.get': { message: 'm-1', status: 'accepted' } },
-  });
-
-  onTestFinished(() => {
-    daemon.stop();
   });
 
   const client = await DaemonClient.open(ctx.socketPath);
@@ -93,7 +89,7 @@ test('it answers a method with the reply it was given and records the request', 
 });
 
 test('it refuses a method it was given no reply for', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const daemon = startLegacyDaemon(ctx.socketPath, { features: ['agents.list'] });
 
@@ -115,7 +111,7 @@ test('it refuses a method it was given no reply for', async () => {
 });
 
 test('it answers a ping without being given a reply', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const daemon = startLegacyDaemon(ctx.socketPath);
 
@@ -137,7 +133,7 @@ test('it answers a ping without being given a reply', async () => {
 });
 
 test('it refuses a hello on another protocol version with protocol_mismatch', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const daemon = startLegacyDaemon(ctx.socketPath, { protocol: 3 });
 

@@ -87,3 +87,18 @@ test('it throws when the consent redirect holds no authorization code', async ()
     /^the consent redirect holds no authorization code: https:\/\/dots\.example\/cb\?error=access_denied&/,
   );
 });
+
+test('it throws when the consent page answers without a redirect', async () => {
+  await using server = await setupMCPHTTP();
+
+  const clientID = await server.addClient('dots', ['https://dots.example/cb']);
+
+  const authorizing = runMCPAuthorization(server, {
+    clientID,
+    redirectURI: 'https://dots.example/cb',
+    scope: 'read',
+    ticked: ['message'],
+  });
+
+  expect(authorizing).rejects.toThrowWithMessage(Error, /^consent did not redirect: 400 /);
+});

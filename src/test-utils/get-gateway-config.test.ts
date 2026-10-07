@@ -5,9 +5,8 @@ import { getGatewayConfig } from './get-gateway-config';
 test('it returns the gateway a config holds under an id', () => {
   const config = parseConfig({ gateways: { glm: { baseURL: 'https://gateway.example.com' } } });
 
-  expect(getGatewayConfig(config, 'glm') as unknown).toStrictEqual({
+  expect(getGatewayConfig(config, 'glm')).toStrictEqual({
     id: 'glm',
-    kind: 'claude',
     label: 'glm',
     mark: 'g',
     bin: 'claude',

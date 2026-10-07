@@ -24,6 +24,7 @@ export interface CutProxy {
   // How many answers the proxy has swallowed in hold mode.
   readonly countHeld: () => number;
   readonly stop: () => void;
+  readonly [Symbol.dispose]: () => void;
 }
 
 // One proxied connection: the target side once it is connected, what the
@@ -120,18 +121,21 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
     },
   });
 
+  const stop = () => {
+    for (const client of links) {
+      client.end();
+      client.data.upstream?.end();
+    }
+
+    server.stop(true);
+  };
+
   return {
     port: server.port,
     countRequests: () => requests,
     countHeld: () => held,
-    stop() {
-      for (const client of links) {
-        client.end();
-        client.data.upstream?.end();
-      }
-
-      server.stop(true);
-    },
+    stop,
+    [Symbol.dispose]: stop,
   };
 }
 

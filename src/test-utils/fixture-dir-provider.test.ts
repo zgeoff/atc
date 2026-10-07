@@ -5,12 +5,15 @@ import { $ } from 'bun';
 import { FixtureDirProvider } from './fixture-dir-provider';
 import { setupTempDir } from './setup-temp-dir';
 
+// A temp directory the provider's transfers and commands run in.
 function setupTest() {
-  return setupTempDir('atc-fixture-dir-');
+  const tmp = setupTempDir('atc-fixture-dir-');
+
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
 }
 
 test('it unpacks a transferred archive into the directory it is given and records it', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'src'));
   writeFileSync(join(ctx.dir, 'src', 'hello.txt'), 'hello\n');
@@ -29,7 +32,7 @@ test('it unpacks a transferred archive into the directory it is given and record
 });
 
 test('it runs a command in its working directory and records it', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const provider = new FixtureDirProvider();
 
@@ -40,7 +43,7 @@ test('it runs a command in its working directory and records it', async () => {
 });
 
 test('it runs the after-transfer step on the unpacked directory before the transfer resolves', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'src'));
   writeFileSync(join(ctx.dir, 'src', 'hello.txt'), 'hello\n');
@@ -107,7 +110,7 @@ test('it refuses to destroy a host', () => {
 });
 
 test('it starts a harness on a local terminal and records its spec', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const provider = new FixtureDirProvider();
 

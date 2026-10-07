@@ -29,7 +29,7 @@ interface LegacyDaemonOptions {
  * features did. It answers `daemon.hello`, `daemon.ping`, and each method in
  * `replies` with that method's reply, and refuses every other method with
  * `unknown_method`. Every request it receives is recorded in `requests`. Stop
- * it with `stop`.
+ * it with `stop`, or hold it with `using`.
  */
 export function startLegacyDaemon(socketPath: string, options: LegacyDaemonOptions = {}) {
   const answers: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
@@ -105,6 +105,9 @@ export function startLegacyDaemon(socketPath: string, options: LegacyDaemonOptio
   return {
     requests,
     stop() {
+      server.stop(true);
+    },
+    [Symbol.dispose]() {
       server.stop(true);
     },
   };

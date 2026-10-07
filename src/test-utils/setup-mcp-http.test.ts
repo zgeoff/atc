@@ -22,10 +22,8 @@ test('it collects the approval line the server prints', async () => {
 
   await fetch(authorize, { redirect: 'manual' });
 
-  expect(server.approvals).toStrictEqual([
-    expect.toSatisfy((line: string) =>
-      /^Approve dots \(returns to dots\.example\) with code \w{4}-\w{4}/.test(line),
-    ),
+  expect(server.approvals).toIncludeSameMembers([
+    expect.stringMatching(/^Approve dots \(returns to dots\.example\) with code \w{4}-\w{4}/),
   ]);
 });
 
@@ -34,10 +32,8 @@ test('it collects a request line for each request the server answers', async () 
 
   await fetch(`${server.url}/.well-known/oauth-protected-resource/mcp`);
 
-  expect(server.requests).toStrictEqual([
-    expect.toSatisfy((line: string) =>
-      /^GET \/\.well-known\/oauth-protected-resource\/mcp 200 \d+ms$/.test(line),
-    ),
+  expect(server.requests).toIncludeSameMembers([
+    expect.stringMatching(/^GET \/\.well-known\/oauth-protected-resource\/mcp 200 \d+ms$/),
   ]);
 });
 

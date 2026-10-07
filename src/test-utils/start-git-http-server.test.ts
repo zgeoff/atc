@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { createGitFixture } from './create-git-fixture';
@@ -25,10 +25,7 @@ async function setupTest() {
 
 test('it clones a served repository for a client that authenticates and records the header', async () => {
   await using ctx = await setupTest();
-
-  const server = startGitHTTPServer(ctx.dir, ctx.env);
-
-  onTestFinished(() => server.stop());
+  await using server = startGitHTTPServer(ctx.dir, ctx.env);
 
   const url = new URL('upstream.git', server.url);
 
@@ -51,10 +48,7 @@ test('it clones a served repository for a client that authenticates and records 
 
 test('it refuses a client that does not authenticate', async () => {
   await using ctx = await setupTest();
-
-  const server = startGitHTTPServer(ctx.dir, ctx.env);
-
-  onTestFinished(() => server.stop());
+  await using server = startGitHTTPServer(ctx.dir, ctx.env);
 
   const clone = await $`git clone --quiet ${`${server.url}upstream.git`} ${join(ctx.dir, 'c')}`
     .env(ctx.env)
@@ -65,13 +59,13 @@ test('it refuses a client that does not authenticate', async () => {
   expect(server.authorizations).toStrictEqual([]);
 });
 
-test('it holds each authenticated request for the delay it is given', async () => {
+test('it holds an authenticated request for the delay it is given', async () => {
   await using ctx = await setupTest();
 
   const release = Promise.withResolvers<void>();
   const waits: number[] = [];
 
-  const server = startGitHTTPServer(ctx.dir, ctx.env, {
+  await using server = startGitHTTPServer(ctx.dir, ctx.env, {
     delayMs: 400,
     wait: (ms) => {
       waits.push(ms);
@@ -80,21 +74,15 @@ test('it holds each authenticated request for the delay it is given', async () =
     },
   });
 
-  onTestFinished(() => server.stop());
-
   const url = new URL('upstream.git', server.url);
 
   url.username = 'x-access-token';
   url.password = 'fixture-not-a-secret';
 
-  const listing = Bun.spawn(['git', 'ls-remote', url.href], {
+  await using listing = Bun.spawn(['git', 'ls-remote', url.href], {
     env: ctx.env,
     stdout: 'ignore',
     stderr: 'ignore',
-  });
-
-  onTestFinished(() => {
-    listing.kill();
   });
 
   await waitFor(() => {
@@ -103,12 +91,44 @@ test('it holds each authenticated request for the delay it is given', async () =
 
   const whileHeld = await Promise.race([listing.exited, Promise.resolve('held')]);
 
+  expect({ whileHeld, waits }).toStrictEqual({ whileHeld: 'held', waits: [400] });
+});
+
+test('it serves a held request once its delay is over', async () => {
+  await using ctx = await setupTest();
+
+  const release = Promise.withResolvers<void>();
+  const waits: number[] = [];
+
+  await using server = startGitHTTPServer(ctx.dir, ctx.env, {
+    delayMs: 400,
+    wait: (ms) => {
+      waits.push(ms);
+
+      return release.promise;
+    },
+  });
+
+  const url = new URL('upstream.git', server.url);
+
+  url.username = 'x-access-token';
+  url.password = 'fixture-not-a-secret';
+
+  await using listing = Bun.spawn(['git', 'ls-remote', url.href], {
+    env: ctx.env,
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
+
+  await waitFor(() => {
+    expect(waits).not.toBeEmpty();
+  });
+
   release.resolve();
 
   const exitCode = await listing.exited;
 
-  expect({ whileHeld, exitCode }).toStrictEqual({ whileHeld: 'held', exitCode: 0 });
-  expect(waits).toSatisfyAll((ms: number) => ms === 400);
+  expect(exitCode).toBe(0);
 });
 
 test('it calls back once for each authenticated request', async () => {
