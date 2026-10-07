@@ -846,6 +846,12 @@ process stays inside it, out of the daemon's reach, so its forget fails with
 `unsupported_operation`, `data.problem` `host_asleep`, and the owner's id in `data.host`. Revive the
 session first, or forget the owner, which destroys the host.
 
+The MCP tool `atc_session_forget` takes `{ session, confirmToken?, stop? }` and answers what
+`session.forget` answers. It reads the session first, so a session the caller cannot see fails with
+`no_such_session` before the daemon issues a token. It refuses a pinned session, or a sub-session of
+a pinned one, and refuses a live session unless `stop` is `true`. It needs the `kill` scope and a
+daemon that announces `session.forget`.
+
 ## Idempotent requests
 
 A `session.spawn` or `session.message` that carries an `idempotencyKey` takes effect at most once

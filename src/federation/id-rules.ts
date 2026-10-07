@@ -38,6 +38,7 @@ export const ID_RULES: Readonly<Record<string, ReadonlyMap<string, IDRule>>> = {
   'session.update': new Map(),
   'session.kill': new Map(),
   'session.ack': new Map(),
+  'session.forget': new Map([['confirmToken', 'opaque']]),
   'session.list': buildPrefixedRules('sessions[].', DESCRIPTOR_RULES),
   'session.spawn': buildPrefixedRules('session.', DESCRIPTOR_RULES),
   'session.get': buildPrefixedRules('session.', DESCRIPTOR_RULES),

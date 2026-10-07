@@ -359,3 +359,19 @@ test('it has a rule for every id in a report.get answer', async () => {
 
   expect(collectUnruledIDPaths(report, ID_RULES['report.get'] ?? new Map())).toStrictEqual([]);
 });
+
+test('it has a rule for the confirm token in a session.forget answer', () => {
+  expect(
+    collectUnruledIDPaths(
+      { confirmToken: randomUUID(), expiresAt: Date.now() + 60_000 },
+      ID_RULES['session.forget'] ?? new Map(),
+    ),
+  ).toStrictEqual([]);
+
+  expect(
+    collectUnruledIDPaths(
+      { forgotten: true, destroyed: true },
+      ID_RULES['session.forget'] ?? new Map(),
+    ),
+  ).toStrictEqual([]);
+});

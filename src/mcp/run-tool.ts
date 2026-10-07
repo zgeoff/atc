@@ -146,6 +146,22 @@ export function runTool(
 
       return { text: 'killed', structured: null };
     })
+    .with('atc_session_forget', async () => {
+      await requireForgettable(caller, args['session'], args['stop'] === true);
+
+      const ok = await caller.sendRequest(
+        'session.forget',
+        {
+          session: args['session'],
+          ...(typeof args['confirmToken'] === 'string'
+            ? { confirmToken: args['confirmToken'] }
+            : {}),
+        },
+        ['session.forget'],
+      );
+
+      return buildObjectResult(ok);
+    })
     .with('atc_session_ack', async () => {
       await caller.sendRequest('session.ack', { session: args['session'] });
 
@@ -267,6 +283,37 @@ function buildObjectResult(value: unknown): ToolResult {
     text: JSON.stringify(value, null, 2),
     structured: isRecord(value) ? value : null,
   };
+}
+
+// A forget is for good, so it reads the session first: an unseen or unknown
+// session fails here before the daemon mints a token, and a pinned or live
+// session is refused with the step that unblocks it.
+async function requireForgettable(
+  caller: FleetCaller,
+  session: unknown,
+  stops: boolean,
+): Promise<void> {
+  const got = await caller.sendRequest('session.get', { session });
+
+  const descriptor = isRecord(got['session']) ? got['session'] : {};
+  const parent = descriptor['parent'];
+  let pinned = descriptor['pinned'] === true;
+
+  if (!pinned && typeof parent === 'string') {
+    const owner = await caller.sendRequest('session.get', { session: parent });
+
+    pinned = isRecord(owner['session']) && owner['session']['pinned'] === true;
+  }
+
+  if (pinned) {
+    throw new Error(
+      'session_pinned: the session is pinned, or is a sub-session of a pinned session. Unpin it with atc_session_update before forgetting it.',
+    );
+  }
+
+  if (descriptor['alive'] === true && !stops) {
+    throw new Error('session_live: the session is live. Pass stop: true to stop and forget it.');
+  }
 }
 
 // The inherited id can point at a session another daemon hosts, or one

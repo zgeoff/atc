@@ -55,6 +55,10 @@ beside its schema:
   new session can. The stdio server serves every scope to its caller; `atc mcp --http` serves only
   the scopes a client's grant holds, as [Remote MCP](./remote-mcp.md) describes.
 
+`atc_session_kill` takes `kill` and ends a session. `atc_session_forget` takes `kill` too and
+removes a session from the list, destroying its host on a target that can; the
+[protocol](./protocol.md#kill-and-sleep) covers its confirm token.
+
 Every tool result holds its output as text. A result that is data also holds it as
 `structuredContent`, an object, and the message, event, and report tools declare an `outputSchema`
 for it. A tool whose data is a list keeps the bare list as its text and wraps it in an object for
