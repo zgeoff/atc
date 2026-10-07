@@ -1065,21 +1065,24 @@ sleep 30
   await client.sendHello('atc/test');
 
   // The client sends no fleet.restore: the daemon brings the fleet back on
-  // its own.
+  // its own. A terminal lists as soon as it is adopted, before its agent has
+  // run, so the wait also covers both agents' starts.
   const sessions = await waitFor(async () => {
     const reply = await client.sendRequest('session.list');
 
     const listed = getRecords(reply, 'sessions');
 
-    expect(listed.filter((s) => s['kind'] === 'pty')).toHaveLength(2);
+    expect({
+      terminals: listed.filter((s) => s['kind'] === 'pty').length,
+      starts: readFileSync(join(home, 'starts.log'), 'utf8').trim().split('\n').length,
+    }).toStrictEqual({ terminals: 2, starts: 2 });
 
     return listed;
   });
 
-  expect({
-    names: sessions.map((s) => String(s['name'])).toSorted((a, b) => a.localeCompare(b)),
-    starts: readFileSync(join(home, 'starts.log'), 'utf8').trim().split('\n').length,
-  }).toStrictEqual({ names: ['one', 'two'], starts: 2 });
+  expect(
+    sessions.map((s) => String(s['name'])).toSorted((a, b) => a.localeCompare(b)),
+  ).toStrictEqual(['one', 'two']);
 });
 
 test('it moves on to the next revive when one dies before announcing itself', async () => {
