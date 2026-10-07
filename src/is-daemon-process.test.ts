@@ -10,13 +10,17 @@ async function setupTest() {
   const cliPath = join(dir, 'checkout', 'src', 'cli.ts');
 
   await mkdir(join(dir, 'checkout', 'src'), { recursive: true });
-  await writeFile(cliPath, 'setInterval(() => {}, 1000);\n');
+  await writeFile(cliPath, "process.stdout.write('ready\\n');\nsetInterval(() => {}, 1000);\n");
 
   const proc = Bun.spawn([process.execPath, cliPath, 'daemon'], {
     env: { HOME: join(dir, 'home'), PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
-    stdout: 'ignore',
+    stdout: 'pipe',
     stderr: 'ignore',
   });
+
+  // Until the child prints, its /proc entry can still hold the command line
+  // it was forked with, before the exec that makes it the daemon.
+  await proc.stdout.getReader().read();
 
   return {
     dir,
