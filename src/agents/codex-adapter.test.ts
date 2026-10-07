@@ -1,39 +1,43 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { expect, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
 import { CodexAdapter } from './codex-adapter';
 
-function setupCodexHome(indexLines: readonly string[]): string {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-codex-'));
+// A Codex home of the test's own, where the adapter reads the session index.
+function setupTest() {
+  const temp = setupTempDir('atc-codex-');
 
-  updateEnv('CODEX_HOME', dir);
-  writeFileSync(join(dir, 'session_index.jsonl'), indexLines.join('\n'));
+  updateEnv('CODEX_HOME', temp.dir);
 
-  onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  return dir;
+  return temp;
 }
 
-test('it spawns fresh, picker-resume, and id-resume codex commands', () => {
+test('it spawns a fresh codex command with the prompt', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   expect(adapter.planSpawn({ prompt: 'fix the bug', resume: false })).toStrictEqual({
     bin: 'codex',
     args: ['fix the bug'],
   });
+});
+
+test('it spawns codex resume with the picker when no id was captured', () => {
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   expect(adapter.planSpawn({ prompt: '', resume: true })).toStrictEqual({
     bin: 'codex',
     args: ['resume'],
   });
+});
+
+test('it spawns codex resume with the captured id', () => {
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   expect(adapter.planSpawn({ prompt: '', resume: toAgentSessionID('c-1') })).toStrictEqual({
     bin: 'codex',
@@ -110,71 +114,152 @@ test('it maps a codex session start to started with id, name, and transcript sou
   });
 });
 
-test('it maps codex prompt, stop, permission, and end events to session kinds', () => {
+test('it maps a codex prompt submit to prompt-submitted', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
-  const submitted = adapter.normalizeHook({
+  const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
     event: 'UserPromptSubmit',
     payload: { session_id: 'c-1', prompt: 'do the thing' },
   });
 
-  expect(submitted).toMatchObject({ kind: 'prompt-submitted', message: 'do the thing' });
+  expect(ev).toStrictEqual({
+    kind: 'prompt-submitted',
+    agentSessionID: toAgentSessionID('c-1'),
+    nameSource: 'c-1',
+    message: 'do the thing',
+    detail: 'do the thing',
+  });
+});
 
-  const stopped = adapter.normalizeHook({
+test('it maps a codex stop to turn-done', () => {
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+
+  const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
     event: 'Stop',
     payload: { session_id: 'c-1', last_assistant_message: 'pong' },
   });
 
-  expect(stopped).toMatchObject({ kind: 'turn-done', detail: 'pong' });
+  expect(ev).toStrictEqual({
+    kind: 'turn-done',
+    agentSessionID: toAgentSessionID('c-1'),
+    nameSource: 'c-1',
+    detail: 'pong',
+    result: 'pong',
+  });
+});
 
-  const approval = adapter.normalizeHook({
+test('it maps a codex permission request to needs-input', () => {
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+
+  const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
     event: 'PermissionRequest',
     payload: { session_id: 'c-1', tool_name: 'shell' },
   });
 
-  expect(approval).toMatchObject({ kind: 'needs-input', message: 'waiting for approval: shell' });
+  expect(ev).toStrictEqual({
+    kind: 'needs-input',
+    agentSessionID: toAgentSessionID('c-1'),
+    message: 'waiting for approval: shell',
+    detail: 'waiting for approval: shell',
+  });
+});
 
-  const ended = adapter.normalizeHook({
+test('it maps a codex session end to ended', () => {
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+
+  const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
     event: 'SessionEnd',
     payload: { session_id: 'c-1', reason: 'other' },
   });
 
-  expect(ended).toStrictEqual({ kind: 'ended', agentSessionID: toAgentSessionID('c-1') });
+  expect(ev).toStrictEqual({ kind: 'ended', agentSessionID: toAgentSessionID('c-1') });
 });
 
-test('it loads the latest indexed thread name but never over a user-typed name', async () => {
-  setupCodexHome([
-    '{"id":"c-1","thread_name":"first title","updated_at":"2026-08-20T00:00:00Z"}',
-    '{"id":"c-2","thread_name":"other session","updated_at":"2026-08-20T00:00:01Z"}',
-    '{"id":"c-1","thread_name":"renamed title","updated_at":"2026-08-20T00:00:02Z"}',
-  ]);
+test('it loads the latest indexed thread name', async () => {
+  await using ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.dir, 'session_index.jsonl'),
+    [
+      '{"id":"c-1","thread_name":"first title","updated_at":"2026-08-20T00:00:00Z"}',
+      '{"id":"c-2","thread_name":"other session","updated_at":"2026-08-20T00:00:01Z"}',
+      '{"id":"c-1","thread_name":"renamed title","updated_at":"2026-08-20T00:00:02Z"}',
+    ].join('\n'),
+  );
 
   const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
-  const autoName = await adapter.loadName('c-1', 'auto');
-  const userName = await adapter.loadName('c-1', 'user');
-  const missingName = await adapter.loadName('c-missing', 'auto');
+  const name = await adapter.loadName('c-1', 'auto');
 
-  expect(autoName).toStrictEqual({ name: 'renamed title' });
-  expect(userName).toBeNull();
-  expect(missingName).toBeNull();
+  expect(name).toStrictEqual({ name: 'renamed title' });
 });
 
-test('it resumes when no transcript was reported or the reported rollout exists', () => {
-  const dir = setupCodexHome([]);
-  const rollout = join(dir, 'rollout.jsonl');
+test('it never loads an indexed thread name over a user-typed name', async () => {
+  await using ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.dir, 'session_index.jsonl'),
+    [
+      '{"id":"c-1","thread_name":"first title","updated_at":"2026-08-20T00:00:00Z"}',
+      '{"id":"c-2","thread_name":"other session","updated_at":"2026-08-20T00:00:01Z"}',
+      '{"id":"c-1","thread_name":"renamed title","updated_at":"2026-08-20T00:00:02Z"}',
+    ].join('\n'),
+  );
+
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+
+  const name = await adapter.loadName('c-1', 'user');
+
+  expect(name).toBeNull();
+});
+
+test('it loads no name for a session the index lacks', async () => {
+  await using ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.dir, 'session_index.jsonl'),
+    [
+      '{"id":"c-1","thread_name":"first title","updated_at":"2026-08-20T00:00:00Z"}',
+      '{"id":"c-2","thread_name":"other session","updated_at":"2026-08-20T00:00:01Z"}',
+      '{"id":"c-1","thread_name":"renamed title","updated_at":"2026-08-20T00:00:02Z"}',
+    ].join('\n'),
+  );
+
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+
+  const name = await adapter.loadName('c-missing', 'auto');
+
+  expect(name).toBeNull();
+});
+
+test('it resumes when no transcript was reported', () => {
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+
+  expect(adapter.canResume({})).toBeTrue();
+});
+
+test('it resumes when the reported rollout exists', () => {
+  using ctx = setupTest();
+
+  const rollout = join(ctx.dir, 'rollout.jsonl');
 
   writeFileSync(rollout, '');
 
   const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
-  expect(adapter.canResume({})).toBe(true);
-  expect(adapter.canResume({ transcriptSource: rollout })).toBe(true);
-  expect(adapter.canResume({ transcriptSource: join(dir, 'missing.jsonl') })).toBe(false);
+  expect(adapter.canResume({ transcriptSource: rollout })).toBeTrue();
+});
+
+test('it does not resume when the reported rollout is gone', () => {
+  using ctx = setupTest();
+
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+
+  expect(adapter.canResume({ transcriptSource: join(ctx.dir, 'missing.jsonl') })).toBeFalse();
 });
 
 test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
@@ -207,12 +292,16 @@ test('it treats wrong-typed hook payload fields as absent instead of throwing', 
   });
 });
 
-test('it builds codex resume commands with and without a captured id', () => {
+test('it builds a codex resume command with a captured id', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   expect(adapter.buildResumeCommand("/tmp/it's", toAgentSessionID('c-1'))).toBe(
     String.raw`cd '/tmp/it'\''s' && codex resume c-1`,
   );
+});
+
+test('it builds a codex resume command with the picker when no id was captured', () => {
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   expect(adapter.buildResumeCommand('/tmp', undefined)).toBe(`cd '/tmp' && codex resume`);
 });
@@ -226,49 +315,37 @@ test('it carries the whole last assistant message of a finished turn as its resu
     payload: { session_id: 'c-1', last_assistant_message: 'x'.repeat(700) },
   });
 
-  expect(ev).toMatchObject({ kind: 'turn-done', result: 'x'.repeat(700) });
-  expect(ev.detail).toHaveLength(600);
+  expect(ev).toStrictEqual({
+    kind: 'turn-done',
+    agentSessionID: toAgentSessionID('c-1'),
+    nameSource: 'c-1',
+    detail: `${'x'.repeat(599)}…`,
+    result: 'x'.repeat(700),
+  });
 });
 
 test('it refuses inbox messages', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
-  expect(adapter.takesMessages).toBe(false);
+  expect(adapter.takesMessages).toBeFalse();
 });
 
-const CODEX_AUTH_CONFIG = {
-  authProfiles: {
-    codex: {
-      secret: 'codex-chatgpt',
-      kind: 'oauth',
-      host: 'chatgpt.com',
-      header: 'authorization',
-      scheme: 'bearer',
-    },
-    github: { secret: 'github-imp-agents', kind: 'github' },
-  },
-  agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
-};
-
-const ACCOUNT_ID = '5f0c1d7e-0000-4000-8000-00000000c0de';
-
-const READY = {
-  status: 'ready',
-  idClaims: {
-    email: 'someone@example.com',
-    'https://api.openai.com/auth': { chatgpt_account_id: ACCOUNT_ID },
-    sub: 'user-1',
-  },
-} as const;
-
-function setupSignedInAdapter(): CodexAdapter {
-  const config = parseConfig(CODEX_AUTH_CONFIG);
-
-  return new CodexAdapter(getAgentEntry(config, 'codex'), config);
-}
-
 test('it selects the ChatGPT endpoint and its profiles for an entry with auth, without requiring the broker', () => {
-  const adapter = setupSignedInAdapter();
+  const config = parseConfig({
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      github: { secret: 'github-imp-agents', kind: 'github' },
+    },
+    agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
+  });
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
 
   expect(adapter.findAuthSelection()).toStrictEqual({
     gateway: {
@@ -276,7 +353,7 @@ test('it selects the ChatGPT endpoint and its profiles for an entry with auth, w
       baseURL: 'https://chatgpt.com/backend-api/codex',
       auth: { profiles: ['codex', 'github'], placeholderEnv: {} },
     },
-    profiles: parseConfig(CODEX_AUTH_CONFIG).authProfiles,
+    profiles: config.authProfiles,
     brokerRequired: false,
   });
 });
@@ -294,26 +371,72 @@ test('it plans no guest spawn of its own for an entry without auth', () => {
 });
 
 test('it plans a remote spawn with auth but without the broker as a local spawn with no files', () => {
-  const adapter = setupSignedInAdapter();
+  const config = parseConfig({
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      github: { secret: 'github-imp-agents', kind: 'github' },
+    },
+    agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
+  });
 
-  expect(
-    adapter.planGuestSpawn?.(
-      { prompt: 'go', resume: false },
-      { atc: null, dir: '/tmp/atc/sessions/s1' },
-    ),
-  ).toStrictEqual({ bin: 'codex', args: ['go'], files: {} });
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
+
+  const plan = adapter.planGuestSpawn?.(
+    { prompt: 'go', resume: false },
+    {
+      atc: null,
+      dir: '/tmp/atc/sessions/s1',
+    },
+  );
+
+  expect(plan).toStrictEqual({ bin: 'codex', args: ['go'], files: {} });
 });
 
 test('it plans a spawn behind the broker with a Codex home of its own and hooks it trusts at launch', () => {
-  const adapter = setupSignedInAdapter();
-  const dir = '/tmp/atc/sessions/s1';
+  const config = parseConfig({
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      github: { secret: 'github-imp-agents', kind: 'github' },
+    },
+    agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
+  });
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
 
   const plan = adapter.planGuestSpawn?.(
     { prompt: 'go', resume: toAgentSessionID('c-1') },
     {
       atc: '/opt/atc',
-      dir,
-      auth: { revision: 2, env: {}, profileEnv: {}, oauth: { 'codex-chatgpt': READY } },
+      dir: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 2,
+        env: {},
+        profileEnv: {},
+        oauth: {
+          'codex-chatgpt': {
+            status: 'ready',
+            idClaims: {
+              email: 'someone@example.com',
+              'https://api.openai.com/auth': {
+                chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+              },
+              sub: 'user-1',
+            },
+          },
+        },
+      },
     },
   );
 
@@ -327,9 +450,9 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
     bin: 'sh',
     args: [
       'sh',
-      `${dir}/codex-home`,
-      `${dir}/auth-r2`,
-      `${dir}/codex-trust.toml`,
+      '/tmp/atc/sessions/s1/codex-home',
+      '/tmp/atc/sessions/s1/auth-r2',
+      '/tmp/atc/sessions/s1/codex-trust.toml',
       'codex',
       '--dangerously-bypass-hook-trust',
       '-c',
@@ -338,104 +461,316 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
       'c-1',
       'go',
     ],
-    env: { CODEX_HOME: `${dir}/codex-home` },
+    env: { CODEX_HOME: '/tmp/atc/sessions/s1/codex-home' },
     files: ['auth-r2/auth.json', 'auth-r2/config.toml', 'auth-r2/hooks.json'],
     config: 'cli_auth_credentials_store = "file"\ncheck_for_update_on_startup = false\n',
   });
 });
 
 test("it keeps its own Codex home over a profile's variables", () => {
-  const adapter = setupSignedInAdapter();
-  const dir = '/tmp/atc/sessions/s1';
+  const config = parseConfig({
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      github: { secret: 'github-imp-agents', kind: 'github' },
+    },
+    agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
+  });
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
 
   const plan = adapter.planGuestSpawn?.(
     { prompt: 'go', resume: false },
     {
       atc: '/opt/atc',
-      dir,
+      dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: {},
         profileEnv: { CODEX_HOME: '/elsewhere', OP_CONNECT_HOST: 'https://op.example.com' },
-        oauth: { 'codex-chatgpt': READY },
+        oauth: {
+          'codex-chatgpt': {
+            status: 'ready',
+            idClaims: {
+              email: 'someone@example.com',
+              'https://api.openai.com/auth': {
+                chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+              },
+              sub: 'user-1',
+            },
+          },
+        },
       },
     },
   );
 
   expect(plan?.env).toStrictEqual({
-    CODEX_HOME: `${dir}/codex-home`,
+    CODEX_HOME: '/tmp/atc/sessions/s1/codex-home',
     OP_CONNECT_HOST: 'https://op.example.com',
   });
 });
 
 test("it writes the sign-in file from the oauth secret's claims and account id", () => {
-  const adapter = setupSignedInAdapter();
+  const config = parseConfig({
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      github: { secret: 'github-imp-agents', kind: 'github' },
+    },
+    agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
+  });
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
 
   const plan = adapter.planGuestSpawn?.(
     { prompt: '', resume: false },
     {
       atc: '/opt/atc',
       dir: '/tmp/atc/sessions/s1',
-      auth: { revision: 1, env: {}, profileEnv: {}, oauth: { 'codex-chatgpt': READY } },
+      auth: {
+        revision: 1,
+        env: {},
+        profileEnv: {},
+        oauth: {
+          'codex-chatgpt': {
+            status: 'ready',
+            idClaims: {
+              email: 'someone@example.com',
+              'https://api.openai.com/auth': {
+                chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+              },
+              sub: 'user-1',
+            },
+          },
+        },
+      },
     },
   );
 
   const file = plan?.files['auth-r1/auth.json'];
-  const parsed: unknown = typeof file === 'string' ? JSON.parse(file) : file;
 
-  expect(parsed).toMatchObject({
+  if (typeof file !== 'string') {
+    throw new TypeError('the plan stages no sign-in file');
+  }
+
+  expect(JSON.parse(file)).toStrictEqual({
     auth_mode: 'chatgpt',
-    tokens: { access_token: 'imp-broker-placeholder', account_id: ACCOUNT_ID },
+    OPENAI_API_KEY: null,
+    tokens: {
+      id_token: expect.toBeString(),
+      access_token: 'imp-broker-placeholder',
+      refresh_token: 'imp-broker-placeholder',
+      account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+    },
+    last_refresh: '2099-01-01T00:00:00Z',
   });
 });
 
 test('it reports every hook through the atc inside the host', () => {
-  const adapter = setupSignedInAdapter();
+  const config = parseConfig({
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      github: { secret: 'github-imp-agents', kind: 'github' },
+    },
+    agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
+  });
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
 
   const plan = adapter.planGuestSpawn?.(
     { prompt: '', resume: false },
     {
       atc: '/opt/atc',
       dir: '/tmp/atc/sessions/s1',
-      auth: { revision: 1, env: {}, profileEnv: {}, oauth: { 'codex-chatgpt': READY } },
+      auth: {
+        revision: 1,
+        env: {},
+        profileEnv: {},
+        oauth: {
+          'codex-chatgpt': {
+            status: 'ready',
+            idClaims: {
+              email: 'someone@example.com',
+              'https://api.openai.com/auth': {
+                chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+              },
+              sub: 'user-1',
+            },
+          },
+        },
+      },
     },
   );
 
   const hooks = plan?.files['auth-r1/hooks.json'];
-  const parsed: unknown = typeof hooks === 'string' ? JSON.parse(hooks) : hooks;
 
-  expect(parsed).toMatchObject({
+  if (typeof hooks !== 'string') {
+    throw new TypeError('the plan stages no hook file');
+  }
+
+  expect(JSON.parse(hooks)).toStrictEqual({
     hooks: {
-      SessionStart: [{ hooks: [{ command: '"/opt/atc" hook-report --agent codex' }] }],
-      UserPromptSubmit: [{ hooks: [{ command: '"/opt/atc" hook-report --agent codex' }] }],
-      PermissionRequest: [{ hooks: [{ command: '"/opt/atc" hook-report --agent codex' }] }],
-      Stop: [{ hooks: [{ command: '"/opt/atc" hook-report --agent codex' }] }],
-      SessionEnd: [{ hooks: [{ command: '"/opt/atc" hook-report --agent codex', timeout: 3 }] }],
+      SessionStart: [
+        {
+          hooks: [{ type: 'command', command: '"/opt/atc" hook-report --agent codex', timeout: 5 }],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [{ type: 'command', command: '"/opt/atc" hook-report --agent codex', timeout: 5 }],
+        },
+      ],
+      PermissionRequest: [
+        {
+          hooks: [{ type: 'command', command: '"/opt/atc" hook-report --agent codex', timeout: 5 }],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [{ type: 'command', command: '"/opt/atc" hook-report --agent codex', timeout: 5 }],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [{ type: 'command', command: '"/opt/atc" hook-report --agent codex', timeout: 3 }],
+        },
+      ],
     },
   });
 });
 
 test('it plans no spawn behind the broker on a host without atc', () => {
-  const adapter = setupSignedInAdapter();
-
-  expect(
-    adapter.planGuestSpawn?.(
-      { prompt: '', resume: false },
-      {
-        atc: null,
-        dir: '/tmp/atc/sessions/s1',
-        auth: { revision: 1, env: {}, profileEnv: {}, oauth: { 'codex-chatgpt': READY } },
+  const config = parseConfig({
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
       },
-    ),
-  ).toBeNull();
+      github: { secret: 'github-imp-agents', kind: 'github' },
+    },
+    agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
+  });
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
+
+  const plan = adapter.planGuestSpawn?.(
+    { prompt: '', resume: false },
+    {
+      atc: null,
+      dir: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 1,
+        env: {},
+        profileEnv: {},
+        oauth: {
+          'codex-chatgpt': {
+            status: 'ready',
+            idClaims: {
+              email: 'someone@example.com',
+              'https://api.openai.com/auth': {
+                chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+              },
+              sub: 'user-1',
+            },
+          },
+        },
+      },
+    },
+  );
+
+  expect(plan).toBeNull();
 });
 
-test.each([
-  ['needs_login', { 'codex-chatgpt': { ...READY, status: 'needs_login' } }, 'needs_login'],
-  ['pending', { 'codex-chatgpt': { ...READY, status: 'pending' } }, 'pending'],
-  ['not listed', {}, null],
-] as const)('it refuses a spawn whose sign-in is %s', (shown, oauth, status) => {
-  const adapter = setupSignedInAdapter();
+test.each<['needs_login' | 'pending']>([['needs_login'], ['pending']])(
+  'it refuses a spawn whose sign-in is %s',
+  (status) => {
+    const config = parseConfig({
+      authProfiles: {
+        codex: {
+          secret: 'codex-chatgpt',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+        github: { secret: 'github-imp-agents', kind: 'github' },
+      },
+      agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
+    });
+
+    const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
+
+    const plan = () =>
+      adapter.planGuestSpawn?.(
+        { prompt: '', resume: false },
+        {
+          atc: '/opt/atc',
+          dir: '/tmp/atc/sessions/s1',
+          auth: {
+            revision: 1,
+            env: {},
+            profileEnv: {},
+            oauth: {
+              'codex-chatgpt': {
+                status,
+                idClaims: {
+                  email: 'someone@example.com',
+                  'https://api.openai.com/auth': {
+                    chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+                  },
+                  sub: 'user-1',
+                },
+              },
+            },
+          },
+        },
+      );
+
+    expect(plan).toThrow(
+      expect.objectContaining({
+        code: 'auth_signin_needed',
+        message: `agent 'codex' signs in through codex-chatgpt, whose sign-in in impd is ${status}; sign Codex in again and run imp secret add codex-chatgpt --kind oauth ... --replace with the new refresh token`,
+        data: { agent: 'codex', secret: 'codex-chatgpt', status },
+      }),
+    );
+  },
+);
+
+test('it refuses a spawn whose sign-in impd does not list', () => {
+  const config = parseConfig({
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      github: { secret: 'github-imp-agents', kind: 'github' },
+    },
+    agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
+  });
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
 
   const plan = () =>
     adapter.planGuestSpawn?.(
@@ -443,25 +778,40 @@ test.each([
       {
         atc: '/opt/atc',
         dir: '/tmp/atc/sessions/s1',
-        auth: { revision: 1, env: {}, profileEnv: {}, oauth },
+        auth: { revision: 1, env: {}, profileEnv: {}, oauth: {} },
       },
     );
 
   expect(plan).toThrow(
     expect.objectContaining({
       code: 'auth_signin_needed',
-      message: `agent 'codex' signs in through codex-chatgpt, whose sign-in in impd is ${shown}; sign Codex in again and run imp secret add codex-chatgpt --kind oauth ... --replace with the new refresh token`,
-      data: { agent: 'codex', secret: 'codex-chatgpt', status },
+      message:
+        "agent 'codex' signs in through codex-chatgpt, whose sign-in in impd is not listed; sign Codex in again and run imp secret add codex-chatgpt --kind oauth ... --replace with the new refresh token",
+      data: { agent: 'codex', secret: 'codex-chatgpt', status: null },
     }),
   );
 });
 
 test.each([
-  ['no claims', null],
-  ['no OpenAI auth claim', { email: 'someone@example.com' }],
-  ['an empty account id', { 'https://api.openai.com/auth': { chatgpt_account_id: '' } }],
-])('it refuses a spawn whose ID token holds %s', (_name, idClaims) => {
-  const adapter = setupSignedInAdapter();
+  [null],
+  [{ email: 'someone@example.com' }],
+  [{ 'https://api.openai.com/auth': { chatgpt_account_id: '' } }],
+])('it refuses a spawn whose ID token claims are %p', (idClaims) => {
+  const config = parseConfig({
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      github: { secret: 'github-imp-agents', kind: 'github' },
+    },
+    agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
+  });
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
 
   const plan = () =>
     adapter.planGuestSpawn?.(
@@ -487,16 +837,30 @@ test.each([
   );
 });
 
-test('it seeds clone trust only for an entry with auth', () => {
-  const signedIn = setupSignedInAdapter();
+test('it seeds clone trust for an entry with auth', () => {
+  const config = parseConfig({
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      github: { secret: 'github-imp-agents', kind: 'github' },
+    },
+    agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
+  });
 
-  const stock = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
 
-  expect([
-    signedIn.planGuestWorkspaceTrust('/work'),
-    stock.planGuestWorkspaceTrust('/work'),
-  ]).toStrictEqual([
-    { 'codex-trust.toml': '\n[projects."/work"]\ntrust_level = "trusted"\n' },
-    null,
-  ]);
+  expect(adapter.planGuestWorkspaceTrust('/work')).toStrictEqual({
+    'codex-trust.toml': '\n[projects."/work"]\ntrust_level = "trusted"\n',
+  });
+});
+
+test('it seeds no clone trust for an entry without auth', () => {
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+
+  expect(adapter.planGuestWorkspaceTrust('/work')).toBeNull();
 });

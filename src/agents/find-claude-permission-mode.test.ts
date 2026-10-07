@@ -18,10 +18,10 @@ test('it takes the settings default mode when no argument sets one', () => {
 });
 
 test.each([
-  ['no settings', undefined],
-  ['settings without permissions', { model: 'opus' }],
-  ['a non-object permissions block', { permissions: 'default' }],
-  ['an empty default mode', { permissions: { defaultMode: '' } }],
-])('it finds no mode with %s', (_case, settings) => {
+  [undefined],
+  [{ model: 'opus' }],
+  [{ permissions: 'default' }],
+  [{ permissions: { defaultMode: '' } }],
+])('it finds no mode in the settings %p', (settings) => {
   expect(findClaudePermissionMode([], settings)).toBeNull();
 });

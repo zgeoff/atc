@@ -54,23 +54,18 @@ test('it summarises a tool use with no known input key as its JSON', () => {
 
 test.each([
   [
-    'a tool-result-only user line',
     '{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}',
   ],
   [
-    'a thinking-only assistant line',
     '{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"hm"}]}}',
   ],
-  [
-    'a sidechain assistant line',
-    '{"type":"assistant","isSidechain":true,"message":{"role":"assistant","content":"sub"}}',
-  ],
-  ['a meta user line', '{"type":"user","isMeta":true,"message":{"role":"user","content":"meta"}}'],
-  ['a summary line', '{"type":"summary","summary":"x"}'],
-  ['a custom-title line', '{"type":"custom-title","customTitle":"x"}'],
-  ['a line that is not JSON', '{"type":'],
-  ['a JSON array', '[]'],
-])('it reads %s as no row', (_label, line) => {
+  ['{"type":"assistant","isSidechain":true,"message":{"role":"assistant","content":"sub"}}'],
+  ['{"type":"user","isMeta":true,"message":{"role":"user","content":"meta"}}'],
+  ['{"type":"summary","summary":"x"}'],
+  ['{"type":"custom-title","customTitle":"x"}'],
+  ['{"type":'],
+  ['[]'],
+])('it reads the line %s as no row', (line) => {
   expect(parseClaudeTranscriptLine(line)).toBeNull();
 });
 
@@ -91,12 +86,10 @@ test('it truncates row text past 16 KiB', () => {
     message: { role: 'user', content: 'a'.repeat(20_000) },
   });
 
-  const row = parseClaudeTranscriptLine(line);
-
-  if (row === null) {
-    throw new Error('expected a row');
-  }
-
-  expect(Buffer.byteLength(row.text)).toBeLessThanOrEqual(16_384);
-  expect(row.text).toEndWith('…');
+  expect(parseClaudeTranscriptLine(line)).toStrictEqual({
+    role: 'user',
+    text: `${'a'.repeat(16_381)}…`,
+    tools: [],
+    at: null,
+  });
 });

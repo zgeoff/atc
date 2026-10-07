@@ -4,20 +4,20 @@ import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 
-// Stages the files a guest plan transfers under a revision's folder.
-function setupStaged(dir: string, revision: string): void {
-  mkdirSync(join(dir, revision), { recursive: true });
-  writeFileSync(join(dir, revision, 'auth.json'), `{"rev":"${revision}"}`);
-  writeFileSync(join(dir, revision, 'config.toml'), 'check_for_update_on_startup = false\n');
-  writeFileSync(join(dir, revision, 'hooks.json'), '{"hooks":{}}');
+// The guest folder a launch stages its files under and runs in.
+function setupTest() {
+  return setupTempDir('atc-codex-launch-');
 }
 
 test('it copies the staged sign-in, config, and hooks into the Codex home and runs the CLI there', () => {
-  using tmp = setupTempDir('atc-codex-launch-');
+  using ctx = setupTest();
 
-  setupStaged(tmp.dir, 'auth-r1');
+  mkdirSync(join(ctx.dir, 'auth-r1'), { recursive: true });
+  writeFileSync(join(ctx.dir, 'auth-r1', 'auth.json'), '{"rev":"auth-r1"}');
+  writeFileSync(join(ctx.dir, 'auth-r1', 'config.toml'), 'check_for_update_on_startup = false\n');
+  writeFileSync(join(ctx.dir, 'auth-r1', 'hooks.json'), '{"hooks":{}}');
 
-  const launch = buildCodexGuestLaunch(tmp.dir, 'auth-r1', [
+  const launch = buildCodexGuestLaunch(ctx.dir, 'auth-r1', [
     'sh',
     '-c',
     'printf "%s|%s" "$CODEX_HOME" "$*"',
@@ -27,7 +27,7 @@ test('it copies the staged sign-in, config, and hooks into the Codex home and ru
   ]);
 
   const run = Bun.spawnSync([launch.bin, ...launch.args], { env: { ...launch.env } });
-  const home = join(tmp.dir, 'codex-home');
+  const home = join(ctx.dir, 'codex-home');
 
   expect({
     exitCode: run.exitCode,
@@ -51,42 +51,50 @@ test('it copies the staged sign-in, config, and hooks into the Codex home and ru
 });
 
 test('it appends the clone trust seed to the config on every launch that finds one', () => {
-  using tmp = setupTempDir('atc-codex-launch-');
+  using ctx = setupTest();
 
-  setupStaged(tmp.dir, 'auth-r1');
-  setupStaged(tmp.dir, 'auth-r2');
+  mkdirSync(join(ctx.dir, 'auth-r1'), { recursive: true });
+  writeFileSync(join(ctx.dir, 'auth-r1', 'auth.json'), '{"rev":"auth-r1"}');
+  writeFileSync(join(ctx.dir, 'auth-r1', 'config.toml'), 'check_for_update_on_startup = false\n');
+  writeFileSync(join(ctx.dir, 'auth-r1', 'hooks.json'), '{"hooks":{}}');
+  mkdirSync(join(ctx.dir, 'auth-r2'), { recursive: true });
+  writeFileSync(join(ctx.dir, 'auth-r2', 'auth.json'), '{"rev":"auth-r2"}');
+  writeFileSync(join(ctx.dir, 'auth-r2', 'config.toml'), 'check_for_update_on_startup = false\n');
+  writeFileSync(join(ctx.dir, 'auth-r2', 'hooks.json'), '{"hooks":{}}');
 
   writeFileSync(
-    join(tmp.dir, 'codex-trust.toml'),
+    join(ctx.dir, 'codex-trust.toml'),
     '\n[projects."/work"]\ntrust_level = "trusted"\n',
   );
 
-  const first = buildCodexGuestLaunch(tmp.dir, 'auth-r1', ['true']);
-  const second = buildCodexGuestLaunch(tmp.dir, 'auth-r2', ['true']);
+  const first = buildCodexGuestLaunch(ctx.dir, 'auth-r1', ['true']);
 
-  const runs = [first, second].map(
-    (launch) => Bun.spawnSync([launch.bin, ...launch.args]).exitCode,
-  );
+  Bun.spawnSync([first.bin, ...first.args]);
 
-  const home = join(tmp.dir, 'codex-home');
+  const second = buildCodexGuestLaunch(ctx.dir, 'auth-r2', ['true']);
+  const run = Bun.spawnSync([second.bin, ...second.args]);
+  const home = join(ctx.dir, 'codex-home');
 
   expect({
-    runs,
+    exitCode: run.exitCode,
     auth: readFileSync(join(home, 'auth.json'), 'utf8'),
     config: readFileSync(join(home, 'config.toml'), 'utf8'),
   }).toStrictEqual({
-    runs: [0, 0],
+    exitCode: 0,
     auth: '{"rev":"auth-r2"}',
     config: 'check_for_update_on_startup = false\n\n[projects."/work"]\ntrust_level = "trusted"\n',
   });
 });
 
 test('it unsets every variable that would sign Codex in another way', () => {
-  using tmp = setupTempDir('atc-codex-launch-');
+  using ctx = setupTest();
 
-  setupStaged(tmp.dir, 'auth-r1');
+  mkdirSync(join(ctx.dir, 'auth-r1'), { recursive: true });
+  writeFileSync(join(ctx.dir, 'auth-r1', 'auth.json'), '{"rev":"auth-r1"}');
+  writeFileSync(join(ctx.dir, 'auth-r1', 'config.toml'), 'check_for_update_on_startup = false\n');
+  writeFileSync(join(ctx.dir, 'auth-r1', 'hooks.json'), '{"hooks":{}}');
 
-  const launch = buildCodexGuestLaunch(tmp.dir, 'auth-r1', [
+  const launch = buildCodexGuestLaunch(ctx.dir, 'auth-r1', [
     'sh',
     '-c',
     'for v in OPENAI_API_KEY CODEX_API_KEY CODEX_ACCESS_TOKEN KEPT; do printf "%s," "$(printenv "$v" || echo unset)"; done',
@@ -105,13 +113,13 @@ test('it unsets every variable that would sign Codex in another way', () => {
 });
 
 test('it stops before the CLI runs when the staged sign-in is missing', () => {
-  using tmp = setupTempDir('atc-codex-launch-');
+  using ctx = setupTest();
 
-  const launch = buildCodexGuestLaunch(tmp.dir, 'auth-r1', ['sh', '-c', 'echo ran']);
+  const launch = buildCodexGuestLaunch(ctx.dir, 'auth-r1', ['sh', '-c', 'echo ran']);
   const run = Bun.spawnSync([launch.bin, ...launch.args]);
 
-  expect({ failed: run.exitCode !== 0, stdout: run.stdout.toString() }).toStrictEqual({
-    failed: true,
+  expect({ exitCode: run.exitCode, stdout: run.stdout.toString() }).toStrictEqual({
+    exitCode: 1,
     stdout: '',
   });
 });

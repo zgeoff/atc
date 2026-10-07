@@ -17,9 +17,9 @@ function setupTest() {
 }
 
 test('it trusts the exact root and keeps every other key of the config', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(
     configPath,
@@ -58,9 +58,9 @@ test('it trusts the exact root and keeps every other key of the config', async (
 });
 
 test('it leaves a sibling folder of the root untrusted', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(configPath, JSON.stringify({ projects: {} }, null, 2));
 
@@ -74,9 +74,9 @@ test('it leaves a sibling folder of the root untrusted', async () => {
 });
 
 test('it keeps the fields of an untrusted entry it trusts', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(
     configPath,
@@ -97,16 +97,32 @@ test('it keeps the fields of an untrusted entry it trusts', async () => {
 });
 
 test('it leaves the config untouched when the root is already trusted', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
   const original = '{"projects":{"/work/clone":{"hasTrustDialogAccepted":true}}}';
 
   writeFileSync(configPath, original);
 
   const before = statSync(configPath);
 
+  await updateClaudeProjectTrust(configPath, '/work/clone');
+
+  expect(readFileSync(configPath, 'utf8')).toBe(original);
+  expect(statSync(configPath).ino).toBe(before.ino);
+});
+
+test('it leaves the config untouched when the trust of an already trusted root is taken back', async () => {
+  await using ctx = setupTest();
+
+  const configPath = join(ctx.dir, '.claude.json');
+  const original = '{"projects":{"/work/clone":{"hasTrustDialogAccepted":true}}}';
+
+  writeFileSync(configPath, original);
+
   const remove = await updateClaudeProjectTrust(configPath, '/work/clone');
+
+  const before = statSync(configPath);
 
   await remove();
 
@@ -115,23 +131,23 @@ test('it leaves the config untouched when the root is already trusted', async ()
 });
 
 test('it keeps the mode of the config it replaces', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(configPath, '{}', { mode: 0o600 });
 
   await updateClaudeProjectTrust(configPath, '/work/clone');
 
   expect(statSync(configPath).mode & 0o777).toBe(0o600);
-  expect(readdirSync(tmp.dir)).toStrictEqual(['.claude.json']);
+  expect(readdirSync(ctx.dir)).toStrictEqual(['.claude.json']);
 });
 
 test('it replaces the file a symlinked config points at and keeps the link', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const target = join(tmp.dir, 'dotfiles.json');
-  const configPath = join(tmp.dir, '.claude.json');
+  const target = join(ctx.dir, 'dotfiles.json');
+  const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(target, '{}');
   symlinkSync(target, configPath);
@@ -141,13 +157,13 @@ test('it replaces the file a symlinked config points at and keeps the link', asy
   const config: unknown = JSON.parse(readFileSync(target, 'utf8'));
 
   expect(config).toStrictEqual({ projects: { '/work/clone': { hasTrustDialogAccepted: true } } });
-  expect(readdirSync(tmp.dir).toSorted()).toStrictEqual(['.claude.json', 'dotfiles.json']);
+  expect(readdirSync(ctx.dir).toSorted()).toStrictEqual(['.claude.json', 'dotfiles.json']);
 });
 
 test('it puts back the config as it was when the trust is taken back', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
 
   const original = JSON.stringify(
     { numStartups: 3, projects: { '/home/me': { hasTrustDialogAccepted: true } } },
@@ -165,9 +181,9 @@ test('it puts back the config as it was when the trust is taken back', async () 
 });
 
 test('it puts back an untrusted entry when the trust is taken back', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
 
   const original = JSON.stringify(
     { projects: { '/work/clone': { hasTrustDialogAccepted: false, lastCost: 2 } } },
@@ -185,9 +201,9 @@ test('it puts back an untrusted entry when the trust is taken back', async () =>
 });
 
 test('it keeps an entry that changed after the trust when the trust is taken back', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(configPath, '{}');
 
@@ -207,9 +223,9 @@ test('it keeps an entry that changed after the trust when the trust is taken bac
 });
 
 test('it creates the config when none exists', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
 
   await updateClaudeProjectTrust(configPath, '/work/clone');
 
@@ -218,34 +234,31 @@ test('it creates the config when none exists', async () => {
   expect(config).toStrictEqual({ projects: { '/work/clone': { hasTrustDialogAccepted: true } } });
 });
 
-test('it refuses to replace a config that does not parse', async () => {
-  await using tmp = setupTest();
+test('it refuses to replace a config that does not parse', () => {
+  using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(configPath, '{"projects":');
 
   expect(updateClaudeProjectTrust(configPath, '/work/clone')).rejects.toThrow(SyntaxError);
-
-  await updateClaudeProjectTrust(configPath, '/work/clone').catch(() => null);
-
   expect(readFileSync(configPath, 'utf8')).toBe('{"projects":');
-  expect(readdirSync(tmp.dir)).toStrictEqual(['.claude.json']);
+  expect(readdirSync(ctx.dir)).toStrictEqual(['.claude.json']);
 });
 
 test('it writes only after the Claude CLI releases its config lock', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
   const lockPath = `${configPath}.lock`;
 
   writeFileSync(configPath, '{}');
   mkdirSync(lockPath);
 
-  const update = updateClaudeProjectTrust(configPath, '/work/clone');
+  const busy = Promise.withResolvers<void>();
+  const update = updateClaudeProjectTrust(configPath, '/work/clone', { onBusy: busy.resolve });
 
-  // Holds the lock long enough for the update to retry against it.
-  await Bun.sleep(200);
+  await busy.promise;
 
   const held = readFileSync(configPath, 'utf8');
 
@@ -257,5 +270,5 @@ test('it writes only after the Claude CLI releases its config lock', async () =>
 
   expect(held).toBe('{}');
   expect(config).toStrictEqual({ projects: { '/work/clone': { hasTrustDialogAccepted: true } } });
-  expect(readdirSync(tmp.dir)).toStrictEqual(['.claude.json']);
+  expect(readdirSync(ctx.dir)).toStrictEqual(['.claude.json']);
 });

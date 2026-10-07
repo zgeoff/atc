@@ -10,13 +10,75 @@ test('it never writes a credential into the settings a session is started with',
       apiKeyHelper: '~/.local/bin/atc-zai-key',
     },
     0,
+    ['/usr/local/bin/atc'],
   );
 
-  const serialized = JSON.stringify(settings);
-
-  expect(serialized).not.toInclude('ANTHROPIC_AUTH_TOKEN');
-  expect(serialized).not.toInclude('ANTHROPIC_API_KEY');
-  expect(settings['apiKeyHelper']).toBe('~/.local/bin/atc-zai-key');
+  expect(settings).toStrictEqual({
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: '"/usr/local/bin/atc" statusline --agent \'zai\'',
+      padding: 0,
+    },
+    env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },
+    apiKeyHelper: '~/.local/bin/atc-zai-key',
+  });
 });
 
 test('it carries the backend in an env block, which outranks a shell export', () => {
@@ -40,12 +102,11 @@ test('it carries the backend in an env block, which outranks a shell export', ()
 test('it leaves out the env block and the helper for an agent that needs neither', () => {
   const settings = buildHookSettings({ id: 'claude' }, 0);
 
-  expect(settings['env']).toBeUndefined();
-  expect(settings['apiKeyHelper']).toBeUndefined();
+  expect(Object.keys(settings)).toStrictEqual(['hooks', 'statusLine']);
 });
 
 test('it leaves out an env block that was given with nothing in it', () => {
-  expect(buildHookSettings({ id: 'zai', env: {} }, 0)['env']).toBeUndefined();
+  expect(buildHookSettings({ id: 'zai', env: {} }, 0)).not.toContainKey('env');
 });
 
 test('it reports every hook the fleet needs to track a session', () => {
@@ -66,7 +127,13 @@ test('it reports every hook the fleet needs to track a session', () => {
 });
 
 test('it mirrors the padding of the statusline it chains', () => {
-  expect(buildHookSettings({ id: 'claude' }, 3)['statusLine']).toMatchObject({ padding: 3 });
+  expect(
+    buildHookSettings({ id: 'claude' }, 3, ['/usr/local/bin/atc'])['statusLine'],
+  ).toStrictEqual({
+    type: 'command',
+    command: '"/usr/local/bin/atc" statusline --agent \'claude\'',
+    padding: 3,
+  });
 });
 
 test('it registers a configured hook on an event of its own', () => {
@@ -77,19 +144,33 @@ test('it registers a configured hook on an event of its own', () => {
     0,
   );
 
-  expect(settings['hooks']).toMatchObject({ PermissionRequest: [entry] });
+  expect(settings['hooks']).toContainEntry(['PermissionRequest', [entry]]);
 });
 
 // The fleet stops tracking a session whose reporter was replaced, so a
 // configured hook on an event atc uses runs beside it rather than instead.
 test('it runs its own reporter before a configured hook on the same event', () => {
   const entry = { hooks: [{ type: 'command', command: 'say-hello' }] };
-  const settings = buildHookSettings({ id: 'zai', settings: { hooks: { Stop: [entry] } } }, 0);
-  const hooks = z.record(z.string(), z.array(z.unknown())).parse(settings['hooks']);
 
-  expect(hooks['Stop']).toHaveLength(2);
-  expect(JSON.stringify(hooks['Stop']?.[0])).toInclude('hook-report');
-  expect(hooks['Stop']?.[1]).toStrictEqual(entry);
+  const settings = buildHookSettings({ id: 'zai', settings: { hooks: { Stop: [entry] } } }, 0, [
+    '/usr/local/bin/atc',
+  ]);
+
+  expect(settings['hooks']).toContainEntry([
+    'Stop',
+    [
+      {
+        hooks: [
+          {
+            type: 'command',
+            command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+            timeout: 5,
+          },
+        ],
+      },
+      entry,
+    ],
+  ]);
 });
 
 test('it keeps its own value for a key the configured settings also name', () => {
@@ -100,10 +181,17 @@ test('it keeps its own value for a key the configured settings also name', () =>
       settings: { env: { ANTHROPIC_BASE_URL: 'https://example.invalid' }, statusLine: 'mine' },
     },
     0,
+    ['/usr/local/bin/atc'],
   );
 
-  expect(settings['env']).toStrictEqual({ ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' });
-  expect(settings['statusLine']).toMatchObject({ type: 'command' });
+  expect({ env: settings['env'], statusLine: settings['statusLine'] }).toStrictEqual({
+    env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },
+    statusLine: {
+      type: 'command',
+      command: '"/usr/local/bin/atc" statusline --agent \'zai\'',
+      padding: 0,
+    },
+  });
 });
 
 test('it passes through a configured key it sets nothing of its own for', () => {
@@ -132,16 +220,68 @@ test('it keeps its own hooks when the configured ones are malformed', () => {
 test('it gives every command it registers the agent id of its session', () => {
   const settings = buildHookSettings({ id: 'zai' }, 0, ['/usr/local/bin/atc']);
 
-  expect(settings).toMatchObject({
+  expect(settings).toStrictEqual({
     hooks: {
-      SessionStart: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
-      Notification: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
-      Stop: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
-      UserPromptSubmit: [
-        { hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] },
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
       ],
-      SessionEnd: [{ hooks: [{ command: '"/usr/local/bin/atc" hook-report --agent \'zai\'' }] }],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
     },
-    statusLine: { command: '"/usr/local/bin/atc" statusline --agent \'zai\'' },
+    statusLine: {
+      type: 'command',
+      command: '"/usr/local/bin/atc" statusline --agent \'zai\'',
+      padding: 0,
+    },
   });
 });

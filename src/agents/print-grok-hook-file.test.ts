@@ -1,35 +1,55 @@
 import { expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 
-test('it prints the Grok hook file and writes nothing under GROK_HOME', async () => {
-  const home = process.env['GROK_HOME'];
-  const grokHome = home !== undefined && home !== '' ? home : join(homedir(), '.grok');
-  const hookPath = join(grokHome, 'hooks', 'atc-reporter.json');
-  const before = existsSync(hookPath);
+// The Grok home the printing CLI is started with.
+function setupTest() {
+  return setupTempDir('atc-grok-hooks-');
+}
 
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, '..', 'cli.ts'), 'grok-hooks'], {
+test('it prints the Grok hook file that reports under the grok agent', async () => {
+  await using ctx = setupTest();
+
+  const cliPath = join(import.meta.dir, '..', 'cli.ts');
+  const command = `"${process.execPath}" "${cliPath}" hook-report --agent grok`;
+
+  const proc = Bun.spawn([process.execPath, cliPath, 'grok-hooks'], {
+    env: { ...process.env, GROK_HOME: ctx.dir },
     stdout: 'pipe',
     stderr: 'pipe',
   });
 
   const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
 
-  expect(code).toBe(0);
-  expect(out).toInclude('SessionStart');
-  expect(out).toInclude('SessionEnd');
-  expect(out).toInclude('UserPromptSubmit');
-  expect(out).toInclude('StopFailure');
-  expect(out).toInclude('StopCancelled');
-  expect(out).toInclude('Notification');
-  expect(out).toInclude('hook-report --agent grok');
+  const file: unknown = JSON.parse(out);
 
-  expect(JSON.parse(out)).toMatchObject({
-    hooks: {
-      SessionStart: [{ hooks: [{ type: 'command', timeout: 5 }] }],
+  expect({ code, file }).toStrictEqual({
+    code: 0,
+    file: {
+      hooks: {
+        SessionStart: [{ hooks: [{ type: 'command', command, timeout: 5 }] }],
+        SessionEnd: [{ hooks: [{ type: 'command', command, timeout: 5 }] }],
+        UserPromptSubmit: [{ hooks: [{ type: 'command', command, timeout: 5 }] }],
+        Stop: [{ hooks: [{ type: 'command', command, timeout: 5 }] }],
+        StopFailure: [{ hooks: [{ type: 'command', command, timeout: 5 }] }],
+        StopCancelled: [{ hooks: [{ type: 'command', command, timeout: 5 }] }],
+        Notification: [{ hooks: [{ type: 'command', command, timeout: 5 }] }],
+      },
     },
   });
+});
 
-  expect(existsSync(hookPath)).toBe(before);
+test('it writes nothing under GROK_HOME while it prints the hook file', async () => {
+  await using ctx = setupTest();
+
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, '..', 'cli.ts'), 'grok-hooks'], {
+    env: { ...process.env, GROK_HOME: ctx.dir },
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
+
+  const code = await proc.exited;
+
+  expect({ code, files: readdirSync(ctx.dir) }).toStrictEqual({ code: 0, files: [] });
 });

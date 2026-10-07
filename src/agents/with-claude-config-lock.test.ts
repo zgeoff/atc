@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmdirSync, statSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { withClaudeConfigLock } from './with-claude-config-lock';
 
 function setupTest() {
@@ -9,9 +10,9 @@ function setupTest() {
 }
 
 test('it holds the lock directory while the callback runs and removes it after', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
 
   const held = await withClaudeConfigLock(configPath, () =>
     Promise.resolve(existsSync(`${configPath}.lock`)),
@@ -21,23 +22,20 @@ test('it holds the lock directory while the callback runs and removes it after',
   expect(existsSync(`${configPath}.lock`)).toBeFalse();
 });
 
-test('it removes the lock directory when the callback throws', async () => {
-  await using tmp = setupTest();
+test('it removes the lock directory when the callback throws', () => {
+  using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
   const locked = withClaudeConfigLock(configPath, () => Promise.reject(new Error('boom')));
 
   expect(locked).rejects.toThrowWithMessage(Error, 'boom');
-
-  await locked.catch(() => null);
-
   expect(existsSync(`${configPath}.lock`)).toBeFalse();
 });
 
 test('it takes over a lock its holder left stale', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
   const lockPath = `${configPath}.lock`;
 
   const stale = new Date(Date.now() - 60_000);
@@ -52,27 +50,36 @@ test('it takes over a lock its holder left stale', async () => {
 });
 
 test('it keeps the lock fresh while a slow callback runs', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
   const lockPath = `${configPath}.lock`;
 
-  const ages = await withClaudeConfigLock(configPath, async () => {
-    const created = statSync(lockPath).mtimeMs;
+  const ages = await withClaudeConfigLock(
+    configPath,
+    async () => {
+      const created = statSync(lockPath).mtimeMs;
 
-    // Outlasts one refresh of the lock's age.
-    await Bun.sleep(1500);
+      const refreshed = await waitFor(() => {
+        const current = statSync(lockPath).mtimeMs;
 
-    return { created, refreshed: statSync(lockPath).mtimeMs };
-  });
+        expect(current).not.toBe(created);
+
+        return current;
+      });
+
+      return { created, refreshed };
+    },
+    { refreshMs: 5 },
+  );
 
   expect(ages.refreshed).toBeGreaterThan(ages.created);
 });
 
 test('it leaves a lock another holder took over in place on release', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, '.claude.json');
+  const configPath = join(ctx.dir, '.claude.json');
   const lockPath = `${configPath}.lock`;
 
   await withClaudeConfigLock(configPath, () => {
@@ -86,12 +93,12 @@ test('it leaves a lock another holder took over in place on release', async () =
 });
 
 test('it creates a config folder that does not exist yet', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  const configPath = join(tmp.dir, 'fresh', '.claude.json');
+  const configPath = join(ctx.dir, 'fresh', '.claude.json');
 
   const ran = await withClaudeConfigLock(configPath, () => Promise.resolve(true));
 
   expect(ran).toBeTrue();
-  expect(existsSync(join(tmp.dir, 'fresh'))).toBeTrue();
+  expect(existsSync(join(ctx.dir, 'fresh'))).toBeTrue();
 });

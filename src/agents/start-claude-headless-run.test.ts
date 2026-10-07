@@ -35,8 +35,11 @@ test('it renders a failed result with its subtype', () => {
   expect(rendered).toBe('— headless turn stopped: error_max_turns');
 });
 
-test('it renders nothing for messages without displayable content', () => {
+test('it renders nothing for a system message', () => {
   expect(renderSdkMessage({ type: 'system', subtype: 'init' })).toBeNull();
+});
+
+test('it renders nothing for an assistant message without content', () => {
   expect(renderSdkMessage({ type: 'assistant', message: { content: [] } })).toBeNull();
 });
 
@@ -46,10 +49,5 @@ test('it truncates an oversized tool input summary', () => {
     message: { content: [{ type: 'tool_use', name: 'Write', input: { data: 'x'.repeat(400) } }] },
   });
 
-  if (rendered === null) {
-    throw new Error('nothing rendered');
-  }
-
-  expect(rendered.length).toBeLessThan(240);
-  expect(rendered).toEndWith('…');
+  expect(rendered).toBe(`⚙ Write {"data":"${'x'.repeat(190)}…`);
 });

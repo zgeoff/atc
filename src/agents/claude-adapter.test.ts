@@ -1,31 +1,47 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { expect, test } from 'bun:test';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
+import { buildMockAgentEntry } from '../test-utils/build-mock-agent-entry';
+import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { KEYS } from '../test-utils/keys';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
 import { ClaudeAdapter } from './claude-adapter';
 
-test('it resumes when no transcript was reported or the reported file exists', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-claude-resume-'));
+// A folder for the files a test writes: transcripts, the atc-bridge mod, a
+// host config folder, or a guest folder a launch runs in.
+function setupTest() {
+  return setupTempDir('atc-claude-adapter-');
+}
 
-  onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
+test('it resumes when no transcript was reported', () => {
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
-  const transcript = join(dir, 'transcript.jsonl');
+  expect(adapter.canResume({})).toBeTrue();
+});
+
+test('it resumes when the reported transcript exists', () => {
+  using ctx = setupTest();
+
+  const transcript = join(ctx.dir, 'transcript.jsonl');
 
   writeFileSync(transcript, '');
 
   const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
-  expect(adapter.canResume({})).toBe(true);
-  expect(adapter.canResume({ transcriptSource: transcript })).toBe(true);
-  expect(adapter.canResume({ transcriptSource: join(dir, 'missing.jsonl') })).toBe(false);
+  expect(adapter.canResume({ transcriptSource: transcript })).toBeTrue();
+});
+
+test('it does not resume when the reported transcript is gone', () => {
+  using ctx = setupTest();
+
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+
+  expect(adapter.canResume({ transcriptSource: join(ctx.dir, 'missing.jsonl') })).toBeFalse();
 });
 
 test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
@@ -63,30 +79,30 @@ test('it carries the whole last assistant message of a finished turn as its resu
     payload: { session_id: 'c-1', last_assistant_message: 'x'.repeat(700) },
   });
 
-  expect(ev).toMatchObject({ kind: 'turn-done', result: 'x'.repeat(700) });
-  expect(ev.detail).toHaveLength(600);
+  expect(ev).toStrictEqual({
+    kind: 'turn-done',
+    agentSessionID: toAgentSessionID('c-1'),
+    detail: `${'x'.repeat(599)}…`,
+    result: 'x'.repeat(700),
+  });
 });
 
 test('it takes inbox messages', () => {
   const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
-  expect(adapter.takesMessages).toBe(true);
+  expect(adapter.takesMessages).toBeTrue();
 });
 
 test('it runs a headless turn through the configured claude binary under the auto permission mode with the atc-bridge mod', () => {
-  using tmp = setupTempDir('atc-claude-bridge-');
+  using ctx = setupTest();
 
-  let received: Readonly<Record<string, unknown>> = {};
+  const runner = buildStubHeadlessRunner();
 
   const adapter = new ClaudeAdapter(
     getAgentEntry(parseConfig({}), 'claude'),
     parseConfig({}),
-    (opts) => {
-      received = { ...opts };
-
-      return { stop: () => {} };
-    },
-    join(tmp.dir, 'atc-bridge'),
+    runner,
+    join(ctx.dir, 'atc-bridge'),
   );
 
   adapter.headlessRunner?.(
@@ -94,17 +110,19 @@ test('it runs a headless turn through the configured claude binary under the aut
     { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
   );
 
-  expect(received).toMatchObject({
-    cwd: '/tmp',
-    prompt: 'go',
-    model: 'opus',
-    effort: 'high',
-    claudeBin: 'claude',
-    permissionMode: 'auto',
-    pluginDir: join(tmp.dir, 'atc-bridge'),
-  });
-
-  expect(received['settings']).toMatch(/hook-settings-claude\.json$/);
+  expect(runner).toHaveBeenCalledExactlyOnceWith(
+    {
+      cwd: '/tmp',
+      prompt: 'go',
+      model: 'opus',
+      effort: 'high',
+      claudeBin: 'claude',
+      permissionMode: 'auto',
+      pluginDir: join(ctx.dir, 'atc-bridge'),
+      settings: expect.toEndWith('/hook-settings-claude.json'),
+    },
+    expect.anything(),
+  );
 });
 
 test('it advertises the documented model aliases and effort levels with the configured defaults', () => {
@@ -149,20 +167,16 @@ test('it advertises no default model or effort when the configured arguments set
 });
 
 test('it runs a headless turn under the permission mode its configured arguments set', () => {
-  using tmp = setupTempDir('atc-claude-mode-');
+  using ctx = setupTest();
 
-  let received: Readonly<Record<string, unknown>> = {};
+  const runner = buildStubHeadlessRunner();
   const config = parseConfig({ claudeArgs: ['--permission-mode', 'plan'] });
 
   const adapter = new ClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
-    (opts) => {
-      received = { ...opts };
-
-      return { stop: () => {} };
-    },
-    join(tmp.dir, 'atc-bridge'),
+    runner,
+    join(ctx.dir, 'atc-bridge'),
   );
 
   adapter.headlessRunner?.(
@@ -170,7 +184,17 @@ test('it runs a headless turn under the permission mode its configured arguments
     { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
   );
 
-  expect(received).toMatchObject({ permissionMode: 'plan' });
+  expect(runner).toHaveBeenCalledExactlyOnceWith(
+    {
+      cwd: '/tmp',
+      prompt: 'go',
+      claudeBin: 'claude',
+      permissionMode: 'plan',
+      pluginDir: join(ctx.dir, 'atc-bridge'),
+      settings: expect.toEndWith('/hook-settings-claude.json'),
+    },
+    expect.anything(),
+  );
 });
 
 test('it keeps the permission mode its configured arguments set in the command that resumes it outside atc', () => {
@@ -178,13 +202,13 @@ test('it keeps the permission mode its configured arguments set in the command t
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
-    /^cd '\/work\/repo' && claude --permission-mode 'plan' --resume sess-1$/,
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+    "cd '/work/repo' && claude --permission-mode 'plan' --resume sess-1",
   );
 });
 
 test('it restores a stock session in the mode its settings set', () => {
-  using tmp = setupTempDir('atc-claude-settings-mode-');
+  using ctx = setupTest();
 
   const config = parseConfig({
     agents: { claude: { settings: { permissions: { defaultMode: 'bypassPermissions' } } } },
@@ -194,12 +218,24 @@ test('it restores a stock session in the mode its settings set', () => {
     getAgentEntry(config, 'claude'),
     config,
     null,
-    join(tmp.dir, 'atc-bridge'),
+    join(ctx.dir, 'atc-bridge'),
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
 
-  expect(plan.args.join(' ')).toContain('--permission-mode bypassPermissions');
+  expect(plan).toStrictEqual({
+    bin: 'claude',
+    args: [
+      '--permission-mode',
+      'bypassPermissions',
+      '--settings',
+      expect.toEndWith('/hook-settings-claude.json'),
+      '--plugin-dir',
+      join(ctx.dir, 'atc-bridge'),
+      '--resume',
+      'sess-1',
+    ],
+  });
 });
 
 test('it restores an unbrokered remote session in the mode its settings set', () => {
@@ -214,7 +250,56 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
     { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
   );
 
-  expect(plan?.args.join(' ')).toContain('--permission-mode plan');
+  expect(plan).toStrictEqual({
+    bin: 'claude',
+    args: [
+      '--permission-mode',
+      'plan',
+      '--settings',
+      '/tmp/atc/sessions/s1/settings.json',
+      '--plugin-dir',
+      '/tmp/atc/sessions/s1/atc-bridge',
+      '--resume',
+      'sess-1',
+    ],
+    files: expect.toContainAllKeys([
+      'atc-bridge/.claude-plugin/plugin.json',
+      'atc-bridge/hooks/hooks.json',
+      'atc-bridge/hooks/register.ts',
+      'atc-bridge/hooks/atc-cli.ts',
+      'settings.json',
+    ]),
+  });
+});
+
+test('it plans a remote spawn in the permission mode its configured arguments set', () => {
+  const config = parseConfig({ claudeArgs: ['--permission-mode', 'plan'] });
+
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
+  );
+
+  expect(plan).toStrictEqual({
+    bin: 'claude',
+    args: [
+      '--permission-mode',
+      'plan',
+      '--settings',
+      '/tmp/atc/sessions/s1/settings.json',
+      '--plugin-dir',
+      '/tmp/atc/sessions/s1/atc-bridge',
+    ],
+    files: expect.toContainAllKeys([
+      'atc-bridge/.claude-plugin/plugin.json',
+      'atc-bridge/hooks/hooks.json',
+      'atc-bridge/hooks/register.ts',
+      'atc-bridge/hooks/atc-cli.ts',
+      'settings.json',
+    ]),
+  });
 });
 
 test('it quotes a configured binary path with spaces in the resume command', () => {
@@ -222,8 +307,8 @@ test('it quotes a configured binary path with spaces in the resume command', () 
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toMatch(
-    /^cd '\/work\/repo' && '\/opt\/Claude Code\/claude' --resume sess-1$/,
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+    "cd '/work/repo' && '/opt/Claude Code/claude' --resume sess-1",
   );
 });
 
@@ -240,18 +325,32 @@ test('it carries the settings file in the resume command of an entry with its ow
 });
 
 test('it restores a stock session without a permission-mode argument', () => {
-  using tmp = setupTempDir('atc-claude-stock-restore-');
+  using ctx = setupTest();
 
   const adapter = new ClaudeAdapter(
     getAgentEntry(parseConfig({}), 'claude'),
     parseConfig({}),
     null,
-    join(tmp.dir, 'atc-bridge'),
+    join(ctx.dir, 'atc-bridge'),
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
 
-  expect(plan.args).not.toContain('--permission-mode');
+  expect(plan).toStrictEqual({
+    bin: 'claude',
+    args: [
+      '--settings',
+      expect.toEndWith('/hook-settings-claude.json'),
+      '--plugin-dir',
+      join(ctx.dir, 'atc-bridge'),
+      '--resume',
+      'sess-1',
+    ],
+  });
+});
+
+test('it resumes a stock session outside atc without a permission-mode argument', () => {
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
     "cd '/work/repo' && claude --resume sess-1",
@@ -262,8 +361,8 @@ test('it pastes a long line and submits it with a carriage return as a second wr
   const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   expect(adapter.planLineInput('a'.repeat(1600), { bracketedPaste: true })).toStrictEqual([
-    `\u001B[200~${'a'.repeat(1600)}\u001B[201~`,
-    '\r',
+    `${KEYS.pasteOpen}${'a'.repeat(1600)}${KEYS.pasteClose}`,
+    KEYS.enter,
   ]);
 });
 
@@ -271,6 +370,11 @@ test('it takes no credential from the broker when the config holds no claudeAuth
   const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   expect(adapter.findAuthSelection()).toBeNull();
+});
+
+test('it seeds no clone trust when the config holds no claudeAuth', () => {
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+
   expect(adapter.planGuestWorkspaceTrust('/work/repo')).toBeNull();
 });
 
@@ -373,9 +477,23 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
     },
   });
 
-  expect(settings).toHaveProperty('env', {
-    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
-    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  expect(settings).toStrictEqual({
+    hooks: expect.toContainAllKeys([
+      'SessionStart',
+      'Notification',
+      'Stop',
+      'UserPromptSubmit',
+      'SessionEnd',
+    ]),
+    statusLine: {
+      type: 'command',
+      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      padding: 0,
+    },
+    env: {
+      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    },
   });
 
   const seed = plan.files['claude-config-seed.json'];
@@ -388,22 +506,22 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
 });
 
 test("it ships the host's Claude config as the session's user settings and keeps it out of the --settings file", () => {
-  using tmp = setupTempDir('atc-claude-bundle-');
+  using ctx = setupTest();
 
-  mkdirSync(join(tmp.dir, 'skills', 'delegate'), { recursive: true });
-  writeFileSync(join(tmp.dir, 'skills', 'delegate', 'SKILL.md'), 'delegate');
-  writeFileSync(join(tmp.dir, 'statusline.sh'), 'echo status');
+  mkdirSync(join(ctx.dir, 'skills', 'delegate'), { recursive: true });
+  writeFileSync(join(ctx.dir, 'skills', 'delegate', 'SKILL.md'), 'delegate');
+  writeFileSync(join(ctx.dir, 'statusline.sh'), 'echo status');
 
   writeFileSync(
-    join(tmp.dir, 'settings.json'),
+    join(ctx.dir, 'settings.json'),
     JSON.stringify({
       outputStyle: 'STE Direct',
       model: 'opus[1m]',
-      statusLine: { type: 'command', command: `bash "${tmp.dir}/statusline.sh"`, padding: 2 },
+      statusLine: { type: 'command', command: `bash "${ctx.dir}/statusline.sh"`, padding: 2 },
     }),
   );
 
-  updateEnv('CLAUDE_CONFIG_DIR', tmp.dir);
+  updateEnv('CLAUDE_CONFIG_DIR', ctx.dir);
 
   const config = parseConfig({
     authProfiles: {
@@ -480,9 +598,16 @@ test("it ships the host's Claude config as the session's user settings and keeps
     },
   });
 
-  expect(Object.keys(plan.files)).toIncludeAllMembers([
+  expect(Object.keys(plan.files)).toIncludeSameMembers([
+    'auth-r1/settings.json',
+    'claude-config-seed.json',
+    `${bundleKey}/settings.json`,
     `${bundleKey}/statusline.sh`,
     `${bundleKey}/skills/delegate/SKILL.md`,
+    'atc-bridge/.claude-plugin/plugin.json',
+    'atc-bridge/hooks/hooks.json',
+    'atc-bridge/hooks/register.ts',
+    'atc-bridge/hooks/atc-cli.ts',
   ]);
 });
 
@@ -579,7 +704,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
     { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
   );
 
-  expect(plan).toMatchObject({
+  expect(plan).toStrictEqual({
     bin: 'claude',
     args: [
       '--settings',
@@ -587,9 +712,14 @@ test('it plans a guest spawn without a broker binding in the config of the host 
       '--plugin-dir',
       '/tmp/atc/sessions/s1/atc-bridge',
     ],
+    files: expect.toContainAllKeys([
+      'atc-bridge/.claude-plugin/plugin.json',
+      'atc-bridge/hooks/hooks.json',
+      'atc-bridge/hooks/register.ts',
+      'atc-bridge/hooks/atc-cli.ts',
+      'settings.json',
+    ]),
   });
-
-  expect(plan).not.toContainKey('env');
 });
 
 test.each([
@@ -636,50 +766,78 @@ test.each([
   );
 });
 
-test.each([
-  ['env', { env: { ANTHROPIC_BASE_URL: 'https://x.example.com' } }, 'agents.claude.env sets'],
-  [
-    'settings.env',
-    { env: {}, settings: { env: { HTTPS_PROXY: 'http://p.example:3128' } } },
-    'agents.claude.settings.env sets',
-  ],
-])(
-  'it refuses a subscription guest spawn whose entry %s overrides the sign-in',
-  (_source, fields, wording) => {
-    const adapter = new ClaudeAdapter(
+test('it refuses a subscription guest spawn whose entry env overrides the sign-in', () => {
+  const adapter = new ClaudeAdapter(
+    buildMockAgentEntry({
+      id: 'claude',
+      bin: 'claude',
+      env: { ANTHROPIC_BASE_URL: 'https://x.example.com' },
+      auth: { profiles: ['claude'], placeholderEnv: {} },
+    }),
+    parseConfig({}),
+  );
+
+  const plan = () =>
+    adapter.planGuestSpawn(
+      { prompt: '', resume: false },
       {
-        id: 'claude',
-        kind: 'claude',
-        label: 'Claude',
-        mark: 'c',
-        bin: 'claude',
-        args: [],
-        auth: { profiles: ['claude'], placeholderEnv: {} },
-        ...fields,
+        atc: '/opt/atc/bin/atc',
+        dir: '/tmp/atc/sessions/s1',
+        auth: {
+          revision: 1,
+          env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+          profileEnv: {},
+        },
       },
-      parseConfig({}),
     );
 
-    const plan = () =>
-      adapter.planGuestSpawn(
-        { prompt: '', resume: false },
-        {
-          atc: '/opt/atc/bin/atc',
-          dir: '/tmp/atc/sessions/s1',
-          auth: {
-            revision: 1,
-            env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
-            profileEnv: {},
-          },
-        },
-      );
+  expect(plan).toThrow(
+    expect.objectContaining({
+      code: 'auth_target_unsupported',
+      message:
+        "claude signs in through impd's broker on this target, but agents.claude.env sets ANTHROPIC_BASE_URL, which would override or route around that sign-in",
+      data: { agent: 'claude', problem: 'guest_env_conflict', variable: 'ANTHROPIC_BASE_URL' },
+    }),
+  );
+});
 
-    expect(plan).toThrow(expect.objectContaining({ message: expect.toInclude(wording) }));
-  },
-);
+test('it refuses a subscription guest spawn whose entry settings env overrides the sign-in', () => {
+  const adapter = new ClaudeAdapter(
+    buildMockAgentEntry({
+      id: 'claude',
+      bin: 'claude',
+      settings: { env: { HTTPS_PROXY: 'http://p.example:3128' } },
+      auth: { profiles: ['claude'], placeholderEnv: {} },
+    }),
+    parseConfig({}),
+  );
+
+  const plan = () =>
+    adapter.planGuestSpawn(
+      { prompt: '', resume: false },
+      {
+        atc: '/opt/atc/bin/atc',
+        dir: '/tmp/atc/sessions/s1',
+        auth: {
+          revision: 1,
+          env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+          profileEnv: {},
+        },
+      },
+    );
+
+  expect(plan).toThrow(
+    expect.objectContaining({
+      code: 'auth_target_unsupported',
+      message:
+        "claude signs in through impd's broker on this target, but agents.claude.settings.env sets HTTPS_PROXY, which would override or route around that sign-in",
+      data: { agent: 'claude', problem: 'guest_env_conflict', variable: 'HTTPS_PROXY' },
+    }),
+  );
+});
 
 test('it refuses to start a subscription session in a host whose environment sets ANTHROPIC_API_KEY', () => {
-  using tmp = setupTempDir('atc-claude-refuse-');
+  using ctx = setupTest();
 
   const config = parseConfig({
     claudeBin: 'true',
@@ -700,7 +858,7 @@ test('it refuses to start a subscription session in a host whose environment set
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: tmp.dir,
+      dir: ctx.dir,
       auth: {
         revision: 1,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
@@ -719,7 +877,7 @@ test('it refuses to start a subscription session in a host whose environment set
     throw new TypeError('expected the seed file');
   }
 
-  writeFileSync(join(tmp.dir, 'claude-config-seed.json'), seed);
+  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
 
   const run = Bun.spawnSync([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env, ANTHROPIC_API_KEY: 'sk-test' },
@@ -731,7 +889,7 @@ test('it refuses to start a subscription session in a host whose environment set
     "atc: ANTHROPIC_API_KEY is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n",
   );
 
-  expect(existsSync(join(tmp.dir, 'claude-config'))).toBeFalse();
+  expect(existsSync(join(ctx.dir, 'claude-config'))).toBeFalse();
 });
 
 test.each([
@@ -746,7 +904,7 @@ test.each([
 ])(
   'it refuses to start a subscription session in a host whose environment sets %s',
   (name, value) => {
-    using tmp = setupTempDir('atc-claude-route-');
+    using ctx = setupTest();
 
     const config = parseConfig({
       claudeBin: 'true',
@@ -767,7 +925,7 @@ test.each([
       { prompt: '', resume: false },
       {
         atc: '/opt/atc/bin/atc',
-        dir: tmp.dir,
+        dir: ctx.dir,
         auth: {
           revision: 1,
           env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
@@ -784,13 +942,15 @@ test.each([
       env: { PATH: process.env['PATH'] ?? '', ...plan.env, [name]: value },
     });
 
-    expect(run.exitCode).toBe(78);
-    expect(run.stderr.toString()).toStartWith(`atc: ${name} is set in this host's environment`);
+    expect({ exitCode: run.exitCode, stderr: run.stderr.toString() }).toStrictEqual({
+      exitCode: 78,
+      stderr: `atc: ${name} is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n`,
+    });
   },
 );
 
 test('it starts a subscription session with a seeded config folder in a host whose environment sets no credential', () => {
-  using tmp = setupTempDir('atc-claude-seed-');
+  using ctx = setupTest();
 
   const config = parseConfig({
     claudeBin: 'true',
@@ -811,7 +971,7 @@ test('it starts a subscription session with a seeded config folder in a host who
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: tmp.dir,
+      dir: ctx.dir,
       auth: {
         revision: 1,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
@@ -830,13 +990,13 @@ test('it starts a subscription session with a seeded config folder in a host who
     throw new TypeError('expected the seed file');
   }
 
-  writeFileSync(join(tmp.dir, 'claude-config-seed.json'), seed);
+  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
 
   const run = Bun.spawnSync([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env },
   });
 
-  const seeded = readFileSync(join(tmp.dir, 'claude-config', '.claude.json'), 'utf8');
+  const seeded = readFileSync(join(ctx.dir, 'claude-config', '.claude.json'), 'utf8');
 
   expect(run.exitCode).toBe(0);
   expect(JSON.parse(seeded)).toStrictEqual({ hasCompletedOnboarding: true });
@@ -869,13 +1029,8 @@ test("it seeds folder trust and approval of the clone's own MCP servers for the 
   });
 });
 
-const OP_CONNECT_ENV = {
-  OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
-  OP_CONNECT_TOKEN: 'imp-broker-placeholder',
-};
-
-function buildOPConnectConfig() {
-  return parseConfig({
+test("it sets a profile's variables in a subscription guest's settings env and spawn env", () => {
+  const config = parseConfig({
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -888,24 +1043,16 @@ function buildOPConnectConfig() {
         host: 'op-connect.geoff.cloud',
         header: 'authorization',
         scheme: 'bearer',
-        env: OP_CONNECT_ENV,
+        env: {
+          OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+          OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+        },
       },
     },
     claudeAuth: { profiles: ['claude', 'op'] },
   });
-}
 
-test("it sets a profile's variables in a subscription guest's settings env and spawn env, and not in the local plan", () => {
-  using tmp = setupTempDir('atc-claude-profile-env-');
-
-  const config = buildOPConnectConfig();
-
-  const adapter = new ClaudeAdapter(
-    getAgentEntry(config, 'claude'),
-    config,
-    null,
-    join(tmp.dir, 'atc-bridge'),
-  );
+  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
   const plan = adapter.planGuestSpawn(
     { prompt: 'hi', resume: false },
@@ -915,7 +1062,10 @@ test("it sets a profile's variables in a subscription guest's settings env and s
       auth: {
         revision: 2,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
-        profileEnv: OP_CONNECT_ENV,
+        profileEnv: {
+          OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+          OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+        },
       },
     },
   );
@@ -926,20 +1076,79 @@ test("it sets a profile's variables in a subscription guest's settings env and s
     throw new Error('expected a guest spawn plan with a settings file');
   }
 
-  const guestSettings: unknown = JSON.parse(settingsFile);
+  const settings: unknown = JSON.parse(settingsFile);
 
-  expect(plan.env).toMatchObject({
-    ...OP_CONNECT_ENV,
-    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+  expect({ env: plan.env, settings }).toStrictEqual({
+    env: {
+      CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+      OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+      OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    },
+    settings: {
+      hooks: expect.toContainAllKeys([
+        'SessionStart',
+        'Notification',
+        'Stop',
+        'UserPromptSubmit',
+        'SessionEnd',
+      ]),
+      statusLine: {
+        type: 'command',
+        command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+        padding: 0,
+      },
+      env: {
+        OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+        OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+        CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      },
+    },
+  });
+});
+
+test("it leaves a profile's variables out of the local plan of an entry with a profile env", () => {
+  using ctx = setupTest();
+
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      op: {
+        secret: 'op-connect',
+        host: 'op-connect.geoff.cloud',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: {
+          OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+          OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+        },
+      },
+    },
+    claudeAuth: { profiles: ['claude', 'op'] },
   });
 
-  expect(guestSettings).toHaveProperty('env', {
-    ...OP_CONNECT_ENV,
-    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
-    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    null,
+    join(ctx.dir, 'atc-bridge'),
+  );
+
+  const plan = adapter.planSpawn({ prompt: '', resume: false });
+
+  expect(plan).toStrictEqual({
+    bin: 'claude',
+    args: [
+      '--settings',
+      expect.toEndWith('/hook-settings-claude.json'),
+      '--plugin-dir',
+      join(ctx.dir, 'atc-bridge'),
+    ],
   });
-
-  const local = adapter.planSpawn({ prompt: '', resume: false });
-
-  expect(JSON.stringify(local)).not.toContain('OP_CONNECT');
 });
