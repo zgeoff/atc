@@ -1,23 +1,11 @@
 import { expect, test } from 'bun:test';
+import { buildStubWaitClock } from './build-stub-wait-clock';
 import { waitFor } from './wait-for';
 
-// A clock that starts at zero and moves only when a wait waits it out, so
-// a deadline passes after a known number of attempts.
+// A clock that moves only when a wait waits it out, so a deadline passes
+// after a known number of attempts.
 function setupTest() {
-  const waits: number[] = [];
-  let elapsed = 0;
-
-  return {
-    waits,
-    now: () => elapsed,
-    wait: (ms: number) => {
-      waits.push(ms);
-
-      elapsed += ms;
-
-      return Promise.resolve();
-    },
-  };
+  return buildStubWaitClock();
 }
 
 test('it returns the value of an attempt that succeeds at once', async () => {

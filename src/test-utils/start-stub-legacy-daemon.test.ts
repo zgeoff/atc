@@ -2,7 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { setupTempDir } from './setup-temp-dir';
-import { startLegacyDaemon } from './start-legacy-daemon';
+import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 import { waitFor } from './wait-for';
 
 // A temp directory to hold the daemon's socket.
@@ -18,7 +18,7 @@ function setupTest() {
 test('it answers the handshake without a feature list when given none', async () => {
   using ctx = setupTest();
 
-  const daemon = startLegacyDaemon(ctx.socketPath);
+  const daemon = startStubLegacyDaemon(ctx.socketPath);
 
   onTestFinished(() => {
     daemon.stop();
@@ -42,7 +42,9 @@ test('it answers the handshake without a feature list when given none', async ()
 test('it announces the features it was given in the handshake', async () => {
   using ctx = setupTest();
 
-  const daemon = startLegacyDaemon(ctx.socketPath, { features: ['agents.list', 'message.wait'] });
+  const daemon = startStubLegacyDaemon(ctx.socketPath, {
+    features: ['agents.list', 'message.wait'],
+  });
 
   onTestFinished(() => {
     daemon.stop();
@@ -67,7 +69,7 @@ test('it announces the features it was given in the handshake', async () => {
 test('it answers a method with the reply it was given and records the request', async () => {
   using ctx = setupTest();
 
-  using daemon = startLegacyDaemon(ctx.socketPath, {
+  using daemon = startStubLegacyDaemon(ctx.socketPath, {
     replies: { 'message.get': { message: 'm-1', status: 'accepted' } },
   });
 
@@ -92,7 +94,7 @@ test('it answers a method with the reply it was given and records the request', 
 test('it refuses a method it was given no reply for', async () => {
   using ctx = setupTest();
 
-  const daemon = startLegacyDaemon(ctx.socketPath, { features: ['agents.list'] });
+  const daemon = startStubLegacyDaemon(ctx.socketPath, { features: ['agents.list'] });
 
   onTestFinished(() => {
     daemon.stop();
@@ -114,7 +116,7 @@ test('it refuses a method it was given no reply for', async () => {
 test('it answers a ping without being given a reply', async () => {
   using ctx = setupTest();
 
-  const daemon = startLegacyDaemon(ctx.socketPath);
+  const daemon = startStubLegacyDaemon(ctx.socketPath);
 
   onTestFinished(() => {
     daemon.stop();
@@ -136,7 +138,7 @@ test('it answers a ping without being given a reply', async () => {
 test('it refuses a hello on another protocol version with protocol_mismatch', async () => {
   using ctx = setupTest();
 
-  const daemon = startLegacyDaemon(ctx.socketPath, { protocol: 3 });
+  const daemon = startStubLegacyDaemon(ctx.socketPath, { protocol: 3 });
 
   onTestFinished(() => {
     daemon.stop();
@@ -158,7 +160,7 @@ test('it refuses a hello on another protocol version with protocol_mismatch', as
 test('it counts a connection it accepted as open until the client closes it', async () => {
   using ctx = setupTest();
 
-  const daemon = startLegacyDaemon(ctx.socketPath);
+  const daemon = startStubLegacyDaemon(ctx.socketPath);
 
   onTestFinished(() => {
     daemon.stop();
@@ -178,13 +180,17 @@ test('it counts a connection it accepted as open until the client closes it', as
 test('it counts a connection the client closed as accepted and no longer open', async () => {
   using ctx = setupTest();
 
-  const daemon = startLegacyDaemon(ctx.socketPath);
+  const daemon = startStubLegacyDaemon(ctx.socketPath);
 
   onTestFinished(() => {
     daemon.stop();
   });
 
   const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
 
   await client.sendHello('atc/test-build');
 
@@ -198,9 +204,38 @@ test('it counts a connection the client closed as accepted and no longer open', 
 test('it stops listening when disposed', () => {
   using ctx = setupTest();
 
-  const legacy = startLegacyDaemon(ctx.socketPath);
+  const legacy = startStubLegacyDaemon(ctx.socketPath);
 
   legacy[Symbol.dispose]();
 
   expect(DaemonClient.open(ctx.socketPath)).rejects.toThrow();
+});
+
+test('it answers the handshake on the TCP port it bound when given a TCP address', async () => {
+  using daemon = startStubLegacyDaemon({ hostname: '127.0.0.1', port: 0 });
+
+  if (daemon.port === null) {
+    throw new Error('the daemon bound no TCP port');
+  }
+
+  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: daemon.port });
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const hello = await client.sendHello('atc/test-build');
+
+  expect(hello).toStrictEqual({
+    daemon: 'atc/legacy-build',
+    limits: { maxLine: 1_048_576, maxChunk: 65_536 },
+    lastUsedAgent: 'claude',
+  });
+});
+
+test('it holds no port when it listens on a unix socket', () => {
+  using ctx = setupTest();
+  using daemon = startStubLegacyDaemon(ctx.socketPath);
+
+  expect(daemon.port).toBeNull();
 });

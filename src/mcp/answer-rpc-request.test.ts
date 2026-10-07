@@ -7,7 +7,7 @@ import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
+import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { answerRPCRequest } from './answer-rpc-request';
 import { buildToolList } from './build-tool-list';
@@ -348,7 +348,7 @@ test('it lists the agents to a caller holding only the read scope', async () => 
 test('it leaves the agents tool out of the list when the connected daemon does not announce it', async () => {
   using tmp = setupTempDir('atc-answer-rpc-');
 
-  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
   onTestFinished(() => {
     legacy.stop();
@@ -385,7 +385,7 @@ test('it leaves the agents tool out of the list when the connected daemon does n
 test('it lists the message tool in its older form when the connected daemon announces no features', async () => {
   using tmp = setupTempDir('atc-answer-rpc-');
 
-  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
   onTestFinished(() => {
     legacy.stop();
@@ -449,7 +449,7 @@ test.each([
   'it refuses %p called with %p with a restart hint when the connected daemon predates it, sending nothing',
   async (name, args) => {
     using tmp = setupTempDir('atc-answer-rpc-');
-    using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
+    using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
     const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
       DaemonClient.open(path),
@@ -494,7 +494,7 @@ test.each([
   'it refuses a spawn with the %p option %p with a restart hint when the connected daemon predates it, sending nothing',
   async (option, value) => {
     using tmp = setupTempDir('atc-answer-rpc-');
-    using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
+    using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
     const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
       DaemonClient.open(path),
@@ -543,7 +543,7 @@ test.each([
 test('it reads a message from an older daemon when the call asks for no wait', async () => {
   using tmp = setupTempDir('atc-answer-rpc-');
 
-  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     replies: {
       'message.get': {
         message: 'm-legacy',
@@ -674,7 +674,7 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
 test('it lists the agents tool without an output schema to match the agents a daemon without spawn options returns', async () => {
   using tmp = setupTempDir('atc-answer-rpc-');
 
-  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
     replies: {
       'agents.list': {

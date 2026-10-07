@@ -11,6 +11,10 @@ type BridgeResponder = (request: BridgeRequest) => readonly BridgeRequest[] | nu
 interface StubSessionBridge {
   // Every request line received so far, parsed, in arrival order.
   readonly requests: readonly BridgeRequest[];
+
+  // How many reads the stand-in has taken from its connections, so a test
+  // can wait until one piece of a split write has arrived.
+  readonly reads: number;
   readonly [Symbol.dispose]: () => void;
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 }
@@ -27,6 +31,7 @@ interface StubSessionBridge {
  */
 export function startStubSessionBridge(path: string, respond: BridgeResponder): StubSessionBridge {
   const requests: BridgeRequest[] = [];
+  let reads = 0;
 
   const server = Bun.listen<{ pending: string }>({
     unix: path,
@@ -35,6 +40,8 @@ export function startStubSessionBridge(path: string, respond: BridgeResponder): 
         socket.data = { pending: '' };
       },
       data(socket, chunk) {
+        reads += 1;
+
         const lines = `${socket.data.pending}${chunk.toString()}`.split('\n');
 
         socket.data.pending = lines.pop() ?? '';
@@ -68,6 +75,9 @@ export function startStubSessionBridge(path: string, respond: BridgeResponder): 
 
   return {
     requests,
+    get reads() {
+      return reads;
+    },
     [Symbol.dispose]: stop,
     [Symbol.asyncDispose]: () => {
       stop();

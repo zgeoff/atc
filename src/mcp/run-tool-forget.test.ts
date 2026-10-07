@@ -11,7 +11,7 @@ import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
-import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
+import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildPrincipalCaller } from './build-principal-caller';
 import { ReconnectingCaller } from './reconnecting-caller';
@@ -409,7 +409,7 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
 
   const currentID = String(hello['daemonID']);
 
-  const old = startLegacyDaemon(join(current.dir, 'old.sock'), {
+  const old = startStubLegacyDaemon(join(current.dir, 'old.sock'), {
     replies: {
       'daemon.hello': {
         daemon: 'atc/legacy-build',

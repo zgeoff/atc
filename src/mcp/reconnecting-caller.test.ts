@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { PROTOCOL_V } from '../protocol/protocol';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
 import { startStubDroppingDaemon } from '../test-utils/start-stub-dropping-daemon';
+import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { ReconnectingCaller } from './reconnecting-caller';
@@ -45,7 +45,10 @@ test('it answers a read-only request sent right after the daemon restarts', asyn
 
 test('it closes a connection whose handshake the daemon rejects', async () => {
   using tmp = setupTempDir('atc-reconnecting-caller-');
-  using mismatched = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), { protocol: PROTOCOL_V + 1 });
+
+  using mismatched = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    protocol: PROTOCOL_V + 1,
+  });
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
@@ -64,7 +67,10 @@ test('it closes a connection whose handshake the daemon rejects', async () => {
 
 test('it opens a fresh connection for the request after one whose handshake the daemon rejected', async () => {
   using tmp = setupTempDir('atc-reconnecting-caller-');
-  using mismatched = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), { protocol: PROTOCOL_V + 1 });
+
+  using mismatched = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    protocol: PROTOCOL_V + 1,
+  });
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
@@ -110,7 +116,7 @@ test('it refuses a filtered read unsent when an older daemon replaced the one it
 
   await ctx.daemon.stop();
 
-  const legacy = startLegacyDaemon(ctx.socketPath);
+  const legacy = startStubLegacyDaemon(ctx.socketPath);
 
   onTestFinished(() => {
     legacy.stop();

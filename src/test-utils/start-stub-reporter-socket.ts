@@ -3,6 +3,10 @@ import { waitFor } from './wait-for';
 interface StubReporterSocket {
   // Every complete line received so far, newline removed, in arrival order.
   readonly lines: readonly string[];
+
+  // How many reads the stand-in has taken from its connections, so a test
+  // can wait until one piece of a split write has arrived.
+  readonly reads: number;
   readonly waitForLine: (timeoutMs?: number) => Promise<string>;
   readonly [Symbol.dispose]: () => void;
   readonly [Symbol.asyncDispose]: () => Promise<void>;
@@ -20,6 +24,7 @@ interface StubReporterSocket {
  */
 export function startStubReporterSocket(path: string): StubReporterSocket {
   const lines: string[] = [];
+  let reads = 0;
 
   const server = Bun.listen<{ pending: string }>({
     unix: path,
@@ -28,6 +33,8 @@ export function startStubReporterSocket(path: string): StubReporterSocket {
         socket.data = { pending: '' };
       },
       data(socket, chunk) {
+        reads += 1;
+
         const parts = `${socket.data.pending}${chunk.toString()}`.split('\n');
 
         socket.data.pending = parts.pop() ?? '';
@@ -44,6 +51,9 @@ export function startStubReporterSocket(path: string): StubReporterSocket {
 
   return {
     lines,
+    get reads() {
+      return reads;
+    },
     waitForLine: (timeoutMs = 5000) =>
       waitFor(
         () => {

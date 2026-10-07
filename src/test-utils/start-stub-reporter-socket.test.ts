@@ -47,11 +47,31 @@ test('it joins a line that arrives across several writes', async () => {
   });
 
   socket.write('{"par');
-  socket.flush();
+
+  await waitFor(() => {
+    expect(ctx.reporter.reads).toBe(1);
+  });
+
   socket.write('tial":1}\n');
 
   await waitFor(() => {
     expect(ctx.reporter.lines).toStrictEqual(['{"partial":1}']);
+  });
+});
+
+test('it counts each read it takes from a connection', async () => {
+  using ctx = setupTest();
+
+  const socket = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
+
+  onTestFinished(() => {
+    socket.end();
+  });
+
+  socket.write('{"par');
+
+  await waitFor(() => {
+    expect(ctx.reporter.reads).toBe(1);
   });
 });
 

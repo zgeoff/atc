@@ -3,12 +3,18 @@ import { readFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import { join } from 'node:path';
 import { createStubBin } from './create-stub-bin';
-import { setupFakeSystemd } from './setup-fake-systemd';
+import { createStubSystemd } from './create-stub-systemd';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
+// A scratch directory for the files a test's commands write. Disposal
+// removes it.
+function setupTest() {
+  return setupTempDir('atc-stub-systemd-');
+}
+
 test('it answers a MainPID that no process holds while none is written', () => {
-  using fake = setupFakeSystemd(['/bin/true']);
+  using fake = createStubSystemd(['/bin/true']);
 
   const show = Bun.spawnSync([
     join(fake.binDir, 'systemctl'),
@@ -24,7 +30,7 @@ test('it answers a MainPID that no process holds while none is written', () => {
 });
 
 test('it answers the MainPID that was written', () => {
-  using fake = setupFakeSystemd(['/bin/true']);
+  using fake = createStubSystemd(['/bin/true']);
 
   fake.writeMainPID(4321);
 
@@ -42,7 +48,7 @@ test('it answers the MainPID that was written', () => {
 });
 
 test('it answers an ExecStart that runs atc daemon', () => {
-  using fake = setupFakeSystemd(['/bin/true']);
+  using fake = createStubSystemd(['/bin/true']);
 
   const show = Bun.spawnSync([
     join(fake.binDir, 'systemctl'),
@@ -57,8 +63,8 @@ test('it answers an ExecStart that runs atc daemon', () => {
   expect(show.stdout.toString()).toBe('{ path=/fake/bin/atc ; argv[]=/fake/bin/atc daemon ; }\n');
 });
 
-test('it records every systemctl call and does nothing on restart without a main pid', () => {
-  using fake = setupFakeSystemd(['/bin/true']);
+test('it records a restart without a main pid and exits 0', () => {
+  using fake = createStubSystemd(['/bin/true']);
 
   const run = Bun.spawnSync([join(fake.binDir, 'systemctl'), '--user', 'restart', 'a.service']);
 
@@ -69,15 +75,15 @@ test('it records every systemctl call and does nothing on restart without a main
 });
 
 test('it stops the main pid and starts atc daemon on restart', async () => {
-  await using tmp = setupTempDir('atc-fake-systemd-restart-');
+  using ctx = setupTest();
 
   const atc = createStubBin(
-    join(tmp.dir, 'bin'),
+    join(ctx.dir, 'bin'),
     'atc',
-    `#!/usr/bin/env bash\necho "$*" > "${join(tmp.dir, 'started')}"\n`,
+    `#!/usr/bin/env bash\necho "$*" > "${join(ctx.dir, 'started')}"\n`,
   );
 
-  using fake = setupFakeSystemd([atc]);
+  using fake = createStubSystemd([atc]);
 
   const main = Bun.spawn(['sleep', '30']);
 
@@ -94,17 +100,17 @@ test('it stops the main pid and starts atc daemon on restart', async () => {
   await restart.exited;
 
   await waitFor(() => {
-    expect(readFileSync(join(tmp.dir, 'started'), 'utf8')).toBe('daemon\n');
+    expect(readFileSync(join(ctx.dir, 'started'), 'utf8')).toBe('daemon\n');
   });
 
   expect(main.signalCode).toBe('SIGTERM');
 });
 
 test('it runs the systemd-run command with only the setenv variables and the unit output file', async () => {
-  using fake = setupFakeSystemd(['/bin/true']);
-  using tmp = setupTempDir('atc-fake-systemd-run-');
+  using ctx = setupTest();
+  using fake = createStubSystemd(['/bin/true']);
 
-  const out = join(tmp.dir, 'out.log');
+  const out = join(ctx.dir, 'out.log');
 
   Bun.spawnSync([
     join(fake.binDir, 'systemd-run'),
@@ -131,7 +137,7 @@ test('it runs the systemd-run command with only the setenv variables and the uni
 });
 
 test('it records every systemd-run call', () => {
-  using fake = setupFakeSystemd(['/bin/true']);
+  using fake = createStubSystemd(['/bin/true']);
 
   Bun.spawnSync([
     join(fake.binDir, 'systemd-run'),
@@ -149,7 +155,7 @@ test('it records every systemd-run call', () => {
 });
 
 test('it writes a cgroup file that places a pid in a user service', () => {
-  using fake = setupFakeSystemd(['/bin/true']);
+  using fake = createStubSystemd(['/bin/true']);
 
   fake.placeInUnit(77, 'atc-daemon.service');
 

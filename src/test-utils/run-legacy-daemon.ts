@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROTOCOL_V } from '../protocol/protocol';
-import { startLegacyDaemon } from './start-legacy-daemon';
+import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 
 /**
  * Runs a daemon of another protocol version as its own process, recorded in
@@ -23,7 +23,7 @@ function main() {
     throw new Error('usage: run-legacy-daemon.ts <socket path> <state dir>');
   }
 
-  startLegacyDaemon(socketPath, { protocol: PROTOCOL_V + 1 });
+  startStubLegacyDaemon(socketPath, { protocol: PROTOCOL_V + 1 });
 
   const session = Bun.spawn(['sleep', '60']);
 

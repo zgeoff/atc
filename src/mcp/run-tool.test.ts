@@ -11,7 +11,7 @@ import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
+import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { runTool } from './run-tool';
@@ -402,7 +402,7 @@ test('it spawns on the target the call gives and needs a daemon that takes targe
 test('it refuses a spawn on a target unsent when the daemon predates targets', () => {
   using tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
   });
 
@@ -497,7 +497,7 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
 test('it refuses a git workspace without a cwd unsent when the daemon predates picking its directory', () => {
   using tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace.autoDir'),
   });
 
@@ -539,7 +539,7 @@ test('it returns the warnings a workspace spawn left with the session', async ()
 test('it refuses a spawn with a workspace unsent when the daemon predates workspaces', () => {
   using tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
   });
 
@@ -578,7 +578,7 @@ test('it submits a session input line and needs a daemon that submits lines', as
 test('it refuses a session input line unsent when the daemon predates line submission', () => {
   using tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: DAEMON_FEATURES.filter((feature) => feature !== 'session.submit'),
   });
 
@@ -617,7 +617,7 @@ test('it reads a report through a daemon that serves report reads', async () => 
 test('it refuses a report read unsent when the daemon predates report reads', () => {
   using tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: DAEMON_FEATURES.filter((feature) => feature !== 'report.get'),
   });
 
@@ -661,7 +661,7 @@ test('it forwards an explicit clone trust decision and requires daemon support',
 test('it refuses an explicit trust decision unsent when the daemon predates clone trust', () => {
   using tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: [
       'agents.list',
       'events.more',

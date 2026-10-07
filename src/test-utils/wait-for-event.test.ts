@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
+import { buildStubWaitClock } from './build-stub-wait-clock';
 import { waitForEvent } from './wait-for-event';
 
 test('it resolves with an event collected before the wait began', async () => {
@@ -14,11 +15,18 @@ test('it resolves with an event collected before the wait began', async () => {
 test('it resolves with an event collected while it waits', async () => {
   const events: EventMsg[] = [];
 
-  setTimeout(() => {
-    events.push({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-2' });
-  }, 40);
+  // The event arrives during the wait after the first attempt misses.
+  const found = await waitForEvent(
+    events,
+    { ev: 'SessionRemoved' },
+    {
+      wait: () => {
+        events.push({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-2' });
 
-  const found = await waitForEvent(events, { ev: 'SessionRemoved' });
+        return Promise.resolve();
+      },
+    },
+  );
 
   expect(found).toStrictEqual({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-2' });
 });
@@ -82,9 +90,14 @@ test('it leaves every collected event as it arrived', async () => {
 
 test('it rejects listing the shape and the events it saw once the deadline passes', () => {
   const events: EventMsg[] = [{ v: PROTOCOL_V, ev: 'SessionAdded', session: {} }];
+  const clock = buildStubWaitClock();
 
   expect(
-    waitForEvent(events, { ev: 'SessionRemoved' }, { timeoutMs: 80, intervalMs: 10 }),
+    waitForEvent(
+      events,
+      { ev: 'SessionRemoved' },
+      { timeoutMs: 80, intervalMs: 10, now: clock.now, wait: clock.wait },
+    ),
   ).rejects.toThrowWithMessage(
     Error,
     'no event matches {"ev":"SessionRemoved"}; got ["SessionAdded"]',

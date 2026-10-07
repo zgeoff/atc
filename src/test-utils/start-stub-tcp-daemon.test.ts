@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { DaemonClient } from '../client/daemon-client';
 import { startStubTCPDaemon } from './start-stub-tcp-daemon';
+import { waitFor } from './wait-for';
 
 test('it answers a request with an ok that holds its method', async () => {
   using daemon = startStubTCPDaemon();
@@ -53,11 +54,36 @@ test('it answers a request split across two writes once its line ends', async ()
   });
 
   socket.write('{"v":4,"id":7,');
+
+  await waitFor(() => {
+    expect(daemon.reads).toBe(1);
+  });
+
   socket.write('"m":"daemon.ping"}\n');
 
   await answered.promise;
 
   expect(answers).toStrictEqual(['{"v":4,"id":7,"ok":{"m":"daemon.ping"}}\n']);
+});
+
+test('it counts each read it takes from a connection', async () => {
+  using daemon = startStubTCPDaemon();
+
+  const socket = await Bun.connect({
+    hostname: '127.0.0.1',
+    port: daemon.port,
+    socket: { data() {} },
+  });
+
+  onTestFinished(() => {
+    socket.end();
+  });
+
+  socket.write('{"v":4,');
+
+  await waitFor(() => {
+    expect(daemon.reads).toBe(1);
+  });
 });
 
 test('it stops listening once disposed', () => {

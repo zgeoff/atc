@@ -2,14 +2,14 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { isRecord } from '../src/shared/report';
 import { setupMCPHome } from '../src/test-utils/setup-mcp-home';
-import { startLegacyDaemon } from '../src/test-utils/start-legacy-daemon';
 import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
+import { startStubLegacyDaemon } from '../src/test-utils/start-stub-legacy-daemon';
 
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
   const mcpHome = stack.use(setupMCPHome());
-  const legacy = startLegacyDaemon(join(mcpHome.home, 'atc-daemon.sock'));
+  const legacy = startStubLegacyDaemon(join(mcpHome.home, 'atc-daemon.sock'));
 
   stack.defer(() => {
     legacy.stop();

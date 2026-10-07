@@ -1,40 +1,59 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
-// A temp directory for the listener daemon's state, holding the token file
-// it reads at start.
-function setupTest() {
-  const tmp = setupTempDir('atc-run-listener-');
+// The listener daemon running on state in a temp directory, with what it
+// printed once it listened, everything it writes to stderr, and a client
+// connected to its daemon socket that has sent nothing. Disposal closes the
+// client, kills the daemon, then removes the directory.
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-run-listener-'));
 
   // The listener refuses to start without a token file.
   writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
-}
-
-test('it prints the loopback port its TCP listener bound', async () => {
-  using ctx = setupTest();
-
-  await using proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'run-listener-daemon.ts')],
-    {
-      env: { ...process.env, ATC_TEST_DIR: ctx.dir },
+  const proc = stack.use(
+    Bun.spawn([process.execPath, join(import.meta.dir, 'run-listener-daemon.ts')], {
+      env: { ...process.env, ATC_TEST_DIR: tmp.dir },
       stdout: 'pipe',
-      stderr: 'ignore',
-    },
+      stderr: 'pipe',
+    }),
   );
+
+  const stderr: string[] = [];
+
+  void (async () => {
+    for await (const chunk of proc.stderr.pipeThrough(new TextDecoderStream())) {
+      stderr.push(chunk);
+    }
+  })();
 
   const read = await proc.stdout.getReader().read();
 
   const printed = new TextDecoder().decode(read.value);
 
+  const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
+
+  stack.defer(() => {
+    client.stop();
+  });
+
+  const owned = stack.move();
+
+  return { proc, printed, stderr, client, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+}
+
+test('it prints the loopback port its TCP listener bound', async () => {
+  await using ctx = await setupTest();
+
   const connecting = Bun.connect({
     hostname: '127.0.0.1',
-    port: Number(printed.trim()),
+    port: Number(ctx.printed.trim()),
     socket: {
       open(socket) {
         socket.end();
@@ -43,32 +62,15 @@ test('it prints the loopback port its TCP listener bound', async () => {
     },
   });
 
-  expect(printed).toMatch(/^[1-9]\d*\n$/);
+  expect(ctx.printed).toMatch(/^[1-9]\d*\n$/);
 
   await expect(connecting).toResolve();
 });
 
 test('it keeps its daemon socket in the test directory', async () => {
-  using ctx = setupTest();
+  await using ctx = await setupTest();
 
-  await using proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'run-listener-daemon.ts')],
-    {
-      env: { ...process.env, ATC_TEST_DIR: ctx.dir },
-      stdout: 'pipe',
-      stderr: 'ignore',
-    },
-  );
-
-  await proc.stdout.getReader().read();
-
-  const client = await DaemonClient.open(join(ctx.dir, 'daemon.sock'));
-
-  onTestFinished(() => {
-    client.stop();
-  });
-
-  const hello = await client.sendHello('atc/test-build');
+  const hello = await ctx.client.sendHello('atc/test-build');
 
   expect(hello).toStrictEqual({
     daemon: 'atc/test-build',
@@ -106,32 +108,13 @@ test('it keeps its daemon socket in the test directory', async () => {
 });
 
 test('it logs a refused handshake on its stderr', async () => {
-  using ctx = setupTest();
-
-  await using proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'run-listener-daemon.ts')],
-    {
-      env: { ...process.env, ATC_TEST_DIR: ctx.dir },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-  );
-
-  const stderr: string[] = [];
-
-  void (async () => {
-    for await (const chunk of proc.stderr.pipeThrough(new TextDecoderStream())) {
-      stderr.push(chunk);
-    }
-  })();
-
-  const read = await proc.stdout.getReader().read();
+  await using ctx = await setupTest();
 
   const closed = Promise.withResolvers<void>();
 
   await Bun.connect({
     hostname: '127.0.0.1',
-    port: Number(new TextDecoder().decode(read.value).trim()),
+    port: Number(ctx.printed.trim()),
     socket: {
       open(socket) {
         socket.write('not a handshake\n');
@@ -146,27 +129,16 @@ test('it logs a refused handshake on its stderr', async () => {
   await closed.promise;
 
   await waitFor(() => {
-    expect(stderr.join('')).toInclude('handshake_refused');
+    expect(ctx.stderr.join('')).toInclude('handshake_refused');
   });
 });
 
 test('it stops with exit code 0 on SIGTERM', async () => {
-  using ctx = setupTest();
+  await using ctx = await setupTest();
 
-  await using proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'run-listener-daemon.ts')],
-    {
-      env: { ...process.env, ATC_TEST_DIR: ctx.dir },
-      stdout: 'pipe',
-      stderr: 'ignore',
-    },
-  );
+  ctx.proc.kill('SIGTERM');
 
-  await proc.stdout.getReader().read();
-
-  proc.kill('SIGTERM');
-
-  const exitCode = await proc.exited;
+  const exitCode = await ctx.proc.exited;
 
   expect(exitCode).toBe(0);
 });

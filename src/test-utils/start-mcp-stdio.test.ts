@@ -191,7 +191,7 @@ exec cat > /dev/null
   );
 });
 
-test('it waits for the same exit when disposed twice', async () => {
+test('it resolves a second disposal', async () => {
   await using ctx = await setupTest();
 
   await ctx.mcp[Symbol.asyncDispose]();

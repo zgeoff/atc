@@ -9,11 +9,11 @@ import { StateStore } from '../src/store/state-store';
 import { buildMockFleetEntry } from '../src/test-utils/build-mock-fleet-entry';
 import { createStubClaude } from '../src/test-utils/create-stub-claude';
 import { createStubComposer } from '../src/test-utils/create-stub-composer';
+import { createStubSystemd } from '../src/test-utils/create-stub-systemd';
 import { getRecords } from '../src/test-utils/get-records';
 import { getString } from '../src/test-utils/get-string';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { runATC } from '../src/test-utils/run-atc';
-import { setupFakeSystemd } from '../src/test-utils/setup-fake-systemd';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
 import { waitFor } from '../src/test-utils/wait-for';
@@ -30,7 +30,7 @@ async function setupTest() {
 
   const tmp = stack.use(setupTempDir('atc-e2e-restart-'));
   const atc = resolveATCCommand();
-  const fake = stack.use(setupFakeSystemd(atc));
+  const fake = stack.use(createStubSystemd(atc));
   const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
   const claude = createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) });
 

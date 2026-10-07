@@ -44,7 +44,8 @@ test('it writes the stand-in claude as an executable', async () => {
 });
 
 test('it stops the daemon its pid file holds before removing the home', async () => {
-  const mcpHome = setupMCPHome();
+  await using mcpHome = setupMCPHome();
+
   const daemon = Bun.spawn(['sleep', '30']);
 
   onTestFinished(() => {
@@ -62,7 +63,7 @@ test('it stops the daemon its pid file holds before removing the home', async ()
 });
 
 test("it kills every process in a recorded stand-in's process group", async () => {
-  const mcpHome = setupMCPHome();
+  await using mcpHome = setupMCPHome();
 
   const stub = spawn('bash', ['-c', 'echo $$ >> "$HOME/stub-pids"; sleep 30 & exec sleep 30'], {
     detached: true,
@@ -70,11 +71,11 @@ test("it kills every process in a recorded stand-in's process group", async () =
     stdio: 'ignore',
   });
 
-  const group = stub.pid;
-
   onTestFinished(() => {
     stub.kill();
   });
+
+  const group = stub.pid;
 
   if (group === undefined) {
     throw new Error('the stand-in did not start');
@@ -90,7 +91,8 @@ test("it kills every process in a recorded stand-in's process group", async () =
 });
 
 test('it never kills a process outside the recorded process groups', async () => {
-  const mcpHome = setupMCPHome();
+  await using mcpHome = setupMCPHome();
+
   const bystander = spawn('sleep', ['30'], { detached: true, stdio: 'ignore' });
 
   onTestFinished(() => {
@@ -107,7 +109,7 @@ test('it never kills a process outside the recorded process groups', async () =>
 });
 
 test('it removes a home that holds no daemon pid', async () => {
-  const mcpHome = setupMCPHome();
+  await using mcpHome = setupMCPHome();
 
   await mcpHome[Symbol.asyncDispose]();
 
