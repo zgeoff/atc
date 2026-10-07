@@ -71,12 +71,13 @@ async function killHomeProcesses(home: string): Promise<void> {
 
 /**
  * The pids of the running processes whose environment sets `HOME` to the
- * home. A process that exits while the scan reads it is left out.
+ * home, read from `/proc`. A process that exits while the scan reads it is
+ * left out, and a system without `/proc` yields none.
  */
 function collectHomePIDs(home: string): number[] {
   const entry = `HOME=${home}`;
 
-  return readdirSync('/proc')
+  return readProcEntries()
     .filter((name) => /^\d+$/.test(name))
     .filter((name) => {
       try {
@@ -86,4 +87,12 @@ function collectHomePIDs(home: string): number[] {
       }
     })
     .map(Number);
+}
+
+function readProcEntries(): string[] {
+  try {
+    return readdirSync('/proc');
+  } catch {
+    return [];
+  }
 }
