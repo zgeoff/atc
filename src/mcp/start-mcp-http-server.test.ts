@@ -2230,6 +2230,8 @@ test("it refuses a consent answer carrying another approval's owner session", as
     .map((line) => line.split(';')[0])
     .join('; ');
 
+  invariant(firstCookie.includes('session_token='), 'the first login set no owner session');
+
   const secondConsent = new URL(secondSignedIn.headers.get('location') ?? '/', ctx.url);
 
   invariant(
@@ -2307,6 +2309,8 @@ test('it refuses a consent answer whose query still asks for a login', async () 
     .getSetCookie()
     .map((line) => line.split(';')[0])
     .join('; ');
+
+  invariant(cookie.includes('session_token='), 'the login set no owner session');
 
   const consented = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
@@ -2390,6 +2394,8 @@ test("it shows an error page instead of the consent page for another approval's 
     .getSetCookie()
     .map((line) => line.split(';')[0])
     .join('; ');
+
+  invariant(firstCookie.includes('session_token='), 'the first login set no owner session');
 
   const secondConsent = new URL(secondSignedIn.headers.get('location') ?? '/', ctx.url);
 
@@ -2498,8 +2504,13 @@ test('it shows an error page instead of the consent page to a browser with no ow
   invariant(consent.pathname === '/consent', 'the approval code did not reach the consent page');
 
   const page = await fetch(consent);
+  const html = await page.text();
 
   expect(page.status).toBe(400);
+
+  expect(html).toMatchInlineSnapshot(
+    `"<!doctype html><html lang="en"><head><meta charset="utf-8"><title>atc</title></head><body><p>This approval expired or was already used. Start again from the client.</p></body></html>"`,
+  );
 });
 
 test('it refuses a second consent answer from one login', async () => {

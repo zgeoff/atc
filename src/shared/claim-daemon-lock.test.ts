@@ -42,6 +42,10 @@ test('it grants the lock once the previous holder lets go', async () => {
 
   const first = await claimDaemonLock(lockPath, 0);
 
+  onTestFinished(() => {
+    first?.dispose();
+  });
+
   invariant(first !== null, 'the first claim found the lock held');
 
   first.dispose();
@@ -62,6 +66,10 @@ test('it waits for a holder that lets go within the wait', async () => {
   const clock = buildStubClock(0);
 
   const first = await claimDaemonLock(lockPath, 0, clock);
+
+  onTestFinished(() => {
+    first?.dispose();
+  });
 
   invariant(first !== null, 'the first claim found the lock held');
 
