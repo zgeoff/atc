@@ -10,42 +10,42 @@ function setupTest() {
 }
 
 test('it unpacks a transferred archive into the directory it is given and records it', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  mkdirSync(join(tmp.dir, 'src'));
-  writeFileSync(join(tmp.dir, 'src', 'hello.txt'), 'hello\n');
+  mkdirSync(join(ctx.dir, 'src'));
+  writeFileSync(join(ctx.dir, 'src', 'hello.txt'), 'hello\n');
 
-  const archive = await $`tar -c -f - -C ${join(tmp.dir, 'src')} .`.arrayBuffer();
+  const archive = await $`tar -c -f - -C ${join(ctx.dir, 'src')} .`.arrayBuffer();
 
   const provider = new FixtureDirProvider();
 
-  await provider.transferArchive(new Uint8Array(archive), join(tmp.dir, 'host', 'ws'));
+  await provider.transferArchive(new Uint8Array(archive), join(ctx.dir, 'host', 'ws'));
 
-  expect(readFileSync(join(tmp.dir, 'host', 'ws', 'hello.txt'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(ctx.dir, 'host', 'ws', 'hello.txt'), 'utf8')).toBe('hello\n');
 
   expect(provider.calls).toStrictEqual([
-    { op: 'transfer', dir: join(tmp.dir, 'host', 'ws'), bytes: archive.byteLength },
+    { op: 'transfer', dir: join(ctx.dir, 'host', 'ws'), bytes: archive.byteLength },
   ]);
 });
 
 test('it runs a command in its working directory and records it', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
   const provider = new FixtureDirProvider();
 
-  const result = await provider.runCommand({ argv: ['pwd'], cwd: tmp.dir });
+  const result = await provider.runCommand({ argv: ['pwd'], cwd: ctx.dir });
 
-  expect(result).toStrictEqual({ exitCode: 0, stdout: `${tmp.dir}\n`, stderr: '' });
-  expect(provider.calls).toStrictEqual([{ op: 'run', argv: ['pwd'], cwd: tmp.dir }]);
+  expect(result).toStrictEqual({ exitCode: 0, stdout: `${ctx.dir}\n`, stderr: '' });
+  expect(provider.calls).toStrictEqual([{ op: 'run', argv: ['pwd'], cwd: ctx.dir }]);
 });
 
 test('it runs the after-transfer step on the unpacked directory before the transfer resolves', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
-  mkdirSync(join(tmp.dir, 'src'));
-  writeFileSync(join(tmp.dir, 'src', 'hello.txt'), 'hello\n');
+  mkdirSync(join(ctx.dir, 'src'));
+  writeFileSync(join(ctx.dir, 'src', 'hello.txt'), 'hello\n');
 
-  const archive = await $`tar -c -f - -C ${join(tmp.dir, 'src')} .`.arrayBuffer();
+  const archive = await $`tar -c -f - -C ${join(ctx.dir, 'src')} .`.arrayBuffer();
 
   const provider = new FixtureDirProvider({
     afterTransfer: async (dir) => {
@@ -53,9 +53,9 @@ test('it runs the after-transfer step on the unpacked directory before the trans
     },
   });
 
-  await provider.transferArchive(new Uint8Array(archive), join(tmp.dir, 'ws'));
+  await provider.transferArchive(new Uint8Array(archive), join(ctx.dir, 'ws'));
 
-  expect(readFileSync(join(tmp.dir, 'ws', 'hello.txt'), 'utf8')).toBe('changed\n');
+  expect(readFileSync(join(ctx.dir, 'ws', 'hello.txt'), 'utf8')).toBe('changed\n');
 });
 
 test('it declares the capabilities it is told it lacks as missing', () => {
@@ -75,23 +75,39 @@ test('it declares the capabilities it is told it lacks as missing', () => {
   });
 });
 
-test('it rejects an archive tar cannot unpack', async () => {
-  await using tmp = setupTest();
+test('it rejects an archive tar cannot unpack', () => {
+  using ctx = setupTest();
 
   const provider = new FixtureDirProvider();
 
-  const failure = await provider
-    .transferArchive(new Uint8Array([1, 2, 3]), join(tmp.dir, 'ws'))
-    .then(
-      () => null,
-      (error: unknown) => error,
-    );
+  const transfer = provider.transferArchive(new Uint8Array([1, 2, 3]), join(ctx.dir, 'ws'));
 
-  expect(failure).toBeInstanceOf(Error);
+  expect(transfer).rejects.toThrowWithMessage(
+    Error,
+    new RegExp(`^tar exited [1-9]\\d* unpacking into ${join(ctx.dir, 'ws')}: \\S`),
+  );
+});
+
+test('it refuses to suspend a host', () => {
+  const provider = new FixtureDirProvider();
+
+  expect(provider.suspendHost('h1')).rejects.toThrowWithMessage(
+    Error,
+    'the fixture-dir provider cannot suspend host h1',
+  );
+});
+
+test('it refuses to destroy a host', () => {
+  const provider = new FixtureDirProvider();
+
+  expect(provider.destroyHost('h1')).rejects.toThrowWithMessage(
+    Error,
+    'the fixture-dir provider cannot destroy host h1',
+  );
 });
 
 test('it starts a harness on a local terminal and records its spec', async () => {
-  await using tmp = setupTest();
+  await using ctx = setupTest();
 
   const provider = new FixtureDirProvider();
 
@@ -100,7 +116,7 @@ test('it starts a harness on a local terminal and records its spec', async () =>
     host: 's1',
     bin: 'true',
     args: [],
-    cwd: tmp.dir,
+    cwd: ctx.dir,
     env: { A: '1' },
     cols: 80,
     rows: 24,

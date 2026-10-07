@@ -7,6 +7,17 @@ interface GitHTTPServer {
   readonly stop: () => Promise<void>;
 }
 
+interface GitHTTPServerOptions {
+  // How long each authenticated request waits before it is served.
+  readonly delayMs?: number;
+
+  // Waits out the delay; a timer unless given.
+  readonly wait?: (ms: number) => Promise<void>;
+
+  // Runs, and is awaited, while each authenticated request is held.
+  readonly onRequest?: () => Promise<void> | void;
+}
+
 /**
  * Serves the bare repositories under a directory over smart HTTP through
  * `git http-backend` on a loopback port, and refuses every request that
@@ -20,11 +31,9 @@ interface GitHTTPServer {
 export function startGitHTTPServer(
   root: string,
   env: Readonly<Record<string, string | undefined>>,
-  options: {
-    readonly delayMs?: number;
-    readonly onRequest?: () => Promise<void> | void;
-  } = {},
+  options: GitHTTPServerOptions = {},
 ): GitHTTPServer {
+  const wait = options.wait ?? Bun.sleep;
   const authorizations: string[] = [];
 
   const server = Bun.serve({
@@ -43,7 +52,7 @@ export function startGitHTTPServer(
       authorizations.push(authorization);
 
       if (options.delayMs !== undefined) {
-        await Bun.sleep(options.delayMs);
+        await wait(options.delayMs);
       }
 
       await options.onRequest?.();

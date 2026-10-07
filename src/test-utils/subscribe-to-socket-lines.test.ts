@@ -1,102 +1,110 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
+import type { Socket } from 'bun';
 import { setupTempDir } from './setup-temp-dir';
 import { subscribeToSocketLines } from './subscribe-to-socket-lines';
+import { waitFor } from './wait-for';
 
-test('it collects the complete lines a peer sends', async () => {
-  await using tmp = setupTempDir('atc-sock-lines-');
+// A unix socket server and a subscriber connected to it; `peer` is the
+// server's side of that connection, which the test writes through, and
+// `received` collects what the subscriber sends.
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
+  const tmp = stack.use(setupTempDir('atc-sock-lines-'));
   const path = join(tmp.dir, 'lines.sock');
+  const accepted = Promise.withResolvers<Socket>();
+  const received: string[] = [];
 
   const server = Bun.listen({
     unix: path,
     socket: {
       open(socket) {
-        socket.write('{"a":1}\n{"b"');
+        accepted.resolve(socket);
       },
-      data() {},
+      data(_socket, buf) {
+        received.push(buf.toString());
+      },
       close() {},
       error() {},
     },
   });
 
-  onTestFinished(() => {
+  stack.defer(() => {
     server.stop(true);
   });
 
-  await using subscriber = await subscribeToSocketLines(path);
+  const subscribed = await subscribeToSocketLines(path);
 
-  expect(subscriber.waitForLine(1)).resolves.toStrictEqual(['{"a":1}']);
+  const subscriber = stack.use(subscribed);
+
+  const peer = await accepted.promise;
+
+  const owned = stack.move();
+
+  return { subscriber, peer, received, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+}
+
+test('it collects each complete line the socket sends', async () => {
+  await using ctx = await setupTest();
+
+  ctx.peer.write('{"a":1}\n{"b":2}\n');
+
+  const lines = await ctx.subscriber.waitForLine(2);
+
+  expect(lines).toStrictEqual(['{"a":1}', '{"b":2}']);
 });
 
-test('it buffers a split line across reads', async () => {
-  await using tmp = setupTempDir('atc-sock-lines-');
+test('it buffers a line split across reads until its end arrives', async () => {
+  await using ctx = await setupTest();
 
-  const path = join(tmp.dir, 'lines.sock');
+  ctx.peer.write('{"a":1}\n{"b"');
 
-  const server = Bun.listen({
-    unix: path,
-    socket: {
-      open(socket) {
-        socket.write('{"a":1}\n{"b"');
-      },
-      data(socket) {
-        socket.write(':2}\n');
-      },
-      close() {},
-      error() {},
-    },
+  await ctx.subscriber.waitForLine(1);
+
+  ctx.peer.write(':2}\n');
+
+  const lines = await ctx.subscriber.waitForLine(2);
+
+  expect(lines).toStrictEqual(['{"a":1}', '{"b":2}']);
+});
+
+test('it skips blank lines', async () => {
+  await using ctx = await setupTest();
+
+  ctx.peer.write('\n  \n{"a":1}\n');
+
+  const lines = await ctx.subscriber.waitForLine(1);
+
+  expect(lines).toStrictEqual(['{"a":1}']);
+});
+
+test('it writes to the socket', async () => {
+  await using ctx = await setupTest();
+
+  ctx.subscriber.write('go');
+
+  await waitFor(() => {
+    expect(ctx.received.join('')).toBe('go');
   });
-
-  onTestFinished(() => {
-    server.stop(true);
-  });
-
-  await using subscriber = await subscribeToSocketLines(path);
-
-  await subscriber.waitForLine(1);
-
-  subscriber.write('go\n');
-
-  expect(subscriber.waitForLine(2)).resolves.toStrictEqual(['{"a":1}', '{"b":2}']);
 });
 
 test('it sends a payload larger than one socket write whole', async () => {
-  await using tmp = setupTempDir('atc-sock-lines-');
+  await using ctx = await setupTest();
 
-  const path = join(tmp.dir, 'big.sock');
-  const received: Buffer[] = [];
   const line = 'x'.repeat(3_000_000);
 
-  const server = Bun.listen({
-    unix: path,
-    socket: {
-      data(socket, buf) {
-        received.push(Buffer.from(buf));
+  ctx.subscriber.write(`${line}\n`);
 
-        if (buf.at(-1) === 10) {
-          socket.write(`${Buffer.concat(received).length}\n`);
-        }
-      },
-      close() {},
-      error() {},
-    },
+  await waitFor(() => {
+    expect(ctx.received.join('').length).toBe(line.length + 1);
   });
-
-  onTestFinished(() => {
-    server.stop(true);
-  });
-
-  await using subscriber = await subscribeToSocketLines(path);
-
-  subscriber.write(`${line}\n`);
-
-  expect(subscriber.waitForLine(1)).resolves.toStrictEqual([String(line.length + 1)]);
 });
 
 test('it throws on a write while the unsent bytes fill the queue', async () => {
   await using tmp = setupTempDir('atc-sock-lines-');
+  await using stack = new AsyncDisposableStack();
 
   const path = join(tmp.dir, 'stalled.sock');
 
@@ -105,7 +113,7 @@ test('it throws on a write while the unsent bytes fill the queue', async () => {
     peer.pause();
   });
 
-  onTestFinished(() => {
+  stack.defer(() => {
     server.close();
   });
 
@@ -126,55 +134,32 @@ test('it throws on a write while the unsent bytes fill the queue', async () => {
 });
 
 test('it resolves closed once the peer ends the connection', async () => {
-  await using tmp = setupTempDir('atc-sock-lines-');
+  await using ctx = await setupTest();
 
-  const path = join(tmp.dir, 'closing.sock');
+  ctx.peer.end();
 
-  const server = Bun.listen({
-    unix: path,
-    socket: {
-      open(socket) {
-        socket.end();
-      },
-      data() {},
-      close() {},
-      error() {},
-    },
-  });
+  await expect(ctx.subscriber.closed).toResolve();
+});
 
-  onTestFinished(() => {
-    server.stop(true);
-  });
+test('it throws listing the collected lines when the count never arrives', async () => {
+  await using ctx = await setupTest();
 
-  await using subscriber = await subscribeToSocketLines(path);
+  ctx.peer.write('{"a":1}\n');
 
-  await expect(subscriber.closed).toResolve();
+  await ctx.subscriber.waitForLine(1);
+
+  expect(ctx.subscriber.waitForLine(2, 100)).rejects.toThrowWithMessage(
+    Error,
+    String.raw`timed out waiting for 2 lines; got ["{\"a\":1}"]`,
+  );
 });
 
 test('it throws listing the collected lines once the connection closes short of the count', async () => {
-  await using tmp = setupTempDir('atc-sock-lines-');
+  await using ctx = await setupTest();
 
-  const path = join(tmp.dir, 'short.sock');
+  ctx.peer.end('only\n');
 
-  const server = Bun.listen({
-    unix: path,
-    socket: {
-      open(socket) {
-        socket.end('only\n');
-      },
-      data() {},
-      close() {},
-      error() {},
-    },
-  });
-
-  onTestFinished(() => {
-    server.stop(true);
-  });
-
-  await using subscriber = await subscribeToSocketLines(path);
-
-  expect(subscriber.waitForLine(2, 600_000)).rejects.toThrowWithMessage(
+  expect(ctx.subscriber.waitForLine(2, 600_000)).rejects.toThrowWithMessage(
     Error,
     'timed out waiting for 2 lines; got ["only"]',
   );

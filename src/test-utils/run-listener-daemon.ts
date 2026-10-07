@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { startDaemon } from '../daemon/daemon';
+import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 
 /**
  * Runs a daemon with a TCP listener on a kernel-chosen loopback port, its
@@ -15,17 +16,11 @@ async function main() {
     socketPath: join(dir, 'daemon.sock'),
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
-    adapter: {
-      id: 'claude',
-      screenDetector: null,
+    adapter: buildMockAgentAdapter({
       takesMessages: true,
-      headlessRunner: null,
-      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
       normalizeHook: () => ({ kind: 'prompt-submitted' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
       buildResumeCommand: () => 'claude --resume',
-    },
+    }),
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),
     listen: {
@@ -37,8 +32,6 @@ async function main() {
     },
   });
 
-  process.stdout.write(`${String(handle.listenPort)}\n`);
-
   process.on('SIGTERM', () => {
     void (async () => {
       await handle.stop();
@@ -46,6 +39,8 @@ async function main() {
       process.exit(0);
     })();
   });
+
+  process.stdout.write(`${String(handle.listenPort)}\n`);
 }
 
 await main();

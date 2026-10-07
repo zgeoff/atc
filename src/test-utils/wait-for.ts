@@ -8,6 +8,16 @@ interface WaitForOptions {
    * Milliseconds before the wait gives up.
    */
   readonly timeoutMs?: number;
+
+  /**
+   * The clock the deadline is read from.
+   */
+  readonly now?: () => number;
+
+  /**
+   * Waits out the interval between retries.
+   */
+  readonly wait?: (ms: number) => Promise<void>;
 }
 
 /**
@@ -22,17 +32,19 @@ export async function waitFor<T>(
 ): Promise<T> {
   const intervalMs = options.intervalMs ?? 20;
   const timeoutMs = options.timeoutMs ?? 5000;
-  const deadline = Date.now() + timeoutMs;
+  const now = options.now ?? Date.now;
+  const wait = options.wait ?? Bun.sleep;
+  const deadline = now() + timeoutMs;
 
   for (;;) {
     try {
       return await attempt();
     } catch (error) {
-      if (Date.now() >= deadline) {
+      if (now() >= deadline) {
         throw error;
       }
     }
 
-    await Bun.sleep(intervalMs);
+    await wait(intervalMs);
   }
 }

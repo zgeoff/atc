@@ -185,6 +185,9 @@ export class FixtureImpPort implements ImpPort {
   // what the daemon writes still reaches the guest.
   private droppingGuestBytes = false;
 
+  // How many guest bytes the drop has thrown away.
+  private droppedGuestBytes = 0;
+
   private readonly principal: string;
 
   private readonly imps = new Map<string, FixtureImp>();
@@ -677,6 +680,8 @@ export class FixtureImpPort implements ImpPort {
         },
         data: (socket, buf) => {
           if (this.droppingGuestBytes) {
+            this.droppedGuestBytes += buf.length;
+
             return;
           }
 
@@ -886,12 +891,22 @@ export class FixtureImpPort implements ImpPort {
     this.droppingGuestBytes = false;
   }
 
+  // How many bytes guests wrote that the drop threw away.
+  countDroppedGuestBytes(): number {
+    return this.droppedGuestBytes;
+  }
+
   /**
    * Holds every session answer back, as a slow network does, until the
    * hold stops.
    */
   startAnswerHold(): void {
     this.held ??= [];
+  }
+
+  // How many session answers wait for the answer hold to stop.
+  countHeldAnswers(): number {
+    return this.held?.length ?? 0;
   }
 
   /**

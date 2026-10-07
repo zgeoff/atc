@@ -1,11 +1,13 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { z } from 'zod';
 import { DaemonClient } from '../client/daemon-client';
-import { isRecord } from '../shared/report';
 import { startCutProxy } from './start-cut-proxy';
+import { waitFor } from './wait-for';
 
 /**
- * A line server on a loopback port that answers every request line with
- * an ok holding the request's method, and counts the requests it got.
+ * A line server on a loopback port standing in for the proxy's target: it
+ * answers every request line with an ok holding the request's method, and
+ * records each method it got in `seen`.
  */
 function setupTest() {
   const seen: string[] = [];
@@ -19,12 +21,10 @@ function setupTest() {
           .toString()
           .split('\n')
           .filter((part) => part !== '')) {
-          const request: unknown = JSON.parse(line);
-          const id = isRecord(request) ? request['id'] : null;
-          const m = isRecord(request) ? String(request['m']) : '';
+          const request = z.object({ id: z.number(), m: z.string() }).parse(JSON.parse(line));
 
-          seen.push(m);
-          socket.write(`${JSON.stringify({ v: 4, id, ok: { m } })}\n`);
+          seen.push(request.m);
+          socket.write(`${JSON.stringify({ v: 4, id: request.id, ok: { m: request.m } })}\n`);
         }
       },
       error() {},
@@ -34,17 +34,19 @@ function setupTest() {
   return {
     port: server.port,
     seen,
-    [Symbol.dispose]() {
+    [Symbol.asyncDispose]: () => {
       server.stop(true);
+
+      return Promise.resolve();
     },
   };
 }
 
 test('it forwards requests and answers of other methods unchanged', async () => {
-  using target = setupTest();
+  await using ctx = setupTest();
 
   const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: target.port },
+    target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
@@ -66,10 +68,10 @@ test('it forwards requests and answers of other methods unchanged', async () => 
 });
 
 test('it closes the connection in place of the answer to a cut request that reached the target', async () => {
-  using target = setupTest();
+  await using ctx = setupTest();
 
   const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: target.port },
+    target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
@@ -81,25 +83,30 @@ test('it closes the connection in place of the answer to a cut request that reac
 
   const client = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
 
+  onTestFinished(() => {
+    client.stop();
+  });
+
   const closed = Promise.withResolvers<void>();
 
   client.onClose = () => {
     closed.resolve();
   };
 
-  expect(client.sendRequest('session.spawn')).rejects.toMatchObject({ code: 'internal' });
+  const reply = client.sendRequest('session.spawn');
 
   await closed.promise;
 
-  expect(target.seen).toStrictEqual(['session.spawn']);
+  expect(reply).rejects.toMatchObject({ code: 'internal' });
+  expect(ctx.seen).toStrictEqual(['session.spawn']);
   expect(proxy.countRequests()).toBe(1);
 });
 
 test('it forwards the answer once its cuts are spent', async () => {
-  using target = setupTest();
+  await using ctx = setupTest();
 
   const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: target.port },
+    target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
@@ -115,7 +122,7 @@ test('it forwards the answer once its cuts are spent', async () => {
     cut.stop();
   });
 
-  expect(cut.sendRequest('session.spawn')).rejects.toMatchObject({ code: 'internal' });
+  await Promise.allSettled([cut.sendRequest('session.spawn')]);
 
   const fresh = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
 
@@ -129,10 +136,10 @@ test('it forwards the answer once its cuts are spent', async () => {
 });
 
 test('it swallows the answer to a cut request and leaves the connection open in hold mode', async () => {
-  using target = setupTest();
+  await using ctx = setupTest();
 
   const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: target.port },
+    target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'hold',
@@ -144,42 +151,36 @@ test('it swallows the answer to a cut request and leaves the connection open in 
 
   const client = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
 
+  onTestFinished(() => {
+    client.stop();
+  });
+
   let closed = false;
 
   client.onClose = () => {
     closed = true;
   };
 
-  onTestFinished(() => {
-    client.stop();
+  const reply = client.sendRequest('session.spawn');
+
+  await waitFor(() => {
+    expect(proxy.countHeld()).toBe(1);
   });
 
-  const answered = (async () => {
-    await client.sendRequest('session.spawn');
+  const raced = await Promise.race([reply, Promise.resolve('pending')]);
 
-    return 'answered';
-  })();
-
-  const silent = (async () => {
-    // No signal marks an answer that never comes; this waits out the time
-    // an answer from a local server takes.
-    await Bun.sleep(300);
-
-    return 'silent';
-  })();
-
-  const raced = await Promise.race([answered, silent]);
-
-  expect(raced).toBe('silent');
-  expect(closed).toBeFalse();
-  expect(target.seen).toStrictEqual(['session.spawn']);
+  expect({ raced, closed, seen: ctx.seen }).toStrictEqual({
+    raced: 'pending',
+    closed: false,
+    seen: ['session.spawn'],
+  });
 });
 
 test('it closes the connection in place of forwarding a cut request in drop mode, so the target never sees it', async () => {
-  using target = setupTest();
+  await using ctx = setupTest();
 
   const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: target.port },
+    target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'drop',
@@ -190,7 +191,14 @@ test('it closes the connection in place of forwarding a cut request in drop mode
   });
 
   const client = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
-  const pinged = await client.sendRequest('daemon.ping');
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  // A request that got through first proves the link to the target is
+  // open, so a forwarded request would have reached it.
+  await client.sendRequest('daemon.ping');
 
   const closed = Promise.withResolvers<void>();
 
@@ -198,11 +206,11 @@ test('it closes the connection in place of forwarding a cut request in drop mode
     closed.resolve();
   };
 
-  expect(client.sendRequest('session.spawn')).rejects.toMatchObject({ code: 'internal' });
+  const reply = client.sendRequest('session.spawn');
 
   await closed.promise;
 
-  expect(pinged).toStrictEqual({ m: 'daemon.ping' });
-  expect(target.seen).toStrictEqual(['daemon.ping']);
+  expect(reply).rejects.toMatchObject({ code: 'internal' });
+  expect(ctx.seen).toStrictEqual(['daemon.ping']);
   expect(proxy.countRequests()).toBe(1);
 });
