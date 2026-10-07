@@ -3010,6 +3010,12 @@ export class SessionManager {
     }
   }
 
+  // A harness detaches once, so a disposal after a detach of every harness
+  // lets go of nothing again.
+  [Symbol.dispose]() {
+    this.detachAll();
+  }
+
   private emitChange() {
     this.writeStatus();
     this.onChange();

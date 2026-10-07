@@ -3760,3 +3760,23 @@ test('it collects every host binding by host key', async () => {
     },
   ]);
 });
+
+test('it closes its connection when disposed', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.store[Symbol.asyncDispose]();
+
+  expect(ctx.store.loadFleet()).rejects.toThrow();
+});
+
+test('it stays closed when disposed after a stop', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.store.stop();
+
+  const disposed = ctx.store[Symbol.asyncDispose]();
+
+  await expect(disposed).toResolve();
+
+  expect(ctx.store.loadFleet()).rejects.toThrow();
+});

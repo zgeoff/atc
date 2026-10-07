@@ -48,7 +48,7 @@ test('it reports a codex hello as the last-used agent instead of coercing it to 
 
   const store = await StateStore.open(join(ctx.dir, 'state.db'));
 
-  ctx.stack.defer(() => store.stop());
+  ctx.stack.use(store);
 
   await store.writeLastUsedAgent('codex');
 

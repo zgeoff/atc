@@ -10,11 +10,7 @@ test('it keeps every stored fleet row restorable when a spawn writes the fleet b
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-fleet-',
     options: async (paths) => {
-      await using stack = new AsyncDisposableStack();
-
-      const store = await StateStore.open(paths.dbPath);
-
-      stack.defer(() => store.stop());
+      await using store = await StateStore.open(paths.dbPath);
 
       await store.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-live-a'), name: 'live-a', cwd: paths.dir }),
@@ -63,11 +59,7 @@ test('it keeps every stored fleet row when a rename and a deliberate kill write 
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-fleet-',
     options: async (paths) => {
-      await using stack = new AsyncDisposableStack();
-
-      const store = await StateStore.open(paths.dbPath);
-
-      stack.defer(() => store.stop());
+      await using store = await StateStore.open(paths.dbPath);
 
       await store.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-live-a'), name: 'live-a', cwd: paths.dir }),
