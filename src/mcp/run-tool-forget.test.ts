@@ -9,7 +9,7 @@ import { RoutingCaller } from '../federation/routing-caller';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { buildStubDestroyingProvider } from '../test-utils/build-stub-destroying-provider';
+import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -55,7 +55,10 @@ async function setupTest() {
 }
 
 test('it hands out a token and changes nothing for a live session on a host-destroying target', async () => {
-  const provider = buildStubDestroyingProvider();
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-run-tool-forget-',
@@ -101,7 +104,10 @@ test('it hands out a token and changes nothing for a live session on a host-dest
 });
 
 test('it destroys the host and drops the live session when the second call carries the token', async () => {
-  const provider = buildStubDestroyingProvider();
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-run-tool-forget-',
@@ -155,7 +161,10 @@ test('it destroys the host and drops the live session when the second call carri
 });
 
 test('it hands out a token for a dead session on a host-destroying target and changes nothing', async () => {
-  const provider = buildStubDestroyingProvider();
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-run-tool-forget-',
@@ -261,7 +270,10 @@ test('it stops and forgets a live session on a local target in one call when sto
 });
 
 test('it refuses a live session without stop and leaves it running', async () => {
-  const provider = buildStubDestroyingProvider();
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-run-tool-forget-',
@@ -526,7 +538,10 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
 });
 
 test('it refuses an unknown session as no_such_session before any token exists', async () => {
-  const provider = buildStubDestroyingProvider();
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-run-tool-forget-',
@@ -555,7 +570,10 @@ test('it refuses an unknown session as no_such_session before any token exists',
 });
 
 test('it refuses a principal a session on a target it cannot use as no_such_session and keeps the session', async () => {
-  const provider = buildStubDestroyingProvider();
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-run-tool-forget-',
