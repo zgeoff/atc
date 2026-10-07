@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
+import { buildMockMessageRecord } from './build-mock-message-record';
 import { buildStubHeldInboxSource } from './build-stub-held-inbox-source';
 
 test('it starts with no tap in its registry', () => {
@@ -31,28 +31,11 @@ test('it holds a pending-message read until the test answers it', async () => {
 test('it answers a held read with the messages the test gives', async () => {
   const inbox = buildStubHeldInboxSource(toAgentSessionID('a-1'));
   const read = inbox.source.collectPendingMessages({ atcID: toSessionID('s1') });
+  const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
-  inbox.read([
-    {
-      id: toMessageID('m-1'),
-      atcID: toSessionID('s1'),
-      from: 'owner',
-      text: 'hello',
-      status: 'accepted',
-      sentAt: 0,
-    },
-  ]);
+  inbox.read([record]);
 
   const records = await read;
 
-  expect(records).toStrictEqual([
-    {
-      id: toMessageID('m-1'),
-      atcID: toSessionID('s1'),
-      from: 'owner',
-      text: 'hello',
-      status: 'accepted',
-      sentAt: 0,
-    },
-  ]);
+  expect(records).toStrictEqual([record]);
 });

@@ -8,9 +8,7 @@ test('it collects the params of every request sent under a method in the order t
   void daemon.sendRequest('sources.list', { source: 'dirs' });
   void daemon.sendRequest('agents.list');
   void daemon.sendRequest('sources.list', { source: 'git' });
-  const sent = daemon.collectSent('sources.list');
-
-  expect(sent).toStrictEqual([{ source: 'dirs' }, { source: 'git' }]);
+  expect(daemon.collectSent('sources.list')).toStrictEqual([{ source: 'dirs' }, { source: 'git' }]);
 });
 
 test('it answers the latest request waiting under the method', async () => {

@@ -1052,14 +1052,28 @@ test('it keeps a held command waiting until its hold stops', async () => {
 
   await hold.entered;
 
-  // A command the hold let through would start first and finish while this
-  // slower unheld one runs to its end.
-  await ctx.port.runCommand('imp-a', { argv: ['sh', '-c', 'true'] });
+  expect({
+    held: ctx.port.countHeldCommands(),
+    status: Bun.peek.status(result),
+    ran: existsSync(marker),
+  }).toStrictEqual({ held: 1, status: 'pending', ran: false });
+});
 
-  expect({ status: Bun.peek.status(result), ran: existsSync(marker) }).toStrictEqual({
-    status: 'pending',
-    ran: false,
-  });
+test('it counts no held command once the command hold stops', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const hold = ctx.port.startCommandHold('echo held');
+  const result = ctx.port.runCommand('imp-a', { argv: ['sh', '-c', 'echo held'] });
+
+  await hold.entered;
+
+  hold.stop();
+
+  await result;
+
+  expect(ctx.port.countHeldCommands()).toBe(0);
 });
 
 test('it runs every held command once the active hold stops from the port', async () => {

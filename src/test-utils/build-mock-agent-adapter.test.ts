@@ -1,11 +1,9 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
 import type { RequiredKeysOf } from 'type-fest';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
-import { setupTempDir } from './setup-temp-dir';
 
 test('it builds a default agent adapter', () => {
   expect(buildMockAgentAdapter()).toStrictEqual({
@@ -69,10 +67,8 @@ test('it reads every hook as a heartbeat', () => {
 });
 
 test('it loads no name for a session', () => {
-  using tmp = setupTempDir('atc-mock-adapter-');
-
   expect(
-    buildMockAgentAdapter().loadName(join(tmp.dir, 'transcript.jsonl'), 'agent'),
+    buildMockAgentAdapter().loadName('/nonexistent/transcript.jsonl', 'agent'),
   ).resolves.toBeNull();
 });
 
@@ -81,7 +77,7 @@ test('it resumes any session', () => {
 });
 
 test('it gives no resume command', () => {
-  using tmp = setupTempDir('atc-mock-adapter-');
-
-  expect(buildMockAgentAdapter().buildResumeCommand(tmp.dir, toAgentSessionID('c-1'))).toBeNull();
+  expect(
+    buildMockAgentAdapter().buildResumeCommand('/nonexistent', toAgentSessionID('c-1')),
+  ).toBeNull();
 });

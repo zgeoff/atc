@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import type { Socket } from 'bun';
 import { setupTempDir } from './setup-temp-dir';
+import { startStubRecordingListener } from './start-stub-recording-listener';
 import { startStubStalledListener } from './start-stub-stalled-listener';
 import { subscribeToSocketLines } from './subscribe-to-socket-lines';
 import { waitFor } from './wait-for';
@@ -15,32 +15,13 @@ async function setupTest() {
 
   const tmp = stack.use(setupTempDir('atc-sock-lines-'));
   const path = join(tmp.dir, 'lines.sock');
-  const accepted = Promise.withResolvers<Socket>();
-  const received: string[] = [];
-
-  const server = Bun.listen({
-    unix: path,
-    socket: {
-      open(socket) {
-        accepted.resolve(socket);
-      },
-      data(_socket, buf) {
-        received.push(buf.toString());
-      },
-      close() {},
-      error() {},
-    },
-  });
-
-  stack.defer(() => {
-    server.stop(true);
-  });
+  const listener = stack.use(startStubRecordingListener(path));
 
   const subscribed = await subscribeToSocketLines(path);
 
   const subscriber = stack.use(subscribed);
 
-  const peer = await accepted.promise;
+  const peer = await listener.accepted;
 
   const stalledPath = join(tmp.dir, 'stalled.sock');
 
@@ -53,7 +34,7 @@ async function setupTest() {
   return {
     subscriber,
     peer,
-    received,
+    received: listener.received,
     stalledPath,
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
