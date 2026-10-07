@@ -17,6 +17,8 @@ interface FailedRows {
   readonly pending: boolean;
 }
 
+const UNSIZED_READ_MS = 30_000;
+
 /**
  * Restores the stored fleet on a daemon and waits for every stored row to
  * show up. `snapshot` holds the rows read from the old daemon before it
@@ -25,29 +27,63 @@ interface FailedRows {
  * row that is not exited must be listed with a live terminal before the deadline
  * passes (`timeoutSeconds` when set, else the rows that are not exited times the restore boot cap, plus 30 s), and an exited row must be listed. A stored row that is not listed
  * failed to restore, and a listed row that is still without a live terminal
- * at the deadline failed to revive.
+ * at the deadline failed to revive. The deadline counts from the call, and
+ * every request to the daemon is held to it.
  */
 export async function verifyRestoredFleet(
   client: Pick<DaemonClient, 'sendRequest'>,
   timeoutSeconds: number | null,
   snapshot: readonly StoredRow[] | null,
 ): Promise<FleetVerdict> {
-  const read = snapshot === null ? await readStoredRows(client) : null;
+  const startedAt = Date.now();
+
+  // Without a snapshot the rows come from the new daemon, and its count is
+  // not known until they are read, so that read gets the fixed allowance.
+  const read =
+    snapshot === null
+      ? await sendBounded(() => readStoredRows(client), startedAt + UNSIZED_READ_MS)
+      : null;
+
   const stored = snapshot ?? read ?? [];
+  const deadline = startedAt + pickDeadlineMs(stored, timeoutSeconds);
 
-  const restored = await tryRestore(client);
-
-  const deadline = Date.now() + pickDeadlineMs(stored, timeoutSeconds);
-
-  let found = await collectFailedRows(client, stored, restored);
+  const restored = await tryRestore(client, deadline);
+  let found = await sendBounded(() => collectFailedRows(client, stored, restored), deadline);
 
   while (found.pending && Date.now() < deadline) {
     await Bun.sleep(250);
 
-    found = await collectFailedRows(client, stored, restored);
+    found = await sendBounded(() => collectFailedRows(client, stored, restored), deadline);
   }
 
   return { total: stored.length, failed: found.failed };
+}
+
+// The least a request is given, so one sent just before the deadline can
+// still be answered.
+const MIN_REQUEST_MS = 2000;
+
+/**
+ * Runs a request and rejects once the deadline passes, so a daemon that
+ * stops answering cannot hold the restart, and its lock, open.
+ */
+async function sendBounded<T>(send: () => Promise<T>, deadline: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const expired = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => {
+        reject(new Error('the new daemon stopped answering before the restore deadline'));
+      },
+      Math.max(MIN_REQUEST_MS, deadline - Date.now()),
+    );
+  });
+
+  try {
+    return await Promise.race([send(), expired]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function pickDeadlineMs(stored: readonly StoredRow[], timeoutSeconds: number | null): number {
@@ -61,9 +97,12 @@ function pickDeadlineMs(stored: readonly StoredRow[], timeoutSeconds: number | n
   return stored.filter((row) => !row.exited).length * bootMs + 30_000;
 }
 
-async function tryRestore(client: Pick<DaemonClient, 'sendRequest'>): Promise<boolean> {
+async function tryRestore(
+  client: Pick<DaemonClient, 'sendRequest'>,
+  deadline: number,
+): Promise<boolean> {
   try {
-    await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+    await sendBounded(() => client.sendRequest('fleet.restore', { cols: 80, rows: 24 }), deadline);
 
     return true;
   } catch {

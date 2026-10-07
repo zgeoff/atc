@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { isDaemonCommandLine } from './is-daemon-command-line';
 
 /**
  * Whether the process with this pid runs `atc daemon`, judged by its command
@@ -15,8 +16,5 @@ export function isDaemonProcess(pid: number): boolean {
     return false;
   }
 
-  const args = cmdline.split('\0').filter((arg) => arg !== '');
-  const at = args.indexOf('daemon', 1);
-
-  return at > 0 && (args[at + 1] === undefined || args[at + 1]?.startsWith('--') === true);
+  return isDaemonCommandLine(cmdline.split('\0').filter((arg) => arg !== ''));
 }

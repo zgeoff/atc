@@ -6,7 +6,9 @@ import { formatRestartPreflight } from './format-restart-preflight';
 import type { RestartResult } from './parse-restart-result';
 import { readDaemonProcess } from './read-daemon-process';
 import { readFleetSnapshot } from './read-fleet-snapshot';
+import { readStoredFleetFile } from './read-stored-fleet-file';
 import { runSystemctl } from './run-systemctl';
+import { dbFile } from './shared/config';
 import { getBuild } from './shared/get-build';
 import { loadListenerTokens } from './shared/load-listener-tokens';
 import { startReplacementDaemon } from './start-replacement-daemon';
@@ -41,11 +43,18 @@ export async function restartDaemon(options: RestartOptions): Promise<RestartRes
     .map((session) => ({ name: session.name, id: session.id }));
 
   // Taken while the old daemon still runs, so a row that the restore marks
-  // exited is not mistaken for one that was archived before.
+  // exited is not mistaken for one that was archived before. A daemon this
+  // build cannot speak to is read from its database instead.
   const snapshot =
-    plan.answer?.kind === 'ok' && plan.socketPath !== null
+    (plan.answer?.kind === 'ok' && plan.socketPath !== null
       ? await readFleetSnapshot(plan.socketPath)
-      : null;
+      : null) ?? readStoredFleetFile(dbFile);
+
+  if (snapshot === null) {
+    console.log(
+      'cannot read the stored fleet before the stop: the report checks the rows the new daemon lists, and a row it marks exited counts as restored',
+    );
+  }
 
   const buildFailure = (error: string): RestartResult =>
     buildRestartFailure(options.runID, error, interrupted);

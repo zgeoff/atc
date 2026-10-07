@@ -1,5 +1,6 @@
 // atc CLI entry: no subcommand opens the client TUI; `hook-report` and
 // `statusline` are the commands injected into wrangled sessions.
+import { resolve } from 'node:path';
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
 import { collectRedirectURIs } from './collect-redirect-uris';
@@ -467,7 +468,11 @@ function parseRestartArgs(args: RestartArgs): RestartFlags {
     process.exit(1);
   }
 
-  return { listen, tokenFile: args['token-file'] ?? null, timeoutSeconds: timeout };
+  // An explicit token file is read where the caller runs, not in the old
+  // daemon's directory, so a relative path is fixed here before the handoff.
+  const tokenFile = args['token-file'] === undefined ? null : resolve(args['token-file']);
+
+  return { listen, tokenFile, timeoutSeconds: timeout };
 }
 
 // Runs the daemon in the foreground until SIGTERM, with a TCP listener when
