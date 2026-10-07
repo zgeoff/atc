@@ -1,85 +1,53 @@
 import { expect, test } from 'bun:test';
-import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { ClaudeAdapter } from '../agents/claude-adapter';
-import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
-import { isRecord } from '../shared/report';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { createStubBin } from '../test-utils/create-stub-bin';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
-import { startDaemon } from './daemon';
-
-/**
- * A real daemon whose adapters come from an agents map, with a fake
- * Claude binary that records its argv under the temp tree and sleeps.
- */
-async function setupTest(agents: (fakeClaude: string) => unknown) {
-  const tmp = setupTempDir('atc-daemon-agent-registry-');
-  const fakeClaude = join(tmp.dir, 'fake-claude');
-
-  writeFileSync(fakeClaude, `#!/bin/bash\nprintf '%s\\n' "$@" > "${tmp.dir}/argv$1"\nsleep 30\n`);
-  chmodSync(fakeClaude, 0o755);
-
-  const config = parseConfig({ agents: agents(fakeClaude) });
-  const sockPath = join(tmp.dir, 'daemon.sock');
-
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapters: buildAgentAdapters(config),
-    defaultAgent: config.defaultAgent,
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-  });
-
-  const client = await DaemonClient.open(sockPath);
-
-  await client.sendHello('atc/test-build');
-
-  return {
-    dir: tmp.dir,
-    config,
-    client,
-    async [Symbol.asyncDispose]() {
-      client.stop();
-
-      await daemon.stop();
-
-      tmp[Symbol.dispose]();
-    },
-  };
-}
 
 test('it spawns two claude entries each with its own args and settings file', async () => {
-  await using daemon = await setupTest((fakeClaude) => ({
-    claude: { bin: fakeClaude, args: ['--a'] },
-    'claude-b': {
-      kind: 'claude',
-      bin: fakeClaude,
-      args: ['--b'],
-      env: { FROM_ENTRY: '1' },
-      settings: { outputStyle: 'registry-marker', env: { FROM_SETTINGS: '1' } },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-agent-registry-',
+    options: (paths) => {
+      const fakeClaude = createStubBin(
+        paths.dir,
+        'fake-claude',
+        `#!/bin/bash\nprintf '%s\\n' "$@" > "${paths.dir}/argv$1"\nsleep 30\n`,
+      );
+
+      const parsed = parseConfig({
+        agents: {
+          claude: { bin: fakeClaude, args: ['--a'] },
+          'claude-b': {
+            kind: 'claude',
+            bin: fakeClaude,
+            args: ['--b'],
+            env: { FROM_ENTRY: '1' },
+            settings: { outputStyle: 'registry-marker', env: { FROM_SETTINGS: '1' } },
+          },
+        },
+      });
+
+      return { adapters: buildAgentAdapters(parsed), defaultAgent: parsed.defaultAgent };
     },
-  }));
+  });
 
   const first = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: daemon.dir,
     agent: 'claude',
     cols: 80,
     rows: 24,
   });
 
   const second = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: daemon.dir,
     agent: 'claude-b',
     cols: 80,
     rows: 24,
   });
-
-  expect(first['session']).toMatchObject({ agent: 'claude' });
-  expect(second['session']).toMatchObject({ agent: 'claude-b' });
 
   const firstArgv = await waitFor(() =>
     readFileSync(join(daemon.dir, 'argv--a'), 'utf8').split('\n'),
@@ -94,6 +62,8 @@ test('it spawns two claude entries each with its own args and settings file', as
   const firstSettings: unknown = JSON.parse(readFileSync(firstFile, 'utf8'));
   const secondSettings: unknown = JSON.parse(readFileSync(secondFile, 'utf8'));
 
+  expect(first['session']).toMatchObject({ agent: 'claude' });
+  expect(second['session']).toMatchObject({ agent: 'claude-b' });
   expect(firstArgv[0]).toBe('--a');
   expect(secondArgv[0]).toBe('--b');
   expect(firstFile).toEndWith('hook-settings-claude.json');
@@ -128,17 +98,24 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
     ids: [first.id, second.id],
     bins: [firstPlan.bin, secondPlan.bin],
     leading: [firstPlan.args[0], secondPlan.args[0]],
-    settingsDiffer: firstPlan.args.join(' ') !== secondPlan.args.join(' '),
   }).toStrictEqual({
     ids: ['claude', 'claude-b'],
     bins: ['one', 'two'],
     leading: ['--a', '--b'],
-    settingsDiffer: true,
   });
+
+  expect(firstPlan.args).not.toStrictEqual(secondPlan.args);
 });
 
-test('it lists no agent, refuses a spawn, and still starts for an empty registry', async () => {
-  await using daemon = await setupTest(() => ({}));
+test('it lists no agent and defaults spawns to claude for an empty registry', async () => {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-agent-registry-',
+    options: () => {
+      const parsed = parseConfig({ agents: {} });
+
+      return { adapters: buildAgentAdapters(parsed), defaultAgent: parsed.defaultAgent };
+    },
+  });
 
   const listed = await daemon.client.sendRequest('agents.list');
 
@@ -146,34 +123,76 @@ test('it lists no agent, refuses a spawn, and still starts for an empty registry
     agents: [],
     defaults: { agent: 'claude' },
   });
+});
+
+test('it refuses a spawn for an empty registry', async () => {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-agent-registry-',
+    options: () => {
+      const parsed = parseConfig({ agents: {} });
+
+      return { adapters: buildAgentAdapters(parsed), defaultAgent: parsed.defaultAgent };
+    },
+  });
 
   expect(
-    daemon.client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 }),
+    daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, cols: 80, rows: 24 }),
   ).rejects.toMatchObject({
     code: 'unsupported',
     message: "no adapter for agent 'claude'",
   });
 });
 
-test('it spawns the first entry when the registry holds no claude and the spawn names none', async () => {
-  await using daemon = await setupTest((fakeClaude) => ({
-    'claude-b': { kind: 'claude', bin: fakeClaude, args: ['--b'] },
-  }));
+test('it defaults spawns to the first entry when the registry holds no claude', async () => {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-agent-registry-',
+    options: (paths) => {
+      const fakeClaude = createStubBin(
+        paths.dir,
+        'fake-claude',
+        `#!/bin/bash\nprintf '%s\\n' "$@" > "${paths.dir}/argv$1"\nsleep 30\n`,
+      );
+
+      const parsed = parseConfig({
+        agents: {
+          'claude-b': { kind: 'claude', bin: fakeClaude, args: ['--b'] },
+        },
+      });
+
+      return { adapters: buildAgentAdapters(parsed), defaultAgent: parsed.defaultAgent };
+    },
+  });
 
   const listed = await daemon.client.sendRequest('agents.list');
 
-  const defaults = listed['spawnDefaults'];
+  expect(listed['spawnDefaults']).toMatchObject({ agent: 'claude-b' });
+});
 
-  if (!isRecord(defaults)) {
-    throw new Error('no spawn defaults');
-  }
+test('it spawns the first entry when the registry holds no claude and the spawn names none', async () => {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-agent-registry-',
+    options: (paths) => {
+      const fakeClaude = createStubBin(
+        paths.dir,
+        'fake-claude',
+        `#!/bin/bash\nprintf '%s\\n' "$@" > "${paths.dir}/argv$1"\nsleep 30\n`,
+      );
+
+      const parsed = parseConfig({
+        agents: {
+          'claude-b': { kind: 'claude', bin: fakeClaude, args: ['--b'] },
+        },
+      });
+
+      return { adapters: buildAgentAdapters(parsed), defaultAgent: parsed.defaultAgent };
+    },
+  });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
   });
 
-  expect(defaults['agent']).toBe('claude-b');
   expect(spawned['session']).toMatchObject({ agent: 'claude-b' });
 });

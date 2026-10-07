@@ -1,93 +1,29 @@
 import { expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import type { HeadlessRunner } from '../agents/agent-adapter';
-import { DaemonClient } from '../client/daemon-client';
-import { DaemonError } from '../protocol/daemon-error';
-import { collectPrincipals } from '../shared/collect-principals';
 import { getRecord } from '../shared/get-record';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
+import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
-import { startDaemon } from './daemon';
-import type { ExecutionProvider } from './execution-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
-// A real daemon whose one target runs on the provider the test hands it,
-// with a fake claude that idles, confirm tokens that live as long as the
-// test asks, the headless runner the test hands it, if any, and the raw
-// `principals` config the test hands it, if any.
-async function setupTest(
-  provider: ExecutionProvider,
-  forgetConfirmMs?: number,
-  headlessRunner: HeadlessRunner | null = null,
-  principals?: unknown,
-) {
-  const tmp = setupTempDir('atc-daemon-forget-');
-  const sockPath = join(tmp.dir, 'daemon.sock');
-  const fakeClaude = join(tmp.dir, 'fake-claude');
-
-  writeFileSync(fakeClaude, '#!/usr/bin/env bash\nexec sleep 300\n', { mode: 0o755 });
-
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: {
-      id: 'claude',
-      headlessRunner,
-      screenDetector: null,
-      takesMessages: false,
-      planSpawn: () => ({ bin: fakeClaude, args: [] }),
-      normalizeHook: () => ({ kind: 'heartbeat' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => null,
-    },
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    targets: [{ id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider }],
-    ...(forgetConfirmMs === undefined ? {} : { forgetConfirmMs }),
-    ejectSettleMs: 30,
-    principals: collectPrincipals(principals).principals,
+test('it answers a forget on a host-destroying target with a token and destroys nothing yet', async () => {
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
   });
 
-  const client = await DaemonClient.open(sockPath);
+  const clock = { now: 1_800_000_000_000 };
 
-  await client.sendHello('atc/test-build');
-
-  return {
-    client,
-    dir: tmp.dir,
-    async [Symbol.asyncDispose]() {
-      client.stop();
-
-      await daemon.stop();
-
-      tmp[Symbol.dispose]();
-    },
-  };
-}
-
-test('it answers a forget on a host-destroying target with a token and destroys nothing yet', async () => {
-  const local = new LocalPTYProvider();
-
-  const destroyed: string[] = [];
-
-  await using daemon = await setupTest({
-    kind: 'imp-like',
-    remote: false,
-    prepareHost: local.prepareHost,
-    dispose: local.dispose,
-    capabilities: { ...local.capabilities, suspend: true, destroy: true },
-    spawnHarness: local.spawnHarness,
-    transferArchive: local.transferArchive,
-    runCommand: local.runCommand,
-    suspendHost: () => Promise.resolve(),
-    destroyHost: (host) => {
-      destroyed.push(host);
-
-      return Promise.resolve();
-    },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+      forgetClock: () => clock.now,
+    }),
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -100,16 +36,14 @@ test('it answers a forget on a host-destroying target with a token and destroys 
 
   await daemon.client.sendRequest('session.kill', { session: id });
 
-  const askedAt = Date.now();
-
   const answer = await daemon.client.sendRequest('session.forget', { session: id });
 
   expect(answer).toStrictEqual({
     confirmToken: expect.toBeString(),
-    expiresAt: expect.toBeWithin(askedAt + 60_000, Date.now() + 60_001),
+    expiresAt: 1_800_000_060_000,
   });
 
-  expect(destroyed).toBeEmpty();
+  expect(provider.destroyed).toBeEmpty();
 
   expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id })],
@@ -117,25 +51,19 @@ test('it answers a forget on a host-destroying target with a token and destroys 
 });
 
 test('it destroys the host and forgets the session when the forget carries its token', async () => {
-  const local = new LocalPTYProvider();
-
-  const destroyed: string[] = [];
-
-  await using daemon = await setupTest({
+  const provider = buildStubExecutionProvider({
     kind: 'imp-like',
-    remote: false,
-    prepareHost: local.prepareHost,
-    dispose: local.dispose,
-    capabilities: { ...local.capabilities, suspend: true, destroy: true },
-    spawnHarness: local.spawnHarness,
-    transferArchive: local.transferArchive,
-    runCommand: local.runCommand,
-    suspendHost: () => Promise.resolve(),
-    destroyHost: (host) => {
-      destroyed.push(host);
+    capabilities: { suspend: true, destroy: true },
+  });
 
-      return Promise.resolve();
-    },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -156,35 +84,27 @@ test('it destroys the host and forgets the session when the forget carries its t
   });
 
   expect(forgotten).toStrictEqual({ forgotten: true, destroyed: true });
-  expect<readonly unknown[]>(destroyed).toStrictEqual([id]);
+  expect<readonly unknown[]>(provider.destroyed).toStrictEqual([id]);
   expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
   expect(daemon.client.sendRequest('fleet.list')).resolves.toStrictEqual({ fleet: [] });
 });
 
-test('it refuses a confirm token a forget already took', async () => {
-  const local = new LocalPTYProvider();
-
-  let failDestroy = true;
-
-  await using daemon = await setupTest({
+test('it refuses a forget with internal and keeps the session when the host destroy fails', async () => {
+  const provider = buildStubExecutionProvider({
     kind: 'imp-like',
-    remote: false,
-    prepareHost: local.prepareHost,
-    dispose: local.dispose,
-    capabilities: { ...local.capabilities, suspend: true, destroy: true },
-    spawnHarness: local.spawnHarness,
-    transferArchive: local.transferArchive,
-    runCommand: local.runCommand,
-    suspendHost: () => Promise.resolve(),
-    destroyHost: () => {
-      if (failDestroy) {
-        failDestroy = false;
+    capabilities: { suspend: true, destroy: true },
+  });
 
-        return Promise.reject(new Error('the host did not answer'));
-      }
+  provider.setDestroyFailure(new Error('the host did not answer'));
 
-      return Promise.resolve();
-    },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -204,44 +124,26 @@ test('it refuses a confirm token a forget already took', async () => {
 
   expect(failed).rejects.toMatchObject({ code: 'internal' });
 
-  await failed.catch(() => null);
-
-  expect(
-    daemon.client.sendRequest('session.forget', {
-      session: id,
-      confirmToken: offered['confirmToken'],
-    }),
-  ).rejects.toMatchObject({ code: 'confirm_token_invalid', data: { reason: 'used' } });
-
   expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id })],
   });
 });
 
-test('it refuses a confirm token past its lifetime', async () => {
-  const local = new LocalPTYProvider();
+test('it refuses a confirm token a forget already took', async () => {
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
-  const destroyed: string[] = [];
-
-  await using daemon = await setupTest(
-    {
-      kind: 'imp-like',
-      remote: false,
-      prepareHost: local.prepareHost,
-      dispose: local.dispose,
-      capabilities: { ...local.capabilities, suspend: true, destroy: true },
-      spawnHarness: local.spawnHarness,
-      transferArchive: local.transferArchive,
-      runCommand: local.runCommand,
-      suspendHost: () => Promise.resolve(),
-      destroyHost: (host) => {
-        destroyed.push(host);
-
-        return Promise.resolve();
-      },
-    },
-    50,
-  );
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
+  });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -253,36 +155,122 @@ test('it refuses a confirm token past its lifetime', async () => {
 
   const offered = await daemon.client.sendRequest('session.forget', { session: id });
 
-  const expiresAt = offered['expiresAt'];
+  provider.setDestroyFailure(new Error('the host did not answer'));
 
-  await waitFor(() => {
-    expect(Date.now()).toBeGreaterThan(Number(expiresAt));
+  await daemon.client
+    .sendRequest('session.forget', { session: id, confirmToken: offered['confirmToken'] })
+    .catch(() => null);
+
+  provider.setDestroyFailure(null);
+
+  const retried = daemon.client.sendRequest('session.forget', {
+    session: id,
+    confirmToken: offered['confirmToken'],
   });
 
-  expect(
-    daemon.client.sendRequest('session.forget', {
-      session: id,
-      confirmToken: offered['confirmToken'],
-    }),
-  ).rejects.toMatchObject({ code: 'confirm_token_invalid', data: { reason: 'expired' } });
+  expect(retried).rejects.toMatchObject({
+    code: 'confirm_token_invalid',
+    data: { reason: 'used' },
+  });
+});
 
-  expect(destroyed).toBeEmpty();
+test('it refuses a confirm token past its lifetime', async () => {
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
+
+  const clock = { now: 1_800_000_000_000 };
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+      forgetClock: () => clock.now,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const offered = await daemon.client.sendRequest('session.forget', { session: id });
+
+  clock.now += 60_000;
+
+  const late = daemon.client.sendRequest('session.forget', {
+    session: id,
+    confirmToken: offered['confirmToken'],
+  });
+
+  expect(late).rejects.toMatchObject({
+    code: 'confirm_token_invalid',
+    data: { reason: 'expired' },
+  });
+
+  expect(provider.destroyed).toBeEmpty();
+});
+
+test('it takes a confirm token up to the last millisecond of its lifetime', async () => {
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
+
+  const clock = { now: 1_800_000_000_000 };
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+      forgetClock: () => clock.now,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const offered = await daemon.client.sendRequest('session.forget', { session: id });
+
+  clock.now += 59_999;
+
+  const forgotten = await daemon.client.sendRequest('session.forget', {
+    session: id,
+    confirmToken: offered['confirmToken'],
+  });
+
+  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: true });
 });
 
 test('it refuses a confirm token handed out for another session', async () => {
-  const local = new LocalPTYProvider();
-
-  await using daemon = await setupTest({
+  const provider = buildStubExecutionProvider({
     kind: 'imp-like',
-    remote: false,
-    prepareHost: local.prepareHost,
-    dispose: local.dispose,
-    capabilities: { ...local.capabilities, suspend: true, destroy: true },
-    spawnHarness: local.spawnHarness,
-    transferArchive: local.transferArchive,
-    runCommand: local.runCommand,
-    suspendHost: () => Promise.resolve(),
-    destroyHost: () => Promise.resolve(),
+    capabilities: { suspend: true, destroy: true },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
   });
 
   const first = await daemon.client.sendRequest('session.spawn', {
@@ -301,16 +289,29 @@ test('it refuses a confirm token handed out for another session', async () => {
     session: getRecord(first, 'session')['id'],
   });
 
-  expect(
-    daemon.client.sendRequest('session.forget', {
-      session: getRecord(second, 'session')['id'],
-      confirmToken: offered['confirmToken'],
-    }),
-  ).rejects.toMatchObject({ code: 'confirm_token_invalid', data: { reason: 'unknown' } });
+  const crossed = daemon.client.sendRequest('session.forget', {
+    session: getRecord(second, 'session')['id'],
+    confirmToken: offered['confirmToken'],
+  });
+
+  expect(crossed).rejects.toMatchObject({
+    code: 'confirm_token_invalid',
+    data: { reason: 'unknown' },
+  });
 });
 
 test('it forgets a session on the local target at once without a token', async () => {
-  await using daemon = await setupTest(new LocalPTYProvider());
+  const provider = new LocalPTYProvider();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
+  });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -327,7 +328,17 @@ test('it forgets a session on the local target at once without a token', async (
 });
 
 test('it refuses a forget of a session the daemon does not hold', async () => {
-  await using daemon = await setupTest(new LocalPTYProvider());
+  const provider = new LocalPTYProvider();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
+  });
 
   expect(
     daemon.client.sendRequest('session.forget', { session: 'no-such-session' }),
@@ -335,7 +346,17 @@ test('it refuses a forget of a session the daemon does not hold', async () => {
 });
 
 test('it refuses a forget that refuses a pinned session when a pin lands after the session was read', async () => {
-  await using daemon = await setupTest(new LocalPTYProvider());
+  const provider = new LocalPTYProvider();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
+  });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -346,9 +367,7 @@ test('it refuses a forget that refuses a pinned session when a pin lands after t
   const id = getRecord(spawned, 'session')['id'];
 
   await daemon.client.sendRequest('session.kill', { session: id });
-
-  const read = await daemon.client.sendRequest('session.get', { session: id });
-
+  await daemon.client.sendRequest('session.get', { session: id });
   await daemon.client.sendRequest('session.update', { session: id, pinned: true });
 
   const refused = daemon.client.sendRequest('session.forget', {
@@ -357,7 +376,6 @@ test('it refuses a forget that refuses a pinned session when a pin lands after t
     refuseLive: true,
   });
 
-  expect(read).toMatchObject({ session: { id, pinned: false, alive: false } });
   expect(refused).rejects.toMatchObject({ code: 'session_pinned', data: { session: id } });
 
   expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
@@ -366,7 +384,17 @@ test('it refuses a forget that refuses a pinned session when a pin lands after t
 });
 
 test('it refuses a forget that refuses a pinned session of a sub-session of a pinned session', async () => {
-  await using daemon = await setupTest(new LocalPTYProvider());
+  const provider = new LocalPTYProvider();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
+  });
 
   const spawnedParent = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -400,7 +428,17 @@ test('it refuses a forget that refuses a pinned session of a sub-session of a pi
 });
 
 test('it refuses a forget that refuses a live session when the session is live', async () => {
-  await using daemon = await setupTest(new LocalPTYProvider());
+  const provider = new LocalPTYProvider();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
+  });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -424,7 +462,17 @@ test('it refuses a forget that refuses a live session when the session is live',
 });
 
 test('it forgets a dead unpinned session when the forget refuses pinned and live sessions', async () => {
-  await using daemon = await setupTest(new LocalPTYProvider());
+  const provider = new LocalPTYProvider();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
+  });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -447,19 +495,19 @@ test('it forgets a dead unpinned session when the forget refuses pinned and live
 });
 
 test('it refuses a pinned session on a host-destroying target before it hands out a token', async () => {
-  const local = new LocalPTYProvider();
-
-  await using daemon = await setupTest({
+  const provider = buildStubExecutionProvider({
     kind: 'imp-like',
-    remote: false,
-    prepareHost: local.prepareHost,
-    dispose: local.dispose,
-    capabilities: { ...local.capabilities, suspend: true, destroy: true },
-    spawnHarness: local.spawnHarness,
-    transferArchive: local.transferArchive,
-    runCommand: local.runCommand,
-    suspendHost: () => Promise.resolve(),
-    destroyHost: () => Promise.resolve(),
+    capabilities: { suspend: true, destroy: true },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -472,46 +520,36 @@ test('it refuses a pinned session on a host-destroying target before it hands ou
 
   await daemon.client.sendRequest('session.update', { session: id, pinned: true });
 
-  const refused = daemon.client.sendRequest('session.forget', {
-    session: id,
-    refusePinned: true,
-  });
+  const refused = daemon.client.sendRequest('session.forget', { session: id, refusePinned: true });
 
   expect(refused).rejects.toMatchObject({ code: 'session_pinned' });
 });
 
 test('it keeps a headless run going when the forget of its session fails to destroy the host', async () => {
-  const local = new LocalPTYProvider();
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
-  const runs: { stopped: boolean }[] = [];
+  const headless = buildStubHeadlessRunner();
 
-  await using daemon = await setupTest(
-    {
-      kind: 'imp-like',
-      remote: false,
-      capabilities: { ...local.capabilities, suspend: true, destroy: true },
-      prepareHost: () => Promise.resolve(),
-      spawnHarness: local.spawnHarness,
-      transferArchive: local.transferArchive,
-      runCommand: local.runCommand,
-      suspendHost: () => Promise.resolve(),
-      destroyHost: () => Promise.reject(new Error('impd is unreachable')),
-      dispose: () => {},
-    },
-    undefined,
-    (_opts, hooks) => {
-      const run = { stopped: false };
+  provider.setDestroyFailure(new Error('impd is unreachable'));
 
-      runs.push(run);
-      hooks.onOutput('HEADLESS LINE\r\n');
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        headlessRunner: headless.runner,
 
-      return {
-        stop() {
-          run.stopped = true;
-        },
-      };
-    },
-  );
+        // Every hook reads as the terminal's end, so one fires the pending
+        // eject.
+        normalizeHook: () => ({ kind: 'ended' }),
+      }),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
+  });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -523,9 +561,10 @@ test('it keeps a headless run going when the forget of its session fails to dest
   const id = getRecord(spawned, 'session')['id'];
 
   await daemon.client.sendRequest('session.eject', { session: id });
+  await daemon.sendHookLines({ atcId: id, event: 'SessionEnd', payload: {} });
 
   await waitFor(() => {
-    expect(runs).toHaveLength(1);
+    expect(headless.runs).toHaveLength(1);
   });
 
   const offered = await daemon.client.sendRequest('session.forget', { session: id });
@@ -535,126 +574,208 @@ test('it keeps a headless run going when the forget of its session fails to dest
     confirmToken: offered['confirmToken'],
   });
 
-  expect(forgotten).rejects.toThrow();
+  expect(forgotten).rejects.toMatchObject({ code: 'internal' });
 
-  await forgotten.catch(() => null);
-
-  expect(runs).toStrictEqual([{ stopped: false }]);
+  expect<readonly unknown[]>(headless.runs).toStrictEqual([
+    {
+      request: {
+        cwd: daemon.dir,
+        prompt:
+          'Continue the task autonomously. Verify your work as you go and stop when it is complete.',
+        resume: 'agent-1',
+        sessionID: id,
+      },
+      stopped: false,
+    },
+  ]);
 
   expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [{ id, kind: 'headless' }],
   });
 });
 
-test.each([
-  ['without a token', false],
-  ['with the token the owner was handed', true],
-])(
-  'it answers a principal forget %s of a session on a target it may not use as for a session that does not exist, destroying nothing',
-  async (_label, withToken) => {
-    const local = new LocalPTYProvider();
+test('it refuses a principal forget without a token of a session on a target it may not use as a session that does not exist, destroying nothing', async () => {
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
-    const destroyed: string[] = [];
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+      principals: new Map([['outsider', []]]),
+    }),
+  });
 
-    await using daemon = await setupTest(
-      {
-        kind: 'imp-like',
-        remote: false,
-        prepareHost: local.prepareHost,
-        dispose: local.dispose,
-        capabilities: { ...local.capabilities, suspend: true, destroy: true },
-        spawnHarness: local.spawnHarness,
-        transferArchive: local.transferArchive,
-        runCommand: local.runCommand,
-        suspendHost: () => Promise.resolve(),
-        destroyHost: (host) => {
-          destroyed.push(host);
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
 
-          return Promise.resolve();
-        },
-      },
-      undefined,
-      null,
-      { outsider: { targets: [] } },
-    );
+  const id = String(getRecord(spawned, 'session')['id']);
 
-    const spawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
-      cols: 80,
-      rows: 24,
-    });
+  await daemon.client.sendRequest('session.kill', { session: id });
 
-    const id = String(getRecord(spawned, 'session')['id']);
-    const missing = 'no-such-session';
+  const refused = daemon.client.sendRequest('session.forget', { session: id }, 'outsider');
 
-    await daemon.client.sendRequest('session.kill', { session: id });
+  expect(refused).rejects.toMatchObject({
+    name: 'DaemonError',
+    code: 'no_such_session',
+    message: `no session '${id}'`,
+    data: undefined,
+  });
 
-    const offered = await daemon.client.sendRequest('session.forget', { session: id });
+  expect(provider.destroyed).toBeEmpty();
 
-    const token = withToken ? { confirmToken: offered['confirmToken'] } : {};
+  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id })],
+  });
+});
 
-    const answered = await daemon.client
-      .sendRequest('session.forget', { session: id, ...token }, 'outsider')
-      .then(
-        (ok) => ({ ok }),
-        (error: unknown) => ({
-          error:
-            error instanceof DaemonError
-              ? { code: error.code, message: error.message, data: error.data ?? null }
-              : error,
-        }),
-      );
+test('it refuses a principal forget without a token of a session that does not exist', async () => {
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
-    const unknown = await daemon.client
-      .sendRequest('session.forget', { session: missing, ...token }, 'outsider')
-      .then(
-        (ok) => ({ ok }),
-        (error: unknown) => ({
-          error:
-            error instanceof DaemonError
-              ? { code: error.code, message: error.message, data: error.data ?? null }
-              : error,
-        }),
-      );
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+      principals: new Map([['outsider', []]]),
+    }),
+  });
 
-    expect(JSON.parse(JSON.stringify(answered).replaceAll(id, '<session>'))).toStrictEqual(
-      JSON.parse(JSON.stringify(unknown).replaceAll(missing, '<session>')),
-    );
+  const refused = daemon.client.sendRequest(
+    'session.forget',
+    { session: 'no-such-session' },
+    'outsider',
+  );
 
-    expect(destroyed).toBeEmpty();
+  expect(refused).rejects.toMatchObject({
+    name: 'DaemonError',
+    code: 'no_such_session',
+    message: "no session 'no-such-session'",
+    data: undefined,
+  });
+});
 
-    expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
-      sessions: [expect.objectContaining({ id })],
-    });
-  },
-);
+test('it refuses a principal forget with the owner token of a session on a target it may not use as a session that does not exist, destroying nothing', async () => {
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+      principals: new Map([['outsider', []]]),
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  const offered = await daemon.client.sendRequest('session.forget', { session: id });
+
+  const refused = daemon.client.sendRequest(
+    'session.forget',
+    { session: id, confirmToken: offered['confirmToken'] },
+    'outsider',
+  );
+
+  expect(refused).rejects.toMatchObject({
+    name: 'DaemonError',
+    code: 'no_such_session',
+    message: `no session '${id}'`,
+    data: undefined,
+  });
+
+  expect(provider.destroyed).toBeEmpty();
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id })],
+  });
+});
+
+test('it refuses a principal forget with the owner token of a session that does not exist', async () => {
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+      principals: new Map([['outsider', []]]),
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  const offered = await daemon.client.sendRequest('session.forget', { session: id });
+
+  const refused = daemon.client.sendRequest(
+    'session.forget',
+    { session: 'no-such-session', confirmToken: offered['confirmToken'] },
+    'outsider',
+  );
+
+  expect(refused).rejects.toMatchObject({
+    name: 'DaemonError',
+    code: 'no_such_session',
+    message: "no session 'no-such-session'",
+    data: undefined,
+  });
+});
 
 test('it destroys the host when a principal that may use its target forgets with the token', async () => {
-  const local = new LocalPTYProvider();
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
-  const destroyed: string[] = [];
-
-  await using daemon = await setupTest(
-    {
-      kind: 'imp-like',
-      remote: false,
-      prepareHost: local.prepareHost,
-      dispose: local.dispose,
-      capabilities: { ...local.capabilities, suspend: true, destroy: true },
-      spawnHarness: local.spawnHarness,
-      transferArchive: local.transferArchive,
-      runCommand: local.runCommand,
-      suspendHost: () => Promise.resolve(),
-      destroyHost: (host) => {
-        destroyed.push(host);
-
-        return Promise.resolve();
-      },
-    },
-    undefined,
-    null,
-    { insider: { targets: ['local'] } },
-  );
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+      principals: new Map([['insider', ['local']]]),
+    }),
+  });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -675,6 +796,6 @@ test('it destroys the host when a principal that may use its target forgets with
   );
 
   expect(forgotten).toStrictEqual({ forgotten: true, destroyed: true });
-  expect<readonly unknown[]>(destroyed).toStrictEqual([id]);
+  expect<readonly unknown[]>(provider.destroyed).toStrictEqual([id]);
   expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
 });

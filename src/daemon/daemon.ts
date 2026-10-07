@@ -169,6 +169,15 @@ export interface DaemonOptions {
   // How long a confirm token from `session.forget` stays usable.
   readonly forgetConfirmMs?: number;
 
+  // The clock confirm tokens from `session.forget` are minted and checked
+  // against, in epoch milliseconds; the wall clock when unset.
+  readonly forgetClock?: () => number;
+
+  // Called with a session's id when it reports its start and the daemon
+  // leaves the last-used agent as it is, because no spawn is waiting on
+  // that start.
+  readonly onLastUsedUnchanged?: (sessionID: SessionID) => void;
+
   // When set, a TCP listener serves the client protocol on this address to
   // peers whose handshake presents a token from the token file.
   readonly listen?: ListenOptions;
@@ -936,6 +945,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       if (started !== undefined && runtime !== undefined && runtime.pendingLastUsed) {
         runtime.pendingLastUsed = false;
         void store.writeLastUsedAgent(started.agent);
+      } else if (started !== undefined) {
+        opts.onLastUsedUnchanged?.(started.id);
       }
     }
   };
@@ -1210,9 +1221,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const confirmTokens = new Map<string, ConfirmToken>();
 
   const forgetConfirmMs = opts.forgetConfirmMs ?? FORGET_CONFIRM_MS;
+  const forgetClock = opts.forgetClock ?? Date.now;
 
   const claimConfirmToken = (sessionID: SessionID, token: string) => {
-    const now = Date.now();
+    const now = forgetClock();
 
     for (const [held, entry] of confirmTokens) {
       if (entry.expiresAt + forgetConfirmMs < now) {
@@ -1607,7 +1619,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
         if (confirmToken === undefined) {
           const token = randomUUID();
-          const expiresAt = Date.now() + forgetConfirmMs;
+          const expiresAt = forgetClock() + forgetConfirmMs;
 
           confirmTokens.set(token, { session: id, expiresAt, used: false });
 

@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
-import type { AgentAdapter } from '../agents/agent-adapter';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildAgentList } from './build-agent-list';
 
 test('it lists an agent that takes the broker credential as spawnable once a target reaches the broker', () => {
-  const adapter: AgentAdapter = {
+  const adapter = buildMockAgentAdapter({
     id: 'glm',
     profile: {
       label: 'GLM',
@@ -29,14 +29,6 @@ test('it lists an agent that takes the broker credential as spawnable once a tar
         },
       },
     },
-    headlessRunner: null,
-    screenDetector: null,
-    takesMessages: false,
-    normalizeHook: () => ({ kind: 'heartbeat' }),
-    loadName: () => Promise.resolve(null),
-    canResume: () => true,
-    buildResumeCommand: () => null,
-    planSpawn: () => ({ bin: 'claude', args: [] }),
     findAuthSelection: () => ({
       brokerRequired: true,
       gateway: {
@@ -46,15 +38,51 @@ test('it lists an agent that takes the broker credential as spawnable once a tar
       },
       profiles: new Map(),
     }),
-  };
+  });
 
-  const [entry] = buildAgentList([adapter], () => true, true);
-
-  expect(entry).toMatchObject({ brokerAuth: true, capabilities: { spawn: true } });
+  expect(buildAgentList([adapter], () => true, true)).toStrictEqual([
+    {
+      id: 'glm',
+      label: 'GLM',
+      kind: 'claude',
+      installed: true,
+      brokerAuth: true,
+      brokerRequired: true,
+      capabilities: {
+        spawn: true,
+        readTranscript: false,
+        message: false,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
+        effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
+      },
+    },
+  ]);
 });
 
 test('it lists an agent that takes the broker credential as not spawnable when no target reaches the broker', () => {
-  const adapter: AgentAdapter = {
+  const adapter = buildMockAgentAdapter({
     id: 'glm',
     profile: {
       label: 'GLM',
@@ -80,14 +108,6 @@ test('it lists an agent that takes the broker credential as not spawnable when n
         },
       },
     },
-    headlessRunner: null,
-    screenDetector: null,
-    takesMessages: false,
-    normalizeHook: () => ({ kind: 'heartbeat' }),
-    loadName: () => Promise.resolve(null),
-    canResume: () => true,
-    buildResumeCommand: () => null,
-    planSpawn: () => ({ bin: 'claude', args: [] }),
     findAuthSelection: () => ({
       brokerRequired: true,
       gateway: {
@@ -97,20 +117,51 @@ test('it lists an agent that takes the broker credential as not spawnable when n
       },
       profiles: new Map(),
     }),
-  };
-
-  const [entry] = buildAgentList([adapter], () => true, false);
-
-  expect(entry).toMatchObject({
-    brokerAuth: true,
-    brokerRequired: true,
-    capabilities: { spawn: false },
-    spawnOptions: { model: { available: false } },
   });
+
+  expect(buildAgentList([adapter], () => true, false)).toStrictEqual([
+    {
+      id: 'glm',
+      label: 'GLM',
+      kind: 'claude',
+      installed: true,
+      brokerAuth: true,
+      brokerRequired: true,
+      capabilities: {
+        spawn: false,
+        readTranscript: false,
+        message: false,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: true,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
+        effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
+      },
+    },
+  ]);
 });
 
 test('it lists an agent that takes no broker credential as spawnable when no target reaches the broker', () => {
-  const adapter: AgentAdapter = {
+  const adapter = buildMockAgentAdapter({
     id: 'plain',
     profile: {
       label: 'Plain',
@@ -136,23 +187,51 @@ test('it lists an agent that takes no broker credential as spawnable when no tar
         },
       },
     },
-    headlessRunner: null,
-    screenDetector: null,
-    takesMessages: false,
-    normalizeHook: () => ({ kind: 'heartbeat' }),
-    loadName: () => Promise.resolve(null),
-    canResume: () => true,
-    buildResumeCommand: () => null,
-    planSpawn: () => ({ bin: 'claude', args: [] }),
-  };
+  });
 
-  const [entry] = buildAgentList([adapter], () => true, false);
-
-  expect(entry).toMatchObject({ brokerAuth: false, capabilities: { spawn: true } });
+  expect(buildAgentList([adapter], () => true, false)).toStrictEqual([
+    {
+      id: 'plain',
+      label: 'Plain',
+      kind: 'claude',
+      installed: true,
+      brokerAuth: false,
+      brokerRequired: false,
+      capabilities: {
+        spawn: true,
+        readTranscript: false,
+        message: false,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
+        effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
+      },
+    },
+  ]);
 });
 
 test('it lists an agent that takes the broker credential only where a broker is as spawnable when no target reaches one', () => {
-  const adapter: AgentAdapter = {
+  const adapter = buildMockAgentAdapter({
     id: 'claude',
     profile: {
       label: 'Claude',
@@ -178,14 +257,6 @@ test('it lists an agent that takes the broker credential only where a broker is 
         },
       },
     },
-    headlessRunner: null,
-    screenDetector: null,
-    takesMessages: false,
-    normalizeHook: () => ({ kind: 'heartbeat' }),
-    loadName: () => Promise.resolve(null),
-    canResume: () => true,
-    buildResumeCommand: () => null,
-    planSpawn: () => ({ bin: 'claude', args: [] }),
     findAuthSelection: () => ({
       brokerRequired: false,
       gateway: {
@@ -198,14 +269,45 @@ test('it lists an agent that takes the broker credential only where a broker is 
       },
       profiles: new Map(),
     }),
-  };
-
-  const [entry] = buildAgentList([adapter], () => true, false);
-
-  expect(entry).toMatchObject({
-    brokerAuth: true,
-    brokerRequired: false,
-    capabilities: { spawn: true },
-    spawnOptions: { model: { available: true } },
   });
+
+  expect(buildAgentList([adapter], () => true, false)).toStrictEqual([
+    {
+      id: 'claude',
+      label: 'Claude',
+      kind: 'claude',
+      installed: true,
+      brokerAuth: true,
+      brokerRequired: false,
+      capabilities: {
+        spawn: true,
+        readTranscript: false,
+        message: false,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: true,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: true,
+        },
+        effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
+      },
+    },
+  ]);
 });

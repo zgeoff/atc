@@ -62,10 +62,12 @@ const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
  */
 // A hold on the commands whose argv holds its text: entered resolves with
 // the argv of the first command it holds, and stop lets every command it
-// holds run.
+// holds run. Disposing the hold stops it, so a test that holds it with
+// `using` after its daemon lets the daemon stop even when the test fails.
 interface FixtureCommandHold {
   readonly entered: Promise<string>;
   readonly stop: () => void;
+  readonly [Symbol.dispose]: () => void;
 }
 
 export class FixtureImpPort implements ImpPort {
@@ -1020,16 +1022,15 @@ export class FixtureImpPort implements ImpPort {
 
     this.commandHold = hold;
 
-    return {
-      entered: hold.entered.promise,
-      stop: () => {
-        if (this.commandHold === hold) {
-          this.commandHold = null;
-        }
+    const stop = () => {
+      if (this.commandHold === hold) {
+        this.commandHold = null;
+      }
 
-        hold.done.resolve();
-      },
+      hold.done.resolve();
     };
+
+    return { entered: hold.entered.promise, stop, [Symbol.dispose]: stop };
   }
 
   // Lets every command the active hold holds run, and the next at once.
