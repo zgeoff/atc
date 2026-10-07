@@ -13,12 +13,12 @@ function setupTest() {
   return {
     dir: tmp.dir,
     cli: join(import.meta.dir, 'cli.ts'),
-    [Symbol.asyncDispose]: tmp[Symbol.asyncDispose],
+    [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
 test('it prints the migrated config and leaves the file alone without --write', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
   const original = JSON.stringify({ claudeBin: '/opt/claude', leader: 'ctrl-a' });
@@ -49,7 +49,7 @@ test('it prints the migrated config and leaves the file alone without --write', 
 });
 
 test('it backs the file up, rewrites it, and prints both paths with --write', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
   const original = JSON.stringify({ codexBin: '/opt/codex' });
@@ -95,7 +95,7 @@ test('it backs the file up, rewrites it, and prints both paths with --write', as
 });
 
 test('it says nothing to migrate and writes nothing for a file that uses agents', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
 
@@ -121,7 +121,7 @@ test('it says nothing to migrate and writes nothing for a file that uses agents'
 });
 
 test('it exits 1 and writes nothing for a file that sets agents beside an old key', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
   const original = JSON.stringify({ agents: {}, claudeBin: 'x' });
@@ -155,7 +155,7 @@ test('it exits 1 and writes nothing for a file that sets agents beside an old ke
 });
 
 test('it notes each dropped gateway on stderr without printing a value', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
 
@@ -183,7 +183,7 @@ test('it notes each dropped gateway on stderr without printing a value', async (
 });
 
 test('it exits 1 for a file that is not valid JSON', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
 
@@ -208,7 +208,7 @@ test('it exits 1 for a file that is not valid JSON', async () => {
 });
 
 test('it exits 1 for a file that does not exist', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const file = join(ctx.dir, 'config.json');
 

@@ -1,35 +1,30 @@
 import { expect, test } from 'bun:test';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolveGatewayCommand } from './test-utils/resolve-gateway-command';
 import { setupTempDir } from './test-utils/setup-temp-dir';
-import { waitFor } from './test-utils/wait-for';
 
 /**
  * A temp directory to run the gateway in, so a relative path lands there,
- * and a free port for it. Every gateway runs with `PATH` and a `HOME` inside
- * the temp directory that nothing creates, so a write under it shows in the
- * directory listing. `run` runs the gateway to its exit; `start` appends
- * the port to its arguments and waits until the readiness probe returns
- * 200. Disposal kills every gateway either started and removes the
- * directory.
+ * a free port for a gateway that serves, and the command and environment
+ * to run one with: `PATH` and a `HOME` inside the temp directory that
+ * nothing creates, so a write under it shows in the directory listing.
+ * `run` runs the gateway in the temp directory to its exit. Disposal kills
+ * every gateway `run` started and removes the directory.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
+function setupTest() {
+  using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-gateway-bin-'));
 
-  // The gateway refuses port 0, so it takes a port the kernel handed out
-  // and released just before.
-  const probe = Bun.serve({ port: 0, fetch: () => new Response(null) });
-  const port = probe.port ?? 0;
+  // The gateway refuses port 0, so a serving gateway takes a port the
+  // kernel handed out and released just before.
+  const probe = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data: () => {} } });
+  const port = probe.port;
 
-  await probe.stop(true);
+  probe.stop(true);
 
-  // A smoke run points ATC_GATEWAY_BIN at the compiled binary; otherwise the
-  // source entry runs under the test's own bun, so one suite proves both.
-  const command = [
-    process.env['ATC_GATEWAY_BIN'] ?? [process.execPath, join(import.meta.dir, 'gateway.ts')],
-  ].flat();
+  const command = resolveGatewayCommand(process.env['ATC_GATEWAY_BIN']);
 
   // Bun's transpiler cache would write under HOME when the source entry runs.
   const env = {
@@ -40,28 +35,22 @@ async function setupTest() {
 
   const owned = stack.move();
 
-  const spawnGateway = (args: readonly string[], extraEnv: Readonly<Record<string, string>>) => {
-    const proc = Bun.spawn([...command, ...args], {
-      cwd: tmp.dir,
-      env: { ...env, ...extraEnv },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-
-    owned.defer(async () => {
-      proc.kill();
-
-      await proc.exited;
-    });
-
-    return proc;
-  };
+  const running = new AsyncDisposableStack();
 
   return {
     dir: tmp.dir,
     port,
+    command,
+    env,
     async run(args: readonly string[], extraEnv: Readonly<Record<string, string>>) {
-      const proc = spawnGateway(args, extraEnv);
+      const proc = running.use(
+        Bun.spawn([...command, ...args], {
+          cwd: tmp.dir,
+          env: { ...env, ...extraEnv },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        }),
+      );
 
       const [exitCode, stdout, stderr] = await Promise.all([
         proc.exited,
@@ -71,26 +60,16 @@ async function setupTest() {
 
       return { exitCode, stdout, stderr };
     },
-    async start(args: readonly string[], extraEnv: Readonly<Record<string, string>>) {
-      const proc = spawnGateway([...args, '--port', String(port)], extraEnv);
+    async [Symbol.asyncDispose]() {
+      await running.disposeAsync();
 
-      await waitFor(
-        async () => {
-          const ready = await fetch(`http://127.0.0.1:${port}/readyz`);
-
-          expect(ready.status).toBe(200);
-        },
-        { timeoutMs: 15_000 },
-      );
-
-      return proc;
+      owned.dispose();
     },
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it answers both probes for the host of its public URL', async () => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -102,8 +81,9 @@ test('it answers both probes for the host of its public URL', async () => {
     }),
   );
 
-  await ctx.start(
+  await using gateway = Bun.spawn(
     [
+      ...ctx.command,
       'serve',
       '--public-url',
       'https://atc.geoff.cloud',
@@ -111,9 +91,23 @@ test('it answers both probes for the host of its public URL', async () => {
       join(ctx.dir, 'registry.json'),
       '--state-dir',
       join(ctx.dir, 'state'),
+      '--port',
+      String(ctx.port),
     ],
-    { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+    {
+      cwd: ctx.dir,
+      env: { ...ctx.env, ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
   );
+
+  // The gateway prints its serving line once its probes answer ready.
+  const reader = gateway.stdout.getReader();
+
+  await reader.read();
+
+  reader.releaseLock();
 
   const health = await fetch(`http://127.0.0.1:${ctx.port}/healthz`, {
     headers: { host: 'atc.geoff.cloud' },
@@ -127,7 +121,7 @@ test('it answers both probes for the host of its public URL', async () => {
 });
 
 test('it refuses a probe from a foreign host', async () => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -139,8 +133,9 @@ test('it refuses a probe from a foreign host', async () => {
     }),
   );
 
-  await ctx.start(
+  await using gateway = Bun.spawn(
     [
+      ...ctx.command,
       'serve',
       '--public-url',
       'https://atc.geoff.cloud',
@@ -148,9 +143,23 @@ test('it refuses a probe from a foreign host', async () => {
       join(ctx.dir, 'registry.json'),
       '--state-dir',
       join(ctx.dir, 'state'),
+      '--port',
+      String(ctx.port),
     ],
-    { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+    {
+      cwd: ctx.dir,
+      env: { ...ctx.env, ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
   );
+
+  // The gateway prints its serving line once its probes answer ready.
+  const reader = gateway.stdout.getReader();
+
+  await reader.read();
+
+  reader.releaseLock();
 
   const health = await fetch(`http://127.0.0.1:${ctx.port}/healthz`, {
     headers: { host: 'evil.example' },
@@ -160,7 +169,7 @@ test('it refuses a probe from a foreign host', async () => {
 });
 
 test('it keeps both databases in the state directory', async () => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -172,16 +181,35 @@ test('it keeps both databases in the state directory', async () => {
     }),
   );
 
-  await ctx.start(
+  await using gateway = Bun.spawn(
     [
+      ...ctx.command,
       'serve',
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
       join(ctx.dir, 'registry.json'),
+      '--port',
+      String(ctx.port),
     ],
-    { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32), ATC_GATEWAY_STATE_DIR: join(ctx.dir, 'state') },
+    {
+      cwd: ctx.dir,
+      env: {
+        ...ctx.env,
+        ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32),
+        ATC_GATEWAY_STATE_DIR: join(ctx.dir, 'state'),
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
   );
+
+  // The gateway prints its serving line once its probes answer ready.
+  const reader = gateway.stdout.getReader();
+
+  await reader.read();
+
+  reader.releaseLock();
 
   expect({
     state: readdirSync(join(ctx.dir, 'state')),
@@ -193,7 +221,7 @@ test('it keeps both databases in the state directory', async () => {
 });
 
 test('it exits 1 naming the token variable a daemon lacks', async () => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -208,8 +236,6 @@ test('it exits 1 naming the token variable a daemon lacks', async () => {
   const result = await ctx.run(
     [
       'serve',
-      '--port',
-      String(ctx.port),
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
@@ -227,15 +253,13 @@ test('it exits 1 naming the token variable a daemon lacks', async () => {
 });
 
 test('it exits 1 on a registry that is not JSON', async () => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'bad.json'), 'not json');
 
   const result = await ctx.run(
     [
       'serve',
-      '--port',
-      String(ctx.port),
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
@@ -251,7 +275,7 @@ test('it exits 1 on a registry that is not JSON', async () => {
 });
 
 test('it exits 1 when it has no state directory', async () => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -266,8 +290,6 @@ test('it exits 1 when it has no state directory', async () => {
   const result = await ctx.run(
     [
       'serve',
-      '--port',
-      String(ctx.port),
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
@@ -283,7 +305,7 @@ test('it exits 1 when it has no state directory', async () => {
 });
 
 test('it exits 0 on SIGTERM', async () => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -295,8 +317,9 @@ test('it exits 0 on SIGTERM', async () => {
     }),
   );
 
-  const proc = await ctx.start(
+  await using gateway = Bun.spawn(
     [
+      ...ctx.command,
       'serve',
       '--public-url',
       'https://atc.geoff.cloud',
@@ -304,13 +327,26 @@ test('it exits 0 on SIGTERM', async () => {
       join(ctx.dir, 'registry.json'),
       '--state-dir',
       join(ctx.dir, 'state'),
+      '--port',
+      String(ctx.port),
     ],
-    { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+    {
+      cwd: ctx.dir,
+      env: { ...ctx.env, ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
   );
 
-  proc.kill('SIGTERM');
+  // The gateway prints its serving line once its probes answer ready.
+  const reader = gateway.stdout.getReader();
 
-  const exitCode = await proc.exited;
+  await reader.read();
+
+  reader.releaseLock();
+  gateway.kill('SIGTERM');
+
+  const exitCode = await gateway.exited;
 
   expect(exitCode).toBe(0);
 });
@@ -321,7 +357,7 @@ test.each([
   { args: ['serve', '--state-dir', 'flagged'] },
   { args: ['serve', '--state-dir=flagged'] },
 ])('it serves from the state directory in $args over the environment', async (row) => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -333,10 +369,35 @@ test.each([
     }),
   );
 
-  await ctx.start(
-    [...row.args, '--public-url', 'https://atc.geoff.cloud', '--registry', 'registry.json'],
-    { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32), ATC_GATEWAY_STATE_DIR: 'from-env' },
+  await using gateway = Bun.spawn(
+    [
+      ...ctx.command,
+      ...row.args,
+      '--public-url',
+      'https://atc.geoff.cloud',
+      '--registry',
+      'registry.json',
+      '--port',
+      String(ctx.port),
+    ],
+    {
+      cwd: ctx.dir,
+      env: {
+        ...ctx.env,
+        ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32),
+        ATC_GATEWAY_STATE_DIR: 'from-env',
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
   );
+
+  // The gateway prints its serving line once its probes answer ready.
+  const reader = gateway.stdout.getReader();
+
+  await reader.read();
+
+  reader.releaseLock();
 
   expect({
     entries: readdirSync(ctx.dir).toSorted(),
@@ -357,7 +418,7 @@ test.each([
 ])(
   'it adds a client to the state directory in $before $after over the environment',
   async (row) => {
-    await using ctx = await setupTest();
+    await using ctx = setupTest();
 
     const added = await ctx.run(
       [
@@ -393,7 +454,7 @@ test.each([
   { args: ['clients', 'list', '--state-dir', 'flagged'] },
   { args: ['clients', 'list', '--state-dir=flagged'] },
 ])('it lists the clients in the state directory in $args over the environment', async (row) => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   const added = await ctx.run(
     [
@@ -436,7 +497,7 @@ test.each([
 ])(
   'it removes a client from the state directory in $before $after over the environment',
   async (row) => {
-    await using ctx = await setupTest();
+    await using ctx = setupTest();
 
     const added = await ctx.run(
       [
@@ -475,7 +536,7 @@ test.each([
 );
 
 test('it exits 1 on two state directories that differ', async () => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   const added = await ctx.run(
     [
@@ -500,7 +561,7 @@ test('it exits 1 on two state directories that differ', async () => {
 });
 
 test('it exits 1 when a flag takes the state directory flag as its value', async () => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   const added = await ctx.run(
     ['clients', 'add', 'Claude', '--redirect-uri', '--state-dir', 'flagged'],
@@ -516,7 +577,7 @@ test('it exits 1 when a flag takes the state directory flag as its value', async
 });
 
 test('it exits 1 on a flag it does not know at the root', async () => {
-  await using ctx = await setupTest();
+  await using ctx = setupTest();
 
   const added = await ctx.run(
     [

@@ -43,8 +43,9 @@ export interface DaemonBootOptions {
   // for the state directory.
   readonly waitForDaemonMs?: number;
 
-  // Called once when a waiting boot finds no daemon on its first try and
-  // starts to wait instead of starting one.
+  // Called once per boot, when a waiting boot first finds no daemon and
+  // starts to wait instead of starting one; a retry after a protocol
+  // mismatch that waits again does not call it a second time.
   readonly onWaitForDaemon?: () => void;
 }
 
@@ -63,13 +64,20 @@ export interface DaemonBootOptions {
  * its own boot would otherwise flag daemons that are already current.
  */
 export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise<DaemonBoot> {
+  let waited = false;
+
   const wait =
     options.waitForDaemonMs === undefined
       ? null
       : {
           deadline: Date.now() + options.waitForDaemonMs,
           timeoutMs: options.waitForDaemonMs,
-          onWait: options.onWaitForDaemon ?? (() => {}),
+          onWait: () => {
+            if (!waited) {
+              waited = true;
+              options.onWaitForDaemon?.();
+            }
+          },
         };
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -150,16 +158,16 @@ async function openOrBootDaemon(): Promise<OpenedDaemon> {
 interface DaemonWait {
   readonly deadline: number;
   readonly timeoutMs: number;
+
+  // Called on every miss; the boot reports only the first to its caller.
   readonly onWait: () => void;
 }
 
 /**
- * Polls the known sockets until a daemon answers, and never starts one. The
- * first miss reports that the wait has begun.
+ * Polls the known sockets until a daemon answers, and never starts one.
+ * Each miss reports that the wait goes on.
  */
 async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
-  let waiting = false;
-
   for (;;) {
     const opened = await tryOpenKnownDaemon();
 
@@ -167,11 +175,7 @@ async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
       return opened;
     }
 
-    if (!waiting) {
-      waiting = true;
-
-      wait.onWait();
-    }
+    wait.onWait();
 
     if (Date.now() >= wait.deadline) {
       throw new Error(formatWaitFailure(wait.timeoutMs));

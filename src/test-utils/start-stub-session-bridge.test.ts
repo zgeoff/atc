@@ -90,9 +90,16 @@ test('it ends the connection without an answer when the responder returns null',
   });
 });
 
-test('it hands a line that is not a JSON object to the responder as an empty request', async () => {
+test('it hands a line that is not JSON to the responder as an empty request', async () => {
   using ctx = setupTest();
-  using bridge = startStubSessionBridge(ctx.path, () => []);
+
+  const received: Readonly<Record<string, unknown>>[] = [];
+
+  using bridge = startStubSessionBridge(ctx.path, (request) => {
+    received.push(request);
+
+    return [];
+  });
 
   const socket = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
 
@@ -103,7 +110,65 @@ test('it hands a line that is not a JSON object to the responder as an empty req
   socket.write('not json\n');
 
   await waitFor(() => {
-    expect(bridge.requests).toStrictEqual([{}]);
+    expect({ received, requests: bridge.requests }).toStrictEqual({
+      received: [{}],
+      requests: [{}],
+    });
+  });
+});
+
+test('it hands a JSON line that is not an object to the responder as an empty request', async () => {
+  using ctx = setupTest();
+
+  const received: Readonly<Record<string, unknown>>[] = [];
+
+  using bridge = startStubSessionBridge(ctx.path, (request) => {
+    received.push(request);
+
+    return [];
+  });
+
+  const socket = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
+
+  onTestFinished(() => {
+    socket.end();
+  });
+
+  socket.write('[1,2]\n');
+
+  await waitFor(() => {
+    expect({ received, requests: bridge.requests }).toStrictEqual({
+      received: [{}],
+      requests: [{}],
+    });
+  });
+});
+
+test('it buffers a partial line for each connection apart', async () => {
+  using ctx = setupTest();
+  using bridge = startStubSessionBridge(ctx.path, () => []);
+
+  const first = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
+
+  onTestFinished(() => {
+    first.end();
+  });
+
+  const second = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
+
+  onTestFinished(() => {
+    second.end();
+  });
+
+  first.write('{"op":"fir');
+  first.flush();
+  second.write('{"op":"sec');
+  second.flush();
+  first.write('st"}\n');
+  second.write('ond"}\n');
+
+  await waitFor(() => {
+    expect(bridge.requests).toIncludeSameMembers([{ op: 'first' }, { op: 'second' }]);
   });
 });
 

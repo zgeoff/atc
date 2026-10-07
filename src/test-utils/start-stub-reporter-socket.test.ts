@@ -6,8 +6,8 @@ import { startStubReporterSocket } from './start-stub-reporter-socket';
 import { waitFor } from './wait-for';
 
 /**
- * A stub reporter socket in a temp directory. Disposal stops it and removes
- * the directory.
+ * A stub reporter socket in a temp directory, which also holds any other
+ * socket a test needs. Disposal stops the stub and removes the directory.
  */
 function setupTest() {
   using stack = new DisposableStack();
@@ -18,6 +18,7 @@ function setupTest() {
   const owned = stack.move();
 
   return {
+    dir: tmp.dir,
     path,
     reporter,
     [Symbol.dispose]: () => {
@@ -76,10 +77,19 @@ test('it resolves the wait with the first line to arrive', async () => {
   expect(line).toBe('first');
 });
 
-test('it stops listening once disposed', () => {
-  using tmp = setupTempDir('atc-stub-reporter-');
+test('it rejects the wait naming the socket when no line arrives in time', () => {
+  using ctx = setupTest();
 
-  const path = join(tmp.dir, 'reporter.sock');
+  expect(ctx.reporter.waitForLine(50)).rejects.toThrowWithMessage(
+    Error,
+    `no line has arrived at ${ctx.path}`,
+  );
+});
+
+test('it stops listening once disposed', () => {
+  using ctx = setupTest();
+
+  const path = join(ctx.dir, 'disposed.sock');
 
   startStubReporterSocket(path)[Symbol.dispose]();
 

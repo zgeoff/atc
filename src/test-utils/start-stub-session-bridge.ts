@@ -81,7 +81,7 @@ function parseRequest(line: string): BridgeRequest {
   try {
     const parsed: unknown = JSON.parse(line);
 
-    return isRecord(parsed) ? parsed : {};
+    return isRecord(parsed) && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
   }

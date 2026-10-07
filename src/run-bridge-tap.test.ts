@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from './test-utils/setup-temp-dir';
@@ -21,12 +21,12 @@ function setupTest() {
     sock: join(tmp.dir, 'bridge.sock'),
     outbox,
     cli: join(import.meta.dir, 'cli.ts'),
-    [Symbol.asyncDispose]: tmp[Symbol.asyncDispose],
+    [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
 test('it removes the outbox file of a report the bridge took', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   using bridge = startStubSessionBridge(ctx.sock, (request) => [
     { id: request['id'], ok: true },
@@ -38,14 +38,10 @@ test('it removes the outbox file of a report the bridge took', async () => {
     JSON.stringify({ reportID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
   );
 
-  const proc = Bun.spawn([process.execPath, ctx.cli, 'tap', '--session', 's1'], {
+  await using proc = Bun.spawn([process.execPath, ctx.cli, 'tap', '--session', 's1'], {
     env: { ...process.env, ATC_BRIDGE: '1', ATC_SOCKET: ctx.sock, ATC_OUTBOX: ctx.outbox },
     stdout: 'ignore',
     stderr: 'ignore',
-  });
-
-  onTestFinished(() => {
-    proc.kill();
   });
 
   const code = await proc.exited;
@@ -71,7 +67,7 @@ test('it removes the outbox file of a report the bridge took', async () => {
 });
 
 test('it removes no file for an answer to a report id it never sent', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   using bridge = startStubSessionBridge(ctx.sock, () => [
     { id: 'report:../victim', ok: true },
@@ -85,14 +81,10 @@ test('it removes no file for an answer to a report id it never sent', async () =
     JSON.stringify({ reportID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
   );
 
-  const proc = Bun.spawn([process.execPath, ctx.cli, 'tap', '--session', 's1'], {
+  await using proc = Bun.spawn([process.execPath, ctx.cli, 'tap', '--session', 's1'], {
     env: { ...process.env, ATC_BRIDGE: '1', ATC_SOCKET: ctx.sock, ATC_OUTBOX: ctx.outbox },
     stdout: 'ignore',
     stderr: 'ignore',
-  });
-
-  onTestFinished(() => {
-    proc.kill();
   });
 
   const code = await proc.exited;

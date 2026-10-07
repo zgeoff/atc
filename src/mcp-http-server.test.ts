@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 import { waitFor } from './test-utils/wait-for';
@@ -53,48 +53,25 @@ function setupTest() {
   };
 }
 
-test('it starts no daemon while it waits for one', async () => {
+test('it waits for a daemon started after it, starting none of its own, and serves through that daemon', async () => {
   await using ctx = setupTest();
 
   const mcp = ctx.runCLI(['mcp', '--http', '--wait-for-daemon', '--port', String(ctx.port)]);
-  const reader = mcp.stderr.getReader();
+  let stderr = '';
 
-  const waiting = await reader.read();
+  const drained = (async () => {
+    for await (const chunk of mcp.stderr) {
+      stderr += new TextDecoder().decode(chunk);
+    }
+  })();
 
-  reader.releaseLock();
-
-  expect({
-    stderr: new TextDecoder().decode(waiting.value),
-    record: existsSync(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json')),
-    socket: existsSync(join(ctx.dir, 'atc-daemon.sock')),
-    exitCode: mcp.exitCode,
-  }).toStrictEqual({
-    stderr:
-      'atc mcp --http: no daemon answers yet; waiting up to 30s for one, without starting it\n',
-    record: false,
-    socket: false,
-    exitCode: null,
+  // The server prints its wait line once it has found no daemon and begun
+  // to wait, so the daemon below starts after the wait has begun.
+  await waitFor(() => {
+    expect(stderr).toEndWith('\n');
   });
-});
-
-test('it serves through a daemon started after it began to wait', async () => {
-  await using ctx = setupTest();
-
-  const mcp = ctx.runCLI(['mcp', '--http', '--wait-for-daemon', '--port', String(ctx.port)]);
-
-  // The server prints this line once it has found no daemon and begun to
-  // wait, so the daemon below starts after the wait has begun.
-  const reader = mcp.stderr.getReader();
-
-  await reader.read();
-
-  reader.releaseLock();
 
   const daemon = ctx.runCLI(['daemon']);
-
-  const record = await waitFor((): unknown =>
-    JSON.parse(readFileSync(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'), 'utf8')),
-  );
 
   const served = await waitFor(
     async () => {
@@ -103,6 +80,19 @@ test('it serves through a daemon started after it began to wait', async () => {
       return response.status;
     },
     { timeoutMs: 10_000 },
+  );
+
+  const record = await waitFor((): unknown =>
+    JSON.parse(readFileSync(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'), 'utf8')),
+  );
+
+  mcp.kill('SIGTERM');
+
+  await mcp.exited;
+  await drained;
+
+  expect(stderr).toMatch(
+    /^atc mcp --http: no daemon answers yet; waiting up to 30s for one, without starting it\nPOST \/mcp 401 \d+ms\n$/u,
   );
 
   expect({ served, record, daemonExitCode: daemon.exitCode }).toStrictEqual({

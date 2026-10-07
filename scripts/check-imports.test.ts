@@ -27,12 +27,12 @@ function setupTest() {
         stderr: result.stderr.toString(),
       };
     },
-    [Symbol.asyncDispose]: tmp[Symbol.asyncDispose],
+    [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
 test('it passes a tree whose imports follow the directory rules', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/shared/session-id.ts'), 'export type SessionID = string;\n');
 
@@ -54,7 +54,7 @@ test('it passes a tree whose imports follow the directory rules', async () => {
 });
 
 test('it fails on a cycle closed by a type-only import', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(
     join(ctx.dir, 'src/mcp/types.ts'),
@@ -74,7 +74,7 @@ test('it fails on a cycle closed by a type-only import', async () => {
 });
 
 test('it fails on an import of a directory the importer may not use', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/hooks.ts'), 'export interface HookEvent {}\n');
 
@@ -92,7 +92,7 @@ test('it fails on an import of a directory the importer may not use', async () =
 });
 
 test('it lets a sources module import workspace and the daemon import sources', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/workspace/probe.ts'), 'export const PROBE = 1;\n');
 
@@ -114,7 +114,7 @@ test('it lets a sources module import workspace and the daemon import sources', 
 });
 
 test('it fails on a sources module importing the daemon', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
   await Bun.write(join(ctx.dir, 'src/sources/types.ts'), "export { ID } from '../daemon/ids';\n");
@@ -127,7 +127,7 @@ test('it fails on a sources module importing the daemon', async () => {
 });
 
 test('it fails on a directory module importing a src root module', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/hook-report.ts'), 'export const REPORT = 1;\n');
 
@@ -144,7 +144,7 @@ test('it fails on a directory module importing a src root module', async () => {
 });
 
 test('it lets the composition root and a test file import any directory', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/daemon.ts'), 'export const DAEMON = 1;\n');
   await Bun.write(join(ctx.dir, 'src/client/daemon-client.ts'), 'export const CLIENT = 1;\n');
@@ -167,7 +167,7 @@ test('it lets the composition root and a test file import any directory', async 
 });
 
 test('it fails on a gateway entry that reaches an agent adapter through an allowed edge', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/agents/claude-adapter.ts'), 'export const CLAUDE = 1;\n');
 
@@ -189,7 +189,7 @@ test('it fails on a gateway entry that reaches an agent adapter through an allow
 });
 
 test('it fails on a confined package imported outside the file that owns it', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(
     join(ctx.dir, 'src/daemon/local-pty-provider.ts'),
@@ -210,7 +210,7 @@ test('it fails on a confined package imported outside the file that owns it', as
 });
 
 test('it fails on a module in a directory with no import rule', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/elsewhere/registry.ts'), 'export const REGISTRY = 1;\n');
 
@@ -223,7 +223,7 @@ test('it fails on a module in a directory with no import rule', async () => {
 });
 
 test('it ignores import text inside a one-line string literal', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/daemon.ts'), 'export const DAEMON = 1;\n');
 
@@ -240,7 +240,7 @@ test('it ignores import text inside a one-line string literal', async () => {
 });
 
 test('it fails on a src root module that is not the composition root importing the daemon', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/daemon.ts'), 'export const DAEMON = 1;\n');
 
@@ -257,7 +257,7 @@ test('it fails on a src root module that is not the composition root importing t
 });
 
 test('it reads an import whose list holds a comment with an apostrophe', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
 
@@ -274,7 +274,7 @@ test('it reads an import whose list holds a comment with an apostrophe', async (
 });
 
 test('it reads a require call', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
 
@@ -291,7 +291,7 @@ test('it reads a require call', async () => {
 });
 
 test('it reads an import-equals require', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
 
@@ -308,7 +308,7 @@ test('it reads an import-equals require', async () => {
 });
 
 test('it reads a dynamic import whose specifier is a template literal', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
 
@@ -325,7 +325,7 @@ test('it reads a dynamic import whose specifier is a template literal', async ()
 });
 
 test('it fails on a dynamic import whose specifier is computed', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   // oxlint-disable-next-line no-template-curly-in-string -- the fixture is source text whose template literal holds a substitution
   const source = "const n = 'x';\nexport const L = import(`../daemon/${n}`);\n";
@@ -340,7 +340,7 @@ test('it fails on a dynamic import whose specifier is computed', async () => {
 });
 
 test('it fails on a require call whose specifier is computed', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(
     join(ctx.dir, 'src/store/rows.ts'),
@@ -355,7 +355,7 @@ test('it fails on a require call whose specifier is computed', async () => {
 });
 
 test('it reads an import that follows a regular expression holding a quote', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
 
@@ -372,7 +372,7 @@ test('it reads an import that follows a regular expression holding a quote', asy
 });
 
 test('it reads an import that follows a regular expression after a control condition', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
 
@@ -389,7 +389,7 @@ test('it reads an import that follows a regular expression after a control condi
 });
 
 test('it reads an import that follows a regular expression after a block', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
 
@@ -406,7 +406,7 @@ test('it reads an import that follows a regular expression after a block', async
 });
 
 test('it reads a literal module resolved through import.meta.resolve', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
 
@@ -423,7 +423,7 @@ test('it reads a literal module resolved through import.meta.resolve', async () 
 });
 
 test('it reads a literal module resolved through Bun.resolveSync', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
 
@@ -440,7 +440,7 @@ test('it reads a literal module resolved through Bun.resolveSync', async () => {
 });
 
 test('it reads a literal module located with a URL relative to import.meta.url', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
 
@@ -457,7 +457,7 @@ test('it reads a literal module located with a URL relative to import.meta.url',
 });
 
 test('it fails on a module resolved from a computed specifier', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(
     join(ctx.dir, 'src/store/rows.ts'),
@@ -473,7 +473,7 @@ test('it fails on a module resolved from a computed specifier', async () => {
 });
 
 test('it ignores a URL that is not relative to the module', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(
     join(ctx.dir, 'src/store/rows.ts'),
@@ -488,7 +488,7 @@ test('it ignores a URL that is not relative to the module', async () => {
 });
 
 test('it fails on a federation module that imports the mcp layer', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await Bun.write(join(ctx.dir, 'src/mcp/types.ts'), 'export const TOOLS = 1;\n');
 

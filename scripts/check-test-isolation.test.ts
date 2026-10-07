@@ -4,12 +4,22 @@ import { type } from 'node:os';
 import { join } from 'node:path';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
+/**
+ * A temp directory for the stand-in tool directory a test builds. Disposal
+ * removes it.
+ */
+function setupTest() {
+  const tmp = setupTempDir('atc-isolation-bin-');
+
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+}
+
 test.if(process.platform === 'linux')(
   'it stops with a clear message when GNU stat is not on the PATH',
   () => {
-    using tmp = setupTempDir('atc-isolation-bin-');
+    using ctx = setupTest();
 
-    const bin = join(tmp.dir, 'bin');
+    const bin = join(ctx.dir, 'bin');
 
     mkdirSync(bin);
 
