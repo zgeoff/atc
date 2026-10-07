@@ -179,16 +179,14 @@ test('it takes a registry of 34 daemons with the longest names', () => {
     Object.fromEntries(names.map((name) => [`ATC_GATEWAY_TOKEN_${name.toUpperCase()}`, 't'])),
   );
 
-  expect(parsed).toStrictEqual({
-    ok: true,
-    registry: {
-      daemons: expect.toSatisfy(
-        (daemons: ReadonlyMap<string, unknown>) =>
-          [...daemons.keys()].join(',') === names.join(','),
-      ),
-      defaultDaemon: `${'d'.repeat(29)}00`,
-    },
-  });
+  if (!parsed.ok) {
+    throw new Error(parsed.errors.join('; '));
+  }
+
+  expect({
+    names: [...parsed.registry.daemons.keys()],
+    defaultDaemon: parsed.registry.defaultDaemon,
+  }).toStrictEqual({ names, defaultDaemon: `${'d'.repeat(29)}00` });
 });
 
 test('it refuses a registry of 35 daemons as over the limit of 34', () => {

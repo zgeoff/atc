@@ -346,6 +346,11 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
 
   const timers = buildStubTimeoutScheduler();
 
+  const opener = buildStubChannelOpener([
+    (address: RegistryDaemon['address']) =>
+      DaemonClient.open({ hostname: address.host, port: address.port }),
+  ]);
+
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
@@ -355,7 +360,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
       token: ctx.token,
     },
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: opener.open,
     responseTimeoutMs: 500,
     scheduleTimeout: timers.schedule,
   });
@@ -383,6 +388,8 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
   expect(ctx.daemon.client.sendRequest('session.list')).resolves.toStrictEqual({
     sessions: [expect.objectContaining({ id: getRecord(spawned, 'session')['id'] })],
   });
+
+  expect(opener.countOpened()).toBe(2);
 });
 
 test('it refuses a daemon that never answers the handshake as daemon_unavailable once the connect time passes', () => {
@@ -493,20 +500,13 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
     proxy.stop();
   });
 
-  const redialed = Promise.withResolvers<void>();
-  const released = Promise.withResolvers<void>();
-
-  const opener = buildStubChannelOpener([
-    (address: RegistryDaemon['address']) =>
-      DaemonClient.open({ hostname: address.host, port: address.port }),
-    async (address: RegistryDaemon['address']) => {
-      redialed.resolve();
-
-      await released.promise;
-
-      return DaemonClient.open({ hostname: address.host, port: address.port });
-    },
-  ]);
+  const opener = buildStubChannelOpener(
+    [
+      (address: RegistryDaemon['address']) =>
+        DaemonClient.open({ hostname: address.host, port: address.port }),
+    ],
+    { holdDial: 2 },
+  );
 
   const caller = new DaemonCaller({
     daemon: {
@@ -528,7 +528,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
     'gw',
   );
 
-  await redialed.promise;
+  await opener.waitForHeld();
 
   const ledger = new Database(ctx.daemon.dbPath);
 
@@ -538,7 +538,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
 
   // The daemon's sweep drops every completed key once its retention passes.
   ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
-  released.resolve();
+  opener.releaseHeld();
 
   expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
   expect(proxy.countRequests()).toBe(2);
@@ -592,6 +592,7 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
     },
     build: 'atc-gateway/test',
     openChannel: opener.open,
+    connectTimeoutMs: 10_000,
     responseTimeoutMs: 500,
     scheduleTimeout: timers.schedule,
   });

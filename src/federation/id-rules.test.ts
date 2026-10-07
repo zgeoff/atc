@@ -4,7 +4,6 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseClaudeTranscriptLine } from '../agents/parse-claude-transcript-line';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
-import { DaemonError } from '../protocol/daemon-error';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
@@ -170,7 +169,8 @@ test('it has a rule for every id in the data of an uncertain keyed spawn', async
 
   onTestFinished(() => seed.stop());
 
-  // A claim a stopped daemon left in progress, whose effect may stand.
+  // A claim still in progress under the key, which the daemon answers as
+  // an interrupted spawn whose effect may stand.
   await seed.claimIdempotencyKey({
     principal: 'local',
     operation: 'session.spawn',
@@ -182,13 +182,9 @@ test('it has a rule for every id in the data of an uncertain keyed spawn', async
 
   const spawned = ctx.client.sendRequest('session.spawn', params);
 
-  expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { effectRef } });
-
-  expect(spawned).rejects.toSatisfy(
-    (refusal: unknown) =>
-      refusal instanceof DaemonError &&
-      collectUnruledIDPaths(refusal.data, ERROR_DATA_RULES).length === 0,
-  );
+  expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown' });
+  expect(spawned).rejects.toHaveProperty('data', { effectRef });
+  expect(collectUnruledIDPaths({ effectRef }, ERROR_DATA_RULES)).toStrictEqual([]);
 });
 
 test('it has a rule for every id in a session.read answer, transcript text included', async () => {

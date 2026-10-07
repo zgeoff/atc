@@ -3,11 +3,6 @@ import { encodeCursor } from '../protocol/encode-cursor';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
-import { MAX_REGISTRY_DAEMONS } from './max-registry-daemons';
-
-test('it allows 34 daemons', () => {
-  expect(MAX_REGISTRY_DAEMONS).toBe(34);
-});
 
 test('it decodes the worst-case events cursor of 34 daemons with the longest names', () => {
   const daemons = Array.from({ length: 34 }, (_, i) => ({

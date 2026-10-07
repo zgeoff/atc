@@ -29,7 +29,8 @@ test('it runs only the oldest pending timer of the delay', () => {
   scheduler.schedule(second, 300);
   scheduler.runTimer(300);
 
-  expect([first.mock.calls.length, second.mock.calls.length]).toStrictEqual([1, 0]);
+  expect(first).toHaveBeenCalledOnce();
+  expect(second).not.toHaveBeenCalled();
 });
 
 test('it refuses to run a delay no pending timer has', () => {

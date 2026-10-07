@@ -407,8 +407,11 @@ test('it refuses a keyed spawn as daemon_outdated when it found no binding and i
     legacy.stop();
   });
 
-  const dialed = Promise.withResolvers<void>();
-  const released = Promise.withResolvers<void>();
+  const heldOpener = buildStubChannelOpener(
+    [() => DaemonClient.open(join(ctx.dir, 'legacy.sock'))],
+    { holdDial: 1 },
+  );
+
   const heldStore = GatewayStore.open(ctx.storePath);
 
   onTestFinished(() => {
@@ -418,13 +421,7 @@ test('it refuses a keyed spawn as daemon_outdated when it found no binding and i
   const heldPool = new DaemonPool({
     registry: ctx.registry,
     build: 'atc-gateway/test',
-    openChannel: async () => {
-      dialed.resolve();
-
-      await released.promise;
-
-      return DaemonClient.open(join(ctx.dir, 'legacy.sock'));
-    },
+    openChannel: heldOpener.open,
   });
 
   onTestFinished(() => heldPool.stop());
@@ -438,11 +435,10 @@ test('it refuses a keyed spawn as daemon_outdated when it found no binding and i
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-kept' };
   const held = heldRouter.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
 
-  await dialed.promise;
-
+  await heldOpener.waitForHeld();
   await ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
 
-  released.resolve();
+  heldOpener.releaseHeld();
 
   expect(held).rejects.toMatchObject({ code: 'daemon_outdated' });
 });
@@ -465,8 +461,11 @@ test("it keeps another call's completed binding when a call that found none is r
     legacy.stop();
   });
 
-  const dialed = Promise.withResolvers<void>();
-  const released = Promise.withResolvers<void>();
+  const heldOpener = buildStubChannelOpener(
+    [() => DaemonClient.open(join(ctx.dir, 'legacy.sock'))],
+    { holdDial: 1 },
+  );
+
   const heldStore = GatewayStore.open(ctx.storePath);
 
   onTestFinished(() => {
@@ -476,13 +475,7 @@ test("it keeps another call's completed binding when a call that found none is r
   const heldPool = new DaemonPool({
     registry: ctx.registry,
     build: 'atc-gateway/test',
-    openChannel: async () => {
-      dialed.resolve();
-
-      await released.promise;
-
-      return DaemonClient.open(join(ctx.dir, 'legacy.sock'));
-    },
+    openChannel: heldOpener.open,
   });
 
   onTestFinished(() => heldPool.stop());
@@ -496,12 +489,13 @@ test("it keeps another call's completed binding when a call that found none is r
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-kept' };
   const held = heldRouter.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
 
-  await dialed.promise;
-
+  await heldOpener.waitForHeld();
   await ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
 
-  released.resolve();
+  heldOpener.releaseHeld();
 
+  // The held call rejects as daemon_outdated, which another test checks;
+  // here it only has to finish before the retry.
   await Promise.allSettled([held]);
 
   const retried = ctx.router.sendRequest(
@@ -557,6 +551,8 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-late' };
 
+  // The first send rejects as outcome_unknown by design, so it is settled
+  // rather than awaited.
   await Promise.allSettled([
     router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
   ]);
@@ -610,22 +606,13 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
     defaultDaemon: 'cloud',
   };
 
-  const dialed = Promise.withResolvers<void>();
-  const released = Promise.withResolvers<void>();
-
-  const opener = buildStubChannelOpener([
-    (address: RegistryDaemon['address']) =>
-      DaemonClient.open({ hostname: address.host, port: address.port }),
-    (address: RegistryDaemon['address']) =>
-      DaemonClient.open({ hostname: address.host, port: address.port }),
-    async (address: RegistryDaemon['address']) => {
-      dialed.resolve();
-
-      await released.promise;
-
-      return DaemonClient.open({ hostname: address.host, port: address.port });
-    },
-  ]);
+  const opener = buildStubChannelOpener(
+    [
+      (address: RegistryDaemon['address']) =>
+        DaemonClient.open({ hostname: address.host, port: address.port }),
+    ],
+    { holdDial: 3 },
+  );
 
   const pool = new DaemonPool({ registry, build: 'atc-gateway/test', openChannel: opener.open });
 
@@ -635,13 +622,15 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-queued' };
 
+  // The first send rejects as outcome_unknown by design, so it is settled
+  // rather than awaited.
   await Promise.allSettled([
     router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
   ]);
 
   const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
 
-  await dialed.promise;
+  await opener.waitForHeld();
 
   const ledger = new Database(ctx.cloud.dbPath);
 
@@ -651,7 +640,7 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
 
   // The daemon's sweep drops every completed key once its retention passes.
   ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
-  released.resolve();
+  opener.releaseHeld();
 
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(proxy.countRequests()).toBe(3);
@@ -703,6 +692,8 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-dropped' };
 
+  // The first send rejects as outcome_unknown by design, so it is settled
+  // rather than awaited.
   await Promise.allSettled([
     router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
   ]);
@@ -920,6 +911,8 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-restart' };
 
+  // The first send rejects as outcome_unknown by design, so it is settled
+  // rather than awaited.
   await Promise.allSettled([
     before.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
   ]);
@@ -991,6 +984,8 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' };
 
+  // The first send rejects as outcome_unknown by design, so it is settled
+  // rather than awaited.
   await Promise.allSettled([
     before.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
   ]);
@@ -1072,6 +1067,8 @@ test('it sends no resend of a keyed spawn to a daemon that does not announce rep
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-legacy' };
 
+  // The first send rejects as outcome_unknown by design, so it is settled
+  // rather than awaited.
   await Promise.allSettled([
     router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
   ]);

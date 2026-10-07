@@ -94,6 +94,40 @@ test("it interleaves daemons by timestamp and keeps a daemon's own order when it
   expect(merged.more).toBeFalse();
 });
 
+test('it gives events of one timestamp to the daemon whose name sorts first', () => {
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [{ cursor: 'eyJrIjoiZXYiLCJpIjoxMX0', at: 7, session: 's9' }],
+          cursor: 'eyJrIjoiZXYiLCJpIjoxMX0',
+          more: false,
+        },
+      },
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [{ cursor: 'eyJrIjoiZXYiLCJpIjoxfQ', at: 7, session: 's1' }],
+          cursor: 'eyJrIjoiZXYiLCJpIjoxfQ',
+          more: false,
+        },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.events).toStrictEqual([
+    { cursor: expect.toBeString(), at: 7, session: 'cloud.0f6c2a8e.s1' },
+    { cursor: expect.toBeString(), at: 7, session: 'pc.9a1b2c3d.s9' },
+  ]);
+});
+
 test('it advances each daemon only past the events that made the page and reads the cut ones again', () => {
   const registry = {
     daemons: new Map([

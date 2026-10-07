@@ -127,6 +127,10 @@ async function setupTest() {
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
     gatewayDBPath: join(tmp.dir, 'gateway.db'),
+
+    // Bounds a call asked of every daemon, so a daemon that never answers
+    // cannot hold a test for the 5 s default. No test waits it out: a
+    // stopped daemon refuses the connection at once.
     fanOutTimeoutMs: 1000,
     scheduleTimeout: timers.schedule,
   });
@@ -707,23 +711,23 @@ test('it reads the whole reports of both daemons in one events read', async () =
 
   expect(page).toMatchObject({ more: false, unavailable: [], truncated: [] });
 
-  expect([page['events']].flat()).toIncludeAllPartialMembers([
-    {
+  expect([page['events']].flat()).toIncludeSameMembers([
+    expect.objectContaining({
       kind: 'report',
       session: cloudID,
       label: 'cloud',
       detail: 'from cloud',
       text: 'from cloud',
       complete: true,
-    },
-    {
+    }),
+    expect.objectContaining({
       kind: 'report',
       session: pcID,
       label: 'pc',
       detail: `${'p'.repeat(599)}…`,
       text: 'p'.repeat(1000),
       complete: true,
-    },
+    }),
   ]);
 });
 
