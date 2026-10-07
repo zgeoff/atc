@@ -162,55 +162,6 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
   expect(restoredChild?.parent).toBe(resumed.id);
 });
 
-test('it stores a sub-session under a sub-session that resumed their parent agent session', async () => {
-  await using ctx = await setupTest();
-
-  const parent = ctx.mgr.restore(
-    buildMockFleetEntry({
-      sessionID: toSessionID('s-parent'),
-      name: 'wrangler',
-      cwd: ctx.dir,
-      agentSessionID: toAgentSessionID('c-parent'),
-      exited: true,
-    }),
-  );
-
-  const child = await ctx.mgr.spawn(
-    ctx.dir,
-    'worker',
-    '',
-    80,
-    24,
-    toAgentSessionID('c-child'),
-    'user',
-    'claude',
-    parent.id,
-  );
-
-  // Spawned under the session whose agent session it resumes, so the row
-  // it replaces is its own parent.
-  const resumed = await ctx.mgr.spawn(
-    ctx.dir,
-    'wrangler',
-    '',
-    80,
-    24,
-    toAgentSessionID('c-parent'),
-    'user',
-    'claude',
-    parent.id,
-  );
-
-  await ctx.mgr.writeFleet();
-
-  const stored = await ctx.store.loadFleet();
-
-  expect(stored.map((entry) => [entry.sessionID, entry.parent])).toStrictEqual([
-    [child.id, resumed.id],
-    [resumed.id, undefined],
-  ]);
-});
-
 test('it keeps a sub-session under a sub-session that resumed their parent agent session', async () => {
   await using ctx = await setupTest();
 

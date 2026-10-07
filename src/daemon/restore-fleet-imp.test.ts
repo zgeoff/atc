@@ -5,16 +5,15 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ImpProvider } from './imp-provider';
 import { restoreFleet } from './restore-fleet';
 import { SessionManager } from './sessions';
 
 // The fixed parts every restore test shares: a real state store, a recorder
-// of logged lines, and one target `box` on the imp provider over a stub
-// imp port. `defer` runs a teardown before the store and the provider go,
+// of logged lines, and the imp provider over a stub imp port. `defer` runs a teardown before the store and the provider go,
 // so a manager the test builds detaches first.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
@@ -43,7 +42,7 @@ async function setupTest() {
     dir: tmp.dir,
     statusPath: join(tmp.dir, 'status.json'),
     store,
-    targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
+    provider,
     logged,
     log: (line: string) => {
       logged.push(line);
@@ -63,7 +62,7 @@ test('it restores the fleet with no terminal for each session whose agent is not
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
   );
 
   mgr.log = ctx.log;
@@ -126,7 +125,7 @@ test('it logs a later session whose revive fails and leaves it without a termina
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
   );
 
   mgr.log = ctx.log;
@@ -191,7 +190,7 @@ test('it logs a first session whose revive fails with a plain error and still re
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
   );
 
   mgr.log = ctx.log;

@@ -271,6 +271,10 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
     rows: 24,
   });
 
+  onTestFinished(() => {
+    harness.killForced?.();
+  });
+
   harness.onData((data) => {
     output.push(data);
   });
@@ -286,10 +290,6 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
   }
 
   const pid = Number(printed);
-
-  onTestFinished(() => {
-    process.kill(pid, 'SIGKILL');
-  });
 
   harness.kill();
 

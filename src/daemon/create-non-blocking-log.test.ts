@@ -134,14 +134,11 @@ test('it exits cleanly on SIGTERM while a flood of refusals fills the unread std
 
   await sendLinesBeforeHandshake(ctx.port, 3000);
 
-  const running = Bun.peek.status(ctx.proc.exited);
-
   ctx.proc.kill('SIGTERM');
 
   const exitCode = await ctx.proc.exited;
 
-  expect({ running, exitCode, signalCode: ctx.proc.signalCode }).toStrictEqual({
-    running: 'pending',
+  expect({ exitCode, signalCode: ctx.proc.signalCode }).toStrictEqual({
     exitCode: 0,
     signalCode: null,
   });

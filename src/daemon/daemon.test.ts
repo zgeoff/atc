@@ -10,7 +10,6 @@ import { getRecord } from '../shared/get-record';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { spawnNamedSession } from '../test-utils/spawn-named-session';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
@@ -78,15 +77,17 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
 test('it counts a client connection while it is open', async () => {
   await using ctx = await setupTest();
 
-  const open = ctx.daemon.countClients();
+  expect(ctx.daemon.countClients()).toBe(1);
+});
+
+test('it stops counting a client connection once it closes', async () => {
+  await using ctx = await setupTest();
 
   ctx.client.stop();
 
   await waitFor(() => {
     expect(ctx.daemon.countClients()).toBe(0);
   });
-
-  expect(open).toBe(1);
 });
 
 test('it rejects a protocol version mismatch naming both builds and closes the connection', async () => {
@@ -235,7 +236,24 @@ test('it answers session.spawn with an unknown parent as no_such_session', async
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
-test('it nests a spawn under its parent and lands a grandchild beside its parent', async () => {
+test('it nests a spawn under its parent', async () => {
+  await using ctx = await setupTest();
+
+  const top = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
+
+  const topID = getRecord(top, 'session')['id'];
+
+  const child = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    parent: topID,
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(child['session']).toMatchObject({ parent: topID });
+});
+
+test('it lands a spawn under a sub-session beside that sub-session, under its parent', async () => {
   await using ctx = await setupTest();
 
   const top = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
@@ -256,7 +274,6 @@ test('it nests a spawn under its parent and lands a grandchild beside its parent
     rows: 24,
   });
 
-  expect(child['session']).toMatchObject({ parent: topID });
   expect(grandchild['session']).toMatchObject({ parent: topID });
 });
 
@@ -408,7 +425,12 @@ test('it revives a grok session from a captured id when summary.json is missing'
     rows: 24,
   });
 
-  expect(adopted).toStrictEqual({});
+  const listed = await ctx.client.sendRequest('session.list');
+
+  expect({ adopted, listed }).toStrictEqual({
+    adopted: {},
+    listed: { sessions: [expect.objectContaining({ id, alive: true })] },
+  });
 });
 
 test('it keeps last-used on a spawn that has not reported SessionStart', async () => {
@@ -602,16 +624,16 @@ test('it broadcasts no SessionDetached for a detach without an attach', async ()
 });
 
 test('it runs a configured hook with the same event JSON a watching client receives', async () => {
-  await using hookOut = setupTempDir('atc-hook-out-');
-
-  const out = join(hookOut.dir, 'hook.out');
-
   await using ctx = await startTestDaemon({
     prefix: 'atc-daemon-',
-    options: () => ({
+    options: (paths) => ({
       adapter: buildMockAgentAdapter(),
       hooks: {
-        SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }],
+        SessionAttached: [
+          {
+            command: `cat > '${join(paths.dir, 'hook.out')}'; printf '%s\n' "$ATC_EVENT" >> '${join(paths.dir, 'hook.out')}'`,
+          },
+        ],
       },
     }),
   });
@@ -632,7 +654,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   });
 
   const text = await waitFor(() => {
-    const written = readFileSync(out, 'utf8');
+    const written = readFileSync(join(ctx.dir, 'hook.out'), 'utf8');
 
     if (!written.endsWith('SessionAttached\n')) {
       throw new Error('hook output still incomplete');

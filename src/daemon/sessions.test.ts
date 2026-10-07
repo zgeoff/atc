@@ -5,6 +5,7 @@ import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubHostProvider } from '../test-utils/build-stub-host-provider';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -14,10 +15,10 @@ import { LocalPTYProvider } from './local-pty-provider';
 import { SessionManager } from './sessions';
 
 // The fixed parts every session manager test shares: a real state store, a
-// recorder of logged lines, and two targets: `local` on this machine's
-// terminals, and `box`, whose hosts can sleep and be destroyed. `defer`
-// runs a teardown before the store and the providers go, so a manager the
-// test builds detaches first.
+// recorder of logged lines, and two target providers: `local` on this
+// machine's terminals, and `box`, whose hosts can sleep and be destroyed.
+// `defer` runs a teardown before the store and the providers go, so a
+// manager the test builds detaches first.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
@@ -47,16 +48,8 @@ async function setupTest() {
     dbPath,
     statusPath: join(tmp.dir, 'status.json'),
     store,
-    targets: [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: buildTargetIdentity('local-pty', {}),
-        provider: local,
-      },
-      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: box },
-    ],
+    local,
+    box,
     lines,
     log: (line: string) => {
       lines.push(line);
@@ -76,7 +69,16 @@ test('it restores an entry whose agent id is registered as waiting for its termi
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -104,7 +106,16 @@ test('it restores an entry whose agent id is unregistered with a message that th
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -132,7 +143,16 @@ test('it never revives a restored entry whose agent id is unregistered as anothe
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -164,7 +184,16 @@ test('it resolves an agent id to the registered adapter that declares it', async
     ctx.store,
     ctx.statusPath,
     [gateway],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -186,7 +215,16 @@ test('it resolves the fallback adapter by its own id, not by another registered 
     ctx.store,
     ctx.statusPath,
     [buildMockAgentAdapter({ id: 'zai' })],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -206,7 +244,16 @@ test('it resolves an agent id no adapter declares to no adapter', async () => {
     ctx.store,
     ctx.statusPath,
     [buildMockAgentAdapter({ id: 'zai' })],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -226,7 +273,16 @@ test('it reports no screen detector when no registered adapter provides one', as
     ctx.store,
     ctx.statusPath,
     [buildMockAgentAdapter({ id: 'zai' })],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -246,7 +302,16 @@ test('it reports a screen detector when a registered adapter provides one', asyn
     ctx.store,
     ctx.statusPath,
     [buildMockAgentAdapter({ id: 'zai', screenDetector: { detectAttention: () => null } })],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -266,7 +331,16 @@ test('it links a restored sub-session to the parent already registered under its
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -303,7 +377,16 @@ test('it restores a sub-session whose parent is absent as a top-level session', 
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -332,7 +415,16 @@ test('it persists a sub-session link by the parent atc session id', async () => 
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -390,6 +482,78 @@ test('it persists a sub-session link by the parent atc session id', async () => 
   ]);
 });
 
+test('it stores a sub-session under a sub-session that resumed their parent agent session', async () => {
+  await using ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-parent'),
+      name: 'wrangler',
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-parent'),
+      exited: true,
+    }),
+  );
+
+  const child = await mgr.spawn(
+    ctx.dir,
+    'worker',
+    '',
+    80,
+    24,
+    toAgentSessionID('c-child'),
+    'user',
+    'claude',
+    parent.id,
+  );
+
+  // Spawned under the session whose agent session it resumes, so the row
+  // it replaces is its own parent.
+  const resumed = await mgr.spawn(
+    ctx.dir,
+    'wrangler',
+    '',
+    80,
+    24,
+    toAgentSessionID('c-parent'),
+    'user',
+    'claude',
+    parent.id,
+  );
+
+  await mgr.writeFleet();
+
+  const stored = await ctx.store.loadFleet();
+
+  expect(stored.map((entry) => [entry.sessionID, entry.parent])).toStrictEqual([
+    [child.id, resumed.id],
+    [resumed.id, undefined],
+  ]);
+});
+
 test('it refuses to pin a sub-session and leaves it unpinned', async () => {
   await using ctx = await setupTest();
 
@@ -398,7 +562,16 @@ test('it refuses to pin a sub-session and leaves it unpinned', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -440,7 +613,16 @@ test('it pins a parent that has a sub-session', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -477,7 +659,16 @@ test('it kills a live sub-session along with its parent', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -506,7 +697,16 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -561,7 +761,16 @@ test('it keeps an exited sub-session on a host-destroying target when a second k
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -608,7 +817,16 @@ test("it refuses to forget a session kept asleep inside its parent's host and ke
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -664,7 +882,16 @@ test("it forgets an exited session on its parent's host while that host is not a
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -717,7 +944,16 @@ test("it keeps a finished turn's last message as the session result", async () =
         normalizeHook: () => ({ kind: 'turn-done', result: 'all green' }),
       }),
     ],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -762,7 +998,16 @@ test('it truncates a stored result past 16 KiB', async () => {
         normalizeHook: () => ({ kind: 'turn-done', result: 'x'.repeat(20_000) }),
       }),
     ],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -798,7 +1043,16 @@ test('it persists the transcript path its hooks report', async () => {
         }),
       }),
     ],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -838,7 +1092,16 @@ test("it restores an entry's prompt, result, and transcript path onto the sessio
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -874,7 +1137,16 @@ test('it keeps a crashed sibling restorable as live when another session finishe
         normalizeHook: () => ({ kind: 'turn-done', result: 'all green' }),
       }),
     ],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -935,7 +1207,16 @@ test('it restores an entry under the session id its row holds', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -963,7 +1244,16 @@ test('it restores an entry with no agent session id as exited', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -993,7 +1283,16 @@ test('it persists a session the agent has not yet given a session id', async () 
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -1029,7 +1328,16 @@ test('it logs a background fleet write that fails and keeps the change in memory
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -1071,7 +1379,16 @@ test('it logs a background row update that fails', async () => {
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;
@@ -1111,7 +1428,16 @@ test('it logs nothing for a background fleet write refused as stale_epoch', asyn
     ctx.store,
     ctx.statusPath,
     [],
-    ctx.targets,
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: ctx.box },
+    ],
   );
 
   mgr.log = ctx.log;

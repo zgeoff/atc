@@ -36,6 +36,7 @@ async function setupTest() {
   const owned = stack.move();
 
   return {
+    dir: tmp.dir,
     store,
     port,
     host: provider.brokerAuth,
@@ -2304,7 +2305,7 @@ test('it holds a launch admission while its connection opens and returns it once
       session: 's2',
       argv: ['sleep', '30'],
       env: {},
-      cwd: '/tmp',
+      cwd: ctx.dir,
       cols: 80,
       rows: 24,
       require: ['broker'],
@@ -2402,7 +2403,7 @@ test('it returns the launch admission of each connection that fails before it op
         session,
         argv: ['sleep', '30'],
         env: {},
-        cwd: '/tmp',
+        cwd: ctx.dir,
         cols: 80,
         rows: 24,
         require: ['broker'],
@@ -2493,7 +2494,7 @@ test('it returns the launch admission of a connection whose opening throws befor
       session: 's2',
       argv: ['sleep', '30'],
       env: {},
-      cwd: '/tmp',
+      cwd: ctx.dir,
       cols: 80,
       rows: 24,
       require: ['broker'],

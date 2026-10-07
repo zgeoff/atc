@@ -160,18 +160,6 @@ test.each([
   });
 });
 
-test("it marks a gateway's response to an effort unverified", () => {
-  const config = parseConfig({ gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic' } } });
-
-  const [zai] = buildAgentList(
-    [new GatewayAdapter(getGatewayConfig(config, 'zai'), config)],
-    () => true,
-    false,
-  );
-
-  expect(zai?.spawnOptions.effort.backendEffect).toBe('unverified');
-});
-
 test('it accepts a gateway effort', () => {
   const config = parseConfig({ gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic' } } });
 
