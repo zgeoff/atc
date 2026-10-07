@@ -244,7 +244,7 @@ test.each([
 
   const client = await harness.openClient({ principal: 'gw' });
 
-  expect(client.sendRequest(method, {})).resolves.toBeObject();
+  expect(client.sendRequest(method, {})).resolves.toBeTypeOf('object');
 });
 
 test.each([
@@ -327,7 +327,7 @@ test.each([
 
   await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
-  expect(client.sendRequest(method, {}, 'gw')).resolves.toBeObject();
+  expect(client.sendRequest(method, {}, 'gw')).resolves.toBeTypeOf('object');
 });
 
 test.each([

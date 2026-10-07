@@ -654,11 +654,12 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
 
   expect(spawn).rejects.toMatchObject({
     code: 'ref_not_found',
-    message: expect.toInclude('[credential]'),
+    message: expect.toSatisfy(
+      (message: string) => message.includes('[credential]') && !message.includes('tok-7d1e5a'),
+    ),
     data: { phase: 'cloning' },
   });
 
-  expect(spawn).rejects.not.toHaveProperty('message', expect.toInclude('tok-7d1e5a'));
   expect(state).not.toBeEmpty();
   expect(stored).toSatisfyAll((bytes: string) => !bytes.includes('tok-7d1e5a'));
   expect(ctx.logs).not.toBeEmpty();
