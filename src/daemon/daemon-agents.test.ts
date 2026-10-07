@@ -3,6 +3,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { parseConfig } from '../shared/config';
+import { getRecords } from '../test-utils/get-records';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildTargetIdentity } from './build-target-identity';
 
@@ -269,7 +270,7 @@ test('it refuses a registered agent whose binary is missing before spawning anyt
 
   const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' });
 
-  await spawn.catch(() => null);
+  await Promise.allSettled([spawn]);
 
   const listed = await daemon.client.sendRequest('session.list');
 
@@ -281,14 +282,16 @@ test('it refuses a registered agent whose binary is missing before spawning anyt
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
-test('it leaves an agent id the daemon never registered out of the agent list', async () => {
+test('it lists only the agents the daemon registered', async () => {
   await using daemon = await startTestDaemon({
-    options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
+    options: () => ({
+      adapters: buildAgentAdapters(parseConfig({ agents: { claude: { bin: 'sh' } } })),
+    }),
   });
 
-  const agents = await daemon.client.sendRequest('agents.list');
+  const listed = await daemon.client.sendRequest('agents.list');
 
-  expect(JSON.stringify(agents)).not.toInclude('gemini');
+  expect(getRecords(listed, 'agents').map((agent) => agent['id'])).toStrictEqual(['claude']);
 });
 
 test('it refuses to spawn an agent id the daemon never registered', async () => {
@@ -298,7 +301,7 @@ test('it refuses to spawn an agent id the daemon never registered', async () => 
 
   const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'gemini' });
 
-  await spawn.catch(() => null);
+  await Promise.allSettled([spawn]);
 
   const listed = await daemon.client.sendRequest('session.list');
 
@@ -316,7 +319,7 @@ test('it refuses a model shaped like a flag before spawning anything', async () 
     model: '--dangerously-skip-permissions',
   });
 
-  await spawn.catch(() => null);
+  await Promise.allSettled([spawn]);
 
   const listed = await daemon.client.sendRequest('session.list');
 
@@ -349,7 +352,7 @@ test('it refuses a gateway effort outside the levels the CLI accepts', async () 
     effort: 'ultra',
   });
 
-  await spawn.catch(() => null);
+  await Promise.allSettled([spawn]);
 
   const listed = await daemon.client.sendRequest('session.list');
 
@@ -370,7 +373,7 @@ test('it refuses an option the agent takes no value for', async () => {
     model: 'grok-4',
   });
 
-  await spawn.catch(() => null);
+  await Promise.allSettled([spawn]);
 
   const listed = await daemon.client.sendRequest('session.list');
 

@@ -1450,14 +1450,14 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
     exists: existsSync(dest),
     beside: readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8'),
     parentFiles: readFileSync(join(ctx.work, 'README.md'), 'utf8'),
-    imps: ctx.port.collectImpNames().length,
+    imps: ctx.port.collectImpNames(),
     state: ctx.port.findState(String(imp)),
     listed,
   }).toStrictEqual({
     exists: false,
     beside: 'kept\n',
     parentFiles: 'hello\n',
-    imps: 1,
+    imps: [imp],
     state: 'running',
     listed: { sessions: [expect.objectContaining({ id: parentID, alive: true })] },
   });
@@ -1508,14 +1508,14 @@ test('it spawns a sub-session again on the shared host after its failed start re
   expect<Record<string, unknown>>({
     beside: readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8'),
     parentFiles: readFileSync(join(ctx.work, 'README.md'), 'utf8'),
-    imps: ctx.port.collectImpNames().length,
+    imps: ctx.port.collectImpNames(),
     state: ctx.port.findState(String(imp)),
     retried: getRecord(retried, 'session')['alive'],
     listed: after,
   }).toStrictEqual({
     beside: 'kept\n',
     parentFiles: 'hello\n',
-    imps: 1,
+    imps: [imp],
     state: 'running',
     retried: true,
     listed: {

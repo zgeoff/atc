@@ -430,7 +430,7 @@ export class ClaudeAdapter implements AgentAdapter {
   // A session on the daemon's machine reads the user's own Claude config,
   // so trust for the clone is that config's entry for the clone alone.
   updateLocalWorkspaceTrust(root: string): Promise<() => Promise<void>> {
-    return updateClaudeProjectTrust(resolveClaudeGlobalConfigPath(), root);
+    return updateClaudeProjectTrust(resolveClaudeGlobalConfigPath(this.hostPaths.homeDir), root);
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {

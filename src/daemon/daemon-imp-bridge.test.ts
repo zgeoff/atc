@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ClaudeAdapter } from '../agents/claude-adapter';
@@ -184,6 +184,10 @@ test('it answers an op the bridge does not offer with forbidden and closes the c
 
   const socket = await openBridgeSocket(join(ctx.guestDir, 'run', `${socketName}.sock`), (line) => {
     answers.push(line);
+  });
+
+  onTestFinished(() => {
+    socket.end();
   });
 
   socket.writeLine({ v: 1, id: 'list', op: 'session.list' });

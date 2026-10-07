@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { getRecord } from '../shared/get-record';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -6,35 +6,22 @@ import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
+import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
 import { buildTargetOptionsFromConfig } from '../test-utils/build-target-options-from-config';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { buildTargetIdentity } from './build-target-identity';
 
 /**
- * The daemon's stand-ins. `providers` builds, for a target id, the provider
- * of each kind a test's config may hold: a `local-pty` target runs harnesses
- * on a real pseudo-terminal, and a `no-headless` target's provider can
- * neither start a terminal nor run a headless turn. The target id of each
- * harness started lands in `harnesses`. The agent's headless runner records
- * each prompt in `runs` and finishes the turn on the next tick with a
- * message that holds the prompt.
+ * The daemon's stand-ins. `providers` builds, for a target id, the
+ * `local-pty` provider, which runs harnesses on a real pseudo-terminal; the
+ * target id of each harness started lands in `harnesses`. The agent's
+ * headless runner records each turn in `headless.runs` and plays nothing
+ * until the test does.
  */
 function setupTest() {
   const harnesses: string[] = [];
-  const runs: string[] = [];
-
-  const adapter = buildMockAgentAdapter({
-    headlessRunner: (opts, hooks) => {
-      runs.push(opts.prompt);
-
-      setTimeout(() => {
-        hooks.onDone(`finished: ${opts.prompt}`);
-      }, 0);
-
-      return { stop: () => {} };
-    },
-  });
+  const headless = buildStubHeadlessRunner();
 
   const providers = new Map([
     [
@@ -47,20 +34,14 @@ function setupTest() {
           },
         }),
     ],
-    [
-      'no-headless',
-      (id: string) =>
-        buildStubExecutionProvider({
-          kind: 'no-headless',
-          capabilities: { spawn: false, headless: false },
-          onSpawn: () => {
-            harnesses.push(id);
-          },
-        }),
-    ],
   ]);
 
-  return { adapter, harnesses, runs, providers };
+  return {
+    adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
+    harnesses,
+    headless,
+    providers,
+  };
 }
 
 test('it spawns a session on the target the spawn names and records it in the fleet', async () => {
@@ -420,6 +401,8 @@ test.each([
       options: async (paths) => {
         const store = await StateStore.open(paths.dbPath);
 
+        onTestFinished(() => store.stop());
+
         await store.writeFleet([
           buildMockFleetEntry({
             sessionID: toSessionID('s-box'),
@@ -445,7 +428,7 @@ test.each([
     const input = daemon.client.sendRequest('session.input', { session: 's-box', d: 'go\r' });
 
     expect(input).rejects.toMatchObject({ code, data: { target: 'box' } });
-    expect(ctx.runs).toStrictEqual([]);
+    expect(ctx.headless.runs).toStrictEqual([]);
     expect(ctx.harnesses).toStrictEqual([]);
   },
 );
@@ -457,6 +440,8 @@ test('it refuses input to a restored headless session on local once the targets 
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
       const store = await StateStore.open(paths.dbPath);
+
+      onTestFinished(() => store.stop());
 
       await store.writeFleet([
         buildMockFleetEntry({
@@ -484,17 +469,35 @@ test('it refuses input to a restored headless session on local once the targets 
   const input = daemon.client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
 
   expect(input).rejects.toMatchObject({ code: 'unknown_target', data: { target: 'local' } });
-  expect(ctx.runs).toStrictEqual([]);
+  expect(ctx.headless.runs).toStrictEqual([]);
   expect(ctx.harnesses).toStrictEqual([]);
 });
 
 test('it refuses input to a restored headless session whose provider runs no headless turns, without running it', async () => {
   const ctx = setupTest();
 
+  // A provider that can neither start a terminal nor run a headless turn.
+  const providers = new Map([
+    ...ctx.providers,
+    [
+      'no-headless',
+      (id: string) =>
+        buildStubExecutionProvider({
+          kind: 'no-headless',
+          capabilities: { spawn: false, headless: false },
+          onSpawn: () => {
+            ctx.harnesses.push(id);
+          },
+        }),
+    ],
+  ]);
+
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
       const store = await StateStore.open(paths.dbPath);
+
+      onTestFinished(() => store.stop());
 
       await store.writeFleet([
         buildMockFleetEntry({
@@ -515,7 +518,7 @@ test('it refuses input to a restored headless session whose provider runs no hea
           {
             targets: { local: { provider: 'local-pty' }, box: { provider: 'no-headless' } },
           },
-          ctx.providers,
+          providers,
         ),
       };
     },
@@ -530,7 +533,7 @@ test('it refuses input to a restored headless session whose provider runs no hea
     data: { provider: 'no-headless', capability: 'headless' },
   });
 
-  expect(ctx.runs).toStrictEqual([]);
+  expect(ctx.headless.runs).toStrictEqual([]);
 });
 
 test('it refuses input to a killed headless session on a working target, without running it', async () => {
@@ -540,6 +543,8 @@ test('it refuses input to a killed headless session on a working target, without
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
       const store = await StateStore.open(paths.dbPath);
+
+      onTestFinished(() => store.stop());
 
       await store.writeFleet([
         buildMockFleetEntry({
@@ -565,7 +570,7 @@ test('it refuses input to a killed headless session on a working target, without
   const input = daemon.client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
 
   expect(input).rejects.toMatchObject({ code: 'session_dead' });
-  expect(ctx.runs).toStrictEqual([]);
+  expect(ctx.headless.runs).toStrictEqual([]);
 });
 
 test('it runs a local headless turn through the runner once per request', async () => {
@@ -589,6 +594,10 @@ test('it runs a local headless turn through the runner once per request', async 
 
   await daemon.client.sendRequest('session.eject', { session: id, prompt: 'carry on' });
 
+  const first = await ctx.headless.waitForRun(0);
+
+  first.events.onDone('finished: carry on');
+
   await waitFor(async () => {
     const listed = await daemon.client.sendRequest('session.list');
 
@@ -597,13 +606,20 @@ test('it runs a local headless turn through the runner once per request', async 
 
   await daemon.client.sendRequest('session.input', { session: id, d: 'next step\n' });
 
+  const second = await ctx.headless.waitForRun(1);
+
+  second.events.onDone('finished: next step');
+
   await waitFor(async () => {
     const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed).toMatchObject({ sessions: [{ id, lastMsg: 'finished: next step' }] });
   });
 
-  expect(ctx.runs).toStrictEqual(['carry on', 'next step']);
+  expect(ctx.headless.runs.map((run) => run.request.prompt)).toStrictEqual([
+    'carry on',
+    'next step',
+  ]);
 });
 
 test.each([
@@ -614,6 +630,22 @@ test.each([
   async (_label, changed) => {
     const ctx = setupTest();
 
+    // A provider that can neither start a terminal nor run a headless turn.
+    const providers = new Map([
+      ...ctx.providers,
+      [
+        'no-headless',
+        (id: string) =>
+          buildStubExecutionProvider({
+            kind: 'no-headless',
+            capabilities: { spawn: false, headless: false },
+            onSpawn: () => {
+              ctx.harnesses.push(id);
+            },
+          }),
+      ],
+    ]);
+
     await using daemon = await startTestDaemon({
       prefix: 'atc-daemon-targets-',
       options: () => ({
@@ -623,7 +655,7 @@ test.each([
           {
             targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
           },
-          ctx.providers,
+          providers,
         ),
       }),
     });
@@ -638,6 +670,10 @@ test.each([
 
     await daemon.client.sendRequest('session.eject', { session: id, prompt: 'carry on' });
 
+    const turn = await ctx.headless.waitForRun(0);
+
+    turn.events.onDone('finished: carry on');
+
     await waitFor(async () => {
       const listed = await daemon.client.sendRequest('session.list');
 
@@ -649,7 +685,7 @@ test.each([
       ejectSettleMs: 0,
       ...buildTargetOptionsFromConfig(
         { targets: { local: { provider: 'local-pty' }, box: changed } },
-        ctx.providers,
+        providers,
       ),
     }));
 
@@ -658,7 +694,7 @@ test.each([
     const input = daemon.client.sendRequest('session.input', { session: id, d: 'go\r' });
 
     expect(input).rejects.toMatchObject({ code: 'target_changed', data: { target: 'box' } });
-    expect(ctx.runs).toStrictEqual(['carry on']);
+    expect(ctx.headless.runs.map((run) => run.request.prompt)).toStrictEqual(['carry on']);
     expect(ctx.harnesses).toStrictEqual(['box']);
   },
 );
@@ -671,6 +707,22 @@ test.each([
   async (_label, changed) => {
     const ctx = setupTest();
 
+    // A provider that can neither start a terminal nor run a headless turn.
+    const providers = new Map([
+      ...ctx.providers,
+      [
+        'no-headless',
+        (id: string) =>
+          buildStubExecutionProvider({
+            kind: 'no-headless',
+            capabilities: { spawn: false, headless: false },
+            onSpawn: () => {
+              ctx.harnesses.push(id);
+            },
+          }),
+      ],
+    ]);
+
     await using daemon = await startTestDaemon({
       prefix: 'atc-daemon-targets-',
       options: () => ({
@@ -680,7 +732,7 @@ test.each([
           {
             targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
           },
-          ctx.providers,
+          providers,
         ),
       }),
     });
@@ -695,6 +747,10 @@ test.each([
 
     await daemon.client.sendRequest('session.eject', { session: id, prompt: 'carry on' });
 
+    const turn = await ctx.headless.waitForRun(0);
+
+    turn.events.onDone('finished: carry on');
+
     await waitFor(async () => {
       const listed = await daemon.client.sendRequest('session.list');
 
@@ -706,7 +762,7 @@ test.each([
       ejectSettleMs: 0,
       ...buildTargetOptionsFromConfig(
         { targets: { local: { provider: 'local-pty' }, box: changed } },
-        ctx.providers,
+        providers,
       ),
     }));
 
@@ -727,6 +783,22 @@ test.each([
   async (_label, changed) => {
     const ctx = setupTest();
 
+    // A provider that can neither start a terminal nor run a headless turn.
+    const providers = new Map([
+      ...ctx.providers,
+      [
+        'no-headless',
+        (id: string) =>
+          buildStubExecutionProvider({
+            kind: 'no-headless',
+            capabilities: { spawn: false, headless: false },
+            onSpawn: () => {
+              ctx.harnesses.push(id);
+            },
+          }),
+      ],
+    ]);
+
     await using daemon = await startTestDaemon({
       prefix: 'atc-daemon-targets-',
       options: () => ({
@@ -736,7 +808,7 @@ test.each([
           {
             targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
           },
-          ctx.providers,
+          providers,
         ),
       }),
     });
@@ -751,6 +823,10 @@ test.each([
 
     await daemon.client.sendRequest('session.eject', { session: id, prompt: 'carry on' });
 
+    const turn = await ctx.headless.waitForRun(0);
+
+    turn.events.onDone('finished: carry on');
+
     await waitFor(async () => {
       const listed = await daemon.client.sendRequest('session.list');
 
@@ -762,7 +838,7 @@ test.each([
       ejectSettleMs: 0,
       ...buildTargetOptionsFromConfig(
         { targets: { local: { provider: 'local-pty' }, box: changed } },
-        ctx.providers,
+        providers,
       ),
     }));
 
@@ -941,6 +1017,8 @@ test('it revives a restored session without a stored target on the implicit loca
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
       const store = await StateStore.open(paths.dbPath);
+
+      onTestFinished(() => store.stop());
 
       await store.writeFleet([
         buildMockFleetEntry({

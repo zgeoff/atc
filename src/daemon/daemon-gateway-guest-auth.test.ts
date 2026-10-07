@@ -1,12 +1,15 @@
 import { expect, test } from 'bun:test';
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
+import { createStubBin } from '../test-utils/create-stub-bin';
+import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
@@ -14,21 +17,20 @@ import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
 /**
- * A fixture imp port whose impd an operator prepared: the token
- * `atc-runtime` manages `atc-*` imps and may grant `glm`, and impd holds
- * `glm` for api.z.ai as a custom bearer secret. A daemon runs with a
- * `local` target and an imp target `box` over the port. The guest has an
- * atc stand-in, so the Claude gateways plan real guest spawns; their binary
- * is a fake claude that appends its arguments to `started`. `glm` takes its
- * credential through `auth` with the bearer placeholder; `keyed` selects
- * the same profile with an `ANTHROPIC_API_KEY` placeholder; `proxied` is
- * `glm` with a proxy variable in its env, which the config would refuse.
+ * A fixture imp port whose impd an operator prepared, and the targets a
+ * daemon runs with over it: `local`, and an imp target `box` whose guest
+ * folders live under `g`. The guest has an atc stand-in, so a Claude
+ * gateway plans a real guest spawn. `fakeClaude` is a fake claude that
+ * records each start in `claude-starts.log` under the directory.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
+function setupTest() {
+  using stack = new DisposableStack();
 
+  const tmp = stack.use(setupTempDir('atc-gateway-guest-auth-'));
   const port = stack.use(new FixtureImpPort());
 
+  // Every brokered spawn checks that the token may manage atc imps and
+  // grant glm, and that impd holds glm for api.z.ai as a bearer secret.
   port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -41,102 +43,82 @@ async function setupTest() {
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const daemon = await startTestDaemon({
-    options: (paths) => {
-      // The gateways' binary and the guest's atc, which every spawn runs.
-      writeFileSync(
-        join(paths.dir, 'fake-claude'),
-        `#!/bin/sh\necho "$@" >> "${join(paths.dir, 'started')}"\nexec sleep 30\n`,
-        { mode: 0o755 },
-      );
+  const fakeClaude = createStubRecordingClaude(tmp.dir);
 
-      writeFileSync(join(paths.dir, 'atc'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  // The imp provider hands the guest this atc binary.
+  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
 
-      const provider = new ImpProvider(
-        port,
-        { guestDir: join(paths.dir, 'g'), guestATC: join(paths.dir, 'atc') },
-        { atcBinary: null },
-      );
+  const provider = new ImpProvider(
+    port,
+    { guestDir: join(tmp.dir, 'g'), guestATC },
+    { atcBinary: null },
+  );
 
-      stack.defer(() => {
-        provider.dispose();
-      });
-
-      const config = parseConfig({
-        authProfiles: {
-          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-        },
-        agents: {
-          glm: {
-            kind: 'claude',
-            bin: join(paths.dir, 'fake-claude'),
-            baseURL: 'https://api.z.ai/api/anthropic',
-            auth: {
-              profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
-            },
-          },
-          keyed: {
-            kind: 'claude',
-            bin: join(paths.dir, 'fake-claude'),
-            baseURL: 'https://api.z.ai/api/anthropic',
-            auth: {
-              profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
-            },
-          },
-        },
-      });
-
-      const proxied = new GatewayAdapter(
-        {
-          ...getGatewayConfig(config, 'glm'),
-          id: 'proxied',
-          env: { HTTPS_PROXY: 'http://proxy.example:3128' },
-        },
-        config,
-      );
-
-      return {
-        adapters: [...buildAgentAdapters(config), proxied],
-        targets: [
-          {
-            id: 'local',
-            kind: 'local-pty',
-            options: {},
-            identity: 'local-pty:test',
-            provider: new LocalPTYProvider(),
-          },
-          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
-        ],
-        defaultTarget: 'box',
-      };
-    },
+  stack.defer(() => {
+    provider.dispose();
   });
 
-  stack.use(daemon);
+  const owned = stack.move();
 
-  const moved = stack.move();
-
-  return { port, daemon, [Symbol.asyncDispose]: () => moved.disposeAsync() };
+  return {
+    dir: tmp.dir,
+    port,
+    fakeClaude,
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: 'local-pty:test',
+        provider: new LocalPTYProvider(),
+      },
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
+    ],
+    [Symbol.dispose]: () => {
+      owned.dispose();
+    },
+  };
 }
 
 test('it starts a brokered gateway on an imp under the settings file of its binding revision', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'glm',
     target: 'box',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const session = join(join(ctx.daemon.dir, 'g'), 'sessions', id);
+  const session = join(ctx.dir, 'g', 'sessions', id);
 
   await waitFor(() => {
-    expect(existsSync(join(ctx.daemon.dir, 'started'))).toBeTrue();
-
-    return true;
+    expect(existsSync(join(ctx.dir, 'claude-starts.log'))).toBeTrue();
   });
 
   const [start] = ctx.port.sessionRequests;
@@ -166,27 +148,50 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
 });
 
 test('it revives a rebound session under the settings file of the next revision', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const session = join(join(ctx.daemon.dir, 'g'), 'sessions', id);
+  const session = join(ctx.dir, 'g', 'sessions', id);
 
-  await ctx.daemon.client.sendRequest('session.kill', { session: id });
-  await ctx.daemon.client.sendRequest('session.auth.revoke', { session: id });
-  await ctx.daemon.client.sendRequest('session.auth.rebind', { session: id });
-  await ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.auth.revoke', { session: id });
+  await daemon.client.sendRequest('session.auth.rebind', { session: id });
+  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
     expect(ctx.port.sessionRequests).toHaveLength(2);
-
-    return true;
   });
 
   const [, revived] = ctx.port.sessionRequests;
@@ -200,10 +205,35 @@ test('it revives a rebound session under the settings file of the next revision'
 });
 
 test('it refuses to revive a revoked session and starts no harness under its old settings', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -211,18 +241,44 @@ test('it refuses to revive a revoked session and starts no harness under its old
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.daemon.client.sendRequest('session.kill', { session: id });
-  await ctx.daemon.client.sendRequest('session.auth.revoke', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.auth.revoke', { session: id });
 
-  expect(
-    ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 }),
-  ).rejects.toMatchObject({ code: 'auth_blocked' });
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
+  await Promise.allSettled([adopt]);
+
+  expect(adopt).rejects.toMatchObject({ code: 'auth_blocked' });
   expect(ctx.port.sessionRequests).toHaveLength(1);
 });
 
 test('it starts a brokered gateway with the placeholder and its own Claude config in the harness env and no credential anywhere', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'box',
+    }),
+  });
 
   // The canary stands in for a credential held on the daemon's side.
   const canary = 'canary-sk-5d1c0a9e7b3f42';
@@ -230,19 +286,17 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
   updateEnv('ANTHROPIC_API_KEY', canary);
   updateEnv('ANTHROPIC_AUTH_TOKEN', canary);
 
-  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'glm',
     target: 'box',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const session = join(join(ctx.daemon.dir, 'g'), 'sessions', id);
+  const session = join(ctx.dir, 'g', 'sessions', id);
 
   await waitFor(() => {
-    expect(existsSync(join(ctx.daemon.dir, 'started'))).toBeTrue();
-
-    return true;
+    expect(existsSync(join(ctx.dir, 'claude-starts.log'))).toBeTrue();
   });
 
   const [start] = ctx.port.sessionRequests;
@@ -269,13 +323,54 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
 });
 
 test('it refuses a brokered gateway whose env sets a proxy variable before any imp call', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const config = parseConfig({
+        authProfiles: {
+          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+        },
+        agents: {
+          glm: {
+            kind: 'claude',
+            bin: ctx.fakeClaude,
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            },
+          },
+        },
+      });
+
+      return {
+        adapters: [
+          // A proxy variable in a gateway's env, which the config would refuse.
+          new GatewayAdapter(
+            {
+              ...getGatewayConfig(config, 'glm'),
+              id: 'proxied',
+              env: { HTTPS_PROXY: 'http://proxy.example:3128' },
+            },
+            config,
+          ),
+        ],
+        targets: ctx.targets,
+        defaultTarget: 'box',
+      };
+    },
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'proxied',
     target: 'box',
   });
+
+  await Promise.allSettled([spawn]);
+
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({
     code: 'auth_target_unsupported',
@@ -284,14 +379,62 @@ test('it refuses a brokered gateway whose env sets a proxy variable before any i
 
   expect<Record<string, unknown>>({
     calls: ctx.port.calls,
-    listed: await ctx.daemon.client.sendRequest('session.list'),
+    listed,
   }).toStrictEqual({ calls: [], listed: { sessions: [] } });
 });
 
 test('it lists a brokered gateway with the bearer placeholder as spawnable and one with another placeholder as not', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const listed = await ctx.daemon.client.sendRequest('agents.list');
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const config = parseConfig({
+        authProfiles: {
+          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+        },
+        agents: {
+          glm: {
+            kind: 'claude',
+            bin: ctx.fakeClaude,
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            },
+          },
+          keyed: {
+            kind: 'claude',
+            bin: ctx.fakeClaude,
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+            },
+          },
+        },
+      });
+
+      return {
+        adapters: [
+          ...buildAgentAdapters(config),
+
+          // A proxy variable in a gateway's env, which the config would refuse.
+          new GatewayAdapter(
+            {
+              ...getGatewayConfig(config, 'glm'),
+              id: 'proxied',
+              env: { HTTPS_PROXY: 'http://proxy.example:3128' },
+            },
+            config,
+          ),
+        ],
+        targets: ctx.targets,
+        defaultTarget: 'box',
+      };
+    },
+  });
+
+  const listed = await daemon.client.sendRequest('agents.list');
 
   expect(listed).toMatchObject({
     agents: [
@@ -303,16 +446,45 @@ test('it lists a brokered gateway with the bearer placeholder as spawnable and o
 });
 
 test('it refuses a brokered gateway with an unsupported placeholder before materializing its workspace or touching impd', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const cwd = join(ctx.daemon.dir, 'ws');
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            keyed: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+              },
+            },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'box',
+    }),
+  });
 
-  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
+  const cwd = join(daemon.dir, 'ws');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd,
     agent: 'keyed',
     target: 'box',
-    workspace: { kind: 'path', path: join(ctx.daemon.dir, 'source') },
+    workspace: { kind: 'path', path: join(daemon.dir, 'source') },
   });
+
+  await Promise.allSettled([spawn]);
+
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({
     code: 'auth_placeholder_unsupported',
@@ -322,22 +494,51 @@ test('it refuses a brokered gateway with an unsupported placeholder before mater
   expect<Record<string, unknown>>({
     calls: ctx.port.calls,
     created: existsSync(cwd),
-    hosts: existsSync(join(ctx.daemon.dir, 'g')),
-    listed: await ctx.daemon.client.sendRequest('session.list'),
+    hosts: existsSync(join(ctx.dir, 'g')),
+    listed,
   }).toStrictEqual({ calls: [], created: false, hosts: false, listed: { sessions: [] } });
 });
 
 test('it refuses a brokered gateway on the local target before materializing its workspace or touching impd', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  const cwd = join(ctx.daemon.dir, 'ws');
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'box',
+    }),
+  });
 
-  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
+  const cwd = join(daemon.dir, 'ws');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd,
     agent: 'glm',
     target: 'local',
-    workspace: { kind: 'path', path: join(ctx.daemon.dir, 'source') },
+    workspace: { kind: 'path', path: join(daemon.dir, 'source') },
   });
+
+  await Promise.allSettled([spawn]);
+
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({
     code: 'auth_target_unsupported',
@@ -347,7 +548,7 @@ test('it refuses a brokered gateway on the local target before materializing its
   expect<Record<string, unknown>>({
     calls: ctx.port.calls,
     created: existsSync(cwd),
-    started: existsSync(join(ctx.daemon.dir, 'started')),
-    listed: await ctx.daemon.client.sendRequest('session.list'),
+    started: existsSync(join(ctx.dir, 'claude-starts.log')),
+    listed,
   }).toStrictEqual({ calls: [], created: false, started: false, listed: { sessions: [] } });
 });

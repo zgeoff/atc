@@ -7,6 +7,7 @@ import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
+import { buildStubTimeoutScheduler } from '../test-utils/build-stub-timeout-scheduler';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -16,22 +17,28 @@ import { waitFor } from '../test-utils/wait-for';
 /**
  * A real daemon whose claude stand-in hands an ejected session to a
  * headless runner that records each turn in `runs` and plays nothing until
- * the test does. The settle before a handoff is short, and every git
- * transport is allowed, since a workspace clone reads a local upstream.
+ * the test does. The settle before a handoff waits on `scheduler`, which
+ * runs no timer until the test does, and every git transport is allowed,
+ * since a workspace clone reads a local upstream.
  */
 async function setupTest() {
   const headless = buildStubHeadlessRunner();
+  const scheduler = buildStubTimeoutScheduler();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-headless-',
     options: () => ({
       adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
       gitTransports: ['https', 'ssh', 'http', 'file'],
-      ejectSettleMs: 30,
+      scheduleEjectSettle: scheduler.schedule,
     }),
   });
 
-  return Object.assign(daemon, { runs: headless.runs, waitForRun: headless.waitForRun });
+  return Object.assign(daemon, {
+    runs: headless.runs,
+    waitForRun: headless.waitForRun,
+    scheduler,
+  });
 }
 
 test('it answers the eject of a terminal session with an empty reply', async () => {
@@ -68,6 +75,8 @@ test('it ejects a terminal session into a headless run with its agent id', async
 
   await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
 
+  ctx.scheduler.runTimer(4000);
+
   await waitFor(() => {
     expect(ctx.runs.map((run) => run.request)).toStrictEqual([
       { cwd: ctx.dir, prompt: 'keep going', resume: toAgentSessionID('sess-123'), sessionID },
@@ -90,6 +99,8 @@ test('it lists an ejected session as a running headless session', async () => {
     session: getRecord(spawned, 'session')['id'],
     prompt: 'keep going',
   });
+
+  ctx.scheduler.runTimer(4000);
 
   await waitFor(() => {
     expect(ctx.runs).toHaveLength(1);
@@ -121,6 +132,8 @@ test('it starts the headless run of an ejected workspace session without its wor
 
   await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
 
+  ctx.scheduler.runTimer(4000);
+
   await waitFor(() => {
     expect(ctx.runs.map((run) => run.request)).toStrictEqual([
       {
@@ -148,6 +161,8 @@ test('it reports a finished headless turn as done', async () => {
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
+
+  ctx.scheduler.runTimer(4000);
 
   const run = await ctx.waitForRun(0);
 
@@ -178,6 +193,8 @@ test('it reports a stuck headless turn as needs_you', async () => {
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
+
+  ctx.scheduler.runTimer(4000);
 
   const run = await ctx.waitForRun(0);
 
@@ -211,6 +228,8 @@ test("it keeps a finished headless turn's whole final message as the latest resu
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
 
+  ctx.scheduler.runTimer(4000);
+
   const run = await ctx.waitForRun(0);
 
   run.events.onDone(result);
@@ -240,6 +259,8 @@ test("it shows a finished headless turn's result as the session's latest detail"
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
+
+  ctx.scheduler.runTimer(4000);
 
   const run = await ctx.waitForRun(0);
 
@@ -273,6 +294,8 @@ test("it records a headless turn's prompt in the event trail", async () => {
 
   await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
 
+  ctx.scheduler.runTimer(4000);
+
   const started = await ctx.client.sendRequest('events.read', {
     cursor: empty['cursor'],
     waitMs: 5000,
@@ -299,6 +322,8 @@ test("it records a headless turn's finish in the event trail", async () => {
   const empty = await ctx.client.sendRequest('events.read', {});
 
   await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+
+  ctx.scheduler.runTimer(4000);
 
   const started = await ctx.client.sendRequest('events.read', {
     cursor: empty['cursor'],
@@ -335,6 +360,8 @@ test('it records a stuck headless turn as needs-input in the event trail', async
   const empty = await ctx.client.sendRequest('events.read', {});
 
   await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+
+  ctx.scheduler.runTimer(4000);
 
   const started = await ctx.client.sendRequest('events.read', {
     cursor: empty['cursor'],
@@ -373,6 +400,8 @@ test('it starts the next headless turn from session input once idle', async () =
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
+
+  ctx.scheduler.runTimer(4000);
 
   const run = await ctx.waitForRun(0);
 
@@ -419,6 +448,8 @@ test('it refuses input to a headless session mid-run', async () => {
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
 
+  ctx.scheduler.runTimer(4000);
+
   await waitFor(() => {
     expect(ctx.runs).toHaveLength(1);
   });
@@ -442,6 +473,8 @@ test('it adopts a headless session back into a terminal', async () => {
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
+
+  ctx.scheduler.runTimer(4000);
 
   const run = await ctx.waitForRun(0);
 
@@ -486,7 +519,7 @@ test('it refuses to eject a session that never reported an agent session id', as
 test('it reports eject as unsupported without a headless runner', async () => {
   await using daemon = await startTestDaemon({
     prefix: 'atc-headless-',
-    options: () => ({ adapter: buildMockAgentAdapter(), ejectSettleMs: 30 }),
+    options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -507,19 +540,15 @@ test('it refuses to eject a grok session', async () => {
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-headless-',
-    options: (paths) => {
-      updateEnv('GROK_HOME', join(paths.dir, 'grok-home'));
-
-      return {
-        adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
-        adapters: [
-          new GrokAdapter(
-            getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
-          ),
-        ],
-        ejectSettleMs: 30,
-      };
-    },
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
+      adapters: [
+        new GrokAdapter(
+          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          join(paths.dir, 'grok-home'),
+        ),
+      ],
+    }),
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -539,27 +568,25 @@ test('it refuses to eject a grok session', async () => {
   });
 });
 
-// A refused eject would schedule its handoff before a later eject does,
-// with the same settle, so once the later handoff's run starts, a mistaken
-// one for the refused session would already have started.
+// Every accepted eject schedules its handoff's settle, so the one settle
+// scheduled after a refused eject and a later accepted one shows the
+// refused eject scheduled no handoff.
 test('it starts no headless run for a refused grok eject', async () => {
   const headless = buildStubHeadlessRunner();
+  const scheduler = buildStubTimeoutScheduler();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-headless-',
-    options: (paths) => {
-      updateEnv('GROK_HOME', join(paths.dir, 'grok-home'));
-
-      return {
-        adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
-        adapters: [
-          new GrokAdapter(
-            getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
-          ),
-        ],
-        ejectSettleMs: 30,
-      };
-    },
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
+      adapters: [
+        new GrokAdapter(
+          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          join(paths.dir, 'grok-home'),
+        ),
+      ],
+      scheduleEjectSettle: scheduler.schedule,
+    }),
   });
 
   const grok = await daemon.client.sendRequest('session.spawn', {
@@ -587,11 +614,18 @@ test('it starts no headless run for a refused grok eject', async () => {
 
   await daemon.client.sendRequest('session.eject', { session: claudeID });
 
+  const delays = scheduler.collectDelays();
+
+  scheduler.runTimer(4000);
+
   await waitFor(() => {
     expect(headless.runs).toHaveLength(1);
   });
 
-  expect(headless.runs.map((run) => run.request.sessionID)).toStrictEqual([claudeID]);
+  expect({
+    delays,
+    sessions: headless.runs.map((run) => run.request.sessionID),
+  }).toStrictEqual({ delays: [4000], sessions: [claudeID] });
 });
 
 test("it stops a killed session's headless run", async () => {
@@ -608,6 +642,8 @@ test("it stops a killed session's headless run", async () => {
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
+
+  ctx.scheduler.runTimer(4000);
 
   await waitFor(() => {
     expect(ctx.runs).toHaveLength(1);
@@ -637,6 +673,8 @@ test('it refuses input for a killed headless session', async () => {
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
+
+  ctx.scheduler.runTimer(4000);
 
   await waitFor(() => {
     expect(ctx.runs).toHaveLength(1);

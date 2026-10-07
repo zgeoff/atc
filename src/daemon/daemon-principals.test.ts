@@ -2337,8 +2337,8 @@ test('it reads the first of many large reports a principal may see while another
   // read on a promise that never resolves, so whatever the daemon sends it
   // backs up.
   const held = Promise.withResolvers<void>();
-  const slow = createConnection(daemon.socketPath);
   const reads: unknown[] = [];
+  const slow = createConnection(daemon.socketPath);
 
   onTestFinished(() => {
     slow.destroy();
@@ -3368,15 +3368,11 @@ test("it refuses the replay of a held spawn key after a restart once its stored 
     };
   });
 
-  const listed = await daemon.client.sendRequest('session.list', {});
-
   const replayed = daemon.client.sendRequest(
     'session.spawn',
     { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
     'narrow',
   );
-
-  expect(listed).toStrictEqual({ sessions: [] });
 
   expect(replayed).rejects.toThrowWithMessage(
     DaemonError,

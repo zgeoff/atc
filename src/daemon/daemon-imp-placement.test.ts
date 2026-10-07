@@ -78,12 +78,13 @@ test("it runs a sub-session on its parent's target as another session in its par
   const imps = ctx.port.collectImpNames();
   const names = ctx.port.sessionRequests.map((request) => request.name);
 
-  const sessions = new Set(ctx.port.sessionRequests.map((request) => request.session));
+  // Each distinct session the imp was asked to start, once.
+  const sessions = [...new Set(ctx.port.sessionRequests.map((request) => request.session))];
 
-  expect<Record<string, unknown>>({ imps, names, sessions: sessions.size }).toStrictEqual({
+  expect<Record<string, unknown>>({ imps, names, sessions }).toStrictEqual({
     imps: [expect.any(String)],
     names: [imps[0], imps[0]],
-    sessions: 2,
+    sessions: [expect.any(String), expect.any(String)],
   });
 });
 

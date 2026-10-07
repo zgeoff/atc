@@ -1,8 +1,9 @@
-import { expect, mock, test } from 'bun:test';
+import { expect, mock, onTestFinished, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { encodeCursor } from '../protocol/encode-cursor';
+import { decodeMessage } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
@@ -232,6 +233,8 @@ test('it lists a session the fleet restore has not reached yet as waiting to res
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
+      onTestFinished(() => seed.stop());
+
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), name: 'b', cwd: paths.dir }),
@@ -259,6 +262,8 @@ test('it queues a message for a session waiting to restore', async () => {
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
+      onTestFinished(() => seed.stop());
+
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), cwd: paths.dir }),
@@ -272,14 +277,11 @@ test('it queues a message for a session waiting to restore', async () => {
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const listed = await daemon.client.sendRequest('session.list');
-
   const ok = await daemon.client.sendRequest('session.message', {
     session: 's-agent-b',
     text: 'hello',
   });
 
-  expect(listed['sessions']).toPartiallyContain({ id: 's-agent-b', lastMsg: 'waiting to restore' });
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
 });
 
@@ -803,17 +805,20 @@ test('it broadcasts SessionMessage on the events socket', async () => {
     return String(found);
   });
 
-  const event = parseEventLine(line);
+  const decoded = decodeMessage(line);
 
-  expect(event).toStrictEqual({
-    v: 4,
-    ev: 'SessionMessage',
-    s: id,
-    message: sent['message'],
-    status: 'accepted',
-    from: 'unknown',
-    textPreview: 'hello',
-    sentAt: expect.any(Number),
+  expect(decoded).toStrictEqual({
+    kind: 'event',
+    msg: {
+      v: 4,
+      ev: 'SessionMessage',
+      s: id,
+      message: sent['message'],
+      status: 'accepted',
+      from: 'unknown',
+      textPreview: 'hello',
+      sentAt: expect.any(Number),
+    },
   });
 });
 
@@ -839,17 +844,20 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
     return text;
   });
 
-  const event = parseEventLine(logged);
+  const decoded = decodeMessage(logged);
 
-  expect(event).toStrictEqual({
-    v: 4,
-    ev: 'SessionMessage',
-    s: id,
-    message: sent['message'],
-    status: 'accepted',
-    from: 'unknown',
-    textPreview: 'hello',
-    sentAt: expect.any(Number),
+  expect(decoded).toStrictEqual({
+    kind: 'event',
+    msg: {
+      v: 4,
+      ev: 'SessionMessage',
+      s: id,
+      message: sent['message'],
+      status: 'accepted',
+      from: 'unknown',
+      textPreview: 'hello',
+      sentAt: expect.any(Number),
+    },
   });
 });
 
@@ -932,15 +940,18 @@ test('it broadcasts SessionReport on the events socket', async () => {
     return String(found);
   });
 
-  const event = parseEventLine(line);
+  const decoded = decodeMessage(line);
 
-  expect(event).toStrictEqual({
-    v: 4,
-    ev: 'SessionReport',
-    s: id,
-    kind: 'progress',
-    text: 'halfway',
-    reportedAt: expect.any(Number),
+  expect(decoded).toStrictEqual({
+    kind: 'event',
+    msg: {
+      v: 4,
+      ev: 'SessionReport',
+      s: id,
+      kind: 'progress',
+      text: 'halfway',
+      reportedAt: expect.any(Number),
+    },
   });
 });
 
@@ -971,15 +982,18 @@ test('it runs SessionReport hooks with the event on stdin', async () => {
     return text;
   });
 
-  const event = parseEventLine(logged);
+  const decoded = decodeMessage(logged);
 
-  expect(event).toStrictEqual({
-    v: 4,
-    ev: 'SessionReport',
-    s: id,
-    kind: 'decision',
-    text: 'pick one',
-    reportedAt: expect.any(Number),
+  expect(decoded).toStrictEqual({
+    kind: 'event',
+    msg: {
+      v: 4,
+      ev: 'SessionReport',
+      s: id,
+      kind: 'decision',
+      text: 'pick one',
+      reportedAt: expect.any(Number),
+    },
   });
 });
 
@@ -2312,15 +2326,3 @@ test('it queues a message to a revived session before it reports SessionStart ag
 
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
 });
-
-// One event as the events socket or a hook's stdin carries it, a JSON
-// object on a line of its own.
-function parseEventLine(line: string): Record<string, unknown> {
-  const parsed: unknown = JSON.parse(line);
-
-  if (!isRecord(parsed)) {
-    throw new TypeError(`not an event: ${line}`);
-  }
-
-  return parsed;
-}
