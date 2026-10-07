@@ -6,7 +6,7 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 
 test('it accepts a hook line carrying the kind for a second codex entry', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-hook-agent-',
     options: () => ({
       adapters: buildAgentAdapters(
@@ -20,8 +20,8 @@ test('it accepts a hook line carrying the kind for a second codex entry', async 
     }),
   });
 
-  const spawned = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'codex-fast',
     cols: 80,
     rows: 24,
@@ -29,7 +29,7 @@ test('it accepts a hook line carrying the kind for a second codex entry', async 
 
   const sessionID = getRecord(spawned, 'session')['id'];
 
-  await harness.sendHookLines({
+  await daemon.sendHookLines({
     atcId: sessionID,
     agent: 'codex',
     event: 'SessionStart',
@@ -37,7 +37,7 @@ test('it accepts a hook line carrying the kind for a second codex entry', async 
   });
 
   const resumed = await waitFor(async () => {
-    const answer = await harness.client.sendRequest('session.resumeCommand', {
+    const answer = await daemon.client.sendRequest('session.resumeCommand', {
       session: sessionID,
     });
 
@@ -46,11 +46,11 @@ test('it accepts a hook line carrying the kind for a second codex entry', async 
     return answer;
   });
 
-  expect(resumed).toStrictEqual({ command: `cd '${harness.dir}' && codex resume codex-sid-1` });
+  expect(resumed).toStrictEqual({ command: `cd '${daemon.dir}' && codex resume codex-sid-1` });
 });
 
 test('it drops a hook line carrying the entry id for a codex entry', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-hook-agent-',
     options: () => ({
       adapters: buildAgentAdapters(
@@ -64,8 +64,8 @@ test('it drops a hook line carrying the entry id for a codex entry', async () =>
     }),
   });
 
-  const spawned = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'codex-fast',
     cols: 80,
     rows: 24,
@@ -73,7 +73,7 @@ test('it drops a hook line carrying the entry id for a codex entry', async () =>
 
   const sessionID = getRecord(spawned, 'session')['id'];
 
-  await harness.sendHookLines(
+  await daemon.sendHookLines(
     {
       atcId: sessionID,
       agent: 'codex-fast',
@@ -89,20 +89,20 @@ test('it drops a hook line carrying the entry id for a codex entry', async () =>
   );
 
   await waitFor(async () => {
-    const listed = await harness.client.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(JSON.stringify(listed)).toInclude('waiting for approval: sentinel');
   });
 
-  const resumed = await harness.client.sendRequest('session.resumeCommand', {
+  const resumed = await daemon.client.sendRequest('session.resumeCommand', {
     session: sessionID,
   });
 
-  expect(resumed).toStrictEqual({ command: `cd '${harness.dir}' && codex resume` });
+  expect(resumed).toStrictEqual({ command: `cd '${daemon.dir}' && codex resume` });
 });
 
 test('it drops a hook line from another agent at a claude session', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-hook-agent-',
     options: () => ({
       adapters: buildAgentAdapters(
@@ -116,8 +116,8 @@ test('it drops a hook line from another agent at a claude session', async () => 
     }),
   });
 
-  const spawned = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'claude',
     cols: 80,
     rows: 24,
@@ -125,7 +125,7 @@ test('it drops a hook line from another agent at a claude session', async () => 
 
   const sessionID = getRecord(spawned, 'session')['id'];
 
-  await harness.sendHookLines(
+  await daemon.sendHookLines(
     {
       atcId: sessionID,
       agent: 'codex',
@@ -136,14 +136,14 @@ test('it drops a hook line from another agent at a claude session', async () => 
   );
 
   await waitFor(async () => {
-    const listed = await harness.client.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(JSON.stringify(listed)).toInclude('sentinel');
   });
 
-  const resumed = await harness.client.sendRequest('session.resumeCommand', {
+  const resumed = await daemon.client.sendRequest('session.resumeCommand', {
     session: sessionID,
   });
 
-  expect(resumed).toStrictEqual({ command: `cd '${harness.dir}' && bash --resume` });
+  expect(resumed).toStrictEqual({ command: `cd '${daemon.dir}' && bash --resume` });
 });

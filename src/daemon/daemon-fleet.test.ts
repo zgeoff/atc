@@ -6,18 +6,8 @@ import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
-interface SetupConfig {
-  // Writes what the state store holds before the daemon boots, given the
-  // store and the test's temp directory.
-  readonly seed: (store: StateStore, dir: string) => Promise<void>;
-}
-
-/**
- * A real daemon booted on a state store the test seeded first, whose
- * sessions run a sleep with no agent CLI behind them.
- */
-function setupTest(config: SetupConfig) {
-  return startTestDaemon({
+test('it keeps every stored fleet row restorable when a spawn writes the fleet before the restore', async () => {
+  await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-fleet-',
     options: async (paths) => {
       await using stack = new AsyncDisposableStack();
@@ -26,44 +16,37 @@ function setupTest(config: SetupConfig) {
 
       stack.defer(() => store.stop());
 
-      await config.seed(store, paths.dir);
-
-      return { adapter: buildMockAgentAdapter() };
-    },
-  });
-}
-
-test('it keeps every stored fleet row restorable when a spawn writes the fleet before the restore', async () => {
-  await using ctx = await setupTest({
-    seed: (store, dir) =>
-      store.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-live-a'), name: 'live-a', cwd: dir }),
-        buildMockFleetEntry({ sessionID: toSessionID('s-live-b'), name: 'live-b', cwd: dir }),
+      await store.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-live-a'), name: 'live-a', cwd: paths.dir }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-live-b'), name: 'live-b', cwd: paths.dir }),
         buildMockFleetEntry({
           sessionID: toSessionID('s-exited-a'),
           name: 'exited-a',
-          cwd: dir,
+          cwd: paths.dir,
           exited: true,
         }),
         buildMockFleetEntry({
           sessionID: toSessionID('s-exited-b'),
           name: 'exited-b',
-          cwd: dir,
+          cwd: paths.dir,
           exited: true,
         }),
-      ]),
+      ]);
+
+      return { adapter: buildMockAgentAdapter() };
+    },
   });
 
-  await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'claude',
     name: 'fresh',
     cols: 80,
     rows: 24,
   });
 
-  const restored = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-  const listed = await ctx.client.sendRequest('session.list');
+  const restored = await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(restored).toStrictEqual({ restored: 4 });
 
@@ -77,21 +60,31 @@ test('it keeps every stored fleet row restorable when a spawn writes the fleet b
 });
 
 test('it keeps every stored fleet row when a rename and a deliberate kill write the fleet before the restore', async () => {
-  await using ctx = await setupTest({
-    seed: (store, dir) =>
-      store.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-live-a'), name: 'live-a', cwd: dir }),
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-fleet-',
+    options: async (paths) => {
+      await using stack = new AsyncDisposableStack();
+
+      const store = await StateStore.open(paths.dbPath);
+
+      stack.defer(() => store.stop());
+
+      await store.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-live-a'), name: 'live-a', cwd: paths.dir }),
         buildMockFleetEntry({
           sessionID: toSessionID('s-exited-a'),
           name: 'exited-a',
-          cwd: dir,
+          cwd: paths.dir,
           exited: true,
         }),
-      ]),
+      ]);
+
+      return { adapter: buildMockAgentAdapter() };
+    },
   });
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'claude',
     name: 'fresh',
     cols: 80,
@@ -100,12 +93,12 @@ test('it keeps every stored fleet row when a rename and a deliberate kill write 
 
   const sessionID = getRecord(spawned, 'session')['id'];
 
-  await ctx.client.sendRequest('session.update', { session: sessionID, name: 'renamed' });
-  await ctx.client.sendRequest('session.kill', { session: sessionID });
-  await ctx.client.sendRequest('session.kill', { session: sessionID });
+  await daemon.client.sendRequest('session.update', { session: sessionID, name: 'renamed' });
+  await daemon.client.sendRequest('session.kill', { session: sessionID });
+  await daemon.client.sendRequest('session.kill', { session: sessionID });
 
-  const restored = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-  const listed = await ctx.client.sendRequest('session.list');
+  const restored = await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(restored).toStrictEqual({ restored: 2 });
 

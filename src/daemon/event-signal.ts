@@ -37,6 +37,10 @@ export class EventSignal {
     return deferred.promise;
   }
 
+  countWaiters(): number {
+    return this.waiters.size;
+  }
+
   dispose(): void {
     this.disposed = true;
     this.generation += 1;

@@ -64,7 +64,7 @@ async function setupTest() {
 test('it trusts only the resolved clone root in the user config after an opted-in local launch', async () => {
   await using ctx = await setupTest();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -103,7 +103,7 @@ test('it trusts only the resolved clone root in the user config after an opted-i
     ),
   );
 
-  await harness.client.sendRequest('session.spawn', {
+  await daemon.client.sendRequest('session.spawn', {
     trustClonedWorkspace: true,
     cwd: join(alias, 'clone'),
     agent: 'claude',
@@ -137,7 +137,7 @@ test('it trusts only the resolved clone root in the user config after an opted-i
 test('it leaves the user config byte for byte after a local clone launch with no opt-in', async () => {
   await using ctx = await setupTest();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -159,7 +159,7 @@ test('it leaves the user config byte for byte after a local clone launch with no
     JSON.stringify({ projects: { '/home/me': { hasTrustDialogAccepted: true } } }),
   );
 
-  await harness.client.sendRequest('session.spawn', {
+  await daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'local',
@@ -178,7 +178,7 @@ test('it leaves the user config byte for byte after a local clone launch with no
 test('it leaves the user config byte for byte after a local clone launch that opts out', async () => {
   await using ctx = await setupTest();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -200,7 +200,7 @@ test('it leaves the user config byte for byte after a local clone launch that op
     JSON.stringify({ projects: { '/home/me': { hasTrustDialogAccepted: true } } }),
   );
 
-  await harness.client.sendRequest('session.spawn', {
+  await daemon.client.sendRequest('session.spawn', {
     trustClonedWorkspace: false,
     cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
@@ -220,7 +220,7 @@ test('it leaves the user config byte for byte after a local clone launch that op
 test('it trusts a local clone when the target defaults trust on', async () => {
   await using ctx = await setupTest();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -239,7 +239,7 @@ test('it trusts a local clone when the target defaults trust on', async () => {
 
   writeFileSync(ctx.claudeConfig, '{}');
 
-  await harness.client.sendRequest('session.spawn', {
+  await daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'local',
@@ -258,7 +258,7 @@ test('it trusts a local clone when the target defaults trust on', async () => {
 test('it refuses local trust for an existing folder', async () => {
   await using ctx = await setupTest();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -279,7 +279,7 @@ test('it refuses local trust for an existing folder', async () => {
   writeFileSync(ctx.claudeConfig, '{"projects":{}}');
 
   expect(
-    harness.client.sendRequest('session.spawn', {
+    daemon.client.sendRequest('session.spawn', {
       trustClonedWorkspace: true,
       cwd: join(ctx.dir, 'existing'),
       agent: 'claude',
@@ -291,7 +291,7 @@ test('it refuses local trust for an existing folder', async () => {
 test('it leaves the user config and starts nothing when it refuses local trust for an existing folder', async () => {
   await using ctx = await setupTest();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -312,7 +312,7 @@ test('it leaves the user config and starts nothing when it refuses local trust f
   writeFileSync(ctx.claudeConfig, '{"projects":{}}');
 
   await Promise.allSettled([
-    harness.client.sendRequest('session.spawn', {
+    daemon.client.sendRequest('session.spawn', {
       trustClonedWorkspace: true,
       cwd: join(ctx.dir, 'existing'),
       agent: 'claude',
@@ -329,7 +329,7 @@ test('it leaves the user config and starts nothing when it refuses local trust f
 test('it refuses a local launch whose harness fails to start after the trust write', async () => {
   await using ctx = await setupTest();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -353,7 +353,7 @@ test('it refuses a local launch whose harness fails to start after the trust wri
   writeFileSync(ctx.claudeConfig, '{"projects":{}}');
 
   expect(
-    harness.client.sendRequest('session.spawn', {
+    daemon.client.sendRequest('session.spawn', {
       trustClonedWorkspace: true,
       cwd: join(ctx.dir, 'clone'),
       agent: 'claude',
@@ -371,7 +371,7 @@ test('it takes the local trust back and removes the clone when the harness fails
 
   const atSpawn: unknown[] = [];
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -402,7 +402,7 @@ test('it takes the local trust back and removes the clone when the harness fails
   writeFileSync(ctx.claudeConfig, original);
 
   await Promise.allSettled([
-    harness.client.sendRequest('session.spawn', {
+    daemon.client.sendRequest('session.spawn', {
       trustClonedWorkspace: true,
       cwd: join(ctx.dir, 'clone'),
       agent: 'claude',
@@ -432,7 +432,7 @@ test('it takes the local trust back and removes the clone when the harness fails
 test('it refuses a local launch whose trust write fails', async () => {
   await using ctx = await setupTest();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -452,7 +452,7 @@ test('it refuses a local launch whose trust write fails', async () => {
   writeFileSync(ctx.claudeConfig, '{"projects":');
 
   expect(
-    harness.client.sendRequest('session.spawn', {
+    daemon.client.sendRequest('session.spawn', {
       trustClonedWorkspace: true,
       cwd: join(ctx.dir, 'clone'),
       agent: 'claude',
@@ -465,7 +465,7 @@ test('it refuses a local launch whose trust write fails', async () => {
 test('it removes the clone, keeps the user config, and starts nothing when the trust write fails', async () => {
   await using ctx = await setupTest();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -485,7 +485,7 @@ test('it removes the clone, keeps the user config, and starts nothing when the t
   writeFileSync(ctx.claudeConfig, '{"projects":');
 
   await Promise.allSettled([
-    harness.client.sendRequest('session.spawn', {
+    daemon.client.sendRequest('session.spawn', {
       trustClonedWorkspace: true,
       cwd: join(ctx.dir, 'clone'),
       agent: 'claude',
@@ -504,7 +504,7 @@ test('it removes the clone, keeps the user config, and starts nothing when the t
 test('it refuses local trust for a gateway', async () => {
   await using ctx = await setupTest();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -524,7 +524,7 @@ test('it refuses local trust for a gateway', async () => {
   writeFileSync(ctx.claudeConfig, '{"projects":{}}');
 
   expect(
-    harness.client.sendRequest('session.spawn', {
+    daemon.client.sendRequest('session.spawn', {
       trustClonedWorkspace: true,
       cwd: join(ctx.dir, 'clone'),
       agent: 'plain',
@@ -541,7 +541,7 @@ test('it refuses local trust for a gateway', async () => {
 test('it refuses local trust for a gateway before cloning or touching the user config', async () => {
   await using ctx = await setupTest();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: () => ({
       adapters: ctx.adapters,
       gitTransports: ['file'],
@@ -561,7 +561,7 @@ test('it refuses local trust for a gateway before cloning or touching the user c
   writeFileSync(ctx.claudeConfig, '{"projects":{}}');
 
   await Promise.allSettled([
-    harness.client.sendRequest('session.spawn', {
+    daemon.client.sendRequest('session.spawn', {
       trustClonedWorkspace: true,
       cwd: join(ctx.dir, 'clone'),
       agent: 'plain',

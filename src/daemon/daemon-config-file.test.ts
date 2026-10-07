@@ -10,82 +10,64 @@ import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
-import { buildStubPTYProvider } from '../test-utils/build-stub-pty-provider';
+import { buildStubTargets } from '../test-utils/build-stub-targets';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildTargetIdentity } from './build-target-identity';
 
 /**
- * What the test leaves on disk before the daemon boots: the config file's
- * path, which the test may write or leave absent, the test's temp
- * directory, and an open state store, closed before the boot.
+ * The fixed parts of a daemon whose targets come from a config.json on disk
+ * through the real load: a config path in a temp directory of the test's
+ * own, which the test writes or leaves absent before the boot, the claude
+ * stand-in, whose headless runner records each turn it starts in `runs`, a
+ * real codex adapter pointed at a binary that does not exist, so codex is
+ * registered but not installed, and `harnesses`, which records the target
+ * of each spawn.
  */
-interface BeforeBoot {
-  readonly configPath: string;
-  readonly dir: string;
-  readonly store: StateStore;
-}
+function setupTest() {
+  using stack = new DisposableStack();
 
-interface SetupConfig {
-  readonly beforeBoot: (disk: BeforeBoot) => Promise<void> | void;
-}
+  const tmp = stack.use(setupTempDir('atc-daemon-config-file-'));
+  const configDir = join(tmp.dir, 'config');
 
-/**
- * A real daemon whose targets come from a config.json on disk through the
- * real load, at a path the test arranges before the boot. Every
- * `local-pty` target runs harnesses on a real pseudo-terminal through a
- * provider that records the target of each spawn in `harnesses`, and the
- * claude stand-in's headless runner records each turn it starts in `runs`.
- * The real codex adapter points at a binary that does not exist, so codex
- * is registered but not installed.
- */
-async function setupTest(config: SetupConfig) {
+  mkdirSync(configDir);
+
   const headless = buildStubHeadlessRunner();
+  const claude = buildMockAgentAdapter({ headlessRunner: headless.runner });
+  const codexConfig = parseConfig({ codexBin: join(tmp.dir, 'missing', 'codex') });
+
+  const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));
+
   const harnesses: string[] = [];
+  const owned = stack.move();
 
-  const harness = await startTestDaemon({
-    prefix: 'atc-daemon-config-file-',
-    options: async (paths) => {
-      const configPath = join(paths.dir, 'config', 'config.json');
+  return {
+    configPath: join(configDir, 'config.json'),
+    claude,
+    adapters: [claude, codex],
+    harnesses,
+    runs: headless.runs,
+    [Symbol.dispose]: () => {
+      owned.dispose();
+    },
+  };
+}
 
-      mkdirSync(join(paths.dir, 'config'), { recursive: true });
+test('it refuses a spawn without a target when an existing config holds invalid JSON', async () => {
+  using ctx = setupTest();
 
-      await using stack = new AsyncDisposableStack();
+  writeFileSync(ctx.configPath, '{ "targets": { "box": { "provider": "imp" } },');
 
-      const store = await StateStore.open(paths.dbPath);
-
-      stack.defer(() => store.stop());
-
-      await config.beforeBoot({ configPath, dir: paths.dir, store });
-      await stack.disposeAsync();
-
-      const loaded = loadConfig(configPath);
-      const claude = buildMockAgentAdapter({ headlessRunner: headless.runner });
-      const codexConfig = parseConfig({ codexBin: join(paths.dir, 'missing', 'codex') });
-
-      const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
 
       return {
-        adapter: claude,
-        adapters: [claude, codex],
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
         ejectSettleMs: 0,
-        targets: loaded.targets.map((target) => ({
-          id: target.id,
-          kind: target.provider,
-          options: target.options,
-          identity: buildTargetIdentity(target.provider, target.options),
-          provider:
-            new Map([
-              [
-                'local-pty',
-                buildStubPTYProvider({
-                  onSpawn: () => {
-                    harnesses.push(target.id);
-                  },
-                }),
-              ],
-            ]).get(target.provider) ?? null,
-        })),
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
         defaultTarget: loaded.defaultTarget,
         targetErrors: loaded.targetErrors,
         principals: loaded.principals,
@@ -93,21 +75,7 @@ async function setupTest(config: SetupConfig) {
     },
   });
 
-  return Object.assign(harness, {
-    configPath: join(harness.dir, 'config', 'config.json'),
-    harnesses,
-    runs: headless.runs,
-  });
-}
-
-test('it refuses a spawn without a target when an existing config holds invalid JSON', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      writeFileSync(disk.configPath, '{ "targets": { "box": { "provider": "imp" } },');
-    },
-  });
-
-  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
   expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -121,13 +89,27 @@ test('it refuses a spawn without a target when an existing config holds invalid 
 });
 
 test('it refuses a spawn on the local target when an existing config holds invalid JSON', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      writeFileSync(disk.configPath, '{ "targets": { "box": { "provider": "imp" } },');
+  using ctx = setupTest();
+
+  writeFileSync(ctx.configPath, '{ "targets": { "box": { "provider": "imp" } },');
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, target: 'local' });
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
 
   expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -141,13 +123,27 @@ test('it refuses a spawn on the local target when an existing config holds inval
 });
 
 test('it refuses a spawn without a target when the config path is a directory', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      mkdirSync(disk.configPath);
+  using ctx = setupTest();
+
+  mkdirSync(ctx.configPath);
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
   expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -161,13 +157,27 @@ test('it refuses a spawn without a target when the config path is a directory', 
 });
 
 test('it refuses a spawn on the local target when the config path is a directory', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      mkdirSync(disk.configPath);
+  using ctx = setupTest();
+
+  mkdirSync(ctx.configPath);
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, target: 'local' });
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
 
   expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -185,14 +195,28 @@ test('it refuses a spawn on the local target when the config path is a directory
 test.skipIf(process.getuid?.() === 0)(
   'it refuses a spawn without a target when the config file cannot be read',
   async () => {
-    await using ctx = await setupTest({
-      beforeBoot: (disk) => {
-        writeFileSync(disk.configPath, '{}');
-        chmodSync(disk.configPath, 0o000);
+    using ctx = setupTest();
+
+    writeFileSync(ctx.configPath, '{}');
+    chmodSync(ctx.configPath, 0o000);
+
+    await using daemon = await startTestDaemon({
+      options: () => {
+        const loaded = loadConfig(ctx.configPath);
+
+        return {
+          adapter: ctx.claude,
+          adapters: ctx.adapters,
+          ejectSettleMs: 0,
+          targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+          defaultTarget: loaded.defaultTarget,
+          targetErrors: loaded.targetErrors,
+          principals: loaded.principals,
+        };
       },
     });
 
-    const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+    const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
     expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -211,14 +235,31 @@ test.skipIf(process.getuid?.() === 0)(
 test.skipIf(process.getuid?.() === 0)(
   'it refuses a spawn on the local target when the config file cannot be read',
   async () => {
-    await using ctx = await setupTest({
-      beforeBoot: (disk) => {
-        writeFileSync(disk.configPath, '{}');
-        chmodSync(disk.configPath, 0o000);
+    using ctx = setupTest();
+
+    writeFileSync(ctx.configPath, '{}');
+    chmodSync(ctx.configPath, 0o000);
+
+    await using daemon = await startTestDaemon({
+      options: () => {
+        const loaded = loadConfig(ctx.configPath);
+
+        return {
+          adapter: ctx.claude,
+          adapters: ctx.adapters,
+          ejectSettleMs: 0,
+          targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+          defaultTarget: loaded.defaultTarget,
+          targetErrors: loaded.targetErrors,
+          principals: loaded.principals,
+        };
       },
     });
 
-    const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, target: 'local' });
+    const refused = daemon.client.sendRequest('session.spawn', {
+      cwd: daemon.dir,
+      target: 'local',
+    });
 
     expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -238,13 +279,27 @@ test.each([
   ['"local"', 'the root is a string, not an object'],
   ['null', 'the root is null, not an object'],
 ])('it refuses a spawn without a target when the config root is %s', async (text, detail) => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      writeFileSync(disk.configPath, text);
+  using ctx = setupTest();
+
+  writeFileSync(ctx.configPath, text);
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
   expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -263,13 +318,27 @@ test.each([
   ['"local"', 'the root is a string, not an object'],
   ['null', 'the root is null, not an object'],
 ])('it refuses a spawn on the local target when the config root is %s', async (text, detail) => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      writeFileSync(disk.configPath, text);
+  using ctx = setupTest();
+
+  writeFileSync(ctx.configPath, text);
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, target: 'local' });
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
 
   expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -283,13 +352,27 @@ test.each([
 });
 
 test('it refuses every spawn when a config file sets agents beside an old agent key', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      writeFileSync(disk.configPath, JSON.stringify({ agents: { claude: {} }, claudeArgs: [] }));
+  using ctx = setupTest();
+
+  writeFileSync(ctx.configPath, JSON.stringify({ agents: { claude: {} }, claudeArgs: [] }));
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
   expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -304,19 +387,39 @@ test('it refuses every spawn when a config file sets agents beside an old agent 
 });
 
 test('it refuses input to a restored local session without running a turn when the config holds invalid JSON', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: async (disk) => {
-      await disk.store.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: disk.dir }),
+  using ctx = setupTest();
+
+  writeFileSync(ctx.configPath, '{ "claudeBin": ');
+
+  await using daemon = await startTestDaemon({
+    options: async (paths) => {
+      await using stack = new AsyncDisposableStack();
+
+      const store = await StateStore.open(paths.dbPath);
+
+      stack.defer(() => store.stop());
+
+      await store.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),
       ]);
 
-      writeFileSync(disk.configPath, '{ "claudeBin": ');
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const input = ctx.client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
+  const input = daemon.client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
 
   expect(input).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -330,13 +433,27 @@ test('it refuses input to a restored local session without running a turn when t
 });
 
 test('it lists the config problem, no targets, and no default target when the config holds invalid JSON', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      writeFileSync(disk.configPath, '{ "targets": ');
+  using ctx = setupTest();
+
+  writeFileSync(ctx.configPath, '{ "targets": ');
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  const listed = await ctx.client.sendRequest('agents.list');
+  const listed = await daemon.client.sendRequest('agents.list');
 
   expect({
     targets: listed['targets'],
@@ -357,19 +474,49 @@ test('it lists the config problem, no targets, and no default target when the co
 });
 
 test('it lists no sessions and keeps answering when the config holds invalid JSON', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      writeFileSync(disk.configPath, '{ "targets": ');
+  using ctx = setupTest();
+
+  writeFileSync(ctx.configPath, '{ "targets": ');
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  expect(ctx.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
+  expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
 });
 
 test('it spawns a session without a target on the local target when no config exists', async () => {
-  await using ctx = await setupTest({ beforeBoot: () => {} });
+  using ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
+    },
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
   expect({
     targetID: getRecord(getRecord(spawned, 'session'), 'locator')['targetID'],
@@ -378,9 +525,25 @@ test('it spawns a session without a target on the local target when no config ex
 });
 
 test('it writes the default config when no config exists', async () => {
-  await using ctx = await setupTest({ beforeBoot: () => {} });
+  using ctx = setupTest();
 
-  await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
+    },
+  });
+
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
   expect(JSON.parse(readFileSync(ctx.configPath, 'utf8'))).toMatchObject({
     agents: { claude: {} },
@@ -388,13 +551,27 @@ test('it writes the default config when no config exists', async () => {
 });
 
 test('it refuses a spawn of an agent missing from this host with the config problem when the config holds invalid JSON', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      writeFileSync(disk.configPath, '{ "targets": ');
+  using ctx = setupTest();
+
+  writeFileSync(ctx.configPath, '{ "targets": ');
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  const spawn = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'codex' });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' });
 
   expect(spawn).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -408,13 +585,27 @@ test('it refuses a spawn of an agent missing from this host with the config prob
 });
 
 test('it refuses a spawn of an agent missing from this host as not installed when the config is usable', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      writeFileSync(disk.configPath, '{}');
+  using ctx = setupTest();
+
+  writeFileSync(ctx.configPath, '{}');
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  const spawn = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'codex' });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' });
 
   expect(spawn).rejects.toMatchObject({
     code: 'unsupported',
@@ -438,13 +629,27 @@ test.each([
     { target: 'box' },
   ],
 ])('it keeps a config value out of the spawn refusal for the config %s', async (text, params) => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      writeFileSync(disk.configPath, text);
+  using ctx = setupTest();
+
+  writeFileSync(ctx.configPath, text);
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  const refusal = ctx.client.sendRequest('session.spawn', { ...params, cwd: ctx.dir });
+  const refusal = daemon.client.sendRequest('session.spawn', { ...params, cwd: daemon.dir });
 
   expect(refusal).rejects.toHaveProperty('code', 'target_config_invalid');
 
@@ -462,13 +667,27 @@ test.each([
   '{ "targets": { "local": { "provider": "local-pty" } }, "defaultTarget": { "token": "sk_fixture_NOT_A_SECRET_1234" } }',
   '{ "targets": { "local": { "provider": "local-pty" }, "box": { "provider": 7, "token": "sk_fixture_NOT_A_SECRET_1234" } } }',
 ])('it keeps a config value out of the listed target errors for the config %s', async (text) => {
-  await using ctx = await setupTest({
-    beforeBoot: (disk) => {
-      writeFileSync(disk.configPath, text);
+  using ctx = setupTest();
+
+  writeFileSync(ctx.configPath, text);
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  const listed = await ctx.client.sendRequest('agents.list');
+  const listed = await daemon.client.sendRequest('agents.list');
 
   expect(JSON.stringify(listed['targetErrors'])).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
 });
@@ -489,42 +708,82 @@ test.each([
 ])(
   'it keeps a config value out of the session rows of a restored fleet for the config %s',
   async (text, target) => {
-    await using ctx = await setupTest({
-      beforeBoot: async (disk) => {
-        await disk.store.writeFleet([
+    using ctx = setupTest();
+
+    writeFileSync(ctx.configPath, text);
+
+    await using daemon = await startTestDaemon({
+      options: async (paths) => {
+        await using stack = new AsyncDisposableStack();
+
+        const store = await StateStore.open(paths.dbPath);
+
+        stack.defer(() => store.stop());
+
+        await store.writeFleet([
           buildMockFleetEntry({
             sessionID: toSessionID('s-old'),
             name: 'old work',
-            cwd: disk.dir,
+            cwd: paths.dir,
             target,
             targetIdentity: buildTargetIdentity('local-pty', {}),
           }),
         ]);
 
-        writeFileSync(disk.configPath, text);
+        const loaded = loadConfig(ctx.configPath);
+
+        return {
+          adapter: ctx.claude,
+          adapters: ctx.adapters,
+          ejectSettleMs: 0,
+          targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+          defaultTarget: loaded.defaultTarget,
+          targetErrors: loaded.targetErrors,
+          principals: loaded.principals,
+        };
       },
     });
 
-    await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+    await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-    const sessions = await ctx.client.sendRequest('session.list');
+    const sessions = await daemon.client.sendRequest('session.list');
 
     expect(JSON.stringify(sessions)).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
   },
 );
 
 test('it gives a principal legacy rights over a restored local session when no config exists', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: async (disk) => {
-      await disk.store.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: disk.dir }),
+  using ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    options: async (paths) => {
+      await using stack = new AsyncDisposableStack();
+
+      const store = await StateStore.open(paths.dbPath);
+
+      stack.defer(() => store.stop());
+
+      await store.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),
       ]);
+
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 1, rows: 1 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 1, rows: 1 });
 
-  const listed = await ctx.client.sendRequest('session.list', {}, 'client-a');
+  const listed = await daemon.client.sendRequest('session.list', {}, 'client-a');
 
   expect(listed).toMatchObject({ sessions: [{ id: 's-old' }] });
 });
@@ -538,38 +797,82 @@ test.each([
 ])(
   'it hides a restored local session from a principal when the config holds %s',
   async (_holding, text) => {
-    await using ctx = await setupTest({
-      beforeBoot: async (disk) => {
-        await disk.store.writeFleet([
-          buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: disk.dir }),
+    using ctx = setupTest();
+
+    writeFileSync(ctx.configPath, text);
+
+    await using daemon = await startTestDaemon({
+      options: async (paths) => {
+        await using stack = new AsyncDisposableStack();
+
+        const store = await StateStore.open(paths.dbPath);
+
+        stack.defer(() => store.stop());
+
+        await store.writeFleet([
+          buildMockFleetEntry({
+            sessionID: toSessionID('s-old'),
+            name: 'old work',
+            cwd: paths.dir,
+          }),
         ]);
 
-        writeFileSync(disk.configPath, text);
+        const loaded = loadConfig(ctx.configPath);
+
+        return {
+          adapter: ctx.claude,
+          adapters: ctx.adapters,
+          ejectSettleMs: 0,
+          targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+          defaultTarget: loaded.defaultTarget,
+          targetErrors: loaded.targetErrors,
+          principals: loaded.principals,
+        };
       },
     });
 
-    await ctx.client.sendRequest('fleet.restore', { cols: 1, rows: 1 });
+    await daemon.client.sendRequest('fleet.restore', { cols: 1, rows: 1 });
 
-    const listed = await ctx.client.sendRequest('session.list', {}, 'client-a');
+    const listed = await daemon.client.sendRequest('session.list', {}, 'client-a');
 
     expect(listed).toStrictEqual({ sessions: [] });
   },
 );
 
 test('it hides a restored local session from a principal when the config path is a directory', async () => {
-  await using ctx = await setupTest({
-    beforeBoot: async (disk) => {
-      await disk.store.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: disk.dir }),
+  using ctx = setupTest();
+
+  mkdirSync(ctx.configPath);
+
+  await using daemon = await startTestDaemon({
+    options: async (paths) => {
+      await using stack = new AsyncDisposableStack();
+
+      const store = await StateStore.open(paths.dbPath);
+
+      stack.defer(() => store.stop());
+
+      await store.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),
       ]);
 
-      mkdirSync(disk.configPath);
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        adapters: ctx.adapters,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 1, rows: 1 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 1, rows: 1 });
 
-  const listed = await ctx.client.sendRequest('session.list', {}, 'client-a');
+  const listed = await daemon.client.sendRequest('session.list', {}, 'client-a');
 
   expect(listed).toStrictEqual({ sessions: [] });
 });

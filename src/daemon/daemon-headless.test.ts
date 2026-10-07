@@ -22,7 +22,7 @@ import { waitFor } from '../test-utils/wait-for';
 async function setupTest() {
   const headless = buildStubHeadlessRunner();
 
-  const harness = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-headless-',
     options: () => ({
       adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
@@ -31,7 +31,7 @@ async function setupTest() {
     }),
   });
 
-  return Object.assign(harness, { runs: headless.runs });
+  return Object.assign(daemon, { runs: headless.runs });
 }
 
 test('it answers the eject of a terminal session with an empty reply', async () => {
@@ -491,13 +491,13 @@ test('it refuses to eject a session that never reported an agent session id', as
 });
 
 test('it reports eject as unsupported without a headless runner', async () => {
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     prefix: 'atc-headless-',
     options: () => ({ adapter: buildMockAgentAdapter(), ejectSettleMs: 30 }),
   });
 
-  const spawned = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -505,14 +505,14 @@ test('it reports eject as unsupported without a headless runner', async () => {
   });
 
   expect(
-    harness.client.sendRequest('session.eject', { session: getRecord(spawned, 'session')['id'] }),
+    daemon.client.sendRequest('session.eject', { session: getRecord(spawned, 'session')['id'] }),
   ).rejects.toMatchObject({ code: 'unsupported' });
 });
 
 test('it refuses to eject a grok session', async () => {
   const headless = buildStubHeadlessRunner();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     prefix: 'atc-headless-',
     options: (paths) => {
       updateEnv('GROK_HOME', join(paths.dir, 'grok-home'));
@@ -529,8 +529,8 @@ test('it refuses to eject a grok session', async () => {
     },
   });
 
-  const spawned = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     name: 'grok-handoff',
     agent: 'grok',
     resume: 'grok-sess-1',
@@ -539,7 +539,7 @@ test('it refuses to eject a grok session', async () => {
   });
 
   expect(
-    harness.client.sendRequest('session.eject', { session: getRecord(spawned, 'session')['id'] }),
+    daemon.client.sendRequest('session.eject', { session: getRecord(spawned, 'session')['id'] }),
   ).rejects.toMatchObject({
     code: 'unsupported',
     message: "this session's agent has no headless handoff",
@@ -552,7 +552,7 @@ test('it refuses to eject a grok session', async () => {
 test('it starts no headless run for a refused grok eject', async () => {
   const headless = buildStubHeadlessRunner();
 
-  await using harness = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     prefix: 'atc-headless-',
     options: (paths) => {
       updateEnv('GROK_HOME', join(paths.dir, 'grok-home'));
@@ -569,8 +569,8 @@ test('it starts no headless run for a refused grok eject', async () => {
     },
   });
 
-  const grok = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const grok = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     name: 'grok-handoff',
     agent: 'grok',
     resume: 'grok-sess-1',
@@ -578,8 +578,8 @@ test('it starts no headless run for a refused grok eject', async () => {
     rows: 24,
   });
 
-  const claude = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+  const claude = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -589,10 +589,10 @@ test('it starts no headless run for a refused grok eject', async () => {
   const claudeID = toSessionID(String(getRecord(claude, 'session')['id']));
 
   await Promise.allSettled([
-    harness.client.sendRequest('session.eject', { session: getRecord(grok, 'session')['id'] }),
+    daemon.client.sendRequest('session.eject', { session: getRecord(grok, 'session')['id'] }),
   ]);
 
-  await harness.client.sendRequest('session.eject', { session: claudeID });
+  await daemon.client.sendRequest('session.eject', { session: claudeID });
 
   await waitFor(() => {
     expect(headless.runs).toHaveLength(1);

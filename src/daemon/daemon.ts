@@ -240,6 +240,9 @@ export interface DaemonHandle {
   // How many client-protocol connections are open right now.
   readonly countClients: () => number;
 
+  // How many event reads are waiting right now for the trail to grow.
+  readonly countEventWaiters: () => number;
+
   // The port the TCP listener bound, or null without one.
   readonly listenPort: number | null;
 
@@ -2324,6 +2327,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   return {
     stop: stopDaemon,
     countClients: () => clients.size,
+    countEventWaiters: () => eventSignal.countWaiters(),
     listenPort: tcpListener?.port ?? null,
     refreshTokens,
   };
