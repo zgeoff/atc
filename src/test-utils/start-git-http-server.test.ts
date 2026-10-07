@@ -1,49 +1,33 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { $ } from 'bun';
-import { setupTempDir } from './setup-temp-dir';
+import { createGitFixture } from './create-git-fixture';
 import { startGitHTTPServer } from './start-git-http-server';
+import { waitFor } from './wait-for';
 
-// A bare repository with one commit, served by the server under test, with
-// the host's system and global git config kept out of every command.
+// A bare repository with one commit at `upstream.git` under `dir`, for the
+// server under test to serve; `env` keeps the host's git config and any
+// credential prompt out of every git command.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
-  const tmp = stack.use(setupTempDir('atc-git-http-'));
+  const created = await createGitFixture({ prefix: 'atc-git-http-' });
 
-  const env = {
-    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_TERMINAL_PROMPT: '0',
-  };
-
-  const upstream = join(tmp.dir, 'upstream.git');
-  const work = join(tmp.dir, 'work');
-
-  await $`git init --quiet --bare --template= --initial-branch=main ${upstream}`.env(env).quiet();
-  await $`git clone --quiet --template= ${upstream} ${work}`.env(env).quiet();
-
-  await $`git -c user.name=atc -c user.email=atc@example.com commit --quiet --allow-empty -m one`
-    .env(env)
-    .cwd(work)
-    .quiet();
-
-  await $`git push --quiet origin main`.env(env).cwd(work).quiet();
-
-  const server = startGitHTTPServer(tmp.dir, env);
-
-  stack.defer(() => server.stop());
-
+  const fixture = stack.use(created);
   const owned = stack.move();
 
-  return { env, dir: tmp.dir, server, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return {
+    dir: fixture.dir,
+    env: { ...fixture.env, GIT_TERMINAL_PROMPT: '0' },
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+  };
 }
 
 test('it clones a served repository for a client that authenticates and records the header', async () => {
   await using ctx = await setupTest();
+  await using server = startGitHTTPServer(ctx.dir, ctx.env);
 
-  const url = new URL('upstream.git', ctx.server.url);
+  const url = new URL('upstream.git', server.url);
 
   url.username = 'x-access-token';
   url.password = 'fixture-not-a-secret';
@@ -54,9 +38,9 @@ test('it clones a served repository for a client that authenticates and records 
     .quiet();
 
   expect(clone.exitCode).toBe(0);
-  expect(ctx.server.authorizations).not.toBeEmpty();
+  expect(server.authorizations).not.toBeEmpty();
 
-  expect(ctx.server.authorizations).toSatisfyAll(
+  expect(server.authorizations).toSatisfyAll(
     (header: string) =>
       header === `Basic ${Buffer.from('x-access-token:fixture-not-a-secret').toString('base64')}`,
   );
@@ -64,36 +48,87 @@ test('it clones a served repository for a client that authenticates and records 
 
 test('it refuses a client that does not authenticate', async () => {
   await using ctx = await setupTest();
+  await using server = startGitHTTPServer(ctx.dir, ctx.env);
 
-  const clone = await $`git clone --quiet ${`${ctx.server.url}upstream.git`} ${join(ctx.dir, 'c')}`
+  const clone = await $`git clone --quiet ${`${server.url}upstream.git`} ${join(ctx.dir, 'c')}`
     .env(ctx.env)
     .nothrow()
     .quiet();
 
   expect(clone.exitCode).not.toBe(0);
-  expect(ctx.server.authorizations).toStrictEqual([]);
+  expect(server.authorizations).toStrictEqual([]);
 });
 
-test('it holds each authenticated request for the delay it is given', async () => {
+test('it holds an authenticated request for the delay it is given', async () => {
   await using ctx = await setupTest();
 
-  const slow = startGitHTTPServer(ctx.dir, ctx.env, { delayMs: 400 });
+  const release = Promise.withResolvers<void>();
+  const waits: number[] = [];
 
-  onTestFinished(async () => {
-    await slow.stop();
+  await using server = startGitHTTPServer(ctx.dir, ctx.env, {
+    delayMs: 400,
+    wait: (ms) => {
+      waits.push(ms);
+
+      return release.promise;
+    },
   });
 
-  const url = new URL('upstream.git', slow.url);
+  const url = new URL('upstream.git', server.url);
 
   url.username = 'x-access-token';
   url.password = 'fixture-not-a-secret';
 
-  const started = Date.now();
+  await using listing = Bun.spawn(['git', 'ls-remote', url.href], {
+    env: ctx.env,
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
 
-  const listed = await $`git ls-remote ${url.href}`.env(ctx.env).nothrow().quiet();
+  await waitFor(() => {
+    expect(waits).not.toBeEmpty();
+  });
 
-  expect(listed.exitCode).toBe(0);
-  expect(Date.now() - started).toBeGreaterThanOrEqual(400);
+  const whileHeld = await Promise.race([listing.exited, Promise.resolve('held')]);
+
+  expect({ whileHeld, waits }).toStrictEqual({ whileHeld: 'held', waits: [400] });
+});
+
+test('it serves a held request once its delay is over', async () => {
+  await using ctx = await setupTest();
+
+  const release = Promise.withResolvers<void>();
+  const waits: number[] = [];
+
+  await using server = startGitHTTPServer(ctx.dir, ctx.env, {
+    delayMs: 400,
+    wait: (ms) => {
+      waits.push(ms);
+
+      return release.promise;
+    },
+  });
+
+  const url = new URL('upstream.git', server.url);
+
+  url.username = 'x-access-token';
+  url.password = 'fixture-not-a-secret';
+
+  await using listing = Bun.spawn(['git', 'ls-remote', url.href], {
+    env: ctx.env,
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
+
+  await waitFor(() => {
+    expect(waits).not.toBeEmpty();
+  });
+
+  release.resolve();
+
+  const exitCode = await listing.exited;
+
+  expect(exitCode).toBe(0);
 });
 
 test('it calls back once for each authenticated request', async () => {
@@ -101,14 +136,10 @@ test('it calls back once for each authenticated request', async () => {
 
   let calls = 0;
 
-  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  await using hooked = startGitHTTPServer(ctx.dir, ctx.env, {
     onRequest: () => {
       calls += 1;
     },
-  });
-
-  onTestFinished(async () => {
-    await hooked.stop();
   });
 
   const url = new URL('upstream.git', hooked.url);
@@ -133,7 +164,7 @@ test('it holds a request while the callback is still pending', async () => {
   // at once.
   const waits = [gate.promise];
 
-  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  await using hooked = startGitHTTPServer(ctx.dir, ctx.env, {
     onRequest: async () => {
       entered.resolve(null);
 
@@ -141,16 +172,16 @@ test('it holds a request while the callback is still pending', async () => {
     },
   });
 
-  onTestFinished(async () => {
-    await hooked.stop();
-  });
-
   const url = `${hooked.url}upstream.git/info/refs?service=git-upload-pack`;
   const headers = { authorization: `Basic ${Buffer.from('atc:fixture').toString('base64')}` };
   const first = fetch(url, { headers });
   const firstSettled = Promise.allSettled([first]);
 
-  onTestFinished(async () => {
+  // Declared after the server, so it opens the gate and lets the first
+  // request finish before the server stops.
+  await using held = new AsyncDisposableStack();
+
+  held.defer(async () => {
     gate.resolve(null);
 
     await firstSettled;
@@ -170,16 +201,12 @@ test('it answers a held request once the callback resolves', async () => {
   const entered = Promise.withResolvers<null>();
   const gate = Promise.withResolvers<null>();
 
-  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  await using hooked = startGitHTTPServer(ctx.dir, ctx.env, {
     onRequest: async () => {
       entered.resolve(null);
 
       await gate.promise;
     },
-  });
-
-  onTestFinished(async () => {
-    await hooked.stop();
   });
 
   const response = fetch(`${hooked.url}upstream.git/info/refs?service=git-upload-pack`, {

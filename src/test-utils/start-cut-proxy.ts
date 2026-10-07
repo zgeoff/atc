@@ -20,7 +20,11 @@ export interface CutProxy {
 
   // How many requests of the method the proxy has seen.
   readonly countRequests: () => number;
+
+  // How many answers the proxy has swallowed in hold mode.
+  readonly countHeld: () => number;
   readonly stop: () => void;
+  readonly [Symbol.dispose]: () => void;
 }
 
 // One proxied connection: the target side once it is connected, what the
@@ -33,6 +37,9 @@ interface ProxyLink {
   lineBuffer: string;
   cutting: boolean;
   held: boolean;
+
+  // Counts an answer the link swallows in hold mode.
+  readonly onHold: () => void;
 }
 
 /**
@@ -44,6 +51,7 @@ interface ProxyLink {
 export function startCutProxy(options: CutProxyOptions): CutProxy {
   let cutsLeft = options.cuts;
   let requests = 0;
+  let held = 0;
 
   const links = new Set<Socket<ProxyLink>>();
 
@@ -59,6 +67,9 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
           lineBuffer: '',
           cutting: false,
           held: false,
+          onHold: () => {
+            held++;
+          },
         };
 
         links.add(client);
@@ -110,17 +121,21 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
     },
   });
 
+  const stop = () => {
+    for (const client of links) {
+      client.end();
+      client.data.upstream?.end();
+    }
+
+    server.stop(true);
+  };
+
   return {
     port: server.port,
     countRequests: () => requests,
-    stop() {
-      for (const client of links) {
-        client.end();
-        client.data.upstream?.end();
-      }
-
-      server.stop(true);
-    },
+    countHeld: () => held,
+    stop,
+    [Symbol.dispose]: stop,
   };
 }
 
@@ -148,6 +163,8 @@ async function openUpstream(client: Socket<ProxyLink>, options: CutProxyOptions)
 
           if (options.mode === 'hold') {
             client.data.held = true;
+
+            client.data.onHold();
 
             return;
           }

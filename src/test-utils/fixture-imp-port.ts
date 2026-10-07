@@ -152,6 +152,11 @@ export class FixtureImpPort implements ImpPort {
   // The lease acquisitions wait for this hold to end, while one is held.
   private leaseHold: PromiseWithResolvers<void> | null = null;
 
+  // How many lease acquisitions and releases wait on their holds.
+  private heldLeases = 0;
+
+  private heldReleases = 0;
+
   // The directory a relative or missing working directory resolves
   // against inside every imp, as a guest's home does; null for the test's
   // own working directory.
@@ -184,6 +189,9 @@ export class FixtureImpPort implements ImpPort {
   // Whether every relayed connection drops what the guest writes, while
   // what the daemon writes still reaches the guest.
   private droppingGuestBytes = false;
+
+  // How many guest bytes the drop has thrown away.
+  private droppedGuestBytes = 0;
 
   private readonly principal: string;
 
@@ -337,7 +345,11 @@ export class FixtureImpPort implements ImpPort {
   }
 
   private async waitForLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
+    this.heldLeases += 1;
+
     await this.leaseHold?.promise;
+
+    this.heldLeases -= 1;
 
     return this.applyLease(name, label, ttlSeconds);
   }
@@ -403,7 +415,11 @@ export class FixtureImpPort implements ImpPort {
   }
 
   private async waitForRelease(name: string, label: string): Promise<boolean> {
+    this.heldReleases += 1;
+
     await this.releaseHold?.promise;
+
+    this.heldReleases -= 1;
 
     return this.applyRelease(name, label);
   }
@@ -677,6 +693,8 @@ export class FixtureImpPort implements ImpPort {
         },
         data: (socket, buf) => {
           if (this.droppingGuestBytes) {
+            this.droppedGuestBytes += buf.length;
+
             return;
           }
 
@@ -886,12 +904,22 @@ export class FixtureImpPort implements ImpPort {
     this.droppingGuestBytes = false;
   }
 
+  // How many bytes guests wrote that the drop threw away.
+  countDroppedGuestBytes(): number {
+    return this.droppedGuestBytes;
+  }
+
   /**
    * Holds every session answer back, as a slow network does, until the
    * hold stops.
    */
   startAnswerHold(): void {
     this.held ??= [];
+  }
+
+  // How many session answers wait for the answer hold to stop.
+  countHeldAnswers(): number {
+    return this.held?.length ?? 0;
   }
 
   /**
@@ -972,6 +1000,11 @@ export class FixtureImpPort implements ImpPort {
     this.leaseHold ??= Promise.withResolvers<void>();
   }
 
+  // How many lease acquisitions wait for the lease hold to stop.
+  countHeldLeases(): number {
+    return this.heldLeases;
+  }
+
   /**
    * Lets every held lease acquisition go through, and the next at once.
    */
@@ -985,6 +1018,11 @@ export class FixtureImpPort implements ImpPort {
    */
   startReleaseHold(): void {
     this.releaseHold ??= Promise.withResolvers<void>();
+  }
+
+  // How many lease releases wait for the release hold to stop.
+  countHeldReleases(): number {
+    return this.heldReleases;
   }
 
   /**

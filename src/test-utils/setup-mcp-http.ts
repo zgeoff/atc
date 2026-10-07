@@ -1,30 +1,15 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle } from '../daemon/daemon';
 import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
+import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 import { setupTempDir } from './setup-temp-dir';
 
-const SLEEP_ADAPTER: AgentAdapter = {
-  id: 'claude',
-  headlessRunner: null,
-  screenDetector: null,
-  takesMessages: false,
-  planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-  normalizeHook: () => ({ kind: 'heartbeat' }),
-  loadName: () => Promise.resolve(null),
-  canResume: () => true,
-  buildResumeCommand: () => null,
-};
-
 interface MCPHTTPSetupOptions {
-  // How long a rotated refresh token still answers with its successor.
-  readonly refreshReuseSeconds?: number;
-
   // Further Host header values the server accepts.
   readonly allowedHosts?: readonly string[];
 }
@@ -57,7 +42,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
       socketPath,
       reporterSocketPath: join(tmp.dir, 'reporter.sock'),
       build: 'atc/test-build',
-      adapter: SLEEP_ADAPTER,
+      adapter: buildMockAgentAdapter(),
       dbPath: join(tmp.dir, 'state.db'),
       statusPath: join(tmp.dir, 'status.json'),
       principals,
@@ -83,9 +68,6 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
     printRequest: (line) => {
       requests.push(line);
     },
-    ...(options.refreshReuseSeconds === undefined
-      ? {}
-      : { refreshReuseSeconds: options.refreshReuseSeconds }),
   });
 
   const store = await openMCPAuth({ dbPath, origin: null });

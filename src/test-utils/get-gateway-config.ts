@@ -4,11 +4,11 @@ import { getAgentEntry } from './get-agent-entry';
 
 /**
  * The gateway a parsed config holds under an agent id: a Claude entry with a
- * base URL. Throws when the config holds no such agent or the entry has no
- * base URL.
+ * base URL, without the registry's `kind`, which a gateway does not carry.
+ * Throws when the config holds no such agent or the entry has no base URL.
  */
 export function getGatewayConfig(config: Pick<Config, 'agents'>, id: string): GatewayConfig {
-  const entry = getAgentEntry(config, id);
+  const { kind: _kind, ...entry } = getAgentEntry(config, id);
 
   if (entry.baseURL === undefined) {
     throw new Error(`the agent '${id}' has no baseURL`);

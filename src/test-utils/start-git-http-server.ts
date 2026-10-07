@@ -5,6 +5,18 @@ interface GitHTTPServer {
   // Every Authorization header a request carried, in arrival order.
   readonly authorizations: string[];
   readonly stop: () => Promise<void>;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+}
+
+interface GitHTTPServerOptions {
+  // How long each authenticated request waits before it is served.
+  readonly delayMs?: number;
+
+  // Waits out the delay; a timer unless given.
+  readonly wait?: (ms: number) => Promise<void>;
+
+  // Runs, and is awaited, while each authenticated request is held.
+  readonly onRequest?: () => Promise<void> | void;
 }
 
 /**
@@ -15,16 +27,14 @@ interface GitHTTPServer {
  * authenticated request waits that long before it is served, which makes a
  * clone through it slow. An `onRequest` callback runs, and is awaited, while
  * each authenticated request is held, so it sees the client that sent the
- * request still running.
+ * request still running. Stop it with `stop`, or hold it with `await using`.
  */
 export function startGitHTTPServer(
   root: string,
   env: Readonly<Record<string, string | undefined>>,
-  options: {
-    readonly delayMs?: number;
-    readonly onRequest?: () => Promise<void> | void;
-  } = {},
+  options: GitHTTPServerOptions = {},
 ): GitHTTPServer {
+  const wait = options.wait ?? Bun.sleep;
   const authorizations: string[] = [];
 
   const server = Bun.serve({
@@ -43,7 +53,7 @@ export function startGitHTTPServer(
       authorizations.push(authorization);
 
       if (options.delayMs !== undefined) {
-        await Bun.sleep(options.delayMs);
+        await wait(options.delayMs);
       }
 
       await options.onRequest?.();
@@ -81,6 +91,7 @@ export function startGitHTTPServer(
     url: `http://127.0.0.1:${server.port}/`,
     authorizations,
     stop: () => server.stop(true),
+    [Symbol.asyncDispose]: () => server.stop(true),
   };
 }
 

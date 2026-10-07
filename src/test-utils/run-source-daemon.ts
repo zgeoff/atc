@@ -96,8 +96,6 @@ async function main() {
     gitTransports: config.workspaces.gitTransports,
   });
 
-  process.stdout.write('up\n');
-
   process.on('SIGTERM', () => {
     void (async () => {
       await handle.stop();
@@ -105,6 +103,8 @@ async function main() {
       process.exit(0);
     })();
   });
+
+  process.stdout.write('up\n');
 }
 
 await main();
