@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { openMCPAuth } from './open-mcp-auth';
 import { verifyOAuthQuery } from './verify-oauth-query';
@@ -47,9 +48,7 @@ test('it accepts the query better-auth signs for the login page', async () => {
 
   const login = new URL(answered.headers.get('location') ?? '/', 'https://atc.example');
 
-  if (login.pathname !== '/login') {
-    throw new Error('the authorization did not reach the login page');
-  }
+  invariant(login.pathname === '/login', 'the authorization did not reach the login page');
 
   const verified = await verifyOAuthQuery(login.search.slice(1), ctx.secret);
 
