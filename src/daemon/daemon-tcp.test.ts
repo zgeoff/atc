@@ -1,202 +1,37 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import { DaemonClient } from '../client/daemon-client';
 import type { EventMsg } from '../protocol/protocol';
 import { claimDaemonLock } from '../shared/claim-daemon-lock';
 import { collectTargets } from '../shared/collect-targets';
 import { getRecord } from '../shared/get-record';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildStubClock } from '../test-utils/build-stub-clock';
 import { canBindAddresses } from '../test-utils/can-bind-addresses';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { buildTargetIdentity } from './build-target-identity';
 import { startDaemon } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';
 
-const TOKEN_A = 'a'.repeat(32);
-const TOKEN_B = 'b'.repeat(40);
+test('it answers a TCP handshake that carries a token from the token file', async () => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-// The token file's starting content, the principals key (null for none),
-// the failure delay the listener uses, and whether the daemon has a second
-// target, `box`, beside `local`.
-interface TCPDaemonOptions {
-  readonly tokens: string;
-  readonly box?: boolean;
-  readonly principals: ReadonlyMap<string, readonly string[]> | null;
-  readonly failureDelayMs?: number;
-  readonly maxDelayedHandshakes?: number;
-  readonly maxRefusalWindows?: number;
-}
-
-/**
- * A real daemon with a TCP listener on a kernel-chosen loopback port,
- * whose token file starts with the given content and whose principals key
- * is the given map, or absent when null. With `box`, the daemon runs the
- * targets `local` and `box`, each on a real pseudo-terminal, and
- * `spawnSession` takes the target. `owner` is the daemon owner's
- * connection on the local socket. `openTCP` dials the listener without a
- * handshake, and `openTCPAs` dials it and handshakes with a token.
- * `writeTokens` rewrites the token file. `logged` holds every line the
- * daemon logs, and `advanceClock` moves the clock the listener's refusal
- * log reads, whose window lasts a minute. `refuseFrom` dials the listener
- * from a loopback source address, sends a line before any handshake, and
- * resolves once the listener closes the connection, or rejects with the
- * socket's error, such as EADDRNOTAVAIL for an address the host lacks.
- */
-async function setupTest(options: TCPDaemonOptions) {
-  const tmp = setupTempDir('atc-daemon-tcp-');
-  const tokenFile = join(tmp.dir, 'gateway-token');
-  const logged: string[] = [];
-  let clock = 0;
-
-  writeFileSync(tokenFile, options.tokens);
-
-  const local = new LocalPTYProvider();
-
-  const targets = collectTargets(
-    { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
-    undefined,
-  );
-
-  const daemon = await startDaemon({
-    socketPath: join(tmp.dir, 'daemon.sock'),
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: {
-      id: 'claude',
-      screenDetector: null,
-      takesMessages: true,
-      headlessRunner: null,
-      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-      normalizeHook: () => ({ kind: 'prompt-submitted' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => 'claude --resume',
-    },
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    principals: options.principals,
-    ...(options.box === true
-      ? {
-          targets: targets.targets.map((target) => ({
-            id: target.id,
-            kind: target.provider,
-            options: target.options,
-            identity: buildTargetIdentity(target.provider, target.options),
-            provider: local,
-          })),
-          defaultTarget: targets.defaultTarget,
-          targetErrors: targets.errors,
-        }
-      : {}),
-    listen: {
-      host: '127.0.0.1',
-      port: 0,
-      tokenFile,
-      ...(options.failureDelayMs === undefined ? {} : { failureDelayMs: options.failureDelayMs }),
-      ...(options.maxDelayedHandshakes === undefined
-        ? {}
-        : { maxDelayedHandshakes: options.maxDelayedHandshakes }),
-      ...(options.maxRefusalWindows === undefined
-        ? {}
-        : { maxRefusalWindows: options.maxRefusalWindows }),
-      now: () => clock,
-      refusalLogIntervalMs: 60_000,
-    },
-    log: (line) => {
-      logged.push(line);
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
     },
   });
 
-  const clients: DaemonClient[] = [];
-
-  const openTCP = async () => {
-    const port = daemon.listenPort;
-
-    if (port === null) {
-      throw new Error('the daemon started without a TCP listener');
-    }
-
-    const client = await DaemonClient.open({ hostname: '127.0.0.1', port });
-
-    clients.push(client);
-
-    return client;
-  };
-
-  const owner = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
-
-  clients.push(owner);
-
-  await owner.sendHello('atc/test-build');
-
-  return {
-    daemon,
-    owner,
-    logged,
-    openTCP,
-    advanceClock(ms: number): void {
-      clock += ms;
-    },
-    async refuseFrom(localAddress: string): Promise<void> {
-      const closed = Promise.withResolvers<void>();
-
-      const socket = createConnection({
-        host: '127.0.0.1',
-        port: daemon.listenPort ?? 0,
-        localAddress,
-      });
-
-      socket.on('error', (error) => {
-        closed.reject(error);
-      });
-
-      socket.on('close', () => {
-        closed.resolve();
-      });
-
-      socket.write('not a handshake\n');
-
-      await closed.promise;
-    },
-    async openTCPAs(token: string): Promise<DaemonClient> {
-      const client = await openTCP();
-
-      await client.sendHello('atc/test-gateway', token);
-
-      return client;
-    },
-    writeTokens(content: string): void {
-      writeFileSync(tokenFile, content);
-    },
-    async spawnSession(target?: string): Promise<string> {
-      const spawned = await owner.sendRequest('session.spawn', {
-        cwd: '/tmp',
-        resume: `a-${randomUUID()}`,
-        ...(target === undefined ? {} : { target }),
-      });
-
-      return String(getRecord(spawned, 'session')['id']);
-    },
-    async [Symbol.asyncDispose]() {
-      for (const client of clients) {
-        client.stop();
-      }
-
-      await daemon.stop();
-
-      tmp[Symbol.dispose]();
-    },
-  };
-}
-
-test('it answers a TCP handshake that carries a token from the token file', async () => {
-  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
-
-  const client = await daemon.openTCP();
-  const hello = await client.sendHello('atc/test-gateway', TOKEN_A);
+  const client = await ctx.openTCPClient();
+  const hello = await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
   expect(hello).toMatchObject({
     daemon: 'atc/test-build',
@@ -206,9 +41,19 @@ test('it answers a TCP handshake that carries a token from the token file', asyn
 });
 
 test('it refuses a TCP handshake without a token and closes the connection', async () => {
-  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  const client = await daemon.openTCP();
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
+  });
+
+  const client = await ctx.openTCPClient();
 
   const closed = Promise.withResolvers<void>();
 
@@ -216,15 +61,27 @@ test('it refuses a TCP handshake without a token and closes the connection', asy
     closed.resolve();
   };
 
-  expect(client.sendHello('atc/test-gateway')).rejects.toMatchObject({ code: 'unauthorized' });
+  const hello = client.sendHello('atc/test-gateway');
+
+  expect(hello).rejects.toMatchObject({ code: 'unauthorized' });
 
   await closed.promise;
 });
 
 test('it refuses a TCP handshake with a wrong token and closes the connection', async () => {
-  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  const client = await daemon.openTCP();
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
+  });
+
+  const client = await ctx.openTCPClient();
 
   const closed = Promise.withResolvers<void>();
 
@@ -232,17 +89,27 @@ test('it refuses a TCP handshake with a wrong token and closes the connection', 
     closed.resolve();
   };
 
-  expect(client.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
-    code: 'unauthorized',
-  });
+  const hello = client.sendHello('atc/test-gateway', 'b'.repeat(40));
+
+  expect(hello).rejects.toMatchObject({ code: 'unauthorized' });
 
   await closed.promise;
 });
 
 test('it closes a TCP connection that sends a request before the handshake without answering it', async () => {
-  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  const client = await daemon.openTCP();
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
+  });
+
+  const client = await ctx.openTCPClient();
 
   expect(client.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
     code: 'internal',
@@ -250,41 +117,69 @@ test('it closes a TCP connection that sends a request before the handshake witho
   });
 });
 
-test('it accepts a handshake with either token of a two-token file', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n${TOKEN_B}\n`,
-    principals: new Map(),
+test.each([
+  ['the first', 'a'.repeat(32)],
+  ['the second', 'b'.repeat(40)],
+])('it accepts a handshake with %s token of a two-token file', async (_which, token) => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const first = await daemon.openTCP();
-  const second = await daemon.openTCP();
-  const firstHello = await first.sendHello('atc/test-gateway', TOKEN_A);
-  const secondHello = await second.sendHello('atc/test-gateway', TOKEN_B);
+  const client = await ctx.openTCPClient();
+  const hello = await client.sendHello('atc/test-gateway', token);
 
-  expect(firstHello).toContainKey('daemonID');
-  expect(secondHello).toContainKey('daemonID');
+  expect(hello).toContainKey('daemonID');
 });
 
 test('it serves a TCP request that acts as a listed principal', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const id = await daemon.spawnSession();
-  const client = await daemon.openTCPAs(TOKEN_A);
+  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: 'a-1' });
+  const client = await ctx.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+
   const listed = await client.sendRequest('session.list', {}, 'gw');
 
-  expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id })] });
+  expect(listed).toStrictEqual({
+    sessions: [expect.objectContaining({ id: getRecord(spawned, 'session')['id'] })],
+  });
 });
 
 test('it refuses a TCP request without as', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const client = await daemon.openTCPAs(TOKEN_A);
+  const client = await ctx.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
   expect(client.sendRequest('session.list', {})).rejects.toMatchObject({
     code: 'unauthorized',
@@ -294,31 +189,71 @@ test('it refuses a TCP request without as', async () => {
 test.each([['daemon.quit'], ['fleet.restore']])(
   'it refuses %s over TCP as owner-only',
   async (method) => {
-    await using daemon = await setupTest({
-      tokens: `${TOKEN_A}\n`,
-      principals: new Map([['gw', ['local']]]),
+    await using ctx = await startTestDaemon({
+      options: (paths) => {
+        writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+        return {
+          adapter: buildMockAgentAdapter(),
+          principals: new Map([['gw', ['local']]]),
+          listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        };
+      },
     });
 
-    const client = await daemon.openTCPAs(TOKEN_A);
+    const client = await ctx.openTCPClient();
+
+    await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
     expect(client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
       code: 'unauthorized',
       message: `${method} is open to the daemon's owner only`,
     });
+  },
+);
 
-    const pinged = await daemon.owner.sendRequest('daemon.ping', {});
+test.each([['daemon.quit'], ['fleet.restore']])(
+  'it keeps serving the owner after it refuses %s over TCP',
+  async (method) => {
+    await using ctx = await startTestDaemon({
+      options: (paths) => {
+        writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+        return {
+          adapter: buildMockAgentAdapter(),
+          principals: new Map([['gw', ['local']]]),
+          listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        };
+      },
+    });
+
+    const client = await ctx.openTCPClient();
+
+    await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+    await Promise.allSettled([client.sendRequest(method, {}, 'gw')]);
+
+    const pinged = await ctx.client.sendRequest('daemon.ping', {});
 
     expect(pinged).toStrictEqual({});
   },
 );
 
 test('it refuses a TCP request as a principal the principals key does not list', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const client = await daemon.openTCPAs(TOKEN_A);
+  const client = await ctx.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
   expect(client.sendRequest('session.list', {}, 'other')).rejects.toMatchObject({
     code: 'unauthorized',
@@ -327,11 +262,23 @@ test('it refuses a TCP request as a principal the principals key does not list',
 });
 
 test('it refuses every TCP principal when the config has no principals key', async () => {
-  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: null });
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  await daemon.spawnSession();
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: null,
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
+  });
 
-  const client = await daemon.openTCPAs(TOKEN_A);
+  await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: 'a-1' });
+
+  const client = await ctx.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
   expect(client.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
     code: 'unauthorized',
@@ -340,12 +287,19 @@ test('it refuses every TCP principal when the config has no principals key', asy
 });
 
 test('it refuses a TCP handshake whose principal the principals key does not list', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const client = await daemon.openTCP();
+  const client = await ctx.openTCPClient();
 
   const closed = Promise.withResolvers<void>();
 
@@ -353,72 +307,280 @@ test('it refuses a TCP handshake whose principal the principals key does not lis
     closed.resolve();
   };
 
-  expect(
-    client.sendRequest('daemon.hello', {
-      client: 'atc/test-gateway',
-      principal: 'other',
-      auth: { scheme: 'bearer', token: TOKEN_A },
-    }),
-  ).rejects.toMatchObject({ code: 'unauthorized' });
+  const hello = client.sendRequest('daemon.hello', {
+    client: 'atc/test-gateway',
+    principal: 'other',
+    auth: { scheme: 'bearer', token: 'a'.repeat(32) },
+  });
+
+  expect(hello).rejects.toMatchObject({ code: 'unauthorized' });
 
   await closed.promise;
 });
 
-test('it answers a TCP principal for a session outside its targets as for a missing session', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', []]]),
+test('it lists none of the sessions outside the targets of a TCP principal', async () => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', []]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const id = await daemon.spawnSession();
-  const client = await daemon.openTCPAs(TOKEN_A);
+  await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: 'a-1' });
+
+  const client = await ctx.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+
   const listed = await client.sendRequest('session.list', {}, 'gw');
 
   expect(listed).toStrictEqual({ sessions: [] });
+});
+
+test('it answers a TCP principal reading a session outside its targets as for a missing session', async () => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', []]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
+  });
+
+  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: 'a-1' });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  const client = await ctx.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
   expect(client.sendRequest('session.get', { session: id }, 'gw')).rejects.toMatchObject({
     code: 'no_such_session',
     message: `no session '${id}'`,
   });
+});
+
+test('it answers a TCP principal killing a session outside its targets as for a missing session', async () => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', []]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
+  });
+
+  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: 'a-1' });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  const client = await ctx.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
   expect(client.sendRequest('session.kill', { session: id }, 'gw')).rejects.toMatchObject({
     code: 'no_such_session',
+    message: `no session '${id}'`,
   });
-
-  const ownerList = await daemon.owner.sendRequest('session.list', {});
-
-  expect(ownerList).toMatchObject({ sessions: [expect.objectContaining({ id })] });
 });
 
-test('it lists and reads for a TCP principal only the sessions on the targets it may use', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
-    box: true,
+test('it keeps a session that a TCP principal outside its targets tried to kill', async () => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', []]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const onLocal = await daemon.spawnSession('local');
-  const onBox = await daemon.spawnSession('box');
-  const client = await daemon.openTCPAs(TOKEN_A);
+  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: 'a-1' });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  const client = await ctx.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+  await Promise.allSettled([client.sendRequest('session.kill', { session: id }, 'gw')]);
+
+  const listed = await ctx.client.sendRequest('session.list', {});
+
+  expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id, alive: true })] });
+});
+
+test('it lists for a TCP principal only the sessions on the targets it may use', async () => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      // The targets `local` and `box` share one real pseudo-terminal provider.
+      const local = new LocalPTYProvider();
+
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        targets: targets.targets.map((target) => ({
+          id: target.id,
+          kind: target.provider,
+          options: target.options,
+          identity: buildTargetIdentity(target.provider, target.options),
+          provider: local,
+        })),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+      };
+    },
+  });
+
+  const onLocal = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    resume: 'a-1',
+    target: 'local',
+  });
+
+  await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: 'a-2', target: 'box' });
+
+  const client = await ctx.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+
   const listed = await client.sendRequest('session.list', {}, 'gw');
-  const got = await client.sendRequest('session.get', { session: onLocal }, 'gw');
 
-  expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id: onLocal })] });
-  expect(got).toMatchObject({ session: { id: onLocal } });
+  expect(listed).toStrictEqual({
+    sessions: [expect.objectContaining({ id: getRecord(onLocal, 'session')['id'] })],
+  });
+});
 
-  expect(client.sendRequest('session.get', { session: onBox }, 'gw')).rejects.toMatchObject({
+test('it reads for a TCP principal a session on a target it may use', async () => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      // The targets `local` and `box` share one real pseudo-terminal provider.
+      const local = new LocalPTYProvider();
+
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        targets: targets.targets.map((target) => ({
+          id: target.id,
+          kind: target.provider,
+          options: target.options,
+          identity: buildTargetIdentity(target.provider, target.options),
+          provider: local,
+        })),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+      };
+    },
+  });
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    resume: 'a-1',
+    target: 'local',
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const client = await ctx.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+
+  const got = await client.sendRequest('session.get', { session: id }, 'gw');
+
+  expect(got).toMatchObject({ session: { id } });
+});
+
+test('it answers a TCP principal reading a session on a target it may not use as for a missing session', async () => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      // The targets `local` and `box` share one real pseudo-terminal provider.
+      const local = new LocalPTYProvider();
+
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        targets: targets.targets.map((target) => ({
+          id: target.id,
+          kind: target.provider,
+          options: target.options,
+          identity: buildTargetIdentity(target.provider, target.options),
+          provider: local,
+        })),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+      };
+    },
+  });
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    resume: 'a-1',
+    target: 'box',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  const client = await ctx.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+
+  expect(client.sendRequest('session.get', { session: id }, 'gw')).rejects.toMatchObject({
     code: 'no_such_session',
-    message: `no session '${onBox}'`,
+    message: `no session '${id}'`,
   });
 });
 
 test('it pushes a TCP connection no event of a session it did not act on', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const client = await daemon.openTCPAs(TOKEN_A);
+  const client = await ctx.openTCPClient();
 
   const pushed: EventMsg[] = [];
 
@@ -426,43 +588,71 @@ test('it pushes a TCP connection no event of a session it did not act on', async
     pushed.push(event);
   };
 
-  const ownerEvents: EventMsg[] = [];
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+  await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: 'a-1' });
 
-  daemon.owner.onEvent = (event) => {
-    ownerEvents.push(event);
-  };
-
-  const id = await daemon.spawnSession();
-
+  // The owner's event shows the daemon has broadcast the spawn.
   await waitFor(() => {
-    expect(ownerEvents.map((event) => event.ev)).toContain('SessionAdded');
+    expect(ctx.events).toPartiallyContain({ ev: 'SessionAdded' });
   });
 
   await client.sendRequest('session.list', {}, 'gw');
 
   expect(pushed).toStrictEqual([]);
-  expect(id).toBeString();
 });
 
 test('it closes a TCP connection whose token a reload removes', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n${TOKEN_B}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const removed = await daemon.openTCPAs(TOKEN_A);
-  const kept = await daemon.openTCPAs(TOKEN_B);
+  const removed = await ctx.openTCPClient();
 
-  const closed = Promise.withResolvers<void>();
+  const closed = Promise.withResolvers<'closed'>();
 
   removed.onClose = () => {
-    closed.resolve();
+    closed.resolve('closed');
   };
 
-  daemon.writeTokens(`${TOKEN_B}\n`);
-  daemon.daemon.refreshTokens();
+  await removed.sendHello('atc/test-gateway', 'a'.repeat(32));
 
-  await closed.promise;
+  writeFileSync(join(ctx.dir, 'gateway-token'), `${'b'.repeat(40)}\n`);
+
+  ctx.daemon.refreshTokens();
+
+  const ended = await closed.promise;
+
+  expect(ended).toBe('closed');
+});
+
+test('it keeps serving a TCP connection whose token a reload keeps', async () => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
+  });
+
+  const kept = await ctx.openTCPClient();
+
+  await kept.sendHello('atc/test-gateway', 'b'.repeat(40));
+
+  writeFileSync(join(ctx.dir, 'gateway-token'), `${'b'.repeat(40)}\n`);
+
+  ctx.daemon.refreshTokens();
 
   const listed = await kept.sendRequest('session.list', {}, 'gw');
 
@@ -470,47 +660,85 @@ test('it closes a TCP connection whose token a reload removes', async () => {
 });
 
 test('it refuses a handshake with a token a reload removed', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  daemon.writeTokens(`${TOKEN_B}\n`);
-  daemon.daemon.refreshTokens();
+  writeFileSync(join(ctx.dir, 'gateway-token'), `${'b'.repeat(40)}\n`);
 
-  const client = await daemon.openTCP();
+  ctx.daemon.refreshTokens();
 
-  expect(client.sendHello('atc/test-gateway', TOKEN_A)).rejects.toMatchObject({
+  const client = await ctx.openTCPClient();
+
+  expect(client.sendHello('atc/test-gateway', 'a'.repeat(32))).rejects.toMatchObject({
     code: 'unauthorized',
   });
 });
 
-test('it closes every TCP connection and refuses every handshake after an invalid reload', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+test('it closes every TCP connection after an invalid reload', async () => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const open = await daemon.openTCPAs(TOKEN_A);
+  const open = await ctx.openTCPClient();
 
-  const closed = Promise.withResolvers<void>();
+  const closed = Promise.withResolvers<'closed'>();
 
   open.onClose = () => {
-    closed.resolve();
+    closed.resolve('closed');
   };
 
-  daemon.writeTokens(`${TOKEN_A}\nshort\n`);
-  daemon.daemon.refreshTokens();
+  await open.sendHello('atc/test-gateway', 'a'.repeat(32));
 
-  await closed.promise;
+  writeFileSync(join(ctx.dir, 'gateway-token'), `${'a'.repeat(32)}\nshort\n`);
 
-  const client = await daemon.openTCP();
+  ctx.daemon.refreshTokens();
 
-  expect(client.sendHello('atc/test-gateway', TOKEN_A)).rejects.toMatchObject({
+  const ended = await closed.promise;
+
+  expect(ended).toBe('closed');
+});
+
+test('it refuses every handshake after an invalid reload and logs the failed reload', async () => {
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
+  });
+
+  writeFileSync(join(ctx.dir, 'gateway-token'), `${'a'.repeat(32)}\nshort\n`);
+
+  ctx.daemon.refreshTokens();
+
+  const client = await ctx.openTCPClient();
+
+  expect(client.sendHello('atc/test-gateway', 'a'.repeat(32))).rejects.toMatchObject({
     code: 'unauthorized',
   });
 
-  expect(daemon.logged).toStrictEqual([
+  expect(ctx.logs).toStrictEqual([
     expect.toStartWith('atc tcp event=listening '),
     expect.toInclude('token reload failed'),
     'atc tcp event=handshake_refused peer=127.0.0.1 reason=unauthorized count=1',
@@ -518,96 +746,163 @@ test('it closes every TCP connection and refuses every handshake after an invali
 });
 
 test('it takes handshakes again after a valid reload follows an invalid one', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  daemon.writeTokens('');
-  daemon.daemon.refreshTokens();
-  daemon.writeTokens(`${TOKEN_A}\n`);
-  daemon.daemon.refreshTokens();
+  writeFileSync(join(ctx.dir, 'gateway-token'), '');
 
-  const client = await daemon.openTCP();
-  const hello = await client.sendHello('atc/test-gateway', TOKEN_A);
+  ctx.daemon.refreshTokens();
+
+  writeFileSync(join(ctx.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+  ctx.daemon.refreshTokens();
+
+  const client = await ctx.openTCPClient();
+  const hello = await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
   expect(hello).toContainKey('daemonID');
 });
 
-test('it delays the next handshake from an address after five failures within a minute', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map(),
-    failureDelayMs: 600,
+test('it delays the next handshake from an address by the failure delay after five failures within a minute', async () => {
+  const clock = buildStubClock(0);
+
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 600,
+        },
+      };
+    },
   });
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const failing = await daemon.openTCP();
+  const failing = await Promise.all(Array.from({ length: 5 }, () => ctx.openTCPClient()));
 
-    expect(failing.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
-      code: 'unauthorized',
-    });
-  }
+  await Promise.allSettled(
+    failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
 
-  const client = await daemon.openTCP();
+  const client = await ctx.openTCPClient();
 
-  const started = Date.now();
+  const hello = Promise.allSettled([client.sendHello('atc/test-gateway', 'a'.repeat(32))]);
 
-  await client.sendHello('atc/test-gateway', TOKEN_A);
+  onTestFinished(() => hello);
 
-  expect(Date.now() - started).toBeWithin(550, 5000);
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([600]);
+  });
+});
+
+test('it answers a delayed handshake once the failure delay passes', async () => {
+  const clock = buildStubClock(0);
+
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 600,
+        },
+      };
+    },
+  });
+
+  const failing = await Promise.all(Array.from({ length: 5 }, () => ctx.openTCPClient()));
+
+  await Promise.allSettled(
+    failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
+
+  const client = await ctx.openTCPClient();
+
+  const hello = client.sendHello('atc/test-gateway', 'a'.repeat(32));
+
+  // The listener has begun the delay once it schedules its timer.
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([600]);
+  });
+
+  clock.advance(600);
+
+  const answered = await hello;
+
+  expect(answered).toContainKey('daemonID');
 });
 
 test('it answers the handshake at once before an address has failed five times', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map(),
-    failureDelayMs: 600,
+  const clock = buildStubClock(0);
+
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 600,
+        },
+      };
+    },
   });
 
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const failing = await daemon.openTCP();
+  const failing = await Promise.all(Array.from({ length: 4 }, () => ctx.openTCPClient()));
 
-    expect(failing.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
-      code: 'unauthorized',
-    });
-  }
+  await Promise.allSettled(
+    failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
 
-  const client = await daemon.openTCP();
+  const client = await ctx.openTCPClient();
+  const hello = await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
-  const started = Date.now();
-
-  await client.sendHello('atc/test-gateway', TOKEN_A);
-
-  expect(Date.now() - started).toBeLessThan(550);
+  expect<Record<string, unknown>>({ hello, pending: clock.collectPending() }).toStrictEqual({
+    hello: expect.objectContaining({ daemonID: expect.toBeString() }),
+    pending: [],
+  });
 });
 
 test('it refuses to start a listener on an address outside the allowed ranges', () => {
   using tmp = setupTempDir('atc-daemon-tcp-');
 
-  const tokenFile = join(tmp.dir, 'gateway-token');
-
-  writeFileSync(tokenFile, `${TOKEN_A}\n`);
+  writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
   expect(
     startDaemon({
       socketPath: join(tmp.dir, 'daemon.sock'),
       reporterSocketPath: join(tmp.dir, 'reporter.sock'),
       build: 'atc/test-build',
-      adapter: {
-        id: 'claude',
-        screenDetector: null,
-        takesMessages: true,
-        headlessRunner: null,
-        planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-        normalizeHook: () => ({ kind: 'prompt-submitted' }),
-        loadName: () => Promise.resolve(null),
-        canResume: () => true,
-        buildResumeCommand: () => 'claude --resume',
-      },
+      adapter: buildMockAgentAdapter(),
       dbPath: join(tmp.dir, 'state.db'),
       statusPath: join(tmp.dir, 'status.json'),
-      listen: { host: '0.0.0.0', port: 0, tokenFile },
+      listen: { host: '0.0.0.0', port: 0, tokenFile: join(tmp.dir, 'gateway-token') },
     }),
   ).rejects.toMatchObject({ code: 'listen_refused' });
 });
@@ -615,145 +910,193 @@ test('it refuses to start a listener on an address outside the allowed ranges', 
 test('it refuses to start a listener whose token file holds a short token', () => {
   using tmp = setupTempDir('atc-daemon-tcp-');
 
-  const tokenFile = join(tmp.dir, 'gateway-token');
-
-  writeFileSync(tokenFile, 'short\n');
+  writeFileSync(join(tmp.dir, 'gateway-token'), 'short\n');
 
   expect(
     startDaemon({
       socketPath: join(tmp.dir, 'daemon.sock'),
       reporterSocketPath: join(tmp.dir, 'reporter.sock'),
       build: 'atc/test-build',
-      adapter: {
-        id: 'claude',
-        screenDetector: null,
-        takesMessages: true,
-        headlessRunner: null,
-        planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-        normalizeHook: () => ({ kind: 'prompt-submitted' }),
-        loadName: () => Promise.resolve(null),
-        canResume: () => true,
-        buildResumeCommand: () => 'claude --resume',
-      },
+      adapter: buildMockAgentAdapter(),
       dbPath: join(tmp.dir, 'state.db'),
       statusPath: join(tmp.dir, 'status.json'),
-      listen: { host: '127.0.0.1', port: 0, tokenFile },
+      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'gateway-token') },
     }),
   ).rejects.toMatchObject({ code: 'listen_refused' });
 });
 
 test('it logs the address and port the TCP listener bound', async () => {
-  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  expect(daemon.logged).toStrictEqual([
-    `atc tcp event=listening host=127.0.0.1 port=${String(daemon.daemon.listenPort)}`,
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
+  });
+
+  expect(ctx.logs).toStrictEqual([
+    `atc tcp event=listening host=127.0.0.1 port=${String(ctx.daemon.listenPort)}`,
   ]);
 });
 
 test('it logs no listener start when the TCP listener cannot bind', async () => {
   using tmp = setupTempDir('atc-daemon-tcp-');
 
-  const tokenFile = join(tmp.dir, 'gateway-token');
   const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
-  const logged: string[] = [];
 
   onTestFinished(() => {
     held.stop(true);
   });
 
-  writeFileSync(tokenFile, `${TOKEN_A}\n`);
+  const logged: string[] = [];
 
-  const refusal: unknown = await startDaemon({
-    socketPath: join(tmp.dir, 'daemon.sock'),
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: {
-      id: 'claude',
-      screenDetector: null,
-      takesMessages: true,
-      headlessRunner: null,
-      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-      normalizeHook: () => ({ kind: 'prompt-submitted' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => 'claude --resume',
-    },
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    listen: { host: '127.0.0.1', port: held.port, tokenFile },
-    log: (line) => {
-      logged.push(line);
-    },
-  }).catch((error: unknown) => error);
+  writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  expect(refusal).toMatchObject({ code: 'listen_refused' });
+  await Promise.allSettled([
+    startDaemon({
+      socketPath: join(tmp.dir, 'daemon.sock'),
+      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+      build: 'atc/test-build',
+      adapter: buildMockAgentAdapter(),
+      dbPath: join(tmp.dir, 'state.db'),
+      statusPath: join(tmp.dir, 'status.json'),
+      listen: { host: '127.0.0.1', port: held.port, tokenFile: join(tmp.dir, 'gateway-token') },
+      log: (line) => {
+        logged.push(line);
+      },
+    }),
+  ]);
+
   expect(logged).toStrictEqual([]);
 });
 
 test('it logs a refused handshake with the peer and the reason', async () => {
-  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  const client = await daemon.openTCP();
-
-  expect(client.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
-    code: 'unauthorized',
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  expect(daemon.logged.slice(1)).toStrictEqual([
+  const client = await ctx.openTCPClient();
+
+  await Promise.allSettled([client.sendHello('atc/test-gateway', 'b'.repeat(40))]);
+
+  expect(ctx.logs.slice(1)).toStrictEqual([
     'atc tcp event=handshake_refused peer=127.0.0.1 reason=unauthorized count=1',
   ]);
 });
 
 test('it logs no part of the token a refused handshake presents', async () => {
-  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
-
   const presented = randomBytes(24).toString('hex');
 
-  const client = await daemon.openTCP();
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  expect(client.sendHello('atc/test-gateway', presented)).rejects.toMatchObject({
-    code: 'unauthorized',
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
+
+  const client = await ctx.openTCPClient();
+
+  await Promise.allSettled([client.sendHello('atc/test-gateway', presented)]);
 
   expect(
     Array.from({ length: presented.length - 7 }, (_, at) => presented.slice(at, at + 8)),
-  ).toSatisfyAll((part: string) => !daemon.logged.join('\n').includes(part));
+  ).toSatisfyAll((part: string) => !ctx.logs.join('\n').includes(part));
 });
 
 test('it logs a refused principal as unlisted with the peer', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const client = await daemon.openTCP();
+  const client = await ctx.openTCPClient();
 
-  expect(
+  await Promise.allSettled([
     client.sendRequest('daemon.hello', {
       client: 'atc/test-gateway',
       principal: 'other',
-      auth: { scheme: 'bearer', token: TOKEN_A },
+      auth: { scheme: 'bearer', token: 'a'.repeat(32) },
     }),
-  ).rejects.toMatchObject({ code: 'unauthorized' });
+  ]);
 
-  expect(daemon.logged.slice(1)).toStrictEqual([
+  expect(ctx.logs.slice(1)).toStrictEqual([
     'atc tcp event=principal_refused peer=127.0.0.1 principal=unlisted count=1',
   ]);
 });
 
 test('it logs a principal refused on a request after the handshake', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const client = await daemon.openTCPAs(TOKEN_A);
+  const client = await ctx.openTCPClient();
 
-  expect(client.sendRequest('session.list', {}, 'other')).rejects.toMatchObject({
-    code: 'unauthorized',
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+  await Promise.allSettled([client.sendRequest('session.list', {}, 'other')]);
+
+  expect(ctx.logs.slice(1)).toStrictEqual([
+    'atc tcp event=principal_refused peer=127.0.0.1 principal=unlisted count=1',
+  ]);
+});
+
+test('it logs a token sent in pieces as a refused principal as unlisted', async () => {
+  const token = randomBytes(24).toString('hex');
+
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${token}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  expect(daemon.logged.slice(1)).toStrictEqual([
+  const client = await ctx.openTCPClient();
+
+  await Promise.allSettled([
+    client.sendRequest('daemon.hello', {
+      client: 'atc/test-gateway',
+      principal: Array.from({ length: 7 }, (_, at) => token.slice(at * 7, at * 7 + 7)).join('.'),
+      auth: { scheme: 'bearer', token },
+    }),
+  ]);
+
+  expect(ctx.logs.slice(1)).toStrictEqual([
     'atc tcp event=principal_refused peer=127.0.0.1 principal=unlisted count=1',
   ]);
 });
@@ -761,112 +1104,157 @@ test('it logs a principal refused on a request after the handshake', async () =>
 test('it logs no part of a token sent in pieces as a refused principal', async () => {
   const token = randomBytes(24).toString('hex');
 
-  await using daemon = await setupTest({
-    tokens: `${token}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${token}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const client = await daemon.openTCP();
+  const client = await ctx.openTCPClient();
 
-  expect(
+  await Promise.allSettled([
     client.sendRequest('daemon.hello', {
       client: 'atc/test-gateway',
       principal: Array.from({ length: 7 }, (_, at) => token.slice(at * 7, at * 7 + 7)).join('.'),
       auth: { scheme: 'bearer', token },
     }),
-  ).rejects.toMatchObject({ code: 'unauthorized' });
-
-  expect(daemon.logged.slice(1)).toStrictEqual([
-    'atc tcp event=principal_refused peer=127.0.0.1 principal=unlisted count=1',
   ]);
 
   expect(Array.from({ length: token.length - 3 }, (_, at) => token.slice(at, at + 4))).toSatisfyAll(
-    (part: string) => !daemon.logged.slice(1).join('\n').includes(part),
+    (part: string) => !ctx.logs.slice(1).join('\n').includes(part),
   );
 });
 
 test('it logs no principal line for a listed principal', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const client = await daemon.openTCP();
+  const client = await ctx.openTCPClient();
 
   await client.sendRequest('daemon.hello', {
     client: 'atc/test-gateway',
     principal: 'gw',
-    auth: { scheme: 'bearer', token: TOKEN_A },
+    auth: { scheme: 'bearer', token: 'a'.repeat(32) },
   });
 
-  expect(daemon.logged.slice(1)).toStrictEqual([]);
+  expect(ctx.logs.slice(1)).toStrictEqual([]);
 });
 
 test('it logs no control character of a refused principal', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const client = await daemon.openTCP();
+  const client = await ctx.openTCPClient();
 
-  expect(
+  await Promise.allSettled([
     client.sendRequest('daemon.hello', {
       client: 'atc/test-gateway',
       principal: 'ops\u001B[2J\r\natc tcp event=listening\u009B',
-      auth: { scheme: 'bearer', token: TOKEN_A },
+      auth: { scheme: 'bearer', token: 'a'.repeat(32) },
     }),
-  ).rejects.toMatchObject({ code: 'unauthorized' });
+  ]);
 
-  expect(daemon.logged.slice(1)).toStrictEqual([
+  expect(ctx.logs.slice(1)).toStrictEqual([
     'atc tcp event=principal_refused peer=127.0.0.1 principal=unlisted count=1',
   ]);
 });
 
 test('it folds repeated refusals from one peer within the window into one line', async () => {
-  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
+  const clock = buildStubClock(0);
 
-  for (const token of [TOKEN_B, TOKEN_B, TOKEN_B]) {
-    const client = await daemon.openTCP();
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-    expect(client.sendHello('atc/test-gateway', token)).rejects.toMatchObject({
-      code: 'unauthorized',
-    });
-  }
-
-  daemon.advanceClock(59_999);
-
-  const client = await daemon.openTCP();
-
-  expect(client.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
-    code: 'unauthorized',
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          refusalLogIntervalMs: 60_000,
+        },
+      };
+    },
   });
 
-  expect(daemon.logged.slice(1)).toStrictEqual([
+  const refused = await Promise.all(Array.from({ length: 3 }, () => ctx.openTCPClient()));
+
+  await Promise.allSettled(
+    refused.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
+
+  clock.advance(59_999);
+
+  const client = await ctx.openTCPClient();
+
+  await Promise.allSettled([client.sendHello('atc/test-gateway', 'b'.repeat(40))]);
+
+  expect(ctx.logs.slice(1)).toStrictEqual([
     'atc tcp event=handshake_refused peer=127.0.0.1 reason=unauthorized count=1',
   ]);
 });
 
 test('it logs a refusal after the window as a new line after the count of the folded ones', async () => {
-  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
+  const clock = buildStubClock(0);
 
-  for (const token of [TOKEN_B, TOKEN_B, TOKEN_B]) {
-    const client = await daemon.openTCP();
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-    expect(client.sendHello('atc/test-gateway', token)).rejects.toMatchObject({
-      code: 'unauthorized',
-    });
-  }
-
-  daemon.advanceClock(60_000);
-
-  const client = await daemon.openTCP();
-
-  expect(client.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
-    code: 'unauthorized',
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          refusalLogIntervalMs: 60_000,
+        },
+      };
+    },
   });
 
-  expect(daemon.logged.slice(1)).toStrictEqual([
+  const refused = await Promise.all(Array.from({ length: 3 }, () => ctx.openTCPClient()));
+
+  await Promise.allSettled(
+    refused.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
+
+  clock.advance(60_000);
+
+  const client = await ctx.openTCPClient();
+
+  await Promise.allSettled([client.sendHello('atc/test-gateway', 'b'.repeat(40))]);
+
+  expect(ctx.logs.slice(1)).toStrictEqual([
     'atc tcp event=handshake_refused peer=127.0.0.1 reason=unauthorized count=1',
     'atc tcp event=handshake_refused peer=127.0.0.1 reason=unauthorized count=2',
     'atc tcp event=handshake_refused peer=127.0.0.1 reason=unauthorized count=1',
@@ -874,20 +1262,29 @@ test('it logs a refusal after the window as a new line after the count of the fo
 });
 
 // These peers dial from loopback aliases past 127.0.0.1, which Linux routes
-// on its own and stock macOS lacks, so a host without them skips the two
-// tests. The refusal log's unit tests cover the same windows with any peer.
-const hasLoopbackAliases = canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']);
-
-test.skipIf(!hasLoopbackAliases)(
+// on its own and stock macOS lacks, so a host without them skips the test.
+// The refusal log's unit tests cover the same windows with any peer.
+test.skipIf(!canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']))(
   'it logs a line for each new peer while the cap of refusal windows has room',
   async () => {
-    await using daemon = await setupTest({
-      tokens: `${TOKEN_A}\n`,
-      principals: new Map(),
-      maxRefusalWindows: 4,
+    await using ctx = await startTestDaemon({
+      options: (paths) => {
+        writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+        return {
+          adapter: buildMockAgentAdapter(),
+          principals: new Map(),
+          listen: {
+            host: '127.0.0.1',
+            port: 0,
+            tokenFile: join(paths.dir, 'gateway-token'),
+            maxRefusalWindows: 4,
+          },
+        };
+      },
     });
 
-    for (const peer of [
+    for (const localAddress of [
       '127.0.0.2',
       '127.0.0.3',
       '127.0.0.4',
@@ -895,10 +1292,19 @@ test.skipIf(!hasLoopbackAliases)(
       '127.0.0.2',
       '127.0.0.3',
     ]) {
-      await daemon.refuseFrom(peer);
+      const closed = Promise.withResolvers<void>();
+
+      createConnection({ host: '127.0.0.1', port: ctx.daemon.listenPort ?? 0, localAddress })
+        .on('error', closed.reject)
+        .on('close', () => {
+          closed.resolve();
+        })
+        .end('not a handshake\n');
+
+      await closed.promise;
     }
 
-    expect(daemon.logged.slice(1)).toStrictEqual([
+    expect(ctx.logs.slice(1)).toStrictEqual([
       'atc tcp event=handshake_refused peer=127.0.0.2 reason=unexpected_line count=1',
       'atc tcp event=handshake_refused peer=127.0.0.3 reason=unexpected_line count=1',
       'atc tcp event=handshake_refused peer=127.0.0.4 reason=unexpected_line count=1',
@@ -907,25 +1313,48 @@ test.skipIf(!hasLoopbackAliases)(
   },
 );
 
-test.skipIf(!hasLoopbackAliases)(
+// These peers dial from loopback aliases past 127.0.0.1, which Linux routes
+// on its own and stock macOS lacks, so a host without them skips the test.
+// The refusal log's unit tests cover the same windows with any peer.
+test.skipIf(!canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']))(
   'it folds refusals from peers past the cap of refusal windows into one overflow line',
   async () => {
-    await using daemon = await setupTest({
-      tokens: `${TOKEN_A}\n`,
-      principals: new Map(),
-      maxRefusalWindows: 2,
+    await using ctx = await startTestDaemon({
+      options: (paths) => {
+        writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+        return {
+          adapter: buildMockAgentAdapter(),
+          principals: new Map(),
+          listen: {
+            host: '127.0.0.1',
+            port: 0,
+            tokenFile: join(paths.dir, 'gateway-token'),
+            maxRefusalWindows: 2,
+          },
+        };
+      },
     });
 
-    for (const peer of Array.from({ length: 4 }, () => [
+    for (const localAddress of Array.from({ length: 4 }, () => [
       '127.0.0.2',
       '127.0.0.3',
       '127.0.0.4',
       '127.0.0.5',
     ]).flat()) {
-      await daemon.refuseFrom(peer);
+      const closed = Promise.withResolvers<void>();
+
+      createConnection({ host: '127.0.0.1', port: ctx.daemon.listenPort ?? 0, localAddress })
+        .on('error', closed.reject)
+        .on('close', () => {
+          closed.resolve();
+        })
+        .end('not a handshake\n');
+
+      await closed.promise;
     }
 
-    expect(daemon.logged.slice(1)).toStrictEqual([
+    expect(ctx.logs.slice(1)).toStrictEqual([
       'atc tcp event=handshake_refused peer=127.0.0.2 reason=unexpected_line count=1',
       'atc tcp event=handshake_refused peer=127.0.0.3 reason=unexpected_line count=1',
       'atc tcp event=refused peer=overflow count=1',
@@ -933,37 +1362,55 @@ test.skipIf(!hasLoopbackAliases)(
   },
 );
 
-test('it refuses a listener whose port another socket holds and releases the daemon lock', async () => {
+test('it refuses a listener whose port another socket holds', () => {
   using tmp = setupTempDir('atc-daemon-tcp-');
 
-  const tokenFile = join(tmp.dir, 'gateway-token');
   const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
 
   onTestFinished(() => {
     held.stop(true);
   });
 
-  writeFileSync(tokenFile, `${TOKEN_A}\n`);
+  writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  const refusal: unknown = await startDaemon({
-    socketPath: join(tmp.dir, 'daemon.sock'),
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: {
-      id: 'claude',
-      screenDetector: null,
-      takesMessages: true,
-      headlessRunner: null,
-      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-      normalizeHook: () => ({ kind: 'prompt-submitted' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => 'claude --resume',
-    },
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    listen: { host: '127.0.0.1', port: held.port, tokenFile },
-  }).catch((error: unknown) => error);
+  expect(
+    startDaemon({
+      socketPath: join(tmp.dir, 'daemon.sock'),
+      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+      build: 'atc/test-build',
+      adapter: buildMockAgentAdapter(),
+      dbPath: join(tmp.dir, 'state.db'),
+      statusPath: join(tmp.dir, 'status.json'),
+      listen: { host: '127.0.0.1', port: held.port, tokenFile: join(tmp.dir, 'gateway-token') },
+    }),
+  ).rejects.toMatchObject({
+    code: 'listen_refused',
+    message: `atc daemon: --listen cannot bind 127.0.0.1:${held.port} (EADDRINUSE)`,
+  });
+});
+
+test('it releases the daemon lock and leaves no socket or record behind when the listener cannot bind', async () => {
+  using tmp = setupTempDir('atc-daemon-tcp-');
+
+  const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
+
+  onTestFinished(() => {
+    held.stop(true);
+  });
+
+  writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+  await Promise.allSettled([
+    startDaemon({
+      socketPath: join(tmp.dir, 'daemon.sock'),
+      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+      build: 'atc/test-build',
+      adapter: buildMockAgentAdapter(),
+      dbPath: join(tmp.dir, 'state.db'),
+      statusPath: join(tmp.dir, 'status.json'),
+      listen: { host: '127.0.0.1', port: held.port, tokenFile: join(tmp.dir, 'gateway-token') },
+    }),
+  ]);
 
   const lock = await claimDaemonLock(join(tmp.dir, 'daemon.lock'), 0);
 
@@ -971,26 +1418,32 @@ test('it refuses a listener whose port another socket holds and releases the dae
     lock?.dispose();
   });
 
-  expect(refusal).toMatchObject({
-    code: 'listen_refused',
-    message: `atc daemon: --listen cannot bind 127.0.0.1:${held.port} (EADDRINUSE)`,
-  });
-
-  expect(lock).not.toBeNull();
-  expect(existsSync(join(tmp.dir, 'daemon.sock'))).toBeFalse();
-  expect(existsSync(join(tmp.dir, 'daemon.json'))).toBeFalse();
+  expect<Record<string, unknown>>({
+    lock,
+    socket: existsSync(join(tmp.dir, 'daemon.sock')),
+    record: existsSync(join(tmp.dir, 'daemon.json')),
+  }).toStrictEqual({ lock: expect.anything(), socket: false, record: false });
 });
 
 test('it closes an unauthenticated TCP connection that sends a malformed line without a reply', async () => {
-  await using daemon = await setupTest({ tokens: `${TOKEN_A}\n`, principals: new Map() });
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  const port = daemon.daemon.listenPort ?? 0;
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
+  });
+
   const closed = Promise.withResolvers<void>();
   const received: string[] = [];
 
   await Bun.connect({
     hostname: '127.0.0.1',
-    port,
+    port: ctx.daemon.listenPort ?? 0,
     socket: {
       open(socket) {
         socket.write('{}\n');
@@ -1011,13 +1464,25 @@ test('it closes an unauthenticated TCP connection that sends a malformed line wi
 });
 
 test('it counts lines before the handshake as failed handshakes toward the delay', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map(),
-    failureDelayMs: 600,
-  });
+  const clock = buildStubClock(0);
 
-  const port = daemon.daemon.listenPort ?? 0;
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 600,
+        },
+      };
+    },
+  });
 
   for (const line of [
     '{}',
@@ -1030,7 +1495,7 @@ test('it counts lines before the handshake as failed handshakes toward the delay
 
     await Bun.connect({
       hostname: '127.0.0.1',
-      port,
+      port: ctx.daemon.listenPort ?? 0,
       socket: {
         open(socket) {
           socket.write(`${line}\n`);
@@ -1046,26 +1511,35 @@ test('it counts lines before the handshake as failed handshakes toward the delay
     await closed.promise;
   }
 
-  const client = await daemon.openTCP();
+  const client = await ctx.openTCPClient();
 
-  const started = Date.now();
+  const hello = Promise.allSettled([client.sendHello('atc/test-gateway', 'a'.repeat(32))]);
 
-  await client.sendHello('atc/test-gateway', TOKEN_A);
+  onTestFinished(() => hello);
 
-  expect(Date.now() - started).toBeWithin(550, 5000);
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([600]);
+  });
 });
 
 test('it refuses a second handshake on a TCP connection and closes it', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([
-      ['gw-a', ['local']],
-      ['gw-b', []],
-    ]),
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([
+          ['gw-a', ['local']],
+          ['gw-b', []],
+        ]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
   });
 
-  const id = await daemon.spawnSession();
-  const client = await daemon.openTCP();
+  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: 'a-1' });
+  const client = await ctx.openTCPClient();
 
   const closed = Promise.withResolvers<void>();
 
@@ -1076,206 +1550,329 @@ test('it refuses a second handshake on a TCP connection and closes it', async ()
   await client.sendRequest('daemon.hello', {
     client: 'atc/test-gateway',
     principal: 'gw-a',
-    auth: { scheme: 'bearer', token: TOKEN_A },
+    auth: { scheme: 'bearer', token: 'a'.repeat(32) },
   });
 
-  await client.sendRequest('session.attach', { session: id }, 'gw-a');
+  await client.sendRequest(
+    'session.attach',
+    { session: getRecord(spawned, 'session')['id'] },
+    'gw-a',
+  );
 
-  expect(
-    client.sendRequest('daemon.hello', {
-      client: 'atc/test-gateway',
-      principal: 'gw-b',
-      auth: { scheme: 'bearer', token: TOKEN_A },
-    }),
-  ).rejects.toMatchObject({ code: 'unauthorized' });
+  const second = client.sendRequest('daemon.hello', {
+    client: 'atc/test-gateway',
+    principal: 'gw-b',
+    auth: { scheme: 'bearer', token: 'a'.repeat(32) },
+  });
+
+  expect(second).rejects.toMatchObject({ code: 'unauthorized' });
 
   await closed.promise;
 });
 
-test('it keeps answering local pings while a TCP peer floods handshakes during the delay', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map(),
-    failureDelayMs: 1500,
+test('it answers a local ping while a TCP peer floods handshakes past the failure limit', async () => {
+  const clock = buildStubClock(0);
+
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 1500,
+        },
+      };
+    },
   });
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const failing = await daemon.openTCP();
+  const failing = await Promise.all(Array.from({ length: 5 }, () => ctx.openTCPClient()));
 
-    expect(failing.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
-      code: 'unauthorized',
-    });
-  }
+  await Promise.allSettled(
+    failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
 
-  const hello = `${JSON.stringify({ v: 4, id: 1, m: 'daemon.hello', p: { auth: { scheme: 'bearer', token: TOKEN_B } } })}\n`;
-  const flooded = Promise.withResolvers<void>();
+  const hello = `${JSON.stringify({ v: 4, id: 1, m: 'daemon.hello', p: { auth: { scheme: 'bearer', token: 'b'.repeat(40) } } })}\n`;
+  const flooded = Promise.withResolvers<'closed'>();
 
   await Bun.connect({
     hostname: '127.0.0.1',
-    port: daemon.daemon.listenPort ?? 0,
+    port: ctx.daemon.listenPort ?? 0,
     socket: {
       open(socket) {
         socket.write(hello.repeat(100_000));
       },
       data() {},
       close() {
-        flooded.resolve();
+        flooded.resolve('closed');
       },
       error() {},
     },
   });
 
-  const latencies: number[] = [];
-  const until = Date.now() + 4000;
+  const pinged = await Promise.all([ctx.client.sendRequest('daemon.ping', {}), flooded.promise]);
 
-  while (Date.now() < until) {
-    const sent = Date.now();
-
-    await daemon.owner.sendRequest('daemon.ping', {});
-
-    latencies.push(Date.now() - sent);
-
-    // Spaces the pings out across the delay and the moment it ends.
-    await Bun.sleep(50);
-  }
-
-  await flooded.promise;
-
-  expect(Math.max(...latencies)).toBeLessThan(500);
+  expect(pinged).toStrictEqual([{}, 'closed']);
 });
 
 test('it refuses at once a handshake that would wait while the cap of delayed handshakes is full', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map(),
-    failureDelayMs: 1500,
-    maxDelayedHandshakes: 3,
+  const clock = buildStubClock(0);
+
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 1500,
+          maxDelayedHandshakes: 3,
+        },
+      };
+    },
   });
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const failing = await daemon.openTCP();
+  const failing = await Promise.all(Array.from({ length: 5 }, () => ctx.openTCPClient()));
 
-    expect(failing.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
-      code: 'unauthorized',
-    });
-  }
+  await Promise.allSettled(
+    failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
 
-  const waiting = await Promise.all([daemon.openTCP(), daemon.openTCP(), daemon.openTCP()]);
+  const waiting = await Promise.all(Array.from({ length: 3 }, () => ctx.openTCPClient()));
 
-  const held = waiting.map((client) => client.sendHello('atc/test-gateway', TOKEN_A));
+  const held = Promise.allSettled(
+    waiting.map((client) => client.sendHello('atc/test-gateway', 'a'.repeat(32))),
+  );
 
-  const over = await daemon.openTCP();
+  onTestFinished(() => held);
 
-  const started = Date.now();
-  const refused = over.sendHello('atc/test-gateway', TOKEN_A);
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([1500, 1500, 1500]);
+  });
 
-  expect(refused).rejects.toMatchObject({ code: 'unauthorized' });
+  const over = await ctx.openTCPClient();
 
-  await Promise.allSettled([refused]);
+  // The clock never moves, so only a refusal that waits on no delay settles.
+  expect(over.sendHello('atc/test-gateway', 'a'.repeat(32))).rejects.toMatchObject({
+    code: 'unauthorized',
+  });
+});
 
-  expect(Date.now() - started).toBeLessThan(500);
+test('it answers the held handshakes once the delay passes after the cap refused another', async () => {
+  const clock = buildStubClock(0);
 
-  const answers = await Promise.all(held);
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  expect(answers).toHaveLength(3);
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 1500,
+          maxDelayedHandshakes: 3,
+        },
+      };
+    },
+  });
+
+  const failing = await Promise.all(Array.from({ length: 5 }, () => ctx.openTCPClient()));
+
+  await Promise.allSettled(
+    failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
+
+  const waiting = await Promise.all(Array.from({ length: 3 }, () => ctx.openTCPClient()));
+
+  const held = Promise.all(
+    waiting.map((client) => client.sendHello('atc/test-gateway', 'a'.repeat(32))),
+  );
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([1500, 1500, 1500]);
+  });
+
+  const over = await ctx.openTCPClient();
+
+  await Promise.allSettled([over.sendHello('atc/test-gateway', 'a'.repeat(32))]);
+
+  clock.advance(1500);
+
+  const answers = await held;
+
+  expect<readonly unknown[]>(answers).toStrictEqual([
+    expect.objectContaining({ daemonID: expect.toBeString() }),
+    expect.objectContaining({ daemonID: expect.toBeString() }),
+    expect.objectContaining({ daemonID: expect.toBeString() }),
+  ]);
 });
 
 test('it ends a delayed handshake once its socket closes and frees its place in the cap', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map(),
-    failureDelayMs: 1500,
-    maxDelayedHandshakes: 2,
+  const clock = buildStubClock(0);
+
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 1500,
+          maxDelayedHandshakes: 2,
+        },
+      };
+    },
   });
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const failing = await daemon.openTCP();
+  const failing = await Promise.all(Array.from({ length: 5 }, () => ctx.openTCPClient()));
 
-    expect(failing.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
-      code: 'unauthorized',
-    });
-  }
-
-  const abandoned = await Promise.all([daemon.openTCP(), daemon.openTCP()]);
-
-  const abandonedHellos = Promise.allSettled(
-    abandoned.map((client) => client.sendHello('atc/test-gateway', TOKEN_A)),
+  await Promise.allSettled(
+    failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
   );
 
-  // Lets the daemon read both handshakes before the sockets close.
-  await Bun.sleep(100);
+  const abandoned = await Promise.all(Array.from({ length: 2 }, () => ctx.openTCPClient()));
+
+  const abandonedHellos = Promise.allSettled(
+    abandoned.map((client) => client.sendHello('atc/test-gateway', 'a'.repeat(32))),
+  );
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([1500, 1500]);
+  });
 
   for (const client of abandoned) {
     client.stop();
   }
 
-  await Bun.sleep(100);
-
-  const client = await daemon.openTCP();
-
-  const started = Date.now();
-
-  await client.sendHello('atc/test-gateway', TOKEN_A);
-
-  expect(Date.now() - started).toBeWithin(1400, 5000);
-
   await abandonedHellos;
+
+  // A closed socket cancels the timer of its delayed handshake.
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([]);
+  });
+
+  const client = await ctx.openTCPClient();
+
+  const hello = client.sendHello('atc/test-gateway', 'a'.repeat(32));
+
+  // A full cap would refuse the handshake at once instead of delaying it.
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([1500]);
+  });
+
+  clock.advance(1500);
+
+  const answered = await hello;
+
+  expect(answered).toContainKey('daemonID');
 });
 
-test('it keeps answering local pings while many TCP sockets each send a handshake during the delay', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map(),
-    failureDelayMs: 1500,
+test('it answers a local ping while many TCP sockets each send a handshake during the delay', async () => {
+  const clock = buildStubClock(0);
+
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        clock,
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 1500,
+        },
+      };
+    },
   });
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const failing = await daemon.openTCP();
+  const failing = await Promise.all(Array.from({ length: 5 }, () => ctx.openTCPClient()));
 
-    expect(failing.sendHello('atc/test-gateway', TOKEN_B)).rejects.toMatchObject({
-      code: 'unauthorized',
-    });
-  }
-
-  const flood = await Promise.all(Array.from({ length: 300 }, () => daemon.openTCP()));
-
-  const floodHellos = Promise.allSettled(
-    flood.map((client) => client.sendHello('atc/test-gateway', TOKEN_B)),
+  await Promise.allSettled(
+    failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
   );
 
-  const latencies: number[] = [];
-  const until = Date.now() + 2000;
+  const flood = await Promise.all(Array.from({ length: 300 }, () => ctx.openTCPClient()));
 
-  while (Date.now() < until) {
-    const sent = Date.now();
+  const floodHellos = Promise.allSettled(
+    flood.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
+  );
 
-    await daemon.owner.sendRequest('daemon.ping', {});
+  onTestFinished(() => floodHellos);
 
-    latencies.push(Date.now() - sent);
+  // The default cap holds 64 handshakes in the delay and refuses the rest.
+  await waitFor(() => {
+    expect(clock.collectPending()).toHaveLength(64);
+  });
 
-    await Bun.sleep(50);
-  }
+  const pinged = await ctx.client.sendRequest('daemon.ping', {});
 
-  await floodHellos;
-
-  expect(Math.max(...latencies)).toBeLessThan(500);
-}, 20_000);
+  expect({ pinged, pending: clock.collectPending() }).toStrictEqual({
+    pinged: {},
+    pending: Array.from({ length: 64 }, () => 1500),
+  });
+});
 
 test('it pushes a TCP connection whose handshake gives a principal the removal of a session that leaves its reach', async () => {
-  await using daemon = await setupTest({
-    tokens: `${TOKEN_A}\n`,
-    principals: new Map([['gw', ['local']]]),
-    box: true,
+  await using ctx = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      // The targets `local` and `box` share one real pseudo-terminal provider.
+      const local = new LocalPTYProvider();
+
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        targets: targets.targets.map((target) => ({
+          id: target.id,
+          kind: target.provider,
+          options: target.options,
+          identity: buildTargetIdentity(target.provider, target.options),
+          provider: local,
+        })),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+      };
+    },
   });
 
-  const parent = await daemon.spawnSession('local');
-  const client = await daemon.openTCP();
-
-  await client.sendRequest('daemon.hello', {
-    client: 'atc/test-gateway',
-    principal: 'gw',
-    auth: { scheme: 'bearer', token: TOKEN_A },
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    resume: 'a-1',
+    target: 'local',
   });
+
+  const parent = getRecord(spawned, 'session')['id'];
+
+  const client = await ctx.openTCPClient();
 
   const pushed: EventMsg[] = [];
 
@@ -1283,16 +1880,22 @@ test('it pushes a TCP connection whose handshake gives a principal the removal o
     pushed.push(event);
   };
 
-  await daemon.owner.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  await client.sendRequest('daemon.hello', {
+    client: 'atc/test-gateway',
+    principal: 'gw',
+    auth: { scheme: 'bearer', token: 'a'.repeat(32) },
+  });
+
+  await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     target: 'box',
     parent,
-    resume: `a-${randomUUID()}`,
+    resume: 'a-2',
   });
 
   await waitFor(() => {
-    const removed = pushed.filter((event) => event.ev === 'SessionRemoved');
-
-    expect(removed.map((event) => event['s'])).toStrictEqual([parent]);
+    expect<readonly unknown[]>(
+      pushed.filter((event) => event.ev === 'SessionRemoved'),
+    ).toStrictEqual([expect.objectContaining({ s: parent })]);
   });
 });

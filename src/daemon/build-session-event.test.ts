@@ -1,45 +1,39 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildSessionEvent } from './build-session-event';
 import { SessionManager } from './sessions';
-import type { Session } from './sessions';
 
-// Unit tests for the session-event builder: which notifications carry a
-// descriptor and which emit nothing.
-const idleAdapter: AgentAdapter = {
-  id: 'claude',
-  headlessRunner: null,
-  screenDetector: null,
-  takesMessages: false,
-  planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-  normalizeHook: () => ({ kind: 'heartbeat' }),
-  loadName: () => Promise.resolve(null),
-  canResume: () => true,
-  buildResumeCommand: () => null,
-};
+/**
+ * A session manager over a real state store in a temp directory, holding
+ * no sessions.
+ */
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
-async function setupManager(): Promise<SessionManager> {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-events-'));
+  const tmp = stack.use(setupTempDir('atc-daemon-events-'));
 
-  onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
+  const store = await StateStore.open(join(tmp.dir, 'state.db'));
 
-  const store = await StateStore.open(join(dir, 'state.db'));
+  stack.defer(() => store.stop());
 
-  return new SessionManager(idleAdapter, store, join(dir, 'status.json'), []);
+  const mgr = new SessionManager(buildMockAgentAdapter(), store, join(tmp.dir, 'status.json'), []);
+
+  const owned = stack.move();
+
+  return { mgr, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
-function buildGhostSession(): Session {
-  return {
+test('it builds nothing for a SessionState notification whose id has no descriptor', async () => {
+  await using ctx = await setupTest();
+
+  const event = buildSessionEvent(ctx.mgr, 'state', {
     id: toSessionID('ghost-session'),
     name: 'ghost',
-    cwd: '/tmp',
+    cwd: '/work/ghost',
     kind: 'pty',
     pty: null,
     state: 'exited',
@@ -47,10 +41,10 @@ function buildGhostSession(): Session {
     lastMsg: '',
     agent: 'claude',
     pinned: false,
-    lastAttachedAt: Date.now(),
-    repoRoot: '/tmp',
+    lastAttachedAt: 1_700_000_000_000,
+    repoRoot: '/work/ghost',
     namedBy: 'auto',
-    createdAt: Date.now(),
+    createdAt: 1_700_000_000_000,
     parent: null,
     target: 'local',
     targetIdentity: 'local-pty:test',
@@ -61,23 +55,40 @@ function buildGhostSession(): Session {
     suspended: false,
     hostKey: toSessionID('ghost-session'),
     bridgeEpoch: 0,
-  };
-}
-
-test('it builds nothing for a SessionState notification whose id has no descriptor', async () => {
-  const mgr = await setupManager();
-
-  let event: unknown = 'not called';
-
-  expect(() => {
-    event = buildSessionEvent(mgr, 'state', buildGhostSession());
-  }).not.toThrow();
+  });
 
   expect(event).toBeNull();
 });
 
 test('it builds nothing for a SessionAdded notification whose id has no descriptor', async () => {
-  const mgr = await setupManager();
+  await using ctx = await setupTest();
 
-  expect(buildSessionEvent(mgr, 'added', buildGhostSession())).toBeNull();
+  const event = buildSessionEvent(ctx.mgr, 'added', {
+    id: toSessionID('ghost-session'),
+    name: 'ghost',
+    cwd: '/work/ghost',
+    kind: 'pty',
+    pty: null,
+    state: 'exited',
+    unread: false,
+    lastMsg: '',
+    agent: 'claude',
+    pinned: false,
+    lastAttachedAt: 1_700_000_000_000,
+    repoRoot: '/work/ghost',
+    namedBy: 'auto',
+    createdAt: 1_700_000_000_000,
+    parent: null,
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+    withheldEnv: [],
+    desired: 'run',
+    vm: 'none',
+    attachment: 'local',
+    suspended: false,
+    hostKey: toSessionID('ghost-session'),
+    bridgeEpoch: 0,
+  });
+
+  expect(event).toBeNull();
 });

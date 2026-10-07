@@ -17,22 +17,46 @@ test('it reports no dims for a session with no attached clients', () => {
   expect(registry.findEffectiveDims(toSessionID('s1'))).toBeNull();
 });
 
-test('it updates dims only for an attached client', () => {
+test('it updates the dims of an attached client', () => {
   const registry = new AttachRegistry<string>();
 
   registry.attach(toSessionID('s1'), 'a', { cols: 100, rows: 24 });
 
-  expect(registry.updateDims(toSessionID('s1'), 'a', { cols: 90, rows: 20 })).toBeTrue();
-  expect(registry.updateDims(toSessionID('s1'), 'stranger', { cols: 10, rows: 10 })).toBeFalse();
-  expect(registry.findEffectiveDims(toSessionID('s1'))).toStrictEqual({ cols: 90, rows: 20 });
+  const updated = registry.updateDims(toSessionID('s1'), 'a', { cols: 90, rows: 20 });
+
+  expect({ updated, dims: registry.findEffectiveDims(toSessionID('s1')) }).toStrictEqual({
+    updated: true,
+    dims: { cols: 90, rows: 20 },
+  });
 });
 
-test('it reports true for a detach that removes an attachment and false for the repeat', () => {
+test('it refuses a dims update from a client that is not attached', () => {
+  const registry = new AttachRegistry<string>();
+
+  registry.attach(toSessionID('s1'), 'a', { cols: 100, rows: 24 });
+
+  const updated = registry.updateDims(toSessionID('s1'), 'stranger', { cols: 10, rows: 10 });
+
+  expect({ updated, dims: registry.findEffectiveDims(toSessionID('s1')) }).toStrictEqual({
+    updated: false,
+    dims: { cols: 100, rows: 24 },
+  });
+});
+
+test('it reports true for a detach that removes an attachment', () => {
   const registry = new AttachRegistry<string>();
 
   registry.attach(toSessionID('s1'), 'a', { cols: 80, rows: 24 });
 
   expect(registry.detach(toSessionID('s1'), 'a')).toBeTrue();
+});
+
+test('it reports false for a repeat detach', () => {
+  const registry = new AttachRegistry<string>();
+
+  registry.attach(toSessionID('s1'), 'a', { cols: 80, rows: 24 });
+  registry.detach(toSessionID('s1'), 'a');
+
   expect(registry.detach(toSessionID('s1'), 'a')).toBeFalse();
 });
 
@@ -51,9 +75,11 @@ test('it detaches one client from every session it watched', () => {
 
   const affected = registry.detachAll('a');
 
-  expect(affected).toStrictEqual([toSessionID('s1'), toSessionID('s2')]);
-  expect(registry.collectClients(toSessionID('s1'))).toStrictEqual([]);
-  expect(registry.collectClients(toSessionID('s2'))).toStrictEqual(['b']);
+  expect({
+    affected,
+    s1: registry.collectClients(toSessionID('s1')),
+    s2: registry.collectClients(toSessionID('s2')),
+  }).toStrictEqual({ affected: [toSessionID('s1'), toSessionID('s2')], s1: [], s2: ['b'] });
 });
 
 test('it keeps other sessions when one is removed', () => {
@@ -63,6 +89,8 @@ test('it keeps other sessions when one is removed', () => {
   registry.attach(toSessionID('s2'), 'a', { cols: 80, rows: 24 });
   registry.removeSession(toSessionID('s1'));
 
-  expect(registry.hasClient(toSessionID('s1'), 'a')).toBeFalse();
-  expect(registry.hasClient(toSessionID('s2'), 'a')).toBeTrue();
+  expect({
+    s1: registry.hasClient(toSessionID('s1'), 'a'),
+    s2: registry.hasClient(toSessionID('s2'), 'a'),
+  }).toStrictEqual({ s1: false, s2: true });
 });

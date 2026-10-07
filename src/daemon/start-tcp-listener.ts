@@ -1,3 +1,4 @@
+import type { Clock } from '../shared/system-clock';
 import type { DaemonConnection, TCPPeer } from './daemon-connection';
 import { findTokenFingerprint } from './find-token-fingerprint';
 import { formatLogField } from './format-log-field';
@@ -30,11 +31,12 @@ interface TCPListenerOptions {
   readonly closeConnection: (connection: DaemonConnection) => void;
 
   // Where the listener start and each refusal are logged, one line at a
-  // time, with the clock and the window that summarize repeated refusals
-  // from one peer.
+  // time, and the window that summarizes repeated refusals from one peer.
   readonly log: (line: string) => void;
-  readonly now: () => number;
   readonly refusalLogIntervalMs: number;
+
+  // The clock that times failures, handshake delays, and refusal windows.
+  readonly clock: Clock;
 
   // How many peers and kinds of refusal the refusal log tracks at once.
   readonly maxRefusalWindows: number;
@@ -69,7 +71,7 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
 
   const refusals = new RefusalLog({
     log: opts.log,
-    now: opts.now,
+    now: opts.clock.now,
     intervalMs: opts.refusalLogIntervalMs,
     maxWindows: opts.maxRefusalWindows,
   });
@@ -91,10 +93,10 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
 
         const peer: TCPPeer = {
           verifyHandshake: async (presented) => {
-            const delay = throttle.getDelay(address, Date.now());
+            const delay = throttle.getDelay(address, opts.clock.now());
 
             if (delay > 0 && delayed >= opts.maxDelayedHandshakes) {
-              throttle.recordFailure(address, Date.now());
+              throttle.recordFailure(address, opts.clock.now());
 
               refusals.record({
                 event: 'handshake_refused',
@@ -110,13 +112,13 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
 
               const elapsed = Promise.withResolvers<'elapsed'>();
 
-              const timer = setTimeout(() => {
+              const cancel = opts.clock.schedule(() => {
                 elapsed.resolve('elapsed');
               }, delay);
 
               const waited = await Promise.race([elapsed.promise, closed.promise]);
 
-              clearTimeout(timer);
+              cancel();
 
               delayed--;
 
@@ -137,7 +139,7 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
                 : findTokenFingerprint(tokens, presented);
 
             if (fingerprint === null) {
-              throttle.recordFailure(address, Date.now());
+              throttle.recordFailure(address, opts.clock.now());
 
               refusals.record({
                 event: 'handshake_refused',
@@ -149,7 +151,7 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
             return fingerprint;
           },
           recordFailure: (reason) => {
-            throttle.recordFailure(address, Date.now());
+            throttle.recordFailure(address, opts.clock.now());
             refusals.record({ event: 'handshake_refused', peer: address, reason });
           },
           recordRefusedPrincipal: () => {

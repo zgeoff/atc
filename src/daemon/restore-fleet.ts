@@ -16,6 +16,9 @@ export interface RestoreFleetParams {
   // it has booted before moving on regardless; zero waits on the signal
   // alone.
   readonly capMs: number;
+
+  // Whether the daemon has begun to stop; never when unset.
+  readonly isStopped?: () => boolean;
 }
 
 export interface RestoreFleetResult {
@@ -179,6 +182,12 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     for (const s of rest) {
       if (prev !== null) {
         await waitForBoot(prev.id);
+      }
+
+      // A daemon that stopped while the previous session booted starts no
+      // more terminals.
+      if (params.isStopped?.() === true) {
+        return;
       }
 
       const booted = await tryAdoptQueued(s);

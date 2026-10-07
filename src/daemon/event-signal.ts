@@ -1,3 +1,6 @@
+import { systemClock } from '../shared/system-clock';
+import type { Clock } from '../shared/system-clock';
+
 /**
  * Wakes long-polling readers when the event trail grows. A reader notes the
  * signal's count before it queries and waits from that count, so an event
@@ -9,6 +12,13 @@ export class EventSignal {
   disposed = false;
 
   private readonly waiters = new Set<() => void>();
+
+  private readonly clock: Clock;
+
+  // The clock that times each wait's timeout.
+  constructor(clock: Clock = systemClock) {
+    this.clock = clock;
+  }
 
   emit(): void {
     this.generation += 1;
@@ -24,13 +34,13 @@ export class EventSignal {
     const deferred = Promise.withResolvers<void>();
 
     const onWake = () => {
-      clearTimeout(timer);
+      cancel();
 
       this.waiters.delete(onWake);
       deferred.resolve();
     };
 
-    const timer = setTimeout(onWake, timeoutMs);
+    const cancel = this.clock.schedule(onWake, timeoutMs);
 
     this.waiters.add(onWake);
 

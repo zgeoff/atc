@@ -1,4 +1,6 @@
 import type { SessionID } from '../shared/session-id';
+import { systemClock } from '../shared/system-clock';
+import type { Clock } from '../shared/system-clock';
 
 export interface PermissionRequest {
   readonly id: string;
@@ -11,7 +13,7 @@ export type AnswerResult = 'ok' | 'already_answered' | 'unsupported' | 'unknown'
 
 interface PendingRequest {
   readonly req: PermissionRequest;
-  readonly timer: ReturnType<typeof setTimeout>;
+  readonly cancelTimeout: () => void;
 }
 
 /**
@@ -28,6 +30,8 @@ export class PermissionRegistry {
 
   private readonly timeoutMs: number;
 
+  private readonly clock: Clock;
+
   private readonly pending = new Map<string, PendingRequest>();
 
   // Each answered request's session, kept to tell already_answered from
@@ -36,19 +40,21 @@ export class PermissionRegistry {
 
   private counter = 0;
 
-  constructor(timeoutMs = 60_000) {
+  // The clock that times each request's timeout.
+  constructor(timeoutMs = 60_000, clock: Clock = systemClock) {
     this.timeoutMs = timeoutMs;
+    this.clock = clock;
   }
 
   open(sessionID: SessionID, message: string, respondable: boolean): PermissionRequest {
     const id = `p${++this.counter}`;
     const req: PermissionRequest = { id, sessionID, message, respondable };
 
-    const timer = setTimeout(() => {
+    const cancelTimeout = this.clock.schedule(() => {
       this.removeRequest(id, 'deny');
     }, this.timeoutMs);
 
-    this.pending.set(id, { req, timer });
+    this.pending.set(id, { req, cancelTimeout });
     this.onRequested(req);
 
     return req;
@@ -97,8 +103,7 @@ export class PermissionRegistry {
       return;
     }
 
-    clearTimeout(entry.timer);
-
+    entry.cancelTimeout();
     this.pending.delete(id);
     this.resolved.set(id, entry.req.sessionID);
 

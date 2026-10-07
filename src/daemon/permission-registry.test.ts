@@ -1,10 +1,11 @@
 import { expect, expectTypeOf, test } from 'bun:test';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
+import { buildStubClock } from '../test-utils/build-stub-clock';
 import { PermissionRegistry } from './permission-registry';
 
 test('it emits the request with its respondable flag on open', () => {
-  const registry = new PermissionRegistry();
+  const registry = new PermissionRegistry(60_000, buildStubClock(0));
 
   const requests: unknown[] = [];
 
@@ -20,7 +21,7 @@ test('it emits the request with its respondable flag on open', () => {
 });
 
 test('it applies the first responder decision', () => {
-  const registry = new PermissionRegistry();
+  const registry = new PermissionRegistry(60_000, buildStubClock(0));
 
   const resolutions: [string, string][] = [];
 
@@ -29,13 +30,16 @@ test('it applies the first responder decision', () => {
   };
 
   const req = registry.open(toSessionID('s1'), 'allow tool?', true);
+  const answered = registry.answer(req.id, 'allow');
 
-  expect(registry.answer(req.id, 'allow')).toBe('ok');
-  expect(resolutions).toStrictEqual([[req.id, 'allow']]);
+  expect({ answered, resolutions }).toStrictEqual({
+    answered: 'ok',
+    resolutions: [[req.id, 'allow']],
+  });
 });
 
 test('it reports already_answered to a second responder', () => {
-  const registry = new PermissionRegistry();
+  const registry = new PermissionRegistry(60_000, buildStubClock(0));
 
   const req = registry.open(toSessionID('s1'), 'allow tool?', true);
 
@@ -45,7 +49,7 @@ test('it reports already_answered to a second responder', () => {
 });
 
 test('it reports unsupported for a request a client cannot answer structurally', () => {
-  const registry = new PermissionRegistry();
+  const registry = new PermissionRegistry(60_000, buildStubClock(0));
 
   const req = registry.open(toSessionID('s1'), 'needs permission', false);
 
@@ -53,13 +57,15 @@ test('it reports unsupported for a request a client cannot answer structurally',
 });
 
 test('it reports unknown for a request that never existed', () => {
-  const registry = new PermissionRegistry();
+  const registry = new PermissionRegistry(60_000, buildStubClock(0));
 
   expect(registry.answer('p999', 'allow')).toBe('unknown');
 });
 
-test('it times an unanswered request out to deny', async () => {
-  const registry = new PermissionRegistry(30);
+test('it times an unanswered request out to deny', () => {
+  const clock = buildStubClock(0);
+
+  const registry = new PermissionRegistry(30, clock);
 
   const resolutions: [string, string][] = [];
 
@@ -68,17 +74,16 @@ test('it times an unanswered request out to deny', async () => {
   };
 
   const req = registry.open(toSessionID('s1'), 'allow tool?', true);
-  const deadline = Date.now() + 2000;
 
-  while (resolutions.length === 0 && Date.now() < deadline) {
-    await Bun.sleep(10);
-  }
+  clock.advance(30);
 
   expect(resolutions).toStrictEqual([[req.id, 'deny']]);
 });
 
-test('it never times out an answered request a second time', async () => {
-  const registry = new PermissionRegistry(30);
+test('it never times out an answered request a second time', () => {
+  const clock = buildStubClock(0);
+
+  const registry = new PermissionRegistry(30, clock);
 
   const resolutions: [string, string][] = [];
 
@@ -89,16 +94,13 @@ test('it never times out an answered request a second time', async () => {
   const req = registry.open(toSessionID('s1'), 'allow tool?', true);
 
   registry.answer(req.id, 'allow');
-
-  // Waits out the timeout window: the only observable signal is that no
-  // second resolution arrives after it passes.
-  await Bun.sleep(80);
+  clock.advance(30);
 
   expect(resolutions).toStrictEqual([[req.id, 'allow']]);
 });
 
 test('it resolves every pending request for a session as dismissed', () => {
-  const registry = new PermissionRegistry();
+  const registry = new PermissionRegistry(60_000, buildStubClock(0));
 
   const resolutions: [string, string][] = [];
 
@@ -108,14 +110,24 @@ test('it resolves every pending request for a session as dismissed', () => {
 
   const first = registry.open(toSessionID('s1'), 'one', true);
   const second = registry.open(toSessionID('s1'), 'two', false);
-  const other = registry.open(toSessionID('s2'), 'other', true);
 
+  registry.open(toSessionID('s2'), 'other', true);
   registry.answerAll(toSessionID('s1'), 'dismissed');
 
   expect(resolutions).toStrictEqual([
     [first.id, 'dismissed'],
     [second.id, 'dismissed'],
   ]);
+});
+
+test("it leaves another session's request open when it dismisses a session", () => {
+  const registry = new PermissionRegistry(60_000, buildStubClock(0));
+
+  registry.open(toSessionID('s1'), 'one', true);
+
+  const other = registry.open(toSessionID('s2'), 'other', true);
+
+  registry.answerAll(toSessionID('s1'), 'dismissed');
 
   expect(registry.answer(other.id, 'allow')).toBe('ok');
 });

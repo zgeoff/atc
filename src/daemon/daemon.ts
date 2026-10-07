@@ -164,8 +164,10 @@ export interface DaemonOptions {
   readonly restoreBootTimeoutMs?: number;
   readonly tapGraceMs?: number;
 
-  // The clock the event trail stamps each hook event with; the wall clock
-  // when unset.
+  // The clock the event trail stamps each hook event with, and the clock
+  // behind the tap grace window, the held-read waits, the time a note is
+  // reported at, and the TCP listener's failure times, delays, and refusal
+  // windows; the wall clock when unset.
   readonly clock?: Clock;
 
   // Whether the daemon restores the stored fleet by itself once it is
@@ -234,10 +236,8 @@ interface ListenOptions {
   // when unset.
   readonly maxDelayedHandshakes?: number;
 
-  // The clock the refusal log reads, Date.now when unset, and how long it
-  // folds repeated refusals from one peer into one line; a minute when
-  // unset.
-  readonly now?: () => number;
+  // How long the refusal log folds repeated refusals from one peer into one
+  // line; a minute when unset.
   readonly refusalLogIntervalMs?: number;
 
   // How many peers and kinds of refusal the refusal log tracks at once;
@@ -316,6 +316,9 @@ const LOCK_WAIT_MS = 2000;
 export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   let stopDaemon: (() => Promise<void>) | null = null;
   const clock = opts.clock ?? systemClock;
+
+  // Set once the daemon begins to release what it holds.
+  let released = false;
 
   // The listener's address and tokens are checked before the daemon takes
   // anything, so a refused listener leaves no state behind.
@@ -431,7 +434,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   const registry = new PermissionRegistry();
-  const eventSignal = new EventSignal();
+  const eventSignal = new EventSignal(clock);
 
   // A trail write that fails never fails the message request or report behind it.
   // Returns false when the entry was not written: a failed write, or a
@@ -589,7 +592,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       if (sender !== undefined) {
         const capped = { ...report, text: truncateToBytes(report.text, ANSWER_BYTE_CAP) };
-        const reportedAt = Date.now();
+        const reportedAt = clock.now();
 
         const entry = buildReportTrailEntry(
           sender.id,
@@ -951,7 +954,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     // waits on before booting the next one.
     if (kind === 'started') {
       if (runtime !== undefined) {
-        runtime.startedAt = Date.now();
+        runtime.startedAt = clock.now();
       }
 
       runtime?.bootWaiter?.();
@@ -1295,7 +1298,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       runtime !== undefined &&
       runtime.startedAt !== null &&
       !runtime.tapAttached &&
-      Date.now() - runtime.startedAt >= (opts.tapGraceMs ?? TAP_GRACE_MS)
+      clock.now() - runtime.startedAt >= (opts.tapGraceMs ?? TAP_GRACE_MS)
     ) {
       return 'no_tap';
     }
@@ -1413,11 +1416,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           cols,
           rows,
           capMs: opts.restoreBootTimeoutMs ?? 0,
+          isStopped: () => released,
         });
 
         restored.resolve(result.restored);
 
         await result.settled;
+
+        mgr.log(`atc fleet event=restore_settled restored=${String(result.restored)}`);
       } catch (error) {
         restored.reject(error);
       } finally {
@@ -1938,7 +1944,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return { path, page };
     },
     readEvents: async (afterID, limit, waitMs, sessionID, access) => {
-      const deadline = Date.now() + waitMs;
+      const deadline = clock.now() + waitMs;
 
       // A wake for an event the read leaves out (a heartbeat, or another
       // session's event under a session filter) loops back to wait out the
@@ -1963,7 +1969,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           continue;
         }
 
-        const remaining = deadline - Date.now();
+        const remaining = deadline - clock.now();
 
         if (rows.length > 0 || remaining <= 0 || eventSignal.disposed) {
           const naming = collectNamingDescriptors(access);
@@ -2104,7 +2110,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       }
     },
     readMessage: async (messageID, waitMs) => {
-      const deadline = Date.now() + waitMs;
+      const deadline = clock.now() + waitMs;
       let initialStatus: MessageStatus | null = null;
 
       // Every message status change writes a trail entry and wakes the
@@ -2122,7 +2128,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
         initialStatus ??= view.record.status;
 
-        const remaining = deadline - Date.now();
+        const remaining = deadline - clock.now();
 
         if (
           view.record.status !== initialStatus ||
@@ -2166,6 +2172,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // Releases everything the daemon holds except its listeners, on a stop
   // and on a start that fails once it holds the lock.
   const releaseResources = async () => {
+    released = true;
+
     clearInterval(idempotencySweep);
     eventsServer?.stop();
     reporter.stop(true);
@@ -2233,9 +2241,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         },
         closeConnection: detachConnection,
         log: listenerLog.log,
-        now: opts.listen.now ?? Date.now,
         refusalLogIntervalMs: opts.listen.refusalLogIntervalMs ?? REFUSAL_LOG_INTERVAL_MS,
         maxRefusalWindows: opts.listen.maxRefusalWindows ?? MAX_REFUSAL_WINDOWS,
+        clock,
       });
     } catch (error) {
       await releaseResources();
@@ -2328,12 +2336,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
-  if (opts.restoreFleetOnRestart === true) {
-    const stored = await store.loadFleet();
+  const stored = await store.loadFleet();
 
-    if (stored.length > 0) {
-      void tryRunFleetRestore();
-    }
+  // A stored fleet left for a client's fleet.restore is logged, so the
+  // decision not to restore it shows.
+  if (stored.length > 0 && opts.restoreFleetOnRestart === true) {
+    void tryRunFleetRestore();
+  } else if (stored.length > 0) {
+    mgr.log(`atc fleet event=restore_skipped stored=${String(stored.length)}`);
   }
 
   return {

@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
-import { createHash } from 'node:crypto';
 import { findTokenFingerprint } from './find-token-fingerprint';
 
 test('it returns the digest of the token a presented token matches', () => {
   const tokens = ['a'.repeat(32), 'b'.repeat(40)];
 
+  // The SHA-256 of the matched token, in hex.
   expect(findTokenFingerprint(tokens, 'b'.repeat(40))).toBe(
-    createHash('sha256').update('b'.repeat(40)).digest('hex'),
+    'e26d2da3ab585c9840b157a4a9b5639fda905c2ad33d04d2c598be8883b51236',
   );
 });
 
