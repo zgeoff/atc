@@ -9,10 +9,7 @@ async function setupTest() {
 
   const tmp = stack.use(setupTempDir('atc-verify-oauth-query-'));
 
-  const store = await openMCPAuth({
-    dbPath: join(tmp.dir, 'mcp-auth.db'),
-    origin: 'https://atc.example',
-  });
+  const store = await openMCPAuth({ dbPath: join(tmp.dir, 'mcp-auth.db'), origin: null });
 
   stack.defer(() => store.close());
 
@@ -94,9 +91,7 @@ test.each([
   ['client_id=c1&exp=99999999999&sig='],
   ['client_id=c1&exp=99999999999&sig=a&sig=b'],
 ])('it refuses the query %p without one valid signature', async (query) => {
-  await using ctx = await setupTest();
-
-  const verified = await verifyOAuthQuery(query, ctx.secret);
+  const verified = await verifyOAuthQuery(query, 'secret-0123456789-abcdefghijklmnopqrstuvwxyz');
 
   expect(verified).toBeFalse();
 });

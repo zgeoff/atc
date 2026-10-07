@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
+import { getRecord } from '../shared/get-record';
 import { buildToolList } from './build-tool-list';
 import { MCP_TOOLS } from './mcp-tools';
 
@@ -19,7 +20,7 @@ test('it leaves out the daemons tool and every daemon input for a caller of one 
   }
 
   expect(tools.map((tool) => tool.name)).not.toContain('atc_daemons_list');
-  expect(spawn.inputSchema['properties']).not.toContainKey('daemon');
+  expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('daemon');
   expect(dirs.inputSchema['properties']).toStrictEqual({});
 });
 
@@ -200,7 +201,7 @@ test('it lists the spawn tool without a target for a daemon that predates target
     throw new Error('spawn tool missing');
   }
 
-  expect(spawn.inputSchema['properties']).not.toContainKey('target');
+  expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('target');
 });
 
 test('it lists the spawn tool with a workspace for a daemon that takes workspaces', () => {
@@ -225,7 +226,7 @@ test('it lists the spawn tool without a workspace for a daemon that predates wor
     throw new Error('spawn tool missing');
   }
 
-  expect(spawn.inputSchema['properties']).not.toContainKey('workspace');
+  expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('workspace');
 });
 
 test('it leaves out the forget tool for a daemon that does not announce session forgets', () => {

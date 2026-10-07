@@ -1,5 +1,6 @@
-import { expect, jest, onTestFinished, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { DaemonClient } from '../client/daemon-client';
+import { buildStubClock } from '../test-utils/build-stub-clock';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { readReportTexts } from './read-report-texts';
@@ -189,11 +190,7 @@ test('it keeps a report whose text read fails with its preview and the refusal',
 });
 
 test('it gives a report whose text read outlasts the deadline a timeout and stops the page after it', async () => {
-  jest.useFakeTimers();
-
-  onTestFinished(() => {
-    jest.useRealTimers();
-  });
+  const clock = buildStubClock(0);
 
   const caller = buildStubFleetCaller({
     answer: () => Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
@@ -227,9 +224,10 @@ test('it gives a report whose text read outlasts the deadline a timeout and stop
       more: false,
     },
     100,
+    clock,
   );
 
-  jest.advanceTimersByTime(100);
+  clock.advance(100);
 
   const page = await reading;
 
@@ -257,12 +255,7 @@ test('it gives a report whose text read outlasts the deadline a timeout and stop
 });
 
 test('it keeps a report text that arrives just inside the deadline', () => {
-  jest.useFakeTimers();
-
-  onTestFinished(() => {
-    jest.useRealTimers();
-  });
-
+  const clock = buildStubClock(0);
   const held = Promise.withResolvers<Readonly<Record<string, unknown>>>();
   const caller = buildStubFleetCaller({ answer: () => held.promise });
 
@@ -284,9 +277,10 @@ test('it keeps a report text that arrives just inside the deadline', () => {
       more: false,
     },
     100,
+    clock,
   );
 
-  jest.advanceTimersByTime(99);
+  clock.advance(99);
   held.resolve({ text: 'in time', complete: true });
 
   expect(reading).resolves.toStrictEqual({
