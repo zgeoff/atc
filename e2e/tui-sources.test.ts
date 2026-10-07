@@ -3,9 +3,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { DaemonClient } from '../src/client/daemon-client';
+import { buildStubSignedOutGH } from '../src/test-utils/build-stub-signed-out-gh';
 import { createGitFixture } from '../src/test-utils/create-git-fixture';
 import { createStubBin } from '../src/test-utils/create-stub-bin';
 import { KEYS } from '../src/test-utils/keys';
+import { startStubSourceDaemon } from '../src/test-utils/start-stub-source-daemon';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 
 function setupTest() {
@@ -15,7 +17,7 @@ function setupTest() {
 test('it keeps paths and slash filters in the local directory step and switches source on tab or a pasted URL', async () => {
   await using ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.boot();
 
@@ -72,10 +74,16 @@ test('it drives a source the daemon composition adds from its candidates to the 
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  await ctx.startSourceDaemon({ ATC_TEST_FIXTURE_URL: fixture.upstream });
+  await using daemons = new AsyncDisposableStack();
 
+  const sourceDaemon = await startStubSourceDaemon({
+    ...ctx.env,
+    ATC_TEST_FIXTURE_URL: fixture.upstream,
+  });
+
+  daemons.use(sourceDaemon);
   ctx.boot();
 
   await ctx.waitFor('atc — control tower');
@@ -120,10 +128,16 @@ test('it spawns the repository a composed source reads typed text as, through to
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  await ctx.startSourceDaemon({ ATC_TEST_FIXTURE_URL: fixture.upstream });
+  await using daemons = new AsyncDisposableStack();
 
+  const sourceDaemon = await startStubSourceDaemon({
+    ...ctx.env,
+    ATC_TEST_FIXTURE_URL: fixture.upstream,
+  });
+
+  daemons.use(sourceDaemon);
   ctx.boot();
 
   await ctx.waitFor('atc — control tower');
@@ -206,18 +220,22 @@ test('it lists the scope a composed source reads from a directory step once, on 
 
   const listLog = join(ctx.home, 'source-lists.jsonl');
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.writeConfig({
     targets: { local: { provider: 'local-pty' }, alt: { provider: 'local-pty', tag: 'alt' } },
     defaultTarget: 'local',
   });
 
-  await ctx.startSourceDaemon({
+  await using daemons = new AsyncDisposableStack();
+
+  const sourceDaemon = await startStubSourceDaemon({
+    ...ctx.env,
     ATC_TEST_FIXTURE_URL: fixture.upstream,
     ATC_TEST_SOURCE_LOG: listLog,
   });
 
+  daemons.use(sourceDaemon);
   ctx.boot();
 
   await ctx.waitFor('atc — control tower');
@@ -261,10 +279,13 @@ test('it lists the scope a composed source reads from a directory step once, on 
 test('it offers the local directory flow alone when the daemon offers no sources', async () => {
   await using ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  await ctx.startSourceDaemon({ ATC_TEST_SOURCES: 'none' });
+  await using daemons = new AsyncDisposableStack();
 
+  const sourceDaemon = await startStubSourceDaemon({ ...ctx.env, ATC_TEST_SOURCES: 'none' });
+
+  daemons.use(sourceDaemon);
   ctx.boot();
 
   await ctx.waitFor('atc — control tower');
@@ -282,9 +303,12 @@ test('it offers the local directory flow alone when the daemon offers no sources
   expect(ctx.read()).not.toInclude('on the daemon host');
 
   ctx.reset();
+
+  const mark = ctx.markClientLog();
+
   ctx.write(KEYS.tab);
 
-  await ctx.waitForClientLog('ignored tab with one source');
+  await ctx.waitForClientLog('ignored tab with one source', mark);
 
   ctx.write(KEYS.enter);
 
@@ -330,7 +354,7 @@ test('it probes a repository typed in the directory step at the URL its source r
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
   mkdirSync(join(ctx.home, 'mirror', 'acme'), { recursive: true });
 
   await $`git clone --quiet --bare --template= ${fixture.upstream} ${join(ctx.home, 'mirror', 'acme', 'app.git')}`
@@ -371,7 +395,7 @@ test('it opens the sources in the order the config gives', async () => {
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.writeConfig({ workspaces: { sources: ['git', 'dirs'] } });
   ctx.boot();

@@ -2,9 +2,9 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../src/client/daemon-client';
-import { isRecord } from '../src/shared/report';
 import { KEYS } from '../src/test-utils/keys';
 import { spawnClaudeSession } from '../src/test-utils/spawn-claude-session';
+import { spawnNamedSession } from '../src/test-utils/spawn-named-session';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 
 function setupTest() {
@@ -54,7 +54,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
   await ctx.waitFor('bravo');
 
   expect(ctx.read()).not.toInclude('alpha        ');
-}, 15_000);
+});
 
 test('it opens the overlay with a configured leader key', async () => {
   await using ctx = setupTest();
@@ -159,8 +159,6 @@ test('it lists a sub-session indented under its parent', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  await spawnClaudeSession(ctx, 'wrangler');
-
   const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
 
   onTestFinished(() => {
@@ -169,18 +167,16 @@ test('it lists a sub-session indented under its parent', async () => {
 
   await daemon.sendHello('atc/test');
 
-  const listed = await daemon.sendRequest('session.list');
-
-  const sessions = listed['sessions'];
-
-  if (!Array.isArray(sessions) || !isRecord(sessions[0]) || typeof sessions[0]['id'] !== 'string') {
-    throw new TypeError('session.list answered without the spawned session');
-  }
+  const parentID = await spawnNamedSession(
+    (m, p) => daemon.sendRequest(m, p),
+    'wrangler',
+    ctx.home,
+  );
 
   await daemon.sendRequest('session.spawn', {
     cwd: ctx.home,
     name: 'worker',
-    parent: sessions[0]['id'],
+    parent: parentID,
     cols: 80,
     rows: 24,
   });

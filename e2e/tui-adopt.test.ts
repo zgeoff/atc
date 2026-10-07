@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { join } from 'node:path';
 import { KEYS } from '../src/test-utils/keys';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 
@@ -41,16 +42,9 @@ test('it adopts a session with --resume and yanks its resume command', async () 
 
   await ctx.waitFor('resume cmd copied');
 
-  const b64 = ctx.read().split(']52;c;')[1]?.split(KEYS.bel)[0];
-
-  if (b64 === undefined) {
-    throw new Error('no OSC52 sequence in output');
-  }
-
-  const cmd = Buffer.from(b64, 'base64').toString();
-
-  expect(cmd).toInclude('claude --resume fake-1');
-  expect(cmd).toStartWith("cd '");
+  expect(ctx.read()).toInclude(
+    `]52;c;${Buffer.from(`cd '${ctx.home}' && ${join(ctx.home, 'fake-claude')} --resume fake-1`).toString('base64')}${KEYS.bel}`,
+  );
 }, 15_000);
 
 test('it adopts grok with --no-leader and without --resume', async () => {
@@ -85,17 +79,8 @@ test('it adopts grok with --no-leader and without --resume', async () => {
 
   // The TUI paints with cursor moves and no newlines, so the args reach the
   // capture on the same line as a whole screen of session names.
-  const args = /FAKE_GROK_UP args:[^\r\n]*/u.exec(captured);
-
-  if (args === null) {
-    throw new Error('no FAKE_GROK_UP args line was captured');
-  }
-
-  const [argsLine] = args;
-
-  expect(argsLine).toInclude('FAKE_GROK_UP args: --no-leader');
-  expect(argsLine).not.toInclude('--resume');
-  expect(argsLine).not.toInclude('-p');
+  expect(captured).toMatch(/FAKE_GROK_UP args: --no-leader/u);
+  expect(captured).not.toMatch(/FAKE_GROK_UP args:[^\r\n]*(?:--resume|-p)/u);
   expect(captured).not.toInclude('FAKE_CLAUDE_UP');
 }, 15_000);
 

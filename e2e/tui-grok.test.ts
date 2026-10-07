@@ -28,17 +28,8 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
 
   // The TUI paints with cursor moves and no newlines, so the args reach the
   // capture on the same line as a whole screen of session names.
-  const args = /FAKE_GROK_UP args:[^\r\n]*/u.exec(captured);
-
-  if (args === null) {
-    throw new Error('no FAKE_GROK_UP args line was captured');
-  }
-
-  const [argsLine] = args;
-
-  expect(argsLine).toInclude('FAKE_GROK_UP args: --no-leader');
-  expect(argsLine).not.toInclude('--resume');
-  expect(argsLine).not.toInclude('-p');
+  expect(captured).toMatch(/FAKE_GROK_UP args: --no-leader/u);
+  expect(captured).not.toMatch(/FAKE_GROK_UP args:[^\r\n]*(?:--resume|-p)/u);
   expect(captured).not.toInclude('FAKE_CLAUDE_UP');
 
   rmSync(join(ctx.home, 'fake-grok-defer-start'));
@@ -160,14 +151,8 @@ test('it yanks a grok resume command once the id is captured', async () => {
 
   await ctx.waitFor('resume cmd copied');
 
-  const b64 = ctx.read().split(']52;c;')[1]?.split(KEYS.bel)[0];
-
-  if (b64 === undefined) {
-    throw new Error('no OSC52 sequence in output');
-  }
-
-  expect(Buffer.from(b64, 'base64').toString()).toBe(
-    `cd '${ctx.home}' && grok --resume fake-grok-1`,
+  expect(ctx.read()).toInclude(
+    `]52;c;${Buffer.from(`cd '${ctx.home}' && grok --resume fake-grok-1`).toString('base64')}${KEYS.bel}`,
   );
 }, 15_000);
 
@@ -191,13 +176,9 @@ test('it yanks a grok command without --resume before SessionStart', async () =>
 
   await ctx.waitFor('resume cmd copied');
 
-  const b64 = ctx.read().split(']52;c;')[1]?.split(KEYS.bel)[0];
-
-  if (b64 === undefined) {
-    throw new Error('no OSC52 sequence in output');
-  }
-
-  expect(Buffer.from(b64, 'base64').toString()).toBe(`cd '${ctx.home}' && grok`);
+  expect(ctx.read()).toInclude(
+    `]52;c;${Buffer.from(`cd '${ctx.home}' && grok`).toString('base64')}${KEYS.bel}`,
+  );
 }, 15_000);
 
 test('it ignores H on a grok row instead of opening the eject picker', async () => {
@@ -214,9 +195,12 @@ test('it ignores H on a grok row instead of opening the eject picker', async () 
   await ctx.waitFor('grokheadless');
 
   ctx.reset();
+
+  const mark = ctx.markClientLog();
+
   ctx.write('H');
 
-  await ctx.waitForClientLog('ignored H on a session that cannot eject');
+  await ctx.waitForClientLog('ignored H on a session that cannot eject', mark);
 
   expect(ctx.read()).not.toInclude('eject: headless instruction');
 

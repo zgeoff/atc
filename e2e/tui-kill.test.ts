@@ -9,6 +9,18 @@ function setupTest() {
   return startTUIHarness();
 }
 
+test('it starts claude with the settings file atc generates', async () => {
+  await using ctx = setupTest();
+
+  ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await spawnClaudeSession(ctx, 'withsettings');
+
+  expect(ctx.read()).toMatch(/FAKE_CLAUDE_UP args: [^\r\n]*--settings /u);
+});
+
 test('it kills a needs-you session from the overlay on confirm', async () => {
   await using ctx = setupTest();
 
@@ -17,8 +29,6 @@ test('it kills a needs-you session from the overlay on confirm', async () => {
   await ctx.waitFor('atc — control tower');
 
   await spawnClaudeSession(ctx, 'testsess');
-
-  expect(ctx.read()).toInclude('--settings');
 
   ctx.write(KEYS.ctrlSpace);
 

@@ -30,3 +30,19 @@ test('it keeps going when the file cannot be written', () => {
     logClientEvent('dropped probe answer');
   }).not.toThrow();
 });
+
+test.each([
+  ['unset', undefined],
+  ['empty', ''],
+])('it writes nothing while the variable is %s', (_case, value) => {
+  using ctx = setupTest();
+
+  const path = join(ctx.dir, 'client.log');
+
+  updateEnv('ATC_CLIENT_LOG', path);
+  logClientEvent('dropped probe answer');
+  updateEnv('ATC_CLIENT_LOG', value);
+  logClientEvent('ignored tab with one source');
+
+  expect(readFileSync(path, 'utf8')).toBe('dropped probe answer\n');
+});

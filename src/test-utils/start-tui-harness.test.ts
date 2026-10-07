@@ -1,18 +1,17 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '../client/daemon-client';
 import { KEYS } from './keys';
 import { startTUIHarness } from './start-tui-harness';
 
-test('it boots the client in its home and captures the home screen', async () => {
+test('it boots the client in its home, where the client starts its daemon', async () => {
   await using tui = startTUIHarness();
 
   tui.boot();
 
   await tui.waitFor('atc — control tower');
 
-  expect(tui.read()).toInclude('atc — control tower');
+  expect(readFileSync(join(tui.home, 'atc-daemon.pid'), 'utf8')).toMatch(/^\d+$/u);
 });
 
 test('it rejects a wait for text the client never draws with the tail of the capture', async () => {
@@ -72,9 +71,40 @@ test('it reads a decision the client logs without drawing it', async () => {
 
   await tui.waitFor('no sessions — n to spawn');
 
+  const mark = tui.markClientLog();
+
   tui.write('H');
 
-  expect(tui.waitForClientLog('ignored H on a session that cannot eject')).resolves.toBeUndefined();
+  await tui.waitForClientLog('ignored H on a session that cannot eject', mark);
+
+  expect(tui.markClientLog()).toBe(mark + 1);
+});
+
+test('it rejects a wait for a log line written only before the mark', async () => {
+  await using tui = startTUIHarness();
+
+  tui.boot();
+
+  await tui.waitFor('atc — control tower');
+
+  tui.reset();
+  tui.write(KEYS.ctrlSpace);
+
+  await tui.waitFor('no sessions — n to spawn');
+
+  const before = tui.markClientLog();
+
+  tui.write('H');
+
+  await tui.waitForClientLog('ignored H on a session that cannot eject', before);
+
+  const after = tui.markClientLog();
+
+  expect(
+    tui.waitForClientLog('ignored H on a session that cannot eject', after, 200),
+  ).rejects.toThrow(
+    'the client log never held "ignored H on a session that cannot eject" after line 1',
+  );
 });
 
 test('it resolves the exit code of the client it booted', async () => {
@@ -118,40 +148,4 @@ test('it removes its home on dispose', async () => {
   await tui[Symbol.asyncDispose]();
 
   expect(existsSync(tui.home)).toBe(false);
-});
-
-test('it starts a daemon offering the fixture source on the socket the client dials', async () => {
-  await using tui = startTUIHarness();
-
-  await tui.startSourceDaemon({ ATC_TEST_FIXTURE_URL: join(tui.home, 'upstream.git') });
-
-  const daemon = await DaemonClient.open(join(tui.home, 'atc-daemon.sock'));
-
-  onTestFinished(() => {
-    daemon.stop();
-  });
-
-  await daemon.sendHello('atc/test');
-
-  const listed = await daemon.sendRequest('agents.list');
-
-  expect(listed['sources']).toPartiallyContain({ id: 'fixture', kind: 'git' });
-});
-
-test('it starts a daemon offering no sources when asked for none', async () => {
-  await using tui = startTUIHarness();
-
-  await tui.startSourceDaemon({ ATC_TEST_SOURCES: 'none' });
-
-  const daemon = await DaemonClient.open(join(tui.home, 'atc-daemon.sock'));
-
-  onTestFinished(() => {
-    daemon.stop();
-  });
-
-  await daemon.sendHello('atc/test');
-
-  const listed = await daemon.sendRequest('agents.list');
-
-  expect(listed['sources']).toStrictEqual([]);
 });

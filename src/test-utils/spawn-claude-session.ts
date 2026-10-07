@@ -8,7 +8,8 @@ import type { TUIHarness } from './start-tui-harness';
  * `claude` paints, with the capture holding what the client drew since the
  * prompt step.
  */
-export async function spawnClaudeSession(tui: Readonly<TUIHarness>, name: string): Promise<void> {
+// oxlint-disable-next-line prefer-readonly-parameter-types -- a harness is a live handle
+export async function spawnClaudeSession(tui: TUIHarness, name: string): Promise<void> {
   tui.write('n');
 
   await tui.waitFor('spawn: agent');

@@ -7,8 +7,8 @@ function setupTest() {
   return setupTempDir('atc-statusline-');
 }
 
-test('it chains the user statusline and appends the fleet segment', async () => {
-  await using ctx = setupTest();
+test('it chains the user statusline and appends the fleet segment', () => {
+  using ctx = setupTest();
 
   mkdirSync(join(ctx.dir, '.claude'), { recursive: true });
 
@@ -24,7 +24,7 @@ test('it chains the user statusline and appends the fleet segment', async () => 
     JSON.stringify({ needs_you: 2, running: 1, done: 0, exited: 0, urgent: 'auth-bug' }),
   );
 
-  const proc = Bun.spawn(
+  const proc = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', 'src', 'cli.ts'), 'statusline'],
     {
       stdin: new TextEncoder().encode(JSON.stringify({ session_id: 'sl-1' })),
@@ -33,15 +33,15 @@ test('it chains the user statusline and appends the fleet segment', async () => 
     },
   );
 
-  const line = await new Response(proc.stdout).text();
+  const line = proc.stdout.toString();
 
   expect(line).toInclude('CHAINED-SEGMENT');
   expect(line).toInclude('2 need you: auth-bug');
   expect(line).toInclude('◐ 1');
 });
 
-test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_DIR sets', async () => {
-  await using ctx = setupTest();
+test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_DIR sets', () => {
+  using ctx = setupTest();
 
   mkdirSync(join(ctx.dir, '.claude'), { recursive: true });
   mkdirSync(join(ctx.dir, 'claude-config'), { recursive: true });
@@ -56,7 +56,7 @@ test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_
     JSON.stringify({ statusLine: { type: 'command', command: 'echo CONFIG-DIR-SEGMENT' } }),
   );
 
-  const proc = Bun.spawn(
+  const proc = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', 'src', 'cli.ts'), 'statusline'],
     {
       stdin: new TextEncoder().encode(JSON.stringify({ session_id: 'sl-2' })),
@@ -70,7 +70,7 @@ test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_
     },
   );
 
-  const line = await new Response(proc.stdout).text();
+  const line = proc.stdout.toString();
 
   expect(line).toInclude('CONFIG-DIR-SEGMENT');
   expect(line).not.toInclude('HOME-SEGMENT');

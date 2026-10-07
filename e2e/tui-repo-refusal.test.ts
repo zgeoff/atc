@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
+import { buildStubSignedOutGH } from '../src/test-utils/build-stub-signed-out-gh';
 import { createGitFixture } from '../src/test-utils/create-git-fixture';
 import { createStubBin } from '../src/test-utils/create-stub-bin';
 import { KEYS } from '../src/test-utils/keys';
@@ -16,7 +17,7 @@ test('it returns a spawn into an existing destination to the confirm screen with
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   const dest = join(
     ctx.home,
@@ -80,7 +81,7 @@ test('it returns a spawn whose clone fails to the repository step', async () => 
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.boot();
 
@@ -118,7 +119,7 @@ test('it returns a spawn whose commit left the upstream to the ref step with the
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.boot();
 

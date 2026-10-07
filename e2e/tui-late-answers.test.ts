@@ -3,6 +3,9 @@ import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { DaemonClient } from '../src/client/daemon-client';
+import { buildStubHeldGH } from '../src/test-utils/build-stub-held-gh';
+import { buildStubHeldZoxide } from '../src/test-utils/build-stub-held-zoxide';
+import { buildStubSignedOutGH } from '../src/test-utils/build-stub-signed-out-gh';
 import { createGitFixture } from '../src/test-utils/create-git-fixture';
 import { createStubBin } from '../src/test-utils/create-stub-bin';
 import { KEYS } from '../src/test-utils/keys';
@@ -22,17 +25,7 @@ test('it stops a repository listing on esc and keeps taking typed input', async 
   // The repository listing answers only once the test removes the hold
   // file.
   writeFileSync(join(ctx.home, 'gh-hold'), '');
-
-  createStubBin(
-    join(ctx.home, 'bin'),
-    'gh',
-    `#!/bin/sh
-case "$1" in
-  config) echo https ;;
-  *) while [ -f "$HOME/gh-hold" ]; do sleep 0.05; done; echo '[{"nameWithOwner":"me/dots","description":"dotfiles","isPrivate":false,"url":"https://github.com/me/dots","sshUrl":"git@github.com:me/dots.git"}]' ;;
-esac
-`,
-  );
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubHeldGH());
 
   ctx.boot();
 
@@ -47,9 +40,11 @@ esac
 
   await ctx.waitFor('listing stopped');
 
+  const mark = ctx.markClientLog();
+
   rmSync(join(ctx.home, 'gh-hold'));
 
-  await ctx.waitForClientLog('dropped listing answer');
+  await ctx.waitForClientLog('dropped listing answer', mark);
 
   expect(ctx.read()).toInclude('spawn: GitHub repository');
   expect(ctx.read()).not.toInclude('me/dots');
@@ -64,7 +59,7 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   const server = startGitHTTPServer(fixture.dir, fixture.env);
 
@@ -94,9 +89,11 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   await ctx.waitFor('cancelled');
 
+  const mark = ctx.markClientLog();
+
   server.release();
 
-  await ctx.waitForClientLog('dropped probe answer');
+  await ctx.waitForClientLog('dropped probe answer', mark);
 
   expect(ctx.read()).toInclude('spawn: GitHub repository');
   expect(ctx.read()).not.toInclude('clone_failed');
@@ -121,17 +118,7 @@ test('it keeps the ref the user moved to when a repository listing answers late'
   // The repository listing answers only once the test removes the hold
   // file.
   writeFileSync(join(ctx.home, 'gh-hold'), '');
-
-  createStubBin(
-    join(ctx.home, 'bin'),
-    'gh',
-    `#!/bin/sh
-case "$1" in
-  config) echo https ;;
-  *) while [ -f "$HOME/gh-hold" ]; do sleep 0.05; done; echo '[{"nameWithOwner":"me/dots","description":"dotfiles","isPrivate":false,"url":"https://github.com/me/dots","sshUrl":"git@github.com:me/dots.git"}]' ;;
-esac
-`,
-  );
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubHeldGH());
 
   ctx.boot();
 
@@ -150,9 +137,11 @@ esac
 
   await ctx.waitFor('\u001B[7mfeat');
 
+  const mark = ctx.markClientLog();
+
   rmSync(join(ctx.home, 'gh-hold'));
 
-  await ctx.waitForClientLog('kept the ref step through a listing answer');
+  await ctx.waitForClientLog('kept the ref step through a listing answer', mark);
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -166,7 +155,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   const server = startGitHTTPServer(fixture.dir, fixture.env);
 
@@ -214,12 +203,14 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 
   await ctx.waitFor('atc — control tower');
 
+  const mark = ctx.markClientLog();
+
   server.release();
   ctx.reset();
   ctx.write(KEYS.enter);
 
   await ctx.waitFor('slowclone', 15_000);
-  await ctx.waitForClientLog('dropped spawn answer');
+  await ctx.waitForClientLog('dropped spawn answer', mark);
 
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
   expect(ctx.read()).not.toInclude('spawn: initial prompt');
@@ -240,21 +231,12 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 test('it stays where the user moved when a directory listing answers late', async () => {
   await using ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   // The daemon runs zoxide from the PATH the client gives it. While the
   // hold file exists, zoxide marks that it started and waits, so the
   // directory listing answers only once the test removes the file.
-  createStubBin(
-    join(ctx.home, 'bin'),
-    'zoxide',
-    `#!/bin/sh
-if [ -f "$HOME/zoxide-hold" ]; then
-  touch "$HOME/zoxide-started"
-  while [ -f "$HOME/zoxide-hold" ]; do sleep 0.05; done
-fi
-`,
-  );
+  createStubBin(join(ctx.home, 'bin'), 'zoxide', buildStubHeldZoxide());
 
   ctx.boot();
 
@@ -284,7 +266,7 @@ fi
   // The tab draws nothing until the listing answers; zoxide starting shows
   // the daemon took the listing request.
   await waitFor(() => {
-    expect(existsSync(join(ctx.home, 'zoxide-started'))).toBe(true);
+    expect(existsSync(join(ctx.home, 'zoxide-held'))).toBe(true);
   });
 
   ctx.write(KEYS.esc);
@@ -293,9 +275,11 @@ fi
 
   ctx.reset();
 
+  const mark = ctx.markClientLog();
+
   rmSync(join(ctx.home, 'zoxide-hold'));
 
-  await ctx.waitForClientLog('dropped directory listing answer');
+  await ctx.waitForClientLog('dropped directory listing answer', mark);
 
   expect(ctx.read()).not.toInclude('directory on the daemon host');
 }, 15_000);
@@ -304,20 +288,11 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   // While the hold file exists, zoxide marks that it started and waits, so
   // the tab's directory listing answers only once the test removes it.
-  createStubBin(
-    join(ctx.home, 'bin'),
-    'zoxide',
-    `#!/bin/sh
-if [ -f "$HOME/zoxide-hold" ]; then
-  touch "$HOME/zoxide-started"
-  while [ -f "$HOME/zoxide-hold" ]; do sleep 0.05; done
-fi
-`,
-  );
+  createStubBin(join(ctx.home, 'bin'), 'zoxide', buildStubHeldZoxide());
 
   const server = startGitHTTPServer(fixture.dir, fixture.env);
 
@@ -364,7 +339,7 @@ fi
   // The tab draws nothing until its listing answers; zoxide starting shows
   // the daemon took the listing request.
   await waitFor(() => {
-    expect(existsSync(join(ctx.home, 'zoxide-started'))).toBe(true);
+    expect(existsSync(join(ctx.home, 'zoxide-held'))).toBe(true);
   });
 
   ctx.write(KEYS.enter);
@@ -375,9 +350,11 @@ fi
     expect(server.authorizations).not.toBeEmpty();
   });
 
+  const mark = ctx.markClientLog();
+
   rmSync(join(ctx.home, 'zoxide-hold'));
 
-  await ctx.waitForClientLog('dropped directory listing answer');
+  await ctx.waitForClientLog('dropped directory listing answer', mark);
 
   server.release();
 

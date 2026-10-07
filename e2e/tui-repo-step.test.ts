@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { DaemonClient } from '../src/client/daemon-client';
+import { buildStubSignedOutGH } from '../src/test-utils/build-stub-signed-out-gh';
 import { createGitFixture } from '../src/test-utils/create-git-fixture';
 import { createStubBin } from '../src/test-utils/create-stub-bin';
 import { KEYS } from '../src/test-utils/keys';
@@ -17,7 +18,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   const dest = join(
     ctx.home,
@@ -115,7 +116,7 @@ test('it filters refs by name and refuses an abbreviated commit id on the ref st
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.boot();
 
@@ -191,7 +192,7 @@ esac
 test('it shows a repository the daemon cannot read on the repository step', async () => {
   await using ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.boot();
 
@@ -212,7 +213,7 @@ test('it opens github mode on a target that takes a workspace when the default c
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.writeConfig({
     targets: {
@@ -287,7 +288,7 @@ test('it opens github mode on a target that takes a workspace when the default c
 test('it opens github mode on the one target that takes a workspace without a target step, and esc returns to the agent', async () => {
   await using ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.writeConfig({
     targets: { local: { provider: 'local-pty' }, far: { provider: 'nowhere' } },
@@ -314,7 +315,7 @@ test("it builds each target's own default destination when the target changes", 
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   const name = `upstream-main-${fixture.sha.slice(0, 7)}`;
 
@@ -398,7 +399,7 @@ test('it leaves a destination under a ~ root to a remote target and refuses a ty
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   // An imp target with a url and no token takes a workspace; nothing here
   // reaches impd, since no spawn is sent.
@@ -461,7 +462,7 @@ test('it offers the other URL form after a failed probe and checks that form on 
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
   mkdirSync(join(ctx.home, 'mirror', 'acme'), { recursive: true });
 
   await $`git clone --quiet --bare --template= ${fixture.upstream} ${join(ctx.home, 'mirror', 'acme', 'app.git')}`
@@ -504,7 +505,7 @@ test('it drops a typed destination when the repository changes', async () => {
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', "#!/bin/sh\necho 'gh auth login' >&2\nexit 4\n");
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   const other = join(ctx.home, 'other.git');
 

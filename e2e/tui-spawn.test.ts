@@ -123,9 +123,11 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
 
   await ctx.waitFor('\u001B[7malt  local-pty');
 
+  const mark = ctx.markClientLog();
+
   ctx.write('x');
 
-  await ctx.waitForClientLog('ignored text on the target step');
+  await ctx.waitForClientLog('ignored text on the target step', mark);
 
   ctx.write(KEYS.enter);
 

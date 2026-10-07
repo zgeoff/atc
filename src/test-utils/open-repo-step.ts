@@ -7,7 +7,8 @@ import type { TUIHarness } from './start-tui-harness';
  * Resolves once the step's title is drawn, with the capture holding what
  * the client drew since the tab.
  */
-export async function openRepoStep(tui: Readonly<TUIHarness>): Promise<void> {
+// oxlint-disable-next-line prefer-readonly-parameter-types -- a harness is a live handle
+export async function openRepoStep(tui: TUIHarness): Promise<void> {
   tui.write('n');
 
   await tui.waitFor('spawn: agent');
