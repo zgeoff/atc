@@ -147,11 +147,12 @@ never appear in a test file.
 - Each test file keeps its own `setupTest()`. A shared one gathers a flag for every suite that uses
   it.
 
-When `setupTest()` acquires anything that needs releasing, it returns `Symbol.asyncDispose` and the
-test holds it with `await using`, so teardown runs whether the test passes or throws. Gather several
-resources in one `AsyncDisposableStack`: it releases them in reverse order, so a server stops before
-the database it reads is closed. Hold the stack with `await using` while setup runs, and hand it to
-the test with `stack.move()`, so a setup step that throws still releases what the stack holds.
+When `setupTest()` acquires a resource that closes asynchronously, it returns `Symbol.asyncDispose`
+and the test holds it with `await using`, so teardown runs whether the test passes or throws. Gather
+several resources in one `AsyncDisposableStack`: it releases them in reverse order, so a server
+stops before the database it reads is closed. Hold the stack with `await using` while setup runs,
+and hand it to the test with `stack.move()`, so a setup step that throws still releases what the
+stack holds.
 
 ```ts
 async function setupTest() {
@@ -179,6 +180,33 @@ test('it lists a note after it is saved', async () => {
 });
 ```
 
+When every resource that `setupTest()` acquires closes synchronously, such as an in-memory SQLite
+handle, `setupTest()` returns `Symbol.dispose` from a `DisposableStack`, and the test holds it with
+a plain `using`. The setup is then not async, and the test is async only when its own body awaits.
+One resource that closes asynchronously makes the whole setup take the async form.
+
+```ts
+function setupTest() {
+  using stack = new DisposableStack();
+  const db = new Database(':memory:');
+
+  stack.defer(() => db.close());
+  applyNotesMigrations(db);
+
+  const owned = stack.move();
+
+  return { db, [Symbol.dispose]: () => owned.dispose() };
+}
+
+test('it counts the notes in the store', () => {
+  using ctx = setupTest();
+
+  insertNote(ctx.db, { title: 'groceries' });
+
+  expect(countNotes(ctx.db)).toBe(1);
+});
+```
+
 A `setupTest()` that acquires nothing returns no dispose method, and the test holds it with a plain
 `const`. Hold the result in one binding and read its members; never destructure it. The binding
 names are fixed: `ctx` for `setupTest()`, `hook` for `renderHook(…)`, and `rendered` for
@@ -188,12 +216,12 @@ names are fixed: `ctx` for `setupTest()`, `hook` for `renderHook(…)`, and `ren
 
 Each kind of state has one cleanup tool.
 
-| State                                  | Cleanup                                                                                          |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| A resource that `setupTest()` acquires | Its dispose, through `await using ctx`                                                           |
-| A resource that the test body opens    | `onTestFinished(…)` on the line after the open, or `await using` when the resource is disposable |
-| Process state the test body changes    | `onTestFinished(…)` on the line after the change                                                 |
-| State that a preload reset covers      | Nothing                                                                                          |
+| State                                  | Cleanup                                                                                                     |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| A resource that `setupTest()` acquires | Its dispose, through `using ctx`, or `await using ctx` when a resource closes asynchronously                |
+| A resource that the test body opens    | `onTestFinished(…)` on the line after the open, or `using` or `await using` when the resource is disposable |
+| Process state the test body changes    | `onTestFinished(…)` on the line after the change                                                            |
+| State that a preload reset covers      | Nothing                                                                                                     |
 
 `try`/`finally` never appears in a test. `onTestFinished` runs on failure as well, it keeps teardown
 beside the line it reverses, and it needs no `?.` guard for a resource the test never reached. A
