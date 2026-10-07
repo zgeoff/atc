@@ -1,4 +1,8 @@
-import type { ExecutionCapabilities, ExecutionProvider } from '../daemon/execution-provider';
+import type {
+  ExecutionCapabilities,
+  ExecutionProvider,
+  HarnessSpec,
+} from '../daemon/execution-provider';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 
 interface StubExecutionProviderConfig {
@@ -7,6 +11,12 @@ interface StubExecutionProviderConfig {
 
   // Capabilities that differ from a local pseudo-terminal's.
   readonly capabilities?: Partial<ExecutionCapabilities>;
+
+  /**
+   * Called with each harness spec before the harness starts; a throw from
+   * it aborts the spawn.
+   */
+  readonly onSpawn?: (spec: HarnessSpec) => void;
 }
 
 interface StubExecutionProvider extends ExecutionProvider {
@@ -32,7 +42,8 @@ interface StubExecutionProvider extends ExecutionProvider {
 /**
  * An execution provider for daemon tests that runs harnesses, transfers, and
  * commands on this machine as the local pseudo-terminal provider does, with
- * the capabilities the config changes on top of its own. A host suspend or
+ * the capabilities the config changes on top of its own. It reports each
+ * harness spec to the config before starting it. A host suspend or
  * destroy does nothing to the machine: it records the host in `suspended` or
  * `destroyed` and resolves, or rejects with the error a failure setter gave.
  * The daemon calls them only when the capabilities declare `suspend` or
@@ -43,6 +54,7 @@ export function buildStubExecutionProvider(
 ): StubExecutionProvider {
   const local = new LocalPTYProvider();
 
+  const onSpawn = config.onSpawn ?? (() => {});
   const suspended: string[] = [];
   const destroyed: string[] = [];
 
@@ -58,7 +70,11 @@ export function buildStubExecutionProvider(
     remote: false,
     capabilities: { ...local.capabilities, ...config.capabilities },
     prepareHost: local.prepareHost,
-    spawnHarness: local.spawnHarness,
+    spawnHarness: (spec) => {
+      onSpawn(spec);
+
+      return local.spawnHarness(spec);
+    },
     transferArchive: local.transferArchive,
     runCommand: local.runCommand,
     suspendHost: (host) => {

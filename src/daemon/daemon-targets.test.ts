@@ -1,288 +1,342 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
-import { DaemonClient } from '../client/daemon-client';
-import { collectTargets } from '../shared/collect-targets';
 import { getRecord } from '../shared/get-record';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
-import type { FleetEntry } from '../store/fleet-entry';
 import { StateStore } from '../store/state-store';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
+import { buildTargetOptionsFromConfig } from '../test-utils/build-target-options-from-config';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { buildTargetIdentity } from './build-target-identity';
-import { startDaemon } from './daemon';
-import { LocalPTYProvider } from './local-pty-provider';
-
-// The `targets` and `defaultTarget` keys of a config.json, raw.
-interface RawTargets {
-  readonly targets?: unknown;
-  readonly defaultTarget?: unknown;
-}
 
 /**
- * A real daemon on a state directory that outlives restarts, whose targets
- * come from a raw config through the real parse. A `local-pty` target runs
- * harnesses on a real pseudo-terminal through a provider that counts its
- * spawns, a `no-headless` target's provider can neither start a terminal
- * nor run a headless turn, and any other kind has no provider. The agent's
- * headless runner records each call and finishes the turn on the next tick.
+ * The daemon's stand-ins. `providers` builds, for a target id, the provider
+ * of each kind a test's config may hold: a `local-pty` target runs harnesses
+ * on a real pseudo-terminal, and a `no-headless` target's provider can
+ * neither start a terminal nor run a headless turn. The target id of each
+ * harness started lands in `harnesses`. The agent's headless runner records
+ * each prompt in `runs` and finishes the turn on the next tick with a
+ * message that holds the prompt.
  */
-async function setupTest(fleet: readonly FleetEntry[] = []) {
-  const tmp = setupTempDir('atc-daemon-targets-');
-  const dbPath = join(tmp.dir, 'state.db');
-
-  const local = new LocalPTYProvider();
-
+function setupTest() {
   const harnesses: string[] = [];
   const runs: string[] = [];
-  let stopCurrent: (() => Promise<void>) | null = null;
 
-  if (fleet.length > 0) {
-    const store = await StateStore.open(dbPath);
+  const adapter = buildMockAgentAdapter({
+    headlessRunner: (opts, hooks) => {
+      runs.push(opts.prompt);
 
-    await store.writeFleet(fleet);
-    await store.stop();
-  }
+      setTimeout(() => {
+        hooks.onDone(`finished: ${opts.prompt}`);
+      }, 0);
 
-  const openDaemon = async (raw: RawTargets) => {
-    await stopCurrent?.();
-
-    const parsed = collectTargets(raw.targets, raw.defaultTarget);
-
-    const daemon = await startDaemon({
-      socketPath: join(tmp.dir, 'daemon.sock'),
-      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-      build: 'atc/test-build',
-      adapter: {
-        id: 'claude',
-        screenDetector: null,
-        takesMessages: false,
-        headlessRunner: (opts, hooks) => {
-          runs.push(opts.prompt);
-
-          setTimeout(() => {
-            hooks.onDone('turn finished');
-          }, 0);
-
-          return { stop: () => {} };
-        },
-        planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-        normalizeHook: () => ({ kind: 'heartbeat' }),
-        loadName: () => Promise.resolve(null),
-        canResume: () => true,
-        buildResumeCommand: () => null,
-      },
-      dbPath,
-      statusPath: join(tmp.dir, 'status.json'),
-      ejectSettleMs: 0,
-      targets: parsed.targets.map((target) => ({
-        id: target.id,
-        kind: target.provider,
-        options: target.options,
-        identity: buildTargetIdentity(target.provider, target.options),
-        provider:
-          target.provider === 'local-pty' || target.provider === 'no-headless'
-            ? {
-                kind: target.provider,
-                remote: false,
-                prepareHost: local.prepareHost,
-                dispose: local.dispose,
-                capabilities: {
-                  ...local.capabilities,
-                  spawn: target.provider === 'local-pty',
-                  headless: target.provider === 'local-pty',
-                },
-                spawnHarness: (spec) => {
-                  harnesses.push(target.id);
-
-                  return local.spawnHarness(spec);
-                },
-                transferArchive: local.transferArchive,
-                runCommand: local.runCommand,
-                suspendHost: local.suspendHost,
-                destroyHost: local.destroyHost,
-              }
-            : null,
-      })),
-      defaultTarget: parsed.defaultTarget,
-      targetErrors: parsed.errors,
-    });
-
-    const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
-
-    await client.sendHello('atc/test-build');
-
-    stopCurrent = async () => {
-      client.stop();
-
-      await daemon.stop();
-    };
-
-    return client;
-  };
-
-  return {
-    harnesses,
-    runs,
-    openDaemon,
-    async [Symbol.asyncDispose]() {
-      await stopCurrent?.();
-
-      tmp[Symbol.dispose]();
+      return { stop: () => {} };
     },
-  };
+  });
+
+  const providers = new Map([
+    [
+      'local-pty',
+      (id: string) =>
+        buildStubExecutionProvider({
+          kind: 'local-pty',
+          onSpawn: () => {
+            harnesses.push(id);
+          },
+        }),
+    ],
+    [
+      'no-headless',
+      (id: string) =>
+        buildStubExecutionProvider({
+          kind: 'no-headless',
+          capabilities: { spawn: false, headless: false },
+          onSpawn: () => {
+            harnesses.push(id);
+          },
+        }),
+    ],
+  ]);
+
+  return { adapter, harnesses, runs, providers };
 }
 
 test('it spawns a session on the target the spawn names and records it in the fleet', async () => {
-  await using daemon = await setupTest();
+  const ctx = setupTest();
 
-  const client = await daemon.openDaemon({
-    targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        },
+        ctx.providers,
+      ),
+    }),
   });
 
-  const spawned = await client.sendRequest('session.spawn', { cwd: '/tmp', target: 'box' });
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    target: 'box',
+  });
 
   const session = getRecord(spawned, 'session');
 
-  expect(session['locator']).toMatchObject({ targetID: 'box' });
-  expect(daemon.harnesses).toStrictEqual(['box']);
+  const stored = await waitFor(async () => {
+    const listed = await daemon.client.sendRequest('fleet.list');
 
-  await waitFor(async () => {
-    const stored = await client.sendRequest('fleet.list');
+    expect(listed['fleet']).toBeArrayOfSize(1);
 
-    expect(stored).toMatchObject({
-      fleet: [
-        {
-          sessionID: session['id'],
-          target: 'box',
-          targetIdentity: buildTargetIdentity('local-pty', { size: 2 }),
-        },
-      ],
-    });
+    return listed;
+  });
+
+  expect(session['locator']).toStrictEqual({ daemonID: expect.toBeString(), targetID: 'box' });
+  expect(ctx.harnesses).toStrictEqual(['box']);
+
+  expect(stored).toMatchObject({
+    fleet: [
+      {
+        sessionID: session['id'],
+        target: 'box',
+        targetIdentity: buildTargetIdentity('local-pty', { size: 2 }),
+      },
+    ],
   });
 });
 
 test('it spawns a session without a target on the local target when the config sets no targets', async () => {
-  await using daemon = await setupTest();
+  const ctx = setupTest();
 
-  const client = await daemon.openDaemon({});
-  const spawned = await client.sendRequest('session.spawn', { cwd: '/tmp' });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig({}, ctx.providers),
+    }),
+  });
 
-  expect(getRecord(spawned, 'session')['locator']).toMatchObject({ targetID: 'local' });
-  expect(daemon.harnesses).toStrictEqual(['local']);
+  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+
+  expect(getRecord(spawned, 'session')['locator']).toStrictEqual({
+    daemonID: expect.toBeString(),
+    targetID: 'local',
+  });
+
+  expect(ctx.harnesses).toStrictEqual(['local']);
 });
 
 test('it refuses a spawn to a target the config does not hold with unknown_target', async () => {
-  await using daemon = await setupTest();
+  const ctx = setupTest();
 
-  const client = await daemon.openDaemon({});
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig({}, ctx.providers),
+    }),
+  });
 
-  const spawn = client.sendRequest('session.spawn', { cwd: '/tmp', target: 'nope' });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'nope' });
 
   expect(spawn).rejects.toMatchObject({ code: 'unknown_target', data: { target: 'nope' } });
-  expect(client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
-  expect(daemon.harnesses).toStrictEqual([]);
+  expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
+  expect(ctx.harnesses).toStrictEqual([]);
 });
 
 test('it refuses a spawn to a target this daemon has no provider for with target_unavailable', async () => {
-  await using daemon = await setupTest();
+  const ctx = setupTest();
 
-  const client = await daemon.openDaemon({
-    targets: { local: { provider: 'local-pty' }, box: { provider: 'imp' } },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'imp' } },
+        },
+        ctx.providers,
+      ),
+    }),
   });
 
-  const spawn = client.sendRequest('session.spawn', { cwd: '/tmp', target: 'box' });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'box' });
 
   expect(spawn).rejects.toMatchObject({
     code: 'target_unavailable',
     data: { target: 'box', provider: 'imp' },
   });
 
-  expect(client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
-  expect(daemon.harnesses).toStrictEqual([]);
+  expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
+  expect(ctx.harnesses).toStrictEqual([]);
 });
 
 test('it refuses a spawn to the local target when the targets map leaves it out', async () => {
-  await using daemon = await setupTest();
+  const ctx = setupTest();
 
-  const client = await daemon.openDaemon({ targets: { box: { provider: 'local-pty' } } });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        { targets: { box: { provider: 'local-pty' } } },
+        ctx.providers,
+      ),
+    }),
+  });
 
-  const spawn = client.sendRequest('session.spawn', { cwd: '/tmp', target: 'local' });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
 
   expect(spawn).rejects.toMatchObject({ code: 'unknown_target' });
-  expect(daemon.harnesses).toStrictEqual([]);
+  expect(ctx.harnesses).toStrictEqual([]);
 });
 
 test('it refuses a spawn without a target, and starts no terminal, for a malformed targets map', async () => {
-  await using daemon = await setupTest();
+  const ctx = setupTest();
 
-  const client = await daemon.openDaemon({ targets: ['local'] });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig({ targets: ['local'] }, ctx.providers),
+    }),
+  });
 
-  const spawn = client.sendRequest('session.spawn', { cwd: '/tmp' });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
   expect(spawn).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: { problem: 'targets must be a non-empty object of named targets' },
   });
 
-  expect(client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
-  expect(daemon.harnesses).toStrictEqual([]);
+  expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
+  expect(ctx.harnesses).toStrictEqual([]);
 });
 
 test('it refuses a spawn to local, and starts no terminal, for a malformed targets map', async () => {
-  await using daemon = await setupTest();
+  const ctx = setupTest();
 
-  const client = await daemon.openDaemon({ targets: 'local' });
-
-  const spawn = client.sendRequest('session.spawn', { cwd: '/tmp', target: 'local' });
-
-  expect(spawn).rejects.toMatchObject({ code: 'target_config_invalid', data: { target: 'local' } });
-  expect(daemon.harnesses).toStrictEqual([]);
-});
-
-test('it refuses a spawn to a malformed target entry and keeps the well-formed ones working', async () => {
-  await using daemon = await setupTest();
-
-  const client = await daemon.openDaemon({
-    targets: { local: { provider: 'local-pty' }, box: { image: 'dev' } },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig({ targets: 'local' }, ctx.providers),
+    }),
   });
 
-  const refused = client.sendRequest('session.spawn', { cwd: '/tmp', target: 'box' });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
 
-  const spawned = await client.sendRequest('session.spawn', { cwd: '/tmp' });
+  expect(spawn).rejects.toMatchObject({ code: 'target_config_invalid', data: { target: 'local' } });
+  expect(ctx.harnesses).toStrictEqual([]);
+});
 
-  expect(refused).rejects.toMatchObject({ code: 'target_config_invalid', data: { target: 'box' } });
-  expect(getRecord(spawned, 'session')['locator']).toMatchObject({ targetID: 'local' });
-  expect(daemon.harnesses).toStrictEqual(['local']);
+test('it refuses a spawn to a malformed target entry', async () => {
+  const ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { image: 'dev' } },
+        },
+        ctx.providers,
+      ),
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'box' });
+
+  expect(spawn).rejects.toMatchObject({ code: 'target_config_invalid', data: { target: 'box' } });
+  expect(ctx.harnesses).toStrictEqual([]);
+});
+
+test('it spawns on a well-formed target beside a malformed target entry', async () => {
+  const ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { image: 'dev' } },
+        },
+        ctx.providers,
+      ),
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+
+  expect(getRecord(spawned, 'session')['locator']).toStrictEqual({
+    daemonID: expect.toBeString(),
+    targetID: 'local',
+  });
+
+  expect(ctx.harnesses).toStrictEqual(['local']);
 });
 
 test('it refuses a spawn without a target, and starts no terminal, for an unknown defaultTarget', async () => {
-  await using daemon = await setupTest();
+  const ctx = setupTest();
 
-  const client = await daemon.openDaemon({
-    targets: { local: { provider: 'local-pty' } },
-    defaultTarget: 'gone',
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' } },
+          defaultTarget: 'gone',
+        },
+        ctx.providers,
+      ),
+    }),
   });
 
-  const spawn = client.sendRequest('session.spawn', { cwd: '/tmp' });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
   expect(spawn).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: { problem: 'defaultTarget: matches no well-formed target in targets' },
   });
 
-  expect(daemon.harnesses).toStrictEqual([]);
+  expect(ctx.harnesses).toStrictEqual([]);
 });
 
 test('it lists each target and each config error', async () => {
-  await using daemon = await setupTest();
+  const ctx = setupTest();
 
-  const client = await daemon.openDaemon({
-    targets: { local: { provider: 'local-pty' }, box: { provider: 'imp' }, bad: 3 },
-    defaultTarget: 'box',
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'imp' }, bad: 3 },
+          defaultTarget: 'box',
+        },
+        ctx.providers,
+      ),
+    }),
   });
 
-  const listed = await client.sendRequest('agents.list');
+  const listed = await daemon.client.sendRequest('agents.list');
 
   expect({
     targets: listed['targets'],
@@ -359,190 +413,390 @@ test.each([
 ])(
   'it refuses input to a restored headless session whose target was %s, without running it',
   async (_label, boundKind, targets, code) => {
-    await using daemon = await setupTest([
-      {
-        sessionID: toSessionID('s-box'),
-        name: 'remote work',
-        cwd: '/tmp',
-        agentSessionID: toAgentSessionID('a-box'),
-        agent: 'claude',
-        target: 'box',
-        targetIdentity: buildTargetIdentity(boundKind, {}),
+    const ctx = setupTest();
+
+    await using daemon = await startTestDaemon({
+      prefix: 'atc-daemon-targets-',
+      options: async (paths) => {
+        const store = await StateStore.open(paths.dbPath);
+
+        await store.writeFleet([
+          buildMockFleetEntry({
+            sessionID: toSessionID('s-box'),
+            cwd: paths.dir,
+            agentSessionID: toAgentSessionID('a-box'),
+            target: 'box',
+            targetIdentity: buildTargetIdentity(boundKind, {}),
+          }),
+        ]);
+
+        await store.stop();
+
+        return {
+          adapter: ctx.adapter,
+          ejectSettleMs: 0,
+          ...buildTargetOptionsFromConfig({ targets }, ctx.providers),
+        };
       },
-    ]);
+    });
 
-    const client = await daemon.openDaemon({ targets });
+    await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-    await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-
-    const input = client.sendRequest('session.input', { session: 's-box', d: 'go\r' });
+    const input = daemon.client.sendRequest('session.input', { session: 's-box', d: 'go\r' });
 
     expect(input).rejects.toMatchObject({ code, data: { target: 'box' } });
-    expect(daemon.runs).toStrictEqual([]);
-    expect(daemon.harnesses).toStrictEqual([]);
+    expect(ctx.runs).toStrictEqual([]);
+    expect(ctx.harnesses).toStrictEqual([]);
   },
 );
 
 test('it refuses input to a restored headless session on local once the targets map turns local off', async () => {
-  await using daemon = await setupTest([
-    {
-      sessionID: toSessionID('s-old'),
-      name: 'old work',
-      cwd: '/tmp',
-      agentSessionID: toAgentSessionID('a-old'),
-      agent: 'claude',
+  const ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: async (paths) => {
+      const store = await StateStore.open(paths.dbPath);
+
+      await store.writeFleet([
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-old'),
+          cwd: paths.dir,
+          agentSessionID: toAgentSessionID('a-old'),
+        }),
+      ]);
+
+      await store.stop();
+
+      return {
+        adapter: ctx.adapter,
+        ejectSettleMs: 0,
+        ...buildTargetOptionsFromConfig(
+          { targets: { box: { provider: 'local-pty' } } },
+          ctx.providers,
+        ),
+      };
     },
-  ]);
+  });
 
-  const client = await daemon.openDaemon({ targets: { box: { provider: 'local-pty' } } });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-
-  const input = client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
+  const input = daemon.client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
 
   expect(input).rejects.toMatchObject({ code: 'unknown_target', data: { target: 'local' } });
-  expect(daemon.runs).toStrictEqual([]);
-  expect(daemon.harnesses).toStrictEqual([]);
+  expect(ctx.runs).toStrictEqual([]);
+  expect(ctx.harnesses).toStrictEqual([]);
 });
 
 test('it refuses input to a restored headless session whose provider runs no headless turns, without running it', async () => {
-  await using daemon = await setupTest([
-    {
-      sessionID: toSessionID('s-box'),
-      name: 'remote work',
-      cwd: '/tmp',
-      agentSessionID: toAgentSessionID('a-box'),
-      agent: 'claude',
-      target: 'box',
-      targetIdentity: buildTargetIdentity('no-headless', {}),
-    },
-  ]);
+  const ctx = setupTest();
 
-  const client = await daemon.openDaemon({
-    targets: { local: { provider: 'local-pty' }, box: { provider: 'no-headless' } },
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: async (paths) => {
+      const store = await StateStore.open(paths.dbPath);
+
+      await store.writeFleet([
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-box'),
+          cwd: paths.dir,
+          agentSessionID: toAgentSessionID('a-box'),
+          target: 'box',
+          targetIdentity: buildTargetIdentity('no-headless', {}),
+        }),
+      ]);
+
+      await store.stop();
+
+      return {
+        adapter: ctx.adapter,
+        ejectSettleMs: 0,
+        ...buildTargetOptionsFromConfig(
+          {
+            targets: { local: { provider: 'local-pty' }, box: { provider: 'no-headless' } },
+          },
+          ctx.providers,
+        ),
+      };
+    },
   });
 
-  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const input = client.sendRequest('session.input', { session: 's-box', d: 'go\r' });
+  const input = daemon.client.sendRequest('session.input', { session: 's-box', d: 'go\r' });
 
   expect(input).rejects.toMatchObject({
     code: 'unsupported_operation',
     data: { provider: 'no-headless', capability: 'headless' },
   });
 
-  expect(daemon.runs).toStrictEqual([]);
+  expect(ctx.runs).toStrictEqual([]);
 });
 
 test('it refuses input to a killed headless session on a working target, without running it', async () => {
-  await using daemon = await setupTest([
-    {
-      sessionID: toSessionID('s-old'),
-      name: 'old work',
-      cwd: '/tmp',
-      agentSessionID: toAgentSessionID('a-old'),
-      agent: 'claude',
-      exited: true,
+  const ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: async (paths) => {
+      const store = await StateStore.open(paths.dbPath);
+
+      await store.writeFleet([
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-old'),
+          cwd: paths.dir,
+          agentSessionID: toAgentSessionID('a-old'),
+          exited: true,
+        }),
+      ]);
+
+      await store.stop();
+
+      return {
+        adapter: ctx.adapter,
+        ejectSettleMs: 0,
+        ...buildTargetOptionsFromConfig({}, ctx.providers),
+      };
     },
-  ]);
+  });
 
-  const client = await daemon.openDaemon({});
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-
-  const input = client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
+  const input = daemon.client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
 
   expect(input).rejects.toMatchObject({ code: 'session_dead' });
-  expect(daemon.runs).toStrictEqual([]);
+  expect(ctx.runs).toStrictEqual([]);
 });
 
 test('it runs a local headless turn through the runner once per request', async () => {
-  await using daemon = await setupTest();
+  const ctx = setupTest();
 
-  const client = await daemon.openDaemon({});
-  const spawned = await client.sendRequest('session.spawn', { cwd: '/tmp', resume: 'a-1' });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig({}, ctx.providers),
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    resume: 'a-1',
+  });
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await client.sendRequest('session.eject', { session: id, prompt: 'carry on' });
+  await daemon.client.sendRequest('session.eject', { session: id, prompt: 'carry on' });
 
   await waitFor(async () => {
-    const listed = await client.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed).toMatchObject({ sessions: [{ id, state: 'done' }] });
   });
 
-  await client.sendRequest('session.input', { session: id, d: 'next step\n' });
+  await daemon.client.sendRequest('session.input', { session: id, d: 'next step\n' });
 
   await waitFor(async () => {
-    const listed = await client.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
-    expect(listed).toMatchObject({ sessions: [{ id, lastMsg: 'turn finished' }] });
+    expect(listed).toMatchObject({ sessions: [{ id, lastMsg: 'finished: next step' }] });
   });
 
-  expect(daemon.runs).toStrictEqual(['carry on', 'next step']);
+  expect(ctx.runs).toStrictEqual(['carry on', 'next step']);
 });
 
 test.each([
   ['another provider', { provider: 'no-headless' }],
   ['other options', { provider: 'local-pty', image: 'ci' }],
 ])(
-  'it refuses input, resume, and revive for a session whose target name now holds %s',
+  'it refuses input to a session whose target name now holds %s, without running it',
   async (_label, changed) => {
-    await using daemon = await setupTest();
+    const ctx = setupTest();
 
-    const first = await daemon.openDaemon({
-      targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+    await using daemon = await startTestDaemon({
+      prefix: 'atc-daemon-targets-',
+      options: () => ({
+        adapter: ctx.adapter,
+        ejectSettleMs: 0,
+        ...buildTargetOptionsFromConfig(
+          {
+            targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+          },
+          ctx.providers,
+        ),
+      }),
     });
 
-    const spawned = await first.sendRequest('session.spawn', {
-      cwd: '/tmp',
+    const spawned = await daemon.client.sendRequest('session.spawn', {
+      cwd: daemon.dir,
       target: 'box',
       resume: 'a-box',
     });
 
     const id = getRecord(spawned, 'session')['id'];
 
-    await first.sendRequest('session.eject', { session: id, prompt: 'carry on' });
+    await daemon.client.sendRequest('session.eject', { session: id, prompt: 'carry on' });
 
     await waitFor(async () => {
-      const listed = await first.sendRequest('session.list');
+      const listed = await daemon.client.sendRequest('session.list');
 
       expect(listed).toMatchObject({ sessions: [{ id, state: 'done' }] });
     });
 
-    const second = await daemon.openDaemon({
-      targets: { local: { provider: 'local-pty' }, box: changed },
-    });
+    await daemon.restart(() => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        { targets: { local: { provider: 'local-pty' }, box: changed } },
+        ctx.providers,
+      ),
+    }));
 
-    await second.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+    await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-    const input = second.sendRequest('session.input', { session: id, d: 'go\r' });
-    const adopt = second.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
-
-    const listed = await second.sendRequest('session.list');
+    const input = daemon.client.sendRequest('session.input', { session: id, d: 'go\r' });
 
     expect(input).rejects.toMatchObject({ code: 'target_changed', data: { target: 'box' } });
+    expect(ctx.runs).toStrictEqual(['carry on']);
+    expect(ctx.harnesses).toStrictEqual(['box']);
+  },
+);
+
+test.each([
+  ['another provider', { provider: 'no-headless' }],
+  ['other options', { provider: 'local-pty', image: 'ci' }],
+])(
+  'it refuses to resume a session whose target name now holds %s, starting no terminal',
+  async (_label, changed) => {
+    const ctx = setupTest();
+
+    await using daemon = await startTestDaemon({
+      prefix: 'atc-daemon-targets-',
+      options: () => ({
+        adapter: ctx.adapter,
+        ejectSettleMs: 0,
+        ...buildTargetOptionsFromConfig(
+          {
+            targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+          },
+          ctx.providers,
+        ),
+      }),
+    });
+
+    const spawned = await daemon.client.sendRequest('session.spawn', {
+      cwd: daemon.dir,
+      target: 'box',
+      resume: 'a-box',
+    });
+
+    const id = getRecord(spawned, 'session')['id'];
+
+    await daemon.client.sendRequest('session.eject', { session: id, prompt: 'carry on' });
+
+    await waitFor(async () => {
+      const listed = await daemon.client.sendRequest('session.list');
+
+      expect(listed).toMatchObject({ sessions: [{ id, state: 'done' }] });
+    });
+
+    await daemon.restart(() => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        { targets: { local: { provider: 'local-pty' }, box: changed } },
+        ctx.providers,
+      ),
+    }));
+
+    await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+    const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
     expect(adopt).rejects.toMatchObject({ code: 'target_changed', data: { target: 'box' } });
+    expect(ctx.harnesses).toStrictEqual(['box']);
+  },
+);
+
+test.each([
+  ['another provider', { provider: 'no-headless' }],
+  ['other options', { provider: 'local-pty', image: 'ci' }],
+])(
+  'it leaves a session whose target name now holds %s dead on a restore',
+  async (_label, changed) => {
+    const ctx = setupTest();
+
+    await using daemon = await startTestDaemon({
+      prefix: 'atc-daemon-targets-',
+      options: () => ({
+        adapter: ctx.adapter,
+        ejectSettleMs: 0,
+        ...buildTargetOptionsFromConfig(
+          {
+            targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+          },
+          ctx.providers,
+        ),
+      }),
+    });
+
+    const spawned = await daemon.client.sendRequest('session.spawn', {
+      cwd: daemon.dir,
+      target: 'box',
+      resume: 'a-box',
+    });
+
+    const id = getRecord(spawned, 'session')['id'];
+
+    await daemon.client.sendRequest('session.eject', { session: id, prompt: 'carry on' });
+
+    await waitFor(async () => {
+      const listed = await daemon.client.sendRequest('session.list');
+
+      expect(listed).toMatchObject({ sessions: [{ id, state: 'done' }] });
+    });
+
+    await daemon.restart(() => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        { targets: { local: { provider: 'local-pty' }, box: changed } },
+        ctx.providers,
+      ),
+    }));
+
+    await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed).toMatchObject({
       sessions: [{ id, lastMsg: "target 'box' changed", alive: false }],
     });
 
-    expect(daemon.runs).toHaveLength(1);
-    expect(daemon.harnesses).toStrictEqual(['box']);
+    expect(ctx.harnesses).toStrictEqual(['box']);
   },
 );
 
 test('it revives a session on its target after a restart with the config unchanged', async () => {
-  await using daemon = await setupTest();
+  const ctx = setupTest();
 
-  const config = { targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } } };
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+        },
+        ctx.providers,
+      ),
+    }),
+  });
 
-  const first = await daemon.openDaemon(config);
-
-  const spawned = await first.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     target: 'box',
     resume: 'a-box',
   });
@@ -550,69 +804,169 @@ test('it revives a session on its target after a restart with the config unchang
   const id = getRecord(spawned, 'session')['id'];
 
   await waitFor(async () => {
-    const stored = await first.sendRequest('fleet.list');
+    const stored = await daemon.client.sendRequest('fleet.list');
 
     expect(stored).toMatchObject({ fleet: [{ sessionID: id, agentSessionID: 'a-box' }] });
   });
 
-  const second = await daemon.openDaemon(config);
+  await daemon.restart(() => ({
+    adapter: ctx.adapter,
+    ejectSettleMs: 0,
+    ...buildTargetOptionsFromConfig(
+      {
+        targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+      },
+      ctx.providers,
+    ),
+  }));
 
-  await second.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const listed = await second.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toMatchObject({ sessions: [{ id, alive: true, locator: { targetID: 'box' } }] });
-  expect(daemon.harnesses).toStrictEqual(['box', 'box']);
+  expect(ctx.harnesses).toStrictEqual(['box', 'box']);
 });
 
-test('it keeps existing sessions on their target and spawns new ones on a changed default', async () => {
-  await using daemon = await setupTest();
+test('it spawns a new session on the default a restart changed', async () => {
+  const ctx = setupTest();
 
-  const targets = { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } };
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+          defaultTarget: 'local',
+        },
+        ctx.providers,
+      ),
+    }),
+  });
 
-  const first = await daemon.openDaemon({ targets, defaultTarget: 'local' });
-  const spawned = await first.sendRequest('session.spawn', { cwd: '/tmp', resume: 'a-old' });
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    resume: 'a-old',
+  });
 
   const oldID = getRecord(spawned, 'session')['id'];
 
   await waitFor(async () => {
-    const stored = await first.sendRequest('fleet.list');
+    const stored = await daemon.client.sendRequest('fleet.list');
 
     expect(stored).toMatchObject({ fleet: [{ sessionID: oldID, agentSessionID: 'a-old' }] });
   });
 
-  const second = await daemon.openDaemon({ targets, defaultTarget: 'box' });
+  await daemon.restart(() => ({
+    adapter: ctx.adapter,
+    ejectSettleMs: 0,
+    ...buildTargetOptionsFromConfig(
+      {
+        targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+        defaultTarget: 'box',
+      },
+      ctx.providers,
+    ),
+  }));
 
-  await second.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const fresh = await second.sendRequest('session.spawn', { cwd: '/tmp' });
-  const old = await second.sendRequest('session.get', { session: oldID });
+  const fresh = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
-  expect(getRecord(fresh, 'session')['locator']).toMatchObject({ targetID: 'box' });
+  expect(getRecord(fresh, 'session')['locator']).toStrictEqual({
+    daemonID: expect.toBeString(),
+    targetID: 'box',
+  });
+
+  expect(ctx.harnesses).toStrictEqual(['local', 'local', 'box']);
+});
+
+test('it keeps a restored session on its target after a restart changed the default', async () => {
+  const ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: () => ({
+      adapter: ctx.adapter,
+      ejectSettleMs: 0,
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+          defaultTarget: 'local',
+        },
+        ctx.providers,
+      ),
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    resume: 'a-old',
+  });
+
+  const oldID = getRecord(spawned, 'session')['id'];
+
+  await waitFor(async () => {
+    const stored = await daemon.client.sendRequest('fleet.list');
+
+    expect(stored).toMatchObject({ fleet: [{ sessionID: oldID, agentSessionID: 'a-old' }] });
+  });
+
+  await daemon.restart(() => ({
+    adapter: ctx.adapter,
+    ejectSettleMs: 0,
+    ...buildTargetOptionsFromConfig(
+      {
+        targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+        defaultTarget: 'box',
+      },
+      ctx.providers,
+    ),
+  }));
+
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const old = await daemon.client.sendRequest('session.get', { session: oldID });
+
   expect(old).toMatchObject({ session: { alive: true, locator: { targetID: 'local' } } });
-  expect(daemon.harnesses).toStrictEqual(['local', 'local', 'box']);
+  expect(ctx.harnesses).toStrictEqual(['local', 'local']);
 });
 
 test('it revives a restored session without a stored target on the implicit local target', async () => {
-  await using daemon = await setupTest([
-    {
-      sessionID: toSessionID('s-old'),
-      name: 'old work',
-      cwd: '/tmp',
-      agentSessionID: toAgentSessionID('a-old'),
-      agent: 'claude',
+  const ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-targets-',
+    options: async (paths) => {
+      const store = await StateStore.open(paths.dbPath);
+
+      await store.writeFleet([
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-old'),
+          cwd: paths.dir,
+          agentSessionID: toAgentSessionID('a-old'),
+        }),
+      ]);
+
+      await store.stop();
+
+      return {
+        adapter: ctx.adapter,
+        ejectSettleMs: 0,
+        ...buildTargetOptionsFromConfig({}, ctx.providers),
+      };
     },
-  ]);
+  });
 
-  const client = await daemon.openDaemon({});
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-
-  const listed = await client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toMatchObject({
     sessions: [{ id: 's-old', alive: true, locator: { targetID: 'local' } }],
   });
 
-  expect(daemon.harnesses).toStrictEqual(['local']);
+  expect(ctx.harnesses).toStrictEqual(['local']);
 });

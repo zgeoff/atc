@@ -1,21 +1,10 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
-import { DaemonClient } from '../client/daemon-client';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { startDaemon } from './daemon';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 
-// A real daemon whose registry holds only adapters no atc source knows: one
-// that declares its own profile and one stand-in without a profile.
-async function setupTest() {
-  const tmp = setupTempDir('atc-agent-kinds-');
-  const sockPath = join(tmp.dir, 'daemon.sock');
-
-  const acme: AgentAdapter = {
+test('it lists an agent atc has no code for with the kind and label its adapter declares', async () => {
+  const acme = buildMockAgentAdapter({
     id: 'acme',
-    headlessRunner: null,
-    screenDetector: null,
-    takesMessages: false,
     profile: {
       label: 'Acme Agent',
       kind: 'acme-cli',
@@ -40,110 +29,140 @@ async function setupTest() {
         },
       },
     },
-    planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-    normalizeHook: () => ({ kind: 'heartbeat' }),
-    loadName: () => Promise.resolve(null),
-    canResume: () => true,
-    buildResumeCommand: () => null,
-  };
-
-  const standIn: AgentAdapter = {
-    id: 'bare',
-    headlessRunner: null,
-    screenDetector: null,
-    takesMessages: false,
-    planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-    normalizeHook: () => ({ kind: 'heartbeat' }),
-    loadName: () => Promise.resolve(null),
-    canResume: () => true,
-    buildResumeCommand: () => null,
-  };
-
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: acme,
-    adapters: [acme, standIn],
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
   });
 
-  const client = await DaemonClient.open(sockPath);
-
-  await client.sendHello('atc/test-build');
-
-  return {
-    client,
-    async [Symbol.asyncDispose]() {
-      client.stop();
-
-      await daemon.stop();
-
-      tmp[Symbol.dispose]();
-    },
-  };
-}
-
-test('it lists an agent atc has no code for with the kind and label its adapter declares', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapter: acme, adapters: [acme] }),
+  });
 
   const listed = await daemon.client.sendRequest('agents.list');
 
-  expect(listed['agents']).toContainEqual({
-    id: 'acme',
-    label: 'Acme Agent',
-    kind: 'acme-cli',
-    installed: true,
-    brokerAuth: false,
-    brokerRequired: false,
-    capabilities: {
-      spawn: true,
-      readTranscript: false,
-      message: false,
-      attach: true,
-      screen: true,
-      input: true,
-    },
-    models: null,
-    spawnOptions: {
-      model: {
-        supported: true,
-        available: true,
-        values: null,
-        examples: [],
-        default: null,
-        backendEffect: 'applied',
-        note: null,
+  expect(listed['agents']).toStrictEqual([
+    {
+      id: 'acme',
+      label: 'Acme Agent',
+      kind: 'acme-cli',
+      installed: true,
+      brokerAuth: false,
+      brokerRequired: false,
+      capabilities: {
+        spawn: true,
+        readTranscript: false,
+        message: false,
+        attach: true,
+        screen: true,
+        input: true,
       },
-      effort: {
-        supported: false,
-        available: false,
-        values: null,
-        examples: [],
-        default: null,
-        backendEffect: null,
-        note: null,
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: true,
+          available: true,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: 'applied',
+          note: null,
+        },
+        effort: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
       },
     },
-  });
+  ]);
 });
 
 test('it lists an adapter without a profile under its own id as its kind', async () => {
-  await using daemon = await setupTest();
+  const bare = buildMockAgentAdapter({ id: 'bare' });
+
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapter: bare, adapters: [bare] }),
+  });
 
   const listed = await daemon.client.sendRequest('agents.list');
 
-  expect(listed['agents']).toContainEqual(
-    expect.objectContaining({ id: 'bare', label: 'bare', kind: 'bare', installed: false }),
-  );
+  expect(listed['agents']).toStrictEqual([
+    {
+      id: 'bare',
+      label: 'bare',
+      kind: 'bare',
+      installed: false,
+      brokerAuth: false,
+      brokerRequired: false,
+      capabilities: {
+        spawn: false,
+        readTranscript: false,
+        message: false,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+        effort: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+      },
+    },
+  ]);
 });
 
 test('it spawns a session under an agent atc has no code for', async () => {
-  await using daemon = await setupTest();
+  const acme = buildMockAgentAdapter({
+    id: 'acme',
+    profile: {
+      label: 'Acme Agent',
+      kind: 'acme-cli',
+      bin: 'sleep',
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: true,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: 'applied',
+          note: null,
+        },
+        effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+      },
+    },
+  });
+
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapter: acme, adapters: [acme] }),
+  });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: daemon.dir,
     agent: 'acme',
     model: 'acme-large',
     cols: 80,

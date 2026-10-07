@@ -1,170 +1,59 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
-import { DaemonClient } from '../client/daemon-client';
 import { getRecord } from '../shared/get-record';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildStubBrokeredAgentAdapter } from '../test-utils/build-stub-brokered-agent-adapter';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { getOnlyImpName } from '../test-utils/get-only-imp-name';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
-import { startDaemon } from './daemon';
-import type { DaemonHandle } from './daemon';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 
 /**
- * A real daemon with a `local` target and an imp target `box` over a
- * fixture imp port, whose impd an operator prepared: the token
- * `atc-runtime` manages `atc-*` imps and may grant `glm`, and impd holds
- * `glm` for api.z.ai as a custom bearer secret. The agent `glm` takes that
- * credential from the broker and plans a guest spawn that prints the
- * binding revision it launches under, or a plain one without the broker, with its placeholder and its own
- * config folder in the harness's variables; `proxied` takes the same
- * credential but plans a proxy variable; `subscription` takes it on a
- * target that reaches the broker and starts without it elsewhere; `plain`
- * takes none. The principal
- * `ops` may use `box`. `restart` stops the daemon and starts another on
- * the same state, and `setAuthSelected` turns the broker credential of
- * `glm` off and on.
+ * A real daemon with a `local` target and an imp target `box`, the
+ * default, over a fixture imp port whose impd holds nothing until the test
+ * adds it. The agent `glm` takes its credential from the broker and plans a
+ * guest spawn that prints the binding revision it launches under;
+ * `subscription` takes it on a target that reaches the broker and starts
+ * without it elsewhere; `plain` takes none. The principal `ops` may use
+ * `box`.
  */
 async function setupTest() {
-  const tmp = setupTempDir('atc-runtime-auth-');
-  const sockPath = join(tmp.dir, 'daemon.sock');
-  const dbPath = join(tmp.dir, 'state.db');
+  await using stack = new AsyncDisposableStack();
 
-  const port = new FixtureImpPort();
+  const tmp = stack.use(setupTempDir('atc-runtime-auth-'));
+  const port = stack.use(new FixtureImpPort());
+
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
 
-  port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
+  stack.defer(() => {
+    provider.dispose();
   });
 
-  port.createSecret('glm', 'custom', [
-    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-  ]);
-
-  let authSelected = true;
-
-  const shared = {
-    headlessRunner: null,
-    screenDetector: null,
-    takesMessages: false,
-    normalizeHook: () => ({ kind: 'heartbeat' }) as const,
-    loadName: () => Promise.resolve(null),
-    canResume: () => true,
-    buildResumeCommand: () => null,
-  };
-
-  const brokered: AgentAdapter = {
-    ...shared,
+  const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
-    profile: {
-      label: 'GLM',
-      kind: 'claude',
-      bin: 'sh',
-      models: null,
-      spawnOptions: {
-        model: {
-          supported: false,
-          values: null,
-          examples: [],
-          default: null,
-          backendEffect: null,
-          note: null,
-        },
-        effort: {
-          supported: false,
-          values: null,
-          examples: [],
-          default: null,
-          backendEffect: null,
-          note: null,
-        },
-      },
-    },
-    planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-    planGuestSpawn: (_opts, guest) =>
-      guest.auth === undefined
-        ? { bin: 'sleep', args: ['30'], files: {} }
-        : {
-            bin: 'sh',
-            args: ['-c', `echo "revision ${String(guest.auth.revision)}"; exec sleep 30`],
-            files: {},
-            env: { ...guest.auth.env, CLAUDE_CONFIG_DIR: `${guest.dir}/claude-config` },
-          },
-    findAuthSelection: () =>
-      authSelected
-        ? {
-            brokerRequired: true,
-            gateway: {
-              id: 'glm',
-              baseURL: 'https://api.z.ai/api/anthropic',
-              auth: {
-                profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
-              },
-            },
-            profiles: new Map([
-              [
-                'glm',
-                {
-                  name: 'glm',
-                  secret: 'glm',
-                  kind: 'custom',
-                  host: 'api.z.ai',
-                  header: 'authorization',
-                  scheme: 'bearer',
-                  env: {},
-                  dependencies: [],
-                },
-              ],
-            ]),
-          }
-        : null,
-  };
+    brokerRequired: true,
+    isSelected: () => true,
+  });
 
-  const plain: AgentAdapter = {
-    ...shared,
-    id: 'plain',
-    planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-  };
-
-  const proxied: AgentAdapter = {
-    ...brokered,
-    id: 'proxied',
-    planGuestSpawn: () => ({
-      bin: 'sleep',
-      args: ['30'],
-      files: {},
-      env: { https_proxy: 'http://proxy.example:3128' },
-    }),
-  };
-
-  const subscription: AgentAdapter = {
-    ...brokered,
-    id: 'subscription',
-    findAuthSelection: () => {
-      const selection = brokered.findAuthSelection?.() ?? null;
-
-      return selection === null ? null : { ...selection, brokerRequired: false };
-    },
-  };
-
-  const start = (): Promise<DaemonHandle> =>
-    startDaemon({
-      socketPath: sockPath,
-      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-      build: 'atc/test-build',
-      adapter: brokered,
-      adapters: [brokered, plain, proxied, subscription],
-      dbPath,
-      statusPath: join(tmp.dir, 'status.json'),
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [
+        glm,
+        buildMockAgentAdapter({ id: 'plain' }),
+        buildStubBrokeredAgentAdapter({
+          id: 'subscription',
+          brokerRequired: false,
+          isSelected: () => true,
+        }),
+      ],
       targets: [
         {
           id: 'local',
@@ -176,75 +65,66 @@ async function setupTest() {
         { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
       ],
       defaultTarget: 'box',
+
+      // The principal tests open a client as ops.
       principals: new Map([['ops', ['box']]]),
+
+      // A forget waits this long for its confirmation.
       forgetConfirmMs: 60_000,
-    });
+    }),
+  });
 
-  let daemon = await start();
-  let client = await DaemonClient.open(sockPath);
+  stack.use(daemon);
 
-  await client.sendHello('atc/test-build');
+  const owned = stack.move();
 
   return {
-    get client() {
-      return client;
-    },
+    dir: tmp.dir,
     port,
     provider,
-    dbPath,
-    dir: tmp.dir,
-
-    // Whether `glm` takes its credential from the broker, as a config
-    // change can turn on for an agent whose sessions already exist.
-    setAuthSelected(selected: boolean): void {
-      authSelected = selected;
-    },
-    async restart(): Promise<void> {
-      client.stop();
-
-      await daemon.stop();
-
-      daemon = await start();
-      client = await DaemonClient.open(sockPath);
-
-      await client.sendHello('atc/test-build');
-    },
-    async [Symbol.asyncDispose]() {
-      client.stop();
-
-      await daemon.stop();
-
-      provider.dispose();
-      port[Symbol.dispose]();
-      tmp[Symbol.dispose]();
-    },
+    daemon,
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it provisions the host of a spawn before readying it and starts the harness only behind a ready broker', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  const store = await StateStore.open(daemon.dbPath);
+  const store = await StateStore.open(ctx.daemon.dbPath);
+
+  onTestFinished(() => store.stop());
+
   const binding = await store.findAuthBinding(toSessionID(id));
 
-  await store.stop();
-
   expect<Record<string, unknown>>({
-    calls: daemon.port.calls.filter((call) => !call.startsWith('leases.renew')),
-    require: daemon.port.sessionRequests.map((request) =>
+    calls: ctx.port.calls.filter((call) => !call.startsWith('leases.renew')),
+    require: ctx.port.sessionRequests.map((request) =>
       request.kind === 'start' ? request.require : null,
     ),
-    grants: await daemon.port.readGrants(imp),
+    grants: await ctx.port.readGrants(imp),
     binding,
   }).toStrictEqual({
     calls: [
@@ -270,42 +150,224 @@ test('it provisions the host of a spawn before readying it and starts the harnes
 });
 
 test('it lists the imp target as reaching the broker and the local target as reaching none', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const listed = await daemon.client.sendRequest('agents.list');
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
 
-  expect(listed['targets']).toMatchObject([
-    { id: 'local', brokerAuth: false },
-    { id: 'box', brokerAuth: true },
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const listed = await ctx.daemon.client.sendRequest('agents.list');
+
+  expect(listed['targets']).toStrictEqual([
+    {
+      id: 'local',
+      provider: 'local-pty',
+      identity: 'local-pty:test',
+      available: true,
+      default: false,
+      capabilities: {
+        spawn: true,
+        attach: true,
+        input: true,
+        resize: true,
+        kill: true,
+        transfer: true,
+        run: true,
+        headless: true,
+        suspend: false,
+        destroy: false,
+      },
+      brokerAuth: false,
+    },
+    {
+      id: 'box',
+      provider: 'imp',
+      identity: 'imp:test',
+      available: true,
+      default: true,
+      capabilities: {
+        spawn: true,
+        attach: true,
+        input: true,
+        resize: true,
+        kill: true,
+        transfer: true,
+        run: true,
+        headless: false,
+        suspend: true,
+        destroy: true,
+      },
+      brokerAuth: true,
+    },
   ]);
 });
 
 test('it lists an agent that takes the broker credential as spawnable on a daemon with a broker target', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const listed = await daemon.client.sendRequest('agents.list');
-
-  expect(listed).toMatchObject({
-    agents: [
-      { id: 'glm', brokerAuth: true, capabilities: { spawn: true } },
-      { id: 'plain' },
-      {},
-      { id: 'subscription', brokerAuth: true, brokerRequired: false },
-    ],
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
   });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const listed = await ctx.daemon.client.sendRequest('agents.list');
+
+  expect(listed['agents']).toStrictEqual([
+    {
+      id: 'glm',
+      label: 'GLM',
+      kind: 'claude',
+      installed: true,
+      brokerAuth: true,
+      brokerRequired: true,
+      capabilities: {
+        spawn: true,
+        readTranscript: false,
+        message: false,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+        effort: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+      },
+    },
+    {
+      id: 'plain',
+      label: 'plain',
+      kind: 'plain',
+      installed: false,
+      brokerAuth: false,
+      brokerRequired: false,
+      capabilities: {
+        spawn: false,
+        readTranscript: false,
+        message: false,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+        effort: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+      },
+    },
+    {
+      id: 'subscription',
+      label: 'GLM',
+      kind: 'claude',
+      installed: true,
+      brokerAuth: true,
+      brokerRequired: false,
+      capabilities: {
+        spawn: true,
+        readTranscript: false,
+        message: false,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+        effort: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+      },
+    },
+  ]);
 });
 
 test('it starts a brokered harness with the variables its guest plan holds beside the ones atc sets', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const [start] = daemon.port.sessionRequests;
+  const [start] = ctx.port.sessionRequests;
 
   if (start?.kind !== 'start') {
     throw new Error('expected the harness start');
@@ -319,133 +381,252 @@ test('it starts a brokered harness with the variables its guest plan holds besid
 });
 
 test('it refuses a brokered spawn whose guest plan sets a proxy variable before touching impd', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
+
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+  });
+
+  // The proxied agent takes the broker credential but plans a proxy
+  // variable of its own.
+  const proxied = {
+    ...buildStubBrokeredAgentAdapter({
+      id: 'proxied',
+      brokerRequired: true,
+      isSelected: () => true,
+    }),
+    planGuestSpawn: () => ({
+      bin: 'sleep',
+      args: ['30'],
+      files: {},
+      env: { https_proxy: 'http://proxy.example:3128' },
+    }),
+  };
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm, proxied],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: ctx.dir,
     agent: 'proxied',
     target: 'box',
   });
+
+  await spawn.catch(() => null);
 
   expect(spawn).rejects.toMatchObject({
     code: 'auth_target_unsupported',
     data: { problem: 'guest_env_conflict', variable: 'https_proxy' },
   });
 
-  await spawn.catch(() => null);
-
   expect<Record<string, unknown>>({
-    calls: daemon.port.calls,
+    calls: ctx.port.calls,
     listed: await daemon.client.sendRequest('session.list'),
   }).toStrictEqual({ calls: [], listed: { sessions: [] } });
 });
 
 test('it refuses a spawn on an impd without exec requirements after reading only its features', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  daemon.port.features = { ...daemon.port.features, execRequire: false };
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.features = { ...ctx.port.features, execRequire: false };
+
+  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'auth_impd_too_old' });
-
   await spawn.catch(() => null);
 
+  expect(spawn).rejects.toMatchObject({ code: 'auth_impd_too_old' });
+
   expect<Record<string, unknown>>({
-    calls: daemon.port.calls,
-    listed: await daemon.client.sendRequest('session.list'),
+    calls: ctx.port.calls,
+    listed: await ctx.daemon.client.sendRequest('session.list'),
   }).toStrictEqual({ calls: ['system.info'], listed: { sessions: [] } });
 });
 
 test('it refuses a spawn whose broker is not ready, takes back its imp, and lists no session', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  daemon.port.startBrokerFailure();
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.startBrokerFailure();
+
+  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
+
+  await spawn.catch(() => null);
+
+  const store = await StateStore.open(ctx.daemon.dbPath);
+
+  onTestFinished(() => store.stop());
+
+  const bindings = await store.collectAuthBindings();
 
   expect(spawn).rejects.toMatchObject({
     code: 'broker_not_ready',
     data: { detail: 'the broker CA did not install' },
   });
 
-  await spawn.catch(() => null);
-
-  const store = await StateStore.open(daemon.dbPath);
-  const bindings = await store.collectAuthBindings();
-
-  await store.stop();
-
   expect<Record<string, unknown>>({
-    imps: daemon.port.collectImpNames(),
+    imps: ctx.port.collectImpNames(),
     bindings,
-    listed: await daemon.client.sendRequest('session.list'),
+    listed: await ctx.daemon.client.sendRequest('session.list'),
   }).toStrictEqual({ imps: [], bindings: [], listed: { sessions: [] } });
 });
 
 test('it refuses a spawn with runtime auth on the local target before touching impd', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'local',
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
-
   await spawn.catch(() => null);
 
-  expect(daemon.port.calls).toStrictEqual([]);
+  expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
+  expect(ctx.port.calls).toStrictEqual([]);
 });
 
 test('it starts an agent that takes the broker credential only where a broker is on the local target without touching impd', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'subscription',
     target: 'local',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  const store = await StateStore.open(daemon.dbPath);
+  const store = await StateStore.open(ctx.daemon.dbPath);
+
+  onTestFinished(() => store.stop());
+
   const binding = await store.findAuthBinding(toSessionID(id));
 
-  await store.stop();
-
-  expect<Record<string, unknown>>({ calls: daemon.port.calls, binding }).toStrictEqual({
+  expect<Record<string, unknown>>({ calls: ctx.port.calls, binding }).toStrictEqual({
     calls: [],
     binding: null,
   });
 });
 
 test('it binds an agent that takes the broker credential only where a broker is on an imp target and starts it behind the broker', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'subscription',
     target: 'box',
   });
 
-  const id = String(getRecord(spawned, 'session')['id']);
-  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
   expect<Record<string, unknown>>({
-    require: daemon.port.sessionRequests.map((request) =>
+    require: ctx.port.sessionRequests.map((request) =>
       request.kind === 'start' ? request.require : null,
     ),
-    grants: await daemon.port.readGrants(imp),
+    grants: await ctx.port.readGrants(imp),
   }).toStrictEqual({ require: [['broker']], grants: ['glm'] });
 });
 
@@ -455,40 +636,93 @@ test.each([
 ] as const)(
   'it refuses %s of a brokered agent with a workspace on the local target before materializing it',
   async (_kind, resume) => {
-    await using daemon = await setupTest();
+    await using ctx = await setupTest();
 
-    const cwd = join(daemon.dir, 'ws');
+    // The token may grant glm, and impd holds glm for api.z.ai.
+    ctx.port.setIdentity({
+      kind: 'token',
+      name: 'atc-runtime',
+      scope: 'manage',
+      imps: ['atc-*'],
+      grantable: ['glm'],
+    });
 
-    const spawn = daemon.client.sendRequest('session.spawn', {
+    ctx.port.createSecret('glm', 'custom', [
+      { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    ]);
+
+    const cwd = join(ctx.dir, 'ws');
+
+    const spawn = ctx.daemon.client.sendRequest('session.spawn', {
       cwd,
       agent: 'glm',
       target: 'local',
       resume,
-      workspace: { kind: 'path', path: join(daemon.dir, 'source') },
+      workspace: { kind: 'path', path: join(ctx.dir, 'source') },
     });
+
+    await spawn.catch(() => null);
 
     expect(spawn).rejects.toMatchObject({
       code: 'auth_target_unsupported',
       data: { agent: 'glm', target: 'local' },
     });
 
-    await spawn.catch(() => null);
-
     expect<Record<string, unknown>>({
-      calls: daemon.port.calls,
+      calls: ctx.port.calls,
       created: await Bun.file(cwd).exists(),
-      listed: await daemon.client.sendRequest('session.list'),
+      listed: await ctx.daemon.client.sendRequest('session.list'),
     }).toStrictEqual({ calls: [], created: false, listed: { sessions: [] } });
   },
 );
 
 test('it refuses to adopt a local session with a workspace once its agent takes the broker credential', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  daemon.setAuthSelected(false);
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  let authSelected = true;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => authSelected,
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  authSelected = false;
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'local',
     resume: 'a1',
@@ -500,46 +734,48 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
 
   const store = await StateStore.open(daemon.dbPath);
 
+  onTestFinished(() => store.stop());
+
   await store.createMaterialization(
-    { sessionID: id, target: 'local', dir: '/tmp', sourceKind: 'path', withheldEnv: [] },
+    { sessionID: id, target: 'local', dir: ctx.dir, sourceKind: 'path', withheldEnv: [] },
     Date.now(),
   );
 
   await store.updateMaterialization(
     id,
-    { phase: 'ready', repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 },
+    {
+      phase: 'ready',
+      repoURL: 'file:///src',
+      sha: 'a'.repeat(40),
+      ref: 'main',
+      materializedAt: 1,
+    },
     Date.now(),
   );
 
   const recorded = await store.findMaterialization(id);
 
-  await store.stop();
-
-  daemon.setAuthSelected(true);
+  authSelected = true;
 
   await daemon.restart();
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
+  await adopt.catch(() => null);
+
+  const materialization = await store.findMaterialization(id);
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
   expect(adopt).rejects.toMatchObject({
     code: 'auth_target_unsupported',
     data: { agent: 'glm', target: 'local' },
   });
 
-  await adopt.catch(() => null);
-
-  const after = await StateStore.open(daemon.dbPath);
-  const materialization = await after.findMaterialization(id);
-
-  await after.stop();
-
-  const got = await daemon.client.sendRequest('session.get', { session: id });
-
   expect<Record<string, unknown>>({
     session: getRecord(got, 'session'),
     materialization,
-    calls: daemon.port.calls,
+    calls: ctx.port.calls,
   }).toStrictEqual({
     session: expect.objectContaining({
       state: 'exited',
@@ -552,12 +788,52 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
 });
 
 test('it restores a local session with a workspace without a terminal once its agent takes the broker credential', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  daemon.setAuthSelected(false);
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  let authSelected = true;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => authSelected,
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  authSelected = false;
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'local',
     resume: 'a1',
@@ -567,37 +843,39 @@ test('it restores a local session with a workspace without a terminal once its a
 
   const store = await StateStore.open(daemon.dbPath);
 
+  onTestFinished(() => store.stop());
+
   await store.createMaterialization(
-    { sessionID: id, target: 'local', dir: '/tmp', sourceKind: 'path', withheldEnv: [] },
+    { sessionID: id, target: 'local', dir: ctx.dir, sourceKind: 'path', withheldEnv: [] },
     Date.now(),
   );
 
   await store.updateMaterialization(
     id,
-    { phase: 'ready', repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 },
+    {
+      phase: 'ready',
+      repoURL: 'file:///src',
+      sha: 'a'.repeat(40),
+      ref: 'main',
+      materializedAt: 1,
+    },
     Date.now(),
   );
 
   const recorded = await store.findMaterialization(id);
 
-  await store.stop();
-
-  daemon.setAuthSelected(true);
+  authSelected = true;
 
   await daemon.restart();
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const after = await StateStore.open(daemon.dbPath);
-  const materialization = await after.findMaterialization(id);
-
-  await after.stop();
-
+  const materialization = await store.findMaterialization(id);
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect<Record<string, unknown>>({
     session: getRecord(got, 'session'),
     materialization,
-    calls: daemon.port.calls,
+    calls: ctx.port.calls,
   }).toStrictEqual({
     session: expect.objectContaining({
       kind: 'headless',
@@ -610,10 +888,50 @@ test('it restores a local session with a workspace without a terminal once its a
 });
 
 test('it refuses to revive a session whose agent dropped the broker credential while its host holds a binding', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
+
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  let authSelected = true;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => authSelected,
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -624,29 +942,68 @@ test('it refuses to revive a session whose agent dropped the broker credential w
   await daemon.client.sendRequest('session.kill', { session: id });
   await daemon.client.sendRequest('session.auth.revoke', { session: id });
 
-  daemon.setAuthSelected(false);
-
-  daemon.port.calls.length = 0;
+  authSelected = false;
+  ctx.port.calls.length = 0;
 
   const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  await adopt.catch(() => null);
 
   expect(adopt).rejects.toMatchObject({
     code: 'auth_rebind_required',
     data: { agent: 'glm', state: 'revoked' },
   });
 
-  await adopt.catch(() => null);
-
-  expect(daemon.port.calls).toStrictEqual([]);
+  expect(ctx.port.calls).toStrictEqual([]);
 });
 
 test('it revives a session whose agent takes no broker credential on a host that holds no binding', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  daemon.setAuthSelected(false);
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  let authSelected = true;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => authSelected,
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  authSelected = false;
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -658,17 +1015,57 @@ test('it revives a session whose agent takes no broker credential on a host that
   await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   expect(
-    daemon.port.sessionRequests.map((request) =>
+    ctx.port.sessionRequests.map((request) =>
       request.kind === 'start' ? (request.require ?? null) : request.kind,
     ),
   ).toStrictEqual([null, null]);
 });
 
 test('it restores a session whose agent dropped the broker credential while its host holds a binding without a terminal', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
+
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  let authSelected = true;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => authSelected,
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -678,18 +1075,18 @@ test('it restores a session whose agent dropped the broker credential while its 
 
   await daemon.client.sendRequest('session.auth.revoke', { session: id });
 
-  daemon.setAuthSelected(false);
+  authSelected = false;
 
   await daemon.restart();
 
-  const before = daemon.port.sessionRequests.length;
+  const before = ctx.port.sessionRequests.length;
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect<Record<string, unknown>>({
-    sent: daemon.port.sessionRequests.length - before,
+    sent: ctx.port.sessionRequests.length - before,
     session: getRecord(got, 'session'),
   }).toStrictEqual({
     sent: 0,
@@ -698,12 +1095,52 @@ test('it restores a session whose agent dropped the broker credential while its 
 });
 
 test('it restores a session whose agent takes no broker credential on a host that holds no binding', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  daemon.setAuthSelected(false);
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  let authSelected = true;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => authSelected,
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  authSelected = false;
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -713,262 +1150,327 @@ test('it restores a session whose agent takes no broker credential on a host tha
 
   await daemon.restart();
 
-  const before = daemon.port.sessionRequests.length;
+  const before = ctx.port.sessionRequests.length;
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect<Record<string, unknown>>({
-    sent: daemon.port.sessionRequests.length - before,
+    sent: ctx.port.sessionRequests.length - before,
     session: getRecord(got, 'session'),
   }).toStrictEqual({ sent: 1, session: expect.objectContaining({ kind: 'pty' }) });
 });
 
 test('it refuses a revive that a revoke blocks while its host wakes, sending no start', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
 
-  daemon.port.startLeaseHold();
+  ctx.port.startLeaseHold();
 
-  daemon.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
-    expect(daemon.port.calls.some((call) => call.startsWith(`leases.acquire ${imp} `))).toBeTrue();
+    expect(ctx.port.calls).toContainEqual(expect.toStartWith(`leases.acquire ${imp} `));
   });
 
-  daemon.port.setGrantRemovalFailure('UNREACHABLE');
+  ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: id });
-
-  expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
+  const revoke = ctx.daemon.client.sendRequest('session.auth.revoke', { session: id });
 
   await revoke.catch(() => null);
 
-  daemon.port.stopLeaseHold();
+  ctx.port.stopLeaseHold();
+
+  await adopt.catch(() => null);
+
+  await waitFor(() => {
+    expect(ctx.port.findState(imp)).toBe('sleeping');
+  });
+
+  expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
   expect(adopt).rejects.toMatchObject({
     code: 'auth_blocked',
     data: { state: 'revocation_pending' },
   });
 
-  await adopt.catch(() => null);
-
-  await waitFor(() => {
-    expect(daemon.port.findState(imp)).toBe('sleeping');
-  });
-
   expect<Record<string, unknown>>({
-    starts: daemon.port.sessionRequests.length,
-    grants: await daemon.port.readGrants(imp),
+    starts: ctx.port.sessionRequests.length,
+    grants: await ctx.port.readGrants(imp),
   }).toStrictEqual({ starts: 1, grants: ['glm'] });
 });
 
 test('it refuses a sub-session spawn that a revoke blocks while it readies the shared host, sending no start', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
 
   const parentID = String(getRecord(parent, 'session')['id']);
-  const imp = `atc-${parentID.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  daemon.port.startLeaseHold();
+  ctx.port.startLeaseHold();
 
-  daemon.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const child = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const child = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     parent: parentID,
   });
 
   await waitFor(() => {
-    expect(daemon.port.calls.some((call) => call.startsWith(`leases.acquire ${imp} `))).toBeTrue();
+    expect(ctx.port.calls).toContainEqual(expect.toStartWith(`leases.acquire ${imp} `));
   });
 
-  daemon.port.setGrantRemovalFailure('UNREACHABLE');
+  ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: parentID });
-
-  expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
+  const revoke = ctx.daemon.client.sendRequest('session.auth.revoke', { session: parentID });
 
   await revoke.catch(() => null);
 
-  daemon.port.stopLeaseHold();
+  ctx.port.stopLeaseHold();
+
+  await child.catch(() => null);
+
+  expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
   expect(child).rejects.toMatchObject({
     code: 'auth_blocked',
     data: { state: 'revocation_pending' },
   });
 
-  await child.catch(() => null);
-
-  expect(daemon.port.sessionRequests).toHaveLength(1);
+  expect(ctx.port.sessionRequests).toHaveLength(1);
 });
 
 test('it puts a shared host back to sleep when a revoke refuses the sub-session that woke it, keeping the imp and its grant', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const parentID = String(getRecord(parent, 'session')['id']);
-  const imp = `atc-${parentID.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  await daemon.client.sendRequest('session.kill', { session: parentID });
+  await ctx.daemon.client.sendRequest('session.kill', { session: parentID });
 
   await waitFor(() => {
-    expect(daemon.port.findState(imp)).toBe('sleeping');
+    expect(ctx.port.findState(imp)).toBe('sleeping');
   });
 
-  daemon.port.startLeaseHold();
+  ctx.port.startLeaseHold();
 
-  daemon.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const child = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const child = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     parent: parentID,
   });
 
   await waitFor(() => {
-    expect(daemon.port.calls.some((call) => call.startsWith(`leases.acquire ${imp} `))).toBeTrue();
+    expect(ctx.port.calls).toContainEqual(expect.toStartWith(`leases.acquire ${imp} `));
   });
 
-  daemon.port.setGrantRemovalFailure('UNREACHABLE');
+  ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  await daemon.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
+  await ctx.daemon.client
+    .sendRequest('session.auth.revoke', { session: parentID })
+    .catch(() => null);
 
-  daemon.port.stopLeaseHold();
-
-  expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
+  ctx.port.stopLeaseHold();
 
   await child.catch(() => null);
 
   await waitFor(() => {
-    expect(daemon.port.findState(imp)).toBe('sleeping');
+    expect(ctx.port.findState(imp)).toBe('sleeping');
   });
 
+  expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
+
   expect<Record<string, unknown>>({
-    destroyed: daemon.port.calls.filter((call) => call.startsWith('imps.destroy')),
-    grants: await daemon.port.readGrants(imp),
+    destroyed: ctx.port.calls.filter((call) => call.startsWith('imps.destroy')),
+    grants: await ctx.port.readGrants(imp),
   }).toStrictEqual({ destroyed: [], grants: ['glm'] });
 });
 
 test('it keeps a shared host awake when a revoke refuses a sub-session while another harness runs there', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
 
   const parentID = String(getRecord(parent, 'session')['id']);
-  const imp = `atc-${parentID.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  daemon.port.startLeaseHold();
+  ctx.port.startLeaseHold();
 
-  daemon.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const child = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const child = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     parent: parentID,
   });
 
   await waitFor(() => {
-    expect(daemon.port.calls.some((call) => call.startsWith(`leases.acquire ${imp} `))).toBeTrue();
+    expect(ctx.port.calls).toContainEqual(expect.toStartWith(`leases.acquire ${imp} `));
   });
 
-  daemon.port.setGrantRemovalFailure('UNREACHABLE');
+  ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  await daemon.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
+  await ctx.daemon.client
+    .sendRequest('session.auth.revoke', { session: parentID })
+    .catch(() => null);
 
-  daemon.port.stopLeaseHold();
-
-  expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
+  ctx.port.stopLeaseHold();
 
   await child.catch(() => null);
 
+  expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
+
   expect<Record<string, unknown>>({
-    state: daemon.port.findState(imp),
-    sleeps: daemon.port.calls.filter((call) => call.startsWith('imps.sleep')),
+    state: ctx.port.findState(imp),
+    sleeps: ctx.port.calls.filter((call) => call.startsWith('imps.sleep')),
   }).toStrictEqual({ state: 'running', sleeps: [] });
 });
 
 test('it keeps a host awake for a sub-session that readies it while a refused revive puts it to sleep', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const parentID = String(getRecord(parent, 'session')['id']);
-  const imp = `atc-${parentID.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  await daemon.client.sendRequest('session.kill', { session: parentID });
+  await ctx.daemon.client.sendRequest('session.kill', { session: parentID });
 
-  daemon.port.startBrokerFailure();
-  daemon.port.startReleaseHold();
+  ctx.port.startBrokerFailure();
+  ctx.port.startReleaseHold();
 
-  daemon.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const revive = daemon.client.sendRequest('session.adopt', {
+  const revive = ctx.daemon.client.sendRequest('session.adopt', {
     session: parentID,
     cols: 80,
     rows: 24,
   });
 
   await waitFor(() => {
-    expect(daemon.port.calls.filter((call) => call.startsWith('leases.release'))).toHaveLength(1);
+    expect(ctx.port.calls.filter((call) => call.startsWith('leases.release'))).toHaveLength(1);
   });
 
-  daemon.port.stopBrokerFailure();
+  ctx.port.stopBrokerFailure();
 
-  const child = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const child = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     parent: parentID,
   });
 
   await waitFor(() => {
-    expect(daemon.port.calls.filter((call) => call.startsWith(`grants.list ${imp}`))).toHaveLength(
-      2,
-    );
+    expect(ctx.port.calls.filter((call) => call.startsWith(`grants.list ${imp}`))).toHaveLength(2);
   });
 
-  daemon.port.stopReleaseHold();
-
-  expect(revive).rejects.toMatchObject({ code: 'broker_not_ready' });
+  ctx.port.stopReleaseHold();
 
   await revive.catch(() => null);
 
@@ -976,11 +1478,13 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
 
   const childID = String(getRecord(spawnedChild, 'session')['id']);
 
-  const got = await daemon.client.sendRequest('session.get', { session: childID });
+  const got = await ctx.daemon.client.sendRequest('session.get', { session: childID });
+
+  expect(revive).rejects.toMatchObject({ code: 'broker_not_ready' });
 
   expect<Record<string, unknown>>({
-    sleeps: daemon.port.calls.filter((call) => call.startsWith('imps.sleep')),
-    state: daemon.port.findState(imp),
+    sleeps: ctx.port.calls.filter((call) => call.startsWith('imps.sleep')),
+    state: ctx.port.findState(imp),
     child: getRecord(got, 'session'),
   }).toStrictEqual({
     sleeps: [],
@@ -990,133 +1494,184 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
 });
 
 test('it puts a host to sleep after a refused revive when no other launch readies it', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const parentID = String(getRecord(parent, 'session')['id']);
-  const imp = `atc-${parentID.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  await daemon.client.sendRequest('session.kill', { session: parentID });
+  await ctx.daemon.client.sendRequest('session.kill', { session: parentID });
 
-  daemon.port.startBrokerFailure();
-  daemon.port.startReleaseHold();
+  ctx.port.startBrokerFailure();
+  ctx.port.startReleaseHold();
 
-  daemon.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const revive = daemon.client.sendRequest('session.adopt', {
+  const revive = ctx.daemon.client.sendRequest('session.adopt', {
     session: parentID,
     cols: 80,
     rows: 24,
   });
 
   await waitFor(() => {
-    expect(daemon.port.calls.filter((call) => call.startsWith('leases.release'))).toHaveLength(1);
+    expect(ctx.port.calls.filter((call) => call.startsWith('leases.release'))).toHaveLength(1);
   });
 
-  daemon.port.stopReleaseHold();
-
-  expect(revive).rejects.toMatchObject({ code: 'broker_not_ready' });
+  ctx.port.stopReleaseHold();
 
   await revive.catch(() => null);
 
   await waitFor(() => {
-    expect(daemon.port.findState(imp)).toBe('sleeping');
+    expect(ctx.port.findState(imp)).toBe('sleeping');
   });
 
-  expect(daemon.port.calls.filter((call) => call.startsWith('imps.sleep'))).toHaveLength(1);
+  expect(revive).rejects.toMatchObject({ code: 'broker_not_ready' });
+  expect(ctx.port.calls.filter((call) => call.startsWith('imps.sleep'))).toHaveLength(1);
 });
 
 test('it spawns a sub-session on the shared host while it readies when no revoke comes between', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
 
   const parentID = String(getRecord(parent, 'session')['id']);
-  const imp = `atc-${parentID.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  daemon.port.startLeaseHold();
+  ctx.port.startLeaseHold();
 
-  daemon.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const child = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const child = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     parent: parentID,
   });
 
   await waitFor(() => {
-    expect(daemon.port.calls.some((call) => call.startsWith(`leases.acquire ${imp} `))).toBeTrue();
+    expect(ctx.port.calls).toContainEqual(expect.toStartWith(`leases.acquire ${imp} `));
   });
 
-  daemon.port.stopLeaseHold();
+  ctx.port.stopLeaseHold();
 
   await child;
 
-  expect(daemon.port.sessionRequests).toHaveLength(2);
+  expect(ctx.port.sessionRequests).toHaveLength(2);
 });
 
 test('it sends no start for a revive that a revoke blocks while its connection to impd opens', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
 
-  daemon.port.startUpgradeHold();
+  ctx.port.startUpgradeHold();
 
-  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
-    expect(daemon.port.countHeldUpgrades()).toBe(1);
+    expect(ctx.port.countHeldUpgrades()).toBe(1);
   });
 
-  daemon.port.setGrantRemovalFailure('UNREACHABLE');
+  ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: id });
-
-  expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
+  const revoke = ctx.daemon.client.sendRequest('session.auth.revoke', { session: id });
 
   await revoke.catch(() => null);
 
-  daemon.port.stopUpgradeHold();
+  ctx.port.stopUpgradeHold();
+
+  await adopt.catch(() => null);
+
+  expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
   expect(adopt).rejects.toMatchObject({
     code: 'auth_blocked',
     data: { state: 'revocation_pending' },
   });
 
-  await adopt.catch(() => null);
-
   expect<Record<string, unknown>>({
-    starts: daemon.port.sessionRequests.length,
-    grants: await daemon.port.readGrants(imp),
+    starts: ctx.port.sessionRequests.length,
+    grants: await ctx.port.readGrants(imp),
   }).toStrictEqual({ starts: 1, grants: ['glm'] });
 });
 
 test('it sends the start of a revive whose connection to impd opens late when no revoke comes between', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1124,75 +1679,101 @@ test('it sends the start of a revive whose connection to impd opens late when no
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
 
-  daemon.port.startUpgradeHold();
+  ctx.port.startUpgradeHold();
 
-  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
-    expect(daemon.port.countHeldUpgrades()).toBe(1);
+    expect(ctx.port.countHeldUpgrades()).toBe(1);
   });
 
-  daemon.port.stopUpgradeHold();
+  ctx.port.stopUpgradeHold();
 
   await adopt;
 
-  expect(daemon.port.sessionRequests).toHaveLength(2);
+  expect(ctx.port.sessionRequests).toHaveLength(2);
 });
 
 test('it revives a session while its host wakes when no revoke comes between', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
 
-  daemon.port.startLeaseHold();
+  ctx.port.startLeaseHold();
 
-  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  const adopt = ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
-    expect(daemon.port.calls.some((call) => call.startsWith(`leases.acquire ${imp} `))).toBeTrue();
+    expect(ctx.port.calls).toContainEqual(expect.toStartWith(`leases.acquire ${imp} `));
   });
 
-  daemon.port.stopLeaseHold();
+  ctx.port.stopLeaseHold();
 
   await adopt;
 
-  expect(daemon.port.sessionRequests).toHaveLength(2);
+  expect(ctx.port.sessionRequests).toHaveLength(2);
 });
 
 test('it revives a slept session after verifying its binding, granting nothing again', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
 
-  daemon.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  await ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   expect<Record<string, unknown>>({
-    calls: daemon.port.calls.filter((call) => !call.startsWith('leases.renew')),
-    require: daemon.port.sessionRequests.map((request) =>
+    calls: ctx.port.calls.filter((call) => !call.startsWith('leases.renew')),
+    require: ctx.port.sessionRequests.map((request) =>
       request.kind === 'start' ? request.require : null,
     ),
   }).toStrictEqual({
@@ -1215,62 +1796,88 @@ test('it revives a slept session after verifying its binding, granting nothing a
 });
 
 test('it refuses to revive a session whose grant was revoked outside atc and grants it no more', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
-  await daemon.port.removeGrant(imp, 'glm');
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.port.removeGrant(imp, 'glm');
 
-  daemon.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
-
-  expect(adopt).rejects.toMatchObject({ code: 'auth_grant_missing' });
+  const adopt = ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await adopt.catch(() => null);
 
+  expect(adopt).rejects.toMatchObject({ code: 'auth_grant_missing' });
+
   expect<Record<string, unknown>>({
-    starts: daemon.port.sessionRequests.length,
-    granted: daemon.port.calls.filter((call) => call.startsWith('grants.add')),
-    state: daemon.port.findState(imp),
+    starts: ctx.port.sessionRequests.length,
+    granted: ctx.port.calls.filter((call) => call.startsWith('grants.add')),
+    state: ctx.port.findState(imp),
   }).toStrictEqual({ starts: 1, granted: [], state: 'sleeping' });
 });
 
 test('it refuses to revive a session whose broker is not ready and puts its host back to sleep', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
 
-  daemon.port.startBrokerFailure();
+  ctx.port.startBrokerFailure();
 
-  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
-
-  expect(adopt).rejects.toMatchObject({ code: 'broker_not_ready' });
+  const adopt = ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await adopt.catch(() => null);
 
-  const listed = await daemon.client.sendRequest('session.list');
+  const listed = await ctx.daemon.client.sendRequest('session.list');
 
-  expect<Record<string, unknown>>({ state: daemon.port.findState(imp), listed }).toMatchObject({
+  expect(adopt).rejects.toMatchObject({ code: 'broker_not_ready' });
+
+  expect<Record<string, unknown>>({ state: ctx.port.findState(imp), listed }).toMatchObject({
     state: 'sleeping',
     listed: {
       sessions: [
@@ -1286,54 +1893,84 @@ test('it refuses to revive a session whose broker is not ready and puts its host
 });
 
 test('it provisions concurrent spawns each in an imp of its own with only its own grant', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await Promise.all([
-    daemon.client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'glm', target: 'box' }),
-    daemon.client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'glm', target: 'box' }),
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const imps = spawned.map(
-    (answer) =>
-      `atc-${String(getRecord(answer, 'session')['id']).replaceAll('-', '').slice(0, 20)}`,
-  );
+  const spawned = await Promise.all([
+    ctx.daemon.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'glm', target: 'box' }),
+    ctx.daemon.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'glm', target: 'box' }),
+  ]);
 
-  const grants = await Promise.all(imps.map((imp) => daemon.port.readGrants(imp)));
-  const store = await StateStore.open(daemon.dbPath);
+  const imps = ctx.port.collectImpNames();
+
+  const grants = await Promise.all(imps.map((imp) => ctx.port.readGrants(imp)));
+  const store = await StateStore.open(ctx.daemon.dbPath);
+
+  onTestFinished(() => store.stop());
+
   const bindings = await store.collectAuthBindings();
 
-  await store.stop();
-
   expect<Record<string, unknown>>({
-    imps: daemon.port.collectImpNames().toSorted(),
+    imps,
     grants,
+    hostKeys: bindings.map((binding) => binding.hostKey),
+    impNames: bindings.map((binding) => binding.impName),
     states: bindings.map((binding) => binding.state),
   }).toStrictEqual({
-    imps: imps.toSorted(),
+    imps: [expect.stringMatching(/^atc-[\da-f]{20}$/), expect.stringMatching(/^atc-[\da-f]{20}$/)],
     grants: [['glm'], ['glm']],
+    hostKeys: expect.toIncludeSameMembers(
+      spawned.map((answer) => getRecord(answer, 'session')['id']),
+    ),
+    impNames: expect.toIncludeSameMembers(imps),
     states: ['ready', 'ready'],
   });
 });
 
 test('it revokes the grants of a running session while its harness keeps running', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
+  const imp = getOnlyImpName(ctx.port);
 
-  const revoked = await daemon.client.sendRequest('session.auth.revoke', { session: id });
-  const listed = await daemon.client.sendRequest('session.list');
+  const revoked = await ctx.daemon.client.sendRequest('session.auth.revoke', { session: id });
+  const listed = await ctx.daemon.client.sendRequest('session.list');
 
   expect<Record<string, unknown>>({
     revoked,
-    grants: await daemon.port.readGrants(imp),
+    grants: await ctx.port.readGrants(imp),
     listed,
   }).toStrictEqual({
     revoked: { revoked: true },
@@ -1343,10 +1980,23 @@ test('it revokes the grants of a running session while its harness keeps running
 });
 
 test('it refuses to revive a session revoked while it slept', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1354,23 +2004,35 @@ test('it refuses to revive a session revoked while it slept', async () => {
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
-  await daemon.client.sendRequest('session.auth.revoke', { session: id });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.auth.revoke', { session: id });
 
-  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
-
-  expect(adopt).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'revoked' } });
+  const adopt = ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await adopt.catch(() => null);
 
-  expect(daemon.port.sessionRequests).toHaveLength(1);
+  expect(adopt).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'revoked' } });
+  expect(ctx.port.sessionRequests).toHaveLength(1);
 });
 
 test('it rebinds a revoked session so it revives under the next revision', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1378,16 +2040,16 @@ test('it rebinds a revoked session so it revives under the next revision', async
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
-  await daemon.client.sendRequest('session.auth.revoke', { session: id });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.auth.revoke', { session: id });
 
-  const rebound = await daemon.client.sendRequest('session.auth.rebind', { session: id });
+  const rebound = await ctx.daemon.client.sendRequest('session.auth.rebind', { session: id });
 
-  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  await ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   expect<Record<string, unknown>>({
     rebound,
-    argv: daemon.port.sessionRequests.map((request) =>
+    argv: ctx.port.sessionRequests.map((request) =>
       request.kind === 'start' ? request.argv.at(-1) : null,
     ),
   }).toStrictEqual({
@@ -1397,105 +2059,155 @@ test('it rebinds a revoked session so it revives under the next revision', async
 });
 
 test('it refuses session.auth.revoke from a principal as unauthorized and revokes nothing', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const imp = `atc-${id.replaceAll('-', '').slice(0, 20)}`;
-  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: id }, 'ops');
-
-  expect(revoke).rejects.toMatchObject({ code: 'unauthorized' });
+  const imp = getOnlyImpName(ctx.port);
+  const revoke = ctx.daemon.client.sendRequest('session.auth.revoke', { session: id }, 'ops');
 
   await revoke.catch(() => null);
 
-  const grants = await daemon.port.readGrants(imp);
+  const grants = await ctx.port.readGrants(imp);
 
+  expect(revoke).rejects.toMatchObject({ code: 'unauthorized' });
   expect(grants).toStrictEqual(['glm']);
 });
 
 test('it refuses session.auth.rebind from a principal as unauthorized and binds nothing', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  daemon.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  const rebind = daemon.client.sendRequest('session.auth.rebind', { session: id }, 'ops');
-
-  expect(rebind).rejects.toMatchObject({ code: 'unauthorized' });
+  const rebind = ctx.daemon.client.sendRequest('session.auth.rebind', { session: id }, 'ops');
 
   await rebind.catch(() => null);
 
-  expect(daemon.port.calls.filter((call) => !call.startsWith('leases.renew'))).toStrictEqual([]);
+  expect(rebind).rejects.toMatchObject({ code: 'unauthorized' });
+  expect(ctx.port.calls.filter((call) => !call.startsWith('leases.renew'))).toStrictEqual([]);
 });
 
 test('it forgets a bound session by destroying its imp and dropping its binding, never a secret', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  const offered = await daemon.client.sendRequest('session.forget', { session: id });
+  const offered = await ctx.daemon.client.sendRequest('session.forget', { session: id });
 
-  await daemon.client.sendRequest('session.forget', {
+  await ctx.daemon.client.sendRequest('session.forget', {
     session: id,
     confirmToken: offered['confirmToken'],
   });
 
-  const store = await StateStore.open(daemon.dbPath);
+  const store = await StateStore.open(ctx.daemon.dbPath);
+
+  onTestFinished(() => store.stop());
+
   const bindings = await store.collectAuthBindings();
-
-  await store.stop();
-
-  const secrets = await daemon.port.readSecrets();
+  const secrets = await ctx.port.readSecrets();
 
   expect<Record<string, unknown>>({
-    imps: daemon.port.collectImpNames(),
+    imps: ctx.port.collectImpNames(),
     secrets: secrets.map((secret) => secret.name),
     bindings,
   }).toStrictEqual({ imps: [], secrets: ['glm'], bindings: [] });
 });
 
 test("it runs a sub-session under the same binding in its parent's imp without granting again", async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
 
-  daemon.port.calls.length = 0;
+  ctx.port.calls.length = 0;
 
-  await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
   });
 
   expect<Record<string, unknown>>({
-    imps: daemon.port.collectImpNames(),
-    created: daemon.port.calls.filter(
+    imps: ctx.port.collectImpNames(),
+    created: ctx.port.calls.filter(
       (call) => call.startsWith('imps.create') || call.startsWith('grants.add'),
     ),
-    require: daemon.port.sessionRequests.map((request) =>
+    require: ctx.port.sessionRequests.map((request) =>
       request.kind === 'start' ? request.require : null,
     ),
   }).toStrictEqual({
@@ -1506,34 +2218,61 @@ test("it runs a sub-session under the same binding in its parent's imp without g
 });
 
 test("it refuses a sub-session without runtime auth in a bound parent's imp", async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'plain',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'auth_binding_mismatch' });
-
   await spawn.catch(() => null);
 
-  expect(daemon.port.sessionRequests).toHaveLength(1);
+  expect(spawn).rejects.toMatchObject({ code: 'auth_binding_mismatch' });
+  expect(ctx.port.sessionRequests).toHaveLength(1);
 });
 
 test('it takes back, as it starts, a spawn a stopped daemon left provisioning', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(daemon.dbPath);
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
 
-  await new RuntimeAuthBinder(store).createBinding(daemon.provider.brokerAuth, {
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const store = await StateStore.open(ctx.daemon.dbPath);
+
+  onTestFinished(() => store.stop());
+
+  await new RuntimeAuthBinder(store).createBinding(ctx.provider.brokerAuth, {
     hostKey: toSessionID('orphan'),
     target: 'box',
     targetIdentity: 'imp:test',
@@ -1554,17 +2293,15 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
     },
   });
 
-  await store.stop();
+  ctx.port.calls.length = 0;
 
-  daemon.port.calls.length = 0;
-
-  await daemon.restart();
+  await ctx.daemon.restart();
 
   await waitFor(() => {
-    expect(daemon.port.collectImpNames()).toStrictEqual([]);
+    expect(ctx.port.collectImpNames()).toStrictEqual([]);
   });
 
-  expect(daemon.port.calls).toStrictEqual([
+  expect(ctx.port.calls).toStrictEqual([
     'tokens.whoami',
     'imps.get atc-orphan',
     'imps.destroy atc-orphan',
@@ -1573,10 +2310,23 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
 });
 
 test('it restores a session whose broker is not ready without a terminal', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1584,14 +2334,14 @@ test('it restores a session whose broker is not ready without a terminal', async
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
-  await daemon.restart();
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.restart();
 
-  daemon.port.startBrokerFailure();
+  ctx.port.startBrokerFailure();
 
-  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await ctx.daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const listed = await daemon.client.sendRequest('session.list');
+  const listed = await ctx.daemon.client.sendRequest('session.list');
 
   expect(listed).toStrictEqual({
     sessions: [expect.objectContaining({ id, alive: false })],

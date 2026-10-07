@@ -4,51 +4,48 @@ import { join } from 'node:path';
 import { $ } from 'bun';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
-import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
+import { createGitFixture } from '../test-utils/create-git-fixture';
+import { createStubBin } from '../test-utils/create-stub-bin';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
-import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
 
+/**
+ * A real daemon whose only target is the imp target `box`, over a fixture
+ * imp port, with two agents that sign in through impd's broker: `claude` on
+ * a subscription and the gateway `glm`. Both run a fake Claude that appends
+ * a line to `marker` when it starts. Beside it, `work` is a git clone with
+ * one commit, holding `README.md`.
+ */
 async function setupTest() {
-  const tmp = setupTempDir('atc-project-settings-');
-  const guestDir = join(tmp.dir, 'guest');
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-project-settings-'));
+
+  const git = await createGitFixture({ prefix: 'atc-project-settings-git-' });
+
+  stack.use(git);
+
   const marker = join(tmp.dir, 'started');
-  const fakeClaude = join(tmp.dir, 'fake-claude');
-  const guestATC = join(tmp.dir, 'atc');
-  const upstream = join(tmp.dir, 'upstream.git');
-  const work = join(tmp.dir, 'work');
 
-  const gitEnv = {
-    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-  };
+  // Both agent entries run this binary for every spawn.
+  const fakeClaude = createStubBin(
+    tmp.dir,
+    'fake-claude',
+    `#!/bin/sh\necho started >> "${marker}"\nexec sleep 30\n`,
+  );
 
-  await $`git init --quiet --bare --template= --initial-branch=main ${upstream}`
-    .env(gitEnv)
-    .quiet();
+  // The imp provider hands the guest this atc binary.
+  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
+  const port = stack.use(new FixtureImpPort());
 
-  await $`git clone --quiet --template= ${upstream} ${work}`.env(gitEnv).quiet();
-  await $`git config user.name atc`.env(gitEnv).cwd(work).quiet();
-  await $`git config user.email atc@example.com`.env(gitEnv).cwd(work).quiet();
-  await $`git config commit.gpgsign false`.env(gitEnv).cwd(work).quiet();
-
-  writeFileSync(join(work, 'README.md'), 'hello\n');
-  mkdirSync(join(work, '.claude'));
-
-  writeFileSync(fakeClaude, `#!/bin/sh\necho started >> "${marker}"\nexec sleep 30\n`, {
-    mode: 0o755,
-  });
-
-  writeFileSync(guestATC, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
-
-  const port = new FixtureImpPort();
-
+  // A brokered spawn needs a token that may grant each agent's secret, and
+  // the secrets themselves.
   port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -65,7 +62,15 @@ async function setupTest() {
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const provider = new ImpProvider(port, { guestDir, guestATC }, { atcBinary: null });
+  const provider = new ImpProvider(
+    port,
+    { guestDir: join(tmp.dir, 'guest'), guestATC },
+    { atcBinary: null },
+  );
+
+  stack.defer(() => {
+    provider.dispose();
+  });
 
   const config = parseConfig({
     authProfiles: {
@@ -91,43 +96,31 @@ async function setupTest() {
     },
   });
 
-  const socketPath = join(tmp.dir, 'daemon.sock');
-
-  const daemon = await startDaemon({
-    socketPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapters: [
-      new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
-      new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
-    ],
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    gitTransports: ['file'],
-    targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
-    defaultTarget: 'box',
+  const harness = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+        new GatewayAdapter(getGatewayConfig(config, 'glm'), config),
+      ],
+      gitTransports: ['file'],
+      targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
+      defaultTarget: 'box',
+    }),
   });
 
-  const client = await DaemonClient.open(socketPath);
+  stack.use(harness);
 
-  await client.sendHello('atc/test-build');
+  const owned = stack.move();
 
   return {
-    client,
+    client: harness.client,
     port,
     marker,
-    work,
-    gitEnv,
+    work: git.work,
+    gitEnv: git.env,
     dir: tmp.dir,
-    async [Symbol.asyncDispose]() {
-      client.stop();
-
-      await daemon.stop();
-
-      provider.dispose();
-      port[Symbol.dispose]();
-      tmp[Symbol.dispose]();
-    },
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
@@ -162,23 +155,26 @@ test.each([
 ] as const)(
   'it refuses a trusted subscription clone whose %s sets %s and starts nothing',
   async (file, setting, content) => {
-    await using daemon = await setupTest();
+    await using ctx = await setupTest();
 
-    writeFileSync(join(daemon.work, file), content);
+    mkdirSync(join(ctx.work, '.claude'));
+    writeFileSync(join(ctx.work, file), content);
 
-    await $`git add --all`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-    await $`git commit --quiet -m settings`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-    await $`git push --quiet origin main`.env(daemon.gitEnv).cwd(daemon.work).quiet();
+    await $`git add --all`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+    await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+    await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-    const root = join(daemon.dir, 'clone');
+    const root = join(ctx.dir, 'clone');
 
-    const spawn = daemon.client.sendRequest('session.spawn', {
+    const spawn = ctx.client.sendRequest('session.spawn', {
       cwd: root,
       agent: 'claude',
       target: 'box',
-      workspace: { kind: 'path', path: daemon.work },
+      workspace: { kind: 'path', path: ctx.work },
       trustClonedWorkspace: true,
     });
+
+    await spawn.catch(() => null);
 
     expect(spawn).rejects.toMatchObject({
       code: 'auth_target_unsupported',
@@ -192,317 +188,350 @@ test.each([
       },
     });
 
-    await spawn.catch(() => null);
-
-    expect(daemon.port.sessionRequests).toStrictEqual([]);
+    expect(ctx.port.sessionRequests).toStrictEqual([]);
     expect(existsSync(root)).toBeFalse();
-    expect(existsSync(daemon.marker)).toBeFalse();
+    expect(existsSync(ctx.marker)).toBeFalse();
   },
 );
 
 test('it refuses an untrusted subscription clone whose settings set apiKeyHelper', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  writeFileSync(join(daemon.work, '.claude/settings.json'), '{"apiKeyHelper":"echo key"}');
+  mkdirSync(join(ctx.work, '.claude'));
+  writeFileSync(join(ctx.work, '.claude/settings.json'), '{"apiKeyHelper":"echo key"}');
 
-  await $`git add .claude/settings.json README.md`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git commit --quiet -m settings`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git push --quiet origin main`.env(daemon.gitEnv).cwd(daemon.work).quiet();
+  await $`git add .claude/settings.json`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+  await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+  await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'clone'),
+  const spawn = ctx.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'box',
-    workspace: { kind: 'path', path: daemon.work },
-  });
-
-  expect(spawn).rejects.toMatchObject({
-    code: 'auth_target_unsupported',
-    data: { problem: 'project_settings_conflict', setting: 'apiKeyHelper' },
+    workspace: { kind: 'path', path: ctx.work },
   });
 
   await spawn.catch(() => null);
 
-  expect(existsSync(daemon.marker)).toBeFalse();
+  expect(spawn).rejects.toMatchObject({
+    code: 'auth_target_unsupported',
+    data: {
+      agent: 'claude',
+      target: 'box',
+      problem: 'project_settings_conflict',
+      file: join(ctx.dir, 'clone', '.claude/settings.json'),
+      setting: 'apiKeyHelper',
+    },
+  });
+
+  expect(existsSync(ctx.marker)).toBeFalse();
 });
 
 test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
   'it refuses a subscription clone whose settings file holds %s, which is not a JSON object',
   async (content) => {
-    await using daemon = await setupTest();
+    await using ctx = await setupTest();
 
-    writeFileSync(join(daemon.work, '.claude/settings.json'), content);
+    mkdirSync(join(ctx.work, '.claude'));
+    writeFileSync(join(ctx.work, '.claude/settings.json'), content);
 
-    await $`git add .claude/settings.json README.md`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-    await $`git commit --quiet -m settings`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-    await $`git push --quiet origin main`.env(daemon.gitEnv).cwd(daemon.work).quiet();
+    await $`git add .claude/settings.json`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+    await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+    await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-    const spawn = daemon.client.sendRequest('session.spawn', {
-      cwd: join(daemon.dir, 'clone'),
+    const spawn = ctx.client.sendRequest('session.spawn', {
+      cwd: join(ctx.dir, 'clone'),
       agent: 'claude',
       target: 'box',
-      workspace: { kind: 'path', path: daemon.work },
+      workspace: { kind: 'path', path: ctx.work },
       trustClonedWorkspace: true,
-    });
-
-    expect(spawn).rejects.toMatchObject({
-      code: 'auth_target_unsupported',
-      data: { problem: 'project_settings_conflict', setting: '(unparseable)' },
     });
 
     await spawn.catch(() => null);
 
-    expect(existsSync(daemon.marker)).toBeFalse();
+    expect(spawn).rejects.toMatchObject({
+      code: 'auth_target_unsupported',
+      data: {
+        agent: 'claude',
+        target: 'box',
+        problem: 'project_settings_conflict',
+        file: join(ctx.dir, 'clone', '.claude/settings.json'),
+        setting: '(unparseable)',
+      },
+    });
+
+    expect(existsSync(ctx.marker)).toBeFalse();
   },
 );
 
 test('it refuses a subscription clone whose settings file is a dangling symlink', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  await $`ln -s /nonexistent/settings.json .claude/settings.json`.cwd(daemon.work).quiet();
-  await $`git add .claude/settings.json README.md`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git commit --quiet -m settings`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git push --quiet origin main`.env(daemon.gitEnv).cwd(daemon.work).quiet();
+  mkdirSync(join(ctx.work, '.claude'));
+  symlinkSync(join(ctx.dir, 'missing', 'settings.json'), join(ctx.work, '.claude/settings.json'));
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'clone'),
+  await $`git add .claude/settings.json`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+  await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+  await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+
+  const spawn = ctx.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'box',
-    workspace: { kind: 'path', path: daemon.work },
+    workspace: { kind: 'path', path: ctx.work },
     trustClonedWorkspace: true,
-  });
-
-  expect(spawn).rejects.toMatchObject({
-    code: 'auth_target_unsupported',
-    data: {
-      problem: 'project_settings_unreadable',
-      file: join(daemon.dir, 'clone', '.claude/settings.json'),
-    },
   });
 
   await spawn.catch(() => null);
 
-  expect(existsSync(daemon.marker)).toBeFalse();
+  expect(spawn).rejects.toMatchObject({
+    code: 'auth_target_unsupported',
+    data: {
+      agent: 'claude',
+      target: 'box',
+      problem: 'project_settings_unreadable',
+      file: join(ctx.dir, 'clone', '.claude/settings.json'),
+    },
+  });
+
+  expect(existsSync(ctx.marker)).toBeFalse();
 });
 
 test('it starts a trusted subscription clone whose settings set neither a credential nor a provider', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
+
+  mkdirSync(join(ctx.work, '.claude'));
 
   writeFileSync(
-    join(daemon.work, '.claude/settings.json'),
+    join(ctx.work, '.claude/settings.json'),
     '{"env":{"DISABLE_TELEMETRY":"1"},"permissions":{"allow":["Bash(ls)"]}}',
   );
 
-  await $`git add .claude/settings.json README.md`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git commit --quiet -m settings`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git push --quiet origin main`.env(daemon.gitEnv).cwd(daemon.work).quiet();
+  await $`git add .claude/settings.json`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+  await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+  await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-  await daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'clone'),
+  await ctx.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'box',
-    workspace: { kind: 'path', path: daemon.work },
+    workspace: { kind: 'path', path: ctx.work },
     trustClonedWorkspace: true,
   });
 
   await waitFor(() => {
-    expect(existsSync(daemon.marker)).toBeTrue();
-
-    return true;
+    expect(existsSync(ctx.marker)).toBeTrue();
   });
 });
 
 test('it starts a trusted subscription clone with no project settings files', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  await $`git add README.md`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git commit --quiet -m initial`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git push --quiet origin main`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-
-  await daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'clone'),
+  await ctx.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'box',
-    workspace: { kind: 'path', path: daemon.work },
+    workspace: { kind: 'path', path: ctx.work },
     trustClonedWorkspace: true,
   });
 
   await waitFor(() => {
-    expect(existsSync(daemon.marker)).toBeTrue();
-
-    return true;
+    expect(existsSync(ctx.marker)).toBeTrue();
   });
 });
 
 test('it refuses a subscription launch in an existing folder whose local settings set a credential', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
+
+  mkdirSync(join(ctx.work, '.claude'));
 
   writeFileSync(
-    join(daemon.work, '.claude/settings.local.json'),
+    join(ctx.work, '.claude/settings.local.json'),
     '{"env":{"ANTHROPIC_AUTH_TOKEN":"sk-ant-repo-secret"}}',
   );
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.work,
+  const spawn = ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.work,
     agent: 'claude',
     target: 'box',
   });
 
+  await spawn.catch(() => null);
+
   expect(spawn).rejects.toMatchObject({
     code: 'auth_target_unsupported',
     data: {
+      agent: 'claude',
+      target: 'box',
       problem: 'project_settings_conflict',
-      file: join(daemon.work, '.claude/settings.local.json'),
+      file: join(ctx.work, '.claude/settings.local.json'),
       setting: 'env.ANTHROPIC_AUTH_TOKEN',
     },
   });
 
-  await spawn.catch(() => null);
-
-  expect(daemon.port.sessionRequests).toStrictEqual([]);
-  expect(existsSync(daemon.marker)).toBeFalse();
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
+  expect(existsSync(ctx.marker)).toBeFalse();
 });
 
 test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  writeFileSync(join(daemon.work, '.claude/settings.json'), '{"apiKeyHelper":"echo key"}');
+  mkdirSync(join(ctx.work, '.claude'));
+  writeFileSync(join(ctx.work, '.claude/settings.json'), '{"apiKeyHelper":"echo key"}');
 
-  await $`git add .claude/settings.json README.md`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git commit --quiet -m settings`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git push --quiet origin main`.env(daemon.gitEnv).cwd(daemon.work).quiet();
+  await $`git add .claude/settings.json`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+  await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+  await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'clone'),
+  const spawn = ctx.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'clone'),
     agent: 'glm',
     target: 'box',
-    workspace: { kind: 'path', path: daemon.work },
+    workspace: { kind: 'path', path: ctx.work },
     trustClonedWorkspace: true,
-  });
-
-  expect(spawn).rejects.toMatchObject({
-    code: 'auth_target_unsupported',
-    data: { agent: 'glm', problem: 'project_settings_conflict', setting: 'apiKeyHelper' },
   });
 
   await spawn.catch(() => null);
 
-  expect(existsSync(daemon.marker)).toBeFalse();
-});
-
-test('it refuses a subscription clone whose settings file is a symlink to an endless device', async () => {
-  await using daemon = await setupTest();
-
-  await $`ln -s /dev/zero .claude/settings.json`.cwd(daemon.work).quiet();
-  await $`git add .claude/settings.json README.md`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git commit --quiet -m settings`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git push --quiet origin main`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'clone'),
-    agent: 'claude',
-    target: 'box',
-    workspace: { kind: 'path', path: daemon.work },
-    trustClonedWorkspace: true,
-  });
-
   expect(spawn).rejects.toMatchObject({
     code: 'auth_target_unsupported',
     data: {
-      problem: 'project_settings_unreadable',
-      file: join(daemon.dir, 'clone', '.claude/settings.json'),
-    },
-  });
-
-  await spawn.catch(() => null);
-
-  expect(existsSync(daemon.marker)).toBeFalse();
-});
-
-test('it refuses a subscription launch in a subfolder whose repository root holds local settings with a credential', async () => {
-  await using daemon = await setupTest();
-
-  mkdirSync(join(daemon.work, 'sub'));
-  writeFileSync(join(daemon.work, '.claude/settings.local.json'), '{"apiKeyHelper":"echo key"}');
-
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.work, 'sub'),
-    agent: 'claude',
-    target: 'box',
-  });
-
-  expect(spawn).rejects.toMatchObject({
-    code: 'auth_target_unsupported',
-    data: {
+      agent: 'glm',
+      target: 'box',
       problem: 'project_settings_conflict',
-      file: join(daemon.work, '.claude/settings.local.json'),
+      file: join(ctx.dir, 'clone', '.claude/settings.json'),
       setting: 'apiKeyHelper',
     },
   });
 
+  expect(existsSync(ctx.marker)).toBeFalse();
+});
+
+test('it refuses a subscription clone whose settings file is a symlink to an endless device', async () => {
+  await using ctx = await setupTest();
+
+  mkdirSync(join(ctx.work, '.claude'));
+  symlinkSync('/dev/zero', join(ctx.work, '.claude/settings.json'));
+
+  await $`git add .claude/settings.json`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+  await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+  await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
+
+  const spawn = ctx.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'clone'),
+    agent: 'claude',
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+    trustClonedWorkspace: true,
+  });
+
   await spawn.catch(() => null);
 
-  expect(existsSync(daemon.marker)).toBeFalse();
+  expect(spawn).rejects.toMatchObject({
+    code: 'auth_target_unsupported',
+    data: {
+      agent: 'claude',
+      target: 'box',
+      problem: 'project_settings_unreadable',
+      file: join(ctx.dir, 'clone', '.claude/settings.json'),
+    },
+  });
+
+  expect(existsSync(ctx.marker)).toBeFalse();
+});
+
+test('it refuses a subscription launch in a subfolder whose repository root holds local settings with a credential', async () => {
+  await using ctx = await setupTest();
+
+  mkdirSync(join(ctx.work, '.claude'));
+  mkdirSync(join(ctx.work, 'sub'));
+  writeFileSync(join(ctx.work, '.claude/settings.local.json'), '{"apiKeyHelper":"echo key"}');
+
+  const spawn = ctx.client.sendRequest('session.spawn', {
+    cwd: join(ctx.work, 'sub'),
+    agent: 'claude',
+    target: 'box',
+  });
+
+  await spawn.catch(() => null);
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'auth_target_unsupported',
+    data: {
+      agent: 'claude',
+      target: 'box',
+      problem: 'project_settings_conflict',
+      file: join(ctx.work, '.claude/settings.local.json'),
+      setting: 'apiKeyHelper',
+    },
+  });
+
+  expect(existsSync(ctx.marker)).toBeFalse();
 });
 
 test('it refuses a subscription launch in a worktree whose main checkout holds local settings with a credential', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const worktree = join(daemon.dir, 'worktree');
+  mkdirSync(join(ctx.work, '.claude'));
 
-  await $`git add README.md`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git commit --quiet -m initial`.env(daemon.gitEnv).cwd(daemon.work).quiet();
-  await $`git worktree add --quiet ${worktree}`.env(daemon.gitEnv).cwd(daemon.work).quiet();
+  const worktree = join(ctx.dir, 'worktree');
+
+  await $`git worktree add --quiet ${worktree}`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
   writeFileSync(
-    join(daemon.work, '.claude/settings.local.json'),
+    join(ctx.work, '.claude/settings.local.json'),
     '{"env":{"CLAUDE_CODE_USE_VERTEX":"1"}}',
   );
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
+  const spawn = ctx.client.sendRequest('session.spawn', {
     cwd: worktree,
     agent: 'claude',
     target: 'box',
   });
 
+  await spawn.catch(() => null);
+
   expect(spawn).rejects.toMatchObject({
     code: 'auth_target_unsupported',
     data: {
+      agent: 'claude',
+      target: 'box',
       problem: 'project_settings_conflict',
-      file: join(daemon.work, '.claude/settings.local.json'),
+      file: join(ctx.work, '.claude/settings.local.json'),
       setting: 'env.CLAUDE_CODE_USE_VERTEX',
     },
   });
 
-  await spawn.catch(() => null);
-
-  expect(existsSync(daemon.marker)).toBeFalse();
+  expect(existsSync(ctx.marker)).toBeFalse();
 });
 
-test('it checks the folder a launch path resolves to through a symlink and a parent step', async () => {
-  await using daemon = await setupTest();
+test('it refuses a launch path whose symlink and parent step resolve to a folder with conflicting settings', async () => {
+  await using ctx = await setupTest();
 
-  mkdirSync(join(daemon.work, 'sub'));
-  mkdirSync(join(daemon.dir, 'elsewhere'));
-  symlinkSync(join(daemon.work, 'sub'), join(daemon.dir, 'elsewhere', 'link'));
-  writeFileSync(join(daemon.work, '.claude/settings.json'), '{"env":{"ANTHROPIC_API_KEY":"x"}}');
+  mkdirSync(join(ctx.work, '.claude'));
+  mkdirSync(join(ctx.work, 'sub'));
+  mkdirSync(join(ctx.dir, 'elsewhere'));
+  symlinkSync(join(ctx.work, 'sub'), join(ctx.dir, 'elsewhere', 'link'));
+  writeFileSync(join(ctx.work, '.claude/settings.json'), '{"env":{"ANTHROPIC_API_KEY":"x"}}');
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: `${join(daemon.dir, 'elsewhere', 'link')}/..`,
+  const spawn = ctx.client.sendRequest('session.spawn', {
+    cwd: `${join(ctx.dir, 'elsewhere', 'link')}/..`,
     agent: 'claude',
     target: 'box',
   });
 
+  await spawn.catch(() => null);
+
   expect(spawn).rejects.toMatchObject({
     code: 'auth_target_unsupported',
     data: {
+      agent: 'claude',
+      target: 'box',
       problem: 'project_settings_conflict',
-      file: join(daemon.work, '.claude/settings.json'),
+      file: join(ctx.work, '.claude/settings.json'),
       setting: 'env.ANTHROPIC_API_KEY',
     },
   });
 
-  await spawn.catch(() => null);
-
-  expect(existsSync(daemon.marker)).toBeFalse();
+  expect(existsSync(ctx.marker)).toBeFalse();
 });

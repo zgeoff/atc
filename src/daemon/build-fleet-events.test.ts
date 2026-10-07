@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { decodeCursor } from '../protocol/decode-cursor';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toDaemonID } from '../shared/to-daemon-id';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
+import { buildMockSessionDescriptor } from '../test-utils/build-mock-session-descriptor';
 import { buildFleetEvents } from './build-fleet-events';
 
 test('it names an event by the live session holding its agent session id', () => {
@@ -19,26 +19,11 @@ test('it names an event by the live session holding its agent session id', () =>
       },
     ],
     [
-      {
+      buildMockSessionDescriptor({
         id: toSessionID('s-new'),
         name: 'worker',
-        cwd: '/tmp',
-        state: 'done',
-        unread: false,
-        lastMsg: 'turn done',
         agentSessionID: toAgentSessionID('c1'),
-        agent: 'claude',
-        pinned: false,
-        lastAttachedAt: 1,
-        repoRoot: '/tmp',
-        namedBy: 'user',
-        createdAt: 1,
-        kind: 'pty',
-        alive: true,
-        canEject: false,
-        locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
-        lifecycle: { desired: 'run', vm: 'none', harness: 'running', attachment: 'local' },
-      },
+      }),
     ],
   );
 
@@ -67,25 +52,10 @@ test('it names an event by atc id when it carries no agent session id', () => {
       },
     ],
     [
-      {
+      buildMockSessionDescriptor({
         id: toSessionID('s1'),
         name: 'worker',
-        cwd: '/tmp',
-        state: 'running',
-        unread: false,
-        lastMsg: 'started',
-        agent: 'claude',
-        pinned: false,
-        lastAttachedAt: 1,
-        repoRoot: '/tmp',
-        namedBy: 'user',
-        createdAt: 1,
-        kind: 'pty',
-        alive: true,
-        canEject: false,
-        locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
-        lifecycle: { desired: 'run', vm: 'none', harness: 'running', attachment: 'local' },
-      },
+      }),
     ],
   );
 
@@ -221,46 +191,16 @@ test('it names an event by the session holding its atc id ahead of one sharing i
       },
     ],
     [
-      {
+      buildMockSessionDescriptor({
         id: toSessionID('s-other'),
         name: 'other',
-        cwd: '/tmp',
-        state: 'done',
-        unread: false,
-        lastMsg: 'turn done',
         agentSessionID: toAgentSessionID('c1'),
-        agent: 'claude',
-        pinned: false,
-        lastAttachedAt: 1,
-        repoRoot: '/tmp',
-        namedBy: 'user',
-        createdAt: 1,
-        kind: 'pty',
-        alive: true,
-        canEject: false,
-        locator: { daemonID: toDaemonID('d-1'), targetID: 'box' },
-        lifecycle: { desired: 'run', vm: 'none', harness: 'running', attachment: 'local' },
-      },
-      {
+      }),
+      buildMockSessionDescriptor({
         id: toSessionID('s-own'),
         name: 'own',
-        cwd: '/tmp',
-        state: 'exited',
-        unread: false,
-        lastMsg: 'killed',
         agentSessionID: toAgentSessionID('c1'),
-        agent: 'claude',
-        pinned: false,
-        lastAttachedAt: 1,
-        repoRoot: '/tmp',
-        namedBy: 'user',
-        createdAt: 1,
-        kind: 'pty',
-        alive: false,
-        canEject: false,
-        locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
-        lifecycle: { desired: 'stop', vm: 'none', harness: 'exited', attachment: 'local' },
-      },
+      }),
     ],
   );
 
@@ -289,29 +229,21 @@ test('it keeps an event on its own atc id when it may take no alias', () => {
       },
     ],
     [
-      {
+      buildMockSessionDescriptor({
         id: toSessionID('s-shown'),
         name: 'worker',
-        cwd: '/tmp',
-        state: 'done',
-        unread: false,
-        lastMsg: 'turn done',
         agentSessionID: toAgentSessionID('c1'),
-        agent: 'claude',
-        pinned: false,
-        lastAttachedAt: 1,
-        repoRoot: '/tmp',
-        namedBy: 'user',
-        createdAt: 1,
-        kind: 'pty',
-        alive: true,
-        canEject: false,
-        locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
-        lifecycle: { desired: 'run', vm: 'none', harness: 'running', attachment: 'local' },
-      },
+      }),
     ],
     [],
   );
 
-  expect(event).toMatchObject({ session: 's-hidden', name: null });
+  expect(event).toStrictEqual({
+    cursor: expect.toBeString(),
+    at: 1000,
+    session: 's-hidden',
+    name: null,
+    kind: 'turn-done',
+    detail: null,
+  });
 });

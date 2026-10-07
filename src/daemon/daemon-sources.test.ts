@@ -1,151 +1,74 @@
 import { expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { $ } from 'bun';
-import { DaemonClient } from '../client/daemon-client';
 import { buildDirsSource } from '../sources/dirs/build-dirs-source';
 import { buildGitSource } from '../sources/git/build-git-source';
 import { buildGitHubSource } from '../sources/github/build-github-source';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { createGitFixture } from '../test-utils/create-git-fixture';
+import { createStubBin } from '../test-utils/create-stub-bin';
 import { FixtureDirProvider } from '../test-utils/fixture-dir-provider';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
-import { startDaemon } from './daemon';
+import type { DaemonOptions } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';
 
 /**
- * A real daemon with a `local` target, a `box` target that takes a
- * workspace, and a `bare` target whose provider cannot transfer, beside a
- * bare upstream with one commit on main. Principal `alice` may use `box`
- * alone. The daemon offers the directory, GitHub, and git URL sources. The
- * directories hold the root `roots` and a zoxide list of `zoxide-dir` and a
- * directory that does not exist, with `dir` as the home. GitHub runs `gh`
- * from `gh` in the temp tree, which a test writes as a fake that records
- * its argv in `ghArgv`, or leaves absent.
+ * The daemon's targets: a `local` target, a `box` target that takes a
+ * workspace, and a `bare` target whose provider cannot transfer.
  */
-async function setupTest(
-  options: { readonly githubOwner?: string; readonly withoutGitHub?: boolean } = {},
-) {
-  const dir = await mkdtemp(join(tmpdir(), 'atc-daemon-repos-'));
-
-  const env = {
-    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_AUTHOR_NAME: 'atc',
-    GIT_AUTHOR_EMAIL: 'atc@example.com',
-    GIT_COMMITTER_NAME: 'atc',
-    GIT_COMMITTER_EMAIL: 'atc@example.com',
-  };
-
-  const upstream = join(dir, 'upstream.git');
-  const work = join(dir, 'work');
-
-  await $`git init --quiet --bare --template= --initial-branch=main ${upstream}`.env(env).quiet();
-  await $`git clone --quiet --template= ${upstream} ${work}`.env(env).quiet();
-
-  await writeFile(join(work, 'README.md'), 'hello\n');
-
-  await $`git add README.md`.env(env).cwd(work).quiet();
-  await $`git commit --quiet --no-gpg-sign -m initial`.env(env).cwd(work).quiet();
-  await $`git push --quiet origin main`.env(env).cwd(work).quiet();
-
-  await mkdir(join(dir, 'roots', 'proj'), { recursive: true });
-  await mkdir(join(dir, 'zoxide-dir'));
-
-  const socketPath = join(dir, 'daemon.sock');
-  const clients: DaemonClient[] = [];
-
-  const daemon = await startDaemon({
-    gitTransports: ['https', 'ssh', 'file'],
-    socketPath,
-    reporterSocketPath: join(dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: {
-      id: 'claude',
-      headlessRunner: null,
-      screenDetector: null,
-      takesMessages: false,
-      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-      normalizeHook: () => ({ kind: 'heartbeat' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => null,
+function setupTest() {
+  const targets: DaemonOptions['targets'] = [
+    {
+      id: 'local',
+      kind: 'local-pty',
+      options: {},
+      identity: 'test:local',
+      provider: new LocalPTYProvider(),
     },
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
-    targets: [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: 'test:local',
-        provider: new LocalPTYProvider(),
-      },
-      {
-        id: 'box',
-        kind: 'fixture-dir',
-        options: {},
-        identity: 'test:box',
-        provider: new FixtureDirProvider(),
-      },
-      {
-        id: 'bare',
-        kind: 'fixture-dir',
-        options: {},
-        identity: 'test:bare',
-        provider: new FixtureDirProvider({ lacking: ['transfer'] }),
-      },
-    ],
-    principals: new Map([['alice', ['box']]]),
-    sources: [
-      buildDirsSource({
-        roots: [join(dir, 'roots')],
-        collectZoxideDirs: () => Promise.resolve([join(dir, 'zoxide-dir'), join(dir, 'gone')]),
-        homeDir: dir,
-      }),
-      ...(options.withoutGitHub === true
-        ? []
-        : [buildGitHubSource({ bin: join(dir, 'gh'), owner: options.githubOwner ?? null })]),
-      buildGitSource(),
-    ],
-    log: () => {},
-  });
-
-  const openClient = async (hello: Readonly<Record<string, unknown>>) => {
-    const client = await DaemonClient.open(socketPath);
-
-    clients.push(client);
-
-    await client.sendRequest('daemon.hello', hello);
-
-    return client;
-  };
-
-  return {
-    dir,
-    env,
-    upstream,
-    work,
-    gh: join(dir, 'gh'),
-    ghArgv: join(dir, 'gh-argv'),
-    client: await openClient({ client: 'atc/test-build' }),
-    openClientAs: (principal: string) => openClient({ client: 'atc/test-build', principal }),
-    async [Symbol.asyncDispose]() {
-      for (const client of clients) {
-        client.stop();
-      }
-
-      await daemon.stop();
-
-      await rm(dir, { recursive: true, force: true });
+    {
+      id: 'box',
+      kind: 'fixture-dir',
+      options: {},
+      identity: 'test:box',
+      provider: new FixtureDirProvider(),
     },
-  };
+    {
+      id: 'bare',
+      kind: 'fixture-dir',
+      options: {},
+      identity: 'test:bare',
+      provider: new FixtureDirProvider({ lacking: ['transfer'] }),
+    },
+  ];
+
+  return { targets };
 }
 
 test('it lists the sources it offers in order in agents.list', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const listed = await ctx.client.sendRequest('agents.list');
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [
+        buildDirsSource({
+          roots: [],
+          collectZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.dir,
+        }),
+        buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null }),
+        buildGitSource(),
+      ],
+    }),
+  });
+
+  const listed = await daemon.client.sendRequest('agents.list');
 
   expect(listed['sources']).toStrictEqual([
     { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
@@ -155,81 +78,171 @@ test('it lists the sources it offers in order in agents.list', async () => {
 });
 
 test('it lists the spawn history, then the roots, then zoxide, as directories on the daemon host', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  await ctx.client.sendRequest('session.spawn', { cwd: ctx.work, cols: 80, rows: 24 });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [
+        buildDirsSource({
+          roots: [join(paths.dir, 'roots')],
+          collectZoxideDirs: () =>
+            Promise.resolve([join(paths.dir, 'zoxide-dir'), join(paths.dir, 'gone')]),
+          homeDir: paths.dir,
+        }),
+      ],
+    }),
+  });
 
-  const listed = await ctx.client.sendRequest('sources.list', { source: 'dirs' });
+  await mkdir(join(daemon.dir, 'work'));
+  await mkdir(join(daemon.dir, 'roots', 'proj'), { recursive: true });
+  await mkdir(join(daemon.dir, 'zoxide-dir'));
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'work'),
+    cols: 80,
+    rows: 24,
+  });
+
+  const listed = await daemon.client.sendRequest('sources.list', { source: 'dirs' });
 
   expect(listed).toStrictEqual({
     source: 'dirs',
     scope: null,
     candidates: [
-      { label: '~/work', pick: { kind: 'path', dir: ctx.work } },
-      { label: '~/roots/proj', pick: { kind: 'path', dir: join(ctx.dir, 'roots', 'proj') } },
-      { label: '~/zoxide-dir', pick: { kind: 'path', dir: join(ctx.dir, 'zoxide-dir') } },
+      { label: '~/work', pick: { kind: 'path', dir: join(daemon.dir, 'work') } },
+      { label: '~/roots/proj', pick: { kind: 'path', dir: join(daemon.dir, 'roots', 'proj') } },
+      { label: '~/zoxide-dir', pick: { kind: 'path', dir: join(daemon.dir, 'zoxide-dir') } },
     ],
   });
 });
 
-test('it lists a principal only the directories spawned on targets it may use', async () => {
-  await using ctx = await setupTest();
+test('it lists the owner the directories spawned on every target', async () => {
+  const ctx = setupTest();
 
-  const boxDir = join(ctx.dir, 'box-dir');
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: new Map([['alice', ['box']]]),
+      sources: [
+        buildDirsSource({
+          roots: [],
+          collectZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.dir,
+        }),
+      ],
+    }),
+  });
 
-  await mkdir(boxDir);
+  await mkdir(join(daemon.dir, 'work'));
+  await mkdir(join(daemon.dir, 'box-dir'));
 
-  await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.work,
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'work'),
     target: 'local',
     cols: 80,
     rows: 24,
   });
 
-  await ctx.client.sendRequest('session.spawn', { cwd: boxDir, target: 'box', cols: 80, rows: 24 });
-
-  const alice = await ctx.openClientAs('alice');
-  const own = await ctx.client.sendRequest('sources.list', { source: 'dirs', target: 'box' });
-  const scoped = await alice.sendRequest('sources.list', { source: 'dirs', target: 'box' });
-
-  expect(own['candidates']).toContainEqual({
-    label: '~/work',
-    pick: { kind: 'path', dir: ctx.work },
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'box-dir'),
+    target: 'box',
+    cols: 80,
+    rows: 24,
   });
 
-  expect(own['candidates']).toContainEqual({
-    label: '~/box-dir',
-    pick: { kind: 'path', dir: boxDir },
+  const listed = await daemon.client.sendRequest('sources.list', { source: 'dirs', target: 'box' });
+
+  expect(listed['candidates']).toIncludeSameMembers([
+    { label: '~/work', pick: { kind: 'path', dir: join(daemon.dir, 'work') } },
+    { label: '~/box-dir', pick: { kind: 'path', dir: join(daemon.dir, 'box-dir') } },
+  ]);
+});
+
+test('it lists a principal only the directories spawned on targets it may use', async () => {
+  const ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: new Map([['alice', ['box']]]),
+      sources: [
+        buildDirsSource({
+          roots: [],
+          collectZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.dir,
+        }),
+      ],
+    }),
   });
 
-  expect(scoped['candidates']).toContainEqual({
-    label: '~/box-dir',
-    pick: { kind: 'path', dir: boxDir },
+  await mkdir(join(daemon.dir, 'work'));
+  await mkdir(join(daemon.dir, 'box-dir'));
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'work'),
+    target: 'local',
+    cols: 80,
+    rows: 24,
   });
 
-  expect(scoped['candidates']).not.toContainEqual({
-    label: '~/work',
-    pick: { kind: 'path', dir: ctx.work },
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: join(daemon.dir, 'box-dir'),
+    target: 'box',
+    cols: 80,
+    rows: 24,
   });
+
+  const alice = await daemon.openClient({ principal: 'alice' });
+  const listed = await alice.sendRequest('sources.list', { source: 'dirs', target: 'box' });
+
+  expect(listed['candidates']).toStrictEqual([
+    { label: '~/box-dir', pick: { kind: 'path', dir: join(daemon.dir, 'box-dir') } },
+  ]);
 });
 
 test('it lists the configured GitHub owner through gh at the clone URL gh prefers', async () => {
-  await using ctx = await setupTest({ githubOwner: 'acme' });
+  const ctx = setupTest();
 
-  await writeFile(
-    ctx.gh,
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: 'acme' })],
+    }),
+  });
+
+  createStubBin(
+    daemon.dir,
+    'gh',
     `#!/bin/sh
-printf '%s\\n' "$*" >> '${ctx.ghArgv}'
+printf '%s\\n' "$*" >> '${join(daemon.dir, 'gh-argv')}'
 case "$1" in
   config) echo ssh ;;
   repo) echo '[{"nameWithOwner":"acme/app","description":"the app","isPrivate":true,"url":"https://github.com/acme/app","sshUrl":"git@github.com:acme/app.git"},{"nameWithOwner":"acme/web","description":null,"isPrivate":false,"url":"https://github.com/acme/web","sshUrl":"git@github.com:acme/web.git"}]' ;;
 esac
 `,
-    { mode: 0o755 },
   );
 
-  const listed = await ctx.client.sendRequest('sources.list', { source: 'github' });
-  const argv = await readFile(ctx.ghArgv, 'utf8');
+  const listed = await daemon.client.sendRequest('sources.list', { source: 'github' });
+  const argv = await readFile(join(daemon.dir, 'gh-argv'), 'utf8');
 
   expect(listed).toStrictEqual({
     source: 'github',
@@ -248,26 +261,38 @@ esac
 });
 
 test('it lists the scope a request holds over the configured owner, at https URLs by default', async () => {
-  await using ctx = await setupTest({ githubOwner: 'acme' });
+  const ctx = setupTest();
 
-  await writeFile(
-    ctx.gh,
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: 'acme' })],
+    }),
+  });
+
+  createStubBin(
+    daemon.dir,
+    'gh',
     `#!/bin/sh
-printf '%s\\n' "$*" >> '${ctx.ghArgv}'
+printf '%s\\n' "$*" >> '${join(daemon.dir, 'gh-argv')}'
 case "$1" in
   config) exit 1 ;;
   repo) echo '[{"nameWithOwner":"other-org/app","description":"","isPrivate":false,"url":"https://github.com/other-org/app","sshUrl":"git@github.com:other-org/app.git"}]' ;;
 esac
 `,
-    { mode: 0o755 },
   );
 
-  const listed = await ctx.client.sendRequest('sources.list', {
+  const listed = await daemon.client.sendRequest('sources.list', {
     source: 'github',
     scope: 'other-org',
   });
 
-  const argv = await readFile(ctx.ghArgv, 'utf8');
+  const argv = await readFile(join(daemon.dir, 'gh-argv'), 'utf8');
 
   expect(listed).toStrictEqual({
     source: 'github',
@@ -284,30 +309,55 @@ esac
 });
 
 test('it refuses a GitHub scope gh could read as an option, running no gh', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  await writeFile(ctx.gh, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${ctx.ghArgv}'\necho '[]'\n`, {
-    mode: 0o755,
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null })],
+    }),
   });
 
-  const listed = ctx.client.sendRequest('sources.list', {
+  createStubBin(
+    daemon.dir,
+    'gh',
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> '${join(daemon.dir, 'gh-argv')}'\necho '[]'\n`,
+  );
+
+  const listed = daemon.client.sendRequest('sources.list', {
     source: 'github',
     scope: '--hostname=evil',
   });
 
+  await listed.catch(() => null);
+
+  const ran = await Bun.file(join(daemon.dir, 'gh-argv')).exists();
+
   expect(listed).rejects.toMatchObject({ code: 'bad_args' });
-
-  await listed.catch(() => {});
-
-  const ran = await Bun.file(ctx.ghArgv).exists();
-
   expect(ran).toBeFalse();
 });
 
 test('it refuses a GitHub listing on a host without gh as github_unavailable', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const listed = ctx.client.sendRequest('sources.list', { source: 'github' });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null })],
+    }),
+  });
+
+  const listed = daemon.client.sendRequest('sources.list', { source: 'github' });
 
   expect(listed).rejects.toMatchObject({
     code: 'github_unavailable',
@@ -316,25 +366,84 @@ test('it refuses a GitHub listing on a host without gh as github_unavailable', a
 });
 
 test('it refuses a git source listing for a target that cannot take a workspace', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const listed = ctx.client.sendRequest('sources.list', { source: 'git', target: 'bare' });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: () => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [buildGitSource()],
+    }),
+  });
+
+  const listed = daemon.client.sendRequest('sources.list', { source: 'git', target: 'bare' });
 
   expect(listed).rejects.toMatchObject({ code: 'unsupported_operation' });
 });
 
 test('it lists directories for a target that cannot take a workspace', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const listed = await ctx.client.sendRequest('sources.list', { source: 'dirs', target: 'bare' });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [
+        buildDirsSource({
+          roots: [join(paths.dir, 'roots')],
+          collectZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.dir,
+        }),
+      ],
+    }),
+  });
 
-  expect(listed).toMatchObject({ source: 'dirs', scope: null });
+  await mkdir(join(daemon.dir, 'roots', 'proj'), { recursive: true });
+
+  const listed = await daemon.client.sendRequest('sources.list', {
+    source: 'dirs',
+    target: 'bare',
+  });
+
+  expect(listed).toStrictEqual({
+    source: 'dirs',
+    scope: null,
+    candidates: [
+      { label: '~/roots/proj', pick: { kind: 'path', dir: join(daemon.dir, 'roots', 'proj') } },
+    ],
+  });
 });
 
 test('it refuses a principal a source listing for the default target it may not use', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const alice = await ctx.openClientAs('alice');
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: new Map([['alice', ['box']]]),
+      sources: [
+        buildDirsSource({
+          roots: [],
+          collectZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.dir,
+        }),
+      ],
+    }),
+  });
+
+  const alice = await daemon.openClient({ principal: 'alice' });
 
   const listed = alice.sendRequest('sources.list', { source: 'dirs' });
 
@@ -342,9 +451,21 @@ test('it refuses a principal a source listing for the default target it may not 
 });
 
 test('it refuses a source the daemon does not offer as unsupported', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const listed = ctx.client.sendRequest('sources.interpret', { source: 'gitlab', input: 'x' });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: () => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [buildGitSource()],
+    }),
+  });
+
+  const listed = daemon.client.sendRequest('sources.interpret', { source: 'gitlab', input: 'x' });
 
   expect(listed).rejects.toMatchObject({ code: 'unsupported' });
 });
@@ -360,90 +481,190 @@ test.each([
   ['dirs', '/srv/work', { kind: 'path', dir: '/srv/work' }],
   ['dirs', 'work', { kind: 'none' }],
 ] as const)('it reads %s input %p as %p', async (source, input, expected) => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  await writeFile(ctx.gh, '#!/bin/sh\necho ssh\n', { mode: 0o755 });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [
+        buildDirsSource({
+          roots: [],
+          collectZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.dir,
+        }),
+        buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null }),
+        buildGitSource(),
+      ],
+    }),
+  });
 
-  const interpreted = await ctx.client.sendRequest('sources.interpret', { source, input });
+  createStubBin(daemon.dir, 'gh', '#!/bin/sh\necho ssh\n');
+
+  const interpreted = await daemon.client.sendRequest('sources.interpret', { source, input });
 
   expect(interpreted).toStrictEqual(expected);
 });
 
 test('it reads a leading ~ in directory input as the daemon home', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const interpreted = await ctx.client.sendRequest('sources.interpret', {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [
+        buildDirsSource({
+          roots: [],
+          collectZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.dir,
+        }),
+      ],
+    }),
+  });
+
+  const interpreted = await daemon.client.sendRequest('sources.interpret', {
     source: 'dirs',
     input: '~/work',
   });
 
-  expect(interpreted).toStrictEqual({ kind: 'path', dir: join(ctx.dir, 'work') });
+  expect(interpreted).toStrictEqual({ kind: 'path', dir: join(daemon.dir, 'work') });
 });
 
 test('it probes a git source for the target a principal may use', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const sha = await $`git rev-parse HEAD`
-    .env(ctx.env)
-    .cwd(ctx.work)
-    .text()
-    .then((text) => text.trim());
+  await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
 
-  const alice = await ctx.openClientAs('alice');
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: () => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: new Map([['alice', ['box']]]),
+      sources: [buildGitSource()],
+    }),
+  });
+
+  const alice = await daemon.openClient({ principal: 'alice' });
 
   const probed = await alice.sendRequest('git.probe', {
-    url: ctx.upstream,
+    url: git.upstream,
     ref: 'main',
     target: 'box',
   });
 
   expect(probed).toStrictEqual({
-    url: ctx.upstream,
+    url: git.upstream,
     head: 'main',
-    refs: [{ name: 'main', kind: 'branch', sha }],
-    resolved: { sha, branch: 'main' },
+    refs: [{ name: 'main', kind: 'branch', sha: git.sha }],
+    resolved: { sha: git.sha, branch: 'main' },
   });
 });
 
 test('it refuses a principal a probe for a target it may not use', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const alice = await ctx.openClientAs('alice');
+  await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
 
-  const probed = alice.sendRequest('git.probe', { url: ctx.upstream, target: 'local' });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: () => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: new Map([['alice', ['box']]]),
+      sources: [buildGitSource()],
+    }),
+  });
+
+  const alice = await daemon.openClient({ principal: 'alice' });
+
+  const probed = alice.sendRequest('git.probe', { url: git.upstream, target: 'local' });
 
   expect(probed).rejects.toMatchObject({ code: 'target_forbidden', data: { target: 'local' } });
 });
 
 test('it refuses a probe for a ref the upstream does not have as ref_not_found', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const probed = ctx.client.sendRequest('git.probe', { url: ctx.upstream, ref: 'nope' });
+  await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: () => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [buildGitSource()],
+    }),
+  });
+
+  const probed = daemon.client.sendRequest('git.probe', { url: git.upstream, ref: 'nope' });
 
   expect(probed).rejects.toMatchObject({ code: 'ref_not_found' });
 });
 
 test('it refuses a probe of an upstream git cannot read as clone_failed', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const probed = ctx.client.sendRequest('git.probe', { url: `${ctx.upstream}-missing` });
+  await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: () => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [buildGitSource()],
+    }),
+  });
+
+  const probed = daemon.client.sendRequest('git.probe', { url: `${git.upstream}-missing` });
 
   expect(probed).rejects.toMatchObject({ code: 'clone_failed', data: undefined });
 });
 
 test("it refuses a GitHub probe git cannot read with the repository's other URL form", async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null }), buildGitSource()],
+    }),
+  });
 
   // The rewrite sends the https form to a path that does not exist, so no
   // request reaches GitHub.
   await writeFile(
-    join(ctx.dir, 'gitconfig'),
-    `[url "file://${join(ctx.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
+    join(daemon.dir, 'gitconfig'),
+    `[url "file://${join(daemon.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(daemon.dir, 'gitconfig'));
 
-  const probed = ctx.client.sendRequest('git.probe', { url: 'https://github.com/acme/app.git' });
+  const probed = daemon.client.sendRequest('git.probe', { url: 'https://github.com/acme/app.git' });
 
   expect(probed).rejects.toMatchObject({
     code: 'clone_failed',
@@ -452,35 +673,59 @@ test("it refuses a GitHub probe git cannot read with the repository's other URL 
 });
 
 test('it refuses a probe of the owner/repo shorthand, which only a spawn expands', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null }), buildGitSource()],
+    }),
+  });
 
   // The rewrite sends the expanded form to a path that does not exist, so
   // a probe that expanded the shorthand would fail in git instead.
   await writeFile(
-    join(ctx.dir, 'gitconfig'),
-    `[url "file://${join(ctx.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
+    join(daemon.dir, 'gitconfig'),
+    `[url "file://${join(daemon.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(daemon.dir, 'gitconfig'));
 
-  const probed = ctx.client.sendRequest('git.probe', { url: 'acme/app' });
+  const probed = daemon.client.sendRequest('git.probe', { url: 'acme/app' });
 
   expect(probed).rejects.toMatchObject({ code: 'invalid_git_url', data: undefined });
 });
 
 test('it refuses a GitHub probe with no alternates when the daemon offers no GitHub source', async () => {
-  await using ctx = await setupTest({ withoutGitHub: true });
+  const ctx = setupTest();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: () => ({
+      // Probes and git sources read the fixture's upstream over file URLs.
+      gitTransports: ['https', 'ssh', 'file'],
+      adapter: buildMockAgentAdapter(),
+      targets: ctx.targets,
+      principals: null,
+      sources: [buildGitSource()],
+    }),
+  });
 
   // The rewrite sends the https form to a path that does not exist, so no
   // request reaches GitHub.
   await writeFile(
-    join(ctx.dir, 'gitconfig'),
-    `[url "file://${join(ctx.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
+    join(daemon.dir, 'gitconfig'),
+    `[url "file://${join(daemon.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(daemon.dir, 'gitconfig'));
 
-  const probed = ctx.client.sendRequest('git.probe', { url: 'https://github.com/acme/app.git' });
+  const probed = daemon.client.sendRequest('git.probe', { url: 'https://github.com/acme/app.git' });
 
   expect(probed).rejects.toMatchObject({ code: 'clone_failed', data: undefined });
 });

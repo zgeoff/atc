@@ -2,65 +2,30 @@ import { expect, test } from 'bun:test';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
-import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
-import { isRecord } from '../shared/report';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildTargetIdentity } from './build-target-identity';
-import { startDaemon } from './daemon';
-
-// agents.list through the real daemon, with the real adapters built from a
-// config that registers a gateway carrying secrets and points codex at a
-// binary that does not exist.
-async function setupTest() {
-  const tmp = setupTempDir('atc-agents-');
-  const sockPath = join(tmp.dir, 'daemon.sock');
-
-  const config = parseConfig({
-    claudeBin: 'sh',
-    grokBin: 'sh',
-    codexBin: join(tmp.dir, 'missing', 'codex'),
-    gateways: {
-      zai: {
-        label: 'GLM (z.ai)',
-        baseURL: 'https://api.z.ai/api/anthropic',
-        apiKeyHelper: 'op read op://vault/zai/key',
-        env: {
-          ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-4.6',
-          ANTHROPIC_AUTH_TOKEN: 'sk-zai-secret',
-          API_TIMEOUT_MS: '600000',
-        },
-      },
-    },
-  });
-
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapters: buildAgentAdapters(config),
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-  });
-
-  const client = await DaemonClient.open(sockPath);
-
-  await client.sendHello('atc/test-build');
-
-  return {
-    client,
-    async [Symbol.asyncDispose]() {
-      client.stop();
-
-      await daemon.stop();
-
-      tmp[Symbol.dispose]();
-    },
-  };
-}
 
 test('it lists each registered agent with what it can do and the host it runs on', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: (paths) => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          claudeBin: 'sh',
+          grokBin: 'sh',
+          codexBin: join(paths.dir, 'missing', 'codex'),
+          gateways: {
+            zai: {
+              label: 'GLM (z.ai)',
+              baseURL: 'https://api.z.ai/api/anthropic',
+              apiKeyHelper: 'op read op://vault/zai/key',
+              env: { ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-4.6' },
+            },
+          },
+        }),
+      ),
+    }),
+  });
 
   const listed = await daemon.client.sendRequest('agents.list');
 
@@ -93,7 +58,16 @@ test('it lists each registered agent with what it can do and the host it runs on
             supported: true,
             available: true,
             values: null,
-            examples: expect.toBeArrayOfSize(8),
+            examples: [
+              { value: 'best', resolvesTo: null },
+              { value: 'fable', resolvesTo: null },
+              { value: 'opus', resolvesTo: null },
+              { value: 'sonnet', resolvesTo: null },
+              { value: 'haiku', resolvesTo: null },
+              { value: 'opus[1m]', resolvesTo: null },
+              { value: 'sonnet[1m]', resolvesTo: null },
+              { value: 'opusplan', resolvesTo: null },
+            ],
             default: null,
             backendEffect: 'applied',
             note: 'An alias or a full model name, passed as --model.',
@@ -251,7 +225,27 @@ test('it lists each registered agent with what it can do and the host it runs on
 });
 
 test("it keeps a gateway's env values, helper, and base URL out of the agent list", async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          claudeBin: 'sh',
+          gateways: {
+            zai: {
+              label: 'GLM (z.ai)',
+              baseURL: 'https://api.z.ai/api/anthropic',
+              apiKeyHelper: 'op read op://vault/zai/key',
+              env: {
+                ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-4.6',
+                ANTHROPIC_AUTH_TOKEN: 'sk-zai-secret',
+                API_TIMEOUT_MS: '600000',
+              },
+            },
+          },
+        }),
+      ),
+    }),
+  });
 
   const answer = await daemon.client.sendRequest('agents.list');
 
@@ -265,89 +259,135 @@ test("it keeps a gateway's env values, helper, and base URL out of the agent lis
 });
 
 test('it refuses a registered agent whose binary is missing before spawning anything', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: (paths) => ({
+      adapters: buildAgentAdapters(
+        parseConfig({ claudeBin: 'sh', codexBin: join(paths.dir, 'missing', 'codex') }),
+      ),
+    }),
+  });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'codex' });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' });
+
+  await spawn.catch(() => null);
+
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({
     code: 'unsupported',
     message: "agent 'codex' is registered but not installed on this host",
   });
 
-  const listed = await daemon.client.sendRequest('session.list');
-
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
-test('it neither lists nor spawns an agent id the daemon never registered', async () => {
-  await using daemon = await setupTest();
+test('it leaves an agent id the daemon never registered out of the agent list', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
+  });
 
   const agents = await daemon.client.sendRequest('agents.list');
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'gemini' });
-
   expect(JSON.stringify(agents)).not.toInclude('gemini');
-  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
+});
+
+test('it refuses to spawn an agent id the daemon never registered', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'gemini' });
+
+  await spawn.catch(() => null);
 
   const listed = await daemon.client.sendRequest('session.list');
 
+  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a model shaped like a flag before spawning anything', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
+  });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: daemon.dir,
     model: '--dangerously-skip-permissions',
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
+  await spawn.catch(() => null);
 
   const listed = await daemon.client.sendRequest('session.list');
 
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a gateway effort outside the levels the CLI accepts', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          claudeBin: 'sh',
+          gateways: {
+            zai: {
+              label: 'GLM (z.ai)',
+              baseURL: 'https://api.z.ai/api/anthropic',
+              apiKeyHelper: 'op read op://vault/zai/key',
+              env: { ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-4.6' },
+            },
+          },
+        }),
+      ),
+    }),
+  });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: daemon.dir,
     agent: 'zai',
     effort: 'ultra',
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
+  await spawn.catch(() => null);
 
   const listed = await daemon.client.sendRequest('session.list');
 
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses an option the agent takes no value for', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh', grokBin: 'sh' })),
+    }),
+  });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+    cwd: daemon.dir,
     agent: 'grok',
     model: 'grok-4',
   });
+
+  await spawn.catch(() => null);
+
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({
     code: 'unsupported',
     message: "agent 'grok' takes no model",
   });
 
-  const listed = await daemon.client.sendRequest('session.list');
-
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a model that is not a string', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
+  });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: '/tmp', model: 7 });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, model: 7 });
 
   expect(spawn).rejects.toMatchObject({
     code: 'bad_args',
@@ -355,18 +395,62 @@ test('it refuses a model that is not a string', async () => {
   });
 });
 
-test('it lists a spawned session with the model it was spawned with', async () => {
-  await using daemon = await setupTest();
+test('it answers a spawn with the model it was spawned with', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          claudeBin: 'sh',
+          gateways: {
+            zai: {
+              label: 'GLM (z.ai)',
+              baseURL: 'https://api.z.ai/api/anthropic',
+              apiKeyHelper: 'op read op://vault/zai/key',
+              env: { ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-4.6' },
+            },
+          },
+        }),
+      ),
+    }),
+  });
 
-  const ok = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     agent: 'zai',
     model: 'opus',
     cols: 80,
     rows: 24,
   });
 
-  expect(ok['session']).toMatchObject({ agent: 'zai', model: 'opus' });
+  expect(spawned['session']).toMatchObject({ agent: 'zai', model: 'opus' });
+});
+
+test('it lists a spawned session with the model it was spawned with', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          claudeBin: 'sh',
+          gateways: {
+            zai: {
+              label: 'GLM (z.ai)',
+              baseURL: 'https://api.z.ai/api/anthropic',
+              apiKeyHelper: 'op read op://vault/zai/key',
+              env: { ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-4.6' },
+            },
+          },
+        }),
+      ),
+    }),
+  });
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    agent: 'zai',
+    model: 'opus',
+    cols: 80,
+    rows: 24,
+  });
 
   const list = await daemon.client.sendRequest('session.list');
 
@@ -374,24 +458,14 @@ test('it lists a spawned session with the model it was spawned with', async () =
 });
 
 test('it lists a spawned session without a model key when it runs the default', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
+  });
 
-  await daemon.client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, cols: 80, rows: 24 });
 
   const list = await daemon.client.sendRequest('session.list');
 
-  const sessions = list['sessions'];
-
-  if (!Array.isArray(sessions)) {
-    throw new TypeError('sessions is not an array');
-  }
-
-  expect(sessions).toBeArrayOfSize(1);
-  expect(sessions[0]).toBeObject();
-
-  if (!isRecord(sessions[0])) {
-    throw new TypeError('session is not a record');
-  }
-
-  expect(Object.keys(sessions[0])).not.toInclude('model');
+  expect(list).toStrictEqual({ sessions: [expect.toBeObject()] });
+  expect(list).toStrictEqual({ sessions: [expect.not.toContainKey('model')] });
 });
