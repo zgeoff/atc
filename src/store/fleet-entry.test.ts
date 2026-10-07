@@ -76,8 +76,13 @@ test('it prefers agentSessionID over a legacy claudeId when both are present', (
       cwd: '/repo',
       agentSessionID: 'current-1',
       claudeId: 'legacy-1',
-    })?.agentSessionID,
-  ).toBe(toAgentSessionID('current-1'));
+    }),
+  ).toStrictEqual({
+    name: 'fix the bug',
+    cwd: '/repo',
+    agentSessionID: toAgentSessionID('current-1'),
+    agent: 'claude',
+  });
 });
 
 test.each([
