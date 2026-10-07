@@ -104,6 +104,7 @@ function setupDaemonProc(
       `#!/usr/bin/env bash
 echo "FAKE_CLAUDE_UP args: $@"
 echo "FAKE_CLAUDE_TERM:[\${TERM-unset}]"
+echo "FAKE_CLAUDE_PARENT:[\${CLAUDE_CODE_ATC_TEST-unset}]"
 settings=""
 prev=""
 for arg in "$@"; do
@@ -1583,6 +1584,25 @@ test.each([
     });
   },
 );
+
+test('it starts a session without a parent-session variable the daemon started with', async () => {
+  const ctx = setupDaemonProc(undefined, { CLAUDE_CODE_ATC_TEST: 'synthetic' });
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const spawned = getRecord(ok, 'session');
+  const id = getString(spawned, 'id');
+
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_CLAUDE_PARENT:[unset]');
+  });
+});
 
 test('it keeps the last screen of a killed session readable', async () => {
   const ctx = setupDaemonProc();

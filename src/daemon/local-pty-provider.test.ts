@@ -401,3 +401,104 @@ test('it refuses to start a harness that requires a credential broker, which it 
     }),
   ).toThrow(expect.objectContaining({ code: 'auth_target_unsupported' }));
 });
+
+test('it keeps a variable the daemon started with out of a harness whose map leaves it out', async () => {
+  using local = setupTest();
+
+  const inner = `
+import { LocalPTYProvider } from ${JSON.stringify(join(import.meta.dir, 'local-pty-provider.ts'))};
+delete process.env.ATC_TEST_DELETED;
+const harness = new LocalPTYProvider().spawnHarness({
+  session: 's1',
+  host: 's1',
+  bin: 'bash',
+  args: ['-c', 'echo "KEPT:[$ATC_TEST_KEPT] WITHHELD:[$ATC_TEST_WITHHELD] DELETED:[$ATC_TEST_DELETED] PARENT:[$CLAUDE_CODE_ATC_TEST]"; echo DONE'],
+  cwd: process.cwd(),
+  env: {},
+  withheldEnv: ['ATC_TEST_WITHHELD'],
+  cols: 200,
+  rows: 24,
+});
+let output = '';
+harness.onData((data) => {
+  output += data;
+});
+const deadline = Date.now() + 10_000;
+while (!output.includes('DONE') && Date.now() < deadline) {
+  await Bun.sleep(20);
+}
+harness.kill();
+console.log(output);
+`;
+
+  const proc = Bun.spawn([process.execPath, '-e', inner], {
+    cwd: local.dir,
+    env: {
+      PATH: '/usr/bin:/bin',
+      HOME: local.dir,
+      ATC_TEST_KEPT: 'synthetic',
+      ATC_TEST_WITHHELD: 'synthetic',
+      ATC_TEST_DELETED: 'synthetic',
+      CLAUDE_CODE_ATC_TEST: 'synthetic',
+    },
+    stdout: 'pipe',
+    stderr: 'inherit',
+  });
+
+  const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+
+  expect(exitCode).toBe(0);
+  expect(stdout).toInclude('KEPT:[synthetic] WITHHELD:[] DELETED:[] PARENT:[]');
+});
+
+test('it fails the spawn of a program the harness PATH does not hold', () => {
+  using local = setupTest();
+
+  expect(() =>
+    local.provider.spawnHarness({
+      session: 's1',
+      host: 's1',
+      bin: 'atc-test-no-such-program',
+      args: [],
+      cwd: local.dir,
+      env: { PATH: '/usr/bin:/bin' },
+      cols: 80,
+      rows: 24,
+    }),
+  ).toThrowWithMessage(Error, /PTY spawn failed/);
+});
+
+test('it runs a harness whose program path holds an equals sign', async () => {
+  using local = setupTest();
+
+  mkdirSync(join(local.dir, 'agent=dir'));
+
+  writeFileSync(join(local.dir, 'agent=dir', 'agent'), '#!/bin/sh\necho "RAN:[$1]"\nsleep 30\n', {
+    mode: 0o755,
+  });
+
+  const output: string[] = [];
+
+  const harness = local.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: join(local.dir, 'agent=dir', 'agent'),
+    args: ['first arg'],
+    cwd: local.dir,
+    env: { PATH: '/usr/bin:/bin' },
+    cols: 80,
+    rows: 24,
+  });
+
+  onTestFinished(() => {
+    harness.kill();
+  });
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('RAN:[first arg]');
+  });
+});

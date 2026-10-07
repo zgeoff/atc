@@ -10,6 +10,7 @@ import type {
   HarnessHandle,
   HarnessSpec,
 } from './execution-provider';
+import { readNativeEnvKeys } from './read-native-env-keys';
 
 /**
  * The `local-pty` provider: harnesses run as child processes of the daemon
@@ -51,13 +52,21 @@ export class LocalPTYProvider implements ExecutionProvider {
       );
     }
 
-    const pty = spawn(spec.bin, [...spec.args], {
-      name: 'xterm-256color',
-      cols: spec.cols,
-      rows: spec.rows,
-      cwd: spec.cwd,
-      env: buildPTYEnv(spec),
-    });
+    const env = buildPTYEnv(spec);
+    const bin = resolveHarnessBin(spec.bin, env, spec.cwd);
+    const unset = buildUnsetNames(env, [...readNativeEnvKeys(), ...Object.keys(process.env)]);
+
+    const pty = spawn(
+      ENV_BIN,
+      buildEnvArgs(unset, buildDYLDEntries(env, process.platform), bin, spec.args),
+      {
+        name: 'xterm-256color',
+        cols: spec.cols,
+        rows: spec.rows,
+        cwd: spec.cwd,
+        env,
+      },
+    );
 
     const subscriptions = new Set<{ readonly dispose: () => void }>();
 
@@ -185,9 +194,7 @@ const USABLE_TERM = 'xterm-256color';
 
 // A pseudo-terminal always has a terminal on its far side, so a harness never
 // starts with an empty or dumb TERM, which leaves an agent CLI drawing with no
-// colour. TERM is always passed: the child starts from the environment the
-// daemon itself started with, and the keys passed here only add to it or
-// override it, so leaving TERM out hands the child the daemon's own value.
+// colour.
 function buildPTYEnv(spec: HarnessSpec): Record<string, string> {
   const env = collectCleanEnv(spec.env, spec.withheldEnv);
   const term = env['TERM'];
@@ -196,6 +203,72 @@ function buildPTYEnv(spec: HarnessSpec): Record<string, string> {
     ...env,
     TERM: term === undefined || term === '' || term === 'dumb' ? USABLE_TERM : term,
   };
+}
+
+// The PTY library starts its child from the environment the daemon started
+// with and lays the map over it, so the harness starts behind `env`, which
+// unsets every name the map leaves out before it replaces itself with the
+// harness. The pid stays the harness's own.
+const ENV_BIN = '/usr/bin/env';
+
+// The program is found on the map's PATH before the harness starts, so a
+// missing program fails the spawn as the PTY library fails it, instead of
+// starting `env` only to exit.
+function resolveHarnessBin(
+  bin: string,
+  env: Readonly<Record<string, string>>,
+  cwd: string,
+): string {
+  const resolved = Bun.which(bin, { PATH: env['PATH'] ?? '', cwd });
+
+  if (resolved === null) {
+    throw new Error(`PTY spawn failed: ${bin} is not a program the harness can start`);
+  }
+
+  return resolved;
+}
+
+// A name the native environment block cannot hold, such as one with `=`,
+// is left alone, since `env` refuses to unset it.
+function buildUnsetNames(
+  env: Readonly<Record<string, string>>,
+  inherited: readonly string[],
+): string[] {
+  return [...new Set(inherited)].filter(
+    (name) => name !== '' && !name.includes('=') && !Object.hasOwn(env, name),
+  );
+}
+
+// macOS clears every `DYLD_` variable on the way into `env`, a protected
+// system program, so the map's own ones are set again after the unsets, the
+// one place the argv holds a value.
+function buildDYLDEntries(
+  env: Readonly<Record<string, string>>,
+  platform: NodeJS.Platform,
+): string[] {
+  if (platform !== 'darwin') {
+    return [];
+  }
+
+  return Object.entries(env)
+    .filter(([name]) => name.startsWith('DYLD_'))
+    .map(([name, value]) => `${name}=${value}`);
+}
+
+// `env` reads a word holding `=` as an assignment even after `--`, so a
+// program path holding one starts through a shell that runs it by its first
+// argument.
+const SHELL_EXEC = 'exec "$0" "$@"';
+
+function buildEnvArgs(
+  unset: readonly string[],
+  entries: readonly string[],
+  bin: string,
+  args: readonly string[],
+): string[] {
+  const program = bin.includes('=') ? ['/bin/sh', '-c', SHELL_EXEC, bin] : [bin];
+
+  return [...unset.flatMap((name) => ['-u', name]), '--', ...entries, ...program, ...args];
 }
 
 // A process another user owns still runs, so only a missing process counts
