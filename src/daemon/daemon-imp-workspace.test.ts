@@ -11,14 +11,14 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
-import { FixtureImpPort } from '../../test/fixture-imp-port';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { updateEnv } from '../../test/update-env';
-import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { DaemonError } from '../protocol/daemon-error';
 import { getRecord } from '../shared/get-record';
+import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { updateEnv } from '../test-utils/update-env';
+import { waitFor } from '../test-utils/wait-for';
 import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';

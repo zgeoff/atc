@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../test/setup-temp-dir';
+import { setupTempDir } from './test-utils/setup-temp-dir';
 
 const CLI_PATH = join(import.meta.dir, 'cli.ts');
 

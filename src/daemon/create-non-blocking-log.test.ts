@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { closeSync, constants, openSync, readSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 
 /**
  * A daemon in a process of its own whose TCP listener logs every refusal
@@ -30,7 +30,7 @@ async function setupTest() {
   const writeEnd = openSync(fifo, constants.O_WRONLY);
 
   const proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, '..', '..', 'test', 'run-listener-daemon.ts')],
+    [process.execPath, join(import.meta.dir, '..', 'test-utils', 'run-listener-daemon.ts')],
     {
       env: { ...process.env, ATC_TEST_DIR: tmp.dir },
       stdout: 'pipe',

@@ -25,10 +25,10 @@ import type {
   ImpView,
   PreviousGeneration,
   ResumeResult,
-} from '../src/daemon/imp-port';
-import { ImpPortError } from '../src/daemon/imp-port-error';
-import { isImpNameAllowed } from '../src/daemon/is-imp-name-allowed';
-import { isBrokerVariable } from '../src/shared/is-broker-variable';
+} from '../daemon/imp-port';
+import { ImpPortError } from '../daemon/imp-port-error';
+import { isImpNameAllowed } from '../daemon/is-imp-name-allowed';
+import { isBrokerVariable } from '../shared/is-broker-variable';
 
 // impd keeps exactly this many bytes of each generation's output.
 const RING_BYTES = 262_144;

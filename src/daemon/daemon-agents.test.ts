@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
 import { isRecord } from '../shared/report';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildTargetIdentity } from './build-target-identity';
 import { startDaemon } from './daemon';
 

@@ -1,8 +1,6 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getAgentEntry } from '../../test/get-agent-entry';
-import { setupTempDir } from '../../test/setup-temp-dir';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { CodexAdapter } from '../agents/codex-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -12,6 +10,8 @@ import { getRecord } from '../shared/get-record';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildTargetIdentity } from './build-target-identity';
 import { startDaemon } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';

@@ -7,8 +7,8 @@ import type {
   ExecutionProvider,
   HarnessHandle,
   HarnessSpec,
-} from '../src/daemon/execution-provider';
-import { LocalPTYProvider } from '../src/daemon/local-pty-provider';
+} from '../daemon/execution-provider';
+import { LocalPTYProvider } from '../daemon/local-pty-provider';
 
 // One provider operation, in the order the daemon called it.
 type FixtureCall =

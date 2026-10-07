@@ -1,11 +1,6 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { readJSONRecord } from '../../test/read-json-record';
-import { runMCPAuthorization } from '../../test/run-mcp-authorization';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { startLegacyDaemon } from '../../test/start-legacy-daemon';
-import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle } from '../daemon/daemon';
@@ -14,6 +9,11 @@ import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { getRecord } from '../shared/get-record';
 import { isRecord, sendReport } from '../shared/report';
+import { readJSONRecord } from '../test-utils/read-json-record';
+import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
+import { waitFor } from '../test-utils/wait-for';
 import { openGatewayCaller } from './open-gateway-caller';
 import { parseGatewayRegistry } from './parse-gateway-registry';
 

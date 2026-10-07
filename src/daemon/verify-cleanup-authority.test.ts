@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { FixtureImpPort } from '../../test/fixture-imp-port';
+import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
 function setupTest() {

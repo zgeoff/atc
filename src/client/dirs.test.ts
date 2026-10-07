@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectDirs, findFuzzyScore, pickMatches } from './dirs';
 
 test('it matches filter characters in order anywhere in the candidate', () => {

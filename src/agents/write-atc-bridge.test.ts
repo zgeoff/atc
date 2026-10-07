@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { buildCLIArgv } from './build-cli-argv';
 import { writeATCBridge } from './write-atc-bridge';

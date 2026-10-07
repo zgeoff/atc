@@ -16,7 +16,7 @@ import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
 import { DaemonClient } from '../src/client/daemon-client';
 import { isRecord } from '../src/shared/report';
-import { startGitHTTPServer } from './start-git-http-server';
+import { startGitHTTPServer } from '../src/test-utils/start-git-http-server';
 
 const repo = join(import.meta.dir, '..');
 const CTRL_SPACE = String.fromCodePoint(0);
@@ -1089,7 +1089,7 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   writeFileSync(
     daemonPath,
     `import { writeFileSync } from 'node:fs';
-import { startLegacyDaemon } from '${join(import.meta.dir, 'start-legacy-daemon.ts')}';
+import { startLegacyDaemon } from '${join(import.meta.dir, '..', 'src', 'test-utils', 'start-legacy-daemon.ts')}';
 startLegacyDaemon('${sockPath}', { protocol: 3 });
 writeFileSync('${join(stateDir, 'daemon.json')}', JSON.stringify({ pid: process.pid, socketPath: '${sockPath}', reporterSocketPath: '${join(ctx.home, 'atc.sock')}', eventsSocketPath: null }));
 process.stdout.write('up\\n');
@@ -3095,17 +3095,20 @@ test('it lists the scope a composed source reads from a directory step once, on 
 // before the client boots, so the client connects to it instead of
 // starting its own, and resolves once it listens.
 async function startSourceDaemon(ctx: TestContext, env: Readonly<Record<string, string>>) {
-  const daemon = Bun.spawn([process.execPath, join(repo, 'test', 'run-source-daemon.ts')], {
-    env: collectEnv({
-      HOME: ctx.home,
-      XDG_RUNTIME_DIR: ctx.home,
-      PATH: `${join(ctx.home, 'bin')}:/usr/sbin:/usr/bin:/bin`,
-      ATC_TEST_SOURCES: 'fixture',
-      ...env,
-    }),
-    stdout: 'pipe',
-    stderr: 'ignore',
-  });
+  const daemon = Bun.spawn(
+    [process.execPath, join(repo, 'src', 'test-utils', 'run-source-daemon.ts')],
+    {
+      env: collectEnv({
+        HOME: ctx.home,
+        XDG_RUNTIME_DIR: ctx.home,
+        PATH: `${join(ctx.home, 'bin')}:/usr/sbin:/usr/bin:/bin`,
+        ATC_TEST_SOURCES: 'fixture',
+        ...env,
+      }),
+      stdout: 'pipe',
+      stderr: 'ignore',
+    },
+  );
 
   onTestFinished(() => {
     daemon.kill();

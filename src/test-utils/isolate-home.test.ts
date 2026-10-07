@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { GatewayAdapter } from '../src/agents/gateway-adapter';
-import { resolveAgentHome } from '../src/agents/resolve-agent-home';
-import { writeATCBridge } from '../src/agents/write-atc-bridge';
+import { GatewayAdapter } from '../agents/gateway-adapter';
+import { resolveAgentHome } from '../agents/resolve-agent-home';
+import { writeATCBridge } from '../agents/write-atc-bridge';
 import {
   configFile,
   daemonPidFile,
@@ -16,7 +16,7 @@ import {
   socketPath,
   stateDir,
   statusFile,
-} from '../src/shared/config';
+} from '../shared/config';
 import { updateEnv } from './update-env';
 
 test("it resolves every atc config and state path inside this run's own home", () => {
@@ -117,9 +117,9 @@ test('it refuses to run under a test-home marker whose paths do not match it', (
   }
 
   const nested = Bun.spawnSync(
-    ['bun', 'test', 'test/isolate-home.test.ts', '-t', 'no enclosing atc session'],
+    ['bun', 'test', 'src/test-utils/isolate-home.test.ts', '-t', 'no enclosing atc session'],
     {
-      cwd: join(import.meta.dir, '..'),
+      cwd: join(import.meta.dir, '..', '..'),
       env: { ...process.env, ATC_TEST_HOME: join(root, 'stale-marker') },
       stdout: 'pipe',
       stderr: 'pipe',
@@ -150,12 +150,12 @@ test('it accepts the test home the package script sets up under a temp directory
       'scripts/with-test-home.sh',
       'bun',
       'test',
-      'test/isolate-home.test.ts',
+      'src/test-utils/isolate-home.test.ts',
       '-t',
       'no enclosing atc session',
     ],
     {
-      cwd: join(import.meta.dir, '..'),
+      cwd: join(import.meta.dir, '..', '..'),
       env: { ...process.env, TMPDIR: `${tmp}/` },
       stdout: 'pipe',
       stderr: 'pipe',
@@ -209,7 +209,7 @@ test('it keeps a host XDG git config away from a command the package script runs
   const read = Bun.spawnSync(
     ['bash', 'scripts/with-test-home.sh', 'git', 'config', '--get', 'atc.canary'],
     {
-      cwd: join(import.meta.dir, '..'),
+      cwd: join(import.meta.dir, '..', '..'),
       env: { ...process.env, XDG_CONFIG_HOME: host },
       stdout: 'pipe',
       stderr: 'pipe',
@@ -223,9 +223,9 @@ test('it stops a bare bun test before any test runs', () => {
   const { ATC_TEST_HOME: _marker, ...outer } = process.env;
 
   const nested = Bun.spawnSync(
-    ['bun', 'test', 'test/isolate-home.test.ts', '-t', 'no enclosing atc session'],
+    ['bun', 'test', 'src/test-utils/isolate-home.test.ts', '-t', 'no enclosing atc session'],
     {
-      cwd: join(import.meta.dir, '..'),
+      cwd: join(import.meta.dir, '..', '..'),
       env: outer,
       stdout: 'pipe',
       stderr: 'pipe',

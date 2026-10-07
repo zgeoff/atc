@@ -2,13 +2,13 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { startLegacyDaemon } from '../../test/start-legacy-daemon';
-import { updateEnv } from '../../test/update-env';
 import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import { DaemonError } from '../protocol/daemon-error';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
+import { updateEnv } from '../test-utils/update-env';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { runTool } from './run-tool';
 

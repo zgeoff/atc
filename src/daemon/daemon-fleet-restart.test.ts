@@ -2,12 +2,12 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { chmod, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { waitFor } from '../../test/wait-for';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { waitFor } from '../test-utils/wait-for';
 import { startDaemon } from './daemon';
 
 interface BootOptions {

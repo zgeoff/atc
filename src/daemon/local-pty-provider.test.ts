@@ -1,9 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { updateEnv } from '../../test/update-env';
-import { waitFor } from '../../test/wait-for';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { updateEnv } from '../test-utils/update-env';
+import { waitFor } from '../test-utils/wait-for';
 import { LocalPTYProvider } from './local-pty-provider';
 
 function setupTest() {

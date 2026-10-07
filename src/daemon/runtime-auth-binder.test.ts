@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { FixtureImpPort } from '../../test/fixture-imp-port';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { ImpHarness } from './imp-harness';
 import { ImpProvider } from './imp-provider';
 import { RuntimeAuthBinder } from './runtime-auth-binder';

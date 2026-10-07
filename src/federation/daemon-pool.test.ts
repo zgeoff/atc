@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
 import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { DaemonPool } from './daemon-pool';
 
 /**

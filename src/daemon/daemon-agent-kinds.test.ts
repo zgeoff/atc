@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startDaemon } from './daemon';
 
 // A real daemon whose registry holds only adapters no atc source knows: one

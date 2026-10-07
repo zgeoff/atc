@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { parseConfig } from '../src/shared/config';
+import { parseConfig } from '../shared/config';
 import { getGatewayConfig } from './get-gateway-config';
 
 test('it returns the gateway a config holds under an id', () => {

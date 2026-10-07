@@ -1,13 +1,13 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupMCPHTTP } from '../../test/setup-mcp-http';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { startLegacyDaemon } from '../../test/start-legacy-daemon';
-import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { PROTOCOL_V, decodeMessage, encodeMessage } from '../protocol/protocol';
+import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
+import { waitFor } from '../test-utils/wait-for';
 import { ReconnectingCaller } from './reconnecting-caller';
 
 test('it answers a read-only request sent right after the daemon restarts', async () => {

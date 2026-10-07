@@ -47,7 +47,7 @@ async function setupTest(options: FakeDaemonOptions) {
   writeFileSync(
     daemonPath,
     `import { writeFileSync } from 'node:fs';
-import { startLegacyDaemon } from '${join(import.meta.dir, '..', '..', 'test', 'start-legacy-daemon.ts')}';
+import { startLegacyDaemon } from '${join(import.meta.dir, '..', 'test-utils', 'start-legacy-daemon.ts')}';
 startLegacyDaemon('${sockPath}', { protocol: 3 });
 const session = Bun.spawn(['sleep', '60']);
 if (${options.record}) {

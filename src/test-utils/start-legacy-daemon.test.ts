@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '../src/client/daemon-client';
+import { DaemonClient } from '../client/daemon-client';
 import { setupTempDir } from './setup-temp-dir';
 import { startLegacyDaemon } from './start-legacy-daemon';
 

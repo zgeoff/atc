@@ -16,4 +16,4 @@ minimumReleaseAgeExcludes = ["@zgeoff/imp-client"]
 [test]
 # isolates every test run from the real home and runtime directories, then
 # registers jest-extended matchers for `bun test`
-preload = ["./test/isolate-home.ts", "@zgeoff/bun-test-extended"]
+preload = ["./src/test-utils/isolate-home.ts", "@zgeoff/bun-test-extended"]

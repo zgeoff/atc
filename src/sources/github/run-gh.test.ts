@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { setupTempDir } from '../../../test/setup-temp-dir';
-import { waitFor } from '../../../test/wait-for';
+import { setupTempDir } from '../../test-utils/setup-temp-dir';
+import { waitFor } from '../../test-utils/wait-for';
 import { runGH } from './run-gh';
 
 // A directory for a fake gh script.

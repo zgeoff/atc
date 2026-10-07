@@ -2,9 +2,9 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ServerWebSocket } from 'bun';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
 import { isRecord } from '../shared/report';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { ImpClientPort } from './imp-client-port';
 import { readImpToken } from './read-imp-token';
 

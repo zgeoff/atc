@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { DaemonClient } from '../src/client/daemon-client';
-import { isRecord } from '../src/shared/report';
+import { DaemonClient } from '../client/daemon-client';
+import { isRecord } from '../shared/report';
 import { startCutProxy } from './start-cut-proxy';
 
 /**

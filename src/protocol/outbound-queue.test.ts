@@ -3,8 +3,8 @@ import { once } from 'node:events';
 import { connect } from 'node:net';
 import { join } from 'node:path';
 import type { Socket } from 'bun';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { OutboundQueue } from './outbound-queue';
 
 // A Unix socket server and a paused client connected to it. The server's

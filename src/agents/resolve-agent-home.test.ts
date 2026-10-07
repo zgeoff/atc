@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { updateEnv } from '../../test/update-env';
+import { updateEnv } from '../test-utils/update-env';
 import { resolveAgentHome } from './resolve-agent-home';
 
 const VAR = 'ATC_TEST_AGENT_HOME';

@@ -1,10 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { FixtureImpPort } from '../../test/fixture-imp-port';
-import { getAgentEntry } from '../../test/get-agent-entry';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { openBridgeSocket } from '../protocol/open-bridge-socket';
@@ -12,6 +8,10 @@ import type { EventMsg } from '../protocol/protocol';
 import { sendBridgeRequest } from '../protocol/send-bridge-request';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
+import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
 

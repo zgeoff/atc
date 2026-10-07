@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { StateStore } from '../src/store/state-store';
+import { StateStore } from '../store/state-store';
 import { createMigratedStateDB } from './create-migrated-state-db';
 import { setupTempDir } from './setup-temp-dir';
 

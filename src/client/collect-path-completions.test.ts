@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectPathCompletions } from './collect-path-completions';
 
 test('it lists every child directory after a trailing slash, the parent first', () => {

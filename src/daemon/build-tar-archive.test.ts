@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildTarArchive } from './build-tar-archive';
 
 test('it packs files that tar unpacks with their content, parent directories, and modes', async () => {

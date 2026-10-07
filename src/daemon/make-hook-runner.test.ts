@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { makeHookRunner } from './make-hook-runner';
 
 test('it runs a hook with the event JSON on stdin and the event name in the environment', async () => {

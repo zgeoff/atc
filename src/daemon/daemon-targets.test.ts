@@ -1,7 +1,5 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
 import { DaemonClient } from '../client/daemon-client';
 import { collectTargets } from '../shared/collect-targets';
 import { getRecord } from '../shared/get-record';
@@ -9,6 +7,8 @@ import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 import { StateStore } from '../store/state-store';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { buildTargetIdentity } from './build-target-identity';
 import { startDaemon } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';

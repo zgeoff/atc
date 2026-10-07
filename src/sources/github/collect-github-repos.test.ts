@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { setupTempDir } from '../../../test/setup-temp-dir';
+import { setupTempDir } from '../../test-utils/setup-temp-dir';
 import { collectGitHubRepos } from './collect-github-repos';
 
 // A directory for a fake gh script, which records each argv it runs with

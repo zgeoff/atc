@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { updateEnv } from '../../test/update-env';
+import { updateEnv } from '../test-utils/update-env';
 import { runGit } from './run-git';
 
 test('it drops git config that the host environment injects', async () => {

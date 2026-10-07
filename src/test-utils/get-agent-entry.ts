@@ -1,5 +1,5 @@
-import type { AgentEntry } from '../src/shared/collect-agents';
-import type { Config } from '../src/shared/config';
+import type { AgentEntry } from '../shared/collect-agents';
+import type { Config } from '../shared/config';
 
 /**
  * The registry entry a parsed config holds under an agent id. A test that

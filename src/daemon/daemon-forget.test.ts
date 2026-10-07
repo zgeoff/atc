@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
 import type { HeadlessRunner } from '../agents/agent-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { DaemonError } from '../protocol/daemon-error';
 import { collectPrincipals } from '../shared/collect-principals';
 import { getRecord } from '../shared/get-record';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { startDaemon } from './daemon';
 import type { ExecutionProvider } from './execution-provider';
 import { LocalPTYProvider } from './local-pty-provider';

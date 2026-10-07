@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
-import { waitFor } from '../../test/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
 import { isRecord } from '../shared/report';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { waitFor } from '../test-utils/wait-for';
 import { startDaemon } from './daemon';
 
 /**

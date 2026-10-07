@@ -1,11 +1,11 @@
-import type { DaemonFeature } from '../src/protocol/daemon-features';
+import type { DaemonFeature } from '../protocol/daemon-features';
 import {
   MAX_CHUNK,
   MAX_LINE,
   PROTOCOL_V,
   decodeMessage,
   encodeMessage,
-} from '../src/protocol/protocol';
+} from '../protocol/protocol';
 
 interface ReceivedRequest {
   readonly m: string;

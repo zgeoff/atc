@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
-import { getAgentEntry } from '../../test/get-agent-entry';
-import { getGatewayConfig } from '../../test/get-gateway-config';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { CodexAdapter } from '../agents/codex-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { parseConfig } from '../shared/config';
+import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { buildAgentList } from './build-agent-list';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 

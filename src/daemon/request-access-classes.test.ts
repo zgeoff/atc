@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
 import { DaemonClient } from '../client/daemon-client';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startDaemon } from './daemon';
 import { REQUEST_ACCESS_CLASSES } from './request-access-classes';
 

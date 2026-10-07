@@ -3,9 +3,9 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
-import { startGitHTTPServer } from '../../test/start-git-http-server';
-import { updateEnv } from '../../test/update-env';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
+import { startGitHTTPServer } from '../test-utils/start-git-http-server';
+import { updateEnv } from '../test-utils/update-env';
 import { checkRepositoryAccess } from './check-repository-access';
 
 // The transports a fixture upstream is reached over: a local path, and

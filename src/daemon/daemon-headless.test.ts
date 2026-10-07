@@ -3,8 +3,6 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
-import { getAgentEntry } from '../../test/get-agent-entry';
-import { updateEnv } from '../../test/update-env';
 import type { AgentAdapter, HeadlessRunner } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -12,6 +10,8 @@ import type { EventMsg } from '../protocol/protocol';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
+import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { updateEnv } from '../test-utils/update-env';
 import { startDaemon } from './daemon';
 
 const sleepAdapter: AgentAdapter = {

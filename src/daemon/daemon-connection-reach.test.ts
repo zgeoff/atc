@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
-import { waitFor } from '../../test/wait-for';
 import { PROTOCOL_V } from '../protocol/protocol';
 import { toDaemonID } from '../shared/to-daemon-id';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
+import { waitFor } from '../test-utils/wait-for';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext } from './daemon-context';
 import { TargetAccess } from './target-access';

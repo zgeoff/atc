@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '../test/setup-temp-dir';
+import { setupTempDir } from './test-utils/setup-temp-dir';
 
 test('it adds, lists, and removes a client', () => {
   using home = setupTempDir('atc-clients-');

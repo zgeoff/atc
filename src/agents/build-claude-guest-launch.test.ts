@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../../test/setup-temp-dir';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 
 test("it replaces the config folder's bundle with the one each launch stages", () => {
