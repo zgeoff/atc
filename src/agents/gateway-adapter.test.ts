@@ -709,7 +709,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
     {
       atc: '/opt/atc/bin/atc',
       dir: '/tmp/atc/sessions/s1',
-      auth: { revision: 1, env: placeholderEnv },
+      auth: { revision: 1, env: placeholderEnv, profileEnv: {} },
     },
   );
 
