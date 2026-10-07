@@ -62,9 +62,9 @@ test('it opens the overlay with a configured leader key', async () => {
   ctx.writeConfig({ leader: 'ctrl-]' });
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
-
-  expect(ctx.read()).toInclude('^]');
+  // The home screen draws its key hints after the title, so the test waits
+  // for the hint row itself.
+  await ctx.waitFor('^]      session list');
 
   await spawnClaudeSession(ctx, 'leadertest');
 
