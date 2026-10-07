@@ -136,14 +136,10 @@ test('it calls back once for each authenticated request', async () => {
 
   let calls = 0;
 
-  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  await using hooked = startGitHTTPServer(ctx.dir, ctx.env, {
     onRequest: () => {
       calls += 1;
     },
-  });
-
-  onTestFinished(async () => {
-    await hooked.stop();
   });
 
   const url = new URL('upstream.git', hooked.url);
@@ -168,7 +164,7 @@ test('it holds a request while the callback is still pending', async () => {
   // at once.
   const waits = [gate.promise];
 
-  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  await using hooked = startGitHTTPServer(ctx.dir, ctx.env, {
     onRequest: async () => {
       entered.resolve(null);
 
@@ -176,16 +172,16 @@ test('it holds a request while the callback is still pending', async () => {
     },
   });
 
-  onTestFinished(async () => {
-    await hooked.stop();
-  });
-
   const url = `${hooked.url}upstream.git/info/refs?service=git-upload-pack`;
   const headers = { authorization: `Basic ${Buffer.from('atc:fixture').toString('base64')}` };
   const first = fetch(url, { headers });
   const firstSettled = Promise.allSettled([first]);
 
-  onTestFinished(async () => {
+  // Declared after the server, so it opens the gate and lets the first
+  // request finish before the server stops.
+  await using held = new AsyncDisposableStack();
+
+  held.defer(async () => {
     gate.resolve(null);
 
     await firstSettled;
@@ -205,16 +201,12 @@ test('it answers a held request once the callback resolves', async () => {
   const entered = Promise.withResolvers<null>();
   const gate = Promise.withResolvers<null>();
 
-  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  await using hooked = startGitHTTPServer(ctx.dir, ctx.env, {
     onRequest: async () => {
       entered.resolve(null);
 
       await gate.promise;
     },
-  });
-
-  onTestFinished(async () => {
-    await hooked.stop();
   });
 
   const response = fetch(`${hooked.url}upstream.git/info/refs?service=git-upload-pack`, {
