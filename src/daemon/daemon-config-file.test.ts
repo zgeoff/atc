@@ -1,206 +1,260 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
 import { CodexAdapter } from '../agents/codex-adapter';
-import { DaemonClient } from '../client/daemon-client';
 import { DaemonError } from '../protocol/daemon-error';
 import { loadConfig, parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
+import { buildStubPTYProvider } from '../test-utils/build-stub-pty-provider';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildTargetIdentity } from './build-target-identity';
-import { startDaemon } from './daemon';
-import { LocalPTYProvider } from './local-pty-provider';
+
+/**
+ * What the test leaves on disk before the daemon boots: the config file's
+ * path, which the test may write or leave absent, the test's temp
+ * directory, and an open state store, closed before the boot.
+ */
+interface BeforeBoot {
+  readonly configPath: string;
+  readonly dir: string;
+  readonly store: StateStore;
+}
+
+interface SetupConfig {
+  readonly beforeBoot: (disk: BeforeBoot) => Promise<void> | void;
+}
 
 /**
  * A real daemon whose targets come from a config.json on disk through the
- * real load, at a path the test arranges before it opens the daemon. Every
+ * real load, at a path the test arranges before the boot. Every
  * `local-pty` target runs harnesses on a real pseudo-terminal through a
- * provider that records each spawn, and the claude stand-in's headless
- * runner records each turn it starts. The real codex adapter points at a
- * binary that does not exist, so codex is registered but not installed.
+ * provider that records the target of each spawn in `harnesses`, and the
+ * claude stand-in's headless runner records each turn it starts in `runs`.
+ * The real codex adapter points at a binary that does not exist, so codex
+ * is registered but not installed.
  */
-function setupTest() {
-  const tmp = setupTempDir('atc-daemon-config-file-');
-  const dbPath = join(tmp.dir, 'state.db');
-  const configPath = join(tmp.dir, 'config', 'config.json');
-
-  const local = new LocalPTYProvider();
-
+async function setupTest(config: SetupConfig) {
+  const headless = buildStubHeadlessRunner();
   const harnesses: string[] = [];
-  const runs: string[] = [];
-  let stopCurrent: (() => Promise<void>) | null = null;
 
-  mkdirSync(join(tmp.dir, 'config'));
+  const harness = await startTestDaemon({
+    prefix: 'atc-daemon-config-file-',
+    options: async (paths) => {
+      const configPath = join(paths.dir, 'config', 'config.json');
 
-  const openDaemon = async () => {
-    const config = loadConfig(configPath);
+      mkdirSync(join(paths.dir, 'config'), { recursive: true });
 
-    const claude: AgentAdapter = {
-      id: 'claude',
-      screenDetector: null,
-      takesMessages: false,
-      headlessRunner: (opts, hooks) => {
-        runs.push(opts.prompt);
+      await using stack = new AsyncDisposableStack();
 
-        setTimeout(() => {
-          hooks.onDone('turn finished');
-        }, 0);
+      const store = await StateStore.open(paths.dbPath);
 
-        return { stop: () => {} };
-      },
-      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-      normalizeHook: () => ({ kind: 'heartbeat' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => null,
-    };
+      stack.defer(() => store.stop());
 
-    const adapterConfig = parseConfig({ codexBin: join(tmp.dir, 'missing', 'codex') });
+      await config.beforeBoot({ configPath, dir: paths.dir, store });
+      await stack.disposeAsync();
 
-    const codex = new CodexAdapter(getAgentEntry(adapterConfig, 'codex'));
+      const loaded = loadConfig(configPath);
+      const claude = buildMockAgentAdapter({ headlessRunner: headless.runner });
+      const codexConfig = parseConfig({ codexBin: join(paths.dir, 'missing', 'codex') });
 
-    const daemon = await startDaemon({
-      socketPath: join(tmp.dir, 'daemon.sock'),
-      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-      build: 'atc/test-build',
-      adapter: claude,
-      adapters: [claude, codex],
-      dbPath,
-      statusPath: join(tmp.dir, 'status.json'),
-      ejectSettleMs: 0,
-      targets: config.targets.map((target) => ({
-        id: target.id,
-        kind: target.provider,
-        options: target.options,
-        identity: buildTargetIdentity(target.provider, target.options),
-        provider:
-          target.provider === 'local-pty'
-            ? {
-                kind: target.provider,
-                remote: false,
-                prepareHost: local.prepareHost,
-                dispose: local.dispose,
-                capabilities: local.capabilities,
-                spawnHarness: (spec) => {
-                  harnesses.push(target.id);
+      const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));
 
-                  return local.spawnHarness(spec);
-                },
-                transferArchive: local.transferArchive,
-                runCommand: local.runCommand,
-                suspendHost: local.suspendHost,
-                destroyHost: local.destroyHost,
-              }
-            : null,
-      })),
-      defaultTarget: config.defaultTarget,
-      targetErrors: config.targetErrors,
-      principals: config.principals,
-    });
-
-    const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
-
-    await client.sendHello('atc/test-build');
-
-    stopCurrent = async () => {
-      client.stop();
-
-      await daemon.stop();
-    };
-
-    return client;
-  };
-
-  return {
-    dbPath,
-    configPath,
-    harnesses,
-    runs,
-    openDaemon,
-    async [Symbol.asyncDispose]() {
-      await stopCurrent?.();
-
-      tmp[Symbol.dispose]();
-    },
-  };
-}
-
-test('it refuses every spawn, local included, when an existing config holds invalid JSON', async () => {
-  await using daemon = setupTest();
-
-  writeFileSync(daemon.configPath, '{ "targets": { "box": { "provider": "imp" } },');
-
-  const client = await daemon.openDaemon();
-
-  const bare = await client
-    .sendRequest('session.spawn', { cwd: '/tmp' })
-    .catch((error: unknown) => error);
-
-  const local = await client
-    .sendRequest('session.spawn', { cwd: '/tmp', target: 'local' })
-    .catch((error: unknown) => error);
-
-  if (!(bare instanceof DaemonError) || !(local instanceof DaemonError)) {
-    throw new Error('expected both spawns to reject with a daemon error');
-  }
-
-  expect([
-    { code: bare.code, data: bare.data },
-    { code: local.code, data: local.data },
-  ]).toStrictEqual([
-    {
-      code: 'target_config_invalid',
-      data: {
-        problem: 'config_malformed',
-        path: daemon.configPath,
-        detail: 'the file is not valid JSON',
-      },
-    },
-    {
-      code: 'target_config_invalid',
-      data: {
-        problem: 'config_malformed',
-        path: daemon.configPath,
-        detail: 'the file is not valid JSON',
-      },
-    },
-  ]);
-
-  expect(daemon.harnesses).toStrictEqual([]);
-  expect(daemon.runs).toStrictEqual([]);
-});
-
-test('it refuses every spawn when a config file sets agents beside an old agent key', async () => {
-  await using daemon = setupTest();
-
-  writeFileSync(daemon.configPath, JSON.stringify({ agents: { claude: {} }, claudeArgs: [] }));
-
-  const client = await daemon.openDaemon();
-
-  const refused = await client
-    .sendRequest('session.spawn', { cwd: '/tmp' })
-    .catch((error: unknown) => error);
-
-  if (!(refused instanceof DaemonError)) {
-    throw new Error('expected the spawn to reject with a daemon error');
-  }
-
-  expect({ code: refused.code, data: refused.data }).toStrictEqual({
-    code: 'target_config_invalid',
-    data: {
-      problem: 'config_malformed',
-      path: daemon.configPath,
-      detail:
-        "claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'",
+      return {
+        adapter: claude,
+        adapters: [claude, codex],
+        ejectSettleMs: 0,
+        targets: loaded.targets.map((target) => ({
+          id: target.id,
+          kind: target.provider,
+          options: target.options,
+          identity: buildTargetIdentity(target.provider, target.options),
+          provider:
+            new Map([
+              [
+                'local-pty',
+                buildStubPTYProvider({
+                  onSpawn: () => {
+                    harnesses.push(target.id);
+                  },
+                }),
+              ],
+            ]).get(target.provider) ?? null,
+        })),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
     },
   });
 
-  expect(daemon.harnesses).toStrictEqual([]);
+  return Object.assign(harness, {
+    configPath: join(harness.dir, 'config', 'config.json'),
+    harnesses,
+    runs: headless.runs,
+  });
+}
+
+test('it refuses a spawn without a target when an existing config holds invalid JSON', async () => {
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      writeFileSync(disk.configPath, '{ "targets": { "box": { "provider": "imp" } },');
+    },
+  });
+
+  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+
+  expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
+
+  expect(refused).rejects.toHaveProperty('data', {
+    problem: 'config_malformed',
+    path: ctx.configPath,
+    detail: 'the file is not valid JSON',
+  });
+
+  expect({ harnesses: ctx.harnesses, runs: ctx.runs }).toStrictEqual({ harnesses: [], runs: [] });
+});
+
+test('it refuses a spawn on the local target when an existing config holds invalid JSON', async () => {
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      writeFileSync(disk.configPath, '{ "targets": { "box": { "provider": "imp" } },');
+    },
+  });
+
+  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, target: 'local' });
+
+  expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
+
+  expect(refused).rejects.toHaveProperty('data', {
+    problem: 'config_malformed',
+    path: ctx.configPath,
+    detail: 'the file is not valid JSON',
+  });
+
+  expect({ harnesses: ctx.harnesses, runs: ctx.runs }).toStrictEqual({ harnesses: [], runs: [] });
+});
+
+test('it refuses a spawn without a target when the config path is a directory', async () => {
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      mkdirSync(disk.configPath);
+    },
+  });
+
+  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+
+  expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
+
+  expect(refused).rejects.toHaveProperty('data', {
+    problem: 'config_unreadable',
+    path: ctx.configPath,
+    detail: 'EISDIR',
+  });
+
+  expect({ harnesses: ctx.harnesses, runs: ctx.runs }).toStrictEqual({ harnesses: [], runs: [] });
+});
+
+test('it refuses a spawn on the local target when the config path is a directory', async () => {
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      mkdirSync(disk.configPath);
+    },
+  });
+
+  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, target: 'local' });
+
+  expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
+
+  expect(refused).rejects.toHaveProperty('data', {
+    problem: 'config_unreadable',
+    path: ctx.configPath,
+    detail: 'EISDIR',
+  });
+
+  expect({ harnesses: ctx.harnesses, runs: ctx.runs }).toStrictEqual({ harnesses: [], runs: [] });
+});
+
+// Root reads a mode-000 file, so the permission check this exercises never
+// runs for it.
+test.skipIf(process.getuid?.() === 0)(
+  'it refuses a spawn without a target when the config file cannot be read',
+  async () => {
+    await using ctx = await setupTest({
+      beforeBoot: (disk) => {
+        writeFileSync(disk.configPath, '{}');
+        chmodSync(disk.configPath, 0o000);
+      },
+    });
+
+    const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+
+    expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
+
+    expect(refused).rejects.toHaveProperty('data', {
+      problem: 'config_unreadable',
+      path: ctx.configPath,
+      detail: 'EACCES',
+    });
+
+    expect({ harnesses: ctx.harnesses, runs: ctx.runs }).toStrictEqual({ harnesses: [], runs: [] });
+  },
+);
+
+// Root reads a mode-000 file, so the permission check this exercises never
+// runs for it.
+test.skipIf(process.getuid?.() === 0)(
+  'it refuses a spawn on the local target when the config file cannot be read',
+  async () => {
+    await using ctx = await setupTest({
+      beforeBoot: (disk) => {
+        writeFileSync(disk.configPath, '{}');
+        chmodSync(disk.configPath, 0o000);
+      },
+    });
+
+    const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, target: 'local' });
+
+    expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
+
+    expect(refused).rejects.toHaveProperty('data', {
+      problem: 'config_unreadable',
+      path: ctx.configPath,
+      detail: 'EACCES',
+    });
+
+    expect({ harnesses: ctx.harnesses, runs: ctx.runs }).toStrictEqual({ harnesses: [], runs: [] });
+  },
+);
+
+test.each([
+  ['[]', 'the root is an array, not an object'],
+  ['3', 'the root is a number, not an object'],
+  ['"local"', 'the root is a string, not an object'],
+  ['null', 'the root is null, not an object'],
+])('it refuses a spawn without a target when the config root is %s', async (text, detail) => {
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      writeFileSync(disk.configPath, text);
+    },
+  });
+
+  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+
+  expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
+
+  expect(refused).rejects.toHaveProperty('data', {
+    problem: 'config_malformed',
+    path: ctx.configPath,
+    detail,
+  });
+
+  expect({ harnesses: ctx.harnesses, runs: ctx.runs }).toStrictEqual({ harnesses: [], runs: [] });
 });
 
 test.each([
@@ -208,164 +262,81 @@ test.each([
   ['3', 'the root is a number, not an object'],
   ['"local"', 'the root is a string, not an object'],
   ['null', 'the root is null, not an object'],
-])('it refuses every spawn, local included, when the config root is %s', async (text, detail) => {
-  await using daemon = setupTest();
-
-  writeFileSync(daemon.configPath, text);
-
-  const client = await daemon.openDaemon();
-
-  const bare = await client
-    .sendRequest('session.spawn', { cwd: '/tmp' })
-    .catch((error: unknown) => error);
-
-  const local = await client
-    .sendRequest('session.spawn', { cwd: '/tmp', target: 'local' })
-    .catch((error: unknown) => error);
-
-  if (!(bare instanceof DaemonError) || !(local instanceof DaemonError)) {
-    throw new Error('expected both spawns to reject with a daemon error');
-  }
-
-  expect([
-    { code: bare.code, data: bare.data },
-    { code: local.code, data: local.data },
-  ]).toStrictEqual([
-    {
-      code: 'target_config_invalid',
-      data: { problem: 'config_malformed', path: daemon.configPath, detail },
+])('it refuses a spawn on the local target when the config root is %s', async (text, detail) => {
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      writeFileSync(disk.configPath, text);
     },
-    {
-      code: 'target_config_invalid',
-      data: { problem: 'config_malformed', path: daemon.configPath, detail },
-    },
-  ]);
-
-  expect(daemon.harnesses).toStrictEqual([]);
-  expect(daemon.runs).toStrictEqual([]);
-});
-
-test('it refuses every spawn, local included, when the config path is a directory', async () => {
-  await using daemon = setupTest();
-
-  mkdirSync(daemon.configPath);
-
-  const client = await daemon.openDaemon();
-
-  const bare = await client
-    .sendRequest('session.spawn', { cwd: '/tmp' })
-    .catch((error: unknown) => error);
-
-  const local = await client
-    .sendRequest('session.spawn', { cwd: '/tmp', target: 'local' })
-    .catch((error: unknown) => error);
-
-  if (!(bare instanceof DaemonError) || !(local instanceof DaemonError)) {
-    throw new Error('expected both spawns to reject with a daemon error');
-  }
-
-  expect([
-    { code: bare.code, data: bare.data },
-    { code: local.code, data: local.data },
-  ]).toStrictEqual([
-    {
-      code: 'target_config_invalid',
-      data: { problem: 'config_unreadable', path: daemon.configPath, detail: 'EISDIR' },
-    },
-    {
-      code: 'target_config_invalid',
-      data: { problem: 'config_unreadable', path: daemon.configPath, detail: 'EISDIR' },
-    },
-  ]);
-
-  expect(daemon.harnesses).toStrictEqual([]);
-  expect(daemon.runs).toStrictEqual([]);
-});
-
-// Root reads a mode-000 file, so the permission check this exercises never
-// runs for it.
-test.skipIf(process.getuid?.() === 0)(
-  'it refuses every spawn, local included, when the config file cannot be read',
-  async () => {
-    await using daemon = setupTest();
-
-    writeFileSync(daemon.configPath, '{}');
-    chmodSync(daemon.configPath, 0o000);
-
-    const client = await daemon.openDaemon();
-
-    const bare = await client
-      .sendRequest('session.spawn', { cwd: '/tmp' })
-      .catch((error: unknown) => error);
-
-    const local = await client
-      .sendRequest('session.spawn', { cwd: '/tmp', target: 'local' })
-      .catch((error: unknown) => error);
-
-    if (!(bare instanceof DaemonError) || !(local instanceof DaemonError)) {
-      throw new Error('expected both spawns to reject with a daemon error');
-    }
-
-    expect([
-      { code: bare.code, data: bare.data },
-      { code: local.code, data: local.data },
-    ]).toStrictEqual([
-      {
-        code: 'target_config_invalid',
-        data: { problem: 'config_unreadable', path: daemon.configPath, detail: 'EACCES' },
-      },
-      {
-        code: 'target_config_invalid',
-        data: { problem: 'config_unreadable', path: daemon.configPath, detail: 'EACCES' },
-      },
-    ]);
-
-    expect(daemon.harnesses).toStrictEqual([]);
-    expect(daemon.runs).toStrictEqual([]);
-  },
-);
-
-test('it refuses input to a restored local session without running a turn when the config holds invalid JSON', async () => {
-  await using daemon = setupTest();
-
-  const store = await StateStore.open(daemon.dbPath);
-
-  await store.writeFleet([
-    {
-      sessionID: toSessionID('s-old'),
-      name: 'old work',
-      cwd: '/tmp',
-      agentSessionID: toAgentSessionID('a-old'),
-      agent: 'claude',
-    },
-  ]);
-
-  await store.stop();
-
-  writeFileSync(daemon.configPath, '{ "claudeBin": ');
-
-  const client = await daemon.openDaemon();
-
-  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-
-  const input = client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
-
-  expect(input).rejects.toMatchObject({
-    code: 'target_config_invalid',
-    data: { problem: 'config_malformed', path: daemon.configPath },
   });
 
-  expect(daemon.runs).toStrictEqual([]);
-  expect(daemon.harnesses).toStrictEqual([]);
+  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, target: 'local' });
+
+  expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
+
+  expect(refused).rejects.toHaveProperty('data', {
+    problem: 'config_malformed',
+    path: ctx.configPath,
+    detail,
+  });
+
+  expect({ harnesses: ctx.harnesses, runs: ctx.runs }).toStrictEqual({ harnesses: [], runs: [] });
+});
+
+test('it refuses every spawn when a config file sets agents beside an old agent key', async () => {
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      writeFileSync(disk.configPath, JSON.stringify({ agents: { claude: {} }, claudeArgs: [] }));
+    },
+  });
+
+  const refused = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+
+  expect(refused).rejects.toHaveProperty('code', 'target_config_invalid');
+
+  expect(refused).rejects.toHaveProperty('data', {
+    problem: 'config_malformed',
+    path: ctx.configPath,
+    detail:
+      "claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'",
+  });
+
+  expect(ctx.harnesses).toStrictEqual([]);
+});
+
+test('it refuses input to a restored local session without running a turn when the config holds invalid JSON', async () => {
+  await using ctx = await setupTest({
+    beforeBoot: async (disk) => {
+      await disk.store.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: disk.dir }),
+      ]);
+
+      writeFileSync(disk.configPath, '{ "claudeBin": ');
+    },
+  });
+
+  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const input = ctx.client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
+
+  expect(input).rejects.toHaveProperty('code', 'target_config_invalid');
+
+  expect(input).rejects.toHaveProperty('data', {
+    problem: 'config_malformed',
+    path: ctx.configPath,
+    detail: 'the file is not valid JSON',
+  });
+
+  expect({ harnesses: ctx.harnesses, runs: ctx.runs }).toStrictEqual({ harnesses: [], runs: [] });
 });
 
 test('it lists the config problem, no targets, and no default target when the config holds invalid JSON', async () => {
-  await using daemon = setupTest();
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      writeFileSync(disk.configPath, '{ "targets": ');
+    },
+  });
 
-  writeFileSync(daemon.configPath, '{ "targets": ');
-
-  const client = await daemon.openDaemon();
-  const listed = await client.sendRequest('agents.list');
+  const listed = await ctx.client.sendRequest('agents.list');
 
   expect({
     targets: listed['targets'],
@@ -378,174 +349,227 @@ test('it lists the config problem, no targets, and no default target when the co
       {
         scope: 'config',
         problem: 'config_malformed',
-        path: daemon.configPath,
+        path: ctx.configPath,
         detail: 'the file is not valid JSON',
       },
     ],
   });
-
-  expect(client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
 });
 
-test('it spawns a session without a target on the local target, and writes the defaults, when no config exists', async () => {
-  await using daemon = setupTest();
+test('it lists no sessions and keeps answering when the config holds invalid JSON', async () => {
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      writeFileSync(disk.configPath, '{ "targets": ');
+    },
+  });
 
-  const client = await daemon.openDaemon();
-  const spawned = await client.sendRequest('session.spawn', { cwd: '/tmp' });
+  expect(ctx.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
+});
 
-  expect(getRecord(spawned, 'session')['locator']).toMatchObject({ targetID: 'local' });
-  expect(daemon.harnesses).toStrictEqual(['local']);
+test('it spawns a session without a target on the local target when no config exists', async () => {
+  await using ctx = await setupTest({ beforeBoot: () => {} });
 
-  expect(JSON.parse(readFileSync(daemon.configPath, 'utf8'))).toMatchObject({
+  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+
+  expect({
+    targetID: getRecord(getRecord(spawned, 'session'), 'locator')['targetID'],
+    harnesses: ctx.harnesses,
+  }).toStrictEqual({ targetID: 'local', harnesses: ['local'] });
+});
+
+test('it writes the default config when no config exists', async () => {
+  await using ctx = await setupTest({ beforeBoot: () => {} });
+
+  await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+
+  expect(JSON.parse(readFileSync(ctx.configPath, 'utf8'))).toMatchObject({
     agents: { claude: {} },
   });
 });
 
 test('it refuses a spawn of an agent missing from this host with the config problem when the config holds invalid JSON', async () => {
-  await using daemon = setupTest();
-
-  writeFileSync(daemon.configPath, '{ "targets": ');
-
-  const client = await daemon.openDaemon();
-
-  const spawn = client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'codex' });
-
-  expect(spawn).rejects.toMatchObject({
-    code: 'target_config_invalid',
-    data: { problem: 'config_malformed', path: daemon.configPath },
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      writeFileSync(disk.configPath, '{ "targets": ');
+    },
   });
 
-  expect(daemon.harnesses).toStrictEqual([]);
+  const spawn = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'codex' });
+
+  expect(spawn).rejects.toHaveProperty('code', 'target_config_invalid');
+
+  expect(spawn).rejects.toHaveProperty('data', {
+    problem: 'config_malformed',
+    path: ctx.configPath,
+    detail: 'the file is not valid JSON',
+  });
+
+  expect(ctx.harnesses).toStrictEqual([]);
 });
 
 test('it refuses a spawn of an agent missing from this host as not installed when the config is usable', async () => {
-  await using daemon = setupTest();
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      writeFileSync(disk.configPath, '{}');
+    },
+  });
 
-  writeFileSync(daemon.configPath, '{}');
-
-  const client = await daemon.openDaemon();
-
-  const spawn = client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'codex' });
+  const spawn = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'codex' });
 
   expect(spawn).rejects.toMatchObject({
     code: 'unsupported',
     message: "agent 'codex' is registered but not installed on this host",
   });
 
-  expect(daemon.harnesses).toStrictEqual([]);
+  expect(ctx.harnesses).toStrictEqual([]);
 });
 
 test.each([
   [
-    'JSON with a syntax error at the value',
     '{ "targets": { "local": { "provider": "local-pty" } }, "token": sk_fixture_NOT_A_SECRET_1234 }',
-    'local',
-    { cwd: '/tmp' },
+    {},
   ],
   [
-    'a defaultTarget object holding the value',
     '{ "targets": { "local": { "provider": "local-pty" } }, "defaultTarget": { "token": "sk_fixture_NOT_A_SECRET_1234" } }',
-    'local',
-    { cwd: '/tmp' },
+    {},
   ],
   [
-    'a malformed target entry holding the value',
     '{ "targets": { "local": { "provider": "local-pty" }, "box": { "provider": 7, "token": "sk_fixture_NOT_A_SECRET_1234" } } }',
-    'box',
-    { cwd: '/tmp', target: 'box' },
+    { target: 'box' },
   ],
-])(
-  'it keeps a config value out of every refusal, listing, and session row for %s',
-  async (_label, text, fleetTarget, spawnParams) => {
-    await using daemon = setupTest();
+])('it keeps a config value out of the spawn refusal for the config %s', async (text, params) => {
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      writeFileSync(disk.configPath, text);
+    },
+  });
 
-    const store = await StateStore.open(daemon.dbPath);
+  const refusal = ctx.client.sendRequest('session.spawn', { ...params, cwd: ctx.dir });
 
-    await store.writeFleet([
-      {
-        sessionID: toSessionID('s-old'),
-        name: 'old work',
-        cwd: '/tmp',
-        agentSessionID: toAgentSessionID('a-old'),
-        agent: 'claude',
-        target: fleetTarget,
-        targetIdentity: buildTargetIdentity('local-pty', {}),
-      },
-    ]);
+  expect(refusal).rejects.toHaveProperty('code', 'target_config_invalid');
 
-    await store.stop();
-
-    writeFileSync(daemon.configPath, text);
-
-    const client = await daemon.openDaemon();
-
-    const refusal = await client
-      .sendRequest('session.spawn', spawnParams)
-      .catch((error: unknown) => error);
-
-    if (!(refusal instanceof DaemonError)) {
-      throw new Error('expected the spawn to reject with a daemon error');
-    }
-
-    const listed = await client.sendRequest('agents.list');
-
-    await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-
-    const sessions = await client.sendRequest('session.list');
-
-    expect(refusal.code).toBe('target_config_invalid');
-
-    expect(
-      JSON.stringify([
-        { code: refusal.code, message: refusal.message, data: refusal.data },
-        listed['targetErrors'],
-        sessions,
-      ]),
-    ).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
-  },
-);
+  expect(refusal).rejects.toSatisfy(
+    (refused: unknown) =>
+      refused instanceof DaemonError &&
+      !JSON.stringify({ message: refused.message, data: refused.data }).includes(
+        'sk_fixture_NOT_A_SECRET_1234',
+      ),
+  );
+});
 
 test.each([
-  ['holds invalid JSON', 'file', '{ "claudeBin": ', false],
-  ['holds an array', 'file', '[]', false],
-  ['holds a number', 'file', '42', false],
-  ['holds null', 'file', 'null', false],
-  ['is a directory', 'directory', '', false],
-  ['holds a principals section that is not an object', 'file', '{ "principals": "all" }', false],
-  ['does not exist', 'absent', '', true],
+  '{ "targets": { "local": { "provider": "local-pty" } }, "token": sk_fixture_NOT_A_SECRET_1234 }',
+  '{ "targets": { "local": { "provider": "local-pty" } }, "defaultTarget": { "token": "sk_fixture_NOT_A_SECRET_1234" } }',
+  '{ "targets": { "local": { "provider": "local-pty" }, "box": { "provider": 7, "token": "sk_fixture_NOT_A_SECRET_1234" } } }',
+])('it keeps a config value out of the listed target errors for the config %s', async (text) => {
+  await using ctx = await setupTest({
+    beforeBoot: (disk) => {
+      writeFileSync(disk.configPath, text);
+    },
+  });
+
+  const listed = await ctx.client.sendRequest('agents.list');
+
+  expect(JSON.stringify(listed['targetErrors'])).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
+});
+
+test.each([
+  [
+    '{ "targets": { "local": { "provider": "local-pty" } }, "token": sk_fixture_NOT_A_SECRET_1234 }',
+    'local',
+  ],
+  [
+    '{ "targets": { "local": { "provider": "local-pty" } }, "defaultTarget": { "token": "sk_fixture_NOT_A_SECRET_1234" } }',
+    'local',
+  ],
+  [
+    '{ "targets": { "local": { "provider": "local-pty" }, "box": { "provider": 7, "token": "sk_fixture_NOT_A_SECRET_1234" } } }',
+    'box',
+  ],
 ])(
-  'it gives a principal legacy rights over a restored local session only for an absent config: the config %s',
-  async (_label, kind, text, shown) => {
-    await using daemon = setupTest();
+  'it keeps a config value out of the session rows of a restored fleet for the config %s',
+  async (text, target) => {
+    await using ctx = await setupTest({
+      beforeBoot: async (disk) => {
+        await disk.store.writeFleet([
+          buildMockFleetEntry({
+            sessionID: toSessionID('s-old'),
+            name: 'old work',
+            cwd: disk.dir,
+            target,
+            targetIdentity: buildTargetIdentity('local-pty', {}),
+          }),
+        ]);
 
-    const store = await StateStore.open(daemon.dbPath);
-
-    await store.writeFleet([
-      {
-        sessionID: toSessionID('s-old'),
-        name: 'old work',
-        cwd: '/tmp',
-        agentSessionID: toAgentSessionID('a-old'),
-        agent: 'claude',
+        writeFileSync(disk.configPath, text);
       },
-    ]);
+    });
 
-    await store.stop();
+    await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-    if (kind === 'file') {
-      writeFileSync(daemon.configPath, text);
-    }
+    const sessions = await ctx.client.sendRequest('session.list');
 
-    if (kind === 'directory') {
-      mkdirSync(daemon.configPath);
-    }
-
-    const client = await daemon.openDaemon();
-
-    await client.sendRequest('fleet.restore', { cols: 1, rows: 1 });
-
-    const listed = await client.sendRequest('session.list', {}, 'client-a');
-
-    expect(listed).toMatchObject({ sessions: shown ? [{ id: 's-old' }] : [] });
+    expect(JSON.stringify(sessions)).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
   },
 );
+
+test('it gives a principal legacy rights over a restored local session when no config exists', async () => {
+  await using ctx = await setupTest({
+    beforeBoot: async (disk) => {
+      await disk.store.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: disk.dir }),
+      ]);
+    },
+  });
+
+  await ctx.client.sendRequest('fleet.restore', { cols: 1, rows: 1 });
+
+  const listed = await ctx.client.sendRequest('session.list', {}, 'client-a');
+
+  expect(listed).toMatchObject({ sessions: [{ id: 's-old' }] });
+});
+
+test.each([
+  ['invalid JSON', '{ "claudeBin": '],
+  ['an array', '[]'],
+  ['a number', '42'],
+  ['null', 'null'],
+  ['a principals section that is not an object', '{ "principals": "all" }'],
+])(
+  'it hides a restored local session from a principal when the config holds %s',
+  async (_holding, text) => {
+    await using ctx = await setupTest({
+      beforeBoot: async (disk) => {
+        await disk.store.writeFleet([
+          buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: disk.dir }),
+        ]);
+
+        writeFileSync(disk.configPath, text);
+      },
+    });
+
+    await ctx.client.sendRequest('fleet.restore', { cols: 1, rows: 1 });
+
+    const listed = await ctx.client.sendRequest('session.list', {}, 'client-a');
+
+    expect(listed).toStrictEqual({ sessions: [] });
+  },
+);
+
+test('it hides a restored local session from a principal when the config path is a directory', async () => {
+  await using ctx = await setupTest({
+    beforeBoot: async (disk) => {
+      await disk.store.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: disk.dir }),
+      ]);
+
+      mkdirSync(disk.configPath);
+    },
+  });
+
+  await ctx.client.sendRequest('fleet.restore', { cols: 1, rows: 1 });
+
+  const listed = await ctx.client.sendRequest('session.list', {}, 'client-a');
+
+  expect(listed).toStrictEqual({ sessions: [] });
+});

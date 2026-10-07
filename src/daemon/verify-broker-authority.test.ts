@@ -1,43 +1,34 @@
 import { expect, test } from 'bun:test';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { startStubImpdInfo } from '../test-utils/start-stub-impd-info';
 import { BrokerAuthorityError } from './broker-authority-error';
 import { ImpClientPort } from './imp-client-port';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
-// The fixture imp port, plus an impd stand-in on a real HTTP port that
-// records the path of each RPC call and answers system info with the
-// features a test sets.
+/**
+ * The fixture imp port, and an impd stand-in on a real HTTP port for the
+ * tests that drive the real client.
+ */
 function setupTest() {
-  const port = new FixtureImpPort();
+  using stack = new DisposableStack();
 
-  const paths: string[] = [];
-  const info: { features: unknown } = { features: undefined };
-
-  const server = Bun.serve({
-    port: 0,
-    hostname: '127.0.0.1',
-    fetch: (request) => {
-      paths.push(new URL(request.url).pathname);
-
-      return Response.json({ json: info });
-    },
-  });
+  const port = stack.use(new FixtureImpPort());
+  const impd = stack.use(startStubImpdInfo());
+  const owned = stack.move();
 
   return {
     port,
-    impd: { url: `http://127.0.0.1:${String(server.port)}`, paths, info },
-    async [Symbol.asyncDispose]() {
-      await server.stop(true);
-
-      port[Symbol.dispose]();
+    impd,
+    [Symbol.dispose]: () => {
+      owned.dispose();
     },
   };
 }
 
 test('it lets a scoped token that may grant every bound secret activate the broker', async () => {
-  await using gate = setupTest();
+  using ctx = setupTest();
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -45,17 +36,17 @@ test('it lets a scoped token that may grant every bound secret activate the brok
     grantable: ['glm', 'judge'],
   });
 
-  await verifyBrokerAuthority(gate.port, { impNames: ['atc-s1'], secrets: ['glm'] }, 'atc-');
+  await verifyBrokerAuthority(ctx.port, { impNames: ['atc-s1'], secrets: ['glm'] }, 'atc-');
 
-  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+  expect(ctx.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
 
-test('it refuses an impd without grantable tokens, secret rebinds and exec requirements after reading only its features', async () => {
-  await using gate = setupTest();
+test('it refuses an impd without grantable tokens, secret rebinds and exec requirements after reading only its features', () => {
+  using ctx = setupTest();
 
-  gate.port.setOldDaemonFeatures();
+  ctx.port.setOldDaemonFeatures();
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -63,21 +54,21 @@ test('it refuses an impd without grantable tokens, secret rebinds and exec requi
     grantable: ['glm'],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(
-    gate.port,
+  const refusal = verifyBrokerAuthority(
+    ctx.port,
     {
       impNames: ['atc-s1'],
       secrets: ['glm'],
     },
     'atc-',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toMatchObject({
+  expect(refusal).rejects.toMatchObject({
     code: 'auth_impd_too_old',
     data: { grantableTokens: false, secretRebind: false, execRequire: false },
   });
 
-  expect(gate.port.calls).toStrictEqual(['system.info']);
+  expect(ctx.port.calls).toStrictEqual(['system.info']);
 });
 
 test.each([
@@ -88,55 +79,52 @@ test.each([
     'grantable tokens and secret rebinds',
     { grantableTokens: true, secretRebind: true, execRequire: false },
   ],
-])('it refuses an impd that has only %s', async (_flag, flags) => {
-  await using gate = setupTest();
+])('it refuses an impd that has only %s', (_flag, flags) => {
+  using ctx = setupTest();
 
-  gate.port.features = { sessionOffsets: true, leases: true, oauthSecrets: false, ...flags };
+  ctx.port.features = { sessionOffsets: true, leases: true, oauthSecrets: false, ...flags };
 
-  const refusal: unknown = await verifyBrokerAuthority(
-    gate.port,
+  const refusal = verifyBrokerAuthority(
+    ctx.port,
     {
       impNames: ['atc-s1'],
       secrets: ['glm'],
     },
     'atc-',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toMatchObject({ code: 'auth_impd_too_old' });
-  expect(gate.port.calls).toStrictEqual(['system.info']);
+  expect(refusal).rejects.toMatchObject({ code: 'auth_impd_too_old' });
+  expect(ctx.port.calls).toStrictEqual(['system.info']);
 });
 
 test.each([
   ['absent', { sessionOffsets: true, leases: true }],
   ['false', { sessionOffsets: true, leases: true, grantableTokens: false, secretRebind: false }],
   ['strings', { sessionOffsets: true, leases: true, grantableTokens: 'true', secretRebind: 'yes' }],
-])(
-  'it refuses an impd whose grant flags are %s after one system info call',
-  async (_kind, sent) => {
-    await using gate = setupTest();
+])('it refuses an impd whose grant flags are %s after one system info call', (_kind, sent) => {
+  using ctx = setupTest();
 
-    gate.impd.info.features = sent;
+  ctx.impd.info.features = sent;
 
-    const port = new ImpClientPort({ url: gate.impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
-    const refusal: unknown = await verifyBrokerAuthority(
-      port,
-      {
-        impNames: ['atc-s1'],
-        secrets: ['glm'],
-      },
-      'atc-',
-    ).catch((error: unknown) => error);
+  const refusal = verifyBrokerAuthority(
+    port,
+    {
+      impNames: ['atc-s1'],
+      secrets: ['glm'],
+    },
+    'atc-',
+  );
 
-    expect(refusal).toMatchObject({ code: 'auth_impd_too_old' });
-    expect(gate.impd.paths).toStrictEqual(['/rpc/system/info']);
-  },
-);
+  expect(refusal).rejects.toMatchObject({ code: 'auth_impd_too_old' });
+  expect(ctx.impd.paths).toStrictEqual(['/rpc/system/info']);
+});
 
-test('it refuses a token below manage scope', async () => {
-  await using gate = setupTest();
+test('it refuses a token below manage scope', () => {
+  using ctx = setupTest();
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'exec',
@@ -144,23 +132,23 @@ test('it refuses a token below manage scope', async () => {
     grantable: [],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(
-    gate.port,
+  const refusal = verifyBrokerAuthority(
+    ctx.port,
     {
       impNames: ['atc-s1'],
       secrets: ['glm'],
     },
     'atc-',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toMatchObject({ code: 'auth_token_scope', data: { scope: 'exec' } });
-  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+  expect(refusal).rejects.toMatchObject({ code: 'auth_token_scope', data: { scope: 'exec' } });
+  expect(ctx.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
 
-test('it refuses a token that reaches every imp on the host', async () => {
-  await using gate = setupTest();
+test('it refuses a token that reaches every imp on the host', () => {
+  using ctx = setupTest();
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'admin',
     scope: 'manage',
@@ -168,17 +156,17 @@ test('it refuses a token that reaches every imp on the host', async () => {
     grantable: [],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(
-    gate.port,
+  const refusal = verifyBrokerAuthority(
+    ctx.port,
     {
       impNames: ['atc-s1'],
       secrets: ['glm'],
     },
     'atc-',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toMatchObject({ code: 'auth_token_too_broad', data: { imps: null } });
-  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+  expect(refusal).rejects.toMatchObject({ code: 'auth_token_too_broad', data: { imps: null } });
+  expect(ctx.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
 
 test.each([
@@ -246,41 +234,38 @@ test.each([
   [['atc-*', 'prod-*'], ['prod-*']],
   [['atc-s1', 'prod'], ['prod']],
   [['atc*'], ['atc*']],
-])(
-  'it refuses a token whose patterns %p reach imps outside the namespace',
-  async (imps, offending) => {
-    await using gate = setupTest();
+])('it refuses a token whose patterns %p reach imps outside the namespace', (imps, offending) => {
+  using ctx = setupTest();
 
-    gate.port.setIdentity({
-      kind: 'token',
-      name: 'wide',
-      scope: 'manage',
-      imps,
-      grantable: ['glm'],
-    });
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'wide',
+    scope: 'manage',
+    imps,
+    grantable: ['glm'],
+  });
 
-    const refusal: unknown = await verifyBrokerAuthority(
-      gate.port,
-      {
-        impNames: ['atc-s1'],
-        secrets: ['glm'],
-      },
-      'atc-',
-    ).catch((error: unknown) => error);
+  const refusal = verifyBrokerAuthority(
+    ctx.port,
+    {
+      impNames: ['atc-s1'],
+      secrets: ['glm'],
+    },
+    'atc-',
+  );
 
-    expect(refusal).toMatchObject({
-      code: 'auth_token_too_broad',
-      data: { token: 'wide', imps, offending },
-    });
+  expect(refusal).rejects.toMatchObject({
+    code: 'auth_token_too_broad',
+    data: { token: 'wide', imps, offending },
+  });
 
-    expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
-  },
-);
+  expect(ctx.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+});
 
 test('it lets a token whose literal imp names sit inside the namespace activate the broker', async () => {
-  await using gate = setupTest();
+  using ctx = setupTest();
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -288,15 +273,15 @@ test('it lets a token whose literal imp names sit inside the namespace activate 
     grantable: ['glm'],
   });
 
-  await verifyBrokerAuthority(gate.port, { impNames: ['atc-s1'], secrets: ['glm'] }, 'atc-');
+  await verifyBrokerAuthority(ctx.port, { impNames: ['atc-s1'], secrets: ['glm'] }, 'atc-');
 
-  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+  expect(ctx.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
 
-test('it rejects an empty namespace prefix as a broken invariant', async () => {
-  await using gate = setupTest();
+test('it rejects an empty namespace prefix as a broken invariant', () => {
+  using ctx = setupTest();
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'wide',
     scope: 'manage',
@@ -304,23 +289,27 @@ test('it rejects an empty namespace prefix as a broken invariant', async () => {
     grantable: ['glm'],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(
-    gate.port,
+  const refusal = verifyBrokerAuthority(
+    ctx.port,
     {
       impNames: ['atc-s1'],
       secrets: ['glm'],
     },
     '',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toBeInstanceOf(Error);
-  expect(refusal).not.toBeInstanceOf(BrokerAuthorityError);
+  expect(refusal).rejects.toThrowWithMessage(
+    Error,
+    'the imp name prefix of a runtime namespace must not be empty',
+  );
+
+  expect(refusal).rejects.not.toBeInstanceOf(BrokerAuthorityError);
 });
 
-test('it refuses a token whose patterns do not cover the imp the call touches', async () => {
-  await using gate = setupTest();
+test('it refuses a token whose patterns do not cover the imp the call touches', () => {
+  using ctx = setupTest();
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -328,27 +317,27 @@ test('it refuses a token whose patterns do not cover the imp the call touches', 
     grantable: ['glm'],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(
-    gate.port,
+  const refusal = verifyBrokerAuthority(
+    ctx.port,
     {
       impNames: ['atc-s1'],
       secrets: ['glm'],
     },
     'atc-',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toMatchObject({
+  expect(refusal).rejects.toMatchObject({
     code: 'auth_imp_out_of_scope',
     data: { outside: ['atc-s1'] },
   });
 
-  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+  expect(ctx.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
 
 test('it checks the imp names of the target namespace rather than a fixed prefix', async () => {
-  await using gate = setupTest();
+  using ctx = setupTest();
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'cloud-runtime',
     scope: 'manage',
@@ -356,19 +345,15 @@ test('it checks the imp names of the target namespace rather than a fixed prefix
     grantable: ['glm'],
   });
 
-  await verifyBrokerAuthority(
-    gate.port,
-    { impNames: ['harness-s1'], secrets: ['glm'] },
-    'harness-',
-  );
+  await verifyBrokerAuthority(ctx.port, { impNames: ['harness-s1'], secrets: ['glm'] }, 'harness-');
 
-  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+  expect(ctx.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
 
-test('it refuses when any one of the imps the call touches is outside the patterns', async () => {
-  await using gate = setupTest();
+test('it refuses when any one of the imps the call touches is outside the patterns', () => {
+  using ctx = setupTest();
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -376,25 +361,25 @@ test('it refuses when any one of the imps the call touches is outside the patter
     grantable: ['glm'],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(
-    gate.port,
+  const refusal = verifyBrokerAuthority(
+    ctx.port,
     {
       impNames: ['atc-s1', 'prod-db'],
       secrets: ['glm'],
     },
     'atc-',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toMatchObject({
+  expect(refusal).rejects.toMatchObject({
     code: 'auth_imp_out_of_scope',
     data: { outside: ['prod-db'] },
   });
 });
 
-test('it refuses a token that may not grant every bound secret', async () => {
-  await using gate = setupTest();
+test('it refuses a token that may not grant every bound secret', () => {
+  using ctx = setupTest();
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -402,29 +387,29 @@ test('it refuses a token that may not grant every bound secret', async () => {
     grantable: ['glm'],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(
-    gate.port,
+  const refusal = verifyBrokerAuthority(
+    ctx.port,
     {
       impNames: ['atc-s1'],
       secrets: ['glm', 'judge'],
     },
     'atc-',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toMatchObject({
+  expect(refusal).rejects.toMatchObject({
     code: 'auth_secret_not_grantable',
     data: { missing: ['judge'] },
   });
 
-  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+  expect(ctx.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
 
-test('it refuses an impd without oauth secrets for a binding that holds one', async () => {
-  await using gate = setupTest();
+test('it refuses an impd without oauth secrets for a binding that holds one', () => {
+  using ctx = setupTest();
 
-  gate.port.features = { ...gate.port.features, oauthSecrets: false };
+  ctx.port.features = { ...ctx.port.features, oauthSecrets: false };
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -432,29 +417,29 @@ test('it refuses an impd without oauth secrets for a binding that holds one', as
     grantable: ['codex-chatgpt'],
   });
 
-  const refusal: unknown = await verifyBrokerAuthority(
-    gate.port,
+  const refusal = verifyBrokerAuthority(
+    ctx.port,
     { impNames: ['atc-s1'], secrets: ['codex-chatgpt'], oauthSecrets: ['codex-chatgpt'] },
     'atc-',
-  ).catch((error: unknown) => error);
+  );
 
-  expect(refusal).toBeInstanceOf(BrokerAuthorityError);
+  expect(refusal).rejects.toBeInstanceOf(BrokerAuthorityError);
 
-  expect(refusal).toMatchObject({
+  expect(refusal).rejects.toMatchObject({
     code: 'auth_impd_too_old',
     message: 'impd lacks oauth secret support, which codex-chatgpt needs',
     data: { oauthSecrets: false, secrets: ['codex-chatgpt'] },
   });
 
-  expect(gate.port.calls).toStrictEqual(['system.info']);
+  expect(ctx.port.calls).toStrictEqual(['system.info']);
 });
 
 test('it lets an impd without oauth secrets activate a binding that holds none', async () => {
-  await using gate = setupTest();
+  using ctx = setupTest();
 
-  gate.port.features = { ...gate.port.features, oauthSecrets: false };
+  ctx.port.features = { ...ctx.port.features, oauthSecrets: false };
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -463,18 +448,18 @@ test('it lets an impd without oauth secrets activate a binding that holds none',
   });
 
   await verifyBrokerAuthority(
-    gate.port,
+    ctx.port,
     { impNames: ['atc-s1'], secrets: ['glm'], oauthSecrets: [] },
     'atc-',
   );
 
-  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+  expect(ctx.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
 
 test('it lets an impd with oauth secrets activate a binding that holds one', async () => {
-  await using gate = setupTest();
+  using ctx = setupTest();
 
-  gate.port.setIdentity({
+  ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
     scope: 'manage',
@@ -483,10 +468,10 @@ test('it lets an impd with oauth secrets activate a binding that holds one', asy
   });
 
   await verifyBrokerAuthority(
-    gate.port,
+    ctx.port,
     { impNames: ['atc-s1'], secrets: ['codex-chatgpt'], oauthSecrets: ['codex-chatgpt'] },
     'atc-',
   );
 
-  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+  expect(ctx.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });

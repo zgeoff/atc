@@ -1,370 +1,353 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { $ } from 'bun';
-import type { AgentAdapter, HeadlessRunner } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
-import { DaemonClient } from '../client/daemon-client';
-import type { EventMsg } from '../protocol/protocol';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
-import { isRecord } from '../shared/report';
+import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { toSessionID } from '../shared/to-session-id';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
+import { createGitFixture } from '../test-utils/create-git-fixture';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
-import { startDaemon } from './daemon';
+import { waitFor } from '../test-utils/wait-for';
 
-const sleepAdapter: AgentAdapter = {
-  id: 'claude',
-  headlessRunner: null,
-  screenDetector: null,
-  takesMessages: false,
-  planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-  normalizeHook: () => ({ kind: 'heartbeat' }),
-  loadName: () => Promise.resolve(null),
-  canResume: () => true,
-  buildResumeCommand: () => null,
-};
+/**
+ * A real daemon whose claude stand-in hands an ejected session to a
+ * headless runner that records each turn in `runs` and plays nothing until
+ * the test does. The settle before a handoff is short, and every git
+ * transport is allowed, since a workspace clone reads a local upstream.
+ */
+async function setupTest() {
+  const headless = buildStubHeadlessRunner();
 
-interface FakeRun {
-  readonly opts: Readonly<Record<string, unknown>>;
-  readonly finish: (how: 'done' | 'stuck', result?: string) => void;
-  readonly stopped: boolean;
-}
-
-interface HeadlessContext {
-  readonly client: DaemonClient;
-  readonly events: EventMsg[];
-  readonly runs: FakeRun[];
-}
-
-async function waitForRun(runs: readonly FakeRun[], count: number): Promise<void> {
-  const deadline = Date.now() + 3000;
-
-  while (runs.length < count && Date.now() < deadline) {
-    await Bun.sleep(10);
-  }
-
-  if (runs.length < count) {
-    throw new Error(`headless run ${count} never started`);
-  }
-}
-
-async function setupHeadlessDaemon(withRunner = true): Promise<HeadlessContext> {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-headless-'));
-  const runs: HeadlessContext['runs'] = [];
-
-  const startFakeRun: HeadlessRunner = (opts, hooks) => {
-    const entry = {
-      opts: { ...opts },
-      stopped: false,
-      finish(how: 'done' | 'stuck', result = 'wrapped up cleanly') {
-        if (how === 'done') {
-          hooks.onDone(result);
-        } else {
-          hooks.onNeedsYou('stuck on a decision');
-        }
-      },
-    };
-
-    runs.push(entry);
-    hooks.onOutput('HEADLESS LINE\r\n');
-
-    return {
-      stop() {
-        entry.stopped = true;
-      },
-    };
-  };
-
-  const daemon = await startDaemon({
-    socketPath: join(dir, 'daemon.sock'),
-    reporterSocketPath: join(dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: withRunner ? { ...sleepAdapter, headlessRunner: startFakeRun } : sleepAdapter,
-    gitTransports: ['https', 'ssh', 'http', 'file'],
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
-    ejectSettleMs: 30,
+  const harness = await startTestDaemon({
+    prefix: 'atc-headless-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      ejectSettleMs: 30,
+    }),
   });
 
-  const client = await DaemonClient.open(join(dir, 'daemon.sock'));
-
-  const events: EventMsg[] = [];
-
-  client.onEvent = (e) => {
-    events.push(e);
-  };
-
-  onTestFinished(async () => {
-    client.stop();
-
-    await daemon.stop();
-
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  await client.sendHello('atc/test');
-
-  return { client, events, runs };
+  return Object.assign(harness, { runs: headless.runs });
 }
 
-type SendRequest = DaemonClient['sendRequest'];
+test('it answers the eject of a terminal session with an empty reply', async () => {
+  await using ctx = await setupTest();
 
-async function spawnResumable(send: SendRequest): Promise<string> {
-  const ok = await send('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
     rows: 24,
   });
 
-  const spawned = ok['session'];
-
-  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
-    throw new Error('no session in spawn answer');
-  }
-
-  return spawned['id'];
-}
-
-async function waitForEvent(
-  events: readonly EventMsg[],
-  matches: (e: EventMsg) => boolean,
-): Promise<EventMsg> {
-  const deadline = Date.now() + 5000;
-
-  while (Date.now() < deadline) {
-    const found = events.find((e) => matches(e));
-
-    if (found !== undefined) {
-      return found;
-    }
-
-    await Bun.sleep(20);
-  }
-
-  throw new Error(`no matching event; got ${JSON.stringify(events.map((e) => e.ev))}`);
-}
-
-test('it ejects a terminal session into a headless run with its agent id', async () => {
-  const ctx = await setupHeadlessDaemon();
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
-  const ok = await ctx.client.sendRequest('session.eject', { session: id, prompt: 'keep going' });
-
-  expect(ok).toStrictEqual({});
-
-  await waitForRun(ctx.runs, 1);
-
-  expect(ctx.runs[0]?.opts).toStrictEqual({
-    cwd: '/tmp',
+  const ejected = await ctx.client.sendRequest('session.eject', {
+    session: getRecord(spawned, 'session')['id'],
     prompt: 'keep going',
-    resume: 'sess-123',
-    sessionID: id,
   });
 
-  const list = await ctx.client.sendRequest('session.list');
+  expect(ejected).toStrictEqual({});
+});
 
-  const sessions = list['sessions'];
+test('it ejects a terminal session into a headless run with its agent id', async () => {
+  await using ctx = await setupTest();
 
-  if (!Array.isArray(sessions)) {
-    throw new TypeError('sessions is not an array');
-  }
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
 
-  expect(sessions[0]).toMatchObject({ kind: 'headless', alive: true, state: 'running' });
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
+
+  await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+
+  await waitFor(() => {
+    expect(ctx.runs.map((run) => run.request)).toStrictEqual([
+      { cwd: ctx.dir, prompt: 'keep going', resume: toAgentSessionID('sess-123'), sessionID },
+    ]);
+  });
+});
+
+test('it lists an ejected session as a running headless session', async () => {
+  await using ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.client.sendRequest('session.eject', {
+    session: getRecord(spawned, 'session')['id'],
+    prompt: 'keep going',
+  });
+
+  await waitFor(() => {
+    expect(ctx.runs).toHaveLength(1);
+  });
+
+  const listed = await ctx.client.sendRequest('session.list');
+
+  expect(listed['sessions']).toMatchObject([{ kind: 'headless', alive: true, state: 'running' }]);
 });
 
 test('it starts the headless run of an ejected workspace session without its workspace credential', async () => {
-  const ctx = await setupHeadlessDaemon();
-
-  const dir = mkdtempSync(join(tmpdir(), 'atc-headless-workspace-'));
-
-  const env = {
-    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-  };
+  await using ctx = await setupTest();
+  await using git = await createGitFixture({ prefix: 'atc-headless-workspace-' });
 
   updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
 
-  onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  await $`git init --quiet --bare --initial-branch=main ${join(dir, 'up.git')}`.env(env).quiet();
-  await $`git clone --quiet ${join(dir, 'up.git')} ${join(dir, 'work')}`.env(env).quiet();
-
-  await $`git -c user.name=atc -c user.email=atc@example.com commit --quiet --allow-empty -m one`
-    .env(env)
-    .cwd(join(dir, 'work'))
-    .quiet();
-
-  await $`git push --quiet origin main`.env(env).cwd(join(dir, 'work')).quiet();
-
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: join(dir, 'ws'),
+    cwd: join(ctx.dir, 'ws'),
     resume: 'sess-ws',
     workspace: {
       kind: 'git',
-      url: join(dir, 'up.git'),
+      url: git.upstream,
       ref: 'main',
       credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_CRED' },
     },
   });
 
-  const id = getRecord(spawned, 'session')['id'];
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: id, prompt: 'keep going' });
+  await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
 
-  await waitForRun(ctx.runs, 1);
-
-  expect(ctx.runs[0]?.opts).toMatchObject({
-    withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
+  await waitFor(() => {
+    expect(ctx.runs.map((run) => run.request)).toStrictEqual([
+      {
+        cwd: join(ctx.dir, 'ws'),
+        prompt: 'keep going',
+        resume: toAgentSessionID('sess-ws'),
+        sessionID,
+        withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
+      },
+    ]);
   });
 });
 
 test('it reports a finished headless turn as done', async () => {
-  const ctx = await setupHeadlessDaemon();
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+  await using ctx = await setupTest();
 
-  await ctx.client.sendRequest('session.eject', { session: id });
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
 
-  await waitForRun(ctx.runs, 1);
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  ctx.runs[0]?.finish('done');
+  await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  const done = await waitForEvent(
-    ctx.events,
-    (e) =>
-      e.ev === 'SessionState' &&
-      isRecord(e['session']) &&
-      e['session']['id'] === id &&
-      e['session']['state'] === 'done',
-  );
+  await waitFor(() => {
+    expect(ctx.runs).toHaveLength(1);
+  });
 
-  const doneSession = getRecord(done, 'session');
+  ctx.runs[0]?.events.onDone('wrapped up cleanly');
 
-  expect(doneSession['lastMsg']).toBe('wrapped up cleanly');
+  await waitFor(() => {
+    expect(
+      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+    ).toPartiallyContain({
+      id: sessionID,
+      state: 'done',
+      lastMsg: 'wrapped up cleanly',
+    });
+  });
 });
 
 test('it reports a stuck headless turn as needs_you', async () => {
-  const ctx = await setupHeadlessDaemon();
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+  await using ctx = await setupTest();
 
-  await ctx.client.sendRequest('session.eject', { session: id });
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
 
-  await waitForRun(ctx.runs, 1);
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  ctx.runs[0]?.finish('stuck');
+  await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  const needy = await waitForEvent(
-    ctx.events,
-    (e) =>
-      e.ev === 'SessionState' &&
-      isRecord(e['session']) &&
-      e['session']['id'] === id &&
-      e['session']['state'] === 'needs_you',
-  );
+  await waitFor(() => {
+    expect(ctx.runs).toHaveLength(1);
+  });
 
-  const needySession = getRecord(needy, 'session');
+  ctx.runs[0]?.events.onNeedsYou('stuck on a decision');
 
-  expect(needySession['lastMsg']).toBe('stuck on a decision');
+  await waitFor(() => {
+    expect(
+      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+    ).toPartiallyContain({
+      id: sessionID,
+      state: 'needs_you',
+      lastMsg: 'stuck on a decision',
+    });
+  });
 });
 
 test("it keeps a finished headless turn's whole final message as the latest result", async () => {
-  const ctx = await setupHeadlessDaemon();
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+  await using ctx = await setupTest();
 
   const result = `Fixed the auth bug.\n\n${'The token refresh now retries once. '.repeat(10)}`;
 
-  await ctx.client.sendRequest('session.eject', { session: id });
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
 
-  await waitForRun(ctx.runs, 1);
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  ctx.runs[0]?.finish('done', result);
+  await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  await waitForEvent(
-    ctx.events,
-    (e) =>
-      e.ev === 'SessionState' &&
-      isRecord(e['session']) &&
-      e['session']['id'] === id &&
-      e['session']['state'] === 'done',
-  );
+  await waitFor(() => {
+    expect(ctx.runs).toHaveLength(1);
+  });
 
-  const record = await ctx.client.sendRequest('session.get', { session: id });
+  ctx.runs[0]?.events.onDone(result);
+
+  await waitFor(() => {
+    expect(
+      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+    ).toPartiallyContain({ id: sessionID, state: 'done' });
+  });
+
+  const record = await ctx.client.sendRequest('session.get', { session: sessionID });
 
   expect(record['result']).toBe(result);
 });
 
 test("it shows a finished headless turn's result as the session's latest detail", async () => {
-  const ctx = await setupHeadlessDaemon();
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+  await using ctx = await setupTest();
 
-  await ctx.client.sendRequest('session.eject', { session: id });
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
 
-  await waitForRun(ctx.runs, 1);
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  ctx.runs[0]?.finish('done', 'all green after the retry fix');
+  await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  const done = await waitForEvent(
-    ctx.events,
-    (e) =>
-      e.ev === 'SessionState' &&
-      isRecord(e['session']) &&
-      e['session']['id'] === id &&
-      e['session']['state'] === 'done',
-  );
+  await waitFor(() => {
+    expect(ctx.runs).toHaveLength(1);
+  });
 
-  expect(getRecord(done, 'session')['lastDetail']).toBe('all green after the retry fix');
+  ctx.runs[0]?.events.onDone('all green after the retry fix');
+
+  await waitFor(() => {
+    expect(
+      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+    ).toPartiallyContain({
+      id: sessionID,
+      state: 'done',
+      lastDetail: 'all green after the retry fix',
+    });
+  });
 });
 
-test("it records a headless turn's prompt and finish in the event trail", async () => {
-  const ctx = await setupHeadlessDaemon();
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+test("it records a headless turn's prompt in the event trail", async () => {
+  await using ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
+
   const empty = await ctx.client.sendRequest('events.read', {});
 
-  await ctx.client.sendRequest('session.eject', { session: id, prompt: 'keep going' });
-
-  await waitForRun(ctx.runs, 1);
+  await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
 
   const started = await ctx.client.sendRequest('events.read', {
     cursor: empty['cursor'],
     waitMs: 5000,
   });
 
-  ctx.runs[0]?.finish('done', 'all green');
+  expect(started['events']).toStrictEqual([
+    expect.objectContaining({ session: sessionID, kind: 'prompt-submitted', detail: 'keep going' }),
+  ]);
+});
+
+test("it records a headless turn's finish in the event trail", async () => {
+  await using ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
+
+  const empty = await ctx.client.sendRequest('events.read', {});
+
+  await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+
+  const started = await ctx.client.sendRequest('events.read', {
+    cursor: empty['cursor'],
+    waitMs: 5000,
+  });
+
+  ctx.runs[0]?.events.onDone('all green');
 
   const finished = await ctx.client.sendRequest('events.read', {
     cursor: started['cursor'],
     waitMs: 5000,
   });
 
-  expect(started['events']).toStrictEqual([
-    expect.objectContaining({ session: id, kind: 'prompt-submitted', detail: 'keep going' }),
-  ]);
-
   expect(finished['events']).toStrictEqual([
-    expect.objectContaining({ session: id, kind: 'turn-done', detail: 'all green' }),
+    expect.objectContaining({ session: sessionID, kind: 'turn-done', detail: 'all green' }),
   ]);
 });
 
 test('it records a stuck headless turn as needs-input in the event trail', async () => {
-  const ctx = await setupHeadlessDaemon();
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+  await using ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
+
   const empty = await ctx.client.sendRequest('events.read', {});
 
-  await ctx.client.sendRequest('session.eject', { session: id, prompt: 'keep going' });
-
-  await waitForRun(ctx.runs, 1);
+  await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
 
   const started = await ctx.client.sendRequest('events.read', {
     cursor: empty['cursor'],
     waitMs: 5000,
   });
 
-  ctx.runs[0]?.finish('stuck');
+  ctx.runs[0]?.events.onNeedsYou('stuck on a decision');
 
   const stuck = await ctx.client.sendRequest('events.read', {
     cursor: started['cursor'],
@@ -372,155 +355,182 @@ test('it records a stuck headless turn as needs-input in the event trail', async
   });
 
   expect(stuck['events']).toStrictEqual([
-    expect.objectContaining({ session: id, kind: 'needs-input', detail: 'stuck on a decision' }),
+    expect.objectContaining({
+      session: sessionID,
+      kind: 'needs-input',
+      detail: 'stuck on a decision',
+    }),
   ]);
 });
 
 test('it starts the next headless turn from session input once idle', async () => {
-  const ctx = await setupHeadlessDaemon();
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+  await using ctx = await setupTest();
 
-  await ctx.client.sendRequest('session.eject', { session: id });
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
 
-  await waitForRun(ctx.runs, 1);
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  ctx.runs[0]?.finish('done');
+  await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  await waitForEvent(
-    ctx.events,
-    (e) => e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'done',
-  );
+  await waitFor(() => {
+    expect(ctx.runs).toHaveLength(1);
+  });
 
-  const ok = await ctx.client.sendRequest('session.input', { session: id, d: 'next task\n' });
+  ctx.runs[0]?.events.onDone('wrapped up cleanly');
 
-  expect(ok).toStrictEqual({});
-  expect(ctx.runs).toHaveLength(2);
-  expect(ctx.runs[1]?.opts).toMatchObject({ prompt: 'next task', resume: 'sess-123' });
+  await waitFor(() => {
+    expect(
+      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+    ).toPartiallyContain({ id: sessionID, state: 'done' });
+  });
+
+  const answered = await ctx.client.sendRequest('session.input', {
+    session: sessionID,
+    d: 'next task\n',
+  });
+
+  expect({ answered, requests: ctx.runs.map((run) => run.request) }).toStrictEqual({
+    answered: {},
+    requests: [
+      {
+        cwd: ctx.dir,
+        prompt:
+          'Continue the task autonomously. Verify your work as you go and stop when it is complete.',
+        resume: toAgentSessionID('sess-123'),
+        sessionID,
+      },
+      { cwd: ctx.dir, prompt: 'next task', resume: toAgentSessionID('sess-123'), sessionID },
+    ],
+  });
 });
 
 test('it refuses input to a headless session mid-run', async () => {
-  const ctx = await setupHeadlessDaemon();
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+  await using ctx = await setupTest();
 
-  await ctx.client.sendRequest('session.eject', { session: id });
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
 
-  await waitForRun(ctx.runs, 1);
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
+
+  await ctx.client.sendRequest('session.eject', { session: sessionID });
+
+  await waitFor(() => {
+    expect(ctx.runs).toHaveLength(1);
+  });
 
   expect(
-    ctx.client.sendRequest('session.input', { session: id, d: 'hasty\n' }),
+    ctx.client.sendRequest('session.input', { session: sessionID, d: 'hasty\n' }),
   ).rejects.toMatchObject({ code: 'too_slow' });
 });
 
 test('it adopts a headless session back into a terminal', async () => {
-  const ctx = await setupHeadlessDaemon();
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+  await using ctx = await setupTest();
 
-  await ctx.client.sendRequest('session.eject', { session: id });
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
 
-  await waitForRun(ctx.runs, 1);
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  ctx.runs[0]?.finish('done');
+  await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  await waitForEvent(
-    ctx.events,
-    (e) => e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'done',
-  );
+  await waitFor(() => {
+    expect(ctx.runs).toHaveLength(1);
+  });
 
-  const ok = await ctx.client.sendRequest('session.adopt', { session: id, cols: 90, rows: 28 });
+  ctx.runs[0]?.events.onDone('wrapped up cleanly');
 
-  expect(ok).toStrictEqual({});
+  await waitFor(() => {
+    expect(
+      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+    ).toPartiallyContain({ id: sessionID, state: 'done' });
+  });
 
-  const list = await ctx.client.sendRequest('session.list');
+  const adopted = await ctx.client.sendRequest('session.adopt', {
+    session: sessionID,
+    cols: 90,
+    rows: 28,
+  });
 
-  const sessions = list['sessions'];
+  const listed = await ctx.client.sendRequest('session.list');
 
-  if (!Array.isArray(sessions)) {
-    throw new TypeError('sessions is not an array');
-  }
-
-  expect(sessions[0]).toMatchObject({ kind: 'pty', alive: true, state: 'running' });
+  expect({ adopted, sessions: listed['sessions'] }).toMatchObject({
+    adopted: {},
+    sessions: [{ id: sessionID, kind: 'pty', alive: true, state: 'running' }],
+  });
 });
 
 test('it refuses to eject a session that never reported an agent session id', async () => {
-  const ctx = await setupHeadlessDaemon();
+  await using ctx = await setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     name: 'no-id',
     cols: 80,
     rows: 24,
   });
 
-  const spawned = ok['session'];
-
-  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
-    throw new Error('no session in spawn answer');
-  }
-
-  expect(ctx.client.sendRequest('session.eject', { session: spawned['id'] })).rejects.toMatchObject(
-    { code: 'no_such_session' },
-  );
+  expect(
+    ctx.client.sendRequest('session.eject', { session: getRecord(spawned, 'session')['id'] }),
+  ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
 test('it reports eject as unsupported without a headless runner', async () => {
-  const ctx = await setupHeadlessDaemon(false);
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
-
-  expect(ctx.client.sendRequest('session.eject', { session: id })).rejects.toMatchObject({
-    code: 'unsupported',
+  await using harness = await startTestDaemon({
+    prefix: 'atc-headless-',
+    options: () => ({ adapter: buildMockAgentAdapter(), ejectSettleMs: 30 }),
   });
+
+  const spawned = await harness.client.sendRequest('session.spawn', {
+    cwd: harness.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(
+    harness.client.sendRequest('session.eject', { session: getRecord(spawned, 'session')['id'] }),
+  ).rejects.toMatchObject({ code: 'unsupported' });
 });
 
-test('it refuses to eject a grok session and does not start a headless runner', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-headless-'));
-  const runs: HeadlessContext['runs'] = [];
+test('it refuses to eject a grok session', async () => {
+  const headless = buildStubHeadlessRunner();
 
-  updateEnv('GROK_HOME', join(dir, 'grok-home'));
+  await using harness = await startTestDaemon({
+    prefix: 'atc-headless-',
+    options: (paths) => {
+      updateEnv('GROK_HOME', join(paths.dir, 'grok-home'));
 
-  const adapterConfig = parseConfig({
-    grokBin: 'bash',
-    grokArgs: ['-c', 'sleep 30'],
+      return {
+        adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
+        adapters: [
+          new GrokAdapter(
+            getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          ),
+        ],
+        ejectSettleMs: 30,
+      };
+    },
   });
 
-  const grok = new GrokAdapter(getAgentEntry(adapterConfig, 'grok'));
-
-  const startFakeRun: HeadlessRunner = (opts, hooks) => {
-    runs.push({
-      opts: { ...opts },
-      stopped: false,
-      finish() {},
-    });
-
-    hooks.onOutput('HEADLESS LINE\r\n');
-
-    return { stop() {} };
-  };
-
-  const daemon = await startDaemon({
-    socketPath: join(dir, 'daemon.sock'),
-    reporterSocketPath: join(dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: { ...sleepAdapter, headlessRunner: startFakeRun },
-    adapters: [grok],
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
-    ejectSettleMs: 30,
-  });
-
-  const client = await DaemonClient.open(join(dir, 'daemon.sock'));
-
-  onTestFinished(async () => {
-    client.stop();
-
-    await daemon.stop();
-
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  await client.sendHello('atc/test');
-
-  const ok = await client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await harness.client.sendRequest('session.spawn', {
+    cwd: harness.dir,
     name: 'grok-handoff',
     agent: 'grok',
     resume: 'grok-sess-1',
@@ -528,46 +538,120 @@ test('it refuses to eject a grok session and does not start a headless runner', 
     rows: 24,
   });
 
-  const spawned = ok['session'];
-
-  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
-    throw new Error('no session in spawn answer');
-  }
-
-  expect(client.sendRequest('session.eject', { session: spawned['id'] })).rejects.toMatchObject({
+  expect(
+    harness.client.sendRequest('session.eject', { session: getRecord(spawned, 'session')['id'] }),
+  ).rejects.toMatchObject({
     code: 'unsupported',
     message: "this session's agent has no headless handoff",
   });
-
-  // Eject settle is 30ms; wait it out so a mistaken runner start would have landed.
-  await Bun.sleep(50);
-
-  expect(runs).toHaveLength(0);
 });
 
-test("it stops a killed session's headless run and refuses further input for it", async () => {
-  const ctx = await setupHeadlessDaemon();
-  const id = await spawnResumable((m, p) => ctx.client.sendRequest(m, p));
+// A refused eject would schedule its handoff before a later eject does,
+// with the same settle, so once the later handoff's run starts, a mistaken
+// one for the refused session would already have started.
+test('it starts no headless run for a refused grok eject', async () => {
+  const headless = buildStubHeadlessRunner();
 
-  await ctx.client.sendRequest('session.eject', { session: id });
+  await using harness = await startTestDaemon({
+    prefix: 'atc-headless-',
+    options: (paths) => {
+      updateEnv('GROK_HOME', join(paths.dir, 'grok-home'));
 
-  await waitForRun(ctx.runs, 1);
+      return {
+        adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
+        adapters: [
+          new GrokAdapter(
+            getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          ),
+        ],
+        ejectSettleMs: 30,
+      };
+    },
+  });
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  const grok = await harness.client.sendRequest('session.spawn', {
+    cwd: harness.dir,
+    name: 'grok-handoff',
+    agent: 'grok',
+    resume: 'grok-sess-1',
+    cols: 80,
+    rows: 24,
+  });
 
-  expect(ctx.runs[0]?.stopped).toBe(true);
+  const claude = await harness.client.sendRequest('session.spawn', {
+    cwd: harness.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
 
-  const list = await ctx.client.sendRequest('session.list');
+  const claudeID = toSessionID(String(getRecord(claude, 'session')['id']));
 
-  const sessions = list['sessions'];
+  await Promise.allSettled([
+    harness.client.sendRequest('session.eject', { session: getRecord(grok, 'session')['id'] }),
+  ]);
 
-  if (!Array.isArray(sessions)) {
-    throw new TypeError('sessions is not an array');
-  }
+  await harness.client.sendRequest('session.eject', { session: claudeID });
 
-  expect(sessions).toHaveLength(0);
+  await waitFor(() => {
+    expect(headless.runs).toHaveLength(1);
+  });
+
+  expect(headless.runs.map((run) => run.request.sessionID)).toStrictEqual([claudeID]);
+});
+
+test("it stops a killed session's headless run", async () => {
+  await using ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
+
+  await ctx.client.sendRequest('session.eject', { session: sessionID });
+
+  await waitFor(() => {
+    expect(ctx.runs).toHaveLength(1);
+  });
+
+  await ctx.client.sendRequest('session.kill', { session: sessionID });
+
+  const listed = await ctx.client.sendRequest('session.list');
+
+  expect({
+    stopped: ctx.runs.map((run) => run.stopped),
+    sessions: listed['sessions'],
+  }).toStrictEqual({ stopped: [true], sessions: [] });
+});
+
+test('it refuses input for a killed headless session', async () => {
+  await using ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
+
+  await ctx.client.sendRequest('session.eject', { session: sessionID });
+
+  await waitFor(() => {
+    expect(ctx.runs).toHaveLength(1);
+  });
+
+  await ctx.client.sendRequest('session.kill', { session: sessionID });
 
   expect(
-    ctx.client.sendRequest('session.input', { session: id, d: 'anything\n' }),
+    ctx.client.sendRequest('session.input', { session: sessionID, d: 'anything\n' }),
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });

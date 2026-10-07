@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { buildTargetList } from './build-target-list';
 import { ImpProvider } from './imp-provider';
@@ -9,14 +9,37 @@ test('it lists an imp target as reaching the broker', () => {
 
   const provider = new ImpProvider(port, {}, { atcBinary: null });
 
-  const [entry] = buildTargetList(
+  onTestFinished(() => {
+    provider.dispose();
+  });
+
+  const entries = buildTargetList(
     [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
     null,
   );
 
-  provider.dispose();
-
-  expect(entry).toMatchObject({ id: 'box', brokerAuth: true });
+  expect(entries).toStrictEqual([
+    {
+      id: 'box',
+      provider: 'imp',
+      identity: 'imp:test',
+      available: true,
+      default: false,
+      capabilities: {
+        spawn: true,
+        attach: true,
+        input: true,
+        resize: true,
+        kill: true,
+        transfer: true,
+        run: true,
+        headless: false,
+        suspend: true,
+        destroy: true,
+      },
+      brokerAuth: true,
+    },
+  ]);
 });
 
 test('it lists the local target and a target without a provider as reaching no broker', () => {
@@ -34,8 +57,46 @@ test('it lists the local target and a target without a provider as reaching no b
     'local',
   );
 
-  expect(entries).toMatchObject([
-    { id: 'local', brokerAuth: false },
-    { id: 'gone', brokerAuth: false },
+  expect(entries).toStrictEqual([
+    {
+      id: 'local',
+      provider: 'local-pty',
+      identity: 'local-pty:test',
+      available: true,
+      default: true,
+      capabilities: {
+        spawn: true,
+        attach: true,
+        input: true,
+        resize: true,
+        kill: true,
+        transfer: true,
+        run: true,
+        headless: true,
+        suspend: false,
+        destroy: false,
+      },
+      brokerAuth: false,
+    },
+    {
+      id: 'gone',
+      provider: 'imp',
+      identity: 'imp:gone',
+      available: false,
+      default: false,
+      capabilities: {
+        spawn: false,
+        attach: false,
+        input: false,
+        resize: false,
+        kill: false,
+        transfer: false,
+        run: false,
+        headless: false,
+        suspend: false,
+        destroy: false,
+      },
+      brokerAuth: false,
+    },
   ]);
 });

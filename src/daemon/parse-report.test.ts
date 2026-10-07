@@ -53,7 +53,12 @@ test('it rejects an answered report with an empty message list', () => {
 test.each([[''], [42]])('it reads an answered report turn of %p as unknown', (turn) => {
   const report = parseReport({ kind: 'answered', message: 'm-1', answer: 'done', turn });
 
-  expect(report).toMatchObject({ kind: 'answered', turn: null });
+  expect(report).toStrictEqual({
+    kind: 'answered',
+    messages: [toMessageID('m-1')],
+    answer: 'done',
+    turn: null,
+  });
 });
 
 test('it rejects a report without a message id', () => {
