@@ -44,12 +44,17 @@ export interface SpawnPlan {
  * files unpack into. `auth` is given when the harness takes its credential
  * from impd's broker: the revision of the host's runtime auth binding it
  * launches under, which keys any settings the agent writes for it, and the
- * placeholder variables the harness holds in place of a credential.
+ * placeholder variables the harness holds in place of a credential, and
+ * the variables its auth profiles set.
  */
 export interface GuestPaths {
   readonly atc: string | null;
   readonly dir: string;
-  readonly auth?: { readonly revision: number; readonly env: Readonly<Record<string, string>> };
+  readonly auth?: {
+    readonly revision: number;
+    readonly env: Readonly<Record<string, string>>;
+    readonly profileEnv: Readonly<Record<string, string>>;
+  };
 }
 
 /**

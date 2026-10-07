@@ -290,7 +290,11 @@ export class ClaudeAdapter implements AgentAdapter {
     const padding = typeof userSettings === 'string' ? findStatuslinePadding(userSettings) : 0;
 
     const settings = buildHookSettings(
-      this.buildSettingsProfile({ ...auth.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' }),
+      this.buildSettingsProfile({
+        ...auth.profileEnv,
+        ...auth.env,
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      }),
       padding,
       argv,
     );
@@ -312,7 +316,7 @@ export class ClaudeAdapter implements AgentAdapter {
         ),
         ...Object.fromEntries(bridge),
       },
-      env: { ...launch.env, ...auth.env },
+      env: { ...launch.env, ...auth.profileEnv, ...auth.env },
     };
   }
 

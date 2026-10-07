@@ -1,3 +1,5 @@
+import { isBrokerVariable } from './is-broker-variable';
+import { isSubscriptionOverrideVariable } from './is-subscription-override-variable';
 import { isRecord } from './report';
 
 /**
@@ -16,6 +18,7 @@ interface CustomAuthProfile {
   readonly host: string;
   readonly header: string;
   readonly scheme: 'bearer';
+  readonly env: Readonly<Record<string, string>>;
   readonly dependencies: readonly string[];
 }
 
@@ -23,6 +26,7 @@ interface GitHubAuthProfile {
   readonly name: string;
   readonly secret: string;
   readonly kind: 'github';
+  readonly env: Readonly<Record<string, string>>;
   readonly dependencies: readonly string[];
 }
 
@@ -112,7 +116,11 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
       return `${extra} cannot be set on a github profile, whose hosts and headers impd's github kind fixes`;
     }
 
-    return { name, secret, kind, dependencies: dependencies ?? [] };
+    if (entry['env'] !== undefined) {
+      return "env cannot be set on a github profile, whose placeholders impd's github kind sets";
+    }
+
+    return { name, secret, kind, env: {}, dependencies: dependencies ?? [] };
   }
 
   if (typeof host !== 'string' || host.length > BROKER_HOST_MAX || !BROKER_HOST.test(host)) {
@@ -131,6 +139,12 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
     return 'user pairs only with the basic scheme, which atc does not bind';
   }
 
+  const env = parseProfileEnv(entry['env'], host);
+
+  if (typeof env === 'string') {
+    return env;
+  }
+
   return {
     name,
     secret,
@@ -138,6 +152,55 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
     host,
     header,
     scheme,
+    env,
     dependencies: dependencies ?? [],
   };
+}
+
+// The value a profile's variable may hold: the placeholder the broker swaps
+// a credential in for, or the profile's own host as an https origin. No
+// other value, so a credential is never written into a profile.
+const ENV_PLACEHOLDER = 'imp-broker-placeholder';
+const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/;
+const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_'];
+
+const RESERVED_ENV_NAMES: ReadonlySet<string> = new Set(['PATH', 'HOME']);
+
+function parseProfileEnv(raw: unknown, host: string): Record<string, string> | string {
+  if (raw === undefined) {
+    return {};
+  }
+
+  if (!isRecord(raw) || Array.isArray(raw)) {
+    return 'env must be an object of variable names';
+  }
+
+  const env: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(raw)) {
+    if (!ENV_NAME.test(key)) {
+      return `env.${key} is not a variable name: use capital letters, digits and underscores`;
+    }
+
+    if (isReservedEnvName(key)) {
+      return `env.${key} cannot be set: atc or impd sets or reserves it`;
+    }
+
+    if (value !== ENV_PLACEHOLDER && value !== `https://${host}`) {
+      return `env.${key} must be ${ENV_PLACEHOLDER} or https://${host}`;
+    }
+
+    env[key] = value;
+  }
+
+  return env;
+}
+
+function isReservedEnvName(key: string): boolean {
+  return (
+    isBrokerVariable(key) ||
+    isSubscriptionOverrideVariable(key) ||
+    RESERVED_ENV_NAMES.has(key) ||
+    RESERVED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))
+  );
 }

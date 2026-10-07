@@ -120,6 +120,7 @@ async function setupTest() {
             host: 'api.z.ai',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],

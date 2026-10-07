@@ -4,8 +4,10 @@ import type { GatewayAuth } from './check-gateway-auth';
 import type { AuthProfile } from './collect-auth-profiles';
 import { collectClaudeAuth } from './collect-claude-auth';
 import type { ClaudeMCPServer } from './collect-claude-auth';
+import { collectProfileEnvProblems } from './collect-profile-env-problems';
 import { isSubscriptionOverrideVariable } from './is-subscription-override-variable';
 import { isRecord } from './report';
+import { resolveAuthProfiles } from './resolve-auth-profiles';
 
 /**
  * The agent CLI an entry drives, which decides the adapter behind it.
@@ -305,6 +307,10 @@ function readClaudeAuth(
 
   problems.push(...collectSubscriptionProblems(entry));
 
+  if (collected.auth !== null) {
+    problems.push(...collectEntryProfileEnvProblems(entry, collected.auth.profiles, authProfiles));
+  }
+
   if (collected.auth === null) {
     return { problems: [...collected.errors, ...problems] };
   }
@@ -318,6 +324,32 @@ function readClaudeAuth(
     ...(collected.auth.mcpServers.length === 0 ? {} : { mcpServers: collected.auth.mcpServers }),
     warnings: collected.errors,
   };
+}
+
+// The variables a stock entry sets that its selected profiles also set.
+function collectEntryProfileEnvProblems(
+  entry: AgentEntry,
+  selected: readonly string[],
+  authProfiles: ReadonlyMap<string, AuthProfile>,
+): string[] {
+  const resolution = resolveAuthProfiles(authProfiles, selected);
+
+  if ('problem' in resolution) {
+    return [];
+  }
+
+  const settingsEnv = entry.settings?.['env'];
+
+  return collectProfileEnvProblems(
+    [
+      ['env', Object.keys(entry.env)],
+      [
+        'settings.env',
+        isRecord(settingsEnv) && !Array.isArray(settingsEnv) ? Object.keys(settingsEnv) : [],
+      ],
+    ],
+    resolution.resolved.envOwners,
+  );
 }
 
 // What a stock entry with `auth` sets that would override the subscription

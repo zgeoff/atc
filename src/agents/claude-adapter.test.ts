@@ -324,7 +324,11 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
     {
       atc: '/opt/atc/bin/atc',
       dir: '/tmp/atc/sessions/s1',
-      auth: { revision: 2, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        profileEnv: {},
+      },
     },
   );
 
@@ -420,7 +424,11 @@ test("it ships the host's Claude config as the session's user settings and keeps
     {
       atc: '/opt/atc/bin/atc',
       dir: '/tmp/atc/sessions/s1',
-      auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+      auth: {
+        revision: 1,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        profileEnv: {},
+      },
     },
   );
 
@@ -511,7 +519,11 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
     {
       atc: '/opt/atc/bin/atc',
       dir: '/tmp/atc/sessions/s1',
-      auth: { revision: 3, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+      auth: {
+        revision: 3,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        profileEnv: {},
+      },
     },
   );
 
@@ -608,7 +620,11 @@ test.each([
       {
         atc: '/opt/atc/bin/atc',
         dir: '/tmp/atc/sessions/s1',
-        auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+        auth: {
+          revision: 1,
+          env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+          profileEnv: {},
+        },
       },
     );
 
@@ -650,7 +666,11 @@ test.each([
         {
           atc: '/opt/atc/bin/atc',
           dir: '/tmp/atc/sessions/s1',
-          auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+          auth: {
+            revision: 1,
+            env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+            profileEnv: {},
+          },
         },
       );
 
@@ -681,7 +701,11 @@ test('it refuses to start a subscription session in a host whose environment set
     {
       atc: '/opt/atc/bin/atc',
       dir: tmp.dir,
-      auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+      auth: {
+        revision: 1,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        profileEnv: {},
+      },
     },
   );
 
@@ -744,7 +768,11 @@ test.each([
       {
         atc: '/opt/atc/bin/atc',
         dir: tmp.dir,
-        auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+        auth: {
+          revision: 1,
+          env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+          profileEnv: {},
+        },
       },
     );
 
@@ -784,7 +812,11 @@ test('it starts a subscription session with a seeded config folder in a host who
     {
       atc: '/opt/atc/bin/atc',
       dir: tmp.dir,
-      auth: { revision: 1, env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' } },
+      auth: {
+        revision: 1,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        profileEnv: {},
+      },
     },
   );
 
@@ -835,4 +867,79 @@ test("it seeds folder trust and approval of the clone's own MCP servers for the 
     hasCompletedOnboarding: true,
     projects: { '/work/repo': { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true } },
   });
+});
+
+const OP_CONNECT_ENV = {
+  OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+  OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+};
+
+function buildOPConnectConfig() {
+  return parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      op: {
+        secret: 'op-connect',
+        host: 'op-connect.geoff.cloud',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: OP_CONNECT_ENV,
+      },
+    },
+    claudeAuth: { profiles: ['claude', 'op'] },
+  });
+}
+
+test("it sets a profile's variables in a subscription guest's settings env and spawn env, and not in the local plan", () => {
+  using tmp = setupTempDir('atc-claude-profile-env-');
+
+  const config = buildOPConnectConfig();
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    null,
+    join(tmp.dir, 'atc-bridge'),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: 'hi', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        profileEnv: OP_CONNECT_ENV,
+      },
+    },
+  );
+
+  const settingsFile = plan?.files['auth-r2/settings.json'];
+
+  if (plan === null || typeof settingsFile !== 'string') {
+    throw new Error('expected a guest spawn plan with a settings file');
+  }
+
+  const guestSettings: unknown = JSON.parse(settingsFile);
+
+  expect(plan.env).toMatchObject({
+    ...OP_CONNECT_ENV,
+    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+  });
+
+  expect(guestSettings).toHaveProperty('env', {
+    ...OP_CONNECT_ENV,
+    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  });
+
+  const local = adapter.planSpawn({ prompt: '', resume: false });
+
+  expect(JSON.stringify(local)).not.toContain('OP_CONNECT');
 });

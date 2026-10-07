@@ -2014,7 +2014,7 @@ export class SessionManager {
         : {
             atc: guest.atc,
             dir,
-            auth: await this.planGuestAuth(hostKey, auth.mode, auth.binding.placeholderEnv),
+            auth: await this.planGuestAuth(hostKey, auth.mode, auth.binding),
           };
 
     const plan =
@@ -2100,11 +2100,15 @@ export class SessionManager {
   private async planGuestAuth(
     hostKey: SessionID,
     mode: HarnessAuthSetup['mode'],
-    placeholderEnv: Readonly<Record<string, string>>,
+    binding: Pick<AuthBinding, 'placeholderEnv' | 'profileEnv'>,
   ): Promise<NonNullable<GuestPaths['auth']>> {
     const held = mode === 'create' ? null : await this.requireAuthBinder().findBinding(hostKey);
 
-    return { revision: held?.revision ?? 1, env: placeholderEnv };
+    return {
+      revision: held?.revision ?? 1,
+      env: binding.placeholderEnv,
+      profileEnv: binding.profileEnv,
+    };
   }
 
   // Creates the binding of a host a spawn provisions, or verifies the one

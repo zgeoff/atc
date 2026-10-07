@@ -1,4 +1,5 @@
 import type { AuthProfile } from './collect-auth-profiles';
+import { collectProfileEnvProblems } from './collect-profile-env-problems';
 import { isBrokerVariable } from './is-broker-variable';
 import { isRecord } from './report';
 import { resolveAuthProfiles } from './resolve-auth-profiles';
@@ -75,6 +76,16 @@ export function checkGatewayAuth(
   if ('problem' in resolution) {
     problems.push(resolution.problem.message);
   } else {
+    problems.push(
+      ...collectProfileEnvProblems(
+        [
+          ['env', Object.keys(entry.env)],
+          ['settings.env', settingsEnv],
+        ],
+        resolution.resolved.envOwners,
+      ),
+    );
+
     const hostProblem = findBaseURLProblem(entry.baseURL ?? '', resolution.resolved.hosts);
 
     if (hostProblem !== null) {

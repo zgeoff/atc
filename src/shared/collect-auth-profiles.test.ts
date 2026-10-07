@@ -9,6 +9,7 @@ test('it reads a profile into its secret reference and the rule impd applies for
         host: 'api.z.ai',
         header: 'authorization',
         scheme: 'bearer',
+        env: {},
         dependencies: ['judge'],
       },
       judge: {
@@ -29,6 +30,7 @@ test('it reads a profile into its secret reference and the rule impd applies for
           host: 'api.z.ai',
           header: 'authorization',
           scheme: 'bearer',
+          env: {},
           dependencies: ['judge'],
         },
       ],
@@ -41,6 +43,7 @@ test('it reads a profile into its secret reference and the rule impd applies for
           host: 'judge.example.com',
           header: 'authorization',
           scheme: 'bearer',
+          env: {},
           dependencies: [],
         },
       ],
@@ -56,7 +59,10 @@ test('it reads a github profile into its secret reference alone, since impd fixe
     }),
   ).toStrictEqual({
     profiles: new Map([
-      ['github', { name: 'github', secret: 'github-imp-agents', kind: 'github', dependencies: [] }],
+      [
+        'github',
+        { name: 'github', secret: 'github-imp-agents', kind: 'github', env: {}, dependencies: [] },
+      ],
     ]),
     errors: [],
   });
@@ -162,10 +168,108 @@ test('it refuses a profile that is not an object, and keeps its well-formed sibl
           host: 'api.z.ai',
           header: 'authorization',
           scheme: 'bearer',
+          env: {},
           dependencies: [],
         },
       ],
     ]),
     errors: ['authProfiles.bad: a profile must be an object'],
+  });
+});
+
+const OP_CONNECT = {
+  secret: 'op-connect',
+  host: 'op-connect.geoff.cloud',
+  header: 'authorization',
+  scheme: 'bearer',
+} as const;
+
+test('it keeps the variables of a custom profile set to the placeholder or its own host', () => {
+  const env = {
+    OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+    OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+  };
+
+  expect(collectAuthProfiles({ op: { ...OP_CONNECT, env } })).toStrictEqual({
+    profiles: new Map([
+      ['op', { name: 'op', ...OP_CONNECT, kind: 'custom', env, dependencies: [] }],
+    ]),
+    errors: [],
+  });
+});
+
+test('it gives a profile that sets no variables an empty env', () => {
+  expect(collectAuthProfiles({ op: OP_CONNECT }).profiles.get('op')).toHaveProperty('env', {});
+});
+
+test.each([
+  [
+    { X_URL: 'https://other.example.com' },
+    'env.X_URL must be imp-broker-placeholder or https://op-connect.geoff.cloud',
+  ],
+  [
+    { X_URL: 'https://op-connect.geoff.cloud/v1' },
+    'env.X_URL must be imp-broker-placeholder or https://op-connect.geoff.cloud',
+  ],
+  [
+    { X_URL: 'https://op-connect.geoff.cloud:8443' },
+    'env.X_URL must be imp-broker-placeholder or https://op-connect.geoff.cloud',
+  ],
+  [
+    { X_URL: 'http://op-connect.geoff.cloud' },
+    'env.X_URL must be imp-broker-placeholder or https://op-connect.geoff.cloud',
+  ],
+  [
+    { X_TOKEN: 'a-real-looking-token' },
+    'env.X_TOKEN must be imp-broker-placeholder or https://op-connect.geoff.cloud',
+  ],
+  [{ X_TOKEN: 7 }, 'env.X_TOKEN must be imp-broker-placeholder or https://op-connect.geoff.cloud'],
+  [
+    { lower: 'imp-broker-placeholder' },
+    'env.lower is not a variable name: use capital letters, digits and underscores',
+  ],
+  [
+    { '1X': 'imp-broker-placeholder' },
+    'env.1X is not a variable name: use capital letters, digits and underscores',
+  ],
+  ['x', 'env must be an object of variable names'],
+])('it refuses a profile whose env is %p', (env, error) => {
+  expect(collectAuthProfiles({ op: { ...OP_CONNECT, env } })).toStrictEqual({
+    profiles: new Map(),
+    errors: [`authProfiles.op: ${error}`],
+  });
+});
+
+test.each([
+  'HTTPS_PROXY',
+  'SSL_CERT_FILE',
+  'NODE_EXTRA_CA_CERTS',
+  'CLAUDE_CODE_OAUTH_TOKEN',
+  'CLAUDE_CONFIG_DIR',
+  'CLAUDE_ANYTHING',
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_BASE_URL',
+  'ATC_SESSION_ID',
+  'PATH',
+  'HOME',
+])('it refuses a profile that sets the reserved variable %s', (name) => {
+  expect(
+    collectAuthProfiles({ op: { ...OP_CONNECT, env: { [name]: 'imp-broker-placeholder' } } }),
+  ).toStrictEqual({
+    profiles: new Map(),
+    errors: [`authProfiles.op: env.${name} cannot be set: atc or impd sets or reserves it`],
+  });
+});
+
+test('it refuses env on a github profile', () => {
+  expect(
+    collectAuthProfiles({
+      p: { secret: 'github-imp-agents', kind: 'github', env: { X: 'imp-broker-placeholder' } },
+    }),
+  ).toStrictEqual({
+    profiles: new Map(),
+    errors: [
+      "authProfiles.p: env cannot be set on a github profile, whose placeholders impd's github kind sets",
+    ],
   });
 });
