@@ -30,7 +30,7 @@ export interface RestoreFleetParams {
 
 // How the staggered terminal adoption behind a restore ended: every queued
 // session was tried, the daemon began to stop first, or a revive threw.
-export type RestoreOutcome = 'finished' | 'stopped' | 'failed';
+type RestoreOutcome = 'finished' | 'stopped' | 'failed';
 
 // How many sessions a restore registered, and how its staggered terminal
 // adoption ended.
