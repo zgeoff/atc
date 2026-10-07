@@ -90,8 +90,13 @@ export class GrokAdapter implements AgentAdapter {
 
   private readonly hookState = new Map<SessionID, GrokSessionHookState>();
 
-  constructor(entry: AgentEntry) {
+  // Grok's home directory, or null to read it from GROK_HOME (or ~/.grok)
+  // each time it is needed.
+  private readonly home: string | null;
+
+  constructor(entry: AgentEntry, home: string | null = null) {
     this.entry = entry;
+    this.home = home;
     this.id = entry.id;
 
     this.profile = {
@@ -130,7 +135,7 @@ export class GrokAdapter implements AgentAdapter {
     const named: AdapterEvent = {
       ...base,
       ...(agentSessionID !== undefined && payload.cwd !== undefined
-        ? { nameSource: buildGrokNameSource(agentSessionID, payload.cwd) }
+        ? { nameSource: buildGrokNameSource(this.resolveHome(), agentSessionID, payload.cwd) }
         : {}),
     };
 
@@ -213,7 +218,7 @@ export class GrokAdapter implements AgentAdapter {
   }
 
   loadName(source: string, namedBy: 'user' | 'auto' | 'agent'): Promise<NameUpdate | null> {
-    const parsed = readSummary(source) ?? readSummary(findGrokSummary(source));
+    const parsed = readSummary(source) ?? readSummary(findGrokSummary(this.resolveHome(), source));
 
     if (parsed === null) {
       return Promise.resolve(null);
@@ -277,6 +282,10 @@ export class GrokAdapter implements AgentAdapter {
     return event;
   }
 
+  private resolveHome(): string {
+    return this.home ?? resolveAgentHome('GROK_HOME', '.grok');
+  }
+
   // A Map preserves insertion order, so the first key is the oldest entry.
   private removeOldestHookState(): void {
     const oldest = this.hookState.keys().next().value;
@@ -287,14 +296,8 @@ export class GrokAdapter implements AgentAdapter {
   }
 }
 
-function buildGrokNameSource(sessionID: AgentSessionID, cwd: string): string {
-  return join(
-    resolveAgentHome('GROK_HOME', '.grok'),
-    'sessions',
-    encodeURIComponent(cwd),
-    sessionID,
-    'summary.json',
-  );
+function buildGrokNameSource(home: string, sessionID: AgentSessionID, cwd: string): string {
+  return join(home, 'sessions', encodeURIComponent(cwd), sessionID, 'summary.json');
 }
 
 function buildTurnDoneEvent(named: Readonly<AdapterEvent>, payload: GrokHookPayload): AdapterEvent {
@@ -323,14 +326,14 @@ function readSummary(source: string | null): Record<string, unknown> | null {
   }
 }
 
-function findGrokSummary(source: string): string | null {
+function findGrokSummary(home: string, source: string): string | null {
   const sessionID = source.split('/').at(-2);
 
   if (sessionID === undefined || sessionID === '') {
     return null;
   }
 
-  const root = join(resolveAgentHome('GROK_HOME', '.grok'), 'sessions');
+  const root = join(home, 'sessions');
 
   try {
     for (const group of readdirSync(root)) {

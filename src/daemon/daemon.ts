@@ -173,6 +173,11 @@ export interface DaemonOptions {
   // against, in epoch milliseconds; the wall clock when unset.
   readonly forgetClock?: () => number;
 
+  // Called with a session's id when it reports its start and the daemon
+  // leaves the last-used agent as it is, because no spawn is waiting on
+  // that start.
+  readonly onLastUsedUnchanged?: (sessionID: SessionID) => void;
+
   // When set, a TCP listener serves the client protocol on this address to
   // peers whose handshake presents a token from the token file.
   readonly listen?: ListenOptions;
@@ -941,9 +946,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         runtime.pendingLastUsed = false;
         void store.writeLastUsedAgent(started.agent);
       } else if (started !== undefined) {
-        mgr.log(
-          `atc daemon: session ${started.id} started outside a spawn; the last-used agent is unchanged`,
-        );
+        opts.onLastUsedUnchanged?.(started.id);
       }
     }
   };

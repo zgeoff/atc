@@ -1,9 +1,10 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import { restoreFleet } from './restore-fleet';
@@ -11,6 +12,11 @@ import type { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
 import type { Session } from './sessions';
 
+/**
+ * A session manager over a fresh state store, as one daemon life sees it,
+ * and `restarted`, a second manager over the same store, as the next life
+ * sees it.
+ */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
@@ -28,6 +34,12 @@ async function setupTest() {
     mgr.detachAll();
   });
 
+  const restarted = new SessionManager(buildMockAgentAdapter(), store, statusPath, []);
+
+  stack.defer(() => {
+    restarted.detachAll();
+  });
+
   const runtimes = new Map<string, SessionRuntime>();
 
   const owned = stack.move();
@@ -36,7 +48,7 @@ async function setupTest() {
     dir: tmp.dir,
     store,
     mgr,
-    statusPath,
+    restarted,
     findRuntime: (id: string) => runtimes.get(id),
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
@@ -46,13 +58,11 @@ test('it lists every restored session under the session id its row holds', async
   await using ctx = await setupTest();
 
   await ctx.store.writeFleet([
-    {
+    buildMockFleetEntry({
       sessionID: toSessionID('s-kept'),
-      name: 'kept',
       cwd: ctx.dir,
       agentSessionID: toAgentSessionID('c-kept'),
-      agent: 'claude',
-    },
+    }),
   ]);
 
   const restored = await restoreFleet({
@@ -97,14 +107,15 @@ test('it revives a listed dead session in place instead of listing its id twice'
 test('it keeps a sub-session under the session that resumed its parent agent session', async () => {
   await using ctx = await setupTest();
 
-  const parent = ctx.mgr.restore({
-    sessionID: toSessionID('s-parent'),
-    name: 'wrangler',
-    cwd: ctx.dir,
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-    exited: true,
-  });
+  const parent = ctx.mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-parent'),
+      name: 'wrangler',
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-parent'),
+      exited: true,
+    }),
+  );
 
   const child = await ctx.mgr.spawn(
     ctx.dir,
@@ -129,14 +140,8 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
 
   await ctx.mgr.writeFleet();
 
-  const restarted = new SessionManager(buildMockAgentAdapter(), ctx.store, ctx.statusPath, []);
-
-  onTestFinished(() => {
-    restarted.detachAll();
-  });
-
   await restoreFleet({
-    mgr: restarted,
+    mgr: ctx.restarted,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -147,12 +152,12 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
   // Every adopted terminal fires a fleet write; the last write queues
   // behind them, so none lands after the store closes.
   await waitFor(() => {
-    expect(restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
+    expect(ctx.restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
   });
 
-  await restarted.writeFleet();
+  await ctx.restarted.writeFleet();
 
-  const restoredChild = restarted.sessions.find((s) => s.id === child.id);
+  const restoredChild = ctx.restarted.sessions.find((s) => s.id === child.id);
 
   expect(restoredChild?.parent).toBe(resumed.id);
 });
@@ -160,14 +165,15 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
 test('it stores a sub-session under a sub-session that resumed their parent agent session', async () => {
   await using ctx = await setupTest();
 
-  const parent = ctx.mgr.restore({
-    sessionID: toSessionID('s-parent'),
-    name: 'wrangler',
-    cwd: ctx.dir,
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-    exited: true,
-  });
+  const parent = ctx.mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-parent'),
+      name: 'wrangler',
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-parent'),
+      exited: true,
+    }),
+  );
 
   const child = await ctx.mgr.spawn(
     ctx.dir,
@@ -208,14 +214,15 @@ test('it stores a sub-session under a sub-session that resumed their parent agen
 test('it keeps a sub-session under a sub-session that resumed their parent agent session', async () => {
   await using ctx = await setupTest();
 
-  const parent = ctx.mgr.restore({
-    sessionID: toSessionID('s-parent'),
-    name: 'wrangler',
-    cwd: ctx.dir,
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-    exited: true,
-  });
+  const parent = ctx.mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-parent'),
+      name: 'wrangler',
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-parent'),
+      exited: true,
+    }),
+  );
 
   const child = await ctx.mgr.spawn(
     ctx.dir,
@@ -229,8 +236,8 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
     parent.id,
   );
 
-  // Spawned under the session whose agent session it resumes, so the row
-  // it replaces is its own parent.
+  // Spawned under the session whose agent session it resumes, so the
+  // row it replaces is its own parent.
   const resumed = await ctx.mgr.spawn(
     ctx.dir,
     'wrangler',
@@ -245,14 +252,8 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
 
   await ctx.mgr.writeFleet();
 
-  const restarted = new SessionManager(buildMockAgentAdapter(), ctx.store, ctx.statusPath, []);
-
-  onTestFinished(() => {
-    restarted.detachAll();
-  });
-
   await restoreFleet({
-    mgr: restarted,
+    mgr: ctx.restarted,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -261,12 +262,12 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
   });
 
   await waitFor(() => {
-    expect(restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
+    expect(ctx.restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
   });
 
-  await restarted.writeFleet();
+  await ctx.restarted.writeFleet();
 
-  const restored = restarted.sessions.map((s) => [s.id, s.parent]);
+  const restored = ctx.restarted.sessions.map((s) => [s.id, s.parent]);
 
   expect(restored).toIncludeSameMembers([
     [child.id, resumed.id],
@@ -277,23 +278,25 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
 test('it restores two crossed resumes with the earlier one top-level and the later one under it', async () => {
   await using ctx = await setupTest();
 
-  const first = ctx.mgr.restore({
-    sessionID: toSessionID('s-p'),
-    name: 'p',
-    cwd: ctx.dir,
-    agentSessionID: toAgentSessionID('c-a'),
-    agent: 'claude',
-    exited: true,
-  });
+  const first = ctx.mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-p'),
+      name: 'p',
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-a'),
+      exited: true,
+    }),
+  );
 
-  const second = ctx.mgr.restore({
-    sessionID: toSessionID('s-q'),
-    name: 'q',
-    cwd: ctx.dir,
-    agentSessionID: toAgentSessionID('c-b'),
-    agent: 'claude',
-    exited: true,
-  });
+  const second = ctx.mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-q'),
+      name: 'q',
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-b'),
+      exited: true,
+    }),
+  );
 
   const resumedFirst = await ctx.mgr.spawn(
     ctx.dir,
@@ -321,14 +324,8 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
 
   await ctx.mgr.writeFleet();
 
-  const restarted = new SessionManager(buildMockAgentAdapter(), ctx.store, ctx.statusPath, []);
-
-  onTestFinished(() => {
-    restarted.detachAll();
-  });
-
   await restoreFleet({
-    mgr: restarted,
+    mgr: ctx.restarted,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -337,12 +334,12 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
   });
 
   await waitFor(() => {
-    expect(restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
+    expect(ctx.restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
   });
 
-  await restarted.writeFleet();
+  await ctx.restarted.writeFleet();
 
-  const restored = restarted.sessions.map((s) => [s.id, s.parent]);
+  const restored = ctx.restarted.sessions.map((s) => [s.id, s.parent]);
 
   expect(restored).toIncludeSameMembers([
     [resumedFirst.id, null],

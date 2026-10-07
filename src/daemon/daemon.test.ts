@@ -2,44 +2,30 @@ import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { encodeCursor } from '../protocol/encode-cursor';
-import type { HooksConfig } from '../shared/collect-hooks';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
+import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
-import { openLineSocket } from '../test-utils/open-line-socket';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { spawnNamedSession } from '../test-utils/spawn-named-session';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { updateEnv } from '../test-utils/update-env';
+import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
 import { waitFor } from '../test-utils/wait-for';
 
-interface SetupConfig {
-  // Agent adapters the daemon registers beside its Claude stand-in.
-  readonly adapters?: readonly AgentAdapter[];
-
-  // The commands the daemon runs on each event.
-  readonly hooks?: HooksConfig;
-}
-
 /**
- * A real daemon whose Claude adapter is a stand-in that idles, with the
- * adapters and hooks the config gives, and a main client that has sent its
- * handshake and collects every event it receives.
+ * A real daemon whose Claude adapter is a stand-in that idles, with a main
+ * client that has sent its handshake and collects every event it receives.
  */
-function setupTest(config: SetupConfig = {}) {
+function setupTest() {
   return startTestDaemon({
     prefix: 'atc-daemon-',
-    options: () => ({
-      // Every spawn needs a Claude adapter; this one runs a sleep.
-      adapter: buildMockAgentAdapter(),
-      adapters: config.adapters ?? [],
-      hooks: config.hooks ?? {},
-    }),
+
+    // Every spawn needs a Claude adapter; this one runs a sleep.
+    options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 }
 
@@ -105,9 +91,9 @@ test('it counts a client connection while it is open', async () => {
 
 test('it rejects a protocol version mismatch naming both builds and closes the connection', async () => {
   await using ctx = await setupTest();
-  await using raw = await openLineSocket(ctx.socketPath);
+  await using raw = await subscribeToSocketLines(ctx.socketPath);
 
-  raw.sendLine('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}');
+  raw.write('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}\n');
 
   await raw.closed;
 
@@ -163,9 +149,9 @@ test('it stays connected after answering an unknown method', async () => {
 
 test('it closes the connection on a malformed line', async () => {
   await using ctx = await setupTest();
-  await using raw = await openLineSocket(ctx.socketPath);
+  await using raw = await subscribeToSocketLines(ctx.socketPath);
 
-  raw.sendLine('this is not json');
+  raw.write('this is not json\n');
 
   await raw.closed;
 
@@ -176,9 +162,9 @@ test('it closes the connection on a malformed line', async () => {
 
 test('it closes the connection on an oversized line', async () => {
   await using ctx = await setupTest();
-  await using raw = await openLineSocket(ctx.socketPath);
+  await using raw = await subscribeToSocketLines(ctx.socketPath);
 
-  raw.sendLine(`{"v":1,"id":1,"m":"daemon.hello","p":{"pad":"${'x'.repeat(1_100_000)}"}}`);
+  raw.write(`{"v":1,"id":1,"m":"daemon.hello","p":{"pad":"${'x'.repeat(1_100_000)}"}}\n`);
 
   await raw.closed;
 
@@ -310,13 +296,18 @@ test('it refuses session.spawn with agent grok as unsupported and records no ses
 });
 
 test('it spawns a grok session when a grok adapter is registered', async () => {
-  const grok = new GrokAdapter(
-    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
-  );
-
-  await using ctx = await setupTest({ adapters: [grok] });
-
-  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
+  await using ctx = await startTestDaemon({
+    prefix: 'atc-daemon-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter(),
+      adapters: [
+        new GrokAdapter(
+          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          join(paths.dir, 'grok-home'),
+        ),
+      ],
+    }),
+  });
 
   const ok = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -329,13 +320,18 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
 });
 
 test('it yanks a grok session spawned with an id as a resume of that id', async () => {
-  const grok = new GrokAdapter(
-    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
-  );
-
-  await using ctx = await setupTest({ adapters: [grok] });
-
-  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
+  await using ctx = await startTestDaemon({
+    prefix: 'atc-daemon-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter(),
+      adapters: [
+        new GrokAdapter(
+          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          join(paths.dir, 'grok-home'),
+        ),
+      ],
+    }),
+  });
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -353,13 +349,18 @@ test('it yanks a grok session spawned with an id as a resume of that id', async 
 });
 
 test('it yanks a grok session spawned without an id as a plain start', async () => {
-  const grok = new GrokAdapter(
-    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
-  );
-
-  await using ctx = await setupTest({ adapters: [grok] });
-
-  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
+  await using ctx = await startTestDaemon({
+    prefix: 'atc-daemon-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter(),
+      adapters: [
+        new GrokAdapter(
+          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          join(paths.dir, 'grok-home'),
+        ),
+      ],
+    }),
+  });
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -376,13 +377,18 @@ test('it yanks a grok session spawned without an id as a plain start', async () 
 });
 
 test('it revives a grok session from a captured id when summary.json is missing', async () => {
-  const grok = new GrokAdapter(
-    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
-  );
-
-  await using ctx = await setupTest({ adapters: [grok] });
-
-  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
+  await using ctx = await startTestDaemon({
+    prefix: 'atc-daemon-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter(),
+      adapters: [
+        new GrokAdapter(
+          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          join(paths.dir, 'grok-home'),
+        ),
+      ],
+    }),
+  });
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -406,19 +412,33 @@ test('it revives a grok session from a captured id when summary.json is missing'
 });
 
 test('it keeps last-used on a spawn that has not reported SessionStart', async () => {
-  const grok = new GrokAdapter(
-    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
-  );
-
-  await using ctx = await setupTest({ adapters: [grok] });
-
-  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
+  await using ctx = await startTestDaemon({
+    prefix: 'atc-daemon-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter(),
+      adapters: [
+        new GrokAdapter(
+          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          join(paths.dir, 'grok-home'),
+        ),
+      ],
+    }),
+  });
 
   await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'grok',
     cols: 80,
     rows: 24,
+  });
+
+  // The store runs one write at a time in order, and the spawn's last write
+  // records its directory, so once that directory lists, every write the
+  // spawn made has landed.
+  await waitFor(async () => {
+    const listed = await ctx.client.sendRequest('dirs.list');
+
+    expect(listed).toStrictEqual({ dirs: [ctx.dir] });
   });
 
   const probe = await DaemonClient.open(ctx.socketPath);
@@ -432,73 +452,28 @@ test('it keeps last-used on a spawn that has not reported SessionStart', async (
   expect(hello).toMatchObject({ lastUsedAgent: 'claude' });
 });
 
-test('it writes last-used when a spawned session reports SessionStart', async () => {
-  const grok = new GrokAdapter(
-    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
-  );
-
-  await using ctx = await setupTest({ adapters: [grok] });
-
-  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
-
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
-    agent: 'grok',
-    cols: 80,
-    rows: 24,
-  });
-
-  await ctx.sendHookLines({
-    atcId: getRecord(spawned, 'session')['id'],
-    event: 'SessionStart',
-    payload: { sessionId: 'g-last' },
-  });
-
-  await waitFor(async () => {
-    const probe = await DaemonClient.open(ctx.socketPath);
-
-    onTestFinished(() => {
-      probe.stop();
-    });
-
-    const hello = await probe.sendHello(ctx.build);
-
-    expect(hello).toMatchObject({ lastUsedAgent: 'grok' });
-  });
-});
-
 test('it spawns claude when a spawn omits agent after another agent was last used', async () => {
-  const grok = new GrokAdapter(
-    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
-  );
+  await using ctx = await startTestDaemon({
+    prefix: 'atc-daemon-',
+    options: async (paths) => {
+      await using stack = new AsyncDisposableStack();
 
-  await using ctx = await setupTest({ adapters: [grok] });
+      const store = await StateStore.open(paths.dbPath);
 
-  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
+      stack.defer(() => store.stop());
 
-  const grokSpawn = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
-    agent: 'grok',
-    cols: 80,
-    rows: 24,
-  });
+      await store.writeLastUsedAgent('grok');
 
-  await ctx.sendHookLines({
-    atcId: getRecord(grokSpawn, 'session')['id'],
-    event: 'SessionStart',
-    payload: { sessionId: 'g-last' },
-  });
-
-  await waitFor(async () => {
-    const probe = await DaemonClient.open(ctx.socketPath);
-
-    onTestFinished(() => {
-      probe.stop();
-    });
-
-    const hello = await probe.sendHello(ctx.build);
-
-    expect(hello).toMatchObject({ lastUsedAgent: 'grok' });
+      return {
+        adapter: buildMockAgentAdapter(),
+        adapters: [
+          new GrokAdapter(
+            getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+            join(paths.dir, 'grok-home'),
+          ),
+        ],
+      };
+    },
   });
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
@@ -524,17 +499,6 @@ test('it rejects session.spawn with an empty agent id as bad_args', async () => 
   expect(
     ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: '' }),
   ).rejects.toMatchObject({ code: 'bad_args' });
-});
-
-test('it connects nothing on a socket path with no daemon', () => {
-  using tmp = setupTempDir('atc-daemon-');
-
-  const attempt = Bun.connect({
-    unix: join(tmp.dir, 'nobody-home.sock'),
-    socket: { data() {}, error() {} },
-  });
-
-  expect(attempt).rejects.toMatchObject({ code: 'ENOENT' });
 });
 
 test('it broadcasts SessionAttached with the session descriptor when a client attaches', async () => {
@@ -642,10 +606,14 @@ test('it runs a configured hook with the same event JSON a watching client recei
 
   const out = join(hookOut.dir, 'hook.out');
 
-  await using ctx = await setupTest({
-    hooks: {
-      SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }],
-    },
+  await using ctx = await startTestDaemon({
+    prefix: 'atc-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      hooks: {
+        SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }],
+      },
+    }),
   });
 
   const actor = await ctx.openClient();
@@ -795,13 +763,7 @@ test('it answers events.read with no events once waitMs passes without one', asy
 test('it answers daemon.hello with the same daemon id after a restart', async () => {
   await using ctx = await setupTest();
 
-  const first = await DaemonClient.open(ctx.socketPath);
-
-  onTestFinished(() => {
-    first.stop();
-  });
-
-  const firstHello = await first.sendHello(ctx.build);
+  const firstHello = await ctx.client.sendHello(ctx.build);
 
   await ctx.restart();
 

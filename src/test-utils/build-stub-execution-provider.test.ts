@@ -91,6 +91,9 @@ test('it suspends and destroys again once a failure is cleared', async () => {
 
   provider.setSuspendFailure(new Error('refused'));
   provider.setDestroyFailure(new Error('refused'));
+
+  await Promise.allSettled([provider.suspendHost('host-a'), provider.destroyHost('host-a')]);
+
   provider.setSuspendFailure(null);
   provider.setDestroyFailure(null);
 

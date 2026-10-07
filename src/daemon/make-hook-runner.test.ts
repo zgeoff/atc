@@ -4,31 +4,42 @@ import { join } from 'node:path';
 import type { EventMsg } from '../protocol/protocol';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { makeHookRunner } from './make-hook-runner';
+import type { HookOutcome } from './make-hook-runner';
 
-// A temp directory for the hooks to write into, and the commands a runner
-// call started, which resolve once every one of them has exited.
+// A temp directory for the hooks to write into, the outcomes of the hooks a
+// runner call started, which resolve once every one of them has ended, and
+// the kills the runner armed, which the test fires in place of the timer.
 function setupTest() {
   const tmp = setupTempDir('atc-hook-runner-');
-  const settled = Promise.withResolvers<readonly string[]>();
+  const settled = Promise.withResolvers<readonly HookOutcome[]>();
+  const kills: { readonly kill: () => void; readonly timeoutMs: number }[] = [];
 
   return {
     dir: tmp.dir,
     settled: settled.promise,
-    onSettled: (_event: EventMsg, commands: readonly string[]) => {
-      settled.resolve(commands);
+    kills,
+    options: {
+      onSettled: (_event: EventMsg, outcomes: readonly HookOutcome[]) => {
+        settled.resolve(outcomes);
+      },
+      scheduleKill: (kill: () => void, timeoutMs: number) => {
+        kills.push({ kill, timeoutMs });
+
+        return () => {};
+      },
     },
-    [Symbol.asyncDispose]: tmp[Symbol.asyncDispose],
+    [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
 test('it runs a hook with the event JSON on stdin and the event name in the environment', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const out = join(ctx.dir, 'out');
 
   const run = makeHookRunner(
     { SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }] },
-    ctx.onSettled,
+    ctx.options,
   );
 
   run(
@@ -44,7 +55,7 @@ test('it runs a hook with the event JSON on stdin and the event name in the envi
 });
 
 test('it runs a dir hook when the session repo root or cwd sits at or under the dir', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const run = makeHookRunner(
     {
@@ -53,7 +64,7 @@ test('it runs a dir hook when the session repo root or cwd sits at or under the 
         { command: `touch '${join(ctx.dir, 'above')}'`, dir: '/w' },
       ],
     },
-    ctx.onSettled,
+    ctx.options,
   );
 
   run({ v: 4, ev: 'SessionAttached' }, { cwd: '/w/repo/sub', repoRoot: '/w/repo' });
@@ -67,7 +78,7 @@ test('it runs a dir hook when the session repo root or cwd sits at or under the 
 });
 
 test('it skips a dir hook when the session path only shares a string prefix', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const run = makeHookRunner(
     {
@@ -76,20 +87,23 @@ test('it skips a dir hook when the session path only shares a string prefix', as
         { command: `touch '${join(ctx.dir, 'control')}'` },
       ],
     },
-    ctx.onSettled,
+    ctx.options,
   );
 
   run({ v: 4, ev: 'SessionAttached' }, { cwd: '/w/bc', repoRoot: '/w/bc' });
 
-  const commands = await ctx.settled;
+  const outcomes = await ctx.settled;
 
-  expect(commands).toStrictEqual([`touch '${join(ctx.dir, 'control')}'`]);
+  expect(outcomes).toStrictEqual([
+    { command: `touch '${join(ctx.dir, 'control')}'`, exitCode: 0, signalCode: null },
+  ]);
+
   expect(existsSync(join(ctx.dir, 'trap'))).toBeFalse();
   expect(existsSync(join(ctx.dir, 'control'))).toBeTrue();
 });
 
 test('it skips dir hooks for an event that carries no session', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const run = makeHookRunner(
     {
@@ -98,49 +112,65 @@ test('it skips dir hooks for an event that carries no session', async () => {
         { command: `touch '${join(ctx.dir, 'control')}'` },
       ],
     },
-    ctx.onSettled,
+    ctx.options,
   );
 
   run({ v: 4, ev: 'PermissionResolved', request: 'r1', decision: 'allow' }, null);
 
-  const commands = await ctx.settled;
+  const outcomes = await ctx.settled;
 
-  expect(commands).toStrictEqual([`touch '${join(ctx.dir, 'control')}'`]);
+  expect(outcomes).toStrictEqual([
+    { command: `touch '${join(ctx.dir, 'control')}'`, exitCode: 0, signalCode: null },
+  ]);
+
   expect(existsSync(join(ctx.dir, 'trap'))).toBeFalse();
   expect(existsSync(join(ctx.dir, 'control'))).toBeTrue();
 });
 
 test('it runs nothing for an event with no configured hooks', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const run = makeHookRunner(
     { SessionAttached: [{ command: `touch '${join(ctx.dir, 'trap')}'` }] },
-    ctx.onSettled,
+    ctx.options,
   );
 
   run({ v: 4, ev: 'SessionState', session: { id: 's1' } }, { cwd: '/w', repoRoot: '/w' });
 
-  const commands = await ctx.settled;
+  const outcomes = await ctx.settled;
 
-  expect(commands).toBeEmpty();
+  expect(outcomes).toBeEmpty();
   expect(existsSync(join(ctx.dir, 'trap'))).toBeFalse();
 });
 
 test('it kills a hook that runs past its timeout', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
-  const out = join(ctx.dir, 'out');
+  const command = 'exec sleep 30';
+  const run = makeHookRunner({ SessionAttached: [{ command, timeout: 500 }] }, ctx.options);
 
-  const run = makeHookRunner(
-    {
-      SessionAttached: [{ command: `printf start >> '${out}'; exec sleep 30`, timeout: 500 }],
-    },
-    ctx.onSettled,
-  );
+  run({ v: 4, ev: 'SessionAttached' }, null);
+
+  for (const armed of ctx.kills) {
+    armed.kill();
+  }
+
+  const outcomes = await ctx.settled;
+
+  expect({ timeouts: ctx.kills.map((armed) => armed.timeoutMs), outcomes }).toStrictEqual({
+    timeouts: [500],
+    outcomes: [{ command, exitCode: null, signalCode: 'SIGTERM' }],
+  });
+});
+
+test('it arms the default timeout for a hook that sets none', async () => {
+  using ctx = setupTest();
+
+  const run = makeHookRunner({ SessionAttached: [{ command: 'true' }] }, ctx.options);
 
   run({ v: 4, ev: 'SessionAttached' }, null);
 
   await ctx.settled;
 
-  expect(readFileSync(out, 'utf8')).toBe('start');
+  expect(ctx.kills.map((armed) => armed.timeoutMs)).toStrictEqual([10_000]);
 });

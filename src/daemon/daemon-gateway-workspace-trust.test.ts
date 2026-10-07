@@ -18,23 +18,27 @@ import { createStubBin } from '../test-utils/create-stub-bin';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
-interface TestConfig {
-  // The options both the imp target `box` and the `local` target carry.
-  readonly targetOptions?: Readonly<Record<string, unknown>>;
-}
-
-// A real daemon with a `glm` gateway and stock Claude, serving the imp
-// target `box` over a fixture imp port and the `local` target, beside a git
-// repository a spawn can clone. Each agent run appends a line to `marker`.
-async function setupTest(config: TestConfig = {}) {
+// The fixed parts every test's daemon runs on: a fixture imp port behind
+// the imp provider `box` serves, a local provider, a `glm` gateway and stock
+// Claude, and a git repository a spawn can clone, in a temp directory. Each
+// agent run appends a line to `marker`. `options` holds the daemon options
+// besides its targets.
+async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
+  const tmp = stack.use(setupTempDir('atc-workspace-trust-'));
   const port = stack.use(new FixtureImpPort());
+
+  // A command a test holds would keep the daemon from stopping.
+  stack.defer(() => {
+    port.stopCommandHold();
+  });
 
   // A gateway launch on an imp needs a grantable broker secret for its
   // auth profile.
@@ -54,95 +58,85 @@ async function setupTest(config: TestConfig = {}) {
 
   stack.use(git);
 
-  const daemon = await startTestDaemon({
-    prefix: 'atc-workspace-trust-',
-    options: (paths) => {
-      // Each agent run records that it started, so a test sees whether a
-      // launch went ahead.
-      const fakeClaude = createStubBin(
-        paths.dir,
-        'fake-claude',
-        `#!/bin/sh\necho started >> "${join(paths.dir, 'started')}"\nexec sleep 30\n`,
-      );
+  const marker = join(tmp.dir, 'started');
 
-      // The imp provider installs this as the guest's atc.
-      const guestATC = createStubBin(paths.dir, 'atc', '#!/bin/sh\nexit 0\n');
+  // Each agent run records that it started, so a test sees whether a launch
+  // went ahead.
+  const fakeClaude = createStubBin(
+    tmp.dir,
+    'fake-claude',
+    `#!/bin/sh\necho started >> "${marker}"\nexec sleep 30\n`,
+  );
 
-      const provider = new ImpProvider(
-        port,
-        { guestDir: join(paths.dir, 'guest'), guestATC },
-        { atcBinary: null },
-      );
+  // The imp provider installs this as the guest's atc.
+  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
 
-      stack.defer(() => {
-        provider.dispose();
-      });
+  const box = new ImpProvider(
+    port,
+    { guestDir: join(tmp.dir, 'guest'), guestATC },
+    { atcBinary: null },
+  );
 
-      const agents = parseConfig({
-        claudeBin: fakeClaude,
-        authProfiles: {
-          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-        },
-        gateways: {
-          glm: {
-            baseURL: 'https://api.z.ai/api/anthropic',
-            auth: {
-              profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
-            },
-          },
-        },
-      });
-
-      return {
-        adapters: [
-          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
-        ],
-        gitTransports: ['file'],
-        targets: [
-          {
-            id: 'box',
-            kind: 'imp',
-            options: config.targetOptions ?? {},
-            identity: 'imp:test',
-            provider,
-          },
-          {
-            id: 'local',
-            kind: 'local-pty',
-            options: config.targetOptions ?? {},
-            identity: 'local:test',
-            provider: new LocalPTYProvider(),
-          },
-        ],
-        defaultTarget: 'box',
-      };
-    },
+  stack.defer(() => {
+    box.dispose();
   });
 
-  stack.use(daemon);
-
-  // A command a test holds would keep the daemon from stopping.
-  stack.defer(() => {
-    port.stopCommandHold();
+  const agents = parseConfig({
+    claudeBin: fakeClaude,
+    authProfiles: {
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    gateways: {
+      glm: {
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
   });
 
   const owned = stack.move();
 
   return {
-    client: daemon.client,
+    dir: tmp.dir,
+    guestDir: join(tmp.dir, 'guest'),
+    marker,
     port,
-    dir: daemon.dir,
-    guestDir: join(daemon.dir, 'guest'),
-    marker: join(daemon.dir, 'started'),
     work: git.work,
+    box,
+    local: new LocalPTYProvider(),
+    options: {
+      adapters: [
+        new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+        new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+      ],
+      gitTransports: ['file'],
+      defaultTarget: 'box',
+    },
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it trusts only the resolved cloned root after an opted-in brokered launch', async () => {
   await using ctx = await setupTest();
+
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      ...ctx.options,
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: ctx.local,
+        },
+      ],
+    }),
+  });
 
   const parent = join(ctx.dir, 'physical');
   const alias = join(ctx.dir, 'alias');
@@ -152,7 +146,7 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
 
   const root = join(parent, 'clone');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     trustClonedWorkspace: true,
     cwd: join(alias, 'clone'),
     agent: 'glm',
@@ -182,7 +176,7 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
   });
 
   expect(start.argv).toIncludeAllMembers(['--permission-mode', 'default']);
-  expect(start.argv).not.toInclude('--dangerously-skip-permissions');
+  expect(start.argv).not.toContain('--dangerously-skip-permissions');
 
   expect(readFileSync(join(root, 'README.md'), 'utf8')).toBe(
     readFileSync(join(ctx.work, 'README.md'), 'utf8'),
@@ -195,7 +189,23 @@ test.each([
 ])('it leaves cloned workspaces untrusted with opt-in %s', async (_label, launch) => {
   await using ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      ...ctx.options,
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: ctx.local,
+        },
+      ],
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     ...launch,
     cwd: join(ctx.dir, 'clone'),
     agent: 'glm',
@@ -219,7 +229,23 @@ test.each([
 test('it refuses trust for an existing folder before touching the imp', async () => {
   await using ctx = await setupTest();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      ...ctx.options,
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: ctx.local,
+        },
+      ],
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     agent: 'glm',
     target: 'box',
@@ -236,12 +262,34 @@ test.each([
 ])(
   'it does not seed trust before clone verification or launch after a mismatch with target %s and launch %s',
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
-    await using ctx = await setupTest({ targetOptions });
+    await using ctx = await setupTest();
+
+    await using daemon = await startTestDaemon({
+      options: () => ({
+        ...ctx.options,
+        targets: [
+          {
+            id: 'box',
+            kind: 'imp',
+            options: targetOptions,
+            identity: 'imp:test',
+            provider: ctx.box,
+          },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: targetOptions,
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      }),
+    });
 
     const hold = ctx.port.startCommandHold('rev-parse');
     const root = join(ctx.dir, 'clone');
 
-    const spawn = ctx.client.sendRequest('session.spawn', {
+    const spawn = daemon.client.sendRequest('session.spawn', {
       ...launch,
       cwd: root,
       agent: 'glm',
@@ -280,9 +328,25 @@ test.each([
 test('it refuses clone trust for stock Claude on an imp target before preparing a host', async () => {
   await using ctx = await setupTest();
 
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      ...ctx.options,
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: ctx.local,
+        },
+      ],
+    }),
+  });
+
   const root = join(ctx.dir, 'clone');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: root,
     agent: 'claude',
     target: 'box',
@@ -299,9 +363,25 @@ test('it refuses clone trust for stock Claude on an imp target before preparing 
 test('it refuses clone trust for a gateway on the local target before cloning', async () => {
   await using ctx = await setupTest();
 
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      ...ctx.options,
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: ctx.local,
+        },
+      ],
+    }),
+  });
+
   const root = join(ctx.dir, 'clone');
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: root,
     agent: 'glm',
     target: 'local',
@@ -320,14 +400,36 @@ test.each([
 ])(
   'it preserves an existing guest config byte for byte during an opted-in clone launch with target %s and launch %s',
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
-    await using ctx = await setupTest({ targetOptions });
+    await using ctx = await setupTest();
+
+    await using daemon = await startTestDaemon({
+      options: () => ({
+        ...ctx.options,
+        targets: [
+          {
+            id: 'box',
+            kind: 'imp',
+            options: targetOptions,
+            identity: 'imp:test',
+            provider: ctx.box,
+          },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: targetOptions,
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      }),
+    });
 
     const hold = ctx.port.startCommandHold('rev-parse');
 
     const existing =
       '{"hasCompletedOnboarding":true,"projects":{"/previous":{"hasTrustDialogAccepted":false}},"custom":"preserve"}\n';
 
-    const spawn = ctx.client.sendRequest('session.spawn', {
+    const spawn = daemon.client.sendRequest('session.spawn', {
       ...launch,
       cwd: join(ctx.dir, 'clone'),
       agent: 'glm',
@@ -366,9 +468,31 @@ test.each([
 ])(
   'it removes a child clone after the trust-seed transfer fails with target %s and launch %s',
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
-    await using ctx = await setupTest({ targetOptions });
+    await using ctx = await setupTest();
 
-    const parent = await ctx.client.sendRequest('session.spawn', {
+    await using daemon = await startTestDaemon({
+      options: () => ({
+        ...ctx.options,
+        targets: [
+          {
+            id: 'box',
+            kind: 'imp',
+            options: targetOptions,
+            identity: 'imp:test',
+            provider: ctx.box,
+          },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: targetOptions,
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      }),
+    });
+
+    const parent = await daemon.client.sendRequest('session.spawn', {
       cwd: ctx.work,
       agent: 'glm',
       target: 'box',
@@ -379,7 +503,7 @@ test.each([
     const root = join(ctx.dir, 'child');
     const hold = ctx.port.startCommandHold('rev-parse');
 
-    const spawn = ctx.client.sendRequest('session.spawn', {
+    const spawn = daemon.client.sendRequest('session.spawn', {
       ...launch,
       cwd: root,
       agent: 'glm',
@@ -420,9 +544,31 @@ test.each([
 ])(
   'it permits a keyed retry of a child launch whose trust-seed transfer failed with target %s and launch %s',
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
-    await using ctx = await setupTest({ targetOptions });
+    await using ctx = await setupTest();
 
-    const parent = await ctx.client.sendRequest('session.spawn', {
+    await using daemon = await startTestDaemon({
+      options: () => ({
+        ...ctx.options,
+        targets: [
+          {
+            id: 'box',
+            kind: 'imp',
+            options: targetOptions,
+            identity: 'imp:test',
+            provider: ctx.box,
+          },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: targetOptions,
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      }),
+    });
+
+    const parent = await daemon.client.sendRequest('session.spawn', {
       cwd: ctx.work,
       agent: 'glm',
       target: 'box',
@@ -432,7 +578,7 @@ test.each([
     const parentID = String(getRecord(parent, 'session')['id']);
     const hold = ctx.port.startCommandHold('rev-parse');
 
-    const request = {
+    const failed = daemon.client.sendRequest('session.spawn', {
       ...launch,
       cwd: join(ctx.dir, 'child'),
       agent: 'glm',
@@ -440,9 +586,7 @@ test.each([
       parent: parentID,
       workspace: { kind: 'path', path: ctx.work },
       idempotencyKey: 'trust-transfer-retry',
-    };
-
-    const failed = ctx.client.sendRequest('session.spawn', request);
+    });
 
     await hold.entered;
 
@@ -463,8 +607,17 @@ test.each([
 
     await Promise.allSettled([failed]);
 
-    const retried = await ctx.client.sendRequest('session.spawn', request);
-    const parentState = await ctx.client.sendRequest('session.get', { session: parentID });
+    const retried = await daemon.client.sendRequest('session.spawn', {
+      ...launch,
+      cwd: join(ctx.dir, 'child'),
+      agent: 'glm',
+      target: 'box',
+      parent: parentID,
+      workspace: { kind: 'path', path: ctx.work },
+      idempotencyKey: 'trust-transfer-retry',
+    });
+
+    const parentState = await daemon.client.sendRequest('session.get', { session: parentID });
 
     expect(getRecord(retried, 'session')).toMatchObject({ alive: true, parent: parentID });
     expect(getRecord(parentState, 'session')).toMatchObject({ alive: true });
@@ -480,9 +633,31 @@ test.each([
 ])(
   'it leaves the clone untrusted for target trust %s and launch override %s',
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
-    await using ctx = await setupTest({ targetOptions });
+    await using ctx = await setupTest();
 
-    const spawned = await ctx.client.sendRequest('session.spawn', {
+    await using daemon = await startTestDaemon({
+      options: () => ({
+        ...ctx.options,
+        targets: [
+          {
+            id: 'box',
+            kind: 'imp',
+            options: targetOptions,
+            identity: 'imp:test',
+            provider: ctx.box,
+          },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: targetOptions,
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      }),
+    });
+
+    const spawned = await daemon.client.sendRequest('session.spawn', {
       ...launch,
       cwd: join(ctx.dir, 'clone'),
       agent: 'glm',
@@ -512,11 +687,33 @@ test.each([
 ])(
   'it trusts the clone for target trust %s and launch override %s',
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
-    await using ctx = await setupTest({ targetOptions });
+    await using ctx = await setupTest();
+
+    await using daemon = await startTestDaemon({
+      options: () => ({
+        ...ctx.options,
+        targets: [
+          {
+            id: 'box',
+            kind: 'imp',
+            options: targetOptions,
+            identity: 'imp:test',
+            provider: ctx.box,
+          },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: targetOptions,
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      }),
+    });
 
     const root = join(ctx.dir, 'clone');
 
-    const spawned = await ctx.client.sendRequest('session.spawn', {
+    const spawned = await daemon.client.sendRequest('session.spawn', {
       ...launch,
       cwd: root,
       agent: 'glm',
@@ -542,9 +739,31 @@ test.each([
 );
 
 test('it refuses an inherited trust default without a clone before touching the imp', async () => {
-  await using ctx = await setupTest({ targetOptions: { trustClonedWorkspace: true } });
+  await using ctx = await setupTest();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      ...ctx.options,
+      targets: [
+        {
+          id: 'box',
+          kind: 'imp',
+          options: { trustClonedWorkspace: true },
+          identity: 'imp:test',
+          provider: ctx.box,
+        },
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: { trustClonedWorkspace: true },
+          identity: 'local:test',
+          provider: ctx.local,
+        },
+      ],
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     agent: 'glm',
     target: 'box',
@@ -555,9 +774,31 @@ test('it refuses an inherited trust default without a clone before touching the 
 });
 
 test('it refuses inherited clone trust for stock Claude on an imp target', async () => {
-  await using ctx = await setupTest({ targetOptions: { trustClonedWorkspace: true } });
+  await using ctx = await setupTest();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      ...ctx.options,
+      targets: [
+        {
+          id: 'box',
+          kind: 'imp',
+          options: { trustClonedWorkspace: true },
+          identity: 'imp:test',
+          provider: ctx.box,
+        },
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: { trustClonedWorkspace: true },
+          identity: 'local:test',
+          provider: ctx.local,
+        },
+      ],
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'box',
@@ -569,9 +810,31 @@ test('it refuses inherited clone trust for stock Claude on an imp target', async
 });
 
 test('it permits an ordinary folder launch when false overrides inherited trust', async () => {
-  await using ctx = await setupTest({ targetOptions: { trustClonedWorkspace: true } });
+  await using ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      ...ctx.options,
+      targets: [
+        {
+          id: 'box',
+          kind: 'imp',
+          options: { trustClonedWorkspace: true },
+          identity: 'imp:test',
+          provider: ctx.box,
+        },
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: { trustClonedWorkspace: true },
+          identity: 'local:test',
+          provider: ctx.local,
+        },
+      ],
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.work,
     agent: 'glm',
     target: 'box',

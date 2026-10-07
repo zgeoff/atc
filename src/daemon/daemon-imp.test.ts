@@ -1,8 +1,11 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { getRecord } from '../shared/get-record';
+import { toSessionID } from '../shared/to-session-id';
+import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { createStubBin } from '../test-utils/create-stub-bin';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -71,6 +74,7 @@ done
     client: daemon.client,
     events: daemon.events,
     dir: daemon.dir,
+    dbPath: daemon.dbPath,
     port,
     daemonID: String(hello['daemonID']),
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
@@ -239,13 +243,53 @@ test('it starts a remote harness with only the variables atc sets, never the dae
     throw new Error('the spawn sent no start request');
   }
 
-  const id = String(getRecord(spawned, 'session')['id']);
+  expect<Readonly<Record<string, unknown>>>(request.env).toStrictEqual({
+    ATC_BRIDGE: '1',
+    ATC_OUTBOX: expect.stringMatching(new RegExp(`^${ctx.dir}/g/run/[0-9a-f]{16}\\.outbox$`)),
+    ATC_SESSION_ID: getRecord(spawned, 'session')['id'],
+    ATC_SOCKET: expect.stringMatching(new RegExp(`^${ctx.dir}/g/run/[0-9a-f]{16}\\.sock$`)),
+    LANG: 'C.UTF-8',
+    PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    TERM: 'xterm-256color',
+  });
+});
+
+test('it revives a remote harness with only the variables atc sets, never the daemon environment', async () => {
+  await using ctx = await setupTest();
+
+  const store = await StateStore.open(ctx.dbPath);
+
+  onTestFinished(() => store.stop());
+
+  await store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0'),
+      cwd: ctx.dir,
+      target: 'box',
+      targetIdentity: 'imp:test',
+    }),
+  ]);
+
+  updateEnv('ATC_TEST_DAEMON_CANARY', 'daemon-only');
+  updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'fixture-not-a-secret');
+
+  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const request = await waitFor(() => {
+    const [sent] = ctx.port.sessionRequests;
+
+    if (sent?.kind !== 'start') {
+      throw new Error('the restore has sent no start request yet');
+    }
+
+    return sent;
+  });
 
   expect<Readonly<Record<string, unknown>>>(request.env).toStrictEqual({
     ATC_BRIDGE: '1',
-    ATC_OUTBOX: join(ctx.dir, 'g', 'run', `${id.replaceAll('-', '').slice(0, 16)}.outbox`),
-    ATC_SESSION_ID: id,
-    ATC_SOCKET: join(ctx.dir, 'g', 'run', `${id.replaceAll('-', '').slice(0, 16)}.sock`),
+    ATC_OUTBOX: join(ctx.dir, 'g', 'run', '0f1e2d3c4b5a6978.outbox'),
+    ATC_SESSION_ID: '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0',
+    ATC_SOCKET: join(ctx.dir, 'g', 'run', '0f1e2d3c4b5a6978.sock'),
     LANG: 'C.UTF-8',
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     TERM: 'xterm-256color',
@@ -262,7 +306,7 @@ test('it revives a slept session inside the same process by waking its imp', asy
     resume: 'agent-session-1',
   });
 
-  const id = getRecord(spawned, 'session')['id'];
+  const id = String(getRecord(spawned, 'session')['id']);
 
   await ctx.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
 
@@ -425,7 +469,7 @@ test('it revives a session whose imp another owner put to sleep in the same proc
     resume: 'agent-session-1',
   });
 
-  const id = getRecord(spawned, 'session')['id'];
+  const id = String(getRecord(spawned, 'session')['id']);
   const [imp] = ctx.port.collectImpNames();
 
   await ctx.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
@@ -484,11 +528,13 @@ test('it gives its lease back when a session it revived from sleep exits', async
     resume: 'agent-session-1',
   });
 
-  const id = getRecord(spawned, 'session')['id'];
-  const [imp] = ctx.port.collectImpNames();
+  const id = String(getRecord(spawned, 'session')['id']);
 
   await ctx.client.sendRequest('session.kill', { session: id });
   await ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  const [imp] = ctx.port.collectImpNames();
+
   await ctx.client.sendRequest('session.input', { session: id, d: 'quit\r' });
 
   await waitFor(() => {
