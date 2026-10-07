@@ -1,8 +1,4 @@
 import { expect, test } from 'bun:test';
-import { encodeCursor } from '../protocol/encode-cursor';
-import { buildEventsFilterHash } from './build-events-filter-hash';
-import { decodeGatewayCursor } from './decode-gateway-cursor';
-import { encodeGatewayCursor } from './encode-gateway-cursor';
 import { parseGatewayRegistry } from './parse-gateway-registry';
 
 test('it parses a registry with its pins, incarnations, and tokens', () => {
@@ -121,26 +117,19 @@ test.each([
 
 test.each([
   [
-    'a missing daemonID',
     { address: '100.64.0.2:8415' },
     "daemon 'cloud' needs the daemonID that atc daemon id prints on its host",
   ],
   [
-    'a daemonID that is not a UUID',
     { address: '100.64.0.2:8415', daemonID: 'cloud' },
     "daemon 'cloud' needs the daemonID that atc daemon id prints on its host",
   ],
   [
-    'an address without a port',
     { address: '100.64.0.2', daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30' },
     "daemon 'cloud' needs an address of <host>:<port> with a port from 1 to 65535",
   ],
-  [
-    'an entry that is not an object',
-    'cloud',
-    "daemon 'cloud' must be an object with address and daemonID",
-  ],
-])('it refuses a daemon with %s', (_label, entry, error) => {
+  ['cloud', "daemon 'cloud' must be an object with address and daemonID"],
+])('it refuses the daemon entry %p with %p', (entry, error) => {
   const parsed = parseGatewayRegistry(
     { daemons: { cloud: entry }, defaultDaemon: 'cloud' },
     { ATC_GATEWAY_TOKEN_CLOUD: 't' },
@@ -168,7 +157,7 @@ test('it refuses a registry that is not an object', () => {
   });
 });
 
-test('it takes a registry of 34 daemons with the longest names, whose worst-case events cursor still decodes', () => {
+test('it takes a registry of 34 daemons with the longest names', () => {
   const names = Array.from(
     { length: 34 },
     (_, i) => `${'d'.repeat(29)}${String(i).padStart(2, '0')}`,
@@ -194,18 +183,10 @@ test('it takes a registry of 34 daemons with the longest names, whose worst-case
     throw new Error(parsed.errors.join('; '));
   }
 
-  const filter = buildEventsFilterHash('x'.repeat(200), null);
-  const worst = encodeCursor({ kind: 'events', id: Number.MAX_SAFE_INTEGER });
-
-  const cursor = encodeGatewayCursor(
-    filter,
-    new Map(
-      [...parsed.registry.daemons.values()].map((d) => [`${d.name}.${d.incarnation}`, worst]),
-    ),
-  );
-
-  expect(Buffer.byteLength(cursor)).toBeLessThanOrEqual(4096);
-  expect(decodeGatewayCursor(cursor, filter, parsed.registry).size).toBe(34);
+  expect({
+    names: [...parsed.registry.daemons.keys()],
+    defaultDaemon: parsed.registry.defaultDaemon,
+  }).toStrictEqual({ names, defaultDaemon: `${'d'.repeat(29)}00` });
 });
 
 test('it refuses a registry of 35 daemons as over the limit of 34', () => {

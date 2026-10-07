@@ -32,6 +32,12 @@ export interface DaemonHello {
   readonly retentionMs: number | null;
 }
 
+/**
+ * Runs `onTimeout` once `ms` milliseconds have passed, and returns what
+ * cancels it.
+ */
+export type TimeoutScheduler = (onTimeout: () => void, ms: number) => () => void;
+
 interface DaemonCallerOptions {
   readonly daemon: RegistryDaemon;
   readonly build: string;
@@ -43,6 +49,9 @@ interface DaemonCallerOptions {
   // a sent request may wait for its response.
   readonly connectTimeoutMs?: number;
   readonly responseTimeoutMs?: number;
+
+  // Starts the connect and response timers; real timers when unset.
+  readonly scheduleTimeout?: TimeoutScheduler;
 }
 
 // One handshaken connection and what its handshake returned.
@@ -253,7 +262,7 @@ export class DaemonCaller {
     // gets its own wait on top of the response time.
     const waitMs = typeof sent['waitMs'] === 'number' && sent['waitMs'] > 0 ? sent['waitMs'] : 0;
 
-    const timer = setTimeout(
+    const cancelTimeout = this.scheduleTimeout(
       () => {
         timeout.resolve('timeout');
       },
@@ -272,7 +281,7 @@ export class DaemonCaller {
 
     const raced = await Promise.race([settled, timeout.promise]);
 
-    clearTimeout(timer);
+    cancelTimeout();
 
     if (raced === 'timeout') {
       this.closed.add(channel);
@@ -304,6 +313,10 @@ export class DaemonCaller {
       this.current = null;
       this.connection = null;
     }
+  }
+
+  private scheduleTimeout(onTimeout: () => void, ms: number): () => void {
+    return (this.opts.scheduleTimeout ?? scheduleRealTimeout)(onTimeout, ms);
   }
 
   private buildOutcomeUnknown(m: string): DaemonError {
@@ -340,7 +353,7 @@ export class DaemonCaller {
 
     const timeout = Promise.withResolvers<'timeout'>();
 
-    const timer = setTimeout(() => {
+    const cancelTimeout = this.scheduleTimeout(() => {
       timeout.resolve('timeout');
     }, this.opts.connectTimeoutMs ?? CONNECT_TIMEOUT_MS);
 
@@ -396,7 +409,7 @@ export class DaemonCaller {
       resetConnection();
       throw error;
     } finally {
-      clearTimeout(timer);
+      cancelTimeout();
     }
   }
 
@@ -469,5 +482,13 @@ function buildDaemonHello(
     daemonID,
     features: parseDaemonFeatures(answer),
     retentionMs: typeof retention === 'number' && retention > 0 ? retention : null,
+  };
+}
+
+function scheduleRealTimeout(onTimeout: () => void, ms: number): () => void {
+  const timer = setTimeout(onTimeout, ms);
+
+  return () => {
+    clearTimeout(timer);
   };
 }

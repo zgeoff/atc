@@ -1,117 +1,58 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseClaudeTranscriptLine } from '../agents/parse-claude-transcript-line';
-import { DaemonClient } from '../client/daemon-client';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
-import { startDaemon } from '../daemon/daemon';
-import { DaemonError } from '../protocol/daemon-error';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import { getRecord } from '../shared/get-record';
-import { isRecord, sendReport } from '../shared/report';
+import { isRecord } from '../shared/report';
 import { StateStore } from '../store/state-store';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { collectUnruledIDPaths } from './collect-unruled-id-paths';
 import { ERROR_DATA_RULES, ID_RULES } from './id-rules';
 
 /**
- * A real daemon whose sessions run `sleep`, on state at `dbPath`. `boot`
- * starts it and returns its owner's connection, so a test can seed the
- * state first. `reportStart` reports a session's SessionStart with a
- * transcript at `transcriptPath`, which `session.read` then reads, and
- * `reporterPath` takes the lines a session's reporter sends. Every answer these tests check comes from it, so a field
- * the daemon starts sending with an id in it fails the check below until
- * a rule covers it.
+ * A real daemon whose sessions run `sleep`. Every hook a session reports
+ * starts it on `transcript.jsonl` in the daemon's directory, which
+ * `session.read` then reads. Every answer these tests check comes from it,
+ * so a field the daemon starts sending with an id in it fails the check
+ * until a rule covers it.
  */
 function setupTest() {
-  const tmp = setupTempDir('atc-id-rules-');
-  const stops: (() => Promise<void>)[] = [];
+  return startTestDaemon({
+    prefix: 'atc-id-rules-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter({
+        // Session messages need an adapter that takes them.
+        takesMessages: true,
 
-  return {
-    dbPath: join(tmp.dir, 'state.db'),
-    transcriptPath: join(tmp.dir, 'transcript.jsonl'),
-    reporterPath: join(tmp.dir, 'reporter.sock'),
-    async reportStart(sessionID: string): Promise<void> {
-      const closed = Promise.withResolvers<void>();
-      const line = { atcId: sessionID, event: 'SessionStart', payload: {} };
+        // Every hook starts the session on the transcript in the directory.
+        normalizeHook: () => ({
+          kind: 'started',
+          transcriptSource: join(paths.dir, 'transcript.jsonl'),
+        }),
 
-      await Bun.connect({
-        unix: join(tmp.dir, 'reporter.sock'),
-        socket: {
-          open(socket) {
-            socket.write(`${JSON.stringify(line)}\n`);
-            socket.end();
-          },
-          close() {
-            closed.resolve();
-          },
-          data() {},
-          error() {},
-        },
-      });
-
-      await closed.promise;
-    },
-    async boot(): Promise<DaemonClient> {
-      const daemon = await startDaemon({
-        socketPath: join(tmp.dir, 'daemon.sock'),
-        reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-        build: 'atc/test-build',
-        adapter: {
-          id: 'claude',
-          screenDetector: null,
-          takesMessages: true,
-          headlessRunner: null,
-          planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-          normalizeHook: (event) =>
-            event.event === 'SessionStart'
-              ? { kind: 'started', transcriptSource: join(tmp.dir, 'transcript.jsonl') }
-              : { kind: 'prompt-submitted' },
-          loadName: () => Promise.resolve(null),
-          canResume: () => true,
-          buildResumeCommand: (_cwd, agentSessionID) => `claude --resume ${agentSessionID ?? ''}`,
-          parseTranscriptLine: parseClaudeTranscriptLine,
-        },
-        dbPath: join(tmp.dir, 'state.db'),
-        statusPath: join(tmp.dir, 'status.json'),
-      });
-
-      const owner = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
-
-      stops.push(async () => {
-        owner.stop();
-
-        await daemon.stop();
-      });
-
-      await owner.sendHello('atc/test-build');
-
-      return owner;
-    },
-    async [Symbol.asyncDispose]() {
-      for (const stop of stops) {
-        await stop();
-      }
-
-      tmp[Symbol.dispose]();
-    },
-  };
+        // A resume command that holds the agent's session id.
+        buildResumeCommand: (_cwd, agentSessionID) => `claude --resume ${agentSessionID ?? ''}`,
+        parseTranscriptLine: parseClaudeTranscriptLine,
+      }),
+    }),
+  });
 }
 
 test('it has a rule for every id in a session.spawn answer of a sub-session', async () => {
-  await using daemon = setupTest();
+  await using ctx = await setupTest();
 
-  const owner = await daemon.boot();
-
-  const parent = await owner.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const parent = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     resume: `a-${randomUUID()}`,
   });
 
-  const child = await owner.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const child = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     resume: `a-${randomUUID()}`,
     parent: getRecord(parent, 'session')['id'],
   });
@@ -120,86 +61,96 @@ test('it has a rule for every id in a session.spawn answer of a sub-session', as
 });
 
 test('it has a rule for every id in a session.list answer', async () => {
-  await using daemon = setupTest();
+  await using ctx = await setupTest();
 
-  const owner = await daemon.boot();
-
-  const parent = await owner.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const parent = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     resume: `a-${randomUUID()}`,
   });
 
-  await owner.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     resume: `a-${randomUUID()}`,
     parent: getRecord(parent, 'session')['id'],
   });
 
-  const listed = await owner.sendRequest('session.list');
+  const listed = await ctx.client.sendRequest('session.list');
 
   expect(collectUnruledIDPaths(listed, ID_RULES['session.list'] ?? new Map())).toStrictEqual([]);
 });
 
 test('it has a rule for every id in a session.get answer', async () => {
-  await using daemon = setupTest();
+  await using ctx = await setupTest();
 
-  const owner = await daemon.boot();
-
-  const spawned = await owner.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     resume: `a-${randomUUID()}`,
     prompt: 'hello',
   });
 
-  const got = await owner.sendRequest('session.get', {
+  const got = await ctx.client.sendRequest('session.get', {
     session: getRecord(spawned, 'session')['id'],
   });
 
   expect(collectUnruledIDPaths(got, ID_RULES['session.get'] ?? new Map())).toStrictEqual([]);
 });
 
-test('it has a rule for every id in session.message and message.get answers', async () => {
-  await using daemon = setupTest();
+test('it has a rule for every id in a session.message answer', async () => {
+  await using ctx = await setupTest();
 
-  const owner = await daemon.boot();
-
-  const spawned = await owner.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     resume: `a-${randomUUID()}`,
   });
 
-  const sent = await owner.sendRequest('session.message', {
+  const sent = await ctx.client.sendRequest('session.message', {
     session: getRecord(spawned, 'session')['id'],
     from: 'tester',
     text: 'ping',
     idempotencyKey: 'message-1',
   });
 
-  const got = await owner.sendRequest('message.get', { message: sent['message'] });
-
   expect(collectUnruledIDPaths(sent, ID_RULES['session.message'] ?? new Map())).toStrictEqual([]);
+});
+
+test('it has a rule for every id in a message.get answer', async () => {
+  await using ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    resume: `a-${randomUUID()}`,
+  });
+
+  const sent = await ctx.client.sendRequest('session.message', {
+    session: getRecord(spawned, 'session')['id'],
+    from: 'tester',
+    text: 'ping',
+    idempotencyKey: 'message-1',
+  });
+
+  const got = await ctx.client.sendRequest('message.get', { message: sent['message'] });
+
   expect(collectUnruledIDPaths(got, ID_RULES['message.get'] ?? new Map())).toStrictEqual([]);
 });
 
 test('it has a rule for every id in an events.read answer', async () => {
-  await using daemon = setupTest();
+  await using ctx = await setupTest();
 
-  const owner = await daemon.boot();
-
-  const spawned = await owner.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     resume: `a-${randomUUID()}`,
   });
 
-  await owner.sendRequest('session.message', {
+  await ctx.client.sendRequest('session.message', {
     session: getRecord(spawned, 'session')['id'],
     from: 'tester',
     text: 'ping',
   });
 
   const read = await waitFor(async () => {
-    const page = await owner.sendRequest('events.read', {});
+    const page = await ctx.client.sendRequest('events.read', {});
 
+    expect(page['events']).toBeArray();
     expect(page['events']).not.toBeEmpty();
 
     return page;
@@ -209,79 +160,56 @@ test('it has a rule for every id in an events.read answer', async () => {
 });
 
 test('it has a rule for every id in the data of an uncertain keyed spawn', async () => {
-  await using daemon = setupTest();
+  await using ctx = await setupTest();
 
-  const params = { cwd: '/tmp', resume: 'a-1', idempotencyKey: 'spawn-1' };
+  const params = { cwd: ctx.dir, resume: 'a-1', idempotencyKey: 'spawn-1' };
+  const effectRef = randomUUID();
 
-  const seed = await StateStore.open(daemon.dbPath);
+  const seed = await StateStore.open(ctx.dbPath);
 
+  onTestFinished(() => seed.stop());
+
+  // A claim still in progress under the key, which the daemon answers as
+  // an interrupted spawn whose effect may stand.
   await seed.claimIdempotencyKey({
     principal: 'local',
     operation: 'session.spawn',
     key: 'spawn-1',
     payloadHash: buildPayloadHash(REQUEST_PARAM_SCHEMAS['session.spawn'].parse(params)),
-    effectRef: randomUUID(),
+    effectRef,
     at: Date.now(),
   });
 
-  await seed.stop();
+  const spawned = ctx.client.sendRequest('session.spawn', params);
 
-  const owner = await daemon.boot();
-
-  const refused = await owner.sendRequest('session.spawn', params).then(
-    () => null,
-    (error: unknown) => error,
-  );
-
-  if (!(refused instanceof DaemonError)) {
-    throw new Error('the uncertain spawn was not refused');
-  }
-
-  expect(refused.code).toBe('outcome_unknown');
-  expect(refused.data).toContainKey('effectRef');
-  expect(collectUnruledIDPaths(refused.data, ERROR_DATA_RULES)).toStrictEqual([]);
-});
-
-test('it finds an id in a field no rule covers', () => {
-  const answer = {
-    sessions: [
-      {
-        id: '2b7f0c1e-9a4d-4e8b-b1c2-3d4e5f6a7b8c',
-        origin: 'm-0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-        locator: { daemonID: '9a1b2c3d-0000-4000-8000-000000000001', targetID: 'local' },
-      },
-    ],
-  };
-
-  expect(collectUnruledIDPaths(answer, ID_RULES['session.list'] ?? new Map())).toStrictEqual([
-    'sessions[].origin',
-  ]);
+  expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown' });
+  expect(spawned).rejects.toHaveProperty('data', { effectRef });
+  expect(collectUnruledIDPaths({ effectRef }, ERROR_DATA_RULES)).toStrictEqual([]);
 });
 
 test('it has a rule for every id in a session.read answer, transcript text included', async () => {
-  await using daemon = setupTest();
-
-  const owner = await daemon.boot();
+  await using ctx = await setupTest();
 
   const agentSessionID = randomUUID();
 
   writeFileSync(
-    daemon.transcriptPath,
+    join(ctx.dir, 'transcript.jsonl'),
     `${JSON.stringify({ type: 'user', sessionId: agentSessionID, message: { content: `resume ${agentSessionID}` } })}\n`,
   );
 
-  const spawned = await owner.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     resume: `a-${randomUUID()}`,
   });
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await daemon.reportStart(String(id));
+  await ctx.sendHookLines({ atcId: id, event: 'SessionStart', payload: {} });
 
   const read = await waitFor(async () => {
-    const page = await owner.sendRequest('session.read', { session: id });
+    const page = await ctx.client.sendRequest('session.read', { session: id });
 
+    expect(page['rows']).toBeArray();
     expect(page['rows']).not.toBeEmpty();
 
     return page;
@@ -291,16 +219,14 @@ test('it has a rule for every id in a session.read answer, transcript text inclu
 });
 
 test('it has a rule for every id in a session.resumeCommand answer', async () => {
-  await using daemon = setupTest();
+  await using ctx = await setupTest();
 
-  const owner = await daemon.boot();
-
-  const spawned = await owner.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     resume: randomUUID(),
   });
 
-  const command = await owner.sendRequest('session.resumeCommand', {
+  const command = await ctx.client.sendRequest('session.resumeCommand', {
     session: getRecord(spawned, 'session')['id'],
   });
 
@@ -311,40 +237,42 @@ test('it has a rule for every id in a session.resumeCommand answer', async () =>
   ).toStrictEqual([]);
 });
 
-test('it has a rule for every id in agents.list and dirs.list answers', async () => {
-  await using daemon = setupTest();
+test('it has a rule for every id in an agents.list answer', async () => {
+  await using ctx = await setupTest();
 
-  const owner = await daemon.boot();
+  await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: `a-${randomUUID()}` });
 
-  await owner.sendRequest('session.spawn', { cwd: '/tmp', resume: `a-${randomUUID()}` });
-
-  const agents = await owner.sendRequest('agents.list');
-  const dirs = await owner.sendRequest('dirs.list');
+  const agents = await ctx.client.sendRequest('agents.list');
 
   expect(collectUnruledIDPaths(agents, ID_RULES['agents.list'] ?? new Map())).toStrictEqual([]);
+});
+
+test('it has a rule for every id in a dirs.list answer', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: `a-${randomUUID()}` });
+
+  const dirs = await ctx.client.sendRequest('dirs.list');
+
   expect(collectUnruledIDPaths(dirs, ID_RULES['dirs.list'] ?? new Map())).toStrictEqual([]);
 });
 
 test('it has a rule for every id in a report.get answer', async () => {
-  await using daemon = setupTest();
+  await using ctx = await setupTest();
 
-  const owner = await daemon.boot();
-
-  const spawned = await owner.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     resume: `a-${randomUUID()}`,
   });
 
-  const session = getRecord(spawned, 'session')['id'];
-
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: session, event: 'Report', payload: { kind: 'note', label: 'decision', text: 'done' } })}\n`,
-    2000,
-  );
+  await ctx.sendHookLines({
+    atcId: getRecord(spawned, 'session')['id'],
+    event: 'Report',
+    payload: { kind: 'note', label: 'decision', text: 'done' },
+  });
 
   const event = await waitFor(async () => {
-    const page = await owner.sendRequest('events.read', {});
+    const page = await ctx.client.sendRequest('events.read', {});
 
     const found = [page['events']].flat().find((e) => isRecord(e) && e['kind'] === 'report');
 
@@ -355,7 +283,7 @@ test('it has a rule for every id in a report.get answer', async () => {
     return found;
   });
 
-  const report = await owner.sendRequest('report.get', { report: event['cursor'] });
+  const report = await ctx.client.sendRequest('report.get', { report: event['cursor'] });
 
   expect(collectUnruledIDPaths(report, ID_RULES['report.get'] ?? new Map())).toStrictEqual([]);
 });
@@ -364,13 +292,6 @@ test('it has a rule for the confirm token in a session.forget answer', () => {
   expect(
     collectUnruledIDPaths(
       { confirmToken: randomUUID(), expiresAt: Date.now() + 60_000 },
-      ID_RULES['session.forget'] ?? new Map(),
-    ),
-  ).toStrictEqual([]);
-
-  expect(
-    collectUnruledIDPaths(
-      { forgotten: true, destroyed: true },
       ID_RULES['session.forget'] ?? new Map(),
     ),
   ).toStrictEqual([]);

@@ -1,96 +1,56 @@
 import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { DaemonClient } from '../client/daemon-client';
-import { startDaemon } from '../daemon/daemon';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { mergeEventPages } from './merge-event-pages';
-import { planEventReads } from './plan-event-reads';
 
 /**
- * Two real daemons, `cloud` and `pc`, each with one session and its owner
- * connection. `sendMessage` writes one message event to a daemon's trail.
- * The merge tests that need a daemon's own cursor semantics read through
- * them.
+ * Two real daemons, `cloud` and `pc`, each with one session,
+ * `cloudSession` and `pcSession`, that a message writes an event for. The
+ * merge tests that need a daemon's own cursor semantics read through them.
  */
 async function setupTest() {
-  const tmp = setupTempDir('atc-merge-events-');
-  const daemons: { readonly stop: () => Promise<void> }[] = [];
+  await using stack = new AsyncDisposableStack();
 
-  const owners = new Map<string, { readonly client: DaemonClient; readonly session: string }>();
+  const cloud = await startTestDaemon({
+    prefix: 'atc-merge-events-cloud-',
 
-  for (const name of ['cloud', 'pc']) {
-    mkdirSync(join(tmp.dir, name));
+    // Session messages need an adapter that takes them.
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
 
-    const daemon = await startDaemon({
-      socketPath: join(tmp.dir, name, 'daemon.sock'),
-      reporterSocketPath: join(tmp.dir, name, 'reporter.sock'),
-      build: 'atc/test-build',
-      adapter: {
-        id: 'claude',
-        screenDetector: null,
-        takesMessages: true,
-        headlessRunner: null,
-        planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-        normalizeHook: () => ({ kind: 'prompt-submitted' }),
-        loadName: () => Promise.resolve(null),
-        canResume: () => true,
-        buildResumeCommand: () => 'claude --resume',
-      },
-      dbPath: join(tmp.dir, name, 'state.db'),
-      statusPath: join(tmp.dir, name, 'status.json'),
-    });
+  stack.use(cloud);
 
-    daemons.push(daemon);
+  const pc = await startTestDaemon({
+    prefix: 'atc-merge-events-pc-',
 
-    const client = await DaemonClient.open(join(tmp.dir, name, 'daemon.sock'));
+    // Session messages need an adapter that takes them.
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
 
-    await client.sendHello('atc/test-build');
+  stack.use(pc);
 
-    const spawned = await client.sendRequest('session.spawn', {
-      cwd: '/tmp',
-      resume: `a-${randomUUID()}`,
-    });
+  const cloudSpawned = await cloud.client.sendRequest('session.spawn', {
+    cwd: cloud.dir,
+    resume: `a-${randomUUID()}`,
+  });
 
-    owners.set(name, { client, session: String(getRecord(spawned, 'session')['id']) });
-  }
+  const pcSpawned = await pc.client.sendRequest('session.spawn', {
+    cwd: pc.dir,
+    resume: `a-${randomUUID()}`,
+  });
 
-  const getOwner = (name: string) => {
-    const owner = owners.get(name);
-
-    if (owner === undefined) {
-      throw new Error(`no daemon '${name}'`);
-    }
-
-    return owner;
-  };
+  const owned = stack.move();
 
   return {
-    client: (name: string) => getOwner(name).client,
-    async sendMessage(name: string, text: string): Promise<void> {
-      const owner = getOwner(name);
-
-      await owner.client.sendRequest('session.message', {
-        session: owner.session,
-        from: 'tester',
-        text,
-      });
-    },
-    async [Symbol.asyncDispose]() {
-      for (const owner of owners.values()) {
-        owner.client.stop();
-      }
-
-      for (const daemon of daemons) {
-        await daemon.stop();
-      }
-
-      tmp[Symbol.dispose]();
-    },
+    cloud,
+    pc,
+    cloudSession: String(getRecord(cloudSpawned, 'session')['id']),
+    pcSession: String(getRecord(pcSpawned, 'session')['id']),
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
@@ -125,13 +85,47 @@ test("it interleaves daemons by timestamp and keeps a daemon's own order when it
     10,
   );
 
-  expect(merged.events.map((event) => [event['session'], event['at']])).toStrictEqual([
-    ['pc.9a1b2c3d.s9', 7],
-    ['cloud.0f6c2a8e.s1', 10],
-    ['cloud.0f6c2a8e.s1', 5],
+  expect(merged.events).toStrictEqual([
+    { cursor: expect.toBeString(), at: 7, session: 'pc.9a1b2c3d.s9', kind: 'state' },
+    { cursor: expect.toBeString(), at: 10, session: 'cloud.0f6c2a8e.s1', kind: 'state' },
+    { cursor: expect.toBeString(), at: 5, session: 'cloud.0f6c2a8e.s1', kind: 'state' },
   ]);
 
   expect(merged.more).toBeFalse();
+});
+
+test('it gives events of one timestamp to the daemon whose name sorts first', () => {
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [{ cursor: 'eyJrIjoiZXYiLCJpIjoxMX0', at: 7, session: 's9' }],
+          cursor: 'eyJrIjoiZXYiLCJpIjoxMX0',
+          more: false,
+        },
+      },
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [{ cursor: 'eyJrIjoiZXYiLCJpIjoxfQ', at: 7, session: 's1' }],
+          cursor: 'eyJrIjoiZXYiLCJpIjoxfQ',
+          more: false,
+        },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.events).toStrictEqual([
+    { cursor: expect.toBeString(), at: 7, session: 'cloud.0f6c2a8e.s1' },
+    { cursor: expect.toBeString(), at: 7, session: 'pc.9a1b2c3d.s9' },
+  ]);
 });
 
 test('it advances each daemon only past the events that made the page and reads the cut ones again', () => {
@@ -194,9 +188,9 @@ test('it advances each daemon only past the events that made the page and reads 
     2,
   );
 
-  expect(merged.events.map((event) => event['session'])).toStrictEqual([
-    'cloud.0f6c2a8e.s1',
-    'pc.9a1b2c3d.s9',
+  expect(merged.events).toStrictEqual([
+    { cursor: expect.toBeString(), at: 1, session: 'cloud.0f6c2a8e.s1' },
+    { cursor: expect.toBeString(), at: 2, session: 'pc.9a1b2c3d.s9' },
   ]);
 
   expect(merged.more).toBeTrue();
@@ -495,7 +489,7 @@ test('it rewrites the session and message of each event for its daemon', () => {
 });
 
 test('it reads an event cut from a page exactly once though the daemon appends another before the next page', async () => {
-  await using daemons = await setupTest();
+  await using ctx = await setupTest();
 
   const registry = {
     daemons: new Map([
@@ -523,15 +517,23 @@ test('it reads an event cut from a page exactly once though the daemon appends a
     defaultDaemon: 'cloud',
   };
 
-  await daemons.sendMessage('cloud', 'first');
+  // The cloud event is stamped no later than the pc one, and a tie goes to
+  // the daemon whose name sorts first, so the cloud event wins the
+  // one-event page.
+  await ctx.cloud.client.sendRequest('session.message', {
+    session: ctx.cloudSession,
+    from: 'tester',
+    text: 'first',
+  });
 
-  // The pc event must carry a later timestamp than the cloud one, so the
-  // cloud event wins the one-event page.
-  await Bun.sleep(5);
-  await daemons.sendMessage('pc', 'second');
+  await ctx.pc.client.sendRequest('session.message', {
+    session: ctx.pcSession,
+    from: 'tester',
+    text: 'second',
+  });
 
-  const cloudFirst = await daemons.client('cloud').sendRequest('events.read', { limit: 1 });
-  const pcFirst = await daemons.client('pc').sendRequest('events.read', { limit: 1 });
+  const cloudFirst = await ctx.cloud.client.sendRequest('events.read', { limit: 1 });
+  const pcFirst = await ctx.pc.client.sendRequest('events.read', { limit: 1 });
 
   const first = mergeEventPages(
     [
@@ -560,17 +562,23 @@ test('it reads an event cut from a page exactly once though the daemon appends a
     1,
   );
 
-  await daemons.sendMessage('pc', 'third');
+  await ctx.pc.client.sendRequest('session.message', {
+    session: ctx.pcSession,
+    from: 'tester',
+    text: 'third',
+  });
 
   const firstParts = decodeGatewayCursor(first.cursor, 'f', registry);
 
-  const cloudSecond = await daemons
-    .client('cloud')
-    .sendRequest('events.read', { limit: 1, cursor: firstParts.get('cloud') });
+  const cloudSecond = await ctx.cloud.client.sendRequest('events.read', {
+    limit: 1,
+    cursor: firstParts.get('cloud'),
+  });
 
-  const pcSecond = await daemons
-    .client('pc')
-    .sendRequest('events.read', { limit: 1, cursor: firstParts.get('pc') });
+  const pcSecond = await ctx.pc.client.sendRequest('events.read', {
+    limit: 1,
+    cursor: firstParts.get('pc'),
+  });
 
   const second = mergeEventPages(
     [
@@ -599,77 +607,14 @@ test('it reads an event cut from a page exactly once though the daemon appends a
     1,
   );
 
-  const secondParts = decodeGatewayCursor(second.cursor, 'f', registry);
-
-  const pcThird = await daemons
-    .client('pc')
-    .sendRequest('events.read', { limit: 1, cursor: secondParts.get('pc') });
-
-  expect(
-    [first, second].flatMap((page) => page.events.map((event) => event['detail'])),
-  ).toStrictEqual(['first', 'second']);
-
-  expect(
-    [pcThird['events']]
-      .flat()
-      .filter((event) => isRecord(event))
-      .map((event) => event['detail']),
-  ).toStrictEqual(['third']);
+  expect([...first.events, ...second.events].map((event) => event['detail'])).toStrictEqual([
+    'first',
+    'second',
+  ]);
 });
 
-test('it pins a daemon the cursor leaves out at its newest event and reads only what follows', async () => {
-  await using daemons = await setupTest();
-
-  const registry = {
-    daemons: new Map([
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: 'h', port: 2 },
-          daemonID: 'd2',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
-    ]),
-    defaultDaemon: 'pc',
-  };
-
-  await daemons.sendMessage('pc', 'old');
-
-  const newest = await daemons.client('pc').sendRequest('events.read', { limit: 1 });
-
-  const merged = mergeEventPages(
-    [
-      {
-        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
-        before: null,
-        page: { kind: 'started', cursor: String(newest['cursor']) },
-      },
-    ],
-    'f',
-    10,
-  );
-
-  await daemons.sendMessage('pc', 'new');
-
-  const after = await daemons.client('pc').sendRequest('events.read', {
-    cursor: decodeGatewayCursor(merged.cursor, 'f', registry).get('pc'),
-  });
-
-  expect(merged.started).toStrictEqual(['pc']);
-
-  expect(
-    [after['events']]
-      .flat()
-      .filter((event) => isRecord(event))
-      .map((event) => event['detail']),
-  ).toStrictEqual(['new']);
-});
-
-test('it reads the events a daemon queued while it was down on the first page once it answers', async () => {
-  await using daemons = await setupTest();
+test('it resumes a daemon right after its event a later page read again', async () => {
+  await using ctx = await setupTest();
 
   const registry = {
     daemons: new Map([
@@ -697,7 +642,23 @@ test('it reads the events a daemon queued while it was down on the first page on
     defaultDaemon: 'cloud',
   };
 
-  const cloudFirst = await daemons.client('cloud').sendRequest('events.read', {});
+  // The cloud event is stamped no later than the pc one, and a tie goes to
+  // the daemon whose name sorts first, so the cloud event wins the
+  // one-event page and the pc one is cut.
+  await ctx.cloud.client.sendRequest('session.message', {
+    session: ctx.cloudSession,
+    from: 'tester',
+    text: 'first',
+  });
+
+  await ctx.pc.client.sendRequest('session.message', {
+    session: ctx.pcSession,
+    from: 'tester',
+    text: 'second',
+  });
+
+  const pcFirst = await ctx.pc.client.sendRequest('events.read', { limit: 1 });
+  const cloudFirst = await ctx.cloud.client.sendRequest('events.read', { limit: 1 });
 
   const first = mergeEventPages(
     [
@@ -714,28 +675,136 @@ test('it reads the events a daemon queued while it was down on the first page on
       {
         daemon: { name: 'pc', incarnation: '9a1b2c3d' },
         before: { cursor: null },
-        page: { kind: 'unavailable' },
+        page: {
+          kind: 'read',
+          events: [pcFirst['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(pcFirst['cursor']),
+          more: false,
+        },
       },
     ],
     'f',
-    50,
+    1,
   );
 
-  await daemons.sendMessage('pc', 'queued');
+  await ctx.pc.client.sendRequest('session.message', {
+    session: ctx.pcSession,
+    from: 'tester',
+    text: 'third',
+  });
 
-  const plan = planEventReads(first.cursor, 'f', null, registry);
-
-  const pcLatest = await daemons.client('pc').sendRequest('events.read', {});
+  const pcSecond = await ctx.pc.client.sendRequest('events.read', {
+    limit: 1,
+    cursor: decodeGatewayCursor(first.cursor, 'f', registry).get('pc'),
+  });
 
   const second = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: String(decodeGatewayCursor(first.cursor, 'f', registry).get('pc')) },
+        page: {
+          kind: 'read',
+          events: [pcSecond['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(pcSecond['cursor']),
+          more: false,
+        },
+      },
+    ],
+    'f',
+    1,
+  );
+
+  const pcThird = await ctx.pc.client.sendRequest('events.read', {
+    limit: 1,
+    cursor: decodeGatewayCursor(second.cursor, 'f', registry).get('pc'),
+  });
+
+  expect(
+    [pcThird['events']]
+      .flat()
+      .filter((event) => isRecord(event))
+      .map((event) => event['detail']),
+  ).toStrictEqual(['third']);
+});
+
+test('it pins a daemon the cursor leaves out at its newest event and reads only what follows', async () => {
+  await using ctx = await setupTest();
+
+  const registry = {
+    daemons: new Map([
+      [
+        'pc',
+        {
+          name: 'pc',
+          address: { host: 'h', port: 2 },
+          daemonID: 'd2',
+          incarnation: '9a1b2c3d',
+          token: 't',
+        },
+      ],
+    ]),
+    defaultDaemon: 'pc',
+  };
+
+  await ctx.pc.client.sendRequest('session.message', {
+    session: ctx.pcSession,
+    from: 'tester',
+    text: 'old',
+  });
+
+  const newest = await ctx.pc.client.sendRequest('events.read', { limit: 1 });
+
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: null,
+        page: { kind: 'started', cursor: String(newest['cursor']) },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  await ctx.pc.client.sendRequest('session.message', {
+    session: ctx.pcSession,
+    from: 'tester',
+    text: 'new',
+  });
+
+  const after = await ctx.pc.client.sendRequest('events.read', {
+    cursor: decodeGatewayCursor(merged.cursor, 'f', registry).get('pc'),
+  });
+
+  expect(
+    [after['events']]
+      .flat()
+      .filter((event) => isRecord(event))
+      .map((event) => event['detail']),
+  ).toStrictEqual(['new']);
+});
+
+test('it reads the events a daemon queued while it was down once it answers at its latest events', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.pc.client.sendRequest('session.message', {
+    session: ctx.pcSession,
+    from: 'tester',
+    text: 'queued',
+  });
+
+  const latest = await ctx.pc.client.sendRequest('events.read', {});
+
+  const merged = mergeEventPages(
     [
       {
         daemon: { name: 'pc', incarnation: '9a1b2c3d' },
         before: { cursor: null },
         page: {
           kind: 'read',
-          events: [pcLatest['events']].flat().filter((event) => isRecord(event)),
-          cursor: String(pcLatest['cursor']),
+          events: [latest['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(latest['cursor']),
           more: false,
         },
         unstarted: { olderUnread: false },
@@ -745,10 +814,41 @@ test('it reads the events a daemon queued while it was down on the first page on
     50,
   );
 
-  expect(plan.get('pc')).toStrictEqual({ kind: 'latest' });
-  expect(second.events.map((event) => event['detail'])).toContain('queued');
-  expect(second.started).toStrictEqual(['pc']);
-  expect(second.truncated).toStrictEqual([]);
+  expect(merged.events.map((event) => event['detail'])).toContain('queued');
+  expect(merged.started).toStrictEqual(['pc']);
+  expect(merged.truncated).toStrictEqual([]);
+});
+
+test('it keeps a null position for a daemon that has not answered since the cursor started', () => {
+  const registry = {
+    daemons: new Map([
+      [
+        'pc',
+        {
+          name: 'pc',
+          address: { host: 'h', port: 2 },
+          daemonID: 'd2',
+          incarnation: '9a1b2c3d',
+          token: 't',
+        },
+      ],
+    ]),
+    defaultDaemon: 'pc',
+  };
+
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: { kind: 'unavailable' },
+      },
+    ],
+    'f',
+    50,
+  );
+
+  expect(decodeGatewayCursor(merged.cursor, 'f', registry)).toStrictEqual(new Map([['pc', null]]));
 });
 
 test('it lists a daemon whose latest page after a gap left older events unread as truncated', () => {

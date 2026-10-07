@@ -21,7 +21,24 @@ test('it loads a registry file with its tokens from the environment', () => {
 
   const loaded = loadGatewayRegistry(path, { ATC_GATEWAY_TOKEN_CLOUD: 'cloud-token' });
 
-  expect(loaded).toMatchObject({ ok: true, registry: { defaultDaemon: 'cloud' } });
+  expect(loaded).toStrictEqual({
+    ok: true,
+    registry: {
+      daemons: new Map([
+        [
+          'cloud',
+          {
+            name: 'cloud',
+            address: { host: '100.64.0.2', port: 8415 },
+            daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
+            incarnation: '0f6c2a8e',
+            token: 'cloud-token',
+          },
+        ],
+      ]),
+      defaultDaemon: 'cloud',
+    },
+  });
 });
 
 test('it refuses a registry file that is not JSON', () => {

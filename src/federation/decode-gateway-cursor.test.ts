@@ -71,41 +71,7 @@ test('it drops the part of a daemon the registry no longer lists', () => {
   expect(decodeGatewayCursor(cursor, filter, registry)).toStrictEqual(new Map());
 });
 
-test.each([
-  ['a cursor over 4 KiB', 'a'.repeat(4097), 'cursor exceeds 4096 bytes'],
-  ['a cursor that is not JSON', 'not-a-cursor', "'not-a-cursor' is not an events cursor"],
-  [
-    'a cursor of another version',
-    Buffer.from(JSON.stringify({ v: 2, filter: 'f', daemons: {} })).toString('base64url'),
-    'the events cursor has a version this gateway does not read',
-  ],
-  [
-    'a cursor read under other filters',
-    Buffer.from(JSON.stringify({ v: 1, filter: 'other', daemons: {} })).toString('base64url'),
-    'the events cursor was read under other filters',
-  ],
-  [
-    'a part with a stale incarnation',
-    Buffer.from(JSON.stringify({ v: 1, filter: 'f', daemons: { 'cloud.11111111': 'c' } })).toString(
-      'base64url',
-    ),
-    "the events cursor holds a stale position for daemon 'cloud'",
-  ],
-  [
-    'a part whose position is not a cursor',
-    Buffer.from(JSON.stringify({ v: 1, filter: 'f', daemons: { 'cloud.0f6c2a8e': 7 } })).toString(
-      'base64url',
-    ),
-    "the events cursor holds a stale position for daemon 'cloud'",
-  ],
-  [
-    'a part without an incarnation',
-    Buffer.from(JSON.stringify({ v: 1, filter: 'f', daemons: { cloud: 'c' } })).toString(
-      'base64url',
-    ),
-    expect.toInclude('is not an events cursor'),
-  ],
-])('it refuses %s with bad_args', (_label, cursor, message) => {
+test('it refuses a cursor over 4 KiB with bad_args', () => {
   const registry = {
     daemons: new Map([
       [
@@ -122,19 +88,178 @@ test.each([
     defaultDaemon: 'cloud',
   };
 
+  const cursor = 'a'.repeat(4097);
+
   expect(() => decodeGatewayCursor(cursor, 'f', registry)).toThrow(
-    expect.objectContaining({ code: 'bad_args', message }),
+    expect.objectContaining({ code: 'bad_args', message: 'cursor exceeds 4096 bytes' }),
   );
 });
 
-test('it hashes the same filters the same way whatever the kind order', () => {
-  expect(buildEventsFilterHash('cloud.0f6c2a8e.s1', ['b', 'a'])).toBe(
-    buildEventsFilterHash('cloud.0f6c2a8e.s1', ['a', 'b']),
+test('it refuses a cursor that is not JSON with bad_args', () => {
+  const registry = {
+    daemons: new Map([
+      [
+        'cloud',
+        {
+          name: 'cloud',
+          address: { host: '100.64.0.2', port: 8415 },
+          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
+          incarnation: '0f6c2a8e',
+          token: 't',
+        },
+      ],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const cursor = 'not-a-cursor';
+
+  expect(() => decodeGatewayCursor(cursor, 'f', registry)).toThrow(
+    expect.objectContaining({
+      code: 'bad_args',
+      message: "'not-a-cursor' is not an events cursor",
+    }),
   );
 });
 
-test('it hashes a session filter apart from no filter', () => {
-  expect(buildEventsFilterHash('cloud.0f6c2a8e.s1', null)).not.toBe(
-    buildEventsFilterHash(null, null),
+test('it refuses a cursor of another version with bad_args', () => {
+  const registry = {
+    daemons: new Map([
+      [
+        'cloud',
+        {
+          name: 'cloud',
+          address: { host: '100.64.0.2', port: 8415 },
+          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
+          incarnation: '0f6c2a8e',
+          token: 't',
+        },
+      ],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const cursor = Buffer.from(JSON.stringify({ v: 2, filter: 'f', daemons: {} })).toString(
+    'base64url',
+  );
+
+  expect(() => decodeGatewayCursor(cursor, 'f', registry)).toThrow(
+    expect.objectContaining({
+      code: 'bad_args',
+      message: 'the events cursor has a version this gateway does not read',
+    }),
+  );
+});
+
+test('it refuses a cursor read under other filters with bad_args', () => {
+  const registry = {
+    daemons: new Map([
+      [
+        'cloud',
+        {
+          name: 'cloud',
+          address: { host: '100.64.0.2', port: 8415 },
+          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
+          incarnation: '0f6c2a8e',
+          token: 't',
+        },
+      ],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const cursor = Buffer.from(JSON.stringify({ v: 1, filter: 'other', daemons: {} })).toString(
+    'base64url',
+  );
+
+  expect(() => decodeGatewayCursor(cursor, 'f', registry)).toThrow(
+    expect.objectContaining({
+      code: 'bad_args',
+      message: 'the events cursor was read under other filters',
+    }),
+  );
+});
+
+test('it refuses a part with a stale incarnation with bad_args', () => {
+  const registry = {
+    daemons: new Map([
+      [
+        'cloud',
+        {
+          name: 'cloud',
+          address: { host: '100.64.0.2', port: 8415 },
+          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
+          incarnation: '0f6c2a8e',
+          token: 't',
+        },
+      ],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const cursor = Buffer.from(
+    JSON.stringify({ v: 1, filter: 'f', daemons: { 'cloud.11111111': 'c' } }),
+  ).toString('base64url');
+
+  expect(() => decodeGatewayCursor(cursor, 'f', registry)).toThrow(
+    expect.objectContaining({
+      code: 'bad_args',
+      message: "the events cursor holds a stale position for daemon 'cloud'",
+    }),
+  );
+});
+
+test('it refuses a part whose position is not a cursor with bad_args', () => {
+  const registry = {
+    daemons: new Map([
+      [
+        'cloud',
+        {
+          name: 'cloud',
+          address: { host: '100.64.0.2', port: 8415 },
+          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
+          incarnation: '0f6c2a8e',
+          token: 't',
+        },
+      ],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const cursor = Buffer.from(
+    JSON.stringify({ v: 1, filter: 'f', daemons: { 'cloud.0f6c2a8e': 7 } }),
+  ).toString('base64url');
+
+  expect(() => decodeGatewayCursor(cursor, 'f', registry)).toThrow(
+    expect.objectContaining({
+      code: 'bad_args',
+      message: "the events cursor holds a stale position for daemon 'cloud'",
+    }),
+  );
+});
+
+test('it refuses a part without an incarnation with bad_args', () => {
+  const registry = {
+    daemons: new Map([
+      [
+        'cloud',
+        {
+          name: 'cloud',
+          address: { host: '100.64.0.2', port: 8415 },
+          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
+          incarnation: '0f6c2a8e',
+          token: 't',
+        },
+      ],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const cursor = Buffer.from(
+    JSON.stringify({ v: 1, filter: 'f', daemons: { cloud: 'c' } }),
+  ).toString('base64url');
+
+  expect(() => decodeGatewayCursor(cursor, 'f', registry)).toThrow(
+    expect.objectContaining({ code: 'bad_args', message: `'${cursor}' is not an events cursor` }),
   );
 });

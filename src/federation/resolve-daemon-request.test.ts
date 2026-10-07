@@ -32,22 +32,12 @@ test('it routes a request without an id nowhere and leaves its params alone', ()
 });
 
 test.each([
-  [
-    'a stale incarnation',
-    { session: 'cloud.11111111.s1' },
-    'no_such_session',
-    "no session 'cloud.11111111.s1'",
-  ],
-  [
-    'an unknown daemon',
-    { session: 'pc.0f6c2a8e.s1' },
-    'no_such_session',
-    "no session 'pc.0f6c2a8e.s1'",
-  ],
-  ['a malformed session id', { session: 's1' }, 'no_such_session', "no session 's1'"],
-  ['a malformed parent', { parent: 's1' }, 'no_such_session', "no session 's1'"],
-  ['a malformed message id', { message: 'm-1' }, 'bad_args', "no message 'm-1'"],
-])('it refuses %s as a daemon refuses an id it never held', (_label, params, code, message) => {
+  [{ session: 'cloud.11111111.s1' }, 'no_such_session', "no session 'cloud.11111111.s1'"],
+  [{ session: 'pc.0f6c2a8e.s1' }, 'no_such_session', "no session 'pc.0f6c2a8e.s1'"],
+  [{ session: 's1' }, 'no_such_session', "no session 's1'"],
+  [{ parent: 's1' }, 'no_such_session', "no session 's1'"],
+  [{ message: 'm-1' }, 'bad_args', "no message 'm-1'"],
+])('it refuses %p with %s as a daemon refuses an id it never held', (params, code, message) => {
   const registry = {
     daemons: new Map([
       [

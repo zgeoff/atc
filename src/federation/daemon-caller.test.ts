@@ -1,84 +1,78 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
-import { startDaemon } from '../daemon/daemon';
 import { getRecord } from '../shared/get-record';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildStubChannelOpener } from '../test-utils/build-stub-channel-opener';
+import { buildStubTimeoutScheduler } from '../test-utils/build-stub-timeout-scheduler';
 import { startCutProxy } from '../test-utils/start-cut-proxy';
 import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { waitFor } from '../test-utils/wait-for';
 import { DaemonCaller } from './daemon-caller';
-
-const TOKEN = 'g'.repeat(32);
+import type { RegistryDaemon } from './types';
 
 /**
- * A real daemon with a TCP listener on a loopback port whose token file
- * holds TOKEN and whose principals key lets `gw` use the local target.
- * `owner` is the daemon owner's connection on its local socket,
- * `daemonID` is the state identity its handshake returns, and `dbPath` is
- * its state store.
+ * A real daemon with a TCP listener on loopback `port` that takes `token`.
+ * `daemon` is its harness, whose client is the owner's connection on the
+ * local socket, and `daemonID` the state identity its handshake returns.
  */
 async function setupTest() {
-  const tmp = setupTempDir('atc-daemon-caller-');
-  const tokenFile = join(tmp.dir, 'gateway-token');
+  await using stack = new AsyncDisposableStack();
 
-  writeFileSync(tokenFile, `${TOKEN}\n`);
+  // The token the listener takes, which every caller presents.
+  const token = randomBytes(16).toString('hex');
 
-  const daemon = await startDaemon({
-    socketPath: join(tmp.dir, 'daemon.sock'),
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: {
-      id: 'claude',
-      screenDetector: null,
-      takesMessages: true,
-      headlessRunner: null,
-      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-      normalizeHook: () => ({ kind: 'prompt-submitted' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => 'claude --resume',
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-caller-',
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'token'), `${token}\n`);
+
+      return {
+        // Takes messages, so a message can end a long poll.
+        adapter: buildMockAgentAdapter({ takesMessages: true }),
+
+        // Lets the callers' principal use the local target.
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'token') },
+      };
     },
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    principals: new Map([['gw', ['local']]]),
-    listen: { host: '127.0.0.1', port: 0, tokenFile },
   });
 
-  const owner = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
-  const hello = await owner.sendHello('atc/test-build');
+  stack.use(daemon);
 
-  if (daemon.listenPort === null) {
-    throw new Error('the daemon started without a TCP listener');
-  }
+  const prober = await DaemonClient.open(daemon.socketPath);
+
+  stack.defer(() => {
+    prober.stop();
+  });
+
+  const hello = await prober.sendHello(daemon.build);
+
+  const owned = stack.move();
 
   return {
-    dbPath: join(tmp.dir, 'state.db'),
-    port: daemon.listenPort,
-    owner,
+    daemon,
+    token,
+    port: Number(daemon.daemon.listenPort),
     daemonID: String(hello['daemonID']),
-    async [Symbol.asyncDispose]() {
-      owner.stop();
-
-      await daemon.stop();
-
-      tmp[Symbol.dispose]();
-    },
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it answers a request through a daemon whose handshake returns the pinned id', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
-      address: { host: '127.0.0.1', port: daemon.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
-      token: TOKEN,
+      address: { host: '127.0.0.1', port: ctx.port },
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
@@ -92,15 +86,15 @@ test('it answers a request through a daemon whose handshake returns the pinned i
 });
 
 test('it reads the build, features, and key retention from the handshake', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
-      address: { host: '127.0.0.1', port: daemon.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
-      token: TOKEN,
+      address: { host: '127.0.0.1', port: ctx.port },
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
@@ -110,25 +104,24 @@ test('it reads the build, features, and key retention from the handshake', async
 
   const hello = await caller.readHello();
 
-  expect(hello).toMatchObject({
-    build: 'atc/test-build',
-    daemonID: daemon.daemonID,
+  expect(hello).toStrictEqual({
+    build: ctx.daemon.build,
+    daemonID: ctx.daemonID,
+    features: expect.toSatisfy((features: ReadonlySet<string>) => features.has('transport.tcp')),
     retentionMs: 86_400_000,
   });
-
-  expect(hello.features.has('transport.tcp')).toBeTrue();
 });
 
 test('it refuses a daemon behind another state identity as daemon_changed and sends it nothing', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
-      address: { host: '127.0.0.1', port: daemon.port },
+      address: { host: '127.0.0.1', port: ctx.port },
       daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
       incarnation: '0f6c2a8e',
-      token: TOKEN,
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
@@ -136,27 +129,29 @@ test('it refuses a daemon behind another state identity as daemon_changed and se
 
   onTestFinished(() => caller.stop());
 
-  expect(
-    caller.sendRequest('session.spawn', { cwd: '/tmp', resume: `a-${randomUUID()}` }, 'gw'),
-  ).rejects.toMatchObject({
+  const spawned = caller.sendRequest(
+    'session.spawn',
+    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
+    'gw',
+  );
+
+  expect(spawned).rejects.toMatchObject({
     code: 'daemon_unavailable',
     data: { daemon: 'cloud', reason: 'daemon_changed' },
   });
 
-  const listed = await daemon.owner.sendRequest('session.list');
-
-  expect(listed).toStrictEqual({ sessions: [] });
+  expect(ctx.daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a daemon that rejects the token as daemon_unauthorized', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
-      address: { host: '127.0.0.1', port: daemon.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
+      address: { host: '127.0.0.1', port: ctx.port },
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
       token: 'w'.repeat(32),
     },
     build: 'atc-gateway/test',
@@ -172,18 +167,15 @@ test('it refuses a daemon that rejects the token as daemon_unauthorized', async 
 });
 
 test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
-  const probe = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
-  const port = probe.port;
-
-  probe.stop(true);
-
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
-      address: { host: '127.0.0.1', port },
+
+      // Nothing can listen on port 0, so the dial fails at once.
+      address: { host: '127.0.0.1', port: 0 },
       daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
       incarnation: '0f6c2a8e',
-      token: TOKEN,
+      token: 'g'.repeat(32),
     },
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
@@ -193,20 +185,21 @@ test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
 
   expect(caller.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
     code: 'daemon_unavailable',
+    message: "daemon 'cloud' is unreachable",
     data: { daemon: 'cloud' },
   });
 });
 
 test("it passes a daemon's own error through with its code", async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
-      address: { host: '127.0.0.1', port: daemon.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
-      token: TOKEN,
+      address: { host: '127.0.0.1', port: ctx.port },
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
@@ -221,10 +214,10 @@ test("it passes a daemon's own error through with its code", async () => {
 });
 
 test('it retries a keyed spawn whose response was lost once on the same daemon, which spawns once', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: daemon.port },
+    target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
@@ -238,9 +231,9 @@ test('it retries a keyed spawn whose response was lost once on the same daemon, 
     daemon: {
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
-      token: TOKEN,
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
@@ -250,24 +243,22 @@ test('it retries a keyed spawn whose response was lost once on the same daemon, 
 
   const spawned = await caller.sendRequest(
     'session.spawn',
-    { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-1' },
+    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-1' },
     'gw',
   );
 
-  const listed = await daemon.owner.sendRequest('session.list');
-
   expect(proxy.countRequests()).toBe(2);
 
-  expect(listed).toStrictEqual({
+  expect(ctx.daemon.client.sendRequest('session.list')).resolves.toStrictEqual({
     sessions: [expect.objectContaining({ id: getRecord(spawned, 'session')['id'] })],
   });
 });
 
 test('it answers outcome_unknown for an unkeyed spawn whose response was lost', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: daemon.port },
+    target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
@@ -281,9 +272,9 @@ test('it answers outcome_unknown for an unkeyed spawn whose response was lost', 
     daemon: {
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
-      token: TOKEN,
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
@@ -291,18 +282,21 @@ test('it answers outcome_unknown for an unkeyed spawn whose response was lost', 
 
   onTestFinished(() => caller.stop());
 
-  expect(
-    caller.sendRequest('session.spawn', { cwd: '/tmp', resume: `a-${randomUUID()}` }, 'gw'),
-  ).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
+  const spawned = caller.sendRequest(
+    'session.spawn',
+    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
+    'gw',
+  );
 
+  expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
   expect(proxy.countRequests()).toBe(1);
 });
 
 test('it answers outcome_unknown for a keyed spawn whose retry also lost its response', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: daemon.port },
+    target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 2,
     mode: 'close',
@@ -316,9 +310,9 @@ test('it answers outcome_unknown for a keyed spawn whose retry also lost its res
     daemon: {
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
-      token: TOKEN,
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
@@ -326,22 +320,21 @@ test('it answers outcome_unknown for a keyed spawn whose retry also lost its res
 
   onTestFinished(() => caller.stop());
 
-  expect(
-    caller.sendRequest(
-      'session.spawn',
-      { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-2' },
-      'gw',
-    ),
-  ).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
+  const spawned = caller.sendRequest(
+    'session.spawn',
+    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-2' },
+    'gw',
+  );
 
+  expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
   expect(proxy.countRequests()).toBe(2);
 });
 
 test('it retries a keyed spawn whose response timed out on a fresh connection', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: daemon.port },
+    target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'hold',
@@ -351,40 +344,62 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
     proxy.stop();
   });
 
+  const timers = buildStubTimeoutScheduler();
+
+  const opener = buildStubChannelOpener([
+    (address: RegistryDaemon['address']) =>
+      DaemonClient.open({ hostname: address.host, port: address.port }),
+  ]);
+
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
-      token: TOKEN,
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: opener.open,
     responseTimeoutMs: 500,
+    scheduleTimeout: timers.schedule,
   });
 
   onTestFinished(() => caller.stop());
 
-  const spawned = await caller.sendRequest(
+  const spawning = caller.sendRequest(
     'session.spawn',
-    { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-3' },
+    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-3' },
     'gw',
   );
 
-  const listed = await daemon.owner.sendRequest('session.list');
+  // The daemon has run the spawn whose response the proxy holds, so the
+  // retry the timeout sends replays it.
+  await waitFor(async () => {
+    const listed = await ctx.daemon.client.sendRequest('session.list');
 
-  expect(listed).toStrictEqual({
+    expect(listed['sessions']).toHaveLength(1);
+  });
+
+  timers.runTimer(500);
+
+  const spawned = await spawning;
+
+  expect(ctx.daemon.client.sendRequest('session.list')).resolves.toStrictEqual({
     sessions: [expect.objectContaining({ id: getRecord(spawned, 'session')['id'] })],
   });
+
+  expect(opener.countOpened()).toBe(2);
 });
 
-test('it refuses a daemon that never answers the handshake as daemon_unavailable', () => {
+test('it refuses a daemon that never answers the handshake as daemon_unavailable once the connect time passes', () => {
   const silent = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
 
   onTestFinished(() => {
     silent.stop(true);
   });
+
+  const timers = buildStubTimeoutScheduler();
 
   const caller = new DaemonCaller({
     daemon: {
@@ -392,90 +407,90 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
       address: { host: '127.0.0.1', port: silent.port },
       daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
       incarnation: '0f6c2a8e',
-      token: TOKEN,
+      token: 'g'.repeat(32),
     },
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
     connectTimeoutMs: 300,
+    scheduleTimeout: timers.schedule,
   });
 
   onTestFinished(() => caller.stop());
 
-  const started = Date.now();
+  const listed = caller.sendRequest('session.list', {}, 'gw');
 
-  expect(caller.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
+  timers.runTimer(300);
+
+  expect(listed).rejects.toMatchObject({
     code: 'daemon_unavailable',
     message: "daemon 'cloud' did not answer the connection in time",
   });
-
-  expect(Date.now() - started).toBeWithin(250, 5000);
 });
 
 test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnect that no longer takes keys', async () => {
-  await using daemon = await setupTest();
-  await using tmp = setupTempDir('atc-daemon-caller-legacy-');
+  await using ctx = await setupTest();
 
   const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: daemon.port },
+    target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
   });
 
-  const legacy = startLegacyDaemon(join(tmp.dir, 'legacy.sock'), {
+  onTestFinished(() => {
+    proxy.stop();
+  });
+
+  const legacy = startLegacyDaemon(join(ctx.daemon.dir, 'legacy.sock'), {
     features: ['transport.tcp', 'request.principal'],
     replies: {
       'daemon.hello': {
         daemon: 'atc/legacy-build',
-        daemonID: daemon.daemonID,
+        daemonID: ctx.daemonID,
         features: ['transport.tcp'],
       },
     },
   });
 
   onTestFinished(() => {
-    proxy.stop();
     legacy.stop();
   });
 
-  let opened = 0;
+  const opener = buildStubChannelOpener([
+    (address: RegistryDaemon['address']) =>
+      DaemonClient.open({ hostname: address.host, port: address.port }),
+    () => DaemonClient.open(join(ctx.daemon.dir, 'legacy.sock')),
+  ]);
 
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
-      token: TOKEN,
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
-    openChannel: (address) => {
-      opened++;
-
-      return opened === 1
-        ? DaemonClient.open({ hostname: address.host, port: address.port })
-        : DaemonClient.open(join(tmp.dir, 'legacy.sock'));
-    },
+    openChannel: opener.open,
   });
 
   onTestFinished(() => caller.stop());
 
-  expect(
-    caller.sendRequest(
-      'session.spawn',
-      { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-4' },
-      'gw',
-    ),
-  ).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
+  const spawned = caller.sendRequest(
+    'session.spawn',
+    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-4' },
+    'gw',
+  );
 
+  expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
   expect(legacy.requests.map((request) => request.m)).toStrictEqual(['daemon.hello']);
 });
 
 test('it resends a keyed spawn replay-only, so a resend after the daemon swept the key spawns nothing and answers outcome_unknown', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: daemon.port },
+    target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
@@ -485,68 +500,64 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
     proxy.stop();
   });
 
-  const redialed = Promise.withResolvers<void>();
-  const released = Promise.withResolvers<void>();
-  let opened = 0;
+  const opener = buildStubChannelOpener(
+    [
+      (address: RegistryDaemon['address']) =>
+        DaemonClient.open({ hostname: address.host, port: address.port }),
+    ],
+    { holdDial: 2 },
+  );
 
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
-      token: TOKEN,
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
-    openChannel: async (address) => {
-      opened++;
-
-      if (opened === 2) {
-        redialed.resolve();
-
-        await released.promise;
-      }
-
-      return DaemonClient.open({ hostname: address.host, port: address.port });
-    },
+    openChannel: opener.open,
   });
 
   onTestFinished(() => caller.stop());
 
   const spawned = caller.sendRequest(
     'session.spawn',
-    { cwd: '/tmp', resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' },
+    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' },
     'gw',
   );
 
-  await redialed.promise;
+  await opener.waitForHeld();
 
-  const ledger = new Database(daemon.dbPath);
+  const ledger = new Database(ctx.daemon.dbPath);
 
+  onTestFinished(() => {
+    ledger.close();
+  });
+
+  // The daemon's sweep drops every completed key once its retention passes.
   ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
-  ledger.close();
-  released.resolve();
+  opener.releaseHeld();
 
   expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
-
-  await Promise.allSettled([spawned]);
-
-  const listed = await daemon.owner.sendRequest('session.list');
-
   expect(proxy.countRequests()).toBe(2);
-  expect(listed['sessions']).toHaveLength(1);
+
+  expect(ctx.daemon.client.sendRequest('session.list')).resolves.toStrictEqual({
+    sessions: [expect.anything()],
+  });
 });
 
 test('it holds concurrent first requests until the handshake answers, so the daemon never sees a pipelined line', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
-      address: { host: '127.0.0.1', port: daemon.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
-      token: TOKEN,
+      address: { host: '127.0.0.1', port: ctx.port },
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
@@ -561,41 +572,67 @@ test('it holds concurrent first requests until the handshake answers, so the dae
   expect(answers).toStrictEqual(Array.from({ length: 5 }, () => ({ sessions: [] })));
 });
 
-test('it lets a long poll wait out its own waitMs beyond the response time on the same connection', async () => {
-  await using daemon = await setupTest();
+test('it gives a long poll its own waitMs on top of the response time on the same connection', async () => {
+  await using ctx = await setupTest();
 
-  let opened = 0;
+  const timers = buildStubTimeoutScheduler();
+
+  const opener = buildStubChannelOpener([
+    (address: RegistryDaemon['address']) =>
+      DaemonClient.open({ hostname: address.host, port: address.port }),
+  ]);
 
   const caller = new DaemonCaller({
     daemon: {
       name: 'cloud',
-      address: { host: '127.0.0.1', port: daemon.port },
-      daemonID: daemon.daemonID,
-      incarnation: daemon.daemonID.slice(0, 8),
-      token: TOKEN,
+      address: { host: '127.0.0.1', port: ctx.port },
+      daemonID: ctx.daemonID,
+      incarnation: ctx.daemonID.slice(0, 8),
+      token: ctx.token,
     },
     build: 'atc-gateway/test',
-    openChannel: (address) => {
-      opened++;
-
-      return DaemonClient.open({ hostname: address.host, port: address.port });
-    },
+    openChannel: opener.open,
+    connectTimeoutMs: 10_000,
     responseTimeoutMs: 500,
+    scheduleTimeout: timers.schedule,
   });
 
   onTestFinished(() => caller.stop());
 
+  const spawned = await caller.sendRequest(
+    'session.spawn',
+    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
+    'gw',
+  );
+
   const caughtUp = await caller.sendRequest('events.read', {}, 'gw');
 
-  const started = Date.now();
-
-  const waited = await caller.sendRequest(
+  const waiting = caller.sendRequest(
     'events.read',
     { cursor: caughtUp['cursor'], waitMs: 1500 },
     'gw',
   );
 
-  expect(waited['events']).toStrictEqual([]);
-  expect(Date.now() - started).toBeWithin(1400, 5000);
-  expect(opened).toBe(1);
+  // Once the poll is out, a message writes the event that ends its wait.
+  await waitFor(() => {
+    expect(timers.collectPendingDelays()).toStrictEqual([2000]);
+  });
+
+  await caller.sendRequest(
+    'session.message',
+    { session: getRecord(spawned, 'session')['id'], from: 'tester', text: 'wake' },
+    'gw',
+  );
+
+  const waited = await waiting;
+
+  expect(waited['events']).toStrictEqual([
+    expect.objectContaining({
+      kind: 'message-accepted',
+      session: getRecord(spawned, 'session')['id'],
+    }),
+  ]);
+
+  expect(timers.collectDelays()).toStrictEqual([10_000, 500, 500, 2000, 500]);
+  expect(opener.countOpened()).toBe(1);
 });

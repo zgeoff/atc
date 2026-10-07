@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test';
-import { buildGatewayID } from './build-gateway-id';
 import { parseGatewayID } from './parse-gateway-id';
 
 test('it routes a gateway id back to its daemon and the daemon id inside it', () => {
@@ -11,25 +10,22 @@ test('it routes a gateway id back to its daemon and the daemon id inside it', ()
     token: 't',
   };
 
-  const registry = { daemons: new Map([['cloud', cloud]]), defaultDaemon: 'cloud' };
-  const id = buildGatewayID(cloud, 'm-2b7f0c1e-9a4d-4e8b-b1c2-3d4e5f6a7b8c');
-
-  expect(id).toBe('cloud.0f6c2a8e.m-2b7f0c1e-9a4d-4e8b-b1c2-3d4e5f6a7b8c');
-
-  expect(parseGatewayID(id, registry)).toStrictEqual({
-    daemon: cloud,
-    id: 'm-2b7f0c1e-9a4d-4e8b-b1c2-3d4e5f6a7b8c',
+  const parsed = parseGatewayID('cloud.0f6c2a8e.m-2b7f0c1e-9a4d-4e8b-b1c2-3d4e5f6a7b8c', {
+    daemons: new Map([['cloud', cloud]]),
+    defaultDaemon: 'cloud',
   });
+
+  expect(parsed).toStrictEqual({ daemon: cloud, id: 'm-2b7f0c1e-9a4d-4e8b-b1c2-3d4e5f6a7b8c' });
 });
 
 test.each([
-  ['a stale incarnation', 'cloud.11111111.s7-m4x2p'],
-  ['an unknown daemon name', 'pc.0f6c2a8e.s7-m4x2p'],
-  ['a daemon id with no parts', 's7-m4x2p'],
-  ['an empty daemon id', 'cloud.0f6c2a8e.'],
-  ['a missing incarnation', 'cloud.s7-m4x2p'],
-  ['an empty string', ''],
-])('it routes nowhere for %s', (_label, value) => {
+  ['cloud.11111111.s7-m4x2p', 'a stale incarnation'],
+  ['pc.0f6c2a8e.s7-m4x2p', 'an unknown daemon name'],
+  ['s7-m4x2p', 'a daemon id with no parts'],
+  ['cloud.0f6c2a8e.', 'an empty daemon id'],
+  ['cloud.s7-m4x2p', 'a missing incarnation'],
+  ['', 'an empty string'],
+])('it routes %p nowhere as %s', (value) => {
   const registry = {
     daemons: new Map([
       [
