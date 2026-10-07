@@ -4162,6 +4162,38 @@ test('it exits 1 and names a row whose agent is gone while the good row comes ba
   expect(output).toInclude('restored 1 of 2');
 }, 60_000);
 
+test('it leaves the daemon running when the token file for the replacement cannot be read', async () => {
+  using fake = setupFakeSystemd(atcCommand);
+
+  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
+  const watchDaemon = registerRecordedDaemonKill();
+  const ctx = setupDaemonProc(undefined, { PATH: path });
+
+  watchDaemon(ctx.home);
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = readDaemonPID(ctx.home);
+
+  const restart = spawnRestart(ctx.home, { PATH: path }, [
+    '--listen',
+    '127.0.0.1:0',
+    '--token-file',
+    join(ctx.home, 'missing-tokens'),
+  ]);
+
+  const output = await new Response(restart.stdout).text();
+
+  const code = await restart.exited;
+
+  expect(code).toBe(1);
+  expect(output).toInclude('the daemon was left running');
+  expect(readDaemonPID(ctx.home)).toBe(oldPID);
+  expect(() => process.kill(oldPID, 0)).not.toThrow();
+}, 60_000);
+
 test('it joins a restart already in flight and reports its result without a second restore', async () => {
   using fake = setupFakeSystemd(atcCommand);
 

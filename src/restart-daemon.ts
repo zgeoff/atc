@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { buildOwnDaemonProcess } from './build-own-daemon-process';
 import { buildRestartFailure } from './build-restart-failure';
 import { collectRestartPlan } from './collect-restart-plan';
@@ -6,6 +7,7 @@ import type { RestartResult } from './parse-restart-result';
 import { readDaemonProcess } from './read-daemon-process';
 import { runSystemctl } from './run-systemctl';
 import { getBuild } from './shared/get-build';
+import { loadListenerTokens } from './shared/load-listener-tokens';
 import { startReplacementDaemon } from './start-replacement-daemon';
 import { stopDaemonProcess } from './stop-daemon-process';
 import { verifyRestoredFleet } from './verify-restored-fleet';
@@ -68,6 +70,14 @@ export async function restartDaemon(options: RestartOptions): Promise<RestartRes
 
     if ((listen === null) !== (tokenFile === null)) {
       return buildFailure('--listen and --token-file go together; the daemon was left running');
+    }
+
+    if (listen !== null && tokenFile !== null) {
+      const loaded = loadListenerTokens(resolve(old.cwd ?? process.cwd(), tokenFile));
+
+      if (!loaded.ok) {
+        return buildFailure(`${loaded.reason}; the daemon was left running`);
+      }
     }
 
     if (plan.pid !== null) {

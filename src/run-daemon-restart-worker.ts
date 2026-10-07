@@ -3,6 +3,7 @@ import { buildRestartFailure } from './build-restart-failure';
 import { formatRestartReport } from './format-restart-report';
 import type { RestartResult } from './parse-restart-result';
 import { readRestartResult } from './read-restart-result';
+import { removeRestartResult } from './remove-restart-result';
 import { restartDaemon } from './restart-daemon';
 import type { RestartOptions } from './restart-daemon';
 import { claimDaemonLock } from './shared/claim-daemon-lock';
@@ -32,6 +33,10 @@ export async function runDaemonRestartWorker(options: RestartOptions): Promise<n
     result = await waitForRestartInFlight(options.runID);
   } else {
     try {
+      // A joiner reads last.json once it gets the lock, so a result left by
+      // an earlier restart must not outlive this run's start.
+      removeRestartResult();
+
       result = await restartDaemon(options).catch((error: unknown) => {
         const reason = error instanceof Error ? error.message : String(error);
 

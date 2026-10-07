@@ -13,6 +13,9 @@ import { getBuild } from './shared/get-build';
 import { isProcessAlive } from './shared/is-process-alive';
 import { isRecord } from './shared/report';
 
+// How long the handshake and the session list may take together.
+const PROBE_DEADLINE_MS = 3000;
+
 interface Probe {
   readonly socketPath: string;
   readonly answer: DaemonAnswer;
@@ -91,6 +94,12 @@ async function tryProbe(socketPath: string): Promise<Probe | null> {
     return null;
   }
 
+  // A daemon that accepts the socket and never answers must not hang the
+  // restart: closing the client rejects every request still waiting.
+  const expiry = setTimeout(() => {
+    client.stop();
+  }, PROBE_DEADLINE_MS);
+
   try {
     const hello = await client.sendHello(getBuild());
 
@@ -112,6 +121,8 @@ async function tryProbe(socketPath: string): Promise<Probe | null> {
 
     return null;
   } finally {
+    clearTimeout(expiry);
+
     client.stop();
   }
 }
