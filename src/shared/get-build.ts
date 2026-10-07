@@ -12,13 +12,14 @@ const SRC_ROOT = join(import.meta.dir, '..');
  * different checkouts of the same version still read as different builds,
  * which is what triggers the stale-daemon restart. Any source file counts:
  * a stamp taken from a single file misses every change that lands
- * elsewhere and leaves stale daemons in service.
+ * elsewhere and leaves stale daemons in service. The walk starts at this
+ * checkout's src/ root unless the caller passes another root.
  */
-export function getBuild(): string {
+export function getBuild(srcRoot: string = SRC_ROOT): string {
   let stamp = 0;
 
   try {
-    stamp = getNewestTSMtime(SRC_ROOT);
+    stamp = getNewestTSMtime(srcRoot);
   } catch {}
 
   if (stamp === 0) {

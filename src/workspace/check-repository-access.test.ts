@@ -188,11 +188,7 @@ test('it authenticates through a credential helper in the host git config', asyn
     '[credential]\n\thelper = "!f() { echo username=atc; echo password=host-tok; }; f"\n',
   );
 
-  process.env['GIT_CONFIG_GLOBAL'] = join(project.dir, 'gitconfig');
-
-  onTestFinished(() => {
-    delete process.env['GIT_CONFIG_GLOBAL'];
-  });
+  updateEnv('GIT_CONFIG_GLOBAL', join(project.dir, 'gitconfig'));
 
   const access = await checkRepositoryAccess({
     transports: FIXTURE_TRANSPORTS,
@@ -211,11 +207,7 @@ test('it authenticates through a credential helper in the host git config', asyn
 test('it authenticates with an env credential through the askpass helper', async () => {
   await using project = await setupTest();
 
-  process.env['ATC_TEST_PROBE_TOKEN'] = 'tok-77a1';
-
-  onTestFinished(() => {
-    delete process.env['ATC_TEST_PROBE_TOKEN'];
-  });
+  updateEnv('ATC_TEST_PROBE_TOKEN', 'tok-77a1');
 
   const access = await checkRepositoryAccess({
     url: project.httpURL,

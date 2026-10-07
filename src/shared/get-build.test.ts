@@ -1,26 +1,42 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { statSync, utimesSync } from 'node:fs';
+import { expect, test } from 'bun:test';
+import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setupTempDir } from '../../test/setup-temp-dir';
 import { getBuild } from './get-build';
 
+function setupTest() {
+  const tmp = setupTempDir('atc-get-build-');
+
+  // The walk needs a source tree with a module in two sibling directories.
+  mkdirSync(join(tmp.dir, 'daemon'));
+  mkdirSync(join(tmp.dir, 'shared'));
+  writeFileSync(join(tmp.dir, 'daemon', 'sessions.ts'), '');
+  writeFileSync(join(tmp.dir, 'shared', 'config.ts'), '');
+
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+}
+
 test('it changes the build string when a .ts file in a sibling directory changes', () => {
-  const target = join(import.meta.dir, '..', 'daemon', 'sessions.ts');
-  const original = statSync(target);
+  using ctx = setupTest();
 
-  onTestFinished(() => {
-    utimesSync(target, original.atime, original.mtime);
-  });
+  const before = getBuild(ctx.dir);
 
-  const before = getBuild();
+  const future = new Date(Date.now() + 60_000);
 
-  // One second past the newest mtime in the tree is enough to move the
-  // stamp, and an interrupted run leaves the file stale for a second rather
-  // than pinning the build string for an hour.
-  const future = new Date(Math.max(Date.now(), original.mtime.getTime()) + 1000);
+  utimesSync(join(ctx.dir, 'daemon', 'sessions.ts'), future, future);
 
-  utimesSync(target, future, future);
+  expect(getBuild(ctx.dir)).not.toBe(before);
+});
 
-  const after = getBuild();
+test('it keeps the build string when a file that is not .ts changes', () => {
+  using ctx = setupTest();
 
-  expect(after).not.toBe(before);
+  const before = getBuild(ctx.dir);
+
+  const future = new Date(Date.now() + 60_000);
+
+  writeFileSync(join(ctx.dir, 'daemon', 'notes.md'), '');
+  utimesSync(join(ctx.dir, 'daemon', 'notes.md'), future, future);
+
+  expect(getBuild(ctx.dir)).toBe(before);
 });
