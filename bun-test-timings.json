@@ -10,7 +10,6 @@
     "e2e/daemon-restore.test.ts": 8965,
     "e2e/daemon-hooks.test.ts": 8684,
     "e2e/tui-overlay.test.ts": 8410,
-    "src/gateway.test.ts": 8012,
     "e2e/daemon-sessions.test.ts": 7483,
     "src/daemon/daemon-principals.test.ts": 7477,
     "src/test-utils/start-mcp-stdio.test.ts": 6958,
@@ -159,7 +158,6 @@
     "src/test-utils/collect-process-tree.test.ts": 219,
     "src/test-utils/start-stub-reporter-socket.test.ts": 217,
     "src/test-utils/start-stub-session-bridge.test.ts": 211,
-    "src/daemon/claim-daemon-lock.test.ts": 209,
     "src/workspace/check-url-credentials.test.ts": 209,
     "src/client/log-client-event.test.ts": 204,
     "src/agents/gateway-adapter.test.ts": 201,
@@ -487,9 +485,6 @@
     "src/test-utils/build-mock-sortable-session-view.test.ts": 36,
     "src/daemon/is-binding-current.test.ts": 35,
     "src/test-utils/build-mock-stored-event.test.ts": 35,
-    "src/daemon/pick-session-state.test.ts": 33,
-    "src/agents/start-claude-headless-run.test.ts": 15,
-    "src/daemon/imp-client-boundary.test.ts": 15,
-    "src/daemon/load-listener-tokens.test.ts": 11
+    "src/daemon/pick-session-state.test.ts": 33
   }
 }
