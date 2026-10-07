@@ -8,6 +8,7 @@ import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildStubTimeoutScheduler } from '../test-utils/build-stub-timeout-scheduler';
 import { readJSONRecord } from '../test-utils/read-json-record';
 import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
@@ -98,29 +99,25 @@ async function setupTest() {
   const pcID = String(pcHello['daemonID']);
   const timers = buildStubTimeoutScheduler();
 
+  const cloudDaemon = buildMockRegistryDaemon({
+    name: 'cloud',
+    address: { host: '127.0.0.1', port: Number(cloud.daemon.listenPort) },
+    daemonID: cloudID,
+    token,
+  });
+
+  const pcDaemon = buildMockRegistryDaemon({
+    name: 'pc',
+    address: { host: '127.0.0.1', port: Number(pc.daemon.listenPort) },
+    daemonID: pcID,
+    token,
+  });
+
   const gateway = openGatewayCaller({
     registry: {
       daemons: new Map([
-        [
-          'cloud',
-          {
-            name: 'cloud',
-            address: { host: '127.0.0.1', port: Number(cloud.daemon.listenPort) },
-            daemonID: cloudID,
-            incarnation: cloudID.slice(0, 8),
-            token,
-          },
-        ],
-        [
-          'pc',
-          {
-            name: 'pc',
-            address: { host: '127.0.0.1', port: Number(pc.daemon.listenPort) },
-            daemonID: pcID,
-            incarnation: pcID.slice(0, 8),
-            token,
-          },
-        ],
+        ['cloud', cloudDaemon],
+        ['pc', pcDaemon],
       ]),
       defaultDaemon: 'cloud',
     },
@@ -445,7 +442,7 @@ test('it lists each daemon with its state, build, pinned id, and features but no
   });
 });
 
-test('it acts on each daemon as the verified client a daemon lists', async () => {
+test('it answers a tool call from a client the daemons list', async () => {
   await using ctx = await setupTest();
 
   const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
@@ -453,8 +450,10 @@ test('it acts on each daemon as the verified client a daemon lists', async () =>
     arguments: {},
   });
 
-  expect(listed).not.toContainKey('isError');
-  expect(listed).toContainKey('structuredContent');
+  expect(listed).toStrictEqual({
+    content: [{ type: 'text', text: '[]' }],
+    structuredContent: { dirs: [] },
+  });
 });
 
 test('it refuses a client no daemon lists as unauthorized', async () => {

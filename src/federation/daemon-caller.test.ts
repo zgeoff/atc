@@ -1,11 +1,12 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildStubChannelOpener } from '../test-utils/build-stub-channel-opener';
 import { buildStubTimeoutScheduler } from '../test-utils/build-stub-timeout-scheduler';
 import { startCutProxy } from '../test-utils/start-cut-proxy';
@@ -16,20 +17,18 @@ import { DaemonCaller } from './daemon-caller';
 import type { RegistryDaemon } from './types';
 
 /**
- * A real daemon with a TCP listener on loopback `port` that takes `token`.
- * `daemon` is its harness, whose client is the owner's connection on the
+ * A real daemon with a TCP listener on loopback `port` that takes one fixed
+ * token. `daemon` is its harness, whose client is the owner's connection on the
  * local socket, and `daemonID` the state identity its handshake returns.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
-  // The token the listener takes, which every caller presents.
-  const token = randomBytes(16).toString('hex');
-
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-caller-',
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'token'), `${token}\n`);
+      // The token the listener takes, which every caller here presents.
+      writeFileSync(join(paths.dir, 'token'), `${'a'.repeat(32)}\n`);
 
       return {
         // Takes messages, so a message can end a long poll.
@@ -56,7 +55,6 @@ async function setupTest() {
 
   return {
     daemon,
-    token,
     port: Number(daemon.daemon.listenPort),
     daemonID: String(hello['daemonID']),
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
@@ -67,13 +65,12 @@ test('it answers a request through a daemon whose handshake returns the pinned i
   await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
@@ -89,13 +86,12 @@ test('it reads the build, features, and key retention from the handshake', async
   await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
@@ -116,13 +112,12 @@ test('it refuses a daemon behind another state identity as daemon_changed and se
   await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
       daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-      incarnation: '0f6c2a8e',
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
@@ -147,13 +142,12 @@ test('it refuses a daemon that rejects the token as daemon_unauthorized', async 
   await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
       token: 'w'.repeat(32),
-    },
+    }),
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
@@ -168,15 +162,12 @@ test('it refuses a daemon that rejects the token as daemon_unauthorized', async 
 
 test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
 
       // Nothing can listen on port 0, so the dial fails at once.
       address: { host: '127.0.0.1', port: 0 },
-      daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-      incarnation: '0f6c2a8e',
-      token: 'g'.repeat(32),
-    },
+    }),
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
@@ -194,13 +185,12 @@ test("it passes a daemon's own error through with its code", async () => {
   await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
@@ -228,13 +218,12 @@ test('it retries a keyed spawn whose response was lost once on the same daemon, 
   });
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
@@ -269,13 +258,12 @@ test('it answers outcome_unknown for an unkeyed spawn whose response was lost', 
   });
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
@@ -307,13 +295,12 @@ test('it answers outcome_unknown for a keyed spawn whose retry also lost its res
   });
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
@@ -352,13 +339,12 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
   ]);
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: opener.open,
     responseTimeoutMs: 500,
@@ -402,13 +388,10 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
   const timers = buildStubTimeoutScheduler();
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: silent.port },
-      daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-      incarnation: '0f6c2a8e',
-      token: 'g'.repeat(32),
-    },
+    }),
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
     connectTimeoutMs: 300,
@@ -463,13 +446,12 @@ test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnec
   ]);
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: opener.open,
   });
@@ -509,13 +491,12 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
   );
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: opener.open,
   });
@@ -552,13 +533,12 @@ test('it holds concurrent first requests until the handshake answers, so the dae
   await using ctx = await setupTest();
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
@@ -583,13 +563,12 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
   ]);
 
   const caller = new DaemonCaller({
-    daemon: {
+    daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
       daemonID: ctx.daemonID,
-      incarnation: ctx.daemonID.slice(0, 8),
-      token: ctx.token,
-    },
+      token: 'a'.repeat(32),
+    }),
     build: 'atc-gateway/test',
     openChannel: opener.open,
     connectTimeoutMs: 10_000,

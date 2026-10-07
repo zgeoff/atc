@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
@@ -6,26 +7,8 @@ import { encodeGatewayCursor } from './encode-gateway-cursor';
 test('it decodes each registry daemon position an encoded cursor holds', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: '100.64.0.2', port: 8415 },
-          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: '100.64.0.3', port: 8415 },
-          daemonID: '9a1b2c3d-0000-4000-8000-000000000001',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -51,16 +34,7 @@ test('it decodes each registry daemon position an encoded cursor holds', () => {
 test('it drops the part of a daemon the registry no longer lists', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: '100.64.0.2', port: 8415 },
-          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -74,16 +48,7 @@ test('it drops the part of a daemon the registry no longer lists', () => {
 test('it refuses a cursor over 4 KiB with bad_args', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: '100.64.0.2', port: 8415 },
-          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -98,16 +63,7 @@ test('it refuses a cursor over 4 KiB with bad_args', () => {
 test('it refuses a cursor that is not JSON with bad_args', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: '100.64.0.2', port: 8415 },
-          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -125,16 +81,7 @@ test('it refuses a cursor that is not JSON with bad_args', () => {
 test('it refuses a cursor of another version with bad_args', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: '100.64.0.2', port: 8415 },
-          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -154,16 +101,7 @@ test('it refuses a cursor of another version with bad_args', () => {
 test('it refuses a cursor read under other filters with bad_args', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: '100.64.0.2', port: 8415 },
-          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -183,16 +121,7 @@ test('it refuses a cursor read under other filters with bad_args', () => {
 test('it refuses a part with a stale incarnation with bad_args', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: '100.64.0.2', port: 8415 },
-          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -212,16 +141,7 @@ test('it refuses a part with a stale incarnation with bad_args', () => {
 test('it refuses a part whose position is not a cursor with bad_args', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: '100.64.0.2', port: 8415 },
-          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -241,16 +161,7 @@ test('it refuses a part whose position is not a cursor with bad_args', () => {
 test('it refuses a part without an incarnation with bad_args', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: '100.64.0.2', port: 8415 },
-          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
     ]),
     defaultDaemon: 'cloud',
   };

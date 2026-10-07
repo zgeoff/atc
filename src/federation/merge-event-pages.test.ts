@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { mergeEventPages } from './merge-event-pages';
@@ -86,9 +87,27 @@ test("it interleaves daemons by timestamp and keeps a daemon's own order when it
   );
 
   expect(merged.events).toStrictEqual([
-    { cursor: expect.toBeString(), at: 7, session: 'pc.9a1b2c3d.s9', kind: 'state' },
-    { cursor: expect.toBeString(), at: 10, session: 'cloud.0f6c2a8e.s1', kind: 'state' },
-    { cursor: expect.toBeString(), at: 5, session: 'cloud.0f6c2a8e.s1', kind: 'state' },
+    {
+      cursor:
+        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam93ZlEiLCJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TVgwIn19',
+      at: 7,
+      session: 'pc.9a1b2c3d.s9',
+      kind: 'state',
+    },
+    {
+      cursor:
+        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam94ZlEiLCJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TVgwIn19',
+      at: 10,
+      session: 'cloud.0f6c2a8e.s1',
+      kind: 'state',
+    },
+    {
+      cursor:
+        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam95ZlEiLCJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TVgwIn19',
+      at: 5,
+      session: 'cloud.0f6c2a8e.s1',
+      kind: 'state',
+    },
   ]);
 
   expect(merged.more).toBeFalse();
@@ -123,34 +142,26 @@ test('it gives events of one timestamp to the daemon whose name sorts first', ()
   );
 
   expect(merged.events).toStrictEqual([
-    { cursor: expect.toBeString(), at: 7, session: 'cloud.0f6c2a8e.s1' },
-    { cursor: expect.toBeString(), at: 7, session: 'pc.9a1b2c3d.s9' },
+    {
+      cursor:
+        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TUgwIiwiY2xvdWQuMGY2YzJhOGUiOiJleUpySWpvaVpYWWlMQ0pwSWpveGZRIn19',
+      at: 7,
+      session: 'cloud.0f6c2a8e.s1',
+    },
+    {
+      cursor:
+        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TVgwIiwiY2xvdWQuMGY2YzJhOGUiOiJleUpySWpvaVpYWWlMQ0pwSWpveGZRIn19',
+      at: 7,
+      session: 'pc.9a1b2c3d.s9',
+    },
   ]);
 });
 
 test('it advances each daemon only past the events that made the page and reads the cut ones again', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: 'h', port: 1 },
-          daemonID: 'd1',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: 'h', port: 2 },
-          daemonID: 'd2',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -189,8 +200,18 @@ test('it advances each daemon only past the events that made the page and reads 
   );
 
   expect(merged.events).toStrictEqual([
-    { cursor: expect.toBeString(), at: 1, session: 'cloud.0f6c2a8e.s1' },
-    { cursor: expect.toBeString(), at: 2, session: 'pc.9a1b2c3d.s9' },
+    {
+      cursor:
+        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam94ZlEiLCJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TVgwIn19',
+      at: 1,
+      session: 'cloud.0f6c2a8e.s1',
+    },
+    {
+      cursor:
+        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam94ZlEiLCJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TW4wIn19',
+      at: 2,
+      session: 'pc.9a1b2c3d.s9',
+    },
   ]);
 
   expect(merged.more).toBeTrue();
@@ -206,26 +227,8 @@ test('it advances each daemon only past the events that made the page and reads 
 test('it gives each event the cursor that resumes right after it', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: 'h', port: 1 },
-          daemonID: 'd1',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: 'h', port: 2 },
-          daemonID: 'd2',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -268,26 +271,8 @@ test('it gives each event the cursor that resumes right after it', () => {
 test('it keeps the position of a daemon that did not answer and lists it as unavailable', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: 'h', port: 1 },
-          daemonID: 'd1',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: 'h', port: 2 },
-          daemonID: 'd2',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -322,16 +307,7 @@ test('it keeps the position of a daemon that did not answer and lists it as unav
 test('it leaves a daemon the cursor never held out of the cursor while it does not answer', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: 'h', port: 1 },
-          daemonID: 'd1',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -353,18 +329,7 @@ test('it leaves a daemon the cursor never held out of the cursor while it does n
 
 test('it lists a daemon that started at its newest event and resumes it from there', () => {
   const registry = {
-    daemons: new Map([
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: 'h', port: 2 },
-          daemonID: 'd2',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
-    ]),
+    daemons: new Map([['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })]]),
     defaultDaemon: 'pc',
   };
 
@@ -388,26 +353,8 @@ test('it lists a daemon that started at its newest event and resumes it from the
 test('it resumes a daemon whose every event was cut right before its first event', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: 'h', port: 1 },
-          daemonID: 'd1',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: 'h', port: 2 },
-          daemonID: 'd2',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -476,7 +423,8 @@ test('it rewrites the session and message of each event for its daemon', () => {
 
   expect(merged.events).toStrictEqual([
     {
-      cursor: expect.toBeString(),
+      cursor:
+        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam94ZlEifX0',
       at: 1,
       session: 'cloud.0f6c2a8e.s1',
       message: 'cloud.0f6c2a8e.m-1',
@@ -493,26 +441,8 @@ test('it reads an event cut from a page exactly once though the daemon appends a
 
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: 'h', port: 1 },
-          daemonID: 'd1',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: 'h', port: 2 },
-          daemonID: 'd2',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -618,26 +548,8 @@ test('it resumes a daemon right after its event a later page read again', async 
 
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: 'h', port: 1 },
-          daemonID: 'd1',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: 'h', port: 2 },
-          daemonID: 'd2',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -732,18 +644,7 @@ test('it pins a daemon the cursor leaves out at its newest event and reads only 
   await using ctx = await setupTest();
 
   const registry = {
-    daemons: new Map([
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: 'h', port: 2 },
-          daemonID: 'd2',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
-    ]),
+    daemons: new Map([['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })]]),
     defaultDaemon: 'pc',
   };
 
@@ -821,18 +722,7 @@ test('it reads the events a daemon queued while it was down once it answers at i
 
 test('it keeps a null position for a daemon that has not answered since the cursor started', () => {
   const registry = {
-    daemons: new Map([
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: 'h', port: 2 },
-          daemonID: 'd2',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
-    ]),
+    daemons: new Map([['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })]]),
     defaultDaemon: 'pc',
   };
 
@@ -898,7 +788,8 @@ test("it gives a report event its daemon's own cursor as a qualified report hand
 
   expect(merged.events).toStrictEqual([
     {
-      cursor: expect.toBeString(),
+      cursor:
+        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam8zZlEifX0',
       at: 1,
       session: 'pc.9a1b2c3d.s1',
       kind: 'report',

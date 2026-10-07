@@ -1,14 +1,9 @@
 import { expect, test } from 'bun:test';
+import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { resolveDaemonRequest } from './resolve-daemon-request';
 
 test('it routes a request by its session id and hands the daemon its own id', () => {
-  const cloud = {
-    name: 'cloud',
-    address: { host: '100.64.0.2', port: 8415 },
-    daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-    incarnation: '0f6c2a8e',
-    token: 't',
-  };
+  const cloud = buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' });
 
   const resolved = resolveDaemonRequest(
     { session: 'cloud.0f6c2a8e.s1', text: 'hi' },
@@ -40,16 +35,7 @@ test.each([
 ])('it refuses %p with %s as a daemon refuses an id it never held', (params, code, message) => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: '100.64.0.2', port: 8415 },
-          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -62,26 +48,8 @@ test.each([
 test('it refuses a request whose ids point at two daemons', () => {
   const registry = {
     daemons: new Map([
-      [
-        'cloud',
-        {
-          name: 'cloud',
-          address: { host: '100.64.0.2', port: 8415 },
-          daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-          incarnation: '0f6c2a8e',
-          token: 't',
-        },
-      ],
-      [
-        'pc',
-        {
-          name: 'pc',
-          address: { host: '100.64.0.3', port: 8415 },
-          daemonID: '9a1b2c3d-0000-4000-8000-000000000001',
-          incarnation: '9a1b2c3d',
-          token: 't',
-        },
-      ],
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
     ]),
     defaultDaemon: 'cloud',
   };
@@ -92,13 +60,7 @@ test('it refuses a request whose ids point at two daemons', () => {
 });
 
 test('it routes report.get by its report handle and hands the daemon its own cursor', () => {
-  const pc = {
-    name: 'pc',
-    address: { host: '100.64.0.3', port: 8415 },
-    daemonID: '9a1b2c3d-0000-4000-8000-000000000000',
-    incarnation: '9a1b2c3d',
-    token: 't',
-  };
+  const pc = buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' });
 
   const resolved = resolveDaemonRequest(
     { report: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ' },
@@ -113,13 +75,7 @@ test('it routes report.get by its report handle and hands the daemon its own cur
 });
 
 test('it refuses a report handle with a stale incarnation as an unknown report', () => {
-  const pc = {
-    name: 'pc',
-    address: { host: '100.64.0.3', port: 8415 },
-    daemonID: '9a1b2c3d-0000-4000-8000-000000000000',
-    incarnation: '9a1b2c3d',
-    token: 't',
-  };
+  const pc = buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' });
 
   expect(() =>
     resolveDaemonRequest(
