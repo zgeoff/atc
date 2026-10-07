@@ -2,27 +2,34 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { readJSONRecord } from '../test-utils/read-json-record';
 import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
 import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { collectGrants } from './collect-grants';
+import { openMCPAuth } from './open-mcp-auth';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { removeClient } from './remove-client';
 import { revokeGrant } from './revoke-grant';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 
-test('it advertises public clients with PKCE, issuer responses, and no registration', async () => {
-  await using server = await setupMCPHTTP();
+function setupTest() {
+  return setupMCPHTTP();
+}
 
-  const answered = await fetch(`${server.url}/.well-known/oauth-authorization-server`);
+test('it advertises public clients with PKCE, issuer responses, and no registration', async () => {
+  await using ctx = await setupTest();
+
+  const answered = await fetch(`${ctx.url}/.well-known/oauth-authorization-server`);
   const metadata = await readJSONRecord(answered);
 
   expect(metadata).toMatchObject({
-    issuer: server.origin,
-    authorization_endpoint: `${server.origin}/oauth2/authorize`,
-    token_endpoint: `${server.origin}/oauth2/token`,
-    revocation_endpoint: `${server.origin}/oauth2/revoke`,
+    issuer: ctx.origin,
+    authorization_endpoint: `${ctx.origin}/oauth2/authorize`,
+    token_endpoint: `${ctx.origin}/oauth2/token`,
+    revocation_endpoint: `${ctx.origin}/oauth2/revoke`,
     scopes_supported: ['read', 'message', 'spawn', 'kill', 'offline_access'],
     response_types_supported: ['code'],
     grant_types_supported: ['authorization_code', 'refresh_token'],
@@ -43,14 +50,14 @@ test.each([
   ['/.well-known/oauth-protected-resource'],
   ['/.well-known/oauth-protected-resource/mcp'],
 ])('it serves the protected resource metadata at %p', async (path) => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const answered = await fetch(`${server.url}${path}`);
+  const answered = await fetch(`${ctx.url}${path}`);
   const metadata = await readJSONRecord(answered);
 
   expect(metadata).toMatchObject({
-    resource: `${server.origin}/mcp`,
-    authorization_servers: [server.origin],
+    resource: `${ctx.origin}/mcp`,
+    authorization_servers: [ctx.origin],
     scopes_supported: ['read', 'message', 'spawn', 'kill'],
   });
 
@@ -58,9 +65,9 @@ test.each([
 });
 
 test('it challenges a request without a token with where to find the resource metadata', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const answered = await fetch(`${server.url}/mcp`, {
+  const answered = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
@@ -68,23 +75,23 @@ test('it challenges a request without a token with where to find the resource me
   expect(answered.status).toBe(401);
 
   expect(answered.headers.get('www-authenticate')).toBe(
-    `Bearer resource_metadata="${server.origin}/.well-known/oauth-protected-resource/mcp"`,
+    `Bearer resource_metadata="${ctx.origin}/.well-known/oauth-protected-resource/mcp"`,
   );
 });
 
 test('it issues an access and refresh token for an approved authorization code', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read message kill',
     ticked: ['read', 'kill'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -92,7 +99,7 @@ test('it issues an access and refresh token for an approved authorization code',
       redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
       client_id: clientID,
       code_verifier: authorized.verifier,
-      resource: `${server.origin}/mcp`,
+      resource: `${ctx.origin}/mcp`,
     }),
   });
 
@@ -111,11 +118,11 @@ test('it issues an access and refresh token for an approved authorization code',
 });
 
 test('it returns to the client with the issuer and the state it sent', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
@@ -129,40 +136,135 @@ test('it returns to the client with the issuer and the state it sent', async () 
   expect(Object.fromEntries(authorized.callback.searchParams)).toStrictEqual({
     code: authorized.code,
     state: 'state-1',
-    iss: server.origin,
+    iss: ctx.origin,
   });
 });
 
 test('it prints the client name, the host it returns to, the approval code, and the requester', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  await runMCPAuthorization(server, {
+  await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  expect(server.approvals).toBeArrayOfSize(1);
+  expect(ctx.approvals).toBeArrayOfSize(1);
 
-  expect(server.approvals[0]).toMatch(
+  expect(ctx.approvals[0]).toMatch(
     /^Approve Claude \(returns to claude\.ai\) with code [0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}\. Requested from 127\.0\.0\.1, user agent "Bun\/[^"]+"\. The code expires in 10 minutes\.$/,
   );
 });
 
 test('it runs a tool call whose scope the token holds', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  const listed = await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${String(tokens['access_token'])}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_session_list', arguments: {} },
+    }),
+  });
+
+  const body: unknown = await listed.json();
+
+  expect(listed.status).toBe(200);
+
+  expect(body).toStrictEqual({
+    jsonrpc: '2.0',
+    id: 1,
+    result: { content: [{ type: 'text', text: '[]' }], structuredContent: { sessions: [] } },
+  });
+});
+
+test('it shows a remote MCP client the sessions of the targets the principals grant to its client id', async () => {
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-mcp-http-'));
+  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const approvals: string[] = [];
+
+  const store = await openMCPAuth({ dbPath, origin: null });
+
+  stack.defer(() => store.close());
+
+  const created = await store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-mcp-http-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      principals: new Map([[created.clientID, ['local']]]),
+    }),
+  });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  stack.defer(() => caller.stop());
+
+  const server = await startMCPHTTPServer({
+    caller,
+    build: 'atc/test-build',
+    host: '127.0.0.1',
+    port: 0,
+    publicURL: null,
+    allowedHosts: [],
+    dbPath,
+    printApproval: (line) => {
+      approvals.push(line);
+    },
+    printRequest: () => {},
+  });
+
+  stack.defer(() => server.stop());
+
+  const spawned = await caller.sendRequest('session.spawn', { cwd: daemon.dir });
+
+  const authorized = await runMCPAuthorization(
+    { url: server.url, origin: server.origin, approvals },
+    {
+      clientID: created.clientID,
+      redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+      scope: 'read',
+      ticked: ['read'],
+    },
+  );
 
   const exchanged = await fetch(`${server.url}/oauth2/token`, {
     method: 'POST',
@@ -170,7 +272,7 @@ test('it runs a tool call whose scope the token holds', async () => {
       grant_type: 'authorization_code',
       code: authorized.code,
       redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-      client_id: clientID,
+      client_id: created.clientID,
       code_verifier: authorized.verifier,
     }),
   });
@@ -193,7 +295,98 @@ test('it runs a tool call whose scope the token holds', async () => {
 
   const body: unknown = await listed.json();
 
-  expect(listed.status).toBe(200);
+  expect(body).toMatchObject({
+    jsonrpc: '2.0',
+    id: 1,
+    result: { structuredContent: { sessions: [spawned['session']] } },
+  });
+});
+
+test('it shows a remote MCP client no sessions when the principals grant the targets to another client id', async () => {
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-mcp-http-'));
+  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const approvals: string[] = [];
+
+  const store = await openMCPAuth({ dbPath, origin: null });
+
+  stack.defer(() => store.close());
+
+  const created = await store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-mcp-http-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      principals: new Map([['someone-else', ['local']]]),
+    }),
+  });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  stack.defer(() => caller.stop());
+
+  const server = await startMCPHTTPServer({
+    caller,
+    build: 'atc/test-build',
+    host: '127.0.0.1',
+    port: 0,
+    publicURL: null,
+    allowedHosts: [],
+    dbPath,
+    printApproval: (line) => {
+      approvals.push(line);
+    },
+    printRequest: () => {},
+  });
+
+  stack.defer(() => server.stop());
+
+  await caller.sendRequest('session.spawn', { cwd: daemon.dir });
+
+  const authorized = await runMCPAuthorization(
+    { url: server.url, origin: server.origin, approvals },
+    {
+      clientID: created.clientID,
+      redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+      scope: 'read',
+      ticked: ['read'],
+    },
+  );
+
+  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: created.clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  const listed = await fetch(`${server.url}/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${String(tokens['access_token'])}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_session_list', arguments: {} },
+    }),
+  });
+
+  const body: unknown = await listed.json();
 
   expect(body).toStrictEqual({
     jsonrpc: '2.0',
@@ -202,79 +395,19 @@ test('it runs a tool call whose scope the token holds', async () => {
   });
 });
 
-test.each([
-  ['the client id it holds', true],
-  ['another client id', false],
-])(
-  'it shows a remote MCP client the sessions of the targets the principals grant to %s',
-  async (_label, granted) => {
-    await using server = await setupMCPHTTP();
-
-    const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
-
-    await server.restartDaemon(new Map([[granted ? clientID : 'someone-else', ['local']]]));
-
-    const spawned = await server.caller.sendRequest('session.spawn', { cwd: '/tmp' });
-
-    const session = spawned['session'];
-
-    const authorized = await runMCPAuthorization(server, {
-      clientID,
-      redirectURI: 'https://claude.ai/api/mcp/auth_callback',
-      scope: 'read',
-      ticked: ['read'],
-    });
-
-    const exchanged = await fetch(`${server.url}/oauth2/token`, {
-      method: 'POST',
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code: authorized.code,
-        redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-        client_id: clientID,
-        code_verifier: authorized.verifier,
-      }),
-    });
-
-    const tokens = await readJSONRecord(exchanged);
-
-    const listed = await fetch(`${server.url}/mcp`, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${String(tokens['access_token'])}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/call',
-        params: { name: 'atc_session_list', arguments: {} },
-      }),
-    });
-
-    const body: unknown = await listed.json();
-
-    expect(body).toMatchObject({
-      jsonrpc: '2.0',
-      id: 1,
-      result: { structuredContent: { sessions: granted ? [session] : [] } },
-    });
-  },
-);
-
 test('it refuses a tool call for a scope the operator left unticked with insufficient_scope', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read spawn',
     ticked: ['read'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -287,7 +420,11 @@ test('it refuses a tool call for a scope the operator left unticked with insuffi
 
   const tokens = await readJSONRecord(exchanged);
 
-  const spawned = await fetch(`${server.url}/mcp`, {
+  if (tokens['scope'] !== 'read offline_access') {
+    throw new Error('the grant holds more than the ticked scope');
+  }
+
+  const spawned = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${String(tokens['access_token'])}`,
@@ -297,17 +434,16 @@ test('it refuses a tool call for a scope the operator left unticked with insuffi
       jsonrpc: '2.0',
       id: 2,
       method: 'tools/call',
-      params: { name: 'atc_session_spawn', arguments: { cwd: '/tmp' } },
+      params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home } },
     }),
   });
 
   const body: unknown = await spawned.json();
 
-  expect(tokens['scope']).toBe('read offline_access');
   expect(spawned.status).toBe(403);
 
   expect(spawned.headers.get('www-authenticate')).toBe(
-    `Bearer error="insufficient_scope", scope="spawn", resource_metadata="${server.origin}/.well-known/oauth-protected-resource/mcp"`,
+    `Bearer error="insufficient_scope", scope="spawn", resource_metadata="${ctx.origin}/.well-known/oauth-protected-resource/mcp"`,
   );
 
   expect(body).toStrictEqual({
@@ -318,11 +454,11 @@ test('it refuses a tool call for a scope the operator left unticked with insuffi
 });
 
 test('it refuses consent to a scope the client did not request', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -337,20 +473,24 @@ test('it refuses consent to a scope the client did not request', async () => {
 
   const authorized = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
   ];
 
-  const signedIn = await fetch(`${server.url}/login`, {
+  const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
-  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+  const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
+
+  if (consent.pathname !== '/consent') {
+    throw new Error('the approval code did not reach the consent page');
+  }
 
   const cookie = signedIn.headers
     .getSetCookie()
@@ -362,24 +502,23 @@ test('it refuses consent to a scope the client did not request', async () => {
   form.append('scope', 'read');
   form.append('scope', 'kill');
 
-  const consented = await fetch(`${server.url}/consent`, {
+  const consented = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
     body: form,
   });
 
-  expect(consent.pathname).toBe('/consent');
   expect(consented.status).toBe(400);
   expect(consented.headers.get('location')).toBeNull();
 });
 
 test('it denies the request when the operator allows nothing', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -395,34 +534,34 @@ test('it denies the request when the operator allows nothing', async () => {
 
   const authorized = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
   ];
 
-  const signedIn = await fetch(`${server.url}/login`, {
+  const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
-  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+  const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
 
   const cookie = signedIn.headers
     .getSetCookie()
     .map((line) => line.split(';')[0])
     .join('; ');
 
-  const consented = await fetch(`${server.url}/consent`, {
+  const consented = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: consent.search.slice(1), decision: 'approve' }),
   });
 
-  const callback = new URL(consented.headers.get('location') ?? '/', server.url);
+  const callback = new URL(consented.headers.get('location') ?? '/', ctx.url);
 
   expect(`${callback.origin}${callback.pathname}`).toBe('https://claude.ai/api/mcp/auth_callback');
 
@@ -430,25 +569,25 @@ test('it denies the request when the operator allows nothing', async () => {
     error: 'access_denied',
     error_description: 'User denied access',
     state: 'state-1',
-    iss: server.origin,
+    iss: ctx.origin,
   });
 
   expect(consented.headers.get('set-cookie')).toMatch(/session_token=; Max-Age=0;/);
 });
 
 test('it shows the consent page on every authorization of a client', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const first = await runMCPAuthorization(server, {
+  const first = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const second = await runMCPAuthorization(server, {
+  const second = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
@@ -459,13 +598,13 @@ test('it shows the consent page on every authorization of a client', async () =>
 });
 
 test('it binds a token to /mcp when the client names no resource', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
   const verifier = 'verifier-0123456789-abcdefghijklmnopqrstuvwxyz';
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -478,30 +617,30 @@ test('it binds a token to /mcp when the client names no resource', async () => {
 
   const authorized = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
   ];
 
-  const signedIn = await fetch(`${server.url}/login`, {
+  const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
-  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+  const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
 
   const cookie = signedIn.headers
     .getSetCookie()
     .map((line) => line.split(';')[0])
     .join('; ');
 
-  const consented = await fetch(`${server.url}/consent`, {
+  const consented = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       oauth_query: consent.search.slice(1),
       decision: 'approve',
@@ -509,9 +648,9 @@ test('it binds a token to /mcp when the client names no resource', async () => {
     }),
   });
 
-  const callback = new URL(consented.headers.get('location') ?? '/', server.url);
+  const callback = new URL(consented.headers.get('location') ?? '/', ctx.url);
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -524,7 +663,7 @@ test('it binds a token to /mcp when the client names no resource', async () => {
 
   const tokens = await readJSONRecord(exchanged);
 
-  const pinged = await fetch(`${server.url}/mcp`, {
+  const pinged = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
@@ -534,11 +673,11 @@ test('it binds a token to /mcp when the client names no resource', async () => {
 });
 
 test('it prints a client name with its control characters dropped', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Evil\u001B[2J\nName\u202E', ['https://evil.example/cb']);
+  const clientID = await ctx.addClient('Evil\u001B[2J\nName\u202E', ['https://evil.example/cb']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -553,17 +692,15 @@ test('it prints a client name with its control characters dropped', async () => 
 
   await fetch(authorize, { redirect: 'manual' });
 
-  expect(server.approvals[0]).toStartWith(
-    'Approve Evil[2J Name (returns to evil.example) with code ',
-  );
+  expect(ctx.approvals[0]).toStartWith('Approve Evil[2J Name (returns to evil.example) with code ');
 });
 
 test('it asks a browser that kept its owner session for a fresh approval code', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -578,16 +715,16 @@ test('it asks a browser that kept its owner session for a fresh approval code', 
 
   const first = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(first.headers.get('location') ?? '/', server.url);
+  const login = new URL(first.headers.get('location') ?? '/', ctx.url);
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
   ];
 
-  const signedIn = await fetch(`${server.url}/login`, {
+  const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
@@ -596,28 +733,31 @@ test('it asks a browser that kept its owner session for a fresh approval code', 
     .map((line) => line.split(';')[0])
     .join('; ');
 
+  if (!cookie.includes('session_token=')) {
+    throw new Error('the login set no owner session');
+  }
+
   const second = await fetch(authorize, { redirect: 'manual', headers: { cookie } });
 
-  const next = new URL(second.headers.get('location') ?? '/', server.url);
+  const next = new URL(second.headers.get('location') ?? '/', ctx.url);
 
-  expect(cookie).toInclude('session_token=');
   expect(next.pathname).toBe('/login');
-  expect(server.approvals).toBeArrayOfSize(2);
+  expect(ctx.approvals).toBeArrayOfSize(2);
 });
 
 test('it refuses an access token once its grant is revoked', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -629,53 +769,46 @@ test('it refuses an access token once its grant is revoked', async () => {
   });
 
   const tokens = await readJSONRecord(exchanged);
-  const [grant] = await collectGrants(server.store.db);
+  const [grant] = await collectGrants(ctx.store.db);
 
   if (grant === undefined) {
     throw new Error('the exchange left no grant');
   }
 
-  const before = await fetch(`${server.url}/mcp`, {
+  const before = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  await revokeGrant(server.store.db, grant.grantID);
+  if (before.status !== 200) {
+    throw new Error('the token did not work before the revoke');
+  }
 
-  const after = await fetch(`${server.url}/mcp`, {
+  await revokeGrant(ctx.store.db, grant.grantID);
+
+  const after = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'ping' }),
   });
 
-  const refreshed = await fetch(`${server.url}/oauth2/token`, {
-    method: 'POST',
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: String(tokens['refresh_token']),
-      client_id: clientID,
-    }),
-  });
-
-  expect(before.status).toBe(200);
   expect(after.status).toBe(401);
-  expect(refreshed.status).toBe(400);
 });
 
-test('it shows the consent page again to a client whose grant was revoked', async () => {
-  await using server = await setupMCPHTTP();
+test('it refuses to refresh a token once its grant is revoked', async () => {
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -686,15 +819,69 @@ test('it shows the consent page again to a client whose grant was revoked', asyn
     }),
   });
 
-  const [grant] = await collectGrants(server.store.db);
+  const tokens = await readJSONRecord(exchanged);
+  const [grant] = await collectGrants(ctx.store.db);
 
   if (grant === undefined) {
     throw new Error('the exchange left no grant');
   }
 
-  await revokeGrant(server.store.db, grant.grantID);
+  const before = await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  if (before.status !== 200) {
+    throw new Error('the token did not work before the revoke');
+  }
+
+  await revokeGrant(ctx.store.db, grant.grantID);
+
+  const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: String(tokens['refresh_token']),
+      client_id: clientID,
+    }),
+  });
+
+  expect(refreshed.status).toBe(400);
+});
+
+test('it shows the consent page again to a client whose grant was revoked', async () => {
+  await using ctx = await setupTest();
+
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const [grant] = await collectGrants(ctx.store.db);
+
+  if (grant === undefined) {
+    throw new Error('the exchange left no grant');
+  }
+
+  await revokeGrant(ctx.store.db, grant.grantID);
+
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -709,20 +896,20 @@ test('it shows the consent page again to a client whose grant was revoked', asyn
 
   const again = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(again.headers.get('location') ?? '/', server.url);
+  const login = new URL(again.headers.get('location') ?? '/', ctx.url);
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
   ];
 
-  const signedIn = await fetch(`${server.url}/login`, {
+  const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
-  const next = new URL(signedIn.headers.get('location') ?? '/', server.url);
+  const next = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
 
   const cookie = signedIn.headers
     .getSetCookie()
@@ -736,19 +923,19 @@ test('it shows the consent page again to a client whose grant was revoked', asyn
   expect(html).toInclude('value="read" checked');
 });
 
-test('it rotates a refresh token and refuses the spent one with the rest of its family', async () => {
-  await using server = await setupMCPHTTP();
+test('it rotates a refresh token into a new one with the same scope', async () => {
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -761,7 +948,7 @@ test('it rotates a refresh token and refuses the spent one with the rest of its 
 
   const first = await readJSONRecord(exchanged);
 
-  const rotated = await fetch(`${server.url}/oauth2/token`, {
+  const rotated = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'refresh_token',
@@ -772,7 +959,48 @@ test('it rotates a refresh token and refuses the spent one with the rest of its 
 
   const second = await readJSONRecord(rotated);
 
-  const replayed = await fetch(`${server.url}/oauth2/token`, {
+  expect(rotated.status).toBe(200);
+  expect(second['refresh_token']).not.toBe(first['refresh_token']);
+  expect(second['scope']).toBe('read offline_access');
+});
+
+test('it refuses a spent refresh token as invalid_grant', async () => {
+  await using ctx = await setupTest();
+
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const first = await readJSONRecord(exchanged);
+
+  const rotated = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: String(first['refresh_token']),
+      client_id: clientID,
+    }),
+  });
+
+  await readJSONRecord(rotated);
+
+  const replayed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'refresh_token',
@@ -783,7 +1011,62 @@ test('it rotates a refresh token and refuses the spent one with the rest of its 
 
   const replay = await readJSONRecord(replayed);
 
-  const successor = await fetch(`${server.url}/oauth2/token`, {
+  expect(replayed.status).toBe(400);
+
+  expect(replay).toStrictEqual({
+    error: 'invalid_grant',
+    error_description: 'invalid refresh token',
+  });
+});
+
+test('it refuses the successor of a refresh token once the spent one is replayed', async () => {
+  await using ctx = await setupTest();
+
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const first = await readJSONRecord(exchanged);
+
+  const rotated = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: String(first['refresh_token']),
+      client_id: clientID,
+    }),
+  });
+
+  const second = await readJSONRecord(rotated);
+
+  const replayed = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: String(first['refresh_token']),
+      client_id: clientID,
+    }),
+  });
+
+  await readJSONRecord(replayed);
+
+  const successor = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'refresh_token',
@@ -792,25 +1075,15 @@ test('it rotates a refresh token and refuses the spent one with the rest of its 
     }),
   });
 
-  expect(rotated.status).toBe(200);
-  expect(second['refresh_token']).not.toBe(first['refresh_token']);
-  expect(second['scope']).toBe('read offline_access');
-  expect(replayed.status).toBe(400);
-
-  expect(replay).toStrictEqual({
-    error: 'invalid_grant',
-    error_description: 'invalid refresh token',
-  });
-
   expect(successor.status).toBe(400);
 });
 
 test('it refuses a reused authorization code and revokes what the first use issued', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
@@ -825,18 +1098,22 @@ test('it refuses a reused authorization code and revokes what the first use issu
     code_verifier: authorized.verifier,
   });
 
-  const first = await fetch(`${server.url}/oauth2/token`, { method: 'POST', body: exchange });
+  const first = await fetch(`${ctx.url}/oauth2/token`, { method: 'POST', body: exchange });
+
+  if (first.status !== 200) {
+    throw new Error('the first exchange failed');
+  }
+
   const tokens = await readJSONRecord(first);
-  const second = await fetch(`${server.url}/oauth2/token`, { method: 'POST', body: exchange });
+  const second = await fetch(`${ctx.url}/oauth2/token`, { method: 'POST', body: exchange });
   const refusal = await readJSONRecord(second);
 
-  const pinged = await fetch(`${server.url}/mcp`, {
+  const pinged = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  expect(first.status).toBe(200);
   expect(second.status).toBe(400);
   expect(refusal).toStrictEqual({ error: 'invalid_grant', error_description: 'invalid code' });
   expect(pinged.status).toBe(401);
@@ -848,11 +1125,11 @@ test.each([
   ['https://claude.ai/api/mcp/auth_callbacK'],
   ['https://attacker.example/cb'],
 ])('it refuses the redirect URI %p without redirecting to it', async (redirectURI) => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -867,18 +1144,18 @@ test.each([
 
   const answered = await fetch(authorize, { redirect: 'manual' });
 
-  const location = new URL(answered.headers.get('location') ?? '/', server.url);
+  const location = new URL(answered.headers.get('location') ?? '/', ctx.url);
 
-  expect(`${location.origin}${location.pathname}`).toBe(`${server.origin}/error`);
-  expect(server.approvals).toBeEmpty();
+  expect(`${location.origin}${location.pathname}`).toBe(`${ctx.origin}/error`);
+  expect(ctx.approvals).toBeEmpty();
 });
 
 test('it refuses an authorization for another resource with invalid_target', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -895,7 +1172,7 @@ test('it refuses an authorization for another resource with invalid_target', asy
 
   const answered = await fetch(authorize, { redirect: 'manual' });
 
-  const location = new URL(answered.headers.get('location') ?? '/', server.url);
+  const location = new URL(answered.headers.get('location') ?? '/', ctx.url);
 
   expect(`${location.origin}${location.pathname}`).toBe('https://claude.ai/api/mcp/auth_callback');
 
@@ -903,25 +1180,25 @@ test('it refuses an authorization for another resource with invalid_target', asy
     error: 'invalid_target',
     error_description: 'requested resource https://other.example/mcp is not configured',
     state: 'state-1',
-    iss: server.origin,
+    iss: ctx.origin,
   });
 
-  expect(server.approvals).toBeEmpty();
+  expect(ctx.approvals).toBeEmpty();
 });
 
 test('it refuses a code exchange for another resource with invalid_target', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -936,15 +1213,19 @@ test('it refuses a code exchange for another resource with invalid_target', asyn
   const refusal = await readJSONRecord(exchanged);
 
   expect(exchanged.status).toBe(400);
-  expect(refusal).toMatchObject({ error: 'invalid_target' });
+
+  expect(refusal).toStrictEqual({
+    error: 'invalid_target',
+    error_description: 'requested resource not authorized',
+  });
 });
 
 test('it refuses an authorization without PKCE before asking the operator', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -956,32 +1237,32 @@ test('it refuses an authorization without PKCE before asking the operator', asyn
 
   const answered = await fetch(authorize, { redirect: 'manual' });
 
-  const location = new URL(answered.headers.get('location') ?? '/', server.url);
+  const location = new URL(answered.headers.get('location') ?? '/', ctx.url);
 
   expect(`${location.origin}${location.pathname}`).toBe('https://claude.ai/api/mcp/auth_callback');
 
   expect(Object.fromEntries(location.searchParams)).toMatchObject({
     error: 'invalid_request',
     state: 'state-1',
-    iss: server.origin,
+    iss: ctx.origin,
   });
 
-  expect(server.approvals).toBeEmpty();
+  expect(ctx.approvals).toBeEmpty();
 });
 
 test('it refuses a code exchange with the wrong PKCE verifier', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -1003,11 +1284,11 @@ test('it refuses a code exchange with the wrong PKCE verifier', async () => {
 });
 
 test('it shows the approval page again with an error after a wrong code', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -1022,12 +1303,12 @@ test('it shows the approval page again with an error after a wrong code', async 
 
   const authorized = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
-  const wrong = await fetch(`${server.url}/login`, {
+  const wrong = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: 'WRONG-CODE' }),
   });
 
@@ -1038,12 +1319,12 @@ test('it shows the approval page again with an error after a wrong code', async 
   expect(html).toInclude('That approval code is wrong.');
 });
 
-test('it refuses the right approval code after five wrong ones', async () => {
-  await using server = await setupMCPHTTP();
+test('it answers each of five wrong approval codes with the approval page again', async () => {
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -1058,19 +1339,15 @@ test('it refuses the right approval code after five wrong ones', async () => {
 
   const authorized = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
-
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
-    'code'
-  ];
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
   const misses = [];
 
   for (const attempt of [1, 2, 3, 4, 5]) {
-    const missed = await fetch(`${server.url}/login`, {
+    const missed = await fetch(`${ctx.url}/login`, {
       method: 'POST',
       redirect: 'manual',
-      headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+      headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         oauth_query: login.search.slice(1),
         code: `WRONG-000${attempt}`,
@@ -1080,27 +1357,67 @@ test('it refuses the right approval code after five wrong ones', async () => {
     misses.push(missed.status);
   }
 
-  const right = await fetch(`${server.url}/login`, {
+  expect(misses).toStrictEqual([400, 400, 400, 400, 400]);
+});
+
+test('it refuses the right approval code after five wrong ones', async () => {
+  await using ctx = await setupTest();
+
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  for (const attempt of [1, 2, 3, 4, 5]) {
+    await fetch(`${ctx.url}/login`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        oauth_query: login.search.slice(1),
+        code: `WRONG-000${attempt}`,
+      }),
+    });
+  }
+
+  const right = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
   const html = await right.text();
 
-  expect(misses).toStrictEqual([400, 400, 400, 400, 400]);
   expect(right.status).toBe(400);
   expect(right.headers.get('location')).toBeNull();
   expect(html).toInclude('This approval expired or was already used.');
 });
 
 test('it refuses an eleventh authorization started within a minute', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -1122,20 +1439,20 @@ test('it refuses an eleventh authorization started within a minute', async () =>
   }
 
   expect(statuses).toStrictEqual([302, 302, 302, 302, 302, 302, 302, 302, 302, 302, 429]);
-  expect(server.approvals).toBeArrayOfSize(10);
+  expect(ctx.approvals).toBeArrayOfSize(10);
 });
 
 test("it ends a client's oldest approval when the client starts a fourth", async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
   const logins = [];
 
   // Each request carries its own state, as a client's separate attempts do,
   // so the four approvals stay distinct within one millisecond.
   for (let started = 0; started < 4; started += 1) {
-    const authorize = new URL(`${server.url}/oauth2/authorize`);
+    const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
     authorize.search = new URLSearchParams({
       response_type: 'code',
@@ -1151,7 +1468,7 @@ test("it ends a client's oldest approval when the client starts a fourth", async
 
     const answered = await fetch(authorize, { redirect: 'manual' });
 
-    logins.push(new URL(answered.headers.get('location') ?? '/', server.url));
+    logins.push(new URL(answered.headers.get('location') ?? '/', ctx.url));
   }
 
   const pages = [];
@@ -1166,9 +1483,9 @@ test("it ends a client's oldest approval when the client starts a fourth", async
 });
 
 test('it refuses a request whose Host header it does not serve', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const answered = await fetch(`${server.url}/.well-known/oauth-authorization-server`, {
+  const answered = await fetch(`${ctx.url}/.well-known/oauth-authorization-server`, {
     headers: { host: 'rebound.example' },
   });
 
@@ -1176,39 +1493,52 @@ test('it refuses a request whose Host header it does not serve', async () => {
 });
 
 test('it serves a request whose Host header is a configured allowed host', async () => {
-  await using server = await setupMCPHTTP({ allowedHosts: ['pc.tailnet.example'] });
+  await using allowing = await setupMCPHTTP({ allowedHosts: ['pc.tailnet.example'] });
 
-  const answered = await fetch(`${server.url}/.well-known/oauth-protected-resource/mcp`, {
+  const answered = await fetch(`${allowing.url}/.well-known/oauth-protected-resource/mcp`, {
     headers: { host: 'pc.tailnet.example' },
   });
 
   expect(answered.status).toBe(200);
 });
 
-test.each([
-  ['/login', 'https://attacker.example'],
-  ['/login', null],
-  ['/consent', 'https://attacker.example'],
-  ['/consent', null],
-])('it refuses a form post to %p from origin %p', async (path, origin) => {
-  await using server = await setupMCPHTTP();
+test.each([['/login'], ['/consent']])(
+  'it refuses a form post to %p from another origin',
+  async (path) => {
+    await using ctx = await setupTest();
 
-  const answered = await fetch(`${server.url}${path}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/x-www-form-urlencoded',
-      ...(origin === null ? {} : { origin }),
-    },
-    body: 'oauth_query=a&code=b',
-  });
+    const answered = await fetch(`${ctx.url}${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        origin: 'https://attacker.example',
+      },
+      body: 'oauth_query=a&code=b',
+    });
 
-  expect(answered.status).toBe(403);
-});
+    expect(answered.status).toBe(403);
+  },
+);
+
+test.each([['/login'], ['/consent']])(
+  'it refuses a form post to %p without an origin',
+  async (path) => {
+    await using ctx = await setupTest();
+
+    const answered = await fetch(`${ctx.url}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'oauth_query=a&code=b',
+    });
+
+    expect(answered.status).toBe(403);
+  },
+);
 
 test('it refuses an MCP request from a browser on another origin', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const answered = await fetch(`${server.url}/mcp`, {
+  const answered = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { origin: 'https://attacker.example' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
@@ -1218,9 +1548,9 @@ test('it refuses an MCP request from a browser on another origin', async () => {
 });
 
 test('it sends its pages with headers that keep them out of frames and caches', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const answered = await fetch(`${server.url}/login?unknown=1`);
+  const answered = await fetch(`${ctx.url}/login?unknown=1`);
 
   expect(answered.headers.get('content-security-policy')).toInclude("frame-ancestors 'none'");
   expect(answered.headers.get('x-frame-options')).toBe('DENY');
@@ -1229,37 +1559,47 @@ test('it sends its pages with headers that keep them out of frames and caches', 
 });
 
 test.each([
-  ['POST', '/oauth2/create-client'],
-  ['POST', '/oauth2/register'],
-  ['POST', '/oauth2/introspect'],
-  ['GET', '/oauth2/get-clients'],
-  ['GET', '/list-sessions'],
-  ['POST', '/sign-up/email'],
-  ['POST', '/atc/sign-in-owner'],
-])('it answers %s %p with 404', async (method, path) => {
-  await using server = await setupMCPHTTP();
+  ['/oauth2/create-client'],
+  ['/oauth2/register'],
+  ['/oauth2/introspect'],
+  ['/sign-up/email'],
+  ['/atc/sign-in-owner'],
+])('it answers POST %p with 404', async (path) => {
+  await using ctx = await setupTest();
 
-  const answered = await fetch(`${server.url}${path}`, {
-    method,
-    ...(method === 'POST' ? { headers: { 'content-type': 'application/json' }, body: '{}' } : {}),
+  const answered = await fetch(`${ctx.url}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{}',
   });
 
   expect(answered.status).toBe(404);
 });
 
-test('it keeps serving a token after the session that approved it expires', async () => {
-  await using server = await setupMCPHTTP();
+test.each([['/oauth2/get-clients'], ['/list-sessions']])(
+  'it answers GET %p with 404',
+  async (path) => {
+    await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+    const answered = await fetch(`${ctx.url}${path}`);
 
-  const authorized = await runMCPAuthorization(server, {
+    expect(answered.status).toBe(404);
+  },
+);
+
+test('it keeps serving an access token after the session that approved it expires', async () => {
+  await using ctx = await setupTest();
+
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -1272,18 +1612,93 @@ test('it keeps serving a token after the session that approved it expires', asyn
 
   const tokens = await readJSONRecord(exchanged);
 
-  await server.store.db
+  await ctx.store.db
     .updateTable('session')
     .set({ expiresAt: '2000-01-01T00:00:00.000Z' })
     .execute();
 
-  const pinged = await fetch(`${server.url}/mcp`, {
+  const pinged = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  const refreshed = await fetch(`${server.url}/oauth2/token`, {
+  expect(pinged.status).toBe(200);
+});
+
+test('it refreshes a token after the session that approved it expires', async () => {
+  await using ctx = await setupTest();
+
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  await ctx.store.db
+    .updateTable('session')
+    .set({ expiresAt: '2000-01-01T00:00:00.000Z' })
+    .execute();
+
+  const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: String(tokens['refresh_token']),
+      client_id: clientID,
+    }),
+  });
+
+  expect(refreshed.status).toBe(200);
+});
+
+test('it serves a token refreshed after the session that approved it expires', async () => {
+  await using ctx = await setupTest();
+
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  await ctx.store.db
+    .updateTable('session')
+    .set({ expiresAt: '2000-01-01T00:00:00.000Z' })
+    .execute();
+
+  const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'refresh_token',
@@ -1294,30 +1709,28 @@ test('it keeps serving a token after the session that approved it expires', asyn
 
   const fresh = await readJSONRecord(refreshed);
 
-  const pingedAgain = await fetch(`${server.url}/mcp`, {
+  const pinged = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { authorization: `Bearer ${String(fresh['access_token'])}` },
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'ping' }),
   });
 
   expect(pinged.status).toBe(200);
-  expect(refreshed.status).toBe(200);
-  expect(pingedAgain.status).toBe(200);
 });
 
 test('it refuses the tokens of a removed client', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -1329,15 +1742,19 @@ test('it refuses the tokens of a removed client', async () => {
   });
 
   const tokens = await readJSONRecord(exchanged);
-  const removed = await removeClient(server.store.db, clientID);
+  const removed = await removeClient(ctx.store.db, clientID);
 
-  const pinged = await fetch(`${server.url}/mcp`, {
+  if (!removed) {
+    throw new Error('the client was not removed');
+  }
+
+  const pinged = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  const refreshed = await fetch(`${server.url}/oauth2/token`, {
+  const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'refresh_token',
@@ -1346,24 +1763,23 @@ test('it refuses the tokens of a removed client', async () => {
     }),
   });
 
-  expect(removed).toBeTrue();
   expect(pinged.status).toBe(401);
   expect(refreshed.status).toBe(400);
 });
 
 test('it refuses a token bound to the resource of an earlier public URL', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -1376,11 +1792,11 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
 
   const tokens = await readJSONRecord(exchanged);
 
-  const caller = new ReconnectingCaller(
-    join(server.home, 'daemon.sock'),
-    'atc/test-build',
-    (path) => DaemonClient.open(path),
+  const caller = new ReconnectingCaller(join(ctx.home, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
   );
+
+  onTestFinished(() => caller.stop());
 
   const moved = await startMCPHTTPServer({
     caller,
@@ -1389,15 +1805,12 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
     port: 0,
     publicURL: 'http://localhost:9',
     allowedHosts: [],
-    dbPath: server.dbPath,
+    dbPath: ctx.dbPath,
     printApproval: () => {},
     printRequest: () => {},
   });
 
-  onTestFinished(async () => {
-    await moved.stop();
-    await caller.stop();
-  });
+  onTestFinished(() => moved.stop());
 
   const pinged = await fetch(`${moved.url}/mcp`, {
     method: 'POST',
@@ -1419,9 +1832,7 @@ test.each([
     DaemonClient.open(path),
   );
 
-  onTestFinished(async () => {
-    await caller.stop();
-  });
+  onTestFinished(() => caller.stop());
 
   const started = startMCPHTTPServer({
     caller,
@@ -1439,13 +1850,17 @@ test.each([
 });
 
 test('it listens beyond loopback behind an https public URL', async () => {
-  using tmp = setupTempDir('atc-mcp-http-');
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-mcp-http-'));
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
-  const server = await startMCPHTTPServer({
+  stack.defer(() => caller.stop());
+
+  const listening = await startMCPHTTPServer({
     caller,
     build: 'atc/test-build',
     host: '0.0.0.0',
@@ -1457,21 +1872,18 @@ test('it listens beyond loopback behind an https public URL', async () => {
     printRequest: () => {},
   });
 
-  onTestFinished(async () => {
-    await server.stop();
-    await caller.stop();
-  });
+  stack.defer(() => listening.stop());
 
-  expect(server.origin).toBe('https://mcp.example.com');
-  expect(server.listening).toMatch(/^http:\/\/0\.0\.0\.0:\d+$/);
+  expect(listening.origin).toBe('https://mcp.example.com');
+  expect(listening.listening).toMatch(/^http:\/\/0\.0\.0\.0:\d+$/);
 });
 
 test('it refuses a consent answer for a request whose approval code was never typed', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const unapproved = new URL(`${server.url}/oauth2/authorize`);
+  const unapproved = new URL(`${ctx.url}/oauth2/authorize`);
 
   unapproved.search = new URLSearchParams({
     response_type: 'code',
@@ -1487,8 +1899,8 @@ test('it refuses a consent answer for a request whose approval code was never ty
 
   const started = await fetch(unapproved, { redirect: 'manual' });
 
-  const unapprovedLogin = new URL(started.headers.get('location') ?? '/', server.url);
-  const approved = new URL(`${server.url}/oauth2/authorize`);
+  const unapprovedLogin = new URL(started.headers.get('location') ?? '/', ctx.url);
+  const approved = new URL(`${ctx.url}/oauth2/authorize`);
 
   approved.search = new URLSearchParams({
     response_type: 'code',
@@ -1504,18 +1916,22 @@ test('it refuses a consent answer for a request whose approval code was never ty
 
   const authorized = await fetch(approved, { redirect: 'manual' });
 
-  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
   ];
 
-  const signedIn = await fetch(`${server.url}/login`, {
+  const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
+
+  if (signedIn.status !== 302) {
+    throw new Error('the approval code did not sign in');
+  }
 
   const cookie = signedIn.headers
     .getSetCookie()
@@ -1530,24 +1946,23 @@ test('it refuses a consent answer for a request whose approval code was never ty
   form.append('scope', 'read');
   form.append('scope', 'kill');
 
-  const consented = await fetch(`${server.url}/consent`, {
+  const consented = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
     body: form,
   });
 
-  expect(signedIn.status).toBe(302);
   expect(consented.status).toBe(400);
   expect(consented.headers.get('location')).toBeNull();
 });
 
 test("it refuses a consent answer carrying another approval's owner session", async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const first = new URL(`${server.url}/oauth2/authorize`);
+  const first = new URL(`${ctx.url}/oauth2/authorize`);
 
   first.search = new URLSearchParams({
     response_type: 'code',
@@ -1563,13 +1978,11 @@ test("it refuses a consent answer carrying another approval's owner session", as
 
   const firstStarted = await fetch(first, { redirect: 'manual' });
 
-  const firstLogin = new URL(firstStarted.headers.get('location') ?? '/', server.url);
+  const firstLogin = new URL(firstStarted.headers.get('location') ?? '/', ctx.url);
 
-  const firstCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
-    'code'
-  ];
+  const firstCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.['code'];
 
-  const second = new URL(`${server.url}/oauth2/authorize`);
+  const second = new URL(`${ctx.url}/oauth2/authorize`);
 
   second.search = new URLSearchParams({
     response_type: 'code',
@@ -1585,23 +1998,21 @@ test("it refuses a consent answer carrying another approval's owner session", as
 
   const secondStarted = await fetch(second, { redirect: 'manual' });
 
-  const secondLogin = new URL(secondStarted.headers.get('location') ?? '/', server.url);
+  const secondLogin = new URL(secondStarted.headers.get('location') ?? '/', ctx.url);
 
-  const secondCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
-    'code'
-  ];
+  const secondCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.['code'];
 
-  const firstSignedIn = await fetch(`${server.url}/login`, {
+  const firstSignedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: firstLogin.search.slice(1), code: firstCode ?? '' }),
   });
 
-  const secondSignedIn = await fetch(`${server.url}/login`, {
+  const secondSignedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: secondLogin.search.slice(1), code: secondCode ?? '' }),
   });
 
@@ -1610,7 +2021,11 @@ test("it refuses a consent answer carrying another approval's owner session", as
     .map((line) => line.split(';')[0])
     .join('; ');
 
-  const secondConsent = new URL(secondSignedIn.headers.get('location') ?? '/', server.url);
+  const secondConsent = new URL(secondSignedIn.headers.get('location') ?? '/', ctx.url);
+
+  if (secondConsent.pathname !== '/consent') {
+    throw new Error('the second approval did not reach the consent page');
+  }
 
   const form = new URLSearchParams({
     oauth_query: secondConsent.search.slice(1),
@@ -1620,28 +2035,27 @@ test("it refuses a consent answer carrying another approval's owner session", as
   form.append('scope', 'read');
   form.append('scope', 'kill');
 
-  const consented = await fetch(`${server.url}/consent`, {
+  const consented = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
     redirect: 'manual',
     headers: {
-      origin: server.url,
+      origin: ctx.url,
       cookie: firstCookie,
       'content-type': 'application/x-www-form-urlencoded',
     },
     body: form,
   });
 
-  expect(secondConsent.pathname).toBe('/consent');
   expect(consented.status).toBe(400);
   expect(consented.headers.get('location')).toBeNull();
 });
 
 test('it refuses a consent answer whose query still asks for a login', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -1657,16 +2071,20 @@ test('it refuses a consent answer whose query still asks for a login', async () 
 
   const authorized = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+  if (login.searchParams.get('prompt') !== 'login consent') {
+    throw new Error('the login query does not ask for a login');
+  }
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
   ];
 
-  const signedIn = await fetch(`${server.url}/login`, {
+  const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
@@ -1675,10 +2093,10 @@ test('it refuses a consent answer whose query still asks for a login', async () 
     .map((line) => line.split(';')[0])
     .join('; ');
 
-  const consented = await fetch(`${server.url}/consent`, {
+  const consented = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       oauth_query: login.search.slice(1),
       decision: 'approve',
@@ -1686,17 +2104,16 @@ test('it refuses a consent answer whose query still asks for a login', async () 
     }),
   });
 
-  expect(login.searchParams.get('prompt')).toBe('login consent');
   expect(consented.status).toBe(400);
   expect(consented.headers.get('location')).toBeNull();
 });
 
 test("it shows an error page instead of the consent page for another approval's request", async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const first = new URL(`${server.url}/oauth2/authorize`);
+  const first = new URL(`${ctx.url}/oauth2/authorize`);
 
   first.search = new URLSearchParams({
     response_type: 'code',
@@ -1712,13 +2129,11 @@ test("it shows an error page instead of the consent page for another approval's 
 
   const firstStarted = await fetch(first, { redirect: 'manual' });
 
-  const firstLogin = new URL(firstStarted.headers.get('location') ?? '/', server.url);
+  const firstLogin = new URL(firstStarted.headers.get('location') ?? '/', ctx.url);
 
-  const firstCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
-    'code'
-  ];
+  const firstCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.['code'];
 
-  const second = new URL(`${server.url}/oauth2/authorize`);
+  const second = new URL(`${ctx.url}/oauth2/authorize`);
 
   second.search = new URLSearchParams({
     response_type: 'code',
@@ -1734,23 +2149,21 @@ test("it shows an error page instead of the consent page for another approval's 
 
   const secondStarted = await fetch(second, { redirect: 'manual' });
 
-  const secondLogin = new URL(secondStarted.headers.get('location') ?? '/', server.url);
+  const secondLogin = new URL(secondStarted.headers.get('location') ?? '/', ctx.url);
 
-  const secondCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
-    'code'
-  ];
+  const secondCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.['code'];
 
-  const firstSignedIn = await fetch(`${server.url}/login`, {
+  const firstSignedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: firstLogin.search.slice(1), code: firstCode ?? '' }),
   });
 
-  const secondSignedIn = await fetch(`${server.url}/login`, {
+  const secondSignedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: secondLogin.search.slice(1), code: secondCode ?? '' }),
   });
 
@@ -1759,7 +2172,7 @@ test("it shows an error page instead of the consent page for another approval's 
     .map((line) => line.split(';')[0])
     .join('; ');
 
-  const secondConsent = new URL(secondSignedIn.headers.get('location') ?? '/', server.url);
+  const secondConsent = new URL(secondSignedIn.headers.get('location') ?? '/', ctx.url);
 
   const page = await fetch(secondConsent, { headers: { cookie: firstCookie } });
   const html = await page.text();
@@ -1770,11 +2183,11 @@ test("it shows an error page instead of the consent page for another approval's 
 });
 
 test('it shows an error page instead of the consent page for a query with a broken signature', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -1790,16 +2203,16 @@ test('it shows an error page instead of the consent page for a query with a brok
 
   const authorized = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
   ];
 
-  const signedIn = await fetch(`${server.url}/login`, {
+  const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
@@ -1808,7 +2221,7 @@ test('it shows an error page instead of the consent page for a query with a brok
     .map((line) => line.split(';')[0])
     .join('; ');
 
-  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+  const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
 
   consent.searchParams.set('scope', 'read kill offline_access');
 
@@ -1820,11 +2233,11 @@ test('it shows an error page instead of the consent page for a query with a brok
 });
 
 test('it shows an error page instead of the consent page to a browser with no owner session', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -1840,33 +2253,36 @@ test('it shows an error page instead of the consent page to a browser with no ow
 
   const authorized = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
   ];
 
-  const signedIn = await fetch(`${server.url}/login`, {
+  const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
-  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+  const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
+
+  if (consent.pathname !== '/consent') {
+    throw new Error('the approval code did not reach the consent page');
+  }
 
   const page = await fetch(consent);
 
-  expect(consent.pathname).toBe('/consent');
   expect(page.status).toBe(400);
 });
 
 test('it refuses a second consent answer from one login', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -1882,30 +2298,30 @@ test('it refuses a second consent answer from one login', async () => {
 
   const authorized = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
   ];
 
-  const signedIn = await fetch(`${server.url}/login`, {
+  const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
-  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+  const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
 
   const cookie = signedIn.headers
     .getSetCookie()
     .map((line) => line.split(';')[0])
     .join('; ');
 
-  const first = await fetch(`${server.url}/consent`, {
+  const first = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       oauth_query: consent.search.slice(1),
       decision: 'approve',
@@ -1913,10 +2329,14 @@ test('it refuses a second consent answer from one login', async () => {
     }),
   });
 
-  const second = await fetch(`${server.url}/consent`, {
+  if (first.status !== 302) {
+    throw new Error('the first consent answer was refused');
+  }
+
+  const second = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       oauth_query: consent.search.slice(1),
       decision: 'approve',
@@ -1924,17 +2344,16 @@ test('it refuses a second consent answer from one login', async () => {
     }),
   });
 
-  expect(first.status).toBe(302);
   expect(second.status).toBe(400);
   expect(second.headers.get('location')).toBeNull();
 });
 
 test('it deletes the owner session when the operator denies the request', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -1950,55 +2369,58 @@ test('it deletes the owner session when the operator denies the request', async 
 
   const authorized = await fetch(authorize, { redirect: 'manual' });
 
-  const login = new URL(authorized.headers.get('location') ?? '/', server.url);
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
   ];
 
-  const signedIn = await fetch(`${server.url}/login`, {
+  const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
-  const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
+  const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
 
   const cookie = signedIn.headers
     .getSetCookie()
     .map((line) => line.split(';')[0])
     .join('; ');
 
-  const before = await server.store.db.selectFrom('session').select('id').execute();
+  const before = await ctx.store.db.selectFrom('session').select('id').execute();
 
-  const denied = await fetch(`${server.url}/consent`, {
+  if (before.length !== 1) {
+    throw new Error('the login left no owner session');
+  }
+
+  const denied = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { origin: server.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { origin: ctx.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ oauth_query: consent.search.slice(1), decision: 'deny' }),
   });
 
-  const after = await server.store.db.selectFrom('session').select('id').execute();
+  const after = await ctx.store.db.selectFrom('session').select('id').execute();
 
-  expect(before).toBeArrayOfSize(1);
   expect(denied.status).toBe(302);
   expect(after).toBeEmpty();
 });
 
 test('it keeps the owner session no longer than the authorization code it approved', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  await runMCPAuthorization(server, {
+  await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const sessions = await server.store.db.selectFrom('session').select('expiresAt').execute();
+  const sessions = await ctx.store.db.selectFrom('session').select('expiresAt').execute();
 
   const [session] = sessions;
 
@@ -2011,18 +2433,18 @@ test('it keeps the owner session no longer than the authorization code it approv
 });
 
 test('it deletes the owner session once its authorization code is exchanged', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -2033,18 +2455,21 @@ test('it deletes the owner session once its authorization code is exchanged', as
     }),
   });
 
-  const sessions = await server.store.db.selectFrom('session').select('id').execute();
+  if (exchanged.status !== 200) {
+    throw new Error('the exchange failed');
+  }
 
-  expect(exchanged.status).toBe(200);
+  const sessions = await ctx.store.db.selectFrom('session').select('id').execute();
+
   expect(sessions).toBeEmpty();
 });
 
 test('it prints the CF-Connecting-IP address as reported when the request carries one', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -2062,19 +2487,19 @@ test('it prints the CF-Connecting-IP address as reported when the request carrie
     headers: { 'cf-connecting-ip': '203.0.113.7', 'user-agent': 'Claude-User/1.0' },
   });
 
-  expect(server.approvals).toBeArrayOfSize(1);
+  expect(ctx.approvals).toBeArrayOfSize(1);
 
-  expect(server.approvals[0]).toInclude(
+  expect(ctx.approvals[0]).toInclude(
     '. Requested from 203.0.113.7 (reported by CF-Connecting-IP), user agent "Claude-User/1.0". ',
   );
 });
 
 test('it prints the requester with control characters dropped and the user agent cut to 60 characters', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -2095,18 +2520,18 @@ test('it prints the requester with control characters dropped and the user agent
     },
   });
 
-  expect(server.approvals).toBeArrayOfSize(1);
+  expect(ctx.approvals).toBeArrayOfSize(1);
 
-  expect(server.approvals[0]).toInclude(
+  expect(ctx.approvals[0]).toInclude(
     `. Requested from 203.0.113.7 (reported by CF-Connecting-IP), user agent "Evil UA ${'A'.repeat(52)}". `,
   );
 });
 
 test('it shows a fixed sentence on the error page whatever text the link carries', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
   const page = await fetch(
-    `${server.url}/error?error=Your+atc+session+expired&error_description=Call+%2B1+555+0100+to+restore+access`,
+    `${ctx.url}/error?error=Your+atc+session+expired&error_description=Call+%2B1+555+0100+to+restore+access`,
   );
 
   const html = await page.text();
@@ -2118,9 +2543,9 @@ test('it shows a fixed sentence on the error page whatever text the link carries
 });
 
 test('it shows the sentence for an unknown client on the error page', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
     response_type: 'code',
@@ -2134,7 +2559,7 @@ test('it shows the sentence for an unknown client on the error page', async () =
   }).toString();
 
   const authorized = await fetch(authorize, { redirect: 'manual' });
-  const page = await fetch(new URL(authorized.headers.get('location') ?? '/', server.url));
+  const page = await fetch(new URL(authorized.headers.get('location') ?? '/', ctx.url));
   const html = await page.text();
 
   expect(html).toInclude(
@@ -2143,20 +2568,20 @@ test('it shows the sentence for an unknown client on the error page', async () =
 });
 
 test('it accepts a token bound to /mcp at the bare origin', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('ChatGPT', [
+  const clientID = await ctx.addClient('ChatGPT', [
     'https://chatgpt.com/connector_platform_oauth_redirect',
   ]);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -2164,13 +2589,13 @@ test('it accepts a token bound to /mcp at the bare origin', async () => {
       redirect_uri: 'https://chatgpt.com/connector_platform_oauth_redirect',
       client_id: clientID,
       code_verifier: authorized.verifier,
-      resource: `${server.origin}/mcp`,
+      resource: `${ctx.origin}/mcp`,
     }),
   });
 
   const tokens = await readJSONRecord(exchanged);
 
-  const listed = await fetch(`${server.url}/`, {
+  const listed = await fetch(`${ctx.url}/`, {
     method: 'POST',
     headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
     body: JSON.stringify({
@@ -2193,9 +2618,9 @@ test('it accepts a token bound to /mcp at the bare origin', async () => {
 });
 
 test('it challenges a request to the bare origin with the /mcp resource metadata', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const answered = await fetch(`${server.url}/`, {
+  const answered = await fetch(`${ctx.url}/`, {
     method: 'POST',
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
@@ -2203,14 +2628,14 @@ test('it challenges a request to the bare origin with the /mcp resource metadata
   expect(answered.status).toBe(401);
 
   expect(answered.headers.get('www-authenticate')).toBe(
-    `Bearer resource_metadata="${server.origin}/.well-known/oauth-protected-resource/mcp"`,
+    `Bearer resource_metadata="${ctx.origin}/.well-known/oauth-protected-resource/mcp"`,
   );
 });
 
 test('it prints one line per request with its method, path, tool, status, time, and protocol version', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  await fetch(`${server.url}/mcp`, {
+  await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { authorization: 'Bearer not-a-token', 'mcp-protocol-version': '2025-06-18' },
     body: JSON.stringify({
@@ -2221,26 +2646,26 @@ test('it prints one line per request with its method, path, tool, status, time, 
     }),
   });
 
-  expect(server.requests).toHaveLength(1);
+  expect(ctx.requests).toHaveLength(1);
 
-  expect(server.requests[0]).toMatch(
+  expect(ctx.requests[0]).toMatch(
     /^POST \/mcp 401 \d+ms rpc=tools\/call tool=atc_session_list mcp-protocol-version=2025-06-18$/,
   );
 });
 
 test('it prints a request line without the query, the token, or the requester address', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read',
     ticked: ['read'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -2255,13 +2680,13 @@ test('it prints a request line without the query, the token, or the requester ad
 
   const token = String(tokens['access_token']);
 
-  await fetch(`${server.url}/mcp`, {
+  await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { authorization: `Bearer ${token}` },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  expect(server.requests).toSatisfyAll(
+  expect(ctx.requests).toSatisfyAll(
     (line: string) =>
       !line.includes('?') &&
       !line.includes(token) &&
@@ -2269,7 +2694,7 @@ test('it prints a request line without the query, the token, or the requester ad
       !line.includes('127.0.0.1'),
   );
 
-  expect(server.requests).toIncludeAllMembers([
+  expect(ctx.requests).toIncludeAllMembers([
     expect.stringMatching(/^GET \/oauth2\/authorize 302 \d+ms$/),
     expect.stringMatching(/^POST \/oauth2\/token 200 \d+ms$/),
     expect.stringMatching(/^POST \/mcp 200 \d+ms rpc=ping$/),
@@ -2277,15 +2702,18 @@ test('it prints a request line without the query, the token, or the requester ad
 });
 
 test('it prints a refused MCP request without reading its JSON-RPC method', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const refused = await fetch(`${server.url}/mcp`, {
+  const refused = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { origin: 'https://evil.example' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  expect(refused.status).toBe(403);
-  expect(server.requests).toHaveLength(1);
-  expect(server.requests[0]).toMatch(/^POST \/mcp 403 \d+ms$/);
+  if (refused.status !== 403) {
+    throw new Error('the request was not refused');
+  }
+
+  expect(ctx.requests).toHaveLength(1);
+  expect(ctx.requests[0]).toMatch(/^POST \/mcp 403 \d+ms$/);
 });

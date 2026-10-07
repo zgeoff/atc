@@ -4,8 +4,20 @@ import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { openMCPAuth } from './open-mcp-auth';
 
+function setupTest() {
+  const tmp = setupTempDir('atc-mcp-auth-');
+
+  return {
+    dir: tmp.dir,
+    dbPath: join(tmp.dir, 'mcp-auth.db'),
+    [Symbol.dispose]: () => {
+      tmp[Symbol.dispose]();
+    },
+  };
+}
+
 test('it sends no telemetry when the environment turns it on', async () => {
-  using tmp = setupTempDir('atc-mcp-auth-');
+  using ctx = setupTest();
 
   const received: string[] = [];
 
@@ -24,20 +36,22 @@ test('it sends no telemetry when the environment turns it on', async () => {
   });
 
   // better-auth never sends telemetry under NODE_ENV=test, so the store
-  // opens in a production-mode process of its own.
+  // opens in a production-mode process of its own. A request the store
+  // starts keeps that process alive until the collector answers it, so the
+  // process exits only after any request has arrived.
   const opened = Bun.spawn(
     [
       process.execPath,
       '-e',
       `const { openMCPAuth } = await import(${JSON.stringify(join(import.meta.dir, 'open-mcp-auth.ts'))});
-const store = await openMCPAuth({ dbPath: ${JSON.stringify(join(tmp.dir, 'mcp-auth.db'))}, origin: null });
+const store = await openMCPAuth({ dbPath: ${JSON.stringify(ctx.dbPath)}, origin: null });
 await store.auth.$context;
-await Bun.sleep(300);
 await store.close();`,
     ],
     {
       env: {
         PATH: process.env['PATH'] ?? '',
+        HOME: ctx.dir,
         NODE_ENV: 'production',
         BETTER_AUTH_TELEMETRY: '1',
         BETTER_AUTH_TELEMETRY_ENDPOINT: `http://127.0.0.1:${collector.port}/`,
@@ -48,16 +62,70 @@ await store.close();`,
 
   const exitCode = await opened.exited;
 
-  expect(exitCode).toBe(0);
+  if (exitCode !== 0) {
+    throw new Error(`the store process exited ${exitCode}`);
+  }
+
   expect(received).toStrictEqual([]);
 });
 
+test('it lets the collector receive telemetry from better-auth when nothing turns it off', async () => {
+  using ctx = setupTest();
+
+  const received: string[] = [];
+
+  const collector = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: (request) => {
+      received.push(request.url);
+
+      return new Response(null, { status: 204 });
+    },
+  });
+
+  onTestFinished(async () => {
+    await collector.stop(true);
+  });
+
+  // The same production-mode process and environment as the refusal test,
+  // with better-auth's telemetry started directly, proves the collector
+  // would see a request that the store sent.
+  const sent = Bun.spawn(
+    [
+      process.execPath,
+      '-e',
+      `const { createTelemetry } = await import('better-auth');
+await createTelemetry({ baseURL: 'http://127.0.0.1' });`,
+    ],
+    {
+      cwd: join(import.meta.dir, '..', '..'),
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        HOME: ctx.dir,
+        NODE_ENV: 'production',
+        BETTER_AUTH_TELEMETRY: '1',
+        BETTER_AUTH_TELEMETRY_ENDPOINT: `http://127.0.0.1:${collector.port}/`,
+      },
+      stderr: 'pipe',
+    },
+  );
+
+  const exitCode = await sent.exited;
+
+  if (exitCode !== 0) {
+    throw new Error(`the telemetry process exited ${exitCode}`);
+  }
+
+  expect(received).toStrictEqual([`http://127.0.0.1:${collector.port}/`]);
+});
+
 test('it refuses a resource an earlier public URL served', async () => {
-  using tmp = setupTempDir('atc-mcp-auth-');
+  using ctx = setupTest();
 
-  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const before = await openMCPAuth({ dbPath: ctx.dbPath, origin: 'https://old.example' });
 
-  const before = await openMCPAuth({ dbPath, origin: 'https://old.example' });
+  onTestFinished(() => before.close());
 
   await before.auth.$context;
 
@@ -67,11 +135,9 @@ test('it refuses a resource an earlier public URL served', async () => {
 
   await before.close();
 
-  const after = await openMCPAuth({ dbPath, origin: 'https://new.example' });
+  const after = await openMCPAuth({ dbPath: ctx.dbPath, origin: 'https://new.example' });
 
-  onTestFinished(async () => {
-    await after.close();
-  });
+  onTestFinished(() => after.close());
 
   const authorize = new URL('https://new.example/oauth2/authorize');
 
@@ -93,33 +159,25 @@ test('it refuses a resource an earlier public URL served', async () => {
 });
 
 test('it creates the database and its write-ahead log readable by their owner only', async () => {
-  using tmp = setupTempDir('atc-mcp-auth-');
+  using ctx = setupTest();
 
-  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const store = await openMCPAuth({ dbPath: ctx.dbPath, origin: null });
 
-  const store = await openMCPAuth({ dbPath, origin: null });
+  onTestFinished(() => store.close());
 
-  onTestFinished(async () => {
-    await store.close();
-  });
-
-  expect(statSync(dbPath).mode & 0o777).toBe(0o600);
-  expect(statSync(`${dbPath}-wal`).mode & 0o777).toBe(0o600);
+  expect(statSync(ctx.dbPath).mode & 0o777).toBe(0o600);
+  expect(statSync(`${ctx.dbPath}-wal`).mode & 0o777).toBe(0o600);
 });
 
 test('it makes an existing database readable by its owner only', async () => {
-  using tmp = setupTempDir('atc-mcp-auth-');
+  using ctx = setupTest();
 
-  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  writeFileSync(ctx.dbPath, '', { mode: 0o644 });
+  chmodSync(ctx.dbPath, 0o644);
 
-  writeFileSync(dbPath, '', { mode: 0o644 });
-  chmodSync(dbPath, 0o644);
+  const store = await openMCPAuth({ dbPath: ctx.dbPath, origin: null });
 
-  const store = await openMCPAuth({ dbPath, origin: null });
+  onTestFinished(() => store.close());
 
-  onTestFinished(async () => {
-    await store.close();
-  });
-
-  expect(statSync(dbPath).mode & 0o777).toBe(0o600);
+  expect(statSync(ctx.dbPath).mode & 0o777).toBe(0o600);
 });

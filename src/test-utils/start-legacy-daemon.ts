@@ -28,7 +28,8 @@ interface LegacyDaemonOptions {
  * hold that list, and announces none without it, as a daemon from before
  * features did. It answers `daemon.hello`, `daemon.ping`, and each method in
  * `replies` with that method's reply, and refuses every other method with
- * `unknown_method`. Every request it receives is recorded in `requests`. Stop
+ * `unknown_method`. Every request it receives is recorded in `requests`, and
+ * `connections` counts the connections it accepted and those still open. Stop
  * it with `stop`, or hold it with `using`.
  */
 export function startLegacyDaemon(socketPath: string, options: LegacyDaemonOptions = {}) {
@@ -45,12 +46,18 @@ export function startLegacyDaemon(socketPath: string, options: LegacyDaemonOptio
 
   const protocol = options.protocol ?? PROTOCOL_V;
   const requests: ReceivedRequest[] = [];
+  const connections = { accepted: 0, open: 0 };
 
   const server = Bun.listen<{ buffer: string }>({
     unix: socketPath,
     socket: {
       open(socket) {
         socket.data = { buffer: '' };
+        connections.accepted += 1;
+        connections.open += 1;
+      },
+      close() {
+        connections.open -= 1;
       },
       data(socket, chunk) {
         const lines = `${socket.data.buffer}${chunk.toString()}`.split('\n');
@@ -104,6 +111,7 @@ export function startLegacyDaemon(socketPath: string, options: LegacyDaemonOptio
 
   return {
     requests,
+    connections,
     stop() {
       server.stop(true);
     },

@@ -1,23 +1,41 @@
 import { expect, test } from 'bun:test';
-import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
+import { join } from 'node:path';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectClients } from './collect-clients';
+import { openMCPAuth } from './open-mcp-auth';
 import { removeClient } from './remove-client';
 
-test('it removes a client', async () => {
-  await using server = await setupMCPHTTP();
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
-  const removed = await removeClient(server.store.db, clientID);
-  const clients = await collectClients(server.store.db);
+  const tmp = stack.use(setupTempDir('atc-remove-client-'));
+
+  const store = await openMCPAuth({ dbPath: join(tmp.dir, 'mcp-auth.db'), origin: null });
+
+  stack.defer(() => store.close());
+
+  const owned = stack.move();
+
+  return { store, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+}
+
+test('it removes a client and reports it removed', async () => {
+  await using ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const removed = await removeClient(ctx.store.db, created.clientID);
 
   expect(removed).toBeTrue();
-  expect(clients).toStrictEqual([]);
+  expect(collectClients(ctx.store.db)).resolves.toStrictEqual([]);
 });
 
 test('it reports an unknown client id as not removed', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const removed = await removeClient(server.store.db, 'unknown-client');
+  const removed = await removeClient(ctx.store.db, 'unknown-client');
 
   expect(removed).toBeFalse();
 });

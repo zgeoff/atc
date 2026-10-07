@@ -21,7 +21,22 @@ test('it approves a pending request with its code typed in any case and with a d
   expect(state.findPending('q1')).toBeNull();
 });
 
-test('it drops a pending request after the fifth wrong code', () => {
+test('it locks a pending request on the fifth wrong code', () => {
+  const state = new ApprovalState(600_000, () => 1000);
+
+  state.createPending({
+    key: 'q1',
+    clientID: 'c1',
+    clientName: 'dots',
+    redirectURI: 'https://dots.example/cb',
+  });
+
+  const results = [1, 2, 3, 4, 5].map(() => state.verifyApprovalCode('q1', 'WRONG000'));
+
+  expect(results).toStrictEqual(['wrong', 'wrong', 'wrong', 'wrong', 'locked']);
+});
+
+test('it refuses the right code once five wrong codes locked the request', () => {
   const state = new ApprovalState(600_000, () => 1000);
 
   const approval = state.createPending({
@@ -35,9 +50,8 @@ test('it drops a pending request after the fifth wrong code', () => {
     throw new Error('the approval was refused');
   }
 
-  const results = [1, 2, 3, 4, 5].map(() => state.verifyApprovalCode('q1', 'WRONG000'));
+  Array.from({ length: 5 }, () => state.verifyApprovalCode('q1', 'WRONG000'));
 
-  expect(results).toStrictEqual(['wrong', 'wrong', 'wrong', 'wrong', 'locked']);
   expect(state.verifyApprovalCode('q1', approval.approvalCode)).toBe('locked');
 });
 
@@ -144,6 +158,13 @@ test('it holds the binding an owner session approved', () => {
   state.recordApproved('session-1', 'binding-1');
 
   expect(state.findApproved('session-1')).toBe('binding-1');
+});
+
+test('it holds no binding for an owner session other than the one that approved', () => {
+  const state = new ApprovalState(600_000, () => 1000);
+
+  state.recordApproved('session-1', 'binding-1');
+
   expect(state.findApproved('session-2')).toBeNull();
 });
 
