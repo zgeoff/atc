@@ -63,6 +63,13 @@ export async function restartDaemon(options: RestartOptions): Promise<RestartRes
       );
     }
 
+    const listen = options.listen ?? old.flags.listen;
+    const tokenFile = options.tokenFile ?? old.flags.tokenFile;
+
+    if ((listen === null) !== (tokenFile === null)) {
+      return buildFailure('--listen and --token-file go together; the daemon was left running');
+    }
+
     if (plan.pid !== null) {
       const stopped = await stopDaemonProcess(plan.pid);
 
