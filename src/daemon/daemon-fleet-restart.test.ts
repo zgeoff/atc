@@ -331,6 +331,21 @@ test('it restores the rest of the fleet past rows whose repository cannot be res
       cwd: join(locked, 'work'),
       agent: 'claude',
     },
+    {
+      sessionID: toSessionID('s-killed'),
+      agentSessionID: toAgentSessionID('a-killed'),
+      name: 'killed',
+      cwd: '/tmp',
+      agent: 'claude',
+      exited: true,
+    },
+    {
+      sessionID: toSessionID('s-after'),
+      agentSessionID: toAgentSessionID('a-after'),
+      name: 'after',
+      cwd: '/tmp',
+      agent: 'claude',
+    },
   ]);
 
   await seed.stop();
@@ -340,15 +355,20 @@ test('it restores the rest of the fleet past rows whose repository cannot be res
   await waitFor(async () => {
     const listed = await client.sendRequest('session.list');
 
-    expect(listed['sessions']).toIncludeAllPartialMembers([{ id: 's-local', alive: true }]);
+    expect(listed['sessions']).toIncludeAllPartialMembers([
+      { id: 's-local', kind: 'pty', alive: true },
+      { id: 's-after', kind: 'pty', alive: true },
+    ]);
   });
 
   const listed = await client.sendRequest('session.list');
 
-  expect(listed['sessions']).toIncludeAllPartialMembers([
-    { id: 's-local', alive: true },
-    { id: 's-cloud' },
-    { id: 's-locked' },
+  expect(listed['sessions']).toIncludeSameMembers([
+    expect.objectContaining({ id: 's-local', kind: 'pty', alive: true }),
+    expect.objectContaining({ id: 's-cloud', alive: false }),
+    expect.objectContaining({ id: 's-locked' }),
+    expect.objectContaining({ id: 's-killed', alive: false }),
+    expect.objectContaining({ id: 's-after', kind: 'pty', alive: true }),
   ]);
 });
 
