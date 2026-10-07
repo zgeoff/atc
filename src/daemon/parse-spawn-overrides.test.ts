@@ -137,27 +137,42 @@ test.each([
   });
 });
 
-test.each(['ultra', 'minimal', 'HIGH', '--max'])(
-  'it refuses the effort %p that Claude Code does not accept',
-  (effort) => {
-    const [claude] = buildAgentList(
-      buildAgentAdapters(parseConfig({ agents: { claude: {} } })),
-      () => true,
-      false,
-    );
+test.each([
+  ['ultra', "agent 'claude' takes effort low, medium, high, xhigh, max; got 'ultra'"],
+  ['minimal', "agent 'claude' takes effort low, medium, high, xhigh, max; got 'minimal'"],
+  ['HIGH', "agent 'claude' takes effort low, medium, high, xhigh, max; got 'HIGH'"],
+  ['--max', "effort must not start with '-' or hold control characters"],
+])('it refuses the effort %p that Claude Code does not accept', (effort, message) => {
+  const [claude] = buildAgentList(
+    buildAgentAdapters(parseConfig({ agents: { claude: {} } })),
+    () => true,
+    false,
+  );
 
-    if (claude === undefined) {
-      throw new Error('the agent list holds no claude entry');
-    }
+  if (claude === undefined) {
+    throw new Error('the agent list holds no claude entry');
+  }
 
-    expect(parseSpawnOverrides(claude, { effort })).toMatchObject({
-      ok: false,
-      code: 'bad_args',
-    });
-  },
-);
+  expect(parseSpawnOverrides(claude, { effort })).toStrictEqual({
+    ok: false,
+    code: 'bad_args',
+    message,
+  });
+});
 
-test("it accepts a gateway effort and marks the provider's response to it unverified", () => {
+test("it marks a gateway's response to an effort unverified", () => {
+  const config = parseConfig({ gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic' } } });
+
+  const [zai] = buildAgentList(
+    [new GatewayAdapter(getGatewayConfig(config, 'zai'), config)],
+    () => true,
+    false,
+  );
+
+  expect(zai?.spawnOptions.effort.backendEffect).toBe('unverified');
+});
+
+test('it accepts a gateway effort', () => {
   const config = parseConfig({ gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic' } } });
 
   const [zai] = buildAgentList(
@@ -169,8 +184,6 @@ test("it accepts a gateway effort and marks the provider's response to it unveri
   if (zai === undefined) {
     throw new Error('the agent list holds no gateway entry');
   }
-
-  expect(zai.spawnOptions.effort.backendEffect).toBe('unverified');
 
   expect(parseSpawnOverrides(zai, { effort: 'high' })).toStrictEqual({
     ok: true,
@@ -198,7 +211,7 @@ test('it refuses a gateway effort outside the levels Claude Code accepts', () =>
   });
 });
 
-test('it refuses a codex effort and accepts a codex model', () => {
+test('it refuses a codex effort', () => {
   const [codex] = buildAgentList(
     buildAgentAdapters(parseConfig({ agents: { codex: {} } })),
     () => true,
@@ -209,11 +222,26 @@ test('it refuses a codex effort and accepts a codex model', () => {
     throw new Error('the agent list holds no codex entry');
   }
 
-  expect([
-    parseSpawnOverrides(codex, { effort: 'high' }),
-    parseSpawnOverrides(codex, { model: 'gpt-5.1-codex' }),
-  ]).toStrictEqual([
-    { ok: false, code: 'unsupported', message: "agent 'codex' takes no effort" },
-    { ok: true, overrides: { model: 'gpt-5.1-codex' } },
-  ]);
+  expect(parseSpawnOverrides(codex, { effort: 'high' })).toStrictEqual({
+    ok: false,
+    code: 'unsupported',
+    message: "agent 'codex' takes no effort",
+  });
+});
+
+test('it accepts a codex model', () => {
+  const [codex] = buildAgentList(
+    buildAgentAdapters(parseConfig({ agents: { codex: {} } })),
+    () => true,
+    false,
+  );
+
+  if (codex === undefined) {
+    throw new Error('the agent list holds no codex entry');
+  }
+
+  expect(parseSpawnOverrides(codex, { model: 'gpt-5.1-codex' })).toStrictEqual({
+    ok: true,
+    overrides: { model: 'gpt-5.1-codex' },
+  });
 });

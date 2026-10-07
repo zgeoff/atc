@@ -1,159 +1,41 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { expect, mock, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
-import { DaemonClient } from '../client/daemon-client';
+import { ClaudeAdapter } from '../agents/claude-adapter';
 import { encodeCursor } from '../protocol/encode-cursor';
 import type { EventMsg } from '../protocol/protocol';
-import { isRecord, sendReport } from '../shared/report';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { getRecord } from '../shared/get-record';
+import { isRecord } from '../shared/report';
 import { toSessionID } from '../shared/to-session-id';
-import type { FleetEntry } from '../store/fleet-entry';
 import { StateStore } from '../store/state-store';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockAgentEntry } from '../test-utils/build-mock-agent-entry';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildStubClock } from '../test-utils/build-stub-clock';
 import { spawnNamedSession } from '../test-utils/spawn-named-session';
+import { startStubTap } from '../test-utils/start-stub-tap';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
 import { waitFor } from '../test-utils/wait-for';
-import { startDaemon } from './daemon';
-
-// Message-inbox behavior through the real daemon: acceptance rules, the tap
-// stream, the status events, and the Report envelope on the reporter socket.
-interface SetupOptions {
-  readonly fleet?: readonly FleetEntry[];
-  readonly queueBytes?: number;
-  readonly tapGraceMs?: number;
-  readonly planSpawn?: AgentAdapter['planSpawn'];
-}
-
-async function setupTest(options: SetupOptions = {}) {
-  const tmp = setupTempDir('atc-messages-');
-  const dbPath = join(tmp.dir, 'state.db');
-  const sockPath = join(tmp.dir, 'daemon.sock');
-  const reporterPath = join(tmp.dir, 'reporter.sock');
-  const eventsPath = join(tmp.dir, 'events.sock');
-  const hookLog = join(tmp.dir, 'hooks.log');
-
-  if (options.fleet !== undefined) {
-    const seed = await StateStore.open(dbPath);
-
-    await seed.writeFleet(options.fleet);
-    await seed.stop();
-  }
-
-  const claude: AgentAdapter = {
-    id: 'claude',
-    headlessRunner: null,
-    screenDetector: null,
-    takesMessages: true,
-    planSpawn: options.planSpawn ?? (() => ({ bin: 'sleep', args: ['30'] })),
-    normalizeHook: (e) => {
-      const sessionID = e.payload['session_id'];
-
-      if (e.event === 'SessionStart' && typeof sessionID === 'string') {
-        return { kind: 'started', agentSessionID: toAgentSessionID(sessionID) };
-      }
-
-      return { kind: 'heartbeat' };
-    },
-    loadName: () => Promise.resolve(null),
-    canResume: () => true,
-    buildResumeCommand: () => null,
-  };
-
-  const grok: AgentAdapter = {
-    id: 'grok',
-    headlessRunner: null,
-    screenDetector: null,
-    takesMessages: false,
-    planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-    normalizeHook: () => ({ kind: 'heartbeat' }),
-    loadName: () => Promise.resolve(null),
-    canResume: () => true,
-    buildResumeCommand: () => null,
-  };
-
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: reporterPath,
-    eventsSocketPath: eventsPath,
-    build: 'atc/test-build',
-    adapter: claude,
-    adapters: [claude, grok],
-    ...(options.queueBytes === undefined ? {} : { queueBytes: options.queueBytes }),
-    ...(options.tapGraceMs === undefined ? {} : { tapGraceMs: options.tapGraceMs }),
-    dbPath,
-    statusPath: join(tmp.dir, 'status.json'),
-    hooks: {
-      SessionMessage: [{ command: `cat >> '${hookLog}'` }],
-      SessionReport: [{ command: `cat >> '${hookLog}'` }],
-    },
-  });
-
-  const events: EventMsg[] = [];
-  const tapEvents: EventMsg[] = [];
-  const tapClosed: EventMsg[] = [];
-
-  const actor = await DaemonClient.open(sockPath);
-  const tap = await DaemonClient.open(sockPath);
-
-  actor.onEvent = (event) => {
-    events.push(event);
-  };
-
-  // The tap connection also receives every broadcast event, so only the
-  // tap-scoped stream is collected.
-  tap.onEvent = (event) => {
-    if (event.ev === 'InboxMessage') {
-      tapEvents.push(event);
-    }
-
-    if (event.ev === 'InboxClosed') {
-      tapClosed.push(event);
-    }
-  };
-
-  await actor.sendHello('atc/test-build');
-  await tap.sendHello('atc/test-build');
-
-  return {
-    dir: tmp.dir,
-    sockPath,
-    reporterPath,
-    eventsPath,
-    hookLog,
-    actor,
-    events,
-    tap,
-    tapEvents,
-    tapClosed,
-    async [Symbol.asyncDispose]() {
-      // Live sessions are killed through the protocol first, so their fleet
-      // rewrites land before the store closes under them.
-      const listed = await actor.sendRequest('session.list');
-
-      const sessions = Array.isArray(listed['sessions']) ? listed['sessions'] : [];
-
-      for (const session of sessions) {
-        if (isRecord(session) && session['alive'] === true) {
-          await actor.sendRequest('session.kill', { session: session['id'] });
-        }
-      }
-
-      actor.stop();
-      tap.stop();
-
-      await daemon.stop();
-      await tmp[Symbol.asyncDispose]();
-    },
-  };
-}
 
 test('it accepts a message for a session that has not reported SessionStart', async () => {
-  await using daemon = await setupTest();
+  // The Claude adapter's own hook reading marks a session started.
+  const claude = new ClaudeAdapter(buildMockAgentEntry({ id: 'claude' }), {
+    authProfiles: new Map(),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        normalizeHook: (hook) => claude.normalizeHook(hook),
+      }),
+    }),
+  });
 
-  const ok = await daemon.actor.sendRequest('session.message', {
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const ok = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
     from: 'alice',
@@ -163,288 +45,361 @@ test('it accepts a message for a session that has not reported SessionStart', as
 });
 
 test('it queues a message to a started session within the start-up grace window', async () => {
-  await using daemon = await setupTest();
+  const clock = buildStubClock(0);
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const claude = new ClaudeAdapter(buildMockAgentEntry({ id: 'claude' }), {
+    authProfiles: new Map(),
+  });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'agent-1' } })}\n`,
-    2000,
-  );
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        normalizeHook: (hook) => claude.normalizeHook(hook),
+      }),
+      clock,
+      tapGraceMs: 300,
+    }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: 'agent-1' },
+  });
 
   await waitFor(async () => {
-    const listed = await daemon.actor.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: 'agent-1' });
   });
 
-  const ok = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  clock.advance(299);
+
+  const ok = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
 });
 
 test('it refuses a message once the grace window passes with no tap ever attached', async () => {
-  await using daemon = await setupTest({ tapGraceMs: 300 });
+  const clock = buildStubClock(0);
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const claude = new ClaudeAdapter(buildMockAgentEntry({ id: 'claude' }), {
+    authProfiles: new Map(),
+  });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'agent-1' } })}\n`,
-    2000,
-  );
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        normalizeHook: (hook) => claude.normalizeHook(hook),
+      }),
+      clock,
+      tapGraceMs: 300,
+    }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: 'agent-1' },
+  });
 
   await waitFor(async () => {
-    const listed = await daemon.actor.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: 'agent-1' });
   });
 
-  const ok = await daemon.actor.sendRequest('session.message', { session: id, text: 'early' });
+  clock.advance(300);
 
-  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
-
-  await waitFor(async () => {
-    const [outcome] = await Promise.allSettled([
-      daemon.actor.sendRequest('session.message', { session: id, text: 'late' }),
-    ]);
-
-    expect(outcome).toMatchObject({ status: 'rejected', reason: { code: 'unsupported' } });
-  });
+  expect(
+    daemon.client.sendRequest('session.message', { session: id, text: 'late' }),
+  ).rejects.toMatchObject({ code: 'unsupported' });
 });
 
 test('it accepts a message to a started session once a tap is connected', async () => {
-  await using daemon = await setupTest({ tapGraceMs: 0 });
+  const claude = new ClaudeAdapter(buildMockAgentEntry({ id: 'claude' }), {
+    authProfiles: new Map(),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        normalizeHook: (hook) => claude.normalizeHook(hook),
+      }),
+      tapGraceMs: 0,
+    }),
+  });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'agent-1' } })}\n`,
-    2000,
-  );
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: 'agent-1' },
+  });
 
   await waitFor(async () => {
-    const listed = await daemon.actor.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: 'agent-1' });
   });
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
+  const tap = await daemon.openClient();
 
-  const ok = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  await tap.sendRequest('session.tap', { session: id });
+
+  const ok = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
 });
 
 test('it refuses a message to a session whose agent cannot take messages', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const adapter = buildMockAgentAdapter({ takesMessages: true });
 
-  const spawned = await daemon.actor.sendRequest('session.spawn', {
-    cwd: '/tmp',
+      return { adapter, adapters: [adapter, buildMockAgentAdapter({ id: 'grok' })] };
+    },
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     name: 'grok-one',
     agent: 'grok',
     cols: 80,
     rows: 24,
   });
 
-  const descriptor = spawned['session'];
-
-  if (!isRecord(descriptor)) {
-    throw new TypeError('no session in spawn answer');
-  }
-
   expect(
-    daemon.actor.sendRequest('session.message', {
-      session: descriptor['id'],
+    daemon.client.sendRequest('session.message', {
+      session: getRecord(spawned, 'session')['id'],
       text: 'hello',
     }),
   ).rejects.toMatchObject({ code: 'unsupported' });
 });
 
 test('it answers a message for an unknown session with no_such_session', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
   expect(
-    daemon.actor.sendRequest('session.message', { session: 'nope', text: 'hello' }),
+    daemon.client.sendRequest('session.message', { session: 'nope', text: 'hello' }),
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
 test('it answers a message for a killed session with session_dead', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await daemon.actor.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
 
   expect(
-    daemon.actor.sendRequest('session.message', { session: id, text: 'hello' }),
+    daemon.client.sendRequest('session.message', { session: id, text: 'hello' }),
   ).rejects.toMatchObject({ code: 'session_dead' });
 });
 
 test('it rejects a message without text as bad_args', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  expect(daemon.actor.sendRequest('session.message', { session: id })).rejects.toMatchObject({
+  expect(daemon.client.sendRequest('session.message', { session: id })).rejects.toMatchObject({
     code: 'bad_args',
   });
 });
 
-test('it queues a message for a session waiting to restore', async () => {
-  await using daemon = await setupTest({
-    fleet: [
-      {
-        sessionID: toSessionID('s-agent-a'),
-        name: 'a',
-        cwd: '/tmp',
-        agentSessionID: toAgentSessionID('agent-a'),
-        agent: 'claude',
-      },
-      {
-        sessionID: toSessionID('s-agent-b'),
-        name: 'b',
-        cwd: '/tmp',
-        agentSessionID: toAgentSessionID('agent-b'),
-        agent: 'claude',
-      },
-    ],
+test('it lists a session the fleet restore has not reached yet as waiting to restore', async () => {
+  await using daemon = await startTestDaemon({
+    options: async (paths) => {
+      const seed = await StateStore.open(paths.dbPath);
+
+      await seed.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), name: 'b', cwd: paths.dir }),
+      ]);
+
+      await seed.stop();
+
+      return { adapter: buildMockAgentAdapter({ takesMessages: true }) };
+    },
   });
 
-  await daemon.actor.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const listed = await daemon.actor.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
-  expect(listed['sessions']).toPartiallyContain({ name: 'b', lastMsg: 'waiting to restore' });
+  expect(listed['sessions']).toPartiallyContain({
+    id: 's-agent-b',
+    name: 'b',
+    lastMsg: 'waiting to restore',
+  });
+});
 
-  const rawSessions = listed['sessions'];
+test('it queues a message for a session waiting to restore', async () => {
+  await using daemon = await startTestDaemon({
+    options: async (paths) => {
+      const seed = await StateStore.open(paths.dbPath);
 
-  if (!Array.isArray(rawSessions)) {
-    throw new TypeError('no session list');
-  }
+      await seed.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), cwd: paths.dir }),
+      ]);
 
-  const sessions: unknown[] = rawSessions;
-  const second = sessions.find((s) => isRecord(s) && s['name'] === 'b');
+      await seed.stop();
 
-  if (!isRecord(second)) {
-    throw new TypeError('no restored session b');
-  }
+      return { adapter: buildMockAgentAdapter({ takesMessages: true }) };
+    },
+  });
 
-  const secondID: unknown = second['id'];
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const ok = await daemon.actor.sendRequest('session.message', {
-    session: secondID,
+  const listed = await daemon.client.sendRequest('session.list');
+
+  const ok = await daemon.client.sendRequest('session.message', {
+    session: 's-agent-b',
     text: 'hello',
   });
 
+  expect(listed['sessions']).toPartiallyContain({ id: 's-agent-b', lastMsg: 'waiting to restore' });
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
 });
 
 test('it drains pending messages to a tap in the order they were sent', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  const first = await daemon.actor.sendRequest('session.message', {
+  const first = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'one',
     from: 'alice',
   });
 
-  const second = await daemon.actor.sendRequest('session.message', {
+  const second = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'two',
     from: 'alice',
   });
 
-  const third = await daemon.actor.sendRequest('session.message', {
+  const third = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'three',
     from: 'alice',
   });
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
+  const inbox = await startStubTap(tap, id);
 
-  for (const [i, sent] of [first, second, third].entries()) {
-    await waitFor(() => {
-      expect(daemon.tapEvents).toHaveLength(i + 1);
-    });
-
-    await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
-  }
-
-  expect(daemon.tapEvents).toStrictEqual([
-    {
-      v: 4,
-      ev: 'InboxMessage',
-      s: id,
-      message: first['message'],
-      from: 'alice',
-      text: 'one',
-      sentAt: expect.any(Number),
-    },
-    {
-      v: 4,
-      ev: 'InboxMessage',
-      s: id,
-      message: second['message'],
-      from: 'alice',
-      text: 'two',
-      sentAt: expect.any(Number),
-    },
-    {
-      v: 4,
-      ev: 'InboxMessage',
-      s: id,
-      message: third['message'],
-      from: 'alice',
-      text: 'three',
-      sentAt: expect.any(Number),
-    },
-  ]);
+  await waitFor(() => {
+    expect(inbox.messages).toStrictEqual([
+      {
+        v: 4,
+        ev: 'InboxMessage',
+        s: id,
+        message: first['message'],
+        from: 'alice',
+        text: 'one',
+        sentAt: expect.any(Number),
+      },
+      {
+        v: 4,
+        ev: 'InboxMessage',
+        s: id,
+        message: second['message'],
+        from: 'alice',
+        text: 'two',
+        sentAt: expect.any(Number),
+      },
+      {
+        v: 4,
+        ev: 'InboxMessage',
+        s: id,
+        message: third['message'],
+        from: 'alice',
+        text: 'three',
+        sentAt: expect.any(Number),
+      },
+    ]);
+  });
 });
 
 test('it streams a message accepted while the tap is connected', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const tap = await daemon.openClient();
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
+  const tapEvents: EventMsg[] = [];
 
-  const ok = await daemon.actor.sendRequest('session.message', {
+  tap.onEvent = (event) => {
+    tapEvents.push(event);
+  };
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await tap.sendRequest('session.tap', { session: id });
+
+  const ok = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'live',
     from: 'bob',
   });
 
   await waitFor(() => {
-    expect(daemon.tapEvents).toHaveLength(1);
+    expect(tapEvents.filter((event) => event.ev === 'InboxMessage')).toStrictEqual([
+      {
+        v: 4,
+        ev: 'InboxMessage',
+        s: id,
+        message: ok['message'],
+        from: 'bob',
+        text: 'live',
+        sentAt: expect.any(Number),
+      },
+    ]);
   });
-
-  expect(daemon.tapEvents).toStrictEqual([
-    {
-      v: 4,
-      ev: 'InboxMessage',
-      s: id,
-      message: ok['message'],
-      from: 'bob',
-      text: 'live',
-      sentAt: expect.any(Number),
-    },
-  ]);
 });
 
 test('it drains two hundred pending messages to a tap with zero loss', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
   const sent: unknown[] = [];
 
   for (let i = 0; i < 200; i++) {
-    const ok = await daemon.actor.sendRequest('session.message', {
+    const ok = await daemon.client.sendRequest('session.message', {
       session: id,
       text: `message ${i}`,
     });
@@ -452,28 +407,24 @@ test('it drains two hundred pending messages to a tap with zero loss', async () 
     sent.push(ok['message']);
   }
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
+  const inbox = await startStubTap(tap, id);
 
-  for (const [i, messageID] of sent.entries()) {
-    await waitFor(() => {
-      expect(daemon.tapEvents).toHaveLength(i + 1);
-    });
-
-    await daemon.tap.sendRequest('message.ack', { session: id, message: messageID });
-  }
-
-  expect(daemon.tapEvents.map((e) => e['message'])).toStrictEqual(sent);
+  await waitFor(() => {
+    expect(inbox.messages.map((event) => event['message'])).toStrictEqual(sent);
+  });
 });
 
 test('it drains a backlog larger than the outbound queue without dropping the tap', async () => {
-  await using daemon = await setupTest({ queueBytes: 4096 });
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), queueBytes: 4096 }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
   const sent: unknown[] = [];
 
   for (let i = 0; i < 12; i++) {
-    const ok = await daemon.actor.sendRequest('session.message', {
+    const ok = await daemon.client.sendRequest('session.message', {
       session: id,
       text: `${i}`.padEnd(1500, 'x'),
     });
@@ -481,66 +432,94 @@ test('it drains a backlog larger than the outbound queue without dropping the ta
     sent.push(ok['message']);
   }
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
+  const tapClient = await daemon.openClient();
+  const tap = await startStubTap(tapClient, id);
 
-  for (const [i, messageID] of sent.entries()) {
-    await waitFor(() => {
-      expect(daemon.tapEvents).toHaveLength(i + 1);
-    });
-
-    await daemon.tap.sendRequest('message.ack', { session: id, message: messageID });
-  }
-
-  expect(daemon.tapEvents.map((e) => e['message'])).toStrictEqual(sent);
+  await waitFor(() => {
+    expect(tap.messages.map((event) => event['message'])).toStrictEqual(sent);
+  });
 });
 
 test('it refuses a tap on a session whose agent cannot take messages', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const adapter = buildMockAgentAdapter({ takesMessages: true });
 
-  const spawned = await daemon.actor.sendRequest('session.spawn', {
+      return { adapter, adapters: [adapter, buildMockAgentAdapter({ id: 'grok' })] };
+    },
+  });
+
+  const tap = await daemon.openClient();
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     name: 'grok-one',
-    cwd: '/tmp',
+    cwd: daemon.dir,
     agent: 'grok',
   });
 
-  const descriptor = spawned['session'];
-
-  if (!isRecord(descriptor)) {
-    throw new TypeError('no session in spawn answer');
-  }
-
   expect(
-    daemon.tap.sendRequest('session.tap', { session: descriptor['id'] }),
+    tap.sendRequest('session.tap', { session: getRecord(spawned, 'session')['id'] }),
   ).rejects.toMatchObject({ code: 'unsupported' });
 });
 
 test('it refuses a tap on an unknown session', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  expect(daemon.tap.sendRequest('session.tap', { session: 'nope' })).rejects.toMatchObject({
+  const tap = await daemon.openClient();
+
+  expect(tap.sendRequest('session.tap', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
   });
 });
 
-test('it moves an acked message to delivered and broadcasts SessionMessage', async () => {
-  await using daemon = await setupTest();
+test('it moves an acked message to delivered', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  const sent = await daemon.actor.sendRequest('session.message', {
+  const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
     from: 'alice',
   });
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('session.tap', { session: id });
 
-  const acked = await daemon.tap.sendRequest('message.ack', {
+  const acked = await tap.sendRequest('message.ack', {
     session: id,
     message: sent['message'],
   });
 
   expect(acked).toStrictEqual({ message: sent['message'], status: 'delivered' });
+});
+
+test('it broadcasts SessionMessage for an acked message', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
+
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+    from: 'alice',
+  });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
@@ -558,72 +537,133 @@ test('it moves an acked message to delivered and broadcasts SessionMessage', asy
 });
 
 test('it refuses an ack from a connection that is not the session tap', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+  });
+
+  await tap.sendRequest('session.tap', { session: id });
 
   expect(
-    daemon.actor.sendRequest('message.ack', {
+    daemon.client.sendRequest('message.ack', {
       session: id,
       message: sent['message'],
     }),
   ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
-test('it answers a repeat ack with the current status and broadcasts delivered once', async () => {
-  await using daemon = await setupTest();
+test('it answers a repeat ack with the current status', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
-  await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+  });
 
-  const repeat = await daemon.tap.sendRequest('message.ack', {
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+
+  const repeat = await tap.sendRequest('message.ack', {
     session: id,
     message: sent['message'],
   });
 
-  await daemon.actor.sendRequest('daemon.ping');
-
   expect(repeat).toStrictEqual({ message: sent['message'], status: 'delivered' });
+});
 
-  expect(
+test('it broadcasts delivered once for a repeat ack', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
+
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+  });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+
+  // The daemon answers one connection's requests in order, so the ping's
+  // answer follows every broadcast the acks made.
+  await daemon.client.sendRequest('daemon.ping');
+
+  expect<readonly Record<string, unknown>[]>(
     daemon.events.filter((e) => e.ev === 'SessionMessage' && e['status'] === 'delivered'),
-  ).toHaveLength(1);
+  ).toStrictEqual([
+    {
+      v: 4,
+      ev: 'SessionMessage',
+      s: id,
+      message: sent['message'],
+      status: 'delivered',
+      from: 'unknown',
+      textPreview: 'hello',
+      sentAt: expect.any(Number),
+      deliveredAt: expect.any(Number),
+    },
+  ]);
 });
 
 test('it rejects an ack of an unknown message as bad_args', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('session.tap', { session: id });
 
   expect(
-    daemon.tap.sendRequest('message.ack', { session: id, message: 'm-unknown' }),
+    tap.sendRequest('message.ack', { session: id, message: 'm-unknown' }),
   ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
 test('it moves a message to answered from a Report line on the reporter socket', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  const sent = await daemon.actor.sendRequest('session.message', {
+  const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
     from: 'alice',
   });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: sent['message'], answer: 'done' } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'answered', message: sent['message'], answer: 'done' },
+  });
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
@@ -642,113 +682,191 @@ test('it moves a message to answered from a Report line on the reporter socket',
 });
 
 test('it ignores an answered report from another session', async () => {
-  await using daemon = await setupTest();
+  const ignored: [string, string][] = [];
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const other = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'two', '/tmp');
-  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
-
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: other, event: 'Report', payload: { kind: 'answered', message: sent['message'], answer: 'bogus' } })}\n`,
-    2000,
-  );
-
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: sent['message'], answer: 'valid' } })}\n`,
-    2000,
-  );
-
-  await waitFor(() => {
-    expect(daemon.events).toPartiallyContain({ ev: 'SessionMessage', status: 'answered' });
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+      onReportIgnored: (sessionID, kind) => {
+        ignored.push([sessionID, kind]);
+      },
+    }),
   });
 
-  const answered = daemon.events.filter(
-    (e) => e.ev === 'SessionMessage' && e['status'] === 'answered',
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const other = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'two',
+    daemon.dir,
   );
 
-  expect(answered).toHaveLength(1);
-  expect(answered[0]).toMatchObject({ s: id, answerPreview: 'valid' });
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+  });
+
+  await daemon.sendHookLines({
+    atcId: other,
+    event: 'Report',
+    payload: { kind: 'answered', message: sent['message'], answer: 'bogus' },
+  });
+
+  await waitFor(() => {
+    expect(ignored).toStrictEqual([[other, 'answered']]);
+  });
+
+  expect(
+    daemon.events.filter((e) => e.ev === 'SessionMessage' && e['status'] === 'answered'),
+  ).toStrictEqual([]);
 });
 
 test('it keeps queueing messages after the tap connection drops', async () => {
-  await using daemon = await setupTest({ tapGraceMs: 0 });
+  const claude = new ClaudeAdapter(buildMockAgentEntry({ id: 'claude' }), {
+    authProfiles: new Map(),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        normalizeHook: (hook) => claude.normalizeHook(hook),
+      }),
+      tapGraceMs: 0,
+    }),
+  });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'agent-1' } })}\n`,
-    2000,
-  );
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: 'agent-1' },
+  });
 
   await waitFor(async () => {
-    const listed = await daemon.actor.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: 'agent-1' });
   });
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
-  await daemon.actor.sendRequest('session.message', { session: id, text: 'while tapped' });
+  const tap = await daemon.openClient();
 
-  daemon.tap.stop();
+  await tap.sendRequest('session.tap', { session: id });
+  await daemon.client.sendRequest('session.message', { session: id, text: 'while tapped' });
 
-  const queued = await waitFor(() =>
-    daemon.actor.sendRequest('session.message', { session: id, text: 'after' }),
-  );
+  tap.stop();
+
+  // The daemon has let the tap go once it no longer counts the connection.
+  await waitFor(() => {
+    expect(daemon.daemon.countClients()).toBe(1);
+  });
+
+  const queued = await daemon.client.sendRequest('session.message', { session: id, text: 'after' });
 
   expect(queued).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
 });
 
 test('it refuses a message to a session whose process died even after a tap attached', async () => {
-  await using daemon = await setupTest({ tapGraceMs: 0 });
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), tapGraceMs: 0 }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const tap = await daemon.openClient();
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
-  await daemon.actor.sendRequest('session.kill', { session: id });
+  await tap.sendRequest('session.tap', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
 
   expect(
-    daemon.actor.sendRequest('session.message', { session: id, text: 'hello' }),
+    daemon.client.sendRequest('session.message', { session: id, text: 'hello' }),
   ).rejects.toMatchObject({ code: 'session_dead' });
 });
 
 test('it broadcasts SessionMessage on the events socket', async () => {
-  await using daemon = await setupTest();
-  await using subscriber = await subscribeToSocketLines(daemon.eventsPath);
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  await using subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
 
-  await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  await waitFor(() => {
-    expect(subscriber.lines.join('\n')).toInclude('"ev":"SessionMessage"');
+  const line = await waitFor(() => {
+    const found = subscriber.lines.find((l) => l.includes('"ev":"SessionMessage"'));
+
+    expect(found).toBeString();
+
+    return String(found);
+  });
+
+  const event = parseEventLine(line);
+
+  expect(event).toStrictEqual({
+    v: 4,
+    ev: 'SessionMessage',
+    s: id,
+    message: sent['message'],
+    status: 'accepted',
+    from: 'unknown',
+    textPreview: 'hello',
+    sentAt: expect.any(Number),
   });
 });
 
 test('it runs SessionMessage hooks with the event on stdin', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+      hooks: {
+        SessionMessage: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
+        SessionReport: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
+      },
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  const logged = await waitFor(() => {
+    const text = readFileSync(join(daemon.dir, 'hooks.log'), 'utf8');
 
-  await waitFor(() => {
-    expect(readFileSync(daemon.hookLog, 'utf8')).toInclude('"status":"accepted"');
+    expect(text).toEndWith('\n');
+
+    return text;
+  });
+
+  const event = parseEventLine(logged);
+
+  expect(event).toStrictEqual({
+    v: 4,
+    ev: 'SessionMessage',
+    s: id,
+    message: sent['message'],
+    status: 'accepted',
+    from: 'unknown',
+    textPreview: 'hello',
+    sentAt: expect.any(Number),
   });
 });
 
 test('it broadcasts a note from the reporter socket as SessionReport', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'need review' } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'note', label: 'blocked', text: 'need review' },
+  });
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
@@ -763,155 +881,227 @@ test('it broadcasts a note from the reporter socket as SessionReport', async () 
 });
 
 test('it ignores a note from an unknown session', async () => {
-  await using daemon = await setupTest();
+  const ignored: [string, string][] = [];
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: 'nope', event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'bogus' } })}\n`,
-    2000,
-  );
-
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'valid' } })}\n`,
-    2000,
-  );
-
-  await waitFor(() => {
-    expect(daemon.events).toPartiallyContain({ ev: 'SessionReport' });
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+      onReportIgnored: (sessionID, kind) => {
+        ignored.push([sessionID, kind]);
+      },
+    }),
   });
 
-  const reported = daemon.events.filter((e) => e.ev === 'SessionReport');
+  await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  expect(reported).toHaveLength(1);
-  expect(reported[0]).toMatchObject({ s: id, text: 'valid' });
+  await daemon.sendHookLines({
+    atcId: 'nope',
+    event: 'Report',
+    payload: { kind: 'note', label: 'blocked', text: 'bogus' },
+  });
+
+  await waitFor(() => {
+    expect(ignored).toStrictEqual([['nope', 'note']]);
+  });
+
+  expect(daemon.events.filter((e) => e.ev === 'SessionReport')).toStrictEqual([]);
 });
 
 test('it broadcasts SessionReport on the events socket', async () => {
-  await using daemon = await setupTest();
-  await using subscriber = await subscribeToSocketLines(daemon.eventsPath);
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  await using subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'progress', text: 'halfway' } })}\n`,
-    2000,
-  );
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await waitFor(() => {
-    expect(subscriber.lines.join('\n')).toInclude('"ev":"SessionReport"');
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'note', label: 'progress', text: 'halfway' },
+  });
+
+  const line = await waitFor(() => {
+    const found = subscriber.lines.find((l) => l.includes('"ev":"SessionReport"'));
+
+    expect(found).toBeString();
+
+    return String(found);
+  });
+
+  const event = parseEventLine(line);
+
+  expect(event).toStrictEqual({
+    v: 4,
+    ev: 'SessionReport',
+    s: id,
+    kind: 'progress',
+    text: 'halfway',
+    reportedAt: expect.any(Number),
   });
 });
 
 test('it runs SessionReport hooks with the event on stdin', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+      hooks: {
+        SessionMessage: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
+        SessionReport: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
+      },
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'decision', text: 'pick one' } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'note', label: 'decision', text: 'pick one' },
+  });
 
-  await waitFor(() => {
-    expect(readFileSync(daemon.hookLog, 'utf8')).toInclude('"ev":"SessionReport"');
+  const logged = await waitFor(() => {
+    const text = readFileSync(join(daemon.dir, 'hooks.log'), 'utf8');
+
+    expect(text).toEndWith('\n');
+
+    return text;
+  });
+
+  const event = parseEventLine(logged);
+
+  expect(event).toStrictEqual({
+    v: 4,
+    ev: 'SessionReport',
+    s: id,
+    kind: 'decision',
+    text: 'pick one',
+    reportedAt: expect.any(Number),
   });
 });
 
 test('it keeps InboxMessage off every connection but the tap', async () => {
-  await using daemon = await setupTest();
-  await using subscriber = await subscribeToSocketLines(daemon.eventsPath);
-
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-
-  await daemon.tap.sendRequest('session.tap', { session: id });
-  await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
-
-  await waitFor(() => {
-    expect(daemon.tapEvents).toHaveLength(1);
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
   });
 
-  await daemon.actor.sendRequest('daemon.ping');
+  const tap = await daemon.openClient();
 
-  expect(daemon.events.map((e) => e.ev)).not.toContain('InboxMessage');
-  expect(subscriber.lines.join('\n')).not.toInclude('InboxMessage');
+  const tapEvents: EventMsg[] = [];
+
+  tap.onEvent = (event) => {
+    tapEvents.push(event);
+  };
+
+  await using subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await tap.sendRequest('session.tap', { session: id });
+  await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  // The tap's copy shows the daemon has sent the message out.
+  await waitFor(() => {
+    expect(tapEvents).toPartiallyContain({ ev: 'InboxMessage' });
+  });
+
+  await daemon.client.sendRequest('daemon.ping');
+
+  expect<Record<string, unknown>>({
+    client: daemon.events.map((e) => e.ev),
+    socket: subscriber.lines.join('\n'),
+  }).toStrictEqual({
+    client: expect.not.arrayContaining(['InboxMessage']),
+    socket: expect.not.stringContaining('InboxMessage'),
+  });
 });
 
 test('it delivers pending messages to a new tap before a message accepted at the same time', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  const sent: unknown[] = [];
+  const pending: Readonly<Record<string, unknown>>[] = [];
 
   for (let i = 0; i < 5; i++) {
-    const ok = await daemon.actor.sendRequest('session.message', { session: id, text: `${i}` });
-
-    sent.push(ok['message']);
-  }
-
-  const [, live] = await Promise.all([
-    daemon.tap.sendRequest('session.tap', { session: id }),
-    daemon.actor.sendRequest('session.message', { session: id, text: 'live' }),
-  ]);
-
-  sent.push(live['message']);
-
-  for (const [i, messageID] of sent.entries()) {
-    await waitFor(() => {
-      expect(daemon.tapEvents.length).toBeGreaterThan(i);
+    const ok = await daemon.client.sendRequest('session.message', {
+      session: id,
+      text: `${i}`,
     });
 
-    await daemon.tap.sendRequest('message.ack', { session: id, message: messageID });
+    pending.push(ok);
   }
 
-  expect(daemon.tapEvents.map((e) => e['message'])).toStrictEqual(sent);
+  const [inbox, live] = await Promise.all([
+    startStubTap(tap, id),
+    daemon.client.sendRequest('session.message', { session: id, text: 'live' }),
+  ]);
+
+  await waitFor(() => {
+    expect(inbox.messages.map((e) => e['message'])).toStrictEqual(
+      [...pending, live].map((ok) => ok['message']),
+    );
+  });
 });
 
 test('it orders concurrently accepted messages by their sent time', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const inbox = await startStubTap(tap, id);
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
-
-  const accepted = await Promise.all(
+  await Promise.all(
     Array.from({ length: 20 }, (_, i) =>
-      daemon.actor.sendRequest('session.message', { session: id, text: `${i}` }),
+      daemon.client.sendRequest('session.message', { session: id, text: `${i}` }),
     ),
   );
 
-  for (const [i, ok] of accepted.entries()) {
-    await waitFor(() => {
-      expect(daemon.tapEvents.length).toBeGreaterThan(i);
-    });
+  await waitFor(() => {
+    expect(inbox.messages).toHaveLength(20);
+  });
 
-    await daemon.tap.sendRequest('message.ack', { session: id, message: ok['message'] });
-  }
+  const sentAt = inbox.messages.map((e) => Number(e['sentAt']));
 
-  expect(daemon.tapEvents.map((e) => e['sentAt'])).toStrictEqual(
-    daemon.tapEvents.map((e) => e['sentAt']).toSorted((a, b) => Number(a) - Number(b)),
+  expect(sentAt).toStrictEqual(sentAt.toSorted((a, b) => a - b));
+
+  expect(inbox.messages.map((e) => e['text'])).toStrictEqual(
+    Array.from({ length: 20 }, (_, i) => `${i}`),
   );
-
-  expect(daemon.tapEvents.map((e) => e['text'])).toStrictEqual(accepted.map((_, i) => `${i}`));
 });
 
-test('it reads a message back through message.get at each status', async () => {
-  await using daemon = await setupTest();
+test('it reads an accepted message back through message.get', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  const sent = await daemon.actor.sendRequest('session.message', {
+  const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
     from: 'alice',
   });
 
-  const accepted = await daemon.actor.sendRequest('message.get', { message: sent['message'] });
+  const accepted = await daemon.client.sendRequest('message.get', {
+    message: sent['message'],
+  });
 
   expect(accepted).toStrictEqual({
     message: sent['message'],
@@ -923,11 +1113,30 @@ test('it reads a message back through message.get at each status', async () => {
     turn: null,
     answeredWith: [],
   });
+});
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
-  await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+test('it reads a delivered message back through message.get', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const delivered = await daemon.actor.sendRequest('message.get', { message: sent['message'] });
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+    from: 'alice',
+  });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+
+  const delivered = await daemon.client.sendRequest('message.get', {
+    message: sent['message'],
+  });
 
   expect(delivered).toStrictEqual({
     message: sent['message'],
@@ -940,15 +1149,37 @@ test('it reads a message back through message.get at each status', async () => {
     turn: null,
     answeredWith: [],
   });
+});
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: sent['message'], answer: 'done' } })}\n`,
-    2000,
-  );
+test('it reads an answered message back through message.get', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
+
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+    from: 'alice',
+  });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'answered', message: sent['message'], answer: 'done' },
+  });
 
   await waitFor(async () => {
-    const answered = await daemon.actor.sendRequest('message.get', { message: sent['message'] });
+    const answered = await daemon.client.sendRequest('message.get', {
+      message: sent['message'],
+    });
 
     expect(answered).toStrictEqual({
       message: sent['message'],
@@ -967,26 +1198,30 @@ test('it reads a message back through message.get at each status', async () => {
 });
 
 test('it returns the full text and answer through message.get while the event carries previews', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
   const text = 't'.repeat(3000);
   const answer = 'a'.repeat(3000);
 
-  const sent = await daemon.actor.sendRequest('session.message', { session: id, text });
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: sent['message'], answer } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'answered', message: sent['message'], answer },
+  });
 
   await waitFor(() => {
     expect(daemon.events).toPartiallyContain({ ev: 'SessionMessage', status: 'answered' });
   });
 
-  const got = await daemon.actor.sendRequest('message.get', { message: sent['message'] });
+  const got = await daemon.client.sendRequest('message.get', { message: sent['message'] });
 
   const broadcast = daemon.events.filter((e) => e.ev === 'SessionMessage');
 
@@ -996,52 +1231,82 @@ test('it returns the full text and answer through message.get while the event ca
 });
 
 test('it caps a stored answer at the byte limit without splitting a character', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+  });
 
   // Each 'é' is two bytes, and the cut that leaves room for the ellipsis
   // falls inside one.
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: sent['message'], answer: 'é'.repeat(40_000) } })}\n`,
-    2000,
-  );
-
-  await waitFor(async () => {
-    const got = await daemon.actor.sendRequest('message.get', { message: sent['message'] });
-
-    expect(got['status']).toBe('answered');
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'answered', message: sent['message'], answer: 'é'.repeat(40_000) },
   });
 
-  const got = await daemon.actor.sendRequest('message.get', { message: sent['message'] });
+  const got = await waitFor(async () => {
+    const read = await daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(read['status']).toBe('answered');
+
+    return read;
+  });
 
   expect(got['answer']).toBe(`${'é'.repeat(32_766)}…`);
   expect(new TextEncoder().encode(String(got['answer']))).toHaveLength(65_535);
 });
 
 test('it gives two messages one turn answered the same turn and lists each beside the other', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const first = await daemon.actor.sendRequest('session.message', { session: id, text: 'one' });
-  const second = await daemon.actor.sendRequest('session.message', { session: id, text: 'two' });
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', messages: [first['message'], second['message']], answer: 'both', turn: 't-1' } })}\n`,
-    2000,
-  );
+  const first = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'one',
+  });
+
+  const second = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'two',
+  });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: {
+      kind: 'answered',
+      messages: [first['message'], second['message']],
+      answer: 'both',
+      turn: 't-1',
+    },
+  });
 
   await waitFor(async () => {
-    const got = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+    const got = await daemon.client.sendRequest('message.get', { message: second['message'] });
 
     expect(got['status']).toBe('answered');
   });
 
-  const firstGot = await daemon.actor.sendRequest('message.get', { message: first['message'] });
-  const secondGot = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+  const firstGot = await daemon.client.sendRequest('message.get', {
+    message: first['message'],
+  });
+
+  const secondGot = await daemon.client.sendRequest('message.get', {
+    message: second['message'],
+  });
 
   expect(firstGot).toMatchObject({
     answer: 'both',
@@ -1057,27 +1322,48 @@ test('it gives two messages one turn answered the same turn and lists each besid
 });
 
 test("it wakes a held read of one turn's message with the whole group already answered", async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const first = await daemon.actor.sendRequest('session.message', { session: id, text: 'one' });
-  const second = await daemon.actor.sendRequest('session.message', { session: id, text: 'two' });
-  const third = await daemon.actor.sendRequest('session.message', { session: id, text: 'three' });
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  const pending = daemon.actor.sendRequest('message.get', {
+  const first = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'one',
+  });
+
+  const second = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'two',
+  });
+
+  const third = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'three',
+  });
+
+  const pending = daemon.client.sendRequest('message.get', {
     message: first['message'],
     waitMs: 10_000,
   });
 
   // The daemon answers one connection's requests in the order they started,
   // so the ping's answer means the held read already took its first look.
-  await daemon.actor.sendRequest('daemon.ping');
+  await daemon.client.sendRequest('daemon.ping');
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', messages: [first['message'], second['message'], third['message']], answer: 'all', turn: 't-1' } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: {
+      kind: 'answered',
+      messages: [first['message'], second['message'], third['message']],
+      answer: 'all',
+      turn: 't-1',
+    },
+  });
 
   const woken = await pending;
 
@@ -1089,218 +1375,358 @@ test("it wakes a held read of one turn's message with the whole group already an
 });
 
 test('it lists no other messages for a message its own turn answered', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const first = await daemon.actor.sendRequest('session.message', { session: id, text: 'one' });
-  const second = await daemon.actor.sendRequest('session.message', { session: id, text: 'two' });
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: first['message'], answer: 'first', turn: 't-1' } })}\n${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: second['message'], answer: 'second', turn: 't-2' } })}\n`,
-    2000,
+  const first = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'one',
+  });
+
+  const second = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'two',
+  });
+
+  await daemon.sendHookLines(
+    {
+      atcId: id,
+      event: 'Report',
+      payload: { kind: 'answered', message: first['message'], answer: 'first', turn: 't-1' },
+    },
+    {
+      atcId: id,
+      event: 'Report',
+      payload: { kind: 'answered', message: second['message'], answer: 'second', turn: 't-2' },
+    },
   );
 
   await waitFor(async () => {
-    const got = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+    const got = await daemon.client.sendRequest('message.get', { message: second['message'] });
 
     expect(got['status']).toBe('answered');
   });
 
-  const firstGot = await daemon.actor.sendRequest('message.get', { message: first['message'] });
-  const secondGot = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+  const firstGot = await daemon.client.sendRequest('message.get', {
+    message: first['message'],
+  });
+
+  const secondGot = await daemon.client.sendRequest('message.get', {
+    message: second['message'],
+  });
 
   expect(firstGot).toMatchObject({ answer: 'first', turn: 't-1', answeredWith: [] });
   expect(secondGot).toMatchObject({ answer: 'second', turn: 't-2', answeredWith: [] });
 });
 
 test('it stores no turn for an answer reported without one', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const first = await daemon.actor.sendRequest('session.message', { session: id, text: 'one' });
-  const second = await daemon.actor.sendRequest('session.message', { session: id, text: 'two' });
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: first['message'], answer: 'both' } })}\n${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: second['message'], answer: 'both' } })}\n`,
-    2000,
+  const first = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'one',
+  });
+
+  const second = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'two',
+  });
+
+  await daemon.sendHookLines(
+    {
+      atcId: id,
+      event: 'Report',
+      payload: { kind: 'answered', message: first['message'], answer: 'both' },
+    },
+    {
+      atcId: id,
+      event: 'Report',
+      payload: { kind: 'answered', message: second['message'], answer: 'both' },
+    },
   );
 
   await waitFor(async () => {
-    const got = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+    const got = await daemon.client.sendRequest('message.get', { message: second['message'] });
 
     expect(got['status']).toBe('answered');
   });
 
-  const firstGot = await daemon.actor.sendRequest('message.get', { message: first['message'] });
-  const secondGot = await daemon.actor.sendRequest('message.get', { message: second['message'] });
+  const firstGot = await daemon.client.sendRequest('message.get', {
+    message: first['message'],
+  });
+
+  const secondGot = await daemon.client.sendRequest('message.get', {
+    message: second['message'],
+  });
 
   expect(firstGot).toMatchObject({ answer: 'both', turn: null, answeredWith: [] });
   expect(secondGot).toMatchObject({ answer: 'both', turn: null, answeredWith: [] });
 });
 
 test('it holds message.get open until the message status changes', async () => {
-  await using daemon = await setupTest();
+  const clock = buildStubClock(0);
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
+  });
 
-  const start = Date.now();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  const pending = daemon.actor.sendRequest('message.get', {
+  const pending = daemon.client.sendRequest('message.get', {
     message: sent['message'],
     waitMs: 10_000,
   });
 
-  // The daemon answers one connection's requests in the order they started,
-  // so the ping's answer means the held read already took its first look.
-  await daemon.actor.sendRequest('daemon.ping');
-  await daemon.tap.sendRequest('session.tap', { session: id });
-  await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+  // The held read waits on a timer for the rest of its window.
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([10_000]);
+  });
+
+  const tap = await daemon.openClient();
+
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
 
   const got = await pending;
 
-  expect(got).toMatchObject({ message: sent['message'], status: 'delivered' });
-  expect(Date.now()).toBeWithin(start, start + 9000);
+  expect(got).toStrictEqual({
+    message: sent['message'],
+    session: id,
+    from: 'unknown',
+    text: 'hello',
+    status: 'delivered',
+    sentAt: expect.any(Number),
+    deliveredAt: expect.any(Number),
+    turn: null,
+    answeredWith: [],
+  });
 });
 
 test('it answers a held message.get with the unchanged status once the wait ends', async () => {
-  await using daemon = await setupTest();
+  const clock = buildStubClock(0);
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
+  });
 
-  const start = Date.now();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  const got = await daemon.actor.sendRequest('message.get', {
+  const pending = daemon.client.sendRequest('message.get', {
     message: sent['message'],
     waitMs: 300,
   });
 
-  expect(got).toMatchObject({ message: sent['message'], status: 'accepted' });
-  expect(Date.now()).toBeWithin(start + 290, start + 5000);
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([300]);
+  });
+
+  clock.advance(300);
+
+  const got = await pending;
+
+  expect(got).toStrictEqual({
+    message: sent['message'],
+    session: id,
+    from: 'unknown',
+    text: 'hello',
+    status: 'accepted',
+    sentAt: expect.any(Number),
+    turn: null,
+    answeredWith: [],
+  });
 });
 
 test('it answers message.get for an answered message at once whatever the wait', async () => {
-  await using daemon = await setupTest();
+  const clock = buildStubClock(0);
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
+  });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: sent['message'], answer: 'done' } })}\n`,
-    2000,
-  );
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'answered', message: sent['message'], answer: 'done' },
+  });
 
   await waitFor(async () => {
-    const got = await daemon.actor.sendRequest('message.get', { message: sent['message'] });
+    const got = await daemon.client.sendRequest('message.get', { message: sent['message'] });
 
     expect(got['status']).toBe('answered');
   });
 
-  const start = Date.now();
-
-  const got = await daemon.actor.sendRequest('message.get', {
+  // The clock never moves, so only a read that waits on no timer answers.
+  const got = await daemon.client.sendRequest('message.get', {
     message: sent['message'],
     waitMs: 10_000,
   });
 
-  expect(got).toMatchObject({ status: 'answered', answer: 'done' });
-  expect(Date.now()).toBeWithin(start, start + 5000);
+  expect(got).toStrictEqual({
+    message: sent['message'],
+    session: id,
+    from: 'unknown',
+    text: 'hello',
+    status: 'answered',
+    answer: 'done',
+    sentAt: expect.any(Number),
+    answeredAt: expect.any(Number),
+    turn: null,
+    answeredWith: [],
+  });
 });
 
 test('it rejects message.get for an unknown message as bad_args', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  expect(daemon.actor.sendRequest('message.get', { message: 'm-unknown' })).rejects.toMatchObject({
+  expect(daemon.client.sendRequest('message.get', { message: 'm-unknown' })).rejects.toMatchObject({
     code: 'bad_args',
   });
 });
 
 test('it rejects message.get without a message as bad_args', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  expect(daemon.actor.sendRequest('message.get', {})).rejects.toMatchObject({
+  expect(daemon.client.sendRequest('message.get', {})).rejects.toMatchObject({
     code: 'bad_args',
   });
 });
 
 test('it ends the earlier tap subscription when a second tap attaches', async () => {
-  await using daemon = await setupTest();
-
-  const replacement = await DaemonClient.open(daemon.sockPath);
-
-  onTestFinished(() => {
-    replacement.stop();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
   });
 
-  await replacement.sendHello('atc/test-build');
+  const tap = await daemon.openClient();
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const tapEvents: EventMsg[] = [];
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
+  tap.onEvent = (event) => {
+    tapEvents.push(event);
+  };
+
+  const replacement = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await tap.sendRequest('session.tap', { session: id });
   await replacement.sendRequest('session.tap', { session: id });
 
   await waitFor(() => {
-    expect(daemon.tapClosed).toStrictEqual([
+    expect(tapEvents.filter((e) => e.ev === 'InboxClosed')).toStrictEqual([
       { v: 4, ev: 'InboxClosed', s: id, reason: 'replaced' },
     ]);
   });
 });
 
 test('it keeps the tap subscription when the same connection taps again', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const tap = await daemon.openClient();
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
-  await daemon.tap.sendRequest('session.tap', { session: id });
-  await daemon.actor.sendRequest('daemon.ping');
-  await daemon.tap.sendRequest('daemon.ping');
+  const tapEvents: EventMsg[] = [];
 
-  expect(daemon.tapClosed).toStrictEqual([]);
+  tap.onEvent = (event) => {
+    tapEvents.push(event);
+  };
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await tap.sendRequest('session.tap', { session: id });
+
+  // The daemon sends a replaced tap its InboxClosed before it answers the
+  // tap that replaced it, and here both are the same connection, so the
+  // answer follows any such event.
+  await tap.sendRequest('session.tap', { session: id });
+
+  expect(tapEvents.filter((e) => e.ev === 'InboxClosed')).toStrictEqual([]);
 });
 
 test('it ends the tap subscription when its session is removed', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const tap = await daemon.openClient();
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
+  const tapEvents: EventMsg[] = [];
+
+  tap.onEvent = (event) => {
+    tapEvents.push(event);
+  };
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await tap.sendRequest('session.tap', { session: id });
 
   // The first kill leaves an exited entry; the second removes it.
-  await daemon.actor.sendRequest('session.kill', { session: id });
-  await daemon.actor.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
+  await daemon.client.sendRequest('session.kill', { session: id });
 
   await waitFor(() => {
-    expect(daemon.tapClosed).toStrictEqual([{ v: 4, ev: 'InboxClosed', s: id, reason: 'removed' }]);
+    expect(tapEvents.filter((e) => e.ev === 'InboxClosed')).toStrictEqual([
+      { v: 4, ev: 'InboxClosed', s: id, reason: 'removed' },
+    ]);
   });
 });
 
 test('it records each message status change in events.read in order', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  const sent = await daemon.actor.sendRequest('session.message', {
+  const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
     from: 'alice',
   });
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
-  await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'answered', message: sent['message'], answer: 'done' } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'answered', message: sent['message'], answer: 'done' },
+  });
 
   const read = await waitFor(async () => {
-    const answer = await daemon.actor.sendRequest('events.read', {});
+    const answer = await daemon.client.sendRequest('events.read', {});
 
     expect(answer['events']).toHaveLength(3);
 
@@ -1343,41 +1769,69 @@ test('it records each message status change in events.read in order', async () =
 });
 
 test('it records a repeated ack in the trail once', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
-  await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
-  await daemon.tap.sendRequest('message.ack', { session: id, message: sent['message'] });
-  await daemon.actor.sendRequest('daemon.ping');
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+  });
 
-  const read = await daemon.actor.sendRequest('events.read', {});
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
 
-  const events = read['events'];
+  const read = await daemon.client.sendRequest('events.read', {});
 
-  if (!Array.isArray(events)) {
-    throw new TypeError('no events array');
-  }
-
-  expect(events.filter((e) => isRecord(e) && e['kind'] === 'message-delivered')).toHaveLength(1);
+  expect(read['events']).toStrictEqual([
+    {
+      cursor: expect.toBeString(),
+      at: expect.toBeNumber(),
+      session: id,
+      name: 'one',
+      kind: 'message-accepted',
+      detail: 'hello',
+      message: sent['message'],
+    },
+    {
+      cursor: expect.toBeString(),
+      at: expect.toBeNumber(),
+      session: id,
+      name: 'one',
+      kind: 'message-delivered',
+      detail: 'hello',
+      message: sent['message'],
+    },
+  ]);
 });
 
 test('it wakes a waiting events.read when a message is accepted', async () => {
-  await using daemon = await setupTest();
+  const clock = buildStubClock(0);
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const first = await daemon.actor.sendRequest('events.read', {});
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
+  });
 
-  const pending = daemon.actor.sendRequest('events.read', {
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const first = await daemon.client.sendRequest('events.read', {});
+
+  const pending = daemon.client.sendRequest('events.read', {
     cursor: first['cursor'],
     waitMs: 10_000,
   });
 
-  const start = Date.now();
+  // The clock never moves, so only the new event ends the wait.
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([10_000]);
+  });
 
-  const sent = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
   const woken = await pending;
 
   expect(woken['events']).toStrictEqual([
@@ -1391,20 +1845,22 @@ test('it wakes a waiting events.read when a message is accepted', async () => {
       message: sent['message'],
     },
   ]);
-
-  expect(Date.now()).toBeWithin(start, start + 9000);
 });
 
 test("it limits events.read to one session's events", async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const one = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const two = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'two', '/tmp');
+  const one = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const two = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'two', daemon.dir);
 
-  await daemon.actor.sendRequest('session.message', { session: one, text: 'to one' });
-  await daemon.actor.sendRequest('session.message', { session: two, text: 'to two' });
+  await daemon.client.sendRequest('session.message', { session: one, text: 'to one' });
+  await daemon.client.sendRequest('session.message', { session: two, text: 'to two' });
 
-  const read = await daemon.actor.sendRequest('events.read', { session: two });
+  const read = await daemon.client.sendRequest('events.read', { session: two });
 
   expect(read).toStrictEqual({
     events: [
@@ -1424,20 +1880,24 @@ test("it limits events.read to one session's events", async () => {
 });
 
 test("it wakes a held events.read only for the filtered session's event", async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const one = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const two = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'two', '/tmp');
-  const first = await daemon.actor.sendRequest('events.read', {});
+  const one = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const two = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'two', daemon.dir);
+  const first = await daemon.client.sendRequest('events.read', {});
 
-  const pending = daemon.actor.sendRequest('events.read', {
+  const pending = daemon.client.sendRequest('events.read', {
     cursor: first['cursor'],
     session: two,
     waitMs: 10_000,
   });
 
-  await daemon.actor.sendRequest('session.message', { session: one, text: 'to one' });
-  await daemon.actor.sendRequest('session.message', { session: two, text: 'to two' });
+  await daemon.client.sendRequest('session.message', { session: one, text: 'to one' });
+  await daemon.client.sendRequest('session.message', { session: two, text: 'to two' });
 
   const woken = await pending;
 
@@ -1445,35 +1905,71 @@ test("it wakes a held events.read only for the filtered session's event", async 
 });
 
 test('it marks an events.read page that stopped before the end of the trail', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const start = await daemon.actor.sendRequest('events.read', {});
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const start = await daemon.client.sendRequest('events.read', {});
 
-  await daemon.actor.sendRequest('session.message', { session: id, text: 'a' });
-  await daemon.actor.sendRequest('session.message', { session: id, text: 'b' });
-  await daemon.actor.sendRequest('session.message', { session: id, text: 'c' });
+  await daemon.client.sendRequest('session.message', { session: id, text: 'a' });
+  await daemon.client.sendRequest('session.message', { session: id, text: 'b' });
+  await daemon.client.sendRequest('session.message', { session: id, text: 'c' });
 
-  const page = await daemon.actor.sendRequest('events.read', { cursor: start['cursor'], limit: 2 });
-  const rest = await daemon.actor.sendRequest('events.read', { cursor: page['cursor'], limit: 2 });
+  const page = await daemon.client.sendRequest('events.read', {
+    cursor: start['cursor'],
+    limit: 2,
+  });
 
   expect(page).toMatchObject({ events: [{ detail: 'a' }, { detail: 'b' }], more: true });
+});
+
+test('it marks the events.read page that reaches the end of the trail as the last', async () => {
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const start = await daemon.client.sendRequest('events.read', {});
+
+  await daemon.client.sendRequest('session.message', { session: id, text: 'a' });
+  await daemon.client.sendRequest('session.message', { session: id, text: 'b' });
+  await daemon.client.sendRequest('session.message', { session: id, text: 'c' });
+
+  const page = await daemon.client.sendRequest('events.read', {
+    cursor: start['cursor'],
+    limit: 2,
+  });
+
+  const rest = await daemon.client.sendRequest('events.read', {
+    cursor: page['cursor'],
+    limit: 2,
+  });
+
   expect(rest).toMatchObject({ events: [{ detail: 'c' }], more: false });
 });
 
 test('it records a note in events.read with its label', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'need review' } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'note', label: 'blocked', text: 'need review' },
+  });
 
   const read = await waitFor(async () => {
-    const answer = await daemon.actor.sendRequest('events.read', {});
+    const answer = await daemon.client.sendRequest('events.read', {});
 
     expect(answer['events']).toHaveLength(1);
 
@@ -1498,18 +1994,22 @@ test('it records a note in events.read with its label', async () => {
 });
 
 test("it returns a report's whole text by the cursor of its event", async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'decision', text: 'y'.repeat(700) } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'note', label: 'decision', text: 'y'.repeat(700) },
+  });
 
   const event = await waitFor(async () => {
-    const answer = await daemon.actor.sendRequest('events.read', {});
+    const answer = await daemon.client.sendRequest('events.read', {});
 
     if (!Array.isArray(answer['events']) || !isRecord(answer['events'][0])) {
       throw new TypeError('no event yet');
@@ -1518,7 +2018,7 @@ test("it returns a report's whole text by the cursor of its event", async () => 
     return answer['events'][0];
   });
 
-  const report = await daemon.actor.sendRequest('report.get', { report: event['cursor'] });
+  const report = await daemon.client.sendRequest('report.get', { report: event['cursor'] });
 
   expect({ preview: event['detail'], report }).toStrictEqual({
     preview: `${'y'.repeat(599)}…`,
@@ -1535,18 +2035,22 @@ test("it returns a report's whole text by the cursor of its event", async () => 
 });
 
 test("it returns a report's text cut at 64 KiB", async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'evidence', text: 'z'.repeat(70_000) } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'note', label: 'evidence', text: 'z'.repeat(70_000) },
+  });
 
   const event = await waitFor(async () => {
-    const answer = await daemon.actor.sendRequest('events.read', {});
+    const answer = await daemon.client.sendRequest('events.read', {});
 
     if (!Array.isArray(answer['events']) || !isRecord(answer['events'][0])) {
       throw new TypeError('no event yet');
@@ -1555,7 +2059,7 @@ test("it returns a report's text cut at 64 KiB", async () => {
     return answer['events'][0];
   });
 
-  const report = await daemon.actor.sendRequest('report.get', { report: event['cursor'] });
+  const report = await daemon.client.sendRequest('report.get', { report: event['cursor'] });
 
   expect({ preview: event['detail'], text: report['text'] }).toStrictEqual({
     preview: `${'z'.repeat(599)}…`,
@@ -1564,29 +2068,46 @@ test("it returns a report's text cut at 64 KiB", async () => {
 });
 
 test('it refuses a cursor at no trail row as an unknown report', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
   const cursor = encodeCursor({ kind: 'events', id: 999_999 });
 
-  expect(daemon.actor.sendRequest('report.get', { report: cursor })).rejects.toMatchObject({
+  expect(daemon.client.sendRequest('report.get', { report: cursor })).rejects.toMatchObject({
     code: 'bad_args',
     message: `no report '${cursor}'`,
   });
 });
 
 test('it refuses the cursor of an event that is not a report as an unknown report', async () => {
-  await using daemon = await setupTest();
+  // The Claude adapter's own hook reading marks a session started.
+  const claude = new ClaudeAdapter(buildMockAgentEntry({ id: 'claude' }), {
+    authProfiles: new Map(),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        normalizeHook: (hook) => claude.normalizeHook(hook),
+      }),
+    }),
+  });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'c-1' } })}\n`,
-    2000,
-  );
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: 'c-1' },
+  });
+
+  // The session start is the trail's only event.
   const event = await waitFor(async () => {
-    const answer = await daemon.actor.sendRequest('events.read', {});
+    const answer = await daemon.client.sendRequest('events.read', {});
 
     if (!Array.isArray(answer['events']) || !isRecord(answer['events'][0])) {
       throw new TypeError('no event yet');
@@ -1595,32 +2116,34 @@ test('it refuses the cursor of an event that is not a report as an unknown repor
     return answer['events'][0];
   });
 
-  expect(event['kind']).toBe('started');
-
-  expect(daemon.actor.sendRequest('report.get', { report: event['cursor'] })).rejects.toMatchObject(
-    { code: 'bad_args', message: `no report '${String(event['cursor'])}'` },
-  );
+  expect(
+    daemon.client.sendRequest('report.get', { report: event['cursor'] }),
+  ).rejects.toMatchObject({ code: 'bad_args', message: `no report '${String(event['cursor'])}'` });
 });
 
 test('it leaves a note from an unknown session out of the trail', async () => {
-  await using daemon = await setupTest();
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: 'nope', event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'bogus' } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: 'nope',
+    event: 'Report',
+    payload: { kind: 'note', label: 'blocked', text: 'bogus' },
+  });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'valid' } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'note', label: 'blocked', text: 'valid' },
+  });
 
   const read = await waitFor(async () => {
-    const answer = await daemon.actor.sendRequest('events.read', {});
+    const answer = await daemon.client.sendRequest('events.read', {});
 
     expect(answer['events']).toHaveLength(1);
 
@@ -1645,155 +2168,159 @@ test('it leaves a note from an unknown session out of the trail', async () => {
 });
 
 test("it counts a note toward the session's last activity time", async () => {
-  await using daemon = await setupTest();
+  // The daemon's clock times the note, while the session takes its creation
+  // time from the wall clock, so a clock set far past any wall-clock time
+  // makes the note the session's latest activity.
+  const clock = buildStubClock(Date.parse('2100-01-01T00:00:00Z'));
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
-  const before = await daemon.actor.sendRequest('session.get', { session: id });
+  await using daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
+  });
 
-  if (!isRecord(before['session'])) {
-    throw new TypeError('no session');
-  }
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  const createdAt = before['session']['createdAt'];
-
-  if (typeof createdAt !== 'number') {
-    throw new TypeError('no createdAt on the session');
-  }
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Report',
+    payload: { kind: 'note', label: 'blocked', text: 'need review' },
+  });
 
   await waitFor(() => {
-    expect(Date.now()).toBeGreaterThan(createdAt);
+    expect(daemon.events).toPartiallyContain({ ev: 'SessionReport' });
   });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'Report', payload: { kind: 'note', label: 'blocked', text: 'need review' } })}\n`,
-    2000,
-  );
+  const after = await daemon.client.sendRequest('session.get', { session: id });
 
-  const report = await waitFor(() => {
-    const found = daemon.events.find((e) => e.ev === 'SessionReport');
-
-    if (found === undefined) {
-      throw new Error('no SessionReport yet');
-    }
-
-    return found;
-  });
-
-  const after = await daemon.actor.sendRequest('session.get', { session: id });
-
-  expect(after['lastActivityAt']).toBe(report['reportedAt']);
-  expect(after['lastActivityAt']).toBeGreaterThan(createdAt);
+  expect(after['lastActivityAt']).toBe(clock.now());
 });
 
 test('it gates a revived session on its own tap, not the tap its previous process attached', async () => {
-  let boots = 0;
-
-  await using daemon = await setupTest({
-    tapGraceMs: 0,
-
-    // The first terminal runs until the test drops a file; every later one
-    // runs on.
-    planSpawn: () => {
-      boots++;
-
-      return boots === 1
-        ? {
-            bin: 'bash',
-            args: ['-c', 'while [ ! -e "$1" ]; do sleep 0.02; done', 'boot', `${daemon.dir}/die`],
-          }
-        : { bin: 'sleep', args: ['30'] };
-    },
+  const claude = new ClaudeAdapter(buildMockAgentEntry({ id: 'claude' }), {
+    authProfiles: new Map(),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  // The first terminal ends once it reads a line of input; every later one
+  // runs on.
+  const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })).mockReturnValueOnce({
+    bin: 'head',
+    args: ['-n', '1'],
+  });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'agent-1' } })}\n`,
-    2000,
-  );
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        normalizeHook: (hook) => claude.normalizeHook(hook),
+        planSpawn,
+      }),
+      tapGraceMs: 0,
+    }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: 'agent-1' },
+  });
 
   await waitFor(async () => {
-    const listed = await daemon.actor.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: 'agent-1' });
   });
 
-  await daemon.tap.sendRequest('session.tap', { session: id });
+  const tap = await daemon.openClient();
 
-  writeFileSync(join(daemon.dir, 'die'), '');
+  await tap.sendRequest('session.tap', { session: id });
+  await daemon.client.sendRequest('session.input', { session: id, d: 'end\r' });
 
   await waitFor(async () => {
-    const listed = await daemon.actor.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed['sessions']).toPartiallyContain({ id, alive: false });
   });
 
-  await daemon.actor.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'agent-1' } })}\n`,
-    2000,
-  );
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: 'agent-1' },
+  });
 
   await waitFor(async () => {
-    const listed = await daemon.actor.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed['sessions']).toPartiallyContain({ id, alive: true, lastMsg: 'revived' });
   });
 
   expect(
-    daemon.actor.sendRequest('session.message', { session: id, text: 'hello' }),
+    daemon.client.sendRequest('session.message', { session: id, text: 'hello' }),
   ).rejects.toMatchObject({ code: 'unsupported' });
 });
 
 test('it queues a message to a revived session before it reports SessionStart again', async () => {
-  let boots = 0;
-
-  await using daemon = await setupTest({
-    tapGraceMs: 0,
-
-    // The first terminal runs until the test drops a file; every later one
-    // runs on.
-    planSpawn: () => {
-      boots++;
-
-      return boots === 1
-        ? {
-            bin: 'bash',
-            args: ['-c', 'while [ ! -e "$1" ]; do sleep 0.02; done', 'boot', `${daemon.dir}/die`],
-          }
-        : { bin: 'sleep', args: ['30'] };
-    },
+  const claude = new ClaudeAdapter(buildMockAgentEntry({ id: 'claude' }), {
+    authProfiles: new Map(),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.actor.sendRequest(m, p), 'one', '/tmp');
+  // The first terminal ends once it reads a line of input; every later one
+  // runs on.
+  const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })).mockReturnValueOnce({
+    bin: 'head',
+    args: ['-n', '1'],
+  });
 
-  await sendReport(
-    daemon.reporterPath,
-    `${JSON.stringify({ atcId: id, event: 'SessionStart', payload: { session_id: 'agent-1' } })}\n`,
-    2000,
-  );
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        normalizeHook: (hook) => claude.normalizeHook(hook),
+        planSpawn,
+      }),
+      tapGraceMs: 0,
+    }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: 'agent-1' },
+  });
 
   await waitFor(async () => {
-    const listed = await daemon.actor.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: 'agent-1' });
   });
 
-  writeFileSync(join(daemon.dir, 'die'), '');
+  await daemon.client.sendRequest('session.input', { session: id, d: 'end\r' });
 
   await waitFor(async () => {
-    const listed = await daemon.actor.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed['sessions']).toPartiallyContain({ id, alive: false });
   });
 
-  await daemon.actor.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const ok = await daemon.actor.sendRequest('session.message', { session: id, text: 'hello' });
+  const ok = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
 });
+
+// One event as the events socket or a hook's stdin carries it, a JSON
+// object on a line of its own.
+function parseEventLine(line: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(line);
+
+  if (!isRecord(parsed)) {
+    throw new TypeError(`not an event: ${line}`);
+  }
+
+  return parsed;
+}

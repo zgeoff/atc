@@ -3,46 +3,31 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from '
 import { join } from 'node:path';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { GatewayAdapter } from '../agents/gateway-adapter';
-import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
-import { startDaemon } from './daemon';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
 /**
- * A real daemon with a `local` target and an imp target `box` over a
- * fixture imp port whose impd an operator prepared: the token `atc-runtime`
- * manages `atc-*` imps and may grant `glm`, and impd holds `glm` for
- * api.z.ai as a custom bearer secret. The guest has an atc stand-in, so the
- * Claude gateways plan real guest spawns. Their binary is a fake claude
- * that records its arguments in a marker file. `glm` takes its credential
- * through `auth` with the bearer placeholder; `keyed` selects the same
- * profile with an `ANTHROPIC_API_KEY` placeholder; `proxied` is `glm` with
- * a proxy variable in its env, which the config would refuse. The canary
- * stands in for a credential held on the daemon's side.
+ * A fixture imp port whose impd an operator prepared: the token
+ * `atc-runtime` manages `atc-*` imps and may grant `glm`, and impd holds
+ * `glm` for api.z.ai as a custom bearer secret. A daemon runs with a
+ * `local` target and an imp target `box` over the port. The guest has an
+ * atc stand-in, so the Claude gateways plan real guest spawns; their binary
+ * is a fake claude that appends its arguments to `started`. `glm` takes its
+ * credential through `auth` with the bearer placeholder; `keyed` selects
+ * the same profile with an `ANTHROPIC_API_KEY` placeholder; `proxied` is
+ * `glm` with a proxy variable in its env, which the config would refuse.
  */
 async function setupTest() {
-  const tmp = setupTempDir('atc-gateway-guest-auth-');
-  const sockPath = join(tmp.dir, 'daemon.sock');
-  const guestDir = join(tmp.dir, 'g');
-  const fakeClaude = join(tmp.dir, 'fake-claude');
-  const marker = join(tmp.dir, 'started');
-  const guestATC = join(tmp.dir, 'atc');
-  const canary = 'canary-sk-5d1c0a9e7b3f42';
+  await using stack = new AsyncDisposableStack();
 
-  writeFileSync(fakeClaude, `#!/bin/sh\necho "$@" >> "${marker}"\nexec sleep 30\n`, {
-    mode: 0o755,
-  });
-
-  writeFileSync(guestATC, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
-
-  const port = new FixtureImpPort();
+  const port = stack.use(new FixtureImpPort());
 
   port.setIdentity({
     kind: 'token',
@@ -56,104 +41,105 @@ async function setupTest() {
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const provider = new ImpProvider(port, { guestDir, guestATC }, { atcBinary: null });
+  const daemon = await startTestDaemon({
+    options: (paths) => {
+      // The gateways' binary and the guest's atc, which every spawn runs.
+      writeFileSync(
+        join(paths.dir, 'fake-claude'),
+        `#!/bin/sh\necho "$@" >> "${join(paths.dir, 'started')}"\nexec sleep 30\n`,
+        { mode: 0o755 },
+      );
 
-  const config = parseConfig({
-    authProfiles: {
-      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-    },
-    agents: {
-      glm: {
-        kind: 'claude',
-        bin: fakeClaude,
-        baseURL: 'https://api.z.ai/api/anthropic',
-        auth: {
-          profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      writeFileSync(join(paths.dir, 'atc'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+
+      const provider = new ImpProvider(
+        port,
+        { guestDir: join(paths.dir, 'g'), guestATC: join(paths.dir, 'atc') },
+        { atcBinary: null },
+      );
+
+      stack.defer(() => {
+        provider.dispose();
+      });
+
+      const config = parseConfig({
+        authProfiles: {
+          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-      },
-      keyed: {
-        kind: 'claude',
-        bin: fakeClaude,
-        baseURL: 'https://api.z.ai/api/anthropic',
-        auth: {
-          profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+        agents: {
+          glm: {
+            kind: 'claude',
+            bin: join(paths.dir, 'fake-claude'),
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            },
+          },
+          keyed: {
+            kind: 'claude',
+            bin: join(paths.dir, 'fake-claude'),
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+            },
+          },
         },
-      },
+      });
+
+      const proxied = new GatewayAdapter(
+        {
+          ...getGatewayConfig(config, 'glm'),
+          id: 'proxied',
+          env: { HTTPS_PROXY: 'http://proxy.example:3128' },
+        },
+        config,
+      );
+
+      return {
+        adapters: [...buildAgentAdapters(config), proxied],
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local-pty:test',
+            provider: new LocalPTYProvider(),
+          },
+          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
+        ],
+        defaultTarget: 'box',
+      };
     },
   });
 
-  const gateways = buildAgentAdapters(config);
-  const glm = getGatewayConfig(config, 'glm');
+  stack.use(daemon);
 
-  const proxied = new GatewayAdapter(
-    { ...glm, id: 'proxied', env: { HTTPS_PROXY: 'http://proxy.example:3128' } },
-    config,
-  );
+  const moved = stack.move();
 
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapters: [...gateways, proxied],
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    targets: [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: 'local-pty:test',
-        provider: new LocalPTYProvider(),
-      },
-      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
-    ],
-    defaultTarget: 'box',
-  });
-
-  const client = await DaemonClient.open(sockPath);
-
-  await client.sendHello('atc/test-build');
-
-  return {
-    client,
-    port,
-    marker,
-    canary,
-    dir: tmp.dir,
-    guestDir,
-    async [Symbol.asyncDispose]() {
-      client.stop();
-
-      await daemon.stop();
-
-      provider.dispose();
-      port[Symbol.dispose]();
-      tmp[Symbol.dispose]();
-    },
-  };
+  return { port, daemon, [Symbol.asyncDispose]: () => moved.disposeAsync() };
 }
 
 test('it starts a brokered gateway on an imp under the settings file of its binding revision', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     agent: 'glm',
     target: 'box',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const session = join(daemon.guestDir, 'sessions', id);
+  const session = join(join(ctx.daemon.dir, 'g'), 'sessions', id);
 
   await waitFor(() => {
-    expect(existsSync(daemon.marker)).toBeTrue();
+    expect(existsSync(join(ctx.daemon.dir, 'started'))).toBeTrue();
 
     return true;
   });
 
-  const [start] = daemon.port.sessionRequests;
+  const [start] = ctx.port.sessionRequests;
 
   if (start?.kind !== 'start') {
     throw new Error('expected the harness start');
@@ -180,30 +166,30 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
 });
 
 test('it revives a rebound session under the settings file of the next revision', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const session = join(daemon.guestDir, 'sessions', id);
+  const session = join(join(ctx.daemon.dir, 'g'), 'sessions', id);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
-  await daemon.client.sendRequest('session.auth.revoke', { session: id });
-  await daemon.client.sendRequest('session.auth.rebind', { session: id });
-  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.auth.revoke', { session: id });
+  await ctx.daemon.client.sendRequest('session.auth.rebind', { session: id });
+  await ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
-    expect(daemon.port.sessionRequests).toHaveLength(2);
+    expect(ctx.port.sessionRequests).toHaveLength(2);
 
     return true;
   });
 
-  const [, revived] = daemon.port.sessionRequests;
+  const [, revived] = ctx.port.sessionRequests;
 
   if (revived?.kind !== 'start') {
     throw new Error('expected the revived harness start');
@@ -214,10 +200,10 @@ test('it revives a rebound session under the settings file of the next revision'
 });
 
 test('it refuses to revive a revoked session and starts no harness under its old settings', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -225,40 +211,41 @@ test('it refuses to revive a revoked session and starts no harness under its old
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await daemon.client.sendRequest('session.kill', { session: id });
-  await daemon.client.sendRequest('session.auth.revoke', { session: id });
+  await ctx.daemon.client.sendRequest('session.kill', { session: id });
+  await ctx.daemon.client.sendRequest('session.auth.revoke', { session: id });
 
-  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+  expect(
+    ctx.daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 }),
+  ).rejects.toMatchObject({ code: 'auth_blocked' });
 
-  expect(adopt).rejects.toMatchObject({ code: 'auth_blocked' });
-
-  await adopt.catch(() => null);
-
-  expect(daemon.port.sessionRequests).toHaveLength(1);
+  expect(ctx.port.sessionRequests).toHaveLength(1);
 });
 
 test('it starts a brokered gateway with the placeholder and its own Claude config in the harness env and no credential anywhere', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  updateEnv('ANTHROPIC_API_KEY', daemon.canary);
-  updateEnv('ANTHROPIC_AUTH_TOKEN', daemon.canary);
+  // The canary stands in for a credential held on the daemon's side.
+  const canary = 'canary-sk-5d1c0a9e7b3f42';
 
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  updateEnv('ANTHROPIC_API_KEY', canary);
+  updateEnv('ANTHROPIC_AUTH_TOKEN', canary);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     agent: 'glm',
     target: 'box',
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const session = join(daemon.guestDir, 'sessions', id);
+  const session = join(join(ctx.daemon.dir, 'g'), 'sessions', id);
 
   await waitFor(() => {
-    expect(existsSync(daemon.marker)).toBeTrue();
+    expect(existsSync(join(ctx.daemon.dir, 'started'))).toBeTrue();
 
     return true;
   });
 
-  const [start] = daemon.port.sessionRequests;
+  const [start] = ctx.port.sessionRequests;
 
   if (start?.kind !== 'start') {
     throw new Error('expected the harness start');
@@ -277,15 +264,15 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
   });
 
   expect(written).toInclude('imp-broker-placeholder');
-  expect(written).not.toInclude(daemon.canary);
-  expect(JSON.stringify(start)).not.toInclude(daemon.canary);
+  expect(written).not.toInclude(canary);
+  expect(JSON.stringify(start)).not.toInclude(canary);
 });
 
 test('it refuses a brokered gateway whose env sets a proxy variable before any imp call', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     agent: 'proxied',
     target: 'box',
   });
@@ -295,18 +282,16 @@ test('it refuses a brokered gateway whose env sets a proxy variable before any i
     data: { agent: 'proxied', problem: 'guest_env_conflict', variable: 'HTTPS_PROXY' },
   });
 
-  await spawn.catch(() => null);
-
   expect<Record<string, unknown>>({
-    calls: daemon.port.calls,
-    listed: await daemon.client.sendRequest('session.list'),
+    calls: ctx.port.calls,
+    listed: await ctx.daemon.client.sendRequest('session.list'),
   }).toStrictEqual({ calls: [], listed: { sessions: [] } });
 });
 
 test('it lists a brokered gateway with the bearer placeholder as spawnable and one with another placeholder as not', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const listed = await daemon.client.sendRequest('agents.list');
+  const listed = await ctx.daemon.client.sendRequest('agents.list');
 
   expect(listed).toMatchObject({
     agents: [
@@ -318,15 +303,15 @@ test('it lists a brokered gateway with the bearer placeholder as spawnable and o
 });
 
 test('it refuses a brokered gateway with an unsupported placeholder before materializing its workspace or touching impd', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const cwd = join(daemon.dir, 'ws');
+  const cwd = join(ctx.daemon.dir, 'ws');
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
+  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
     cwd,
     agent: 'keyed',
     target: 'box',
-    workspace: { kind: 'path', path: join(daemon.dir, 'source') },
+    workspace: { kind: 'path', path: join(ctx.daemon.dir, 'source') },
   });
 
   expect(spawn).rejects.toMatchObject({
@@ -334,26 +319,24 @@ test('it refuses a brokered gateway with an unsupported placeholder before mater
     data: { agent: 'keyed' },
   });
 
-  await spawn.catch(() => null);
-
   expect<Record<string, unknown>>({
-    calls: daemon.port.calls,
+    calls: ctx.port.calls,
     created: existsSync(cwd),
-    hosts: existsSync(daemon.guestDir),
-    listed: await daemon.client.sendRequest('session.list'),
+    hosts: existsSync(join(ctx.daemon.dir, 'g')),
+    listed: await ctx.daemon.client.sendRequest('session.list'),
   }).toStrictEqual({ calls: [], created: false, hosts: false, listed: { sessions: [] } });
 });
 
 test('it refuses a brokered gateway on the local target before materializing its workspace or touching impd', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const cwd = join(daemon.dir, 'ws');
+  const cwd = join(ctx.daemon.dir, 'ws');
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
+  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
     cwd,
     agent: 'glm',
     target: 'local',
-    workspace: { kind: 'path', path: join(daemon.dir, 'source') },
+    workspace: { kind: 'path', path: join(ctx.daemon.dir, 'source') },
   });
 
   expect(spawn).rejects.toMatchObject({
@@ -361,12 +344,10 @@ test('it refuses a brokered gateway on the local target before materializing its
     data: { agent: 'glm', target: 'local' },
   });
 
-  await spawn.catch(() => null);
-
   expect<Record<string, unknown>>({
-    calls: daemon.port.calls,
+    calls: ctx.port.calls,
     created: existsSync(cwd),
-    started: existsSync(daemon.marker),
-    listed: await daemon.client.sendRequest('session.list'),
+    started: existsSync(join(ctx.daemon.dir, 'started')),
+    listed: await ctx.daemon.client.sendRequest('session.list'),
   }).toStrictEqual({ calls: [], created: false, started: false, listed: { sessions: [] } });
 });

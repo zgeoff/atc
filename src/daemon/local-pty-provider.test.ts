@@ -6,27 +6,41 @@ import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
 import { LocalPTYProvider } from './local-pty-provider';
 
+/**
+ * A local pseudo-terminal provider and a temp directory for the harnesses
+ * it runs.
+ */
 function setupTest() {
-  const tmp = setupTempDir('atc-local-pty-');
+  using stack = new DisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-local-pty-'));
+
+  const provider = new LocalPTYProvider();
+
+  stack.defer(provider.dispose);
+
+  const owned = stack.move();
 
   return {
     dir: tmp.dir,
-    provider: new LocalPTYProvider(),
-    [Symbol.dispose]: tmp[Symbol.dispose],
+    provider,
+    [Symbol.dispose]: () => {
+      owned.dispose();
+    },
   };
 }
 
 test('it runs a harness in a pseudo-terminal that echoes typed input back', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
   const output: string[] = [];
 
-  const harness = local.provider.spawnHarness({
+  const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo READY; read -r line; echo "GOT:$line"; sleep 30'],
-    cwd: local.dir,
+    cwd: ctx.dir,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -52,18 +66,18 @@ test('it runs a harness in a pseudo-terminal that echoes typed input back', asyn
 });
 
 test('it starts a harness with TERM xterm-256color when the daemon has no TERM', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
   updateEnv('TERM', undefined);
 
   const output: string[] = [];
 
-  const harness = local.provider.spawnHarness({
+  const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo "TERM:[$TERM]"; sleep 30'],
-    cwd: local.dir,
+    cwd: ctx.dir,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -88,18 +102,18 @@ test.each([
   { daemonTERM: 'screen-256color', childTERM: 'screen-256color' },
   { daemonTERM: 'xterm-kitty', childTERM: 'xterm-kitty' },
 ])('it starts a harness with TERM $childTERM when the daemon has TERM $daemonTERM', async (row) => {
-  using local = setupTest();
+  using ctx = setupTest();
 
   updateEnv('TERM', row.daemonTERM);
 
   const output: string[] = [];
 
-  const harness = local.provider.spawnHarness({
+  const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo "TERM:[$TERM]"; sleep 30'],
-    cwd: local.dir,
+    cwd: ctx.dir,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -119,18 +133,18 @@ test.each([
 });
 
 test('it keeps a TERM the caller sets for the harness over a dumb daemon TERM', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
   updateEnv('TERM', 'dumb');
 
   const output: string[] = [];
 
-  const harness = local.provider.spawnHarness({
+  const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo "TERM:[$TERM]"; sleep 30'],
-    cwd: local.dir,
+    cwd: ctx.dir,
     env: { PATH: '/usr/bin:/bin', TERM: 'tmux-256color' },
     cols: 80,
     rows: 24,
@@ -150,19 +164,19 @@ test('it keeps a TERM the caller sets for the harness over a dumb daemon TERM', 
 });
 
 test('it keeps a withheld variable out of a harness it gives a TERM', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
   updateEnv('TERM', undefined);
   updateEnv('ATC_TEST_WITHHELD', 'fixture-not-a-secret');
 
   const output: string[] = [];
 
-  const harness = local.provider.spawnHarness({
+  const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo "ENV:[$TERM|$ATC_TEST_WITHHELD]"; sleep 30'],
-    cwd: local.dir,
+    cwd: ctx.dir,
     env: { PATH: '/usr/bin:/bin' },
     withheldEnv: ['ATC_TEST_WITHHELD'],
     cols: 80,
@@ -183,19 +197,23 @@ test('it keeps a withheld variable out of a harness it gives a TERM', async () =
 });
 
 test('it reports the exit of a killed harness', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
   const exited = Promise.withResolvers<number>();
 
-  const harness = local.provider.spawnHarness({
+  const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: local.dir,
+    cwd: ctx.dir,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
+  });
+
+  onTestFinished(() => {
+    harness.kill();
   });
 
   harness.onExit((exit) => {
@@ -208,17 +226,21 @@ test('it reports the exit of a killed harness', async () => {
 });
 
 test('it confirms the exit of a killed harness once its process is gone', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
-  const harness = local.provider.spawnHarness({
+  const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: local.dir,
+    cwd: ctx.dir,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
+  });
+
+  onTestFinished(() => {
+    harness.kill();
   });
 
   harness.kill();
@@ -229,16 +251,21 @@ test('it confirms the exit of a killed harness once its process is gone', async 
 });
 
 test('it reports no exit for a killed harness whose process ignores the kill', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
   const output: string[] = [];
 
-  const harness = local.provider.spawnHarness({
+  // The harness writes the file once it has caught the hang-up, and runs on.
+  const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
     bin: 'bash',
-    args: ['-c', `trap '' HUP; echo "PID:$$:"; exec sleep 10`],
-    cwd: local.dir,
+    args: [
+      '-c',
+      `trap 'echo hup > "$0"' HUP; echo "PID:$$:"; while :; do sleep 1 & wait $!; done`,
+      join(ctx.dir, 'hup'),
+    ],
+    cwd: ctx.dir,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -252,8 +279,7 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
     expect(output.join('')).toMatch(/PID:\d+:/);
   });
 
-  const match = /PID:(?<pid>\d+):/.exec(output.join(''));
-  const printed = match?.groups?.['pid'];
+  const printed = /PID:(?<pid>\d+):/.exec(output.join(''))?.groups?.['pid'];
 
   if (printed === undefined) {
     throw new Error('the harness printed no pid');
@@ -267,27 +293,39 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
 
   harness.kill();
 
-  const exited = await harness.waitForExit(200);
+  await waitFor(() => {
+    expect(readFileSync(join(ctx.dir, 'hup'), 'utf8')).toBe('hup\n');
+  });
 
-  expect(exited).toBeFalse();
-  expect(process.kill(pid, 0)).toBeTrue();
+  const exited = await harness.waitForExit(0);
+
+  expect({ exited, alive: process.kill(pid, 0) }).toStrictEqual({ exited: false, alive: true });
 });
 
 test('it ends a harness that ignores its kill with a forced kill', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
-  const output: string[] = [];
-
-  const harness = local.provider.spawnHarness({
+  // The harness writes the file once it has caught the hang-up, and runs on.
+  const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
     bin: 'bash',
-    args: ['-c', `trap '' HUP; echo READY; exec sleep 10`],
-    cwd: local.dir,
+    args: [
+      '-c',
+      `trap 'echo hup > "$0"' HUP; echo READY; while :; do sleep 1 & wait $!; done`,
+      join(ctx.dir, 'hup'),
+    ],
+    cwd: ctx.dir,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
   });
+
+  onTestFinished(() => {
+    harness.killForced?.();
+  });
+
+  const output: string[] = [];
 
   harness.onData((data) => {
     output.push(data);
@@ -299,27 +337,28 @@ test('it ends a harness that ignores its kill with a forced kill', async () => {
 
   harness.kill();
 
-  const survived = await harness.waitForExit(200);
+  await waitFor(() => {
+    expect(readFileSync(join(ctx.dir, 'hup'), 'utf8')).toBe('hup\n');
+  });
 
   harness.killForced?.();
 
   const exited = await harness.waitForExit(2000);
 
-  expect(survived).toBeFalse();
   expect(exited).toBeTrue();
 });
 
 test('it resizes the terminal a running harness reads its size from', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
   const output: string[] = [];
 
-  const harness = local.provider.spawnHarness({
+  const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo READY; read -r line; echo "SIZE:$(stty size)"; sleep 30'],
-    cwd: local.dir,
+    cwd: ctx.dir,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -346,54 +385,54 @@ test('it resizes the terminal a running harness reads its size from', async () =
 });
 
 test('it unpacks a tar archive into a directory it creates', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
-  const source = join(local.dir, 'source');
+  const source = join(ctx.dir, 'source');
 
   mkdirSync(join(source, 'nested'), { recursive: true });
   writeFileSync(join(source, 'nested', 'file.txt'), 'packed contents');
 
   const archive = Bun.spawnSync(['tar', '-c', '-f', '-', '-C', source, '.']).stdout;
 
-  await local.provider.transferArchive(archive, join(local.dir, 'dest', 'deeper'));
+  await ctx.provider.transferArchive(archive, join(ctx.dir, 'dest', 'deeper'));
 
-  expect(readFileSync(join(local.dir, 'dest', 'deeper', 'nested', 'file.txt'), 'utf8')).toBe(
+  expect(readFileSync(join(ctx.dir, 'dest', 'deeper', 'nested', 'file.txt'), 'utf8')).toBe(
     'packed contents',
   );
 });
 
 test('it rejects an archive tar cannot read', () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
-  const transfer = local.provider.transferArchive(
+  const transfer = ctx.provider.transferArchive(
     new TextEncoder().encode('not a tar archive'),
-    join(local.dir, 'dest'),
+    join(ctx.dir, 'dest'),
   );
 
   expect(transfer).rejects.toThrow(/tar exited/);
 });
 
 test('it runs a command in a directory and returns its exit code and output', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
-  const result = await local.provider.runCommand({
+  const result = await ctx.provider.runCommand({
     argv: ['bash', '-c', 'pwd; echo oops >&2; exit 3'],
-    cwd: local.dir,
+    cwd: ctx.dir,
   });
 
-  expect(result).toStrictEqual({ exitCode: 3, stdout: `${local.dir}\n`, stderr: 'oops\n' });
+  expect(result).toStrictEqual({ exitCode: 3, stdout: `${ctx.dir}\n`, stderr: 'oops\n' });
 });
 
 test('it refuses to start a harness that requires a credential broker, which it has none of', () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
   expect(() =>
-    local.provider.spawnHarness({
+    ctx.provider.spawnHarness({
       session: 's1',
       host: 's1',
       bin: 'true',
       args: [],
-      cwd: local.dir,
+      cwd: ctx.dir,
       env: {},
       cols: 80,
       rows: 24,
@@ -403,7 +442,7 @@ test('it refuses to start a harness that requires a credential broker, which it 
 });
 
 test('it keeps a variable the daemon started with out of a harness whose map leaves it out', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
   const inner = `
 import { LocalPTYProvider } from ${JSON.stringify(join(import.meta.dir, 'local-pty-provider.ts'))};
@@ -420,22 +459,21 @@ const harness = new LocalPTYProvider().spawnHarness({
   rows: 24,
 });
 let output = '';
+const done = Promise.withResolvers();
 harness.onData((data) => {
   output += data;
+  if (output.includes('DONE')) done.resolve();
 });
-const deadline = Date.now() + 10_000;
-while (!output.includes('DONE') && Date.now() < deadline) {
-  await Bun.sleep(20);
-}
+await done.promise;
 harness.kill();
 console.log(output);
 `;
 
   const proc = Bun.spawn([process.execPath, '-e', inner], {
-    cwd: local.dir,
+    cwd: ctx.dir,
     env: {
       PATH: '/usr/bin:/bin',
-      HOME: local.dir,
+      HOME: ctx.dir,
       ATC_TEST_KEPT: 'synthetic',
       ATC_TEST_WITHHELD: 'synthetic',
       ATC_TEST_DELETED: 'synthetic',
@@ -452,15 +490,15 @@ console.log(output);
 });
 
 test('it fails the spawn of a program the harness PATH does not hold', () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
   expect(() =>
-    local.provider.spawnHarness({
+    ctx.provider.spawnHarness({
       session: 's1',
       host: 's1',
       bin: 'atc-test-no-such-program',
       args: [],
-      cwd: local.dir,
+      cwd: ctx.dir,
       env: { PATH: '/usr/bin:/bin' },
       cols: 80,
       rows: 24,
@@ -469,22 +507,22 @@ test('it fails the spawn of a program the harness PATH does not hold', () => {
 });
 
 test('it runs a harness whose program path holds an equals sign', async () => {
-  using local = setupTest();
+  using ctx = setupTest();
 
-  mkdirSync(join(local.dir, 'agent=dir'));
+  mkdirSync(join(ctx.dir, 'agent=dir'));
 
-  writeFileSync(join(local.dir, 'agent=dir', 'agent'), '#!/bin/sh\necho "RAN:[$1]"\nsleep 30\n', {
+  writeFileSync(join(ctx.dir, 'agent=dir', 'agent'), '#!/bin/sh\necho "RAN:[$1]"\nsleep 30\n', {
     mode: 0o755,
   });
 
   const output: string[] = [];
 
-  const harness = local.provider.spawnHarness({
+  const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
-    bin: join(local.dir, 'agent=dir', 'agent'),
+    bin: join(ctx.dir, 'agent=dir', 'agent'),
     args: ['first arg'],
-    cwd: local.dir,
+    cwd: ctx.dir,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,

@@ -1,149 +1,40 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ServerWebSocket } from 'bun';
-import { isRecord } from '../shared/report';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startStubImpd } from '../test-utils/start-stub-impd';
 import { waitFor } from '../test-utils/wait-for';
 import { ImpClientPort } from './imp-client-port';
 import { readImpToken } from './read-imp-token';
 
-// An impd stand-in on a real HTTP port that records the authorization
-// header of each call and WebSocket upgrade, and the path and input of
-// each RPC call. It answers a call with the answer a test set for its
-// path, or else as system info, and answers a tunnel listen as listening,
-// keeping that control socket so a test can announce a guest connection on
-// it. It records each exec open message and refuses it as a start whose
-// broker is not ready. Once a test sets exec.reply, it instead starts the
-// command and either counts the stdin bytes until stdin ends and prints the
-// count, as wc -c does, or exits 2 at once without reading stdin. It takes
-// no WebSocket message over 2 MiB, as impd refuses one over its own limit.
-// Plus a temp directory for the token file.
+/**
+ * An impd stand-in on a real HTTP port, and a temp directory for the token
+ * file.
+ */
 function setupTest() {
-  const tmp = setupTempDir('atc-imp-client-port-');
-  const authorizations: (string | null)[] = [];
-  const calls: { path: string; input: unknown }[] = [];
+  using stack = new DisposableStack();
 
-  const answers = new Map<string, { status: number; json: unknown }>();
-
-  const controls: ServerWebSocket[] = [];
-  const execOpens: unknown[] = [];
-  const exec: { reply: 'refuse' | 'count' | 'exit-early' } = { reply: 'refuse' };
-
-  const counted = new WeakMap<ServerWebSocket, number>();
-
-  const server = Bun.serve({
-    port: 0,
-    hostname: '127.0.0.1',
-    fetch: async (request, bunServer) => {
-      authorizations.push(request.headers.get('authorization'));
-
-      const path = new URL(request.url).pathname;
-
-      const isUpgraded = (path === '/tunnel' || path === '/exec') && bunServer.upgrade(request);
-      const text = isUpgraded ? '' : await request.text();
-      const body: unknown = text === '' ? null : JSON.parse(text);
-
-      if (!isUpgraded) {
-        calls.push({ path, input: isRecord(body) ? body['json'] : undefined });
-      }
-
-      const answer = answers.get(path) ?? {
-        status: 200,
-        json: { features: { sessionOffsets: true, leases: true } },
-      };
-
-      return isUpgraded
-        ? undefined
-        : Response.json({ json: answer.json }, { status: answer.status });
-    },
-    websocket: {
-      maxPayloadLength: 2 * 1024 * 1024,
-      message: (socket, message) => {
-        const seen = counted.get(socket);
-
-        if (typeof message !== 'string') {
-          if (seen !== undefined) {
-            counted.set(socket, seen + message.byteLength - 1);
-          }
-
-          return;
-        }
-
-        const parsed: unknown = JSON.parse(message);
-
-        if (isRecord(parsed) && parsed['type'] === 'stdin_eof' && seen !== undefined) {
-          const count = new TextEncoder().encode(`${String(seen)}\n`);
-
-          socket.send(new Uint8Array([1, ...count]));
-          socket.send(JSON.stringify({ type: 'exit', code: 0, signal: null }));
-
-          return;
-        }
-
-        if (isRecord(parsed) && (parsed['type'] === 'start' || parsed['type'] === 'attach')) {
-          execOpens.push(parsed);
-
-          if (exec.reply === 'count') {
-            counted.set(socket, 0);
-            socket.send(JSON.stringify({ type: 'started', pid: 7 }));
-
-            return;
-          }
-
-          if (exec.reply === 'exit-early') {
-            socket.send(JSON.stringify({ type: 'started', pid: 7 }));
-            socket.send(JSON.stringify({ type: 'exit', code: 2, signal: null }));
-
-            return;
-          }
-
-          socket.send(
-            JSON.stringify({
-              type: 'error',
-              code: 'PRECONDITION_FAILED',
-              message: 'the broker is not ready',
-              data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
-            }),
-          );
-        }
-
-        if (isRecord(parsed) && parsed['type'] === 'listen') {
-          controls.push(socket);
-
-          socket.send(
-            JSON.stringify({ type: 'listening', listener: 'l1', path: '/tmp/r.sock', port: null }),
-          );
-        }
-      },
-    },
-  });
+  const tmp = stack.use(setupTempDir('atc-imp-client-port-'));
+  const impd = stack.use(startStubImpd());
+  const owned = stack.move();
 
   return {
     dir: tmp.dir,
-    url: `http://127.0.0.1:${String(server.port)}`,
-    authorizations,
-    calls,
-    answers,
-    controls,
-    execOpens,
-    exec,
-    async [Symbol.asyncDispose]() {
-      await server.stop(true);
-
-      tmp[Symbol.dispose]();
+    impd,
+    [Symbol.dispose]: () => {
+      owned.dispose();
     },
   };
 }
 
 test('it calls impd with the token its token file holds', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  const tokenPath = join(impd.dir, 'imp-token');
+  const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token\n');
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(tokenPath) });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(tokenPath) });
 
   const features = await port.readFeatures();
 
@@ -156,17 +47,17 @@ test('it calls impd with the token its token file holds', async () => {
     oauthSecrets: false,
   });
 
-  expect(impd.authorizations).toStrictEqual(['Bearer file-token']);
+  expect(ctx.impd.authorizations).toStrictEqual(['Bearer file-token']);
 });
 
 test('it calls impd with the new token on the next call after the token file changes', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  const tokenPath = join(impd.dir, 'imp-token');
+  const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'first-token\n');
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(tokenPath) });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(tokenPath) });
 
   await port.readFeatures();
 
@@ -174,32 +65,30 @@ test('it calls impd with the new token on the next call after the token file cha
 
   await port.readFeatures();
 
-  expect(impd.authorizations).toStrictEqual(['Bearer first-token', 'Bearer second-token']);
+  expect(ctx.impd.authorizations).toStrictEqual(['Bearer first-token', 'Bearer second-token']);
 });
 
-test('it refuses a call as unauthorized without reaching impd when the token file is empty', async () => {
-  await using impd = setupTest();
+test('it refuses a call as unauthorized without reaching impd when the token file is empty', () => {
+  using ctx = setupTest();
 
-  const tokenPath = join(impd.dir, 'imp-token');
+  const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, '\n');
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(tokenPath) });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(tokenPath) });
 
-  const refusal: unknown = await port.readFeatures().catch((error: unknown) => error);
-
-  expect(refusal).toMatchObject({ code: 'UNAUTHORIZED' });
-  expect(impd.authorizations).toStrictEqual([]);
+  expect(port.readFeatures()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+  expect(ctx.impd.authorizations).toStrictEqual([]);
 });
 
 test('it ends a session connection as unauthorized without reaching impd when the token file is empty', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  const tokenPath = join(impd.dir, 'imp-token');
+  const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, '');
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(tokenPath) });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(tokenPath) });
 
   const connection = port.openSession(
     { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: false },
@@ -209,34 +98,32 @@ test('it ends a session connection as unauthorized without reaching impd when th
   const outcome = await connection.outcome;
 
   expect(outcome).toStrictEqual({ kind: 'unauthorized' });
-  expect(impd.authorizations).toStrictEqual([]);
+  expect(ctx.impd.authorizations).toStrictEqual([]);
 });
 
-test('it refuses a reverse forward as unauthorized without reaching impd when the token file is empty', async () => {
-  await using impd = setupTest();
+test('it refuses a reverse forward as unauthorized without reaching impd when the token file is empty', () => {
+  using ctx = setupTest();
 
-  const tokenPath = join(impd.dir, 'imp-token');
+  const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, '');
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(tokenPath) });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(tokenPath) });
 
   const forward = port.openReverseForward('imp-a', '/tmp/atc/report.sock', () => {});
 
-  const refusal: unknown = await forward.listening.catch((error: unknown) => error);
-
-  expect(refusal).toMatchObject({ code: 'UNAUTHORIZED' });
-  expect(impd.authorizations).toStrictEqual([]);
+  expect(forward.listening).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+  expect(ctx.impd.authorizations).toStrictEqual([]);
 });
 
 test('it opens a guest connection relay with the token its token file holds when the relay opens', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  const tokenPath = join(impd.dir, 'imp-token');
+  const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'first-token\n');
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(tokenPath) });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(tokenPath) });
 
   const forward = port.openReverseForward('imp-a', '/tmp/atc/report.sock', () => {});
 
@@ -248,7 +135,7 @@ test('it opens a guest connection relay with the token its token file holds when
 
   writeFileSync(tokenPath, 'second-token\n');
 
-  const [control] = impd.controls;
+  const [control] = ctx.impd.controls;
 
   if (control === undefined) {
     throw new Error('expected a tunnel control socket');
@@ -258,7 +145,7 @@ test('it opens a guest connection relay with the token its token file holds when
 
   await waitFor(
     () => {
-      expect(impd.authorizations).toStrictEqual(['Bearer first-token', 'Bearer second-token']);
+      expect(ctx.impd.authorizations).toStrictEqual(['Bearer first-token', 'Bearer second-token']);
     },
     { timeoutMs: 2000 },
   );
@@ -303,11 +190,11 @@ test.each([
     },
   ],
 ])('it reads grant and exec requirement flags sent as %s as %p', async (_kind, flag, sent) => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/system/info', { status: 200, json: { features: sent } });
+  ctx.impd.answers.set('/rpc/system/info', { status: 200, json: { features: sent } });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const features = await port.readFeatures();
 
@@ -322,15 +209,15 @@ test.each([
 });
 
 test('it sends a command stdin larger than one WebSocket message impd takes', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  const file = join(impd.dir, 'token');
+  const file = join(ctx.dir, 'token');
 
   writeFileSync(file, 't0');
 
-  impd.exec.reply = 'count';
+  ctx.impd.exec.reply = 'count';
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(file) });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(file) });
 
   const result = await port.runCommand('imp-a', {
     argv: ['wc', '-c'],
@@ -344,15 +231,15 @@ test('it sends a command stdin larger than one WebSocket message impd takes', as
 });
 
 test('it returns the exit of a command that ends before it reads its stdin', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  const file = join(impd.dir, 'token');
+  const file = join(ctx.dir, 'token');
 
   writeFileSync(file, 't0');
 
-  impd.exec.reply = 'exit-early';
+  ctx.impd.exec.reply = 'exit-early';
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(file) });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(file) });
 
   const result = await port.runCommand('imp-a', {
     argv: ['false'],
@@ -362,31 +249,29 @@ test('it returns the exit of a command that ends before it reads its stdin', asy
   expect(result.code).toBe(2);
 });
 
-test('it rejects a command whose start impd refuses with the refusal', async () => {
-  await using impd = setupTest();
+test('it rejects a command whose start impd refuses with the refusal', () => {
+  using ctx = setupTest();
 
-  const file = join(impd.dir, 'token');
+  const file = join(ctx.dir, 'token');
 
   writeFileSync(file, 't0');
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => readImpToken(file) });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(file) });
 
-  const refusal = port.runCommand('imp-a', { argv: ['true'] });
-
-  expect(refusal).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
-
-  await refusal.catch(() => null);
+  expect(port.runCommand('imp-a', { argv: ['true'] })).rejects.toMatchObject({
+    code: 'PRECONDITION_FAILED',
+  });
 });
 
 test('it reads the caller identity impd answers tokens.whoami with', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/tokens/whoami', {
+  ctx.impd.answers.set('/rpc/tokens/whoami', {
     status: 200,
     json: { kind: 'token', name: 'atc', scope: 'manage', imps: ['atc-*'], grantable: ['glm'] },
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const identity = await port.readIdentity();
 
@@ -398,18 +283,18 @@ test('it reads the caller identity impd answers tokens.whoami with', async () =>
     grantable: ['glm'],
   });
 
-  expect(impd.calls.map((call) => call.path)).toStrictEqual(['/rpc/tokens/whoami']);
+  expect(ctx.impd.calls.map((call) => call.path)).toStrictEqual(['/rpc/tokens/whoami']);
 });
 
 test('it reads an identity without a grantable list as one that grants nothing', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/tokens/whoami', {
+  ctx.impd.answers.set('/rpc/tokens/whoami', {
     status: 200,
     json: { kind: 'token', name: 'admin', scope: 'manage', imps: null },
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const identity = await port.readIdentity();
 
@@ -423,9 +308,9 @@ test('it reads an identity without a grantable list as one that grants nothing',
 });
 
 test('it lists each secret with its kind, rules, and imps', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/secrets/list', {
+  ctx.impd.answers.set('/rpc/secrets/list', {
     status: 200,
     json: [
       {
@@ -445,7 +330,7 @@ test('it lists each secret with its kind, rules, and imps', async () => {
     ],
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const secrets = await port.readSecrets();
 
@@ -466,9 +351,9 @@ test('it lists each secret with its kind, rules, and imps', async () => {
 });
 
 test('it lists an oauth secret with its sign-in status and ID token claims', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/secrets/list', {
+  ctx.impd.answers.set('/rpc/secrets/list', {
     status: 200,
     json: [
       {
@@ -491,7 +376,7 @@ test('it lists an oauth secret with its sign-in status and ID token claims', asy
     ],
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const secrets = await port.readSecrets();
 
@@ -507,52 +392,52 @@ test('it lists an oauth secret with its sign-in status and ID token claims', asy
 });
 
 test('it lists the secrets granted to the named imp', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/grants/list', { status: 200, json: ['glm'] });
+  ctx.impd.answers.set('/rpc/grants/list', { status: 200, json: ['glm'] });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const grants = await port.readGrants('atc-s1');
 
   expect(grants).toStrictEqual(['glm']);
-  expect(impd.calls).toStrictEqual([{ path: '/rpc/grants/list', input: { name: 'atc-s1' } }]);
+  expect(ctx.impd.calls).toStrictEqual([{ path: '/rpc/grants/list', input: { name: 'atc-s1' } }]);
 });
 
 test('it grants a secret to the named imp', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/grants/add', { status: 200, json: {} });
+  ctx.impd.answers.set('/rpc/grants/add', { status: 200, json: {} });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   await port.createGrant('atc-s1', 'glm');
 
-  expect(impd.calls).toStrictEqual([
+  expect(ctx.impd.calls).toStrictEqual([
     { path: '/rpc/grants/add', input: { name: 'atc-s1', secret: 'glm' } },
   ]);
 });
 
 test('it reports a revoke of a grant impd held as done', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/grants/delete', { status: 200, json: {} });
+  ctx.impd.answers.set('/rpc/grants/delete', { status: 200, json: {} });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const removed = await port.removeGrant('atc-s1', 'glm');
 
   expect(removed).toBe(true);
 
-  expect(impd.calls).toStrictEqual([
+  expect(ctx.impd.calls).toStrictEqual([
     { path: '/rpc/grants/delete', input: { name: 'atc-s1', secret: 'glm' } },
   ]);
 });
 
 test('it reports a revoke of a grant impd no longer holds as nothing removed', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/grants/delete', {
+  ctx.impd.answers.set('/rpc/grants/delete', {
     status: 404,
     json: {
       defined: true,
@@ -563,17 +448,17 @@ test('it reports a revoke of a grant impd no longer holds as nothing removed', a
     },
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const removed = await port.removeGrant('atc-s1', 'glm');
 
   expect(removed).toBe(false);
 });
 
-test('it rejects a revoke on an imp impd does not hold', async () => {
-  await using impd = setupTest();
+test('it rejects a revoke on an imp impd does not hold', () => {
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/grants/delete', {
+  ctx.impd.answers.set('/rpc/grants/delete', {
     status: 404,
     json: {
       defined: true,
@@ -584,20 +469,18 @@ test('it rejects a revoke on an imp impd does not hold', async () => {
     },
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
-  const refusal: unknown = await port.removeGrant('atc-s1', 'glm').catch((error: unknown) => error);
-
-  expect(refusal).toMatchObject({
+  expect(port.removeGrant('atc-s1', 'glm')).rejects.toMatchObject({
     code: 'NOT_FOUND',
     data: { kind: 'imp', name: 'atc-s1' },
   });
 });
 
-test('it rejects a revoke impd forbids with its reason', async () => {
-  await using impd = setupTest();
+test('it rejects a revoke impd forbids with its reason', () => {
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/grants/delete', {
+  ctx.impd.answers.set('/rpc/grants/delete', {
     status: 403,
     json: {
       defined: true,
@@ -608,25 +491,23 @@ test('it rejects a revoke impd forbids with its reason', async () => {
     },
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
-  const refusal: unknown = await port.removeGrant('atc-s1', 'glm').catch((error: unknown) => error);
-
-  expect(refusal).toMatchObject({
+  expect(port.removeGrant('atc-s1', 'glm')).rejects.toMatchObject({
     code: 'FORBIDDEN',
     data: { reason: 'not_grantable' },
   });
 });
 
 test('it reads the id of the imp under a name', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/imps/get', {
+  ctx.impd.answers.set('/rpc/imps/get', {
     status: 200,
     json: { id: '0199a1b2-0000-7000-8000-000000000001', name: 'atc-s1', state: 'sleeping' },
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const imp = await port.readImp('atc-s1');
 
@@ -640,14 +521,14 @@ test('it reads the id of the imp under a name', async () => {
 });
 
 test('it reads the id of the imp it creates', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  impd.answers.set('/rpc/imps/create', {
+  ctx.impd.answers.set('/rpc/imps/create', {
     status: 200,
     json: { id: '0199a1b2-0000-7000-8000-000000000002', name: 'atc-s2', state: 'creating' },
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const imp = await port.createImp({ name: 'atc-s2' });
 
@@ -661,16 +542,16 @@ test('it reads the id of the imp it creates', async () => {
 });
 
 test('it sends the requirements of a start to impd and ends the connection with its refusal', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
   // The client asks impd whether it checks exec requirements before a
   // start that requires one.
-  impd.answers.set('/rpc/system/info', {
+  ctx.impd.answers.set('/rpc/system/info', {
     status: 200,
     json: { features: { sessionOffsets: true, leases: true, execRequire: true } },
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const connection = port.openSession(
     {
@@ -689,7 +570,7 @@ test('it sends the requirements of a start to impd and ends the connection with 
 
   const outcome = await connection.outcome;
 
-  expect({ opens: impd.execOpens, outcome }).toStrictEqual({
+  expect({ opens: ctx.impd.execOpens, outcome }).toStrictEqual({
     opens: [
       {
         type: 'start',
@@ -714,9 +595,9 @@ test('it sends the requirements of a start to impd and ends the connection with 
 });
 
 test('it closes a session connection whose gate shuts as it opens, sending impd nothing', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const gates: string[] = [];
 
@@ -742,20 +623,20 @@ test('it closes a session connection whose gate shuts as it opens, sending impd 
 
   await connection.outcome;
 
-  expect({ gates, opens: impd.execOpens }).toStrictEqual({ gates: ['checked'], opens: [] });
+  expect({ gates, opens: ctx.impd.execOpens }).toStrictEqual({ gates: ['checked'], opens: [] });
 });
 
 test('it closes a session connection whose gate throws as it opens, sending impd nothing', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
   // The client asks impd whether it checks exec requirements before a
   // start that requires one.
-  impd.answers.set('/rpc/system/info', {
+  ctx.impd.answers.set('/rpc/system/info', {
     status: 200,
     json: { features: { sessionOffsets: true, leases: true, execRequire: true } },
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const connection = port.openSession(
     {
@@ -777,23 +658,23 @@ test('it closes a session connection whose gate throws as it opens, sending impd
 
   const outcome = await connection.outcome;
 
-  expect({ outcome, opens: impd.execOpens }).toMatchObject({
-    outcome: { kind: 'closed' },
+  expect({ outcome, opens: ctx.impd.execOpens }).toStrictEqual({
+    outcome: { kind: 'closed', reason: 'closed before sending' },
     opens: [],
   });
 });
 
 test('it sends the request of a session connection whose gate stays open as it opens', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
   // The client asks impd whether it checks exec requirements before a
   // start that requires one.
-  impd.answers.set('/rpc/system/info', {
+  ctx.impd.answers.set('/rpc/system/info', {
     status: 200,
     json: { features: { sessionOffsets: true, leases: true, execRequire: true } },
   });
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const connection = port.openSession(
     {
@@ -811,15 +692,37 @@ test('it sends the request of a session connection whose gate stays open as it o
     () => true,
   );
 
-  await connection.outcome;
+  const outcome = await connection.outcome;
 
-  expect(impd.execOpens).toMatchObject([{ type: 'start', name: 'atc-s1' }]);
+  // The stand-in refuses every start it is sent.
+  expect({ outcome, opens: ctx.impd.execOpens }).toStrictEqual({
+    outcome: {
+      kind: 'failed',
+      code: 'PRECONDITION_FAILED',
+      message: 'the broker is not ready',
+      data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
+    },
+    opens: [
+      {
+        type: 'start',
+        name: 'atc-s1',
+        session: 'atc-s1',
+        argv: ['claude'],
+        env: {},
+        cwd: '/work',
+        cols: 80,
+        rows: 24,
+        tty: true,
+        require: ['broker'],
+      },
+    ],
+  });
 });
 
 test('it sends the requirements of an attach to impd', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const connection = port.openSession(
     {
@@ -836,7 +739,7 @@ test('it sends the requirements of an attach to impd', async () => {
 
   await connection.outcome;
 
-  expect(impd.execOpens).toStrictEqual([
+  expect(ctx.impd.execOpens).toStrictEqual([
     {
       type: 'attach',
       name: 'atc-s1',
@@ -850,9 +753,9 @@ test('it sends the requirements of an attach to impd', async () => {
 });
 
 test('it sends a start without requirements when the request holds none', async () => {
-  await using impd = setupTest();
+  using ctx = setupTest();
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
   const connection = port.openSession(
     {
@@ -870,7 +773,7 @@ test('it sends a start without requirements when the request holds none', async 
 
   await connection.outcome;
 
-  expect(impd.execOpens).toStrictEqual([
+  expect(ctx.impd.execOpens).toStrictEqual([
     {
       type: 'start',
       name: 'atc-s1',
