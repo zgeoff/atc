@@ -2,10 +2,11 @@
 
 ## [3.4.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.3.1...@zgeoff/atc@3.4.0) (2026-10-07)
 
-
 ### Features
 
-* **geo-48:** make the session manager, daemon and store disposable ([#400](https://github.com/zgeoff/atc/issues/400)) ([ec06039](https://github.com/zgeoff/atc/commit/ec06039ff754aa17f05f47411d41edef0f648d1a))
+- **geo-48:** make the session manager, daemon and store disposable
+  ([#400](https://github.com/zgeoff/atc/issues/400))
+  ([ec06039](https://github.com/zgeoff/atc/commit/ec06039ff754aa17f05f47411d41edef0f648d1a))
 
 ## [3.3.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.3.0...@zgeoff/atc@3.3.1) (2026-10-07)
 
