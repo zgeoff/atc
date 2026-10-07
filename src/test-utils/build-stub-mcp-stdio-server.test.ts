@@ -36,6 +36,30 @@ test('it answers each line it reads with the next reply, as given', async () => 
   });
 });
 
+test('it prints nothing for the replies left when stdin ends', async () => {
+  using ctx = setupTest();
+
+  const bin = createStubBin(
+    ctx.dir,
+    'server',
+    buildStubMCPStdioServer(['first', 'second', 'third']),
+  );
+
+  const proc = Bun.spawn([bin], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
+
+  onTestFinished(() => {
+    proc.kill('SIGKILL');
+  });
+
+  void proc.stdin.write('one\n');
+
+  await proc.stdin.end();
+
+  const stdout = await new Response(proc.stdout).text();
+
+  expect({ stdout, code: await proc.exited }).toStrictEqual({ stdout: 'first\n', code: 0 });
+});
+
 test('it records its pid beside its script', async () => {
   using ctx = setupTest();
 
