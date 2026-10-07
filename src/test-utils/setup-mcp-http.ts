@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
+import type { DaemonHandle } from '../daemon/daemon';
 import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
@@ -20,8 +21,11 @@ interface MCPHTTPSetupOptions {
  * under `home`, so a CLI run with that home opens the same file. `store` is
  * the authorization server's database opened a second time the way
  * `atc clients` and `atc grants` open it, and `addClient` adds a client
- * through it and returns the client id. `countDaemonClients` reads how many
- * connections the daemon holds open. Hold the result with `await using`.
+ * through it and returns the client id. `restartDaemon` stops the daemon and
+ * starts a fresh one on the same socket and database, the way an operator
+ * restarts it, with the principals it is given; `countDaemonClients` reads
+ * how many connections the current daemon holds open. Hold the result with
+ * `await using`.
  */
 export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   await using stack = new AsyncDisposableStack();
@@ -36,14 +40,18 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   const approvals: string[] = [];
   const requests: string[] = [];
 
-  const daemon = await startDaemon({
-    socketPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: buildMockAgentAdapter(),
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-  });
+  const startTestDaemon = (principals: ReadonlyMap<string, readonly string[]> | null = null) =>
+    startDaemon({
+      socketPath,
+      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+      build: 'atc/test-build',
+      adapter: buildMockAgentAdapter(),
+      dbPath: join(tmp.dir, 'state.db'),
+      statusPath: join(tmp.dir, 'status.json'),
+      principals,
+    });
+
+  let daemon: DaemonHandle = await startTestDaemon();
 
   stack.defer(() => daemon.stop());
 
@@ -95,6 +103,11 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
     },
     countDaemonClients() {
       return daemon.countClients();
+    },
+    async restartDaemon(principals: ReadonlyMap<string, readonly string[]> | null = null) {
+      await daemon.stop();
+
+      daemon = await startTestDaemon(principals);
     },
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
