@@ -59,6 +59,11 @@ export const DAEMON_FEATURES = [
   // can destroy its host answers `confirmation_required`.
   'session.forget',
 
+  // `session.forget` takes `refusePinned` and `refuseLive`, checked in the
+  // same step that forgets, and refuses with `session_pinned` or
+  // `session_live`.
+  'session.forget.preconditions',
+
   // `session.submit` exists.
   'session.submit',
 

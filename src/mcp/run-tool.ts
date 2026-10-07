@@ -147,18 +147,26 @@ export function runTool(
       return { text: 'killed', structured: null };
     })
     .with('atc_session_forget', async () => {
-      await requireForgettable(caller, args['session'], args['stop'] === true);
+      const params = {
+        session: args['session'],
+        ...(typeof args['confirmToken'] === 'string' ? { confirmToken: args['confirmToken'] } : {}),
+      };
 
-      const ok = await caller.sendRequest(
-        'session.forget',
-        {
-          session: args['session'],
-          ...(typeof args['confirmToken'] === 'string'
-            ? { confirmToken: args['confirmToken'] }
-            : {}),
-        },
-        ['session.forget'],
-      );
+      const stops = args['stop'] === true;
+
+      const features = await caller.readFeatures();
+
+      if (features.has('session.forget.preconditions')) {
+        const ok = await trySendGuardedForget(caller, params, stops);
+
+        if (ok !== null) {
+          return buildObjectResult(ok);
+        }
+      }
+
+      await requireForgettable(caller, args['session'], stops);
+
+      const ok = await caller.sendRequest('session.forget', params, ['session.forget']);
 
       return buildObjectResult(ok);
     })
@@ -285,6 +293,55 @@ function buildObjectResult(value: unknown): ToolResult {
   };
 }
 
+// The refusals of a forget, worded for an MCP client.
+const SESSION_PINNED_REFUSAL =
+  'session_pinned: the session is pinned, or is a sub-session of a pinned session. Unpin it with atc_session_update before forgetting it.';
+
+const SESSION_LIVE_REFUSAL =
+  'session_live: the session is live. Pass stop: true to stop and forget it.';
+
+// The daemon checks pinned and live in the same step that forgets, so a pin
+// or revive that lands just before the forget still refuses it. Null when
+// the daemon a gateway routes the forget to lacks the checks; the caller
+// then checks the session itself. A refusal keeps the wording of the
+// caller's own check.
+async function trySendGuardedForget(
+  caller: FleetCaller,
+  params: Readonly<Record<string, unknown>>,
+  stops: boolean,
+): Promise<Readonly<Record<string, unknown>> | null> {
+  try {
+    return await caller.sendRequest(
+      'session.forget',
+      { ...params, refusePinned: true, refuseLive: !stops },
+      ['session.forget', 'session.forget.preconditions'],
+    );
+  } catch (error) {
+    if (!(error instanceof Error) || !('code' in error)) {
+      throw error;
+    }
+
+    if (
+      error.code === 'daemon_outdated' &&
+      'data' in error &&
+      isRecord(error.data) &&
+      error.data['feature'] === 'session.forget.preconditions'
+    ) {
+      return null;
+    }
+
+    if (error.code === 'session_pinned') {
+      throw new Error(SESSION_PINNED_REFUSAL, { cause: error });
+    }
+
+    if (error.code === 'session_live') {
+      throw new Error(SESSION_LIVE_REFUSAL, { cause: error });
+    }
+
+    throw error;
+  }
+}
+
 // A forget is for good, so it reads the session first: an unseen or unknown
 // session fails here before the daemon mints a token, and a pinned or live
 // session is refused with the step that unblocks it.
@@ -306,13 +363,11 @@ async function requireForgettable(
   }
 
   if (pinned) {
-    throw new Error(
-      'session_pinned: the session is pinned, or is a sub-session of a pinned session. Unpin it with atc_session_update before forgetting it.',
-    );
+    throw new Error(SESSION_PINNED_REFUSAL);
   }
 
   if (descriptor['alive'] === true && !stops) {
-    throw new Error('session_live: the session is live. Pass stop: true to stop and forget it.');
+    throw new Error(SESSION_LIVE_REFUSAL);
   }
 }
 

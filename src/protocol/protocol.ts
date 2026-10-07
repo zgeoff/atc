@@ -71,6 +71,8 @@ const ERROR_CODES = [
   'host_leased',
   'confirmation_required',
   'confirm_token_invalid',
+  'session_pinned',
+  'session_live',
   'already_answered',
   'too_slow',
   'stale_epoch',

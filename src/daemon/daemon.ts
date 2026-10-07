@@ -1573,11 +1573,29 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     // A forget on a target that cannot destroy its host forgets at once. On
     // one that can, a forget without a token checks the target and answers
     // with a token, and the forget that carries the token destroys the host.
-    forgetSession: async (id, confirmToken) => {
+    // A refusal the caller asks for reads the session in the same step that
+    // starts the forget, so a pin or revive that lands first is seen.
+    forgetSession: async (id, confirmToken, refuse) => {
       const s = mgr.sessions.find((x) => x.id === id);
 
       if (s === undefined) {
         return 'missing';
+      }
+
+      if (refuse.pinned && (s.pinned || mgr.sessions.some((x) => x.id === s.parent && x.pinned))) {
+        throw new DaemonError(
+          'session_pinned',
+          `session ${id} is pinned, or is a sub-session of a pinned session; unpin it before forgetting it`,
+          { session: id },
+        );
+      }
+
+      if (refuse.live && (s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'))) {
+        throw new DaemonError(
+          'session_live',
+          `session ${id} is live; stop it before forgetting it`,
+          { session: id },
+        );
       }
 
       if (mgr.findProvider(s)?.capabilities.destroy === true) {

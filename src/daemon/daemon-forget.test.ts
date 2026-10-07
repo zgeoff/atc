@@ -334,6 +334,152 @@ test('it refuses a forget of a session the daemon does not hold', async () => {
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
+test('it refuses a forget that refuses a pinned session when a pin lands after the session was read', async () => {
+  await using daemon = await setupTest(new LocalPTYProvider());
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  const read = await daemon.client.sendRequest('session.get', { session: id });
+
+  await daemon.client.sendRequest('session.update', { session: id, pinned: true });
+
+  const refused = daemon.client.sendRequest('session.forget', {
+    session: id,
+    refusePinned: true,
+    refuseLive: true,
+  });
+
+  expect(read).toMatchObject({ session: { id, pinned: false, alive: false } });
+  expect(refused).rejects.toMatchObject({ code: 'session_pinned', data: { session: id } });
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id, pinned: true })],
+  });
+});
+
+test('it refuses a forget that refuses a pinned session of a sub-session of a pinned session', async () => {
+  await using daemon = await setupTest(new LocalPTYProvider());
+
+  const spawnedParent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const parent = getRecord(spawnedParent, 'session')['id'];
+
+  const spawnedChild = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+    parent,
+  });
+
+  const child = getRecord(spawnedChild, 'session')['id'];
+
+  await daemon.client.sendRequest('session.update', { session: parent, pinned: true });
+
+  const refused = daemon.client.sendRequest('session.forget', {
+    session: child,
+    refusePinned: true,
+  });
+
+  expect(refused).rejects.toMatchObject({ code: 'session_pinned' });
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id: parent }), expect.objectContaining({ id: child })],
+  });
+});
+
+test('it refuses a forget that refuses a live session when the session is live', async () => {
+  await using daemon = await setupTest(new LocalPTYProvider());
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const refused = daemon.client.sendRequest('session.forget', {
+    session: id,
+    refusePinned: true,
+    refuseLive: true,
+  });
+
+  expect(refused).rejects.toMatchObject({ code: 'session_live', data: { session: id } });
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id, alive: true })],
+  });
+});
+
+test('it forgets a dead unpinned session when the forget refuses pinned and live sessions', async () => {
+  await using daemon = await setupTest(new LocalPTYProvider());
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  const forgotten = await daemon.client.sendRequest('session.forget', {
+    session: id,
+    refusePinned: true,
+    refuseLive: true,
+  });
+
+  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
+});
+
+test('it refuses a pinned session on a host-destroying target before it hands out a token', async () => {
+  const local = new LocalPTYProvider();
+
+  await using daemon = await setupTest({
+    kind: 'imp-like',
+    remote: false,
+    prepareHost: local.prepareHost,
+    dispose: local.dispose,
+    capabilities: { ...local.capabilities, suspend: true, destroy: true },
+    spawnHarness: local.spawnHarness,
+    transferArchive: local.transferArchive,
+    runCommand: local.runCommand,
+    suspendHost: () => Promise.resolve(),
+    destroyHost: () => Promise.resolve(),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await daemon.client.sendRequest('session.update', { session: id, pinned: true });
+
+  const refused = daemon.client.sendRequest('session.forget', {
+    session: id,
+    refusePinned: true,
+  });
+
+  expect(refused).rejects.toMatchObject({ code: 'session_pinned' });
+});
+
 test('it keeps a headless run going when the forget of its session fails to destroy the host', async () => {
   const local = new LocalPTYProvider();
 

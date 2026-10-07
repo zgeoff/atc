@@ -304,6 +304,113 @@ test('it refuses a sub-session of a pinned session and leaves both listed', asyn
   });
 });
 
+test('it refuses a session a pin reaches just before the forget does', async () => {
+  await using fleet = await setupTest(false);
+
+  const spawned = await fleet.caller.sendRequest('session.spawn', {
+    cwd: fleet.cwd,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const refused = runTool(
+    {
+      sendRequest: async (m, p, required, principal) => {
+        if (m === 'session.forget') {
+          await fleet.caller.sendRequest('session.update', { session: id, pinned: true });
+        }
+
+        return fleet.caller.sendRequest(m, p, required, principal);
+      },
+      readFeatures: () => fleet.caller.readFeatures(),
+    },
+    'atc_session_forget',
+    { session: id, stop: true },
+    fleet.context,
+  );
+
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
+
+  const listed = await fleet.caller.sendRequest('session.list');
+
+  expect(listed).toMatchObject({
+    sessions: [expect.objectContaining({ id, pinned: true, alive: true })],
+  });
+});
+
+test('it checks the session itself and sends a plain forget to a daemon without the forget checks', async () => {
+  await using fleet = await setupTest(false);
+
+  const spawned = await fleet.caller.sendRequest('session.spawn', {
+    cwd: fleet.cwd,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+  const forgets: unknown[] = [];
+
+  const forgotten = await runTool(
+    {
+      sendRequest: (m, p, required, principal) => {
+        if (m === 'session.forget') {
+          forgets.push(p);
+        }
+
+        return fleet.caller.sendRequest(m, p, required, principal);
+      },
+      readFeatures: async () =>
+        new Set(
+          [...(await fleet.caller.readFeatures())].filter(
+            (feature) => feature !== 'session.forget.preconditions',
+          ),
+        ),
+    },
+    'atc_session_forget',
+    { session: id, stop: true },
+    fleet.context,
+  );
+
+  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgets).toStrictEqual([{ session: id }]);
+});
+
+test('it falls back to its own check when a gateway routes the forget to a daemon without the forget checks', async () => {
+  await using fleet = await setupTest(false);
+
+  const spawned = await fleet.caller.sendRequest('session.spawn', {
+    cwd: fleet.cwd,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await fleet.caller.sendRequest('session.update', { session: id, pinned: true });
+
+  const refused = runTool(
+    {
+      sendRequest: (m, p, required, principal) =>
+        required?.includes('session.forget.preconditions') === true
+          ? Promise.reject(
+              Object.assign(new Error("daemon 'old' runs an atc build without the checks"), {
+                code: 'daemon_outdated',
+                data: { daemon: 'old', feature: 'session.forget.preconditions' },
+              }),
+            )
+          : fleet.caller.sendRequest(m, p, required, principal),
+      readFeatures: () => fleet.caller.readFeatures(),
+    },
+    'atc_session_forget',
+    { session: id, stop: true },
+    fleet.context,
+  );
+
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
+});
+
 test('it refuses an unknown session as no_such_session before any token exists', async () => {
   await using fleet = await setupTest(true);
 

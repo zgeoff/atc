@@ -157,6 +157,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'spawn.workspace.trust',
       'spawn.workspace.autoDir',
       'session.forget',
+      'session.forget.preconditions',
       'session.submit',
       'report.get',
       'sources',

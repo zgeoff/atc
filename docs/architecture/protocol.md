@@ -45,13 +45,13 @@ closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `
 `target_unavailable`, `target_changed`, `target_config_invalid`, `target_forbidden`,
 `host_unavailable`, `auth_not_configured`, `auth_target_unsupported`,
 `auth_placeholder_unsupported`, the [runtime auth](#runtime-auth) refusals, `host_leased`,
-`confirmation_required`, `confirm_token_invalid`, `already_answered`, `too_slow`, `stale_epoch`,
-`idempotency_conflict`, `outcome_unknown`, `idempotency_key_unknown`, `github_unavailable`,
-`internal`, plus the workspace refusals that [workspaces](#workspaces) lists. An unknown method is
-an `unknown_method` error, never a disconnect; unknown fields in any message are ignored. A peer
-decodes an error code it does not know as `internal` and keeps its `msg`. These rules exist so
-additive evolution never breaks a peer. An error may also carry `data`, an object whose fields its
-code defines.
+`confirmation_required`, `confirm_token_invalid`, `session_pinned`, `session_live`,
+`already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`, `outcome_unknown`,
+`idempotency_key_unknown`, `github_unavailable`, `internal`, plus the workspace refusals that
+[workspaces](#workspaces) lists. An unknown method is an `unknown_method` error, never a disconnect;
+unknown fields in any message are ignored. A peer decodes an error code it does not know as
+`internal` and keeps its `msg`. These rules exist so additive evolution never breaks a peer. An
+error may also carry `data`, an object whose fields its code defines.
 
 `unsupported_operation` refuses a request that the session's execution host cannot serve, such as
 input to a host that takes none. Its `data` holds the provider kind as `provider` and the missing
@@ -79,6 +79,7 @@ says to restart the daemon. The client never restarts the daemon on its own; the
                                         "daemon.id", "session.locator", "spawn.idempotency",
                                         "message.idempotency", "spawn.target",
                                         "request.principal", "spawn.workspace", "session.forget",
+                                        "session.forget.preconditions",
                                         "session.submit", "report.get", "sources",
                                         "git.probe", "transport.tcp", "idempotency.replayOnly",
                                         "session.auth"],
@@ -93,9 +94,10 @@ returns `spawnOptions`, `daemon.hello` returns `daemonID`, every session descrip
 `locator`, `session.spawn` and `session.message` each take `idempotencyKey`, `session.spawn` takes
 `target` while `agents.list` returns `targets`, a request takes `as` while `daemon.hello` takes
 `principal`, `session.spawn` takes `workspace`, `session.forget`, `session.submit`, and `report.get`
-exist, `sources.list` and `sources.interpret` exist while `agents.list` returns `sources`,
-`git.probe` exists while a git `workspace` takes both `ref` and `sha`, the daemon can serve a TCP
-listener (`transport.tcp`), a keyed `session.spawn` or `session.message` takes `replayOnly`
+exist, `session.forget` takes `refusePinned` and `refuseLive` (`session.forget.preconditions`),
+`sources.list` and `sources.interpret` exist while `agents.list` returns `sources`, `git.probe`
+exists while a git `workspace` takes both `ref` and `sha`, the daemon can serve a TCP listener
+(`transport.tcp`), a keyed `session.spawn` or `session.message` takes `replayOnly`
 (`idempotency.replayOnly`), and `session.auth.revoke` and `session.auth.rebind` exist
 (`session.auth`). A daemon from before the list existed sends none, and it ignores the parameters it
 does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the list rather
@@ -833,9 +835,10 @@ A target that can destroy its host never forgets a session on a second kill, sin
 session destroys the host and everything on it. The second kill fails with `confirmation_required`,
 with the session id in `data.session`.
 
-`session.forget` (`{ session, confirmToken? }`) forgets a session for good, live or dead. On a
-target that cannot destroy its host, it forgets at once, the way a kill followed by a second kill
-does, and answers `{ forgotten: true, destroyed: false }`. On a target that can, it takes two calls:
+`session.forget` (`{ session, confirmToken?, refusePinned?, refuseLive? }`) forgets a session for
+good, live or dead. On a target that cannot destroy its host, it forgets at once, the way a kill
+followed by a second kill does, and answers `{ forgotten: true, destroyed: false }`. On a target
+that can, it takes two calls:
 
 1. A forget without `confirmToken` checks the target and answers `{ confirmToken, expiresAt }`. It
    changes nothing.
@@ -852,11 +855,21 @@ process stays inside it, out of the daemon's reach, so its forget fails with
 `unsupported_operation`, `data.problem` `host_asleep`, and the owner's id in `data.host`. Revive the
 session first, or forget the owner, which destroys the host.
 
+A daemon that announces `session.forget.preconditions` checks two optional conditions in the same
+step that forgets, before it issues a token or takes one. With `refusePinned: true`, a forget of a
+pinned session, or of a sub-session of a pinned one, fails with `session_pinned`. With
+`refuseLive: true`, a forget of a live session fails with `session_live`. Both hold the session id
+in `data.session` and change nothing, so a pin or a revive that lands before the forget refuses it.
+
 The MCP tool `atc_session_forget` takes `{ session, confirmToken?, stop? }` and answers what
-`session.forget` answers. It reads the session first, so a session the caller cannot see fails with
-`no_such_session` before the daemon issues a token. It refuses a pinned session, or a sub-session of
-a pinned one, and refuses a live session unless `stop` is `true`. It needs the `kill` scope and a
-daemon that announces `session.forget`.
+`session.forget` answers. A session the caller cannot see fails with `no_such_session` before the
+daemon issues a token. It refuses a pinned session, or a sub-session of a pinned one, and refuses a
+live session unless `stop` is `true`. When the daemon announces `session.forget.preconditions`, the
+tool sends `refusePinned: true` and, without `stop`, `refuseLive: true`, so the daemon checks both
+in the step that forgets. Otherwise, or when a gateway routes the forget to a daemon without that
+feature, the tool reads the session first and checks it itself, which a pin or revive between the
+read and the forget can miss. It needs the `kill` scope and a daemon that announces
+`session.forget`.
 
 ## Idempotent requests
 
