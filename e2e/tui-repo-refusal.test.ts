@@ -14,11 +14,22 @@ import { startTUIHarness } from '../src/test-utils/start-tui-harness';
  * its daemons.
  */
 function setupTest() {
+  using setup = new DisposableStack();
+
   const tui = startTUIHarness();
+
+  // A step below that throws stops the harness; the setup is synchronous,
+  // so it starts that stop without waiting for it.
+  setup.defer(() => {
+    void tui[Symbol.asyncDispose]();
+  });
 
   // The repository step lists the account's repositories through gh; a
   // signed-out one keeps the step from reaching the host's own gh.
   createStubBin(join(tui.home, 'bin'), 'gh', buildStubSignedOutGH());
+
+  // The test holds the harness from here, so its disposal stops it.
+  setup.move();
 
   return tui;
 }

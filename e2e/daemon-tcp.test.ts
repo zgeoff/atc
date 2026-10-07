@@ -108,5 +108,38 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
 
   const hello = await kept.sendHello('atc/test-gateway', 'b'.repeat(32));
 
-  expect(hello).toContainKey('daemonID');
+  expect(hello).toStrictEqual({
+    // The build string differs between this checkout and a compiled binary.
+    daemon: expect.stringMatching(/^atc\//u),
+    daemonID: expect.stringMatching(/^[\da-f-]{36}$/u),
+    limits: { maxLine: 1_048_576, maxChunk: 65_536 },
+    features: [
+      'agents.list',
+      'events.more',
+      'events.session',
+      'message.turn',
+      'message.wait',
+      'spawn.options',
+      'daemon.id',
+      'session.locator',
+      'spawn.idempotency',
+      'message.idempotency',
+      'spawn.target',
+      'request.principal',
+      'spawn.workspace',
+      'spawn.workspace.trust',
+      'spawn.workspace.autoDir',
+      'session.forget',
+      'session.forget.preconditions',
+      'session.submit',
+      'report.get',
+      'sources',
+      'git.probe',
+      'transport.tcp',
+      'idempotency.replayOnly',
+      'session.auth',
+    ],
+    idempotency: { completedRetentionMs: 86_400_000 },
+    lastUsedAgent: 'claude',
+  });
 });

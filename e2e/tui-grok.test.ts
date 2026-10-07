@@ -122,9 +122,20 @@ test('it keeps a grok session running when a hook names a subagent', async () =>
 
   await ctx.waitFor('FAKE_GROK_HOOKS_DONE');
 
+  // The daemon writes each hook it takes to the trail with the kind it read
+  // the hook as, after it has applied the hook to the session.
+  await waitFor(() => {
+    using db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+
+    expect(db.query("SELECT kind FROM events WHERE event = 'Stop'").all()).toStrictEqual([
+      { kind: 'heartbeat' },
+    ]);
+  });
+
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
+  await ctx.waitFor('┌ sessions ');
   await ctx.waitFor('running');
 
   expect(ctx.read()).not.toInclude('need you');
@@ -142,9 +153,11 @@ test('it yanks a grok resume command once the id is captured', async () => {
 
   await ctx.waitFor('FAKE_GROK_HOOKS_DONE');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: grokyank');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.reset();
   ctx.write('y');
@@ -167,9 +180,11 @@ test('it yanks a grok command without --resume before SessionStart', async () =>
 
   await spawnGrokSession(ctx, 'grokearly');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('grokearly');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.reset();
   ctx.write('y');
@@ -190,9 +205,11 @@ test('it ignores H on a grok row instead of opening the eject picker', async () 
 
   await spawnGrokSession(ctx, 'grokheadless');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('grokheadless');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.reset();
 
@@ -236,7 +253,9 @@ test('it keeps needs-you when grok emits idle_prompt after permission_prompt', a
 
   await ctx.waitFor('FAKE_GROK_HOOKS_DONE');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: grokidle');
+  await ctx.waitFor('┌ sessions ');
 }, 15_000);

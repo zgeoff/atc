@@ -19,9 +19,11 @@ test('it clears the need state when attaching a needy session', async () => {
 
   await spawnClaudeSession(ctx, 'needytest');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: needytest');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.write(KEYS.enter);
 
@@ -46,9 +48,11 @@ test('it attaches and acks the session that needs you on tab', async () => {
 
   await spawnClaudeSession(ctx, 'needy');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: needy');
+  await ctx.waitFor('┌ sessions ');
 
   // Attaching needy clears its need; the attach jiggle repaints the fake.
   ctx.reset();
@@ -59,7 +63,7 @@ test('it attaches and acks the session that needs you on tab', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('sessions');
+  await ctx.waitFor('┌ sessions ');
 
   await spawnClaudeSession(ctx, 'urgent');
 
@@ -72,7 +76,7 @@ test('it attaches and acks the session that needs you on tab', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('sessions');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.reset();
   ctx.write(KEYS.tab);
@@ -111,7 +115,7 @@ test('it tab-jumps to a finished session when none need you', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('sessions');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.reset();
   ctx.write(KEYS.tab);

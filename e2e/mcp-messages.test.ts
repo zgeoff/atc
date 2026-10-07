@@ -47,8 +47,13 @@ test('it sends a message to a session that has not started', async () => {
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
   const result = await ctx.mcp.sendToolCall('atc_session_message', { session, text: 'hello' });
 
-  expect(result.isError).toBeUndefined();
-  expect(result.text).toInclude('"status": "accepted"');
+  const message = result.structured?.['message'];
+
+  expect(result).toStrictEqual({
+    isError: undefined,
+    text: JSON.stringify({ message, status: 'accepted' }, null, 2),
+    structured: { message: expect.stringMatching(/^m-[\da-f-]{36}$/u), status: 'accepted' },
+  });
 });
 
 test('it reads a sent message back through a tool call', async () => {

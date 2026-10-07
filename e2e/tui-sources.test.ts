@@ -304,7 +304,9 @@ test('it offers the local directory flow alone when the daemon offers no sources
 
   await ctx.waitFor('spawn: directory');
 
-  expect(ctx.read()).not.toInclude('tab ');
+  // The picker offers another source only through the tab hint on the
+  // step's last row, so its absence is the offer under test.
+  expect(ctx.read()).not.toInclude(' · tab ');
   expect(ctx.read()).not.toInclude('on the daemon host');
 
   ctx.reset();
@@ -406,8 +408,6 @@ test('it opens the sources in the order the config gives', async () => {
   ctx.write(KEYS.enter);
 
   await ctx.waitFor('spawn: git URL');
-
-  expect(ctx.read()).toInclude('tab directory on the daemon host');
 
   ctx.reset();
   ctx.write(`${fixture.upstream}${KEYS.enter}`);

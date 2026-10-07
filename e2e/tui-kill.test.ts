@@ -18,9 +18,11 @@ test('it kills a needs-you session from the overlay on confirm', async () => {
 
   await spawnClaudeSession(ctx, 'testsess');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: testsess');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.write('K');
 
@@ -47,9 +49,11 @@ test('it revives a killed session in place with a fresh terminal', async () => {
 
   await spawnClaudeSession(ctx, 'revivable');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: revivable');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.write('K');
 
@@ -81,9 +85,11 @@ test('it explains a revive that has no saved transcript instead of failing silen
 
   await spawnClaudeSession(ctx, 'transcriptless');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: transcriptless');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.write('K');
 
