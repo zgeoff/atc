@@ -547,7 +547,12 @@ test.each([
     { session: 's1', refuseLive: 'yes' },
     'session.forget refuseLive must be a boolean',
   ],
-  ['session.resize', { session: 's1' }, 'session.resize requires positive cols and rows'],
+  ['session.resize', { session: 's1', rows: 30 }, 'session.resize requires positive cols and rows'],
+  [
+    'session.resize',
+    { session: 's1', cols: 100 },
+    'session.resize requires positive cols and rows',
+  ],
 ] as const)('it rejects %s params %j with the message %s', (method, params, message) => {
   const parsed = parseRequestParams(method, params);
 

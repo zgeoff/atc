@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test';
-import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { resolveWorkspaceRoot } from './resolve-workspace-root';
 
 test('it lands checkouts on the daemon machine under the default root in the home directory', () => {
@@ -12,9 +11,10 @@ test('it lands checkouts on the daemon machine under the default root in the hom
       targetRoots: new Map(),
     },
     { id: 'local', inPlace: true },
+    '/home/tester',
   );
 
-  expect(root).toStrictEqual({ ok: true, root: `${resolveHomeDir()}/.local/share/atc/workspaces` });
+  expect(root).toStrictEqual({ ok: true, root: '/home/tester/.local/share/atc/workspaces' });
 });
 
 test("it takes a target's own root over the global root", () => {

@@ -1942,6 +1942,39 @@ test('it misses a trail id whose row is not a report', async () => {
   expect(report).toBeNull();
 });
 
+test('it finds a report of a session inside the scope', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.store.recordTrailEntry({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'report',
+    label: 'decision',
+    detail: 'shown',
+    text: 'shown',
+  });
+
+  const [event] = await ctx.store.collectLatestEvents(1);
+
+  invariant(event);
+
+  const report = await ctx.store.findReport(event.id, {
+    atcIDs: [toSessionID('s1')],
+    agentSessionIDs: [],
+  });
+
+  expect(report).toStrictEqual({
+    id: event.id,
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    label: 'decision',
+    text: 'shown',
+    complete: true,
+  });
+});
+
 test('it misses a report of a session outside the scope', async () => {
   await using ctx = await setupTest();
 

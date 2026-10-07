@@ -1,7 +1,11 @@
 import type { On } from 'claude-code';
 import { expect, mock, test } from 'claude-code/testing';
 
-function setupTest(on: On) {
+interface SetupConfig {
+  readonly on: On;
+}
+
+function setupTest({ on }: SetupConfig) {
   const clock = mock.clock(on);
   const logs: string[] = [];
   const ran: { argv: string[]; stdin: string | undefined }[] = [];
@@ -35,7 +39,7 @@ function setupTest(on: On) {
 }
 
 test('it registers nothing outside atc', async (engine, on) => {
-  setupTest(on);
+  setupTest({ on });
 
   mock.env(on, {});
 
@@ -61,7 +65,7 @@ test('it registers nothing outside atc', async (engine, on) => {
 });
 
 test('it submits a tapped message when no turn runs', async (engine, on) => {
-  const ctx = setupTest(on);
+  const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
@@ -91,7 +95,7 @@ test('it submits a tapped message when no turn runs', async (engine, on) => {
 });
 
 test('it reports the answer for the message a turn carried', async (engine, on) => {
-  const ctx = setupTest(on);
+  const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
@@ -128,7 +132,7 @@ test('it reports the answer for the message a turn carried', async (engine, on) 
 });
 
 test('it reports nothing for a turn that ended in an error', async (engine, on) => {
-  const ctx = setupTest(on);
+  const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
@@ -163,7 +167,7 @@ test('it reports nothing for a turn that ended in an error', async (engine, on) 
 });
 
 test('it sends a report through atc', async (engine, on) => {
-  const ctx = setupTest(on);
+  const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
@@ -190,7 +194,7 @@ test('it sends a report through atc', async (engine, on) => {
 });
 
 test('it refuses a report without text', async (engine, on) => {
-  const ctx = setupTest(on);
+  const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
@@ -210,7 +214,7 @@ test('it refuses a report without text', async (engine, on) => {
 });
 
 test('it reports every message a queued turn carried in one report', async (engine, on) => {
-  const ctx = setupTest(on);
+  const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
@@ -252,7 +256,7 @@ test('it reports every message a queued turn carried in one report', async (engi
 });
 
 test('it submits a mid-turn message when the session refuses the append', async (engine, on) => {
-  const ctx = setupTest(on);
+  const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
@@ -297,7 +301,7 @@ test('it submits a mid-turn message when the session refuses the append', async 
 });
 
 test('it starts no tap when the build refuses the report tool', async (engine, on) => {
-  const ctx = setupTest(on);
+  const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 

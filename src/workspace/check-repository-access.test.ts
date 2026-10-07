@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
+import { buildStubRecordingGit } from '../test-utils/build-stub-recording-git';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
 import { startGitHTTPServer } from '../test-utils/start-git-http-server';
@@ -316,7 +317,7 @@ test.each([
 
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
-  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho ran >> '${join(ctx.dir, 'git-ran')}'\n`);
+  createStubBin(ctx.dir, 'git', buildStubRecordingGit(join(ctx.dir, 'git-ran')));
   updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
 
   const access = await checkRepositoryAccess({ url, transports: DEFAULT_GIT_TRANSPORTS });

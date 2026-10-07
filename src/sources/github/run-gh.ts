@@ -5,6 +5,12 @@ export interface GHRun {
   readonly timedOut: boolean;
 }
 
+interface GHRunOptions {
+  // Called with the pid of the started gh right after it starts; that pid
+  // is also its process group's id.
+  readonly onSpawn?: (pid: number) => void;
+}
+
 /**
  * Runs gh with arguments until it exits or the signal aborts, killing its
  * whole process group on abort, so a wrapper or extension leaves no process
@@ -15,6 +21,7 @@ export async function runGH(
   bin: string,
   signal: Readonly<AbortSignal>,
   args: readonly string[],
+  options: GHRunOptions = {},
 ): Promise<GHRun> {
   const proc = Bun.spawn([bin, ...args], {
     env: {
@@ -33,6 +40,8 @@ export async function runGH(
     // started too.
     detached: true,
   });
+
+  options.onSpawn?.(proc.pid);
 
   const finished = Promise.all([
     new Response(proc.stdout).text(),

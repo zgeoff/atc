@@ -1,5 +1,7 @@
 import { mkdir, rmdir, stat, utimes } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import type { Clock } from '../shared/system-clock';
+import { systemClock } from '../shared/system-clock';
 
 // A lock older than this belongs to a holder that died: the Claude CLI's
 // lock library refreshes a held lock's age well inside it.
@@ -13,11 +15,12 @@ const WAIT_MS = 5000;
 const RETRY_MS = 50;
 
 /**
- * Tuning a caller may pass: how often a held lock's age is refreshed, and a
- * callback run each time the lock is found held by someone else.
+ * Tuning a caller may pass: the clock that times and stamps each refresh of
+ * a held lock's age, and a callback run each time the lock is found held by
+ * someone else.
  */
 export interface ClaudeConfigLockOptions {
-  readonly refreshMs?: number;
+  readonly clock?: Clock;
   readonly onBusy?: () => void;
 }
 
@@ -55,21 +58,27 @@ export async function withClaudeConfigLock<T>(
     held = await tryCreateLockDir(lockPath);
   }
 
+  const clock = options.clock ?? systemClock;
   let owned: OwnedLock = held;
   let refreshing = Promise.resolve();
 
-  const timer = setInterval(() => {
-    refreshing = (async () => {
-      const refreshed = await refreshOwnedLock(lockPath, owned);
+  const scheduleRefresh = (): (() => void) =>
+    clock.schedule(() => {
+      refreshing = (async () => {
+        const refreshed = await refreshOwnedLock(lockPath, owned, clock.now());
 
-      owned = refreshed ?? owned;
-    })();
-  }, options.refreshMs ?? REFRESH_MS);
+        owned = refreshed ?? owned;
+      })();
+
+      stopRefreshing = scheduleRefresh();
+    }, REFRESH_MS);
+
+  let stopRefreshing = scheduleRefresh();
 
   try {
     return await run();
   } finally {
-    clearInterval(timer);
+    stopRefreshing();
 
     await refreshing;
 
@@ -117,10 +126,14 @@ function isExistsError(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'EEXIST';
 }
 
-// Moves the lock's age forward while it is still the directory this call
-// created, and resolves to the lock as it then stands; null leaves the
-// lock to go stale, as a holder that stopped refreshing it does.
-async function refreshOwnedLock(lockPath: string, owned: OwnedLock): Promise<OwnedLock | null> {
+// Moves the lock's age forward to the given time while it is still the
+// directory this call created, and resolves to the lock as it then stands;
+// null leaves the lock to go stale, as a holder that stopped refreshing it does.
+async function refreshOwnedLock(
+  lockPath: string,
+  owned: OwnedLock,
+  nowMs: number,
+): Promise<OwnedLock | null> {
   const isOwned = await isOwnedLock(lockPath, owned);
 
   if (!isOwned) {
@@ -128,7 +141,7 @@ async function refreshOwnedLock(lockPath: string, owned: OwnedLock): Promise<Own
   }
 
   try {
-    const now = new Date();
+    const now = new Date(nowMs);
 
     await utimes(lockPath, now, now);
 

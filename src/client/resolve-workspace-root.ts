@@ -21,13 +21,18 @@ const DEFAULT_ROOT = '~/.local/share/atc/workspaces';
  * root, else the global root, else the default. On the daemon's own
  * machine a leading `~` expands to the home directory. On any other target
  * the root must be absolute, since `~` there is a home this client cannot
- * see, so a root that is not is refused with the config key to set.
+ * see, so a root that is not is refused with the config key to set. The
+ * home directory defaults to the user's own.
  */
-export function resolveWorkspaceRoot(config: WorkspacesConfig, target: RootTarget): WorkspaceRoot {
+export function resolveWorkspaceRoot(
+  config: WorkspacesConfig,
+  target: RootTarget,
+  home: string = resolveHomeDir(),
+): WorkspaceRoot {
   const configured = config.targetRoots.get(target.id) ?? config.root;
 
   if (target.inPlace) {
-    const root = expandHome(configured ?? DEFAULT_ROOT);
+    const root = expandHome(configured ?? DEFAULT_ROOT, home);
 
     return root.startsWith('/')
       ? { ok: true, root }
@@ -44,6 +49,6 @@ export function resolveWorkspaceRoot(config: WorkspacesConfig, target: RootTarge
   return { ok: true, root: configured };
 }
 
-function expandHome(dir: string): string {
-  return dir === '~' || dir.startsWith('~/') ? `${resolveHomeDir()}${dir.slice(1)}` : dir;
+function expandHome(dir: string, home: string): string {
+  return dir === '~' || dir.startsWith('~/') ? `${home}${dir.slice(1)}` : dir;
 }

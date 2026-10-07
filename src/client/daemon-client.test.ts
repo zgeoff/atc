@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startStubClosingListener } from '../test-utils/start-stub-closing-listener';
 import { DaemonClient } from './daemon-client';
 
 /**
@@ -13,19 +14,7 @@ function setupTest() {
   const tmp = stack.use(setupTempDir('atc-daemon-client-'));
   const socketPath = join(tmp.dir, 'daemon.sock');
 
-  const server = Bun.listen({
-    unix: socketPath,
-    socket: {
-      open(socket) {
-        socket.end();
-      },
-      data() {},
-    },
-  });
-
-  stack.defer(() => {
-    server.stop(true);
-  });
+  stack.use(startStubClosingListener(socketPath));
 
   const owned = stack.move();
 

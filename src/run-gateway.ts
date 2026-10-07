@@ -14,6 +14,35 @@ interface GatewayFlags {
   readonly stateDir: string;
 }
 
+// What the gateway reaches outside itself, the process's own by default:
+// the environment its daemon tokens come from, the console, the exit, and
+// the signal listeners that stop it.
+interface GatewayIO {
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly print: (line: string) => void;
+  readonly printError: (line: string) => void;
+  readonly exit: (code: number) => void;
+  readonly registerSignal: (signal: 'SIGINT' | 'SIGTERM', listener: () => Promise<void>) => void;
+}
+
+const PROCESS_IO: GatewayIO = {
+  env: process.env,
+  print: (line) => {
+    console.log(line);
+  },
+  printError: (line) => {
+    console.error(line);
+  },
+  exit: (code) => {
+    process.exit(code);
+  },
+  registerSignal: (signal, listener) => {
+    process.on(signal, () => {
+      void listener();
+    });
+  },
+};
+
 /**
  * Runs `atc-gateway` in the foreground: serves the MCP tools over HTTP for
  * the daemons the registry lists, routing every call to one of them over
@@ -23,15 +52,21 @@ interface GatewayFlags {
  * registry that fails to load, or a server that fails to start, prints the
  * reason and exits 1.
  */
-export async function runGateway(build: string, flags: GatewayFlags): Promise<void> {
-  const loaded = loadGatewayRegistry(flags.registryPath, process.env);
+export async function runGateway(
+  build: string,
+  flags: GatewayFlags,
+  io: GatewayIO = PROCESS_IO,
+): Promise<void> {
+  const loaded = loadGatewayRegistry(flags.registryPath, io.env);
 
   if (!loaded.ok) {
     for (const error of loaded.errors) {
-      console.error(`atc-gateway: ${error}`);
+      io.printError(`atc-gateway: ${error}`);
     }
 
-    process.exit(1);
+    io.exit(1);
+
+    return;
   }
 
   mkdirSync(flags.stateDir, { recursive: true });
@@ -59,19 +94,21 @@ export async function runGateway(build: string, flags: GatewayFlags): Promise<vo
       // The line carries a client's name, so control and format characters
       // are dropped before it reaches the log.
       printApproval: (line) => {
-        console.log(line.replaceAll(/[\p{Cc}\p{Cf}]/gu, ''));
+        io.print(line.replaceAll(/[\p{Cc}\p{Cf}]/gu, ''));
       },
 
       // Request lines go to stderr, so stdout keeps the approval lines alone.
       printRequest: (line) => {
-        console.error(line);
+        io.printError(line);
       },
     });
   } catch (error) {
     await gateway.stop();
 
-    console.error(`atc-gateway: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
+    io.printError(`atc-gateway: ${error instanceof Error ? error.message : String(error)}`);
+    io.exit(1);
+
+    return;
   }
 
   // The handlers go in before the serving line, so a signal sent once the
@@ -80,16 +117,10 @@ export async function runGateway(build: string, flags: GatewayFlags): Promise<vo
     await server.stop();
     await gateway.stop();
 
-    process.exit(0);
+    io.exit(0);
   };
 
-  process.on('SIGINT', () => {
-    void stopServing();
-  });
-
-  process.on('SIGTERM', () => {
-    void stopServing();
-  });
-
-  console.log(`atc-gateway: serving ${server.origin}/mcp, listening on ${server.listening}`);
+  io.registerSignal('SIGINT', stopServing);
+  io.registerSignal('SIGTERM', stopServing);
+  io.print(`atc-gateway: serving ${server.origin}/mcp, listening on ${server.listening}`);
 }

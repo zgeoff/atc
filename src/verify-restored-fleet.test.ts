@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { DaemonClient } from './client/daemon-client';
+import { buildMockStoredRow } from './test-utils/build-mock-stored-row';
 import { buildStubClock } from './test-utils/build-stub-clock';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 import { startStubRestoreDaemon } from './test-utils/start-stub-restore-daemon';
@@ -40,8 +41,8 @@ test('it reports the last answered list when the deadline overtakes a later list
     ctx.client,
     1,
     [
-      { id: 's-good', name: 'good', exited: false, agentSessionID: null },
-      { id: 's-dropped', name: 'dropped', exited: false, agentSessionID: null },
+      buildMockStoredRow({ id: 's-good', name: 'good' }),
+      buildMockStoredRow({ id: 's-dropped', name: 'dropped' }),
     ],
     clock,
   );
@@ -84,7 +85,7 @@ test('it rejects when the first list gets no answer before the deadline', async 
   const verdict = verifyRestoredFleet(
     ctx.client,
     1,
-    [{ id: 's-good', name: 'good', exited: false, agentSessionID: null }],
+    [buildMockStoredRow({ id: 's-good', name: 'good' })],
     clock,
   );
 

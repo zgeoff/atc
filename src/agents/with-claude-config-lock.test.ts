@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmdirSync, statSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildStubClock } from '../test-utils/build-stub-clock';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import { withClaudeConfigLock } from './with-claude-config-lock';
@@ -10,7 +11,7 @@ function setupTest() {
 }
 
 test('it holds the lock directory while the callback runs and removes it after', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const configPath = join(ctx.dir, '.claude.json');
 
@@ -33,7 +34,7 @@ test('it removes the lock directory when the callback throws', () => {
 });
 
 test('it takes over a lock its holder left stale', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const configPath = join(ctx.dir, '.claude.json');
   const lockPath = `${configPath}.lock`;
@@ -49,35 +50,34 @@ test('it takes over a lock its holder left stale', async () => {
   expect(existsSync(lockPath)).toBeFalse();
 });
 
-test('it keeps the lock fresh while a slow callback runs', async () => {
-  await using ctx = setupTest();
+test('it refreshes the lock age to the clock time a second into a slow callback', async () => {
+  using ctx = setupTest();
 
   const configPath = join(ctx.dir, '.claude.json');
   const lockPath = `${configPath}.lock`;
+  const clock = buildStubClock(1_800_000_000_000);
 
-  const ages = await withClaudeConfigLock(
+  const refreshed = await withClaudeConfigLock(
     configPath,
-    async () => {
-      const created = statSync(lockPath).mtimeMs;
+    () => {
+      clock.advance(1000);
 
-      const refreshed = await waitFor(() => {
-        const current = statSync(lockPath).mtimeMs;
+      return waitFor(() => {
+        const mtimeMs = statSync(lockPath).mtimeMs;
 
-        expect(current).not.toBe(created);
+        expect(mtimeMs).toBe(1_800_000_001_000);
 
-        return current;
+        return mtimeMs;
       });
-
-      return { created, refreshed };
     },
-    { refreshMs: 5 },
+    { clock },
   );
 
-  expect(ages.refreshed).toBeGreaterThan(ages.created);
+  expect(refreshed).toBe(1_800_000_001_000);
 });
 
 test('it leaves a lock another holder took over in place on release', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const configPath = join(ctx.dir, '.claude.json');
   const lockPath = `${configPath}.lock`;
@@ -93,7 +93,7 @@ test('it leaves a lock another holder took over in place on release', async () =
 });
 
 test('it creates a config folder that does not exist yet', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const configPath = join(ctx.dir, 'fresh', '.claude.json');
 

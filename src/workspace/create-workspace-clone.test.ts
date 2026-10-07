@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { $ } from 'bun';
+import { buildStubRecordingFilter } from '../test-utils/build-stub-recording-filter';
 import { collectProcessTree } from '../test-utils/collect-process-tree';
 import type { TreeProcess } from '../test-utils/collect-process-tree';
 import { createGitFixture } from '../test-utils/create-git-fixture';
@@ -331,7 +332,7 @@ test('it refuses a git source that tracks LFS paths without running the host LFS
 
   const marker = join(ctx.dir, 'filter-ran');
 
-  createStubBin(ctx.dir, 'trap', `#!/bin/sh\necho ran >> ${marker}\ncat\n`);
+  createStubBin(ctx.dir, 'trap', buildStubRecordingFilter(marker));
 
   await writeFile(
     join(ctx.dir, 'gitconfig'),
@@ -369,7 +370,7 @@ test('it checks out without running a filter from the host global git config', a
 
   const marker = join(ctx.dir, 'filter-ran');
 
-  createStubBin(ctx.dir, 'trap', `#!/bin/sh\necho ran >> ${marker}\ncat\n`);
+  createStubBin(ctx.dir, 'trap', buildStubRecordingFilter(marker));
 
   await writeFile(join(ctx.dir, 'attributes'), '* filter=trap\n');
 
