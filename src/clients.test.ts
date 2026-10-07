@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { runClients } from './clients';
 import { setupTempDir } from './test-utils/setup-temp-dir';
@@ -232,4 +232,19 @@ test('it refuses to remove an unknown client', async () => {
     codes: [1],
     errors: ["atc clients remove: no client has the ID 'unknown'"],
   });
+});
+
+test('it sets the process exit code to 1 when it refuses a request by default', async () => {
+  using ctx = setupTest();
+
+  onTestFinished(() => {
+    process.exitCode = 0;
+  });
+
+  await runClients(
+    { kind: 'remove', clientID: 'unknown' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+  );
+
+  expect(process.exitCode).toBe(1);
 });

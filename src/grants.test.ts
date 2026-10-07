@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { runGrants } from './grants';
 import { readJSONRecord } from './test-utils/read-json-record';
 import { runMCPAuthorization } from './test-utils/run-mcp-authorization';
@@ -176,4 +176,16 @@ test('it refuses to revoke an unknown grant', async () => {
     codes: [1],
     errors: ["atc grants: no grant has the ID 'unknown'"],
   });
+});
+
+test('it sets the process exit code to 1 when it refuses to revoke by default', async () => {
+  await using ctx = await setupTest();
+
+  onTestFinished(() => {
+    process.exitCode = 0;
+  });
+
+  await runGrants('unknown', ctx.server.dbPath);
+
+  expect(process.exitCode).toBe(1);
 });
