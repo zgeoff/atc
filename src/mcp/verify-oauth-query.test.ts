@@ -78,6 +78,8 @@ test('it refuses a signed query with one parameter changed', async () => {
 
   const login = new URL(answered.headers.get('location') ?? '/', 'https://atc.example');
 
+  invariant(login.pathname === '/login', 'the authorization did not reach the login page');
+
   login.searchParams.set('state', 'state-2');
 
   const verified = await verifyOAuthQuery(login.search.slice(1), ctx.secret);

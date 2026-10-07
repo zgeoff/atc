@@ -26,7 +26,7 @@ test('it receives the telemetry better-auth sends to the endpoint the environmen
   // A production-mode process, since better-auth never sends telemetry under
   // NODE_ENV=test. A request it starts keeps the process alive until the
   // collector answers, so the process exits only after the request arrived.
-  const sent = Bun.spawn(
+  await using sent = Bun.spawn(
     [
       process.execPath,
       '-e',

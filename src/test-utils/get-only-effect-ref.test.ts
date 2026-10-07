@@ -16,7 +16,10 @@ test('it throws when the database holds no claim', () => {
 
   db.run('CREATE TABLE idempotency (effect_ref TEXT NOT NULL)');
 
-  expect(() => getOnlyEffectRef(db)).toThrow('expected one idempotency claim, found []');
+  expect(() => getOnlyEffectRef(db)).toThrowWithMessage(
+    Error,
+    'expected one idempotency claim, found []',
+  );
 });
 
 test('it throws when the database holds several claims', () => {
@@ -25,7 +28,8 @@ test('it throws when the database holds several claims', () => {
   db.run('CREATE TABLE idempotency (effect_ref TEXT NOT NULL)');
   db.run("INSERT INTO idempotency (effect_ref) VALUES ('ref-one'), ('ref-two')");
 
-  expect(() => getOnlyEffectRef(db)).toThrow(
+  expect(() => getOnlyEffectRef(db)).toThrowWithMessage(
+    Error,
     'expected one idempotency claim, found ["ref-one","ref-two"]',
   );
 });

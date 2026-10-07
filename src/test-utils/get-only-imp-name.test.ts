@@ -29,7 +29,7 @@ test('it returns the name of the only imp', async () => {
 test('it throws when the port holds no imp', () => {
   using ctx = setupTest();
 
-  expect(() => getOnlyImpName(ctx.port)).toThrow('expected one imp, found []');
+  expect(() => getOnlyImpName(ctx.port)).toThrowWithMessage(Error, 'expected one imp, found []');
 });
 
 test('it throws when the port holds several imps', async () => {
@@ -38,5 +38,8 @@ test('it throws when the port holds several imps', async () => {
   await ctx.port.createImp({ name: 'atc-one' });
   await ctx.port.createImp({ name: 'atc-two' });
 
-  expect(() => getOnlyImpName(ctx.port)).toThrow('expected one imp, found ["atc-one","atc-two"]');
+  expect(() => getOnlyImpName(ctx.port)).toThrowWithMessage(
+    Error,
+    'expected one imp, found ["atc-one","atc-two"]',
+  );
 });

@@ -113,7 +113,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
   expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
 }, 30_000);
 
-test('it filters refs by name and refuses an abbreviated commit id on the ref step', async () => {
+test('it filters refs by name on the ref step', async () => {
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
@@ -135,11 +135,23 @@ test('it filters refs by name and refuses an abbreviated commit id on the ref st
   await ctx.waitFor('> b');
 
   expect(ctx.read()).not.toInclude('main  default');
+}, 20_000);
 
-  ctx.reset();
-  ctx.write(KEYS.ctrlU);
+test('it refuses an abbreviated commit id on the ref step', async () => {
+  await using ctx = setupTest();
+  await using fixture = await createGitFixture();
 
-  await ctx.waitFor('> \u001B[93m█');
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+
+  ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await openRepoStep(ctx);
+
+  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+
+  await ctx.waitFor('spawn: ref');
 
   ctx.reset();
   ctx.write(`${fixture.sha.slice(0, 7)}${KEYS.enter}`);

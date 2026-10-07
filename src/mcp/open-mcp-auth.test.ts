@@ -30,7 +30,7 @@ test('it sends no telemetry when the environment turns it on', async () => {
   // opens in a production-mode process of its own. A request the store
   // starts keeps that process alive until the collector answers it, so the
   // process exits only after any request has arrived.
-  const opened = Bun.spawn(
+  await using opened = Bun.spawn(
     [
       process.execPath,
       '-e',

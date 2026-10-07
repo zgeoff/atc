@@ -113,8 +113,12 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
 
   expect(ctx.daemon.proc.exitCode).toBeNull();
 
-  expect(findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'))).toMatchObject({
+  expect(findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'))).toStrictEqual({
     pid: ctx.daemon.proc.pid,
+    socketPath: ctx.daemon.socketPath,
+    reporterSocketPath: ctx.daemon.reporterSocketPath,
+    eventsSocketPath: join(ctx.home, 'atc-events.sock'),
+    listenPort: null,
   });
 });
 

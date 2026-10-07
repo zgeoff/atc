@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { findDaemonRecord } from '../src/shared/find-daemon-record';
 import { getString } from '../src/test-utils/get-string';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
@@ -34,9 +35,14 @@ test('it lets exactly one of two daemons started at once serve a state directory
   expect(loserCode).toBe(1);
   expect(live).toHaveLength(1);
 
-  expect(findDaemonRecord(join(first.stateDir, 'daemon.json'))).toMatchObject({
-    pid: live[0]?.proc.pid,
+  invariant(live[0]);
+
+  expect(findDaemonRecord(join(first.stateDir, 'daemon.json'))).toStrictEqual({
+    pid: live[0].proc.pid,
     socketPath: first.socketPath,
+    reporterSocketPath: first.reporterSocketPath,
+    eventsSocketPath: join(ctx.home, 'atc-events.sock'),
+    listenPort: null,
   });
 
   expect(`${first.readStderr()}${second.readStderr()}`).toInclude('another daemon already serves');

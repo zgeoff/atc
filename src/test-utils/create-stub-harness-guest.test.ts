@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { createStubHarnessGuest } from './create-stub-harness-guest';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
@@ -49,7 +50,7 @@ test('it prints its pid on start, echoes each line, and exits 3 on quit', async 
   });
 });
 
-test('it prints the terminal size it starts at, and the size again on size', async () => {
+test('it prints the terminal size it starts at', async () => {
   using ctx = setupTest();
 
   const guest = createStubHarnessGuest(ctx.dir);
@@ -75,6 +76,31 @@ test('it prints the terminal size it starts at, and the size again on size', asy
 
   await waitFor(() => {
     expect(output.join('')).toInclude(`UP:${proc.pid} START:30 100\r\n`);
+  });
+});
+
+test('it prints the terminal size again on size', async () => {
+  using ctx = setupTest();
+
+  const guest = createStubHarnessGuest(ctx.dir);
+
+  const decoder = new TextDecoder();
+
+  const output: string[] = [];
+
+  const proc = Bun.spawn([guest.path], {
+    terminal: {
+      cols: 100,
+      rows: 30,
+      data: (_terminal, data) => {
+        output.push(decoder.decode(data));
+      },
+    },
+  });
+
+  onTestFinished(() => {
+    proc.kill('SIGKILL');
+    proc.terminal?.close();
   });
 
   proc.terminal?.write('size\n');
@@ -107,17 +133,20 @@ test('it prints the burst on later once a line reaches the burst pipe', async ()
 
   await proc.stdin.end();
 
-  // The burst waits on the pipe, so nothing follows the echo until a line
-  // reaches it.
   await waitFor(() => {
-    expect(output.join('')).toBe(`UP:${proc.pid} START:\nGOT:later\n`);
+    invariant(output.join('').includes('GOT:later\n'));
   });
+
+  // The burst waits on the pipe, so the output read here holds nothing that
+  // follows the echo.
+  const beforeBurst = output.join('');
 
   writeFileSync(guest.burstPath, 'go\n');
 
   await read;
 
-  expect(output.join('')).toBe(
-    `UP:${proc.pid} START:\nGOT:later\n${'x'.repeat(300_000)}\nBURST_DONE\n`,
-  );
+  expect({ beforeBurst, afterBurst: output.join('') }).toStrictEqual({
+    beforeBurst: `UP:${proc.pid} START:\nGOT:later\n`,
+    afterBurst: `UP:${proc.pid} START:\nGOT:later\n${'x'.repeat(300_000)}\nBURST_DONE\n`,
+  });
 });

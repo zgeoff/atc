@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import type { ImpSessionStarted } from '../daemon/imp-port';
@@ -1046,14 +1046,20 @@ test('it keeps a held command waiting until its hold stops', async () => {
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const hold = ctx.port.startCommandHold('echo held');
-  const result = ctx.port.runCommand('imp-a', { argv: ['sh', '-c', 'echo held'] });
+  const marker = join(ctx.dir, 'held-ran');
+  const hold = ctx.port.startCommandHold('held-ran');
+  const result = ctx.port.runCommand('imp-a', { argv: ['touch', marker] });
 
   await hold.entered;
 
-  const raced = await Promise.race([result, Promise.resolve('held')]);
+  // A command the hold let through would start first and finish while this
+  // slower unheld one runs to its end.
+  await ctx.port.runCommand('imp-a', { argv: ['sh', '-c', 'true'] });
 
-  expect(raced).toBe('held');
+  expect({ status: Bun.peek.status(result), ran: existsSync(marker) }).toStrictEqual({
+    status: 'pending',
+    ran: false,
+  });
 });
 
 test('it runs every held command once the active hold stops from the port', async () => {

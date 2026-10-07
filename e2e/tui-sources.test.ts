@@ -15,7 +15,7 @@ function setupTest() {
   return startTUIHarness();
 }
 
-test('it keeps paths and slash filters in the local directory step and switches source on tab or a pasted URL', async () => {
+test('it keeps paths and slash filters in the local directory step', async () => {
   await using ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
@@ -47,6 +47,27 @@ test('it keeps paths and slash filters in the local directory step and switches 
   await ctx.waitFor('> atc/src');
 
   expect(ctx.read()).not.toInclude('spawn: GitHub repository');
+}, 20_000);
+
+test('it offers the next source on the directory step and cycles the sources on tab', async () => {
+  await using ctx = setupTest();
+
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+
+  ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  ctx.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  ctx.reset();
+  ctx.write(KEYS.enter);
+
+  await ctx.waitFor('spawn: directory on the daemon host');
+
+  expect(ctx.read()).toInclude(' · tab GitHub repository');
 
   ctx.reset();
   ctx.write(KEYS.tab);
@@ -62,6 +83,24 @@ test('it keeps paths and slash filters in the local directory step and switches 
   ctx.write(KEYS.tab);
 
   await ctx.waitFor('spawn: directory on the daemon host');
+}, 20_000);
+
+test('it switches the directory step to the GitHub source on a pasted URL', async () => {
+  await using ctx = setupTest();
+
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+
+  ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  ctx.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  ctx.write(KEYS.enter);
+
+  await ctx.waitFor('spawn: directory');
 
   ctx.reset();
   ctx.write('https://github.com/acme/app.git');
