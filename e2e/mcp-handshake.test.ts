@@ -98,16 +98,148 @@ test('it lists every tool with its three safety hints', async () => {
 
   const response = await ctx.mcp.sendRequest('tools/list');
 
-  expect(response).toMatchObject({
+  expect(response).toStrictEqual({
+    jsonrpc: '2.0',
+    id: 2,
     result: {
-      tools: expect.toSatisfyAll(
-        (tool: unknown) =>
-          isRecord(tool) &&
-          isRecord(tool['annotations']) &&
-          typeof tool['annotations']['readOnlyHint'] === 'boolean' &&
-          typeof tool['annotations']['destructiveHint'] === 'boolean' &&
-          typeof tool['annotations']['openWorldHint'] === 'boolean',
-      ),
+      tools: [
+        expect.objectContaining({
+          name: 'atc_session_list',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_session_spawn',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_session_input',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_session_screen',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_session_update',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_session_kill',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_session_forget',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_session_ack',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_resume_command',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_dirs_list',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_agents_list',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_session_get',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_session_read',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_events_read',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_report_get',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_session_message',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_message_get',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+      ],
     },
   });
 });
@@ -117,13 +249,24 @@ test('it marks the kill tool destructive and not read-only', async () => {
 
   const response = await ctx.mcp.sendRequest('tools/list');
 
-  expect(response).toMatchObject({
-    result: {
-      tools: expect.toPartiallyContain({
-        name: 'atc_session_kill',
-        annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
-      }),
-    },
+  const result = response['result'];
+
+  if (!isRecord(result) || !Array.isArray(result['tools'])) {
+    throw new TypeError('tools/list returned no tools');
+  }
+
+  const killTool: unknown = result['tools'].find(
+    (tool) => isRecord(tool) && tool['name'] === 'atc_session_kill',
+  );
+
+  if (!isRecord(killTool)) {
+    throw new TypeError('the kill tool is not listed');
+  }
+
+  expect(killTool['annotations']).toStrictEqual({
+    readOnlyHint: false,
+    destructiveHint: true,
+    openWorldHint: false,
   });
 });
 

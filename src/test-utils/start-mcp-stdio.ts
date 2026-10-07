@@ -10,6 +10,10 @@ interface MCPStdioOptions {
   // The session id the server sees itself running inside; absent means a
   // server started outside any session.
   readonly callerSessionID?: string;
+
+  // A command that stands in for `atc mcp`; absent means this checkout's
+  // `atc mcp`.
+  readonly command?: readonly string[];
 }
 
 /**
@@ -32,11 +36,12 @@ interface MCPToolResult {
  * result holds anything but one text item, or its structured content is not
  * an object. `spawnSession` spawns through `atc_session_spawn` and resolves
  * with the new session's id. A request still unanswered when the server's
- * stdout ends rejects. Disposal stops the server and waits for it to exit;
- * the daemon stays up for the home to stop.
+ * stdout ends rejects. Disposal stops the server and waits for it to exit,
+ * and a second disposal waits for the same exit; the daemon stays up for
+ * the home to stop.
  */
 export async function startMCPStdio(options: MCPStdioOptions) {
-  const proc = Bun.spawn([process.execPath, CLI_PATH, 'mcp'], {
+  const proc = Bun.spawn([...(options.command ?? [process.execPath, CLI_PATH, 'mcp'])], {
     env: {
       ...process.env,
       HOME: options.home,
@@ -84,6 +89,8 @@ export async function startMCPStdio(options: MCPStdioOptions) {
     return toToolResult(response);
   };
 
+  let stopped = false;
+
   const server = {
     sendRequest,
     sendToolCall,
@@ -99,8 +106,11 @@ export async function startMCPStdio(options: MCPStdioOptions) {
       return id;
     },
     async [Symbol.asyncDispose]() {
-      void proc.stdin.end();
-      proc.kill();
+      if (!stopped) {
+        stopped = true;
+        void proc.stdin.end();
+        proc.kill();
+      }
 
       await proc.exited;
     },

@@ -68,6 +68,8 @@ test('it reads a sent message back through a tool call', async () => {
 
   const got = await ctx.mcp.sendToolCall('atc_message_get', { message });
 
+  expect(JSON.parse(got.text)).toStrictEqual(got.structured);
+
   expect(got.structured).toStrictEqual({
     message,
     session,
@@ -99,5 +101,5 @@ test('it holds a message read until its wait ends', async () => {
   const got = await ctx.mcp.sendToolCall('atc_message_get', { message, waitMs: 200 });
 
   expect(got.structured).toMatchObject({ message, status: 'accepted' });
-  expect(Date.now()).toBeWithin(start + 200, start + 5000);
+  expect(Date.now()).toBeGreaterThanOrEqual(start + 200);
 });

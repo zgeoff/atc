@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubMCPClaude } from './build-stub-mcp-claude';
 import { createStubBin } from './create-stub-bin';
@@ -46,13 +46,14 @@ function setupTest() {
   };
 }
 
-test('it prints its marker and arguments, then stays up', async () => {
+test('it prints its marker and arguments', async () => {
   using ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'fake-claude-hold-start'), '');
 
   const proc = Bun.spawn([ctx.bin, '--model', 'opus'], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
+    stdin: 'pipe',
     stdout: 'pipe',
   });
 
@@ -60,10 +61,66 @@ test('it prints its marker and arguments, then stays up', async () => {
     proc.kill();
   });
 
-  const first = await proc.stdout.getReader().read();
+  void proc.stdin.end();
 
-  expect(new TextDecoder().decode(first.value)).toBe('FAKE_CLAUDE_UP args: --model opus\n');
-  expect(proc.exitCode).toBeNull();
+  const output = await new Response(proc.stdout).text();
+
+  expect(output).toBe('FAKE_CLAUDE_UP args: --model opus\n');
+});
+
+test('it records its pid in the home', async () => {
+  using ctx = setupTest();
+
+  writeFileSync(join(ctx.dir, 'fake-claude-hold-start'), '');
+
+  const proc = Bun.spawn([ctx.bin], {
+    env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
+    stdin: 'pipe',
+    stdout: 'pipe',
+  });
+
+  onTestFinished(() => {
+    proc.kill();
+  });
+
+  void proc.stdin.end();
+
+  await proc.exited;
+
+  expect(readFileSync(join(ctx.dir, 'stub-pids'), 'utf8')).toBe(`${proc.pid}\n`);
+});
+
+test('it stays up after reporting, echoing its input back until the input closes', async () => {
+  using ctx = setupTest();
+
+  const proc = Bun.spawn([ctx.bin], {
+    env: {
+      HOME: ctx.dir,
+      PATH: '/usr/bin:/bin',
+      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SESSION_ID: 's-1',
+    },
+    stdin: 'pipe',
+    stdout: 'pipe',
+  });
+
+  onTestFinished(() => {
+    proc.kill();
+  });
+
+  await waitFor(() => {
+    expect(ctx.lines).toBeArrayOfSize(1);
+  });
+
+  void proc.stdin.write('ping\n');
+  void proc.stdin.end();
+
+  const output = await new Response(proc.stdout).text();
+
+  expect({ output, exitCode: await proc.exited }).toStrictEqual({
+    output: 'FAKE_CLAUDE_UP args: \nping\n',
+    exitCode: 0,
+  });
 });
 
 test('it reports SessionStart with its session id and transcript through the reporter', async () => {
@@ -88,6 +145,8 @@ test('it reports SessionStart with its session id and transcript through the rep
 
     return ctx.lines[0];
   });
+
+  await proc.exited;
 
   expect(JSON.parse(line ?? '')).toStrictEqual({
     atcId: 's-1',
@@ -124,6 +183,8 @@ test('it files the note file as a decision report', async () => {
 
     return ctx.lines[1];
   });
+
+  await proc.exited;
 
   expect(JSON.parse(line ?? '')).toStrictEqual({
     atcId: 's-1',

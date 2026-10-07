@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { findPidFilePID } from '../shared/find-pid-file-pid';
 import { stopDaemonProcess } from '../stop-daemon-process';
@@ -12,11 +12,13 @@ import { waitFor } from './wait-for';
  * A temp home for running `atc mcp` against, with the stand-in `claude` and
  * `grok` at `claudeBin` and `grokBin` and a config that registers them with
  * no extra arguments. A server started with this home as its `HOME` and
- * `XDG_RUNTIME_DIR` boots its daemon here. Disposal stops that daemon, when
- * one wrote its pid file here, and waits for it to exit; then it kills every
- * process still running with this home as its `HOME`, such as a reporter a
- * stopped session left behind, waits for those to exit, and removes the
- * home. Hold the result with `await using`.
+ * `XDG_RUNTIME_DIR` boots its daemon here. Each stand-in appends its pid,
+ * which is its process group as a session leader, to `stub-pids` in the
+ * home. Disposal stops the daemon, when one wrote its pid file here, and
+ * waits for it to exit; then it kills the daemon's process group and every
+ * group `stub-pids` records, such as a reporter a stopped session left
+ * behind, waits until each group is empty, and removes the home. Hold the
+ * result with `await using`.
  */
 export function setupMCPHome() {
   const tmp = setupTempDir('atc-mcp-');
@@ -44,55 +46,54 @@ export function setupMCPHome() {
         await stopDaemonProcess(pid);
       }
 
-      await killHomeProcesses(home);
+      await killProcessGroups([...(pid === null ? [] : [pid]), ...readStubPIDs(home)]);
 
       tmp[Symbol.dispose]();
     },
   };
 }
 
-async function killHomeProcesses(home: string): Promise<void> {
-  for (const pid of collectHomePIDs(home)) {
+/**
+ * The pids the stand-ins recorded in the home, one per line; none when no
+ * stand-in ran.
+ */
+function readStubPIDs(home: string): number[] {
+  const path = join(home, 'stub-pids');
+
+  if (!existsSync(path)) {
+    return [];
+  }
+
+  return readFileSync(path, 'utf8')
+    .split('\n')
+    .filter((line) => line !== '')
+    .map(Number);
+}
+
+async function killProcessGroups(groups: readonly number[]): Promise<void> {
+  for (const group of groups) {
     try {
-      process.kill(pid, 'SIGKILL');
+      process.kill(-group, 'SIGKILL');
     } catch {
-      // The process exited after the scan read it.
+      // The group is already empty.
     }
   }
 
   await waitFor(() => {
-    const running = collectHomePIDs(home);
+    const running = groups.filter((group) => isProcessGroupRunning(group));
 
     if (running.length > 0) {
-      throw new Error(`processes still running with home ${home}: ${running.join(', ')}`);
+      throw new Error(`process groups still running: ${running.join(', ')}`);
     }
   });
 }
 
-/**
- * The pids of the running processes whose environment sets `HOME` to the
- * home, read from `/proc`. A process that exits while the scan reads it is
- * left out, and a system without `/proc` yields none.
- */
-function collectHomePIDs(home: string): number[] {
-  const entry = `HOME=${home}`;
-
-  return readProcEntries()
-    .filter((name) => /^\d+$/.test(name))
-    .filter((name) => {
-      try {
-        return readFileSync(`/proc/${name}/environ`, 'utf8').split('\0').includes(entry);
-      } catch {
-        return false;
-      }
-    })
-    .map(Number);
-}
-
-function readProcEntries(): string[] {
+function isProcessGroupRunning(group: number): boolean {
   try {
-    return readdirSync('/proc');
-  } catch {
-    return [];
+    process.kill(-group, 0);
+
+    return true;
+  } catch (error) {
+    return !(error instanceof Error && Reflect.get(error, 'code') === 'ESRCH');
   }
 }

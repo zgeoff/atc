@@ -27,6 +27,7 @@ test('it reads a session record through a tool call', async () => {
   const read = await ctx.mcp.sendToolCall('atc_session_get', { session });
 
   expect(read.isError).toBeUndefined();
+  expect(JSON.parse(read.text)).toStrictEqual(read.structured);
 
   expect(read.structured).toMatchObject({
     session: { id: session },
@@ -74,17 +75,18 @@ test('it pages a session transcript through a tool call', async () => {
       more: false,
     },
   });
+
+  expect(JSON.parse(page.text)).toStrictEqual(page.structured);
 });
 
 test('it reads fleet events through a tool call', async () => {
   await using ctx = await setupTest();
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
-  const read = await ctx.mcp.sendToolCall('atc_events_read', { waitMs: 30_000 });
+  const read = await ctx.mcp.sendToolCall('atc_events_read', { waitMs: 4000 });
 
-  expect(read.structured).toMatchObject({
-    events: expect.toPartiallyContain({ kind: 'started', session }),
-  });
+  expect(JSON.parse(read.text)).toStrictEqual(read.structured);
+  expect(read.structured?.['events']).toPartiallyContain({ kind: 'started', session });
 });
 
 test('it reads the whole text of a report its event previews through a tool call', async () => {
@@ -94,21 +96,27 @@ test('it reads the whole text of a report its event previews through a tool call
 
   await ctx.mcp.spawnSession({ cwd: ctx.home });
 
-  const event = await waitFor(async () => {
+  const events = await waitFor(async () => {
     const read = await ctx.mcp.sendToolCall('atc_events_read', {});
 
-    const events = isRecord(read.structured) ? read.structured['events'] : undefined;
+    const listed = read.structured?.['events'];
 
-    const found: unknown = Array.isArray(events)
-      ? events.find((candidate: unknown) => isRecord(candidate) && candidate['kind'] === 'report')
-      : undefined;
+    expect(listed).toPartiallyContain({ kind: 'report' });
 
-    if (!isRecord(found)) {
-      throw new TypeError('no report event yet');
-    }
-
-    return found;
+    return listed;
   });
+
+  if (!Array.isArray(events)) {
+    throw new TypeError('the events read holds no events');
+  }
+
+  const event: unknown = events.find(
+    (candidate: unknown) => isRecord(candidate) && candidate['kind'] === 'report',
+  );
+
+  if (!isRecord(event)) {
+    throw new TypeError('the events read holds no report event');
+  }
 
   const report = await ctx.mcp.sendToolCall('atc_report_get', { report: event['cursor'] });
 
@@ -126,15 +134,38 @@ test('it reads the whole text of a report its event previews through a tool call
   });
 });
 
+test('it ends an events long-poll with no events when its wait runs out', async () => {
+  await using ctx = await setupTest();
+
+  const polled = await ctx.mcp.sendToolCall('atc_events_read', { waitMs: 100 });
+
+  expect(polled).toStrictEqual({
+    isError: undefined,
+    text: expect.toBeString(),
+    structured: { events: [], cursor: expect.toBeString(), more: false },
+  });
+});
+
 test('it answers a session list while an events long-poll is still waiting', async () => {
   await using ctx = await setupTest();
 
-  const poll = ctx.mcp.sendToolCall('atc_events_read', { waitMs: 30_000 });
+  const poll = ctx.mcp.sendToolCall('atc_events_read', { waitMs: 4000 });
   const list = ctx.mcp.sendToolCall('atc_session_list', {});
 
   const first = await Promise.race([poll.then(() => 'poll'), list.then(() => 'list')]);
 
+  // A session start ends the poll, so the test never waits it out.
+  await ctx.mcp.spawnSession({ cwd: ctx.home });
+
+  await poll;
+
   expect(first).toBe('list');
+});
+
+test('it ends an events long-poll when a session starts', async () => {
+  await using ctx = await setupTest();
+
+  const poll = ctx.mcp.sendToolCall('atc_events_read', { waitMs: 4000 });
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
   const polled = await poll;

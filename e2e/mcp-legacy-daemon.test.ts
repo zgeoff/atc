@@ -43,7 +43,7 @@ test('it refuses a call an older daemon cannot serve without sending it', async 
 
   const refused = await ctx.mcp.sendToolCall('atc_message_get', {
     message: 'm-legacy',
-    waitMs: 5000,
+    waitMs: 4000,
   });
 
   expect(refused).toStrictEqual({

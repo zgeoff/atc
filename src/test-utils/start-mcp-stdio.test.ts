@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { createStubBin } from './create-stub-bin';
 import { setupMCPHome } from './setup-mcp-home';
 import { startMCPStdio } from './start-mcp-stdio';
 
@@ -65,10 +66,133 @@ test('it starts a server that runs inside the caller session', async () => {
 test('it rejects a request still pending when the server stops', async () => {
   await using ctx = await setupTest();
 
-  const held = ctx.mcp.sendToolCall('atc_events_read', { waitMs: 30_000 });
+  const held = ctx.mcp.sendToolCall('atc_events_read', { waitMs: 4000 });
   const stopping = ctx.mcp[Symbol.asyncDispose]();
 
   expect(held).rejects.toThrowWithMessage(Error, /^atc mcp stopped answering before request 2$/);
 
   await stopping;
+});
+
+test('it rejects a tool call whose response holds no result', async () => {
+  await using ctx = await setupTest();
+
+  const bin = createStubBin(
+    ctx.home,
+    'no-result',
+    `#!/usr/bin/env bash
+read -r _
+echo '{"jsonrpc":"2.0","id":1,"result":{}}'
+read -r _
+echo '{"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"nope"}}'
+exec cat > /dev/null
+`,
+  );
+
+  await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
+
+  expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
+    TypeError,
+    'tool call returned an unexpected result: {"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"nope"}}',
+  );
+});
+
+test('it rejects a tool call whose result holds no text item', async () => {
+  await using ctx = await setupTest();
+
+  const bin = createStubBin(
+    ctx.home,
+    'no-item',
+    `#!/usr/bin/env bash
+read -r _
+echo '{"jsonrpc":"2.0","id":1,"result":{}}'
+read -r _
+echo '{"jsonrpc":"2.0","id":2,"result":{"content":[]}}'
+exec cat > /dev/null
+`,
+  );
+
+  await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
+
+  expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
+    TypeError,
+    'tool call returned an unexpected result: {"jsonrpc":"2.0","id":2,"result":{"content":[]}}',
+  );
+});
+
+test('it rejects a tool call whose result holds two text items', async () => {
+  await using ctx = await setupTest();
+
+  const bin = createStubBin(
+    ctx.home,
+    'two-items',
+    `#!/usr/bin/env bash
+read -r _
+echo '{"jsonrpc":"2.0","id":1,"result":{}}'
+read -r _
+echo '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"a"},{"type":"text","text":"b"}]}}'
+exec cat > /dev/null
+`,
+  );
+
+  await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
+
+  expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
+    TypeError,
+    'tool call returned an unexpected result: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"a"},{"type":"text","text":"b"}]}}',
+  );
+});
+
+test('it rejects a tool call whose structured content is not an object', async () => {
+  await using ctx = await setupTest();
+
+  const bin = createStubBin(
+    ctx.home,
+    'scalar-structured',
+    `#!/usr/bin/env bash
+read -r _
+echo '{"jsonrpc":"2.0","id":1,"result":{}}'
+read -r _
+echo '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"5"}],"structuredContent":5}}'
+exec cat > /dev/null
+`,
+  );
+
+  await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
+
+  expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
+    TypeError,
+    'tool call returned an unexpected result: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"5"}],"structuredContent":5}}',
+  );
+});
+
+test('it rejects a pending request once the server prints a line that is not JSON', async () => {
+  await using ctx = await setupTest();
+
+  const bin = createStubBin(
+    ctx.home,
+    'not-json',
+    `#!/usr/bin/env bash
+read -r _
+echo '{"jsonrpc":"2.0","id":1,"result":{}}'
+read -r _
+echo 'not json'
+exec cat > /dev/null
+`,
+  );
+
+  await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
+
+  expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
+    Error,
+    'atc mcp stopped answering before request 2',
+  );
+});
+
+test('it waits for the same exit when disposed twice', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.mcp[Symbol.asyncDispose]();
+
+  expect(ctx.mcp[Symbol.asyncDispose]()).resolves.toBeUndefined();
 });
