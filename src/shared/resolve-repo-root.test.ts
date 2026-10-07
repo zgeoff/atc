@@ -87,3 +87,20 @@ test('it resolves a directory under an unreadable ancestor to itself', () => {
 
   expect(resolveRepoRoot(cwd)).toBe(cwd);
 });
+
+test('it resolves a nested repository with an unreadable .git to itself, not the outer repository', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-repo-root-'));
+  const outer = join(dir, 'outer');
+  const inner = join(outer, 'inner');
+
+  onTestFinished(() => {
+    chmodSync(join(inner, '.git'), 0o700);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  setupRepo(outer);
+  setupRepo(inner);
+  chmodSync(join(inner, '.git'), 0o000);
+
+  expect(resolveRepoRoot(inner)).toBe(inner);
+});

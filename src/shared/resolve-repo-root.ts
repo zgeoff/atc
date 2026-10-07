@@ -22,8 +22,18 @@ export function resolveRepoRoot(cwd: string): string {
       return cwd;
     }
 
-    if (stat !== undefined && stat.isDirectory() && hasGitHead(marker)) {
-      return dir;
+    if (stat !== undefined && stat.isDirectory()) {
+      // git needs HEAD in a repository, and an empty `.git` directory in a shared
+      // temporary directory would otherwise cluster every session under it.
+      const head = tryStat(join(marker, 'HEAD'));
+
+      if (head === null) {
+        return cwd;
+      }
+
+      if (head !== undefined) {
+        return dir;
+      }
     }
 
     if (stat !== undefined && stat.isFile()) {
@@ -48,17 +58,6 @@ function tryStat(path: string): Stats | undefined | null {
   } catch {
     return null;
   }
-}
-
-/**
- * Whether a `.git` directory is a repository rather than an empty directory
- * that happens to carry the name. git needs HEAD in one, and a stray `.git` in
- * a shared temporary directory would otherwise cluster every session under it.
- */
-function hasGitHead(marker: string): boolean {
-  const head = tryStat(join(marker, 'HEAD'));
-
-  return head !== undefined && head !== null;
 }
 
 // A linked worktree's `.git` file reads `gitdir: <main>/.git/worktrees/<name>`.
