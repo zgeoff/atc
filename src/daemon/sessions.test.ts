@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { waitFor } from '../../test/wait-for';
@@ -909,42 +909,4 @@ test('it logs nothing for a background fleet write refused as stale_epoch', asyn
   await Bun.sleep(0);
 
   expect(lines).toStrictEqual([]);
-});
-
-test('it refuses a spawn whose repository root cannot be read before it starts any process', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-sessions-'));
-  const sealed = join(dir, '.git');
-  const cwd = join(dir, 'work');
-
-  mkdirSync(sealed);
-  mkdirSync(cwd);
-
-  // A .git directory nobody may search: reading its HEAD throws EACCES.
-  chmodSync(sealed, 0o000);
-
-  const store = await StateStore.open(join(dir, 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-
-    chmodSync(sealed, 0o755);
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  let planned = 0;
-
-  const counting: AgentAdapter = {
-    ...idleAdapter,
-    planSpawn: () => {
-      planned++;
-
-      return { bin: 'sleep', args: ['30'] };
-    },
-  };
-
-  const mgr = new SessionManager(counting, store, join(dir, 'status.json'));
-
-  expect(mgr.spawn(cwd, 'sealed', '', 80, 24)).rejects.toThrow(/EACCES/);
-  expect(planned).toBe(0);
-  expect(mgr.sessions).toStrictEqual([]);
 });

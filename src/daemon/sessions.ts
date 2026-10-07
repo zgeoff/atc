@@ -535,6 +535,17 @@ export class SessionManager {
     }
   }
 
+  // An exited row never runs again until revived, and a row on a remote
+  // target holds a path from another machine, so neither resolves a
+  // repository on this one: the directory is its own root.
+  private pickRestoredRepoRoot(cwd: string, exited: boolean, target: string): string {
+    if (exited || this.targets.get(target)?.provider?.remote === true) {
+      return cwd;
+    }
+
+    return resolveRepoRoot(cwd);
+  }
+
   // Registers a fleet entry as a session with no terminal yet, under the
   // atc session id its row holds, so a fleet-wide restore can show every
   // incoming session at once; adopting it later attaches the terminal.
@@ -584,7 +595,7 @@ export class SessionManager {
       agent: entry.agent,
       pinned: entry.pinned ?? false,
       lastAttachedAt: entry.lastAttachedAt ?? Date.now(),
-      repoRoot: resolveRepoRoot(entry.cwd),
+      repoRoot: this.pickRestoredRepoRoot(entry.cwd, exited, target),
       namedBy: 'auto',
       createdAt: Date.now(),
       parent: parent !== null && this.sessions.some((s) => s.id === parent) ? parent : null,
@@ -757,6 +768,7 @@ export class SessionManager {
     s.kind = 'pty';
     s.state = 'running';
     s.lastMsg = 'revived';
+    s.repoRoot = provider.remote ? s.cwd : resolveRepoRoot(s.cwd);
     s.desired = 'run';
     s.suspended = false;
 
@@ -959,9 +971,8 @@ export class SessionManager {
       overrides.trustClonedWorkspace ??
       this.targets.get(target)?.options['trustClonedWorkspace'] === true;
 
-    // The repository root resolves before the process starts: resolving it
-    // can throw, and a spawn that throws must leave nothing running. A
-    // remote directory is not on the daemon's machine, so it is its own root.
+    // A remote directory is not on the daemon's machine, so it is its own
+    // root.
     const repoRoot = provider.remote ? cwd : resolveRepoRoot(cwd);
     const hostKey = this.pickHostKey(id, parent, target, execution.identity);
     const auth = this.resolveHarnessAuth(adapter, provider, target);

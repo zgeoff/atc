@@ -1,5 +1,5 @@
-import { expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { expect, onTestFinished, test } from 'bun:test';
+import { chmod, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { waitFor } from '../../test/wait-for';
@@ -290,4 +290,165 @@ test('it spawns nothing for a fleet.restore after the automatic restore settled'
     again: { restored: 0 },
     spawns: 2,
   });
+});
+
+test('it restores the rest of the fleet past rows whose repository cannot be resolved', async () => {
+  await using daemon = await setupTest();
+
+  const locked = await mkdtemp(join(tmpdir(), 'atc-daemon-fleet-locked-'));
+
+  onTestFinished(async () => {
+    await chmod(locked, 0o700);
+    await rm(locked, { recursive: true, force: true });
+  });
+
+  await mkdir(join(locked, 'work'));
+  await chmod(locked, 0o000);
+
+  const seed = await StateStore.open(daemon.dbPath);
+
+  await seed.writeFleet([
+    {
+      sessionID: toSessionID('s-local'),
+      agentSessionID: toAgentSessionID('a-local'),
+      name: 'local',
+      cwd: '/tmp',
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-cloud'),
+      agentSessionID: toAgentSessionID('a-cloud'),
+      name: 'cloud',
+      cwd: '/root/.local/share/atc/workspaces/cloud-main',
+      agent: 'claude',
+      target: 'cloud',
+      exited: true,
+    },
+    {
+      sessionID: toSessionID('s-locked'),
+      agentSessionID: toAgentSessionID('a-locked'),
+      name: 'locked',
+      cwd: join(locked, 'work'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-killed'),
+      agentSessionID: toAgentSessionID('a-killed'),
+      name: 'killed',
+      cwd: '/tmp',
+      agent: 'claude',
+      exited: true,
+    },
+    {
+      sessionID: toSessionID('s-after'),
+      agentSessionID: toAgentSessionID('a-after'),
+      name: 'after',
+      cwd: '/tmp',
+      agent: 'claude',
+    },
+  ]);
+
+  await seed.stop();
+
+  const client = await daemon.boot({ restoreFleetOnRestart: true, restoreBootTimeoutMs: 10 });
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('session.list');
+
+    expect(listed['sessions']).toIncludeAllPartialMembers([
+      { id: 's-local', kind: 'pty', alive: true },
+      { id: 's-after', kind: 'pty', alive: true },
+    ]);
+  });
+
+  const listed = await client.sendRequest('session.list');
+
+  expect(listed['sessions']).toIncludeSameMembers([
+    expect.objectContaining({ id: 's-local', kind: 'pty', alive: true }),
+    expect.objectContaining({ id: 's-cloud', alive: false }),
+    expect.objectContaining({ id: 's-locked' }),
+    expect.objectContaining({ id: 's-killed', alive: false }),
+    expect.objectContaining({ id: 's-after', kind: 'pty', alive: true }),
+  ]);
+});
+
+test('it forgets an exited session on a target the daemon cannot use', async () => {
+  await using daemon = await setupTest();
+
+  const seed = await StateStore.open(daemon.dbPath);
+
+  await seed.writeFleet([
+    {
+      sessionID: toSessionID('s-cloud'),
+      agentSessionID: toAgentSessionID('a-cloud'),
+      name: 'cloud',
+      cwd: '/root/.local/share/atc/workspaces/cloud-main',
+      agent: 'claude',
+      target: 'cloud',
+      exited: true,
+    },
+  ]);
+
+  await seed.stop();
+
+  const client = await daemon.boot({ restoreFleetOnRestart: true, restoreBootTimeoutMs: 10 });
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('session.list');
+
+    expect(listed['sessions']).toMatchObject([{ id: 's-cloud' }]);
+  });
+
+  await client.sendRequest('session.forget', { session: 's-cloud' });
+
+  const after = await client.sendRequest('session.list');
+
+  expect(after['sessions']).toStrictEqual([]);
+});
+
+test('it regroups a revived exited worktree session under its repository', async () => {
+  await using daemon = await setupTest();
+
+  const base = await mkdtemp(join(tmpdir(), 'atc-daemon-fleet-worktree-'));
+
+  onTestFinished(async () => {
+    await rm(base, { recursive: true, force: true });
+  });
+
+  const worktree = join(base, 'wt');
+
+  await mkdir(worktree);
+
+  await Bun.write(join(worktree, '.git'), `gitdir: ${base}/main/.git/worktrees/wt\n`);
+
+  const seed = await StateStore.open(daemon.dbPath);
+
+  await seed.writeFleet([
+    {
+      sessionID: toSessionID('s-wt'),
+      agentSessionID: toAgentSessionID('a-wt'),
+      name: 'wt',
+      cwd: worktree,
+      agent: 'claude',
+      exited: true,
+    },
+  ]);
+
+  await seed.stop();
+
+  const client = await daemon.boot({ restoreFleetOnRestart: true, restoreBootTimeoutMs: 10 });
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('session.list');
+
+    expect(listed['sessions']).toMatchObject([{ id: 's-wt', repoRoot: worktree }]);
+  });
+
+  await client.sendRequest('session.adopt', { session: 's-wt', cols: 80, rows: 24 });
+
+  const after = await client.sendRequest('session.list');
+
+  expect(after['sessions']).toMatchObject([
+    { id: 's-wt', alive: true, repoRoot: join(base, 'main') },
+  ]);
 });
