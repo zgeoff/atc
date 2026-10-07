@@ -4,29 +4,106 @@ import { readJSONRecord } from './test-utils/read-json-record';
 import { runMCPAuthorization } from './test-utils/run-mcp-authorization';
 import { setupMCPHTTP } from './test-utils/setup-mcp-http';
 
+/**
+ * A real daemon behind `atc mcp --http`, whose authorization database sits
+ * under a temp home, and the environment that points a spawned CLI at that
+ * home, so `atc grants` reads the grants the server issued. Disposal stops
+ * both and removes the home.
+ */
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
+
+  const server = await setupMCPHTTP();
+
+  stack.use(server);
+
+  const owned = stack.move();
+
+  return {
+    server,
+    cli: join(import.meta.dir, 'cli.ts'),
+    env: { PATH: process.env['PATH'] ?? '', HOME: server.home },
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+  };
+}
+
 // A grant id is random base64url, so one in 64 starts with a dash; this one
 // does, with an underscore after it, the shape an argument parser reads as a
 // group of short flags.
-const DASH_GRANT_ID = '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc';
+test('it lists a grant whose id starts with a dash', async () => {
+  await using ctx = await setupTest();
 
+  const clientID = await ctx.server.addClient('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
+
+  const authorized = await runMCPAuthorization(ctx.server, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read message',
+    ticked: ['read'],
+  });
+
+  await fetch(`${ctx.server.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  await ctx.server.store.db
+    .updateTable('oauthAccessToken')
+    .set({ authorizationCodeId: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' })
+    .where('clientId', '=', clientID)
+    .execute();
+
+  await ctx.server.store.db
+    .updateTable('oauthRefreshToken')
+    .set({ authorizationCodeId: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' })
+    .where('clientId', '=', clientID)
+    .execute();
+
+  const listed = Bun.spawnSync([process.execPath, ctx.cli, 'grants'], { env: ctx.env });
+
+  expect(listed.stdout.toString()).toBe(
+    '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc  Claude  read  last used never\n',
+  );
+});
+
+// Each row's grant id starts with a dash, with an underscore after it, the
+// shape an argument parser reads as a group of short flags.
 test.each([
-  ['--revoke <id>', ['--revoke', DASH_GRANT_ID]],
-  ['--revoke=<id>', [`--revoke=${DASH_GRANT_ID}`]],
+  {
+    form: '--revoke <id>',
+    grantID: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc',
+    args: ['--revoke', '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc'],
+  },
+  {
+    form: '--revoke=<id>',
+    grantID: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc',
+    args: ['--revoke=-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc'],
+  },
 ])(
-  'it lists a grant whose id starts with a dash and revokes it with %s so its access token stops working',
-  async (_form, revokeArgs) => {
-    await using server = await setupMCPHTTP();
+  'it revokes a grant whose id starts with a dash with $form so its access token stops working',
+  async (row) => {
+    await using ctx = await setupTest();
 
-    const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+    const clientID = await ctx.server.addClient('Claude', [
+      'https://claude.ai/api/mcp/auth_callback',
+    ]);
 
-    const authorized = await runMCPAuthorization(server, {
+    const authorized = await runMCPAuthorization(ctx.server, {
       clientID,
       redirectURI: 'https://claude.ai/api/mcp/auth_callback',
       scope: 'read message',
       ticked: ['read'],
     });
 
-    const exchanged = await fetch(`${server.url}/oauth2/token`, {
+    const exchanged = await fetch(`${ctx.server.url}/oauth2/token`, {
       method: 'POST',
       body: new URLSearchParams({
         grant_type: 'authorization_code',
@@ -39,49 +116,53 @@ test.each([
 
     const tokens = await readJSONRecord(exchanged);
 
-    const grantID = DASH_GRANT_ID;
-
-    await server.store.db
+    await ctx.server.store.db
       .updateTable('oauthAccessToken')
-      .set({ authorizationCodeId: grantID })
+      .set({ authorizationCodeId: row.grantID })
       .where('clientId', '=', clientID)
       .execute();
 
-    await server.store.db
+    await ctx.server.store.db
       .updateTable('oauthRefreshToken')
-      .set({ authorizationCodeId: grantID })
+      .set({ authorizationCodeId: row.grantID })
       .where('clientId', '=', clientID)
       .execute();
 
-    const env = { PATH: process.env['PATH'] ?? '', HOME: server.home };
-    const cli = join(import.meta.dir, 'cli.ts');
-    const listed = Bun.spawnSync([process.execPath, cli, 'grants'], { env });
-    const revoked = Bun.spawnSync([process.execPath, cli, 'grants', ...revokeArgs], { env });
+    const revoked = Bun.spawnSync([process.execPath, ctx.cli, 'grants', ...row.args], {
+      env: ctx.env,
+    });
 
-    const pinged = await fetch(`${server.url}/mcp`, {
+    const pinged = await fetch(`${ctx.server.url}/mcp`, {
       method: 'POST',
       headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
     });
 
-    const emptied = Bun.spawnSync([process.execPath, cli, 'grants'], { env });
+    const listed = Bun.spawnSync([process.execPath, ctx.cli, 'grants'], { env: ctx.env });
 
-    expect(listed.stdout.toString()).toBe(`${grantID}  Claude  read  last used never\n`);
-    expect(revoked.stderr.toString()).toBe('');
-    expect(revoked.stdout.toString()).toBe(`Revoked grant ${grantID}\n`);
-    expect(pinged.status).toBe(401);
-    expect(emptied.stdout.toString()).toBe('No grants.\n');
+    expect({
+      stdout: revoked.stdout.toString(),
+      stderr: revoked.stderr.toString(),
+      pinged: pinged.status,
+      listed: listed.stdout.toString(),
+    }).toStrictEqual({
+      stdout: `Revoked grant ${row.grantID}\n`,
+      stderr: '',
+      pinged: 401,
+      listed: 'No grants.\n',
+    });
   },
 );
 
 test('it refuses to revoke an unknown grant', async () => {
-  await using server = await setupMCPHTTP();
+  await using ctx = await setupTest();
 
-  const revoked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'cli.ts'), 'grants', '--revoke', 'unknown'],
-    { env: { PATH: process.env['PATH'] ?? '', HOME: server.home } },
-  );
+  const revoked = Bun.spawnSync([process.execPath, ctx.cli, 'grants', '--revoke', 'unknown'], {
+    env: ctx.env,
+  });
 
-  expect(revoked.exitCode).toBe(1);
-  expect(revoked.stderr.toString()).toBe("atc grants: no grant has the ID 'unknown'\n");
+  expect({ exitCode: revoked.exitCode, stderr: revoked.stderr.toString() }).toStrictEqual({
+    exitCode: 1,
+    stderr: "atc grants: no grant has the ID 'unknown'\n",
+  });
 });

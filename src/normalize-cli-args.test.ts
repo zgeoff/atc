@@ -8,9 +8,11 @@ test('it joins a revoke value that starts with a dash onto its flag', () => {
   ]);
 });
 
-test('it leaves an inline revoke value and every other argument as they are', () => {
+test('it leaves an inline revoke value as it is', () => {
   expect(normalizeCLIArgs(['grants', '--revoke=-a_b'])).toStrictEqual(['grants', '--revoke=-a_b']);
+});
 
+test('it leaves the arguments of another subcommand as they are', () => {
   expect(normalizeCLIArgs(['mcp', '--http', '--port', '8414'])).toStrictEqual([
     'mcp',
     '--http',

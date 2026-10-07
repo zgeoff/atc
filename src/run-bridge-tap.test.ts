@@ -1,91 +1,112 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord } from './shared/report';
 import { setupTempDir } from './test-utils/setup-temp-dir';
+import { startStubSessionBridge } from './test-utils/start-stub-session-bridge';
 
-// A tap inside a remote host against a listener standing in for the
-// session bridge. The listener opens the tap, hands each request line to
-// the test's responder, and writes back the lines it returns.
-function setupTest(
-  respond: (request: Readonly<Record<string, unknown>>) => readonly Record<string, unknown>[],
-) {
+/**
+ * A temp directory for a tap inside a remote host: the socket path where a
+ * test starts its stand-in session bridge, and the outbox the tap sends its
+ * reports from. Disposal removes the directory.
+ */
+function setupTest() {
   const tmp = setupTempDir('atc-bridge-tap-');
-  const sock = join(tmp.dir, 'bridge.sock');
   const outbox = join(tmp.dir, 'outbox');
-  let pending = '';
 
+  // The tap reads its reports from here, and each test writes one into it.
   mkdirSync(outbox);
-
-  const server = Bun.listen({
-    unix: sock,
-    socket: {
-      data(socket, buf) {
-        const lines = `${pending}${buf.toString()}`.split('\n');
-
-        pending = lines.pop() ?? '';
-
-        for (const line of lines.filter((text) => text !== '')) {
-          const parsed: unknown = JSON.parse(line);
-          const request = isRecord(parsed) ? parsed : {};
-
-          const answers =
-            request['op'] === 'tap.open' ? [{ id: 'tap.open', ok: true }] : respond(request);
-
-          for (const answer of answers) {
-            socket.write(`${JSON.stringify(answer)}\n`);
-          }
-        }
-      },
-      open() {},
-      error() {},
-    },
-  });
-
-  onTestFinished(() => {
-    server.stop(true);
-  });
 
   return {
     dir: tmp.dir,
+    sock: join(tmp.dir, 'bridge.sock'),
     outbox,
-    runTap: () =>
-      Bun.spawn([process.execPath, join(import.meta.dir, 'cli.ts'), 'tap', '--session', 's1'], {
-        env: { ...process.env, ATC_BRIDGE: '1', ATC_SOCKET: sock, ATC_OUTBOX: outbox },
-        stdout: 'ignore',
-        stderr: 'ignore',
-      }).exited,
+    cli: join(import.meta.dir, 'cli.ts'),
     [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
 test('it removes the outbox file of a report the bridge took', async () => {
-  using bridge = setupTest((request) => [{ id: request['id'], ok: true }, { ev: 'InboxClosed' }]);
+  using ctx = setupTest();
+
+  using bridge = startStubSessionBridge(ctx.sock, (request) => [
+    { id: request['id'], ok: true },
+    { ev: 'InboxClosed' },
+  ]);
 
   writeFileSync(
-    join(bridge.outbox, 'r1.json'),
+    join(ctx.outbox, 'r1.json'),
     JSON.stringify({ reportID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
   );
 
-  const code = await bridge.runTap();
+  await using proc = Bun.spawn([process.execPath, ctx.cli, 'tap', '--session', 's1'], {
+    env: { ...process.env, ATC_BRIDGE: '1', ATC_SOCKET: ctx.sock, ATC_OUTBOX: ctx.outbox },
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
 
-  expect(code).toBe(0);
-  expect(existsSync(join(bridge.outbox, 'r1.json'))).toBeFalse();
+  const code = await proc.exited;
+
+  expect({
+    code,
+    kept: existsSync(join(ctx.outbox, 'r1.json')),
+    requests: bridge.requests,
+  }).toStrictEqual({
+    code: 0,
+    kept: false,
+    requests: [
+      { v: 1, id: 'tap.open', op: 'tap.open' },
+      {
+        v: 1,
+        id: 'report:r1',
+        op: 'report',
+        reportID: 'r1',
+        payload: { kind: 'note', label: 'progress', text: 'hi' },
+      },
+    ],
+  });
 });
 
 test('it removes no file for an answer to a report id it never sent', async () => {
-  using bridge = setupTest(() => [{ id: 'report:../victim', ok: true }, { ev: 'InboxClosed' }]);
+  using ctx = setupTest();
 
-  writeFileSync(join(bridge.dir, 'victim.json'), '{}');
+  using bridge = startStubSessionBridge(ctx.sock, () => [
+    { id: 'report:../victim', ok: true },
+    { ev: 'InboxClosed' },
+  ]);
+
+  writeFileSync(join(ctx.dir, 'victim.json'), '{}');
 
   writeFileSync(
-    join(bridge.outbox, 'r1.json'),
+    join(ctx.outbox, 'r1.json'),
     JSON.stringify({ reportID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
   );
 
-  const code = await bridge.runTap();
+  await using proc = Bun.spawn([process.execPath, ctx.cli, 'tap', '--session', 's1'], {
+    env: { ...process.env, ATC_BRIDGE: '1', ATC_SOCKET: ctx.sock, ATC_OUTBOX: ctx.outbox },
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
 
-  expect(code).toBe(0);
-  expect(existsSync(join(bridge.dir, 'victim.json'))).toBeTrue();
-  expect(existsSync(join(bridge.outbox, 'r1.json'))).toBeTrue();
+  const code = await proc.exited;
+
+  expect({
+    code,
+    victim: existsSync(join(ctx.dir, 'victim.json')),
+    report: existsSync(join(ctx.outbox, 'r1.json')),
+    requests: bridge.requests,
+  }).toStrictEqual({
+    code: 0,
+    victim: true,
+    report: true,
+    requests: [
+      { v: 1, id: 'tap.open', op: 'tap.open' },
+      {
+        v: 1,
+        id: 'report:r1',
+        op: 'report',
+        reportID: 'r1',
+        payload: { kind: 'note', label: 'progress', text: 'hi' },
+      },
+    ],
+  });
 });

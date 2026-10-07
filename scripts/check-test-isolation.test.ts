@@ -1,17 +1,25 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync } from 'node:fs';
+import { type } from 'node:os';
 import { join } from 'node:path';
+import { setupTempDir } from '../src/test-utils/setup-temp-dir';
+
+/**
+ * A temp directory for the stand-in tool directory a test builds. Disposal
+ * removes it.
+ */
+function setupTest() {
+  const tmp = setupTempDir('atc-isolation-bin-');
+
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+}
 
 test.if(process.platform === 'linux')(
   'it stops with a clear message when GNU stat is not on the PATH',
   () => {
-    const root = process.env['ATC_TEST_HOME'];
+    using ctx = setupTest();
 
-    if (root === undefined) {
-      throw new Error('the test home fixture is not in place');
-    }
-
-    const bin = join(root, 'bin-without-stat');
+    const bin = join(ctx.dir, 'bin');
 
     mkdirSync(bin);
 
@@ -38,8 +46,10 @@ test.if(process.platform === 'linux')(
       stderr: 'pipe',
     });
 
-    expect(run.exitCode).toBe(2);
-    expect(run.stderr.toString()).toInclude('needs GNU coreutils: stat');
+    expect({ exitCode: run.exitCode, stderr: run.stderr.toString() }).toStrictEqual({
+      exitCode: 2,
+      stderr: 'test isolation: needs GNU coreutils: stat is missing or not the GNU build\n',
+    });
   },
 );
 
@@ -60,7 +70,9 @@ test.if(process.platform !== 'linux')(
       stderr: 'pipe',
     });
 
-    expect(run.exitCode).toBe(2);
-    expect(run.stderr.toString()).toInclude('runs on Linux only');
+    expect({ exitCode: run.exitCode, stderr: run.stderr.toString() }).toStrictEqual({
+      exitCode: 2,
+      stderr: `test isolation: runs on Linux only, not ${type()}\n`,
+    });
   },
 );

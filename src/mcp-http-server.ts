@@ -27,7 +27,17 @@ const DAEMON_WAIT_MS = 30_000;
  */
 export async function runMCPHTTPServer(build: string, flags: MCPHTTPFlags): Promise<void> {
   const config = loadMCPHTTPConfig();
-  const bootOptions = flags.waitForDaemon ? { waitForDaemonMs: DAEMON_WAIT_MS } : {};
+
+  const bootOptions = flags.waitForDaemon
+    ? {
+        waitForDaemonMs: DAEMON_WAIT_MS,
+        onWaitForDaemon: () => {
+          console.error(
+            `atc mcp --http: no daemon answers yet; waiting up to ${DAEMON_WAIT_MS / 1000}s for one, without starting it`,
+          );
+        },
+      }
+    : {};
 
   const boot = await bootDaemonClient(bootOptions).catch((error: unknown) => {
     console.error(`atc mcp --http: ${error instanceof Error ? error.message : String(error)}`);
@@ -62,19 +72,8 @@ export async function runMCPHTTPServer(build: string, flags: MCPHTTPFlags): Prom
     },
   });
 
-  console.log(`atc mcp --http: serving ${server.origin}/mcp, listening on ${server.listening}`);
-
-  const admin = await openMCPAuth({ dbPath: mcpAuthDBFile, origin: null });
-  const clients = await collectClients(admin.db);
-
-  await admin.close();
-
-  if (clients.length === 0) {
-    console.log(
-      'No clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>',
-    );
-  }
-
+  // The handlers go in before the serving line, so a signal sent once the
+  // line appears always finds them.
   const stopServing = async () => {
     await server.stop();
     await caller.stop();
@@ -89,4 +88,17 @@ export async function runMCPHTTPServer(build: string, flags: MCPHTTPFlags): Prom
   process.on('SIGTERM', () => {
     void stopServing();
   });
+
+  console.log(`atc mcp --http: serving ${server.origin}/mcp, listening on ${server.listening}`);
+
+  const admin = await openMCPAuth({ dbPath: mcpAuthDBFile, origin: null });
+  const clients = await collectClients(admin.db);
+
+  await admin.close();
+
+  if (clients.length === 0) {
+    console.log(
+      'No clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>',
+    );
+  }
 }

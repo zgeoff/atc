@@ -42,6 +42,11 @@ export interface DaemonBootOptions {
   // manager starts beside a managed daemon sets it, so the two never race
   // for the state directory.
   readonly waitForDaemonMs?: number;
+
+  // Called once per boot, when a waiting boot first finds no daemon and
+  // starts to wait instead of starting one; a retry after a protocol
+  // mismatch that waits again does not call it a second time.
+  readonly onWaitForDaemon?: () => void;
 }
 
 /**
@@ -59,10 +64,21 @@ export interface DaemonBootOptions {
  * its own boot would otherwise flag daemons that are already current.
  */
 export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise<DaemonBoot> {
+  let waited = false;
+
   const wait =
     options.waitForDaemonMs === undefined
       ? null
-      : { deadline: Date.now() + options.waitForDaemonMs, timeoutMs: options.waitForDaemonMs };
+      : {
+          deadline: Date.now() + options.waitForDaemonMs,
+          timeoutMs: options.waitForDaemonMs,
+          onWait: () => {
+            if (!waited) {
+              waited = true;
+              options.onWaitForDaemon?.();
+            }
+          },
+        };
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const build = getBuild();
@@ -142,10 +158,14 @@ async function openOrBootDaemon(): Promise<OpenedDaemon> {
 interface DaemonWait {
   readonly deadline: number;
   readonly timeoutMs: number;
+
+  // Called on every miss; the boot reports only the first to its caller.
+  readonly onWait: () => void;
 }
 
 /**
  * Polls the known sockets until a daemon answers, and never starts one.
+ * Each miss reports that the wait goes on.
  */
 async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
   for (;;) {
@@ -154,6 +174,8 @@ async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
     if (opened !== null) {
       return opened;
     }
+
+    wait.onWait();
 
     if (Date.now() >= wait.deadline) {
       throw new Error(formatWaitFailure(wait.timeoutMs));

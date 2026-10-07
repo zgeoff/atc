@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { buildMigratedConfig } from './build-migrated-config';
 import { parseConfig } from './shared/config';
 import { getRecord } from './shared/get-record';
-import { isRecord } from './shared/report';
 
 test('it replaces the old keys with agents at the position of the first one', () => {
   const result = buildMigratedConfig({
@@ -12,12 +11,9 @@ test('it replaces the old keys with agents at the position of the first one', ()
     grokArgs: ['--yolo'],
   });
 
-  if (result.kind !== 'migrated') {
-    throw new Error('expected a migrated config');
-  }
-
-  expect(result.text).toBe(
-    `${JSON.stringify(
+  expect(result).toStrictEqual({
+    kind: 'migrated',
+    text: `${JSON.stringify(
       {
         leader: 'ctrl-a',
         agents: {
@@ -30,22 +26,16 @@ test('it replaces the old keys with agents at the position of the first one', ()
       null,
       2,
     )}\n`,
-  );
-
-  expect(result.notes).toStrictEqual([]);
+    notes: [],
+  });
 });
 
 test('it appends agents when the file sets no old key', () => {
-  const result = buildMigratedConfig({ leader: 'ctrl-a' });
-
-  if (result.kind !== 'migrated') {
-    throw new Error('expected a migrated config');
-  }
-
-  const migrated: unknown = JSON.parse(result.text);
-  const keys = isRecord(migrated) ? Object.keys(migrated) : [];
-
-  expect(keys).toStrictEqual(['leader', 'agents']);
+  expect(buildMigratedConfig({ leader: 'ctrl-a' })).toStrictEqual({
+    kind: 'migrated',
+    text: `${JSON.stringify({ leader: 'ctrl-a', agents: { claude: {}, grok: {}, codex: {} } }, null, 2)}\n`,
+    notes: [],
+  });
 });
 
 test('it writes a gateway that inherited the claude bin and args with them', () => {
@@ -222,11 +212,8 @@ test('it drops a removed key from a file that already uses agents and notes it',
     leader: 'ctrl-a',
   });
 
-  if (result.kind !== 'migrated') {
-    throw new Error('expected a migrated config');
-  }
-
-  expect({ text: result.text, notes: result.notes }).toStrictEqual({
+  expect(result).toStrictEqual({
+    kind: 'migrated',
     text: `${JSON.stringify({ agents: { claude: {} }, leader: 'ctrl-a' }, null, 2)}\n`,
     notes: ['atc config migrate: resumeInterruptedTurns is dropped: atc no longer reads it'],
   });
@@ -235,11 +222,8 @@ test('it drops a removed key from a file that already uses agents and notes it',
 test('it drops a removed key while it moves the old agent keys into agents', () => {
   const result = buildMigratedConfig({ claudeBin: '/opt/claude', resumeInterruptedTurns: false });
 
-  if (result.kind !== 'migrated') {
-    throw new Error('expected a migrated config');
-  }
-
-  expect({ text: result.text, notes: result.notes }).toStrictEqual({
+  expect(result).toStrictEqual({
+    kind: 'migrated',
     text: `${JSON.stringify({ agents: { claude: { bin: '/opt/claude' }, grok: {}, codex: {} } }, null, 2)}\n`,
     notes: ['atc config migrate: resumeInterruptedTurns is dropped: atc no longer reads it'],
   });

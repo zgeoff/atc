@@ -6,6 +6,8 @@ import type { AgentAdapter } from '../agents/agent-adapter';
 import { startDaemon } from '../daemon/daemon';
 import { isRecord } from '../shared/report';
 import { StateStore } from '../store/state-store';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 
 const idleAdapter: AgentAdapter = {
   id: 'claude',
@@ -486,4 +488,71 @@ await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
   );
 
   expect(Date.now() - started).toBeLessThan(5000);
+});
+
+test('it reports the start of a wait once across every poll of that wait', async () => {
+  await using tmp = setupTempDir('atc-boot-daemon-');
+
+  const probePath = join(tmp.dir, 'probe.ts');
+
+  // The wait polls every 100 ms, so half a second holds several polls.
+  writeFileSync(
+    probePath,
+    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
+let waits = 0;
+await bootDaemonClient({ waitForDaemonMs: 500, onWaitForDaemon: () => { waits += 1; } }).catch(() => {});
+process.stdout.write(JSON.stringify({ waits }));
+process.exit(0);
+`,
+  );
+
+  const proc = Bun.spawn([process.execPath, probePath], {
+    env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
+    stdout: 'pipe',
+    stderr: 'ignore',
+  });
+
+  const stdout = await new Response(proc.stdout).text();
+
+  expect(JSON.parse(stdout)).toStrictEqual({ waits: 1 });
+});
+
+test('it never reports a wait when a daemon answers on the first try', async () => {
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-boot-daemon-'));
+
+  const daemon = await startDaemon({
+    socketPath: join(tmp.dir, 'atc-daemon.sock'),
+    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+    build: 'atc/test-build',
+    adapter: buildMockAgentAdapter(),
+    dbPath: join(tmp.dir, 'state.db'),
+    statusPath: join(tmp.dir, 'status.json'),
+  });
+
+  stack.defer(() => daemon.stop());
+
+  const probePath = join(tmp.dir, 'probe.ts');
+
+  writeFileSync(
+    probePath,
+    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
+let waits = 0;
+const boot = await bootDaemonClient({ waitForDaemonMs: 5000, onWaitForDaemon: () => { waits += 1; } });
+boot.client.stop();
+process.stdout.write(JSON.stringify({ waits }));
+process.exit(0);
+`,
+  );
+
+  const proc = Bun.spawn([process.execPath, probePath], {
+    env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
+    stdout: 'pipe',
+    stderr: 'ignore',
+  });
+
+  const stdout = await new Response(proc.stdout).text();
+
+  expect(JSON.parse(stdout)).toStrictEqual({ waits: 0 });
 });

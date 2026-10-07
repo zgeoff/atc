@@ -3,10 +3,29 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 
-const CLI_PATH = join(import.meta.dir, 'cli.ts');
+/**
+ * A temp directory for the config file under migration, and the CLI entry
+ * the test runs under its own bun. Disposal removes the directory.
+ */
+function setupTest() {
+  const tmp = setupTempDir('atc-config-migrate-');
 
-async function runMigrate(file: string, ...flags: readonly string[]) {
-  const proc = Bun.spawn(['bun', CLI_PATH, 'config', 'migrate', '--file', file, ...flags], {
+  return {
+    dir: tmp.dir,
+    cli: join(import.meta.dir, 'cli.ts'),
+    [Symbol.dispose]: tmp[Symbol.dispose],
+  };
+}
+
+test('it prints the migrated config and leaves the file alone without --write', async () => {
+  using ctx = setupTest();
+
+  const file = join(ctx.dir, 'config.json');
+  const original = JSON.stringify({ claudeBin: '/opt/claude', leader: 'ctrl-a' });
+
+  writeFileSync(file, original);
+
+  const proc = Bun.spawn([process.execPath, ctx.cli, 'config', 'migrate', '--file', file], {
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -17,20 +36,7 @@ async function runMigrate(file: string, ...flags: readonly string[]) {
     proc.exited,
   ]);
 
-  return { stdout, stderr, code };
-}
-
-test('it prints the migrated config and leaves the file alone without --write', async () => {
-  using tmp = setupTempDir('atc-config-migrate-');
-
-  const file = join(tmp.dir, 'config.json');
-  const original = JSON.stringify({ claudeBin: '/opt/claude', leader: 'ctrl-a' });
-
-  writeFileSync(file, original);
-
-  const result = await runMigrate(file);
-
-  expect(result).toStrictEqual({
+  expect({ stdout, stderr, code, kept: readFileSync(file, 'utf8') }).toStrictEqual({
     stdout: `${JSON.stringify(
       { agents: { claude: { bin: '/opt/claude' }, grok: {}, codex: {} }, leader: 'ctrl-a' },
       null,
@@ -38,109 +44,163 @@ test('it prints the migrated config and leaves the file alone without --write', 
     )}\n`,
     stderr: '',
     code: 0,
+    kept: original,
   });
-
-  expect(readFileSync(file, 'utf8')).toBe(original);
 });
 
 test('it backs the file up, rewrites it, and prints both paths with --write', async () => {
-  using tmp = setupTempDir('atc-config-migrate-');
+  using ctx = setupTest();
 
-  const file = join(tmp.dir, 'config.json');
+  const file = join(ctx.dir, 'config.json');
   const original = JSON.stringify({ codexBin: '/opt/codex' });
 
   writeFileSync(file, original);
 
-  const result = await runMigrate(file, '--write');
+  const proc = Bun.spawn(
+    [process.execPath, ctx.cli, 'config', 'migrate', '--file', file, '--write'],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
 
-  const backups = readdirSync(tmp.dir).filter((name) => name.startsWith('config.json.bak-'));
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
 
-  expect(backups).toHaveLength(1);
+  const [backupName, ...others] = readdirSync(ctx.dir).filter((name) => name !== 'config.json');
 
-  const backup = join(tmp.dir, backups[0] ?? '');
+  if (backupName === undefined) {
+    throw new Error('the migration wrote no backup');
+  }
 
-  expect(backup).toMatch(/config\.json\.bak-\d{8}T\d{6}Z$/u);
-  expect(readFileSync(backup, 'utf8')).toBe(original);
+  const backup = join(ctx.dir, backupName);
 
-  expect(JSON.parse(readFileSync(file, 'utf8'))).toStrictEqual({
-    agents: { claude: {}, grok: {}, codex: { bin: '/opt/codex' } },
-  });
+  expect(backupName).toMatch(/^config\.json\.bak-\d{8}T\d{6}Z$/u);
 
-  expect(result).toStrictEqual({
+  expect({
+    stdout,
+    stderr,
+    code,
+    others,
+    backedUp: readFileSync(backup, 'utf8'),
+    rewritten: JSON.parse(readFileSync(file, 'utf8')) as unknown,
+  }).toStrictEqual({
     stdout: `backup: ${backup}\nwrote: ${file}\n`,
     stderr: '',
     code: 0,
+    others: [],
+    backedUp: original,
+    rewritten: { agents: { claude: {}, grok: {}, codex: { bin: '/opt/codex' } } },
   });
 });
 
 test('it says nothing to migrate and writes nothing for a file that uses agents', async () => {
-  using tmp = setupTempDir('atc-config-migrate-');
+  using ctx = setupTest();
 
-  const file = join(tmp.dir, 'config.json');
+  const file = join(ctx.dir, 'config.json');
 
   writeFileSync(file, JSON.stringify({ agents: { claude: {} } }));
 
-  const result = await runMigrate(file, '--write');
+  const proc = Bun.spawn(
+    [process.execPath, ctx.cli, 'config', 'migrate', '--file', file, '--write'],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
 
-  expect(result).toStrictEqual({
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+
+  expect({ stdout, stderr, code, entries: readdirSync(ctx.dir) }).toStrictEqual({
     stdout: 'config.json already uses agents; nothing to migrate\n',
     stderr: '',
     code: 0,
+    entries: ['config.json'],
   });
-
-  expect(readdirSync(tmp.dir)).toStrictEqual(['config.json']);
 });
 
 test('it exits 1 and writes nothing for a file that sets agents beside an old key', async () => {
-  using tmp = setupTempDir('atc-config-migrate-');
+  using ctx = setupTest();
 
-  const file = join(tmp.dir, 'config.json');
+  const file = join(ctx.dir, 'config.json');
   const original = JSON.stringify({ agents: {}, claudeBin: 'x' });
 
   writeFileSync(file, original);
 
-  const result = await runMigrate(file, '--write');
+  const proc = Bun.spawn(
+    [process.execPath, ctx.cli, 'config', 'migrate', '--file', file, '--write'],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
 
-  expect(result).toStrictEqual({
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+
+  expect({
+    stdout,
+    stderr,
+    code,
+    entries: readdirSync(ctx.dir),
+    kept: readFileSync(file, 'utf8'),
+  }).toStrictEqual({
     stdout: '',
     stderr: `atc config migrate: ${file}: claudeBin cannot be set together with agents; move them into agents or run 'atc config migrate'\n`,
     code: 1,
+    entries: ['config.json'],
+    kept: original,
   });
-
-  expect(readdirSync(tmp.dir)).toStrictEqual(['config.json']);
-  expect(readFileSync(file, 'utf8')).toBe(original);
 });
 
 test('it notes each dropped gateway on stderr without printing a value', async () => {
-  using tmp = setupTempDir('atc-config-migrate-');
+  using ctx = setupTest();
 
-  const file = join(tmp.dir, 'config.json');
+  const file = join(ctx.dir, 'config.json');
 
   writeFileSync(
     file,
     JSON.stringify({ gateways: { broken: { env: { TOKEN: 'sk-secret-value' } } } }),
   );
 
-  const result = await runMigrate(file);
+  const proc = Bun.spawn([process.execPath, ctx.cli, 'config', 'migrate', '--file', file], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
 
-  expect({ stderr: result.stderr, code: result.code }).toStrictEqual({
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+
+  expect({ stdout, stderr, code }).toStrictEqual({
+    stdout: `${JSON.stringify({ agents: { claude: {}, grok: {}, codex: {} } }, null, 2)}\n`,
     stderr: 'atc config migrate: gateways.broken is left out: it has no baseURL\n',
     code: 0,
   });
-
-  expect(result.stdout).not.toInclude('sk-secret-value');
 });
 
 test('it exits 1 for a file that is not valid JSON', async () => {
-  using tmp = setupTempDir('atc-config-migrate-');
+  using ctx = setupTest();
 
-  const file = join(tmp.dir, 'config.json');
+  const file = join(ctx.dir, 'config.json');
 
   writeFileSync(file, '{ "claudeBin": ');
 
-  const result = await runMigrate(file);
+  const proc = Bun.spawn([process.execPath, ctx.cli, 'config', 'migrate', '--file', file], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
 
-  expect(result).toStrictEqual({
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+
+  expect({ stdout, stderr, code }).toStrictEqual({
     stdout: '',
     stderr: `atc config migrate: ${file} is not valid JSON\n`,
     code: 1,
@@ -148,12 +208,25 @@ test('it exits 1 for a file that is not valid JSON', async () => {
 });
 
 test('it exits 1 for a file that does not exist', async () => {
-  using tmp = setupTempDir('atc-config-migrate-');
+  using ctx = setupTest();
 
-  const file = join(tmp.dir, 'config.json');
+  const file = join(ctx.dir, 'config.json');
 
-  const result = await runMigrate(file);
+  const proc = Bun.spawn([process.execPath, ctx.cli, 'config', 'migrate', '--file', file], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
 
-  expect(result.code).toBe(1);
-  expect(existsSync(file)).toBe(false);
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+
+  expect({ stdout, stderr, code, created: existsSync(file) }).toStrictEqual({
+    stdout: '',
+    stderr: `atc config migrate: ${file} cannot be read\n`,
+    code: 1,
+    created: false,
+  });
 });
