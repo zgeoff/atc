@@ -203,3 +203,53 @@ test('it exits 1 on two state directories that differ', () => {
     entries: [],
   });
 });
+
+test('it exits 1 when a flag takes the state directory flag as its value', () => {
+  using ctx = setupTest();
+
+  const added = Bun.spawnSync(
+    [...ctx.command, 'clients', 'add', 'Claude', '--redirect-uri', '--state-dir', 'flagged'],
+    { cwd: ctx.dir, env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' } },
+  );
+
+  expect({
+    exitCode: added.exitCode,
+    stdout: added.stdout.toString(),
+    stderr: added.stderr.toString(),
+    entries: readdirSync(ctx.dir),
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: '',
+    stderr: 'atc-gateway: --redirect-uri needs a value; write --redirect-uri=<value>\n',
+    entries: [],
+  });
+});
+
+test('it exits 1 on a flag it does not know at the root', () => {
+  using ctx = setupTest();
+
+  const added = Bun.spawnSync(
+    [
+      ...ctx.command,
+      '--stat-dir=flagged',
+      'clients',
+      'add',
+      'Claude',
+      '--redirect-uri',
+      'https://claude.ai/api/mcp/auth_callback',
+    ],
+    { cwd: ctx.dir, env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' } },
+  );
+
+  expect({
+    exitCode: added.exitCode,
+    stdout: added.stdout.toString(),
+    stderr: added.stderr.toString(),
+    entries: readdirSync(ctx.dir),
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: '',
+    stderr: "atc-gateway: unknown flag '--stat-dir=flagged'\n",
+    entries: [],
+  });
+});
