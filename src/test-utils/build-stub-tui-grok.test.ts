@@ -118,10 +118,12 @@ test('it reports the events file in place of the permission prompt', async () =>
     `${JSON.stringify({ hookEventName: 'stop', sessionId: 'fake-grok-1', reason: 'end_turn' })}\n`,
   );
 
-  const run = ctx.start([]);
+  ctx.start([]);
 
+  // The listener records a report once its connection closes, so the test
+  // waits for both reports rather than the stub's done line.
   await waitFor(() => {
-    expect(run.read()).toInclude('FAKE_GROK_HOOKS_DONE');
+    expect(ctx.lines).toBeArrayOfSize(2);
   });
 
   expect(JSON.parse(ctx.lines[1] ?? '')).toStrictEqual({
@@ -163,12 +165,17 @@ test('it defers its session start until the defer file goes', async () => {
 
   rmSync(join(ctx.dir, 'fake-grok-defer-start'));
 
+  // The listener records a report once its connection closes, which can
+  // land after the stub prints its done line, so the wait covers both.
   await waitFor(() => {
-    expect(run.read()).toInclude('FAKE_GROK_HOOKS_DONE');
+    expect({
+      done: run.read().includes('FAKE_GROK_HOOKS_DONE'),
+      reported: ctx.lines.length,
+    }).toStrictEqual({
+      done: true,
+      reported: 2,
+    });
   });
 
-  expect({ reportedWhileDeferred, reportedAfter: ctx.lines.length }).toStrictEqual({
-    reportedWhileDeferred: 0,
-    reportedAfter: 2,
-  });
+  expect(reportedWhileDeferred).toBe(0);
 });

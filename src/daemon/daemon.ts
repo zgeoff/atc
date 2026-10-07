@@ -68,6 +68,7 @@ import { drainInbox } from './drain-inbox';
 import type { InboxSource } from './drain-inbox';
 import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
+import { formatLogField } from './format-log-field';
 import { startHookServer } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
 import { isAllowedListenHost } from './is-allowed-listen-host';
@@ -943,7 +944,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const runtime = runtimes.get(e.atcId);
 
     // A harness nested inside a session inherits its environment and reports
-    // under its id; only the harness atc started may change the session.
+    // under its id; only the harness atc started may change the session, and
+    // a line from any other is logged and dropped.
     if (
       before !== undefined &&
       runtime !== undefined &&
@@ -953,6 +955,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         runtime.hasAgentHookLines,
       )
     ) {
+      mgr.log(
+        `atc hook event=dropped session=${formatLogField(e.atcId)} agent=${formatLogField(e.agent ?? '')} hook=${formatLogField(e.event)}`,
+      );
+
       return;
     }
 

@@ -366,12 +366,14 @@ function resolveImport(file: string, specifier: string, known: ReadonlySet<strin
 }
 
 const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
-  // the fake impd runs its guests in real PTYs, as impd does, and the TUI
-  // harness runs the real client in one, as a terminal does
+  // the fake impd runs its guests in real PTYs, as impd does, the TUI
+  // harness runs the real client in one, as a terminal does, and the stub
+  // composer's raw-mode reads need a real terminal to run in
   'bun-pty': [
     'src/daemon/local-pty-provider.ts',
     'src/test-utils/fixture-imp-port.ts',
     'src/test-utils/start-tui-harness.ts',
+    'src/test-utils/create-stub-composer.test.ts',
   ],
   '@zgeoff/imp-client': ['src/daemon/imp-client-port.ts'],
   '@anthropic-ai/claude-agent-sdk': [
