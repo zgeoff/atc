@@ -1,179 +1,92 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
-import { GrokAdapter } from '../agents/grok-adapter';
-import { DaemonClient } from '../client/daemon-client';
-import { parseConfig } from '../shared/config';
-import { isRecord } from '../shared/report';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
+import { expect, test } from 'bun:test';
+import { faker } from '@faker-js/faker';
+import type { AgentID } from '../shared/agent-id';
+import { getRecord } from '../shared/get-record';
 import { toSessionID } from '../shared/to-session-id';
+import type { FleetEntry } from '../store/fleet-entry';
 import { StateStore } from '../store/state-store';
-import { getAgentEntry } from '../test-utils/get-agent-entry';
-import { updateEnv } from '../test-utils/update-env';
-import { startDaemon } from './daemon';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { waitFor } from '../test-utils/wait-for';
 
-const idleAdapter: AgentAdapter = {
-  id: 'claude',
-  headlessRunner: null,
-  screenDetector: null,
-  takesMessages: false,
-  planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-  normalizeHook: () => ({ kind: 'heartbeat' }),
-  loadName: () => Promise.resolve(null),
-  canResume: () => true,
-  buildResumeCommand: () => null,
-};
+interface SetupConfig {
+  // The fleet stored before the daemon boots, given the daemon's temp
+  // directory.
+  readonly fleet: (dir: string) => readonly FleetEntry[];
 
-test('it does not write last-used when a restored session reports SessionStart', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
-  const dbPath = join(dir, 'state.db');
-  const sockPath = join(dir, 'daemon.sock');
-  const reporterPath = join(dir, 'reporter.sock');
+  // The last-used agent stored before the daemon boots.
+  readonly lastUsedAgent: AgentID;
+}
 
-  updateEnv('GROK_HOME', join(dir, 'grok-home'));
+/**
+ * A real daemon over a state store seeded with a fleet and a last-used
+ * agent, with an idle `claude` adapter and an idle `grok` adapter that reads
+ * every hook as the session's start.
+ */
+function setupTest(config: SetupConfig) {
+  return startTestDaemon({
+    prefix: 'atc-daemon-last-used-',
+    options: async (paths) => {
+      await using stack = new AsyncDisposableStack();
 
-  const store = await StateStore.open(dbPath);
+      const store = await StateStore.open(paths.dbPath);
 
-  await store.writeFleet([
-    {
-      sessionID: toSessionID('s-g-restore'),
-      name: 'old-grok',
-      cwd: '/tmp',
-      agentSessionID: toAgentSessionID('g-restore'),
-      agent: 'grok',
+      stack.defer(() => store.stop());
+
+      await store.writeFleet([...config.fleet(paths.dir)]);
+      await store.writeLastUsedAgent(config.lastUsedAgent);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        adapters: [
+          buildMockAgentAdapter({ id: 'grok', normalizeHook: () => ({ kind: 'started' }) }),
+        ],
+      };
     },
-  ]);
+  });
+}
 
-  await store.writeLastUsedAgent('claude');
+test('it keeps the last-used agent when a restored session reports its start', async () => {
+  const sessionID = toSessionID(faker.string.uuid());
 
-  const adapterConfig = parseConfig({
-    grokBin: 'bash',
-    grokArgs: ['-c', 'sleep 30'],
+  await using ctx = await setupTest({
+    fleet: (dir) => [buildMockFleetEntry({ sessionID, cwd: dir, agent: 'grok' })],
+    lastUsedAgent: 'claude',
   });
 
-  const grok = new GrokAdapter(getAgentEntry(adapterConfig, 'grok'));
+  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await ctx.sendHookLines({ atcId: sessionID, event: 'SessionStart', payload: {} });
 
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: reporterPath,
-    build: 'atc/test-build',
-    adapter: idleAdapter,
-    adapters: [grok],
-    dbPath,
-    statusPath: join(dir, 'status.json'),
+  await waitFor(() => {
+    expect(ctx.logs).toContain(
+      `atc daemon: session ${sessionID} started outside a spawn; the last-used agent is unchanged`,
+    );
   });
 
-  const client = await DaemonClient.open(sockPath);
+  const probe = await ctx.openClient();
 
-  onTestFinished(async () => {
-    client.stop();
+  expect(probe.sendHello(ctx.build)).resolves.toMatchObject({ lastUsedAgent: 'claude' });
+});
 
-    await daemon.stop();
+test('it writes the last-used agent when a spawned session reports its start', async () => {
+  await using ctx = await setupTest({ fleet: () => [], lastUsedAgent: 'claude' });
 
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  await client.sendHello('atc/test-build');
-
-  const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-
-  expect(restored).toMatchObject({ restored: 1 });
-
-  const listed = await client.sendRequest('session.list');
-
-  const sessions = listed['sessions'];
-
-  if (!Array.isArray(sessions) || !isRecord(sessions[0]) || typeof sessions[0]['id'] !== 'string') {
-    throw new Error('no restored session');
-  }
-
-  await sendHookEvent(reporterPath, {
-    atcId: sessions[0]['id'],
-    event: 'SessionStart',
-    payload: { sessionId: 'g-restore' },
-  });
-
-  const deadline = Date.now() + 200;
-
-  while (Date.now() < deadline) {
-    const probe = await DaemonClient.open(sockPath);
-    const hello = await probe.sendHello('atc/test-build');
-
-    probe.stop();
-
-    expect(hello).toMatchObject({ lastUsedAgent: 'claude' });
-
-    await Bun.sleep(20);
-  }
-
-  const spawned = await client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'grok',
     cols: 80,
     rows: 24,
   });
 
-  const session = spawned['session'];
+  const id = getRecord(spawned, 'session')['id'];
 
-  if (!isRecord(session) || typeof session['id'] !== 'string') {
-    throw new Error('no session in spawn answer');
-  }
+  await ctx.sendHookLines({ atcId: id, event: 'SessionStart', payload: {} });
 
-  await sendHookEvent(reporterPath, {
-    atcId: session['id'],
-    event: 'SessionStart',
-    payload: { sessionId: 'g-deliberate' },
+  await waitFor(async () => {
+    const probe = await ctx.openClient();
+    const hello = await probe.sendHello(ctx.build);
+
+    expect(hello).toMatchObject({ lastUsedAgent: 'grok' });
   });
-
-  const lastUsed = await waitForLastUsedAgent(sockPath, 'grok');
-
-  expect(lastUsed).toBe('grok');
 });
-
-interface HookEventLine {
-  readonly atcId: string;
-  readonly event: string;
-  readonly payload: Readonly<Record<string, unknown>>;
-}
-
-async function sendHookEvent(reporterPath: string, event: HookEventLine) {
-  const closed = Promise.withResolvers<void>();
-
-  await Bun.connect({
-    unix: reporterPath,
-    socket: {
-      open(socket) {
-        socket.write(`${JSON.stringify(event)}\n`);
-        socket.end();
-      },
-      close() {
-        closed.resolve();
-      },
-      data() {},
-      error() {},
-    },
-  });
-
-  await closed.promise;
-}
-
-async function waitForLastUsedAgent(sockPath: string, agent: 'claude' | 'grok'): Promise<string> {
-  const deadline = Date.now() + 2000;
-
-  while (Date.now() < deadline) {
-    const probe = await DaemonClient.open(sockPath);
-    const hello = await probe.sendHello('atc/test-build');
-
-    probe.stop();
-
-    if (hello['lastUsedAgent'] === agent) {
-      return agent;
-    }
-
-    await Bun.sleep(20);
-  }
-
-  throw new Error(`lastUsedAgent never became ${agent}`);
-}

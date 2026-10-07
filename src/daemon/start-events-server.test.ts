@@ -1,69 +1,59 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { connect } from 'node:net';
 import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
-import { waitFor } from '../test-utils/wait-for';
 import { startEventsServer } from './start-events-server';
-import type { EventsServer } from './start-events-server';
 
-interface ServerFixture {
-  readonly server: EventsServer;
-  readonly socketPath: string;
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
-}
+// A running events server with one subscriber that stopped reading and was
+// sent more than its queue holds; `closed` resolves once its connection
+// ends.
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
-function setupTest(queueBytes: number): ServerFixture {
-  const tmp = setupTempDir('atc-events-server-');
+  const tmp = stack.use(setupTempDir('atc-events-server-'));
   const socketPath = join(tmp.dir, 'events.sock');
 
   const server = startEventsServer({
     socketPath,
     collectSnapshot: () => [],
-    queueBytes,
+
+    // A queue small enough for one burst to overflow it.
+    queueBytes: 1024,
   });
 
-  return {
-    server,
-    socketPath,
-    [Symbol.asyncDispose]: async () => {
-      server.stop();
+  stack.defer(() => {
+    server.stop();
+  });
 
-      await tmp[Symbol.asyncDispose]();
-    },
-  };
-}
+  const slow = connect(socketPath);
 
-test('it disconnects a subscriber whose outbound queue overflows and keeps serving new ones', async () => {
-  await using setup = setupTest(1024);
-
-  const slow = connect(setup.socketPath);
+  stack.defer(() => {
+    slow.destroy();
+  });
 
   slow.pause();
   slow.on('error', () => {});
 
-  let closed = false;
+  const closed = Promise.withResolvers<void>();
+  const connected = Promise.withResolvers<void>();
 
   slow.on('close', () => {
-    closed = true;
+    closed.resolve();
   });
 
-  onTestFinished(() => {
-    slow.destroy();
+  slow.on('connect', () => {
+    connected.resolve();
   });
 
-  await new Promise<void>((resolve) => {
-    slow.on('connect', () => {
-      resolve();
-    });
-  });
+  await connected.promise;
 
   // A synchronous burst outruns the subscriber's reads, fills the kernel
   // socket buffers, and then overflows the tiny queue on top of them.
   const big = 'x'.repeat(65_536);
 
   for (let i = 0; i < 100; i++) {
-    setup.server.broadcast({ v: 4, ev: 'SessionRenamed', s: 'sx', name: big });
+    server.broadcast({ v: 4, ev: 'SessionRenamed', s: 'sx', name: big });
   }
 
   // A paused socket never reads the server's FIN; resuming lets the client
@@ -71,17 +61,30 @@ test('it disconnects a subscriber whose outbound queue overflows and keeps servi
   slow.on('data', () => {});
   slow.resume();
 
-  await waitFor(() => {
-    if (!closed) {
-      throw new Error('subscriber connection still open');
-    }
-  });
+  const owned = stack.move();
 
-  expect(closed).toBeTrue();
+  return {
+    server,
+    socketPath,
+    closed: closed.promise,
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+  };
+}
 
-  await using fresh = await subscribeToSocketLines(setup.socketPath);
+test('it disconnects a subscriber whose outbound queue overflows', async () => {
+  await using ctx = await setupTest();
 
-  setup.server.broadcast({ v: 4, ev: 'SessionRemoved', s: 'sx' });
+  await expect(ctx.closed).toResolve();
+});
+
+test('it serves a new subscriber after disconnecting one whose queue overflowed', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.closed;
+
+  await using fresh = await subscribeToSocketLines(ctx.socketPath);
+
+  ctx.server.broadcast({ v: 4, ev: 'SessionRemoved', s: 'sx' });
 
   const lines = await fresh.waitForLine(1);
 

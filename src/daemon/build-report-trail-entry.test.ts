@@ -49,5 +49,13 @@ test('it keeps the whole text beside a preview cut at 600 characters', () => {
     1000,
   );
 
-  expect(entry).toMatchObject({ detail: `${'x'.repeat(599)}…`, text: 'x'.repeat(700) });
+  expect(entry).toStrictEqual({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'report',
+    label: 'decision',
+    detail: `${'x'.repeat(599)}…`,
+    text: 'x'.repeat(700),
+  });
 });

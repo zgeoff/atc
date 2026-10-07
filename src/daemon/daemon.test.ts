@@ -1,144 +1,62 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
 import { encodeCursor } from '../protocol/encode-cursor';
-import { OutboundQueue } from '../protocol/outbound-queue';
-import type { EventMsg } from '../protocol/protocol';
 import type { HooksConfig } from '../shared/collect-hooks';
 import { parseConfig } from '../shared/config';
-import { isRecord } from '../shared/report';
+import { getRecord } from '../shared/get-record';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { openLineSocket } from '../test-utils/open-line-socket';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { spawnNamedSession } from '../test-utils/spawn-named-session';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
-import { startDaemon } from './daemon';
 
-// Protocol-level tests: handshake, errors, and spawn-parameter validation.
-// Session behavior against a real fake-claude lives in e2e/daemon-e2e.test.ts.
-const idleAdapter: AgentAdapter = {
-  id: 'claude',
-  headlessRunner: null,
-  screenDetector: null,
-  takesMessages: false,
-  planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-  normalizeHook: () => ({ kind: 'heartbeat' }),
-  loadName: () => Promise.resolve(null),
-  canResume: () => true,
-  buildResumeCommand: () => null,
-};
+interface SetupConfig {
+  // Agent adapters the daemon registers beside its Claude stand-in.
+  readonly adapters?: readonly AgentAdapter[];
 
-async function setupDaemon(hooks?: HooksConfig): Promise<string> {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
-  const sockPath = join(dir, 'daemon.sock');
-
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: join(dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: idleAdapter,
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
-    ...(hooks === undefined ? {} : { hooks }),
-  });
-
-  onTestFinished(async () => {
-    await daemon.stop();
-
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  return sockPath;
+  // The commands the daemon runs on each event.
+  readonly hooks?: HooksConfig;
 }
 
-async function setupClient(): Promise<DaemonClient> {
-  const sockPath = await setupDaemon();
-  const client = await DaemonClient.open(sockPath);
+/**
+ * A real daemon whose Claude adapter is a stand-in that idles, with the
+ * adapters and hooks the config gives, and a main client that has sent its
+ * handshake and collects every event it receives.
+ */
+function setupTest(config: SetupConfig = {}) {
+  return startTestDaemon({
+    prefix: 'atc-daemon-',
+    options: () => ({
+      // Every spawn needs a Claude adapter; this one runs a sleep.
+      adapter: buildMockAgentAdapter(),
+      adapters: config.adapters ?? [],
+      hooks: config.hooks ?? {},
+    }),
+  });
+}
+
+test('it answers daemon.hello with the build, limits, and features', async () => {
+  await using ctx = await setupTest();
+
+  const client = await DaemonClient.open(ctx.socketPath);
 
   onTestFinished(() => {
     client.stop();
   });
 
-  return client;
-}
-
-interface RawClient {
-  readonly sendLine: (line: string) => void;
-  readonly waitForLine: (count?: number) => Promise<string[]>;
-  readonly waitForClose: () => Promise<void>;
-}
-
-async function setupRawClient(): Promise<RawClient> {
-  const sockPath = await setupDaemon();
-
-  const lines: string[] = [];
-  let buffer = '';
-  let queue: OutboundQueue | null = null;
-  const closed = Promise.withResolvers<void>();
-
-  const socket = await Bun.connect({
-    unix: sockPath,
-    socket: {
-      data(_s, buf) {
-        buffer += buf.toString();
-
-        const parts = buffer.split('\n');
-
-        buffer = parts.pop() ?? '';
-
-        lines.push(...parts.filter((part) => part.trim() !== ''));
-      },
-      drain() {
-        queue?.drain();
-      },
-      close() {
-        closed.resolve();
-      },
-      error() {},
-    },
-  });
-
-  queue = new OutboundQueue(socket, 8 * 1024 * 1024);
-
-  onTestFinished(() => {
-    socket.end();
-  });
-
-  return {
-    sendLine(line: string) {
-      queue?.send(`${line}\n`);
-    },
-    async waitForLine(count = 1) {
-      const deadline = Date.now() + 5000;
-
-      while (lines.length < count && Date.now() < deadline) {
-        await Bun.sleep(10);
-      }
-
-      if (lines.length < count) {
-        throw new Error(`timed out waiting for ${count} lines; got ${JSON.stringify(lines)}`);
-      }
-
-      return lines;
-    },
-    waitForClose: () => closed.promise,
-  };
-}
-
-test('it answers daemon.hello with the build, limits, and features', async () => {
-  const client = await setupClient();
   const ok = await client.sendHello('atc/test-build');
 
   expect(ok).toStrictEqual({
-    daemon: 'atc/test-build',
-    daemonID: expect.toSatisfy(
-      (id: unknown) => typeof id === 'string' && /^[\da-f-]{36}$/.test(id),
-    ),
+    daemon: ctx.build,
+    daemonID: expect.stringMatching(/^[\da-f-]{36}$/),
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
     features: [
       'agents.list',
@@ -172,232 +90,182 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
 });
 
 test('it counts a client connection while it is open', async () => {
-  const tmp = setupTempDir('atc-daemon-');
+  await using ctx = await setupTest();
 
-  const daemon = await startDaemon({
-    socketPath: join(tmp.dir, 'daemon.sock'),
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: idleAdapter,
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-  });
+  const open = ctx.daemon.countClients();
 
-  onTestFinished(async () => {
-    await daemon.stop();
-
-    tmp[Symbol.dispose]();
-  });
-
-  const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
-
-  await client.sendHello('atc/test-build');
-
-  const open = daemon.countClients();
-
-  client.stop();
+  ctx.client.stop();
 
   await waitFor(() => {
-    expect(daemon.countClients()).toBe(0);
+    expect(ctx.daemon.countClients()).toBe(0);
   });
 
   expect(open).toBe(1);
 });
 
-test('it rejects a protocol version mismatch naming both builds', async () => {
-  const raw = await setupRawClient();
+test('it rejects a protocol version mismatch naming both builds and closes the connection', async () => {
+  await using ctx = await setupTest();
+  await using raw = await openLineSocket(ctx.socketPath);
 
   raw.sendLine('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}');
 
-  const [line] = await raw.waitForLine();
+  await raw.closed;
 
-  if (line === undefined) {
-    throw new Error('no response line');
-  }
-
-  expect(JSON.parse(line)).toStrictEqual({
-    v: 4,
-    id: 1,
-    err: {
-      code: 'protocol_mismatch',
-      msg: expect.toSatisfy(
-        (msg: string) =>
-          msg.includes('atc/newer-build') &&
-          msg.includes('v5') &&
-          msg.includes('v4') &&
-          msg.includes('restart the daemon'),
-      ) as string,
+  expect(raw.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    {
+      v: 4,
+      id: 1,
+      err: {
+        code: 'protocol_mismatch',
+        msg: 'atc/newer-build speaks protocol v5, daemon atc/test-build speaks v4; restart the daemon so both run the same build',
+      },
     },
-  });
-
-  await raw.waitForClose();
+  ]);
 });
 
 test('it answers daemon.ping after the handshake', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  const pong = await client.sendRequest('daemon.ping');
+  const pong = await ctx.client.sendRequest('daemon.ping');
 
   expect(pong).toStrictEqual({});
 });
 
 test('it refuses any request before daemon.hello', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
 
   expect(client.sendRequest('daemon.ping')).rejects.toMatchObject({ code: 'unauthorized' });
 });
 
-test('it answers an unknown method with unknown_method and stays connected', async () => {
-  const client = await setupClient();
+test('it answers an unknown method with unknown_method', async () => {
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
+  expect(ctx.client.sendRequest('session.levitate')).rejects.toMatchObject({
+    code: 'unknown_method',
+  });
+});
 
-  expect(client.sendRequest('session.levitate')).rejects.toMatchObject({ code: 'unknown_method' });
+test('it stays connected after answering an unknown method', async () => {
+  await using ctx = await setupTest();
 
-  const pong = await client.sendRequest('daemon.ping');
+  await ctx.client.sendRequest('session.levitate').catch(() => null);
+
+  const pong = await ctx.client.sendRequest('daemon.ping');
 
   expect(pong).toStrictEqual({});
 });
 
 test('it closes the connection on a malformed line', async () => {
-  const raw = await setupRawClient();
+  await using ctx = await setupTest();
+  await using raw = await openLineSocket(ctx.socketPath);
 
   raw.sendLine('this is not json');
 
-  const [line] = await raw.waitForLine();
+  await raw.closed;
 
-  if (line === undefined) {
-    throw new Error('no response line');
-  }
-
-  expect(JSON.parse(line)).toStrictEqual({
-    v: 4,
-    id: 0,
-    err: { code: 'bad_args', msg: 'malformed line: not valid JSON' },
-  });
-
-  await raw.waitForClose();
+  expect(raw.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    { v: 4, id: 0, err: { code: 'bad_args', msg: 'malformed line: not valid JSON' } },
+  ]);
 });
 
 test('it closes the connection on an oversized line', async () => {
-  const raw = await setupRawClient();
+  await using ctx = await setupTest();
+  await using raw = await openLineSocket(ctx.socketPath);
 
   raw.sendLine(`{"v":1,"id":1,"m":"daemon.hello","p":{"pad":"${'x'.repeat(1_100_000)}"}}`);
 
-  const [line] = await raw.waitForLine();
+  await raw.closed;
 
-  if (line === undefined) {
-    throw new Error('no response line');
-  }
-
-  expect(JSON.parse(line)).toStrictEqual({
-    v: 4,
-    id: 0,
-    err: { code: 'bad_args', msg: 'line exceeds 1048576 bytes' },
-  });
-
-  await raw.waitForClose();
+  expect(raw.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    { v: 4, id: 0, err: { code: 'bad_args', msg: 'line exceeds 1048576 bytes' } },
+  ]);
 });
 
 test('it lists no sessions on a fresh daemon', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  const list = await client.sendRequest('session.list');
+  const list = await ctx.client.sendRequest('session.list');
 
   expect(list).toStrictEqual({ sessions: [] });
 });
 
 test('it answers session.kill for an unknown session with no_such_session', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  expect(client.sendRequest('session.kill', { session: 'nope' })).rejects.toMatchObject({
+  expect(ctx.client.sendRequest('session.kill', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
   });
 });
 
 test('it answers session.ack for an unknown session with no_such_session', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  expect(client.sendRequest('session.ack', { session: 'nope' })).rejects.toMatchObject({
+  expect(ctx.client.sendRequest('session.ack', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
   });
 });
 
 test('it answers session.screen for an unknown session with no_such_session', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  expect(client.sendRequest('session.screen', { session: 'nope' })).rejects.toMatchObject({
+  expect(ctx.client.sendRequest('session.screen', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
   });
 });
 
 test('it answers session.resumeCommand for an unknown session with no_such_session', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  expect(client.sendRequest('session.resumeCommand', { session: 'nope' })).rejects.toMatchObject({
-    code: 'no_such_session',
-  });
+  expect(
+    ctx.client.sendRequest('session.resumeCommand', { session: 'nope' }),
+  ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
 test('it rejects session.spawn without a cwd as bad_args', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  expect(client.sendRequest('session.spawn', {})).rejects.toMatchObject({ code: 'bad_args' });
+  expect(ctx.client.sendRequest('session.spawn', {})).rejects.toMatchObject({ code: 'bad_args' });
 });
 
 test('it reports agent claude when session.spawn omits agent', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  const ok = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
 
   expect(ok['session']).toMatchObject({ agent: 'claude' });
 });
 
 test('it answers session.spawn with an unknown parent as no_such_session', async () => {
-  const client = await setupClient();
-
-  await client.sendHello('atc/test-build');
+  await using ctx = await setupTest();
 
   expect(
-    client.sendRequest('session.spawn', { cwd: '/tmp', parent: 'ghost', cols: 80, rows: 24 }),
+    ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, parent: 'ghost', cols: 80, rows: 24 }),
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
 test('it nests a spawn under its parent and lands a grandchild beside its parent', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
+  const top = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
 
-  const top = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+  const topID = getRecord(top, 'session')['id'];
 
-  const topID = getSessionID(top);
-
-  const child = await client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const child = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     parent: topID,
     cols: 80,
     rows: 24,
   });
 
-  const grandchild = await client.sendRequest('session.spawn', {
-    cwd: '/tmp',
-    parent: getSessionID(child),
+  const grandchild = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    parent: getRecord(child, 'session')['id'],
     cols: 80,
     rows: 24,
   });
@@ -407,88 +275,51 @@ test('it nests a spawn under its parent and lands a grandchild beside its parent
 });
 
 test('it refuses to pin a sub-session as bad_args', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
+  const top = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
 
-  const top = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
-
-  const child = await client.sendRequest('session.spawn', {
-    cwd: '/tmp',
-    parent: getSessionID(top),
+  const child = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    parent: getRecord(top, 'session')['id'],
     cols: 80,
     rows: 24,
   });
 
   expect(
-    client.sendRequest('session.update', { session: getSessionID(child), pinned: true }),
+    ctx.client.sendRequest('session.update', {
+      session: getRecord(child, 'session')['id'],
+      pinned: true,
+    }),
   ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
-function getSessionID(ok: Readonly<Record<string, unknown>>): string {
-  const session = ok['session'];
+test('it refuses session.spawn with agent grok as unsupported and records no session', async () => {
+  await using ctx = await setupTest();
 
-  if (!isRecord(session) || typeof session['id'] !== 'string') {
-    throw new TypeError('spawn answered without a session id');
-  }
+  const spawn = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'grok' });
 
-  return session['id'];
-}
+  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
 
-test('it refuses session.spawn with agent grok as unsupported', async () => {
-  const client = await setupClient();
+  await spawn.catch(() => null);
 
-  await client.sendHello('atc/test-build');
+  const list = await ctx.client.sendRequest('session.list');
+  const fleet = await ctx.client.sendRequest('fleet.list');
 
-  expect(client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'grok' })).rejects.toMatchObject(
-    { code: 'unsupported' },
-  );
-
-  const list = await client.sendRequest('session.list');
-
-  expect(list).toStrictEqual({ sessions: [] });
-
-  const fleet = await client.sendRequest('fleet.list');
-
-  expect(fleet).toStrictEqual({ fleet: [] });
+  expect({ list, fleet }).toStrictEqual({ list: { sessions: [] }, fleet: { fleet: [] } });
 });
 
 test('it spawns a grok session when a grok adapter is registered', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
+  const grok = new GrokAdapter(
+    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+  );
 
-  updateEnv('GROK_HOME', join(dir, 'grok-home'));
+  await using ctx = await setupTest({ adapters: [grok] });
 
-  const adapterConfig = parseConfig({
-    grokBin: 'bash',
-    grokArgs: ['-c', 'sleep 30'],
-  });
+  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
 
-  const grok = new GrokAdapter(getAgentEntry(adapterConfig, 'grok'));
-
-  const daemon = await startDaemon({
-    socketPath: join(dir, 'daemon.sock'),
-    reporterSocketPath: join(dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: idleAdapter,
-    adapters: [grok],
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
-  });
-
-  const client = await DaemonClient.open(join(dir, 'daemon.sock'));
-
-  onTestFinished(async () => {
-    client.stop();
-
-    await daemon.stop();
-
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  await client.sendHello('atc/test-build');
-
-  const ok = await client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const ok = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'grok',
     cols: 80,
     rows: 24,
@@ -497,129 +328,76 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
   expect(ok['session']).toMatchObject({ agent: 'grok' });
 });
 
-test('it yanks a grok session by id and without an id', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
+test('it yanks a grok session spawned with an id as a resume of that id', async () => {
+  const grok = new GrokAdapter(
+    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+  );
 
-  updateEnv('GROK_HOME', join(dir, 'grok-home'));
+  await using ctx = await setupTest({ adapters: [grok] });
 
-  const adapterConfig2 = parseConfig({
-    grokBin: 'bash',
-    grokArgs: ['-c', 'sleep 30'],
-  });
+  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
 
-  const grok = new GrokAdapter(getAgentEntry(adapterConfig2, 'grok'));
-
-  const daemon = await startDaemon({
-    socketPath: join(dir, 'daemon.sock'),
-    reporterSocketPath: join(dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: idleAdapter,
-    adapters: [grok],
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
-  });
-
-  const client = await DaemonClient.open(join(dir, 'daemon.sock'));
-
-  onTestFinished(async () => {
-    client.stop();
-
-    await daemon.stop();
-
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  await client.sendHello('atc/test-build');
-
-  const withID = await client.sendRequest('session.spawn', {
-    cwd: '/tmp/proj',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'grok',
     resume: 'g-1',
     cols: 80,
     rows: 24,
   });
 
-  const withoutID = await client.sendRequest('session.spawn', {
-    cwd: '/tmp/proj',
+  const resumed = await ctx.client.sendRequest('session.resumeCommand', {
+    session: getRecord(spawned, 'session')['id'],
+  });
+
+  expect(resumed).toStrictEqual({ command: `cd '${ctx.dir}' && grok --resume g-1` });
+});
+
+test('it yanks a grok session spawned without an id as a plain start', async () => {
+  const grok = new GrokAdapter(
+    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+  );
+
+  await using ctx = await setupTest({ adapters: [grok] });
+
+  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'grok',
     cols: 80,
     rows: 24,
   });
 
-  const withSession = withID['session'];
-  const withoutSession = withoutID['session'];
-
-  if (
-    !isRecord(withSession) ||
-    typeof withSession['id'] !== 'string' ||
-    !isRecord(withoutSession) ||
-    typeof withoutSession['id'] !== 'string'
-  ) {
-    throw new Error('no session in spawn answer');
-  }
-
-  const resumed = await client.sendRequest('session.resumeCommand', { session: withSession['id'] });
-
-  const welcome = await client.sendRequest('session.resumeCommand', {
-    session: withoutSession['id'],
+  const welcome = await ctx.client.sendRequest('session.resumeCommand', {
+    session: getRecord(spawned, 'session')['id'],
   });
 
-  expect(resumed).toStrictEqual({ command: "cd '/tmp/proj' && grok --resume g-1" });
-  expect(welcome).toStrictEqual({ command: "cd '/tmp/proj' && grok" });
+  expect(welcome).toStrictEqual({ command: `cd '${ctx.dir}' && grok` });
 });
 
 test('it revives a grok session from a captured id when summary.json is missing', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
+  const grok = new GrokAdapter(
+    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+  );
 
-  updateEnv('GROK_HOME', join(dir, 'grok-home'));
+  await using ctx = await setupTest({ adapters: [grok] });
 
-  const adapterConfig3 = parseConfig({
-    grokBin: 'bash',
-    grokArgs: ['-c', 'sleep 30'],
-  });
+  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
 
-  const grok = new GrokAdapter(getAgentEntry(adapterConfig3, 'grok'));
-
-  const daemon = await startDaemon({
-    socketPath: join(dir, 'daemon.sock'),
-    reporterSocketPath: join(dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: idleAdapter,
-    adapters: [grok],
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
-  });
-
-  const client = await DaemonClient.open(join(dir, 'daemon.sock'));
-
-  onTestFinished(async () => {
-    client.stop();
-
-    await daemon.stop();
-
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  await client.sendHello('atc/test-build');
-
-  const ok = await client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'grok',
     resume: 'g-revive',
     cols: 80,
     rows: 24,
   });
 
-  const spawned = ok['session'];
+  const id = getRecord(spawned, 'session')['id'];
 
-  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
-    throw new Error('no session in spawn answer');
-  }
+  await ctx.client.sendRequest('session.kill', { session: id });
 
-  await client.sendRequest('session.kill', { session: spawned['id'] });
-
-  const adopted = await client.sendRequest('session.adopt', {
-    session: spawned['id'],
+  const adopted = await ctx.client.sendRequest('session.adopt', {
+    session: id,
     cols: 80,
     rows: 24,
   });
@@ -627,211 +405,148 @@ test('it revives a grok session from a captured id when summary.json is missing'
   expect(adopted).toStrictEqual({});
 });
 
-test('it writes last-used on SessionStart and ignores a spawn that never reports', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
+test('it keeps last-used on a spawn that has not reported SessionStart', async () => {
+  const grok = new GrokAdapter(
+    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+  );
 
-  updateEnv('GROK_HOME', join(dir, 'grok-home'));
+  await using ctx = await setupTest({ adapters: [grok] });
 
-  const reporterPath = join(dir, 'reporter.sock');
-  const sockPath = join(dir, 'daemon.sock');
+  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
 
-  const adapterConfig4 = parseConfig({
-    grokBin: 'bash',
-    grokArgs: ['-c', 'sleep 30'],
-  });
-
-  const grok = new GrokAdapter(getAgentEntry(adapterConfig4, 'grok'));
-
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: reporterPath,
-    build: 'atc/test-build',
-    adapter: idleAdapter,
-    adapters: [grok],
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
-  });
-
-  const client = await DaemonClient.open(sockPath);
-
-  onTestFinished(async () => {
-    client.stop();
-
-    await daemon.stop();
-
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  await client.sendHello('atc/test-build');
-
-  const spawned = await client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'grok',
     cols: 80,
     rows: 24,
   });
 
-  const session = spawned['session'];
-
-  if (!isRecord(session) || typeof session['id'] !== 'string') {
-    throw new Error('no session in spawn answer');
-  }
-
-  const afterSpawn = await DaemonClient.open(sockPath);
+  const probe = await DaemonClient.open(ctx.socketPath);
 
   onTestFinished(() => {
-    afterSpawn.stop();
+    probe.stop();
   });
 
-  const helloAfterSpawn = await afterSpawn.sendHello('atc/test-build');
+  const hello = await probe.sendHello(ctx.build);
 
-  expect(helloAfterSpawn).toMatchObject({ lastUsedAgent: 'claude' });
+  expect(hello).toMatchObject({ lastUsedAgent: 'claude' });
+});
 
-  await sendHookEvent(reporterPath, {
-    atcId: session['id'],
-    event: 'SessionStart',
-    payload: { sessionId: 'g-last' },
-  });
+test('it writes last-used when a spawned session reports SessionStart', async () => {
+  const grok = new GrokAdapter(
+    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+  );
 
-  const afterStart = await waitForLastUsedAgent(sockPath, 'grok');
+  await using ctx = await setupTest({ adapters: [grok] });
 
-  expect(afterStart).toBe('grok');
+  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
 
-  const claudeSpawn = await client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'grok',
     cols: 80,
     rows: 24,
   });
 
-  expect(claudeSpawn['session']).toMatchObject({ agent: 'claude' });
+  await ctx.sendHookLines({
+    atcId: getRecord(spawned, 'session')['id'],
+    event: 'SessionStart',
+    payload: { sessionId: 'g-last' },
+  });
+
+  await waitFor(async () => {
+    const probe = await DaemonClient.open(ctx.socketPath);
+
+    onTestFinished(() => {
+      probe.stop();
+    });
+
+    const hello = await probe.sendHello(ctx.build);
+
+    expect(hello).toMatchObject({ lastUsedAgent: 'grok' });
+  });
+});
+
+test('it spawns claude when a spawn omits agent after another agent was last used', async () => {
+  const grok = new GrokAdapter(
+    getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+  );
+
+  await using ctx = await setupTest({ adapters: [grok] });
+
+  updateEnv('GROK_HOME', join(ctx.dir, 'grok-home'));
+
+  const grokSpawn = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'grok',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.sendHookLines({
+    atcId: getRecord(grokSpawn, 'session')['id'],
+    event: 'SessionStart',
+    payload: { sessionId: 'g-last' },
+  });
+
+  await waitFor(async () => {
+    const probe = await DaemonClient.open(ctx.socketPath);
+
+    onTestFinished(() => {
+      probe.stop();
+    });
+
+    const hello = await probe.sendHello(ctx.build);
+
+    expect(hello).toMatchObject({ lastUsedAgent: 'grok' });
+  });
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(spawned['session']).toMatchObject({ agent: 'claude' });
 });
 
 test('it rejects session.spawn with an unregistered agent id as unsupported', async () => {
-  const client = await setupClient();
-
-  await client.sendHello('atc/test-build');
+  await using ctx = await setupTest();
 
   expect(
-    client.sendRequest('session.spawn', { cwd: '/tmp', agent: 'gemini' }),
+    ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'gemini' }),
   ).rejects.toMatchObject({ code: 'unsupported' });
 });
 
 test('it rejects session.spawn with an empty agent id as bad_args', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  expect(client.sendRequest('session.spawn', { cwd: '/tmp', agent: '' })).rejects.toMatchObject({
-    code: 'bad_args',
-  });
+  expect(
+    ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: '' }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
-interface HookEventLine {
-  readonly atcId: string;
-  readonly event: string;
-  readonly payload: Readonly<Record<string, unknown>>;
-}
-
-async function sendHookEvent(reporterPath: string, event: HookEventLine) {
-  const closed = Promise.withResolvers<void>();
-
-  await Bun.connect({
-    unix: reporterPath,
-    socket: {
-      open(socket) {
-        socket.write(`${JSON.stringify(event)}\n`);
-        socket.end();
-      },
-      close() {
-        closed.resolve();
-      },
-      data() {},
-      error() {},
-    },
-  });
-
-  await closed.promise;
-}
-
-async function waitForLastUsedAgent(sockPath: string, agent: 'claude' | 'grok'): Promise<string> {
-  const deadline = Date.now() + 2000;
-
-  while (Date.now() < deadline) {
-    const probe = await DaemonClient.open(sockPath);
-    const hello = await probe.sendHello('atc/test-build');
-
-    probe.stop();
-
-    if (hello['lastUsedAgent'] === agent) {
-      return agent;
-    }
-
-    await Bun.sleep(20);
-  }
-
-  throw new Error(`lastUsedAgent never became ${agent}`);
-}
-
 test('it connects nothing on a socket path with no daemon', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
-
-  onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
+  using tmp = setupTempDir('atc-daemon-');
 
   const attempt = Bun.connect({
-    unix: join(dir, 'nobody-home.sock'),
+    unix: join(tmp.dir, 'nobody-home.sock'),
     socket: { data() {}, error() {} },
   });
 
   expect(attempt).rejects.toMatchObject({ code: 'ENOENT' });
 });
 
-interface WatchedPair {
-  readonly actor: DaemonClient;
-  readonly events: EventMsg[];
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
-}
-
-async function setupTest(hooks?: HooksConfig): Promise<WatchedPair> {
-  const sockPath = await setupDaemon(hooks);
-  const watcher = await DaemonClient.open(sockPath);
-  const actor = await DaemonClient.open(sockPath);
-
-  const events: EventMsg[] = [];
-
-  watcher.onEvent = (e) => {
-    events.push(e);
-  };
-
-  await watcher.sendHello('atc/test-build');
-  await actor.sendHello('atc/test-build');
-
-  return {
-    actor,
-    events,
-    [Symbol.asyncDispose]: () => {
-      watcher.stop();
-      actor.stop();
-
-      return Promise.resolve();
-    },
-  };
-}
-
 test('it broadcasts SessionAttached with the session descriptor when a client attaches', async () => {
-  await using pair = await setupTest();
+  await using ctx = await setupTest();
 
-  const sessionID = await spawnNamedSession(
-    (m, p) => pair.actor.sendRequest(m, p),
-    'focus-me',
-    '/tmp',
-  );
+  const actor = await ctx.openClient();
+  const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
 
-  await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
+  await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
   const event = await waitFor(() => {
-    const found = pair.events.find((e) => e.ev === 'SessionAttached');
+    const found = ctx.events.find((e) => e.ev === 'SessionAttached');
 
     if (found === undefined) {
       throw new Error('no SessionAttached yet');
@@ -846,7 +561,7 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
     session: {
       id: sessionID,
       name: 'focus-me',
-      cwd: '/tmp',
+      cwd: ctx.dir,
       agent: 'claude',
       kind: 'pty',
       alive: true,
@@ -856,19 +571,16 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
 });
 
 test('it broadcasts SessionDetached when an attached client detaches', async () => {
-  await using pair = await setupTest();
+  await using ctx = await setupTest();
 
-  const sessionID = await spawnNamedSession(
-    (m, p) => pair.actor.sendRequest(m, p),
-    'focus-me',
-    '/tmp',
-  );
+  const actor = await ctx.openClient();
+  const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
 
-  await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
-  await pair.actor.sendRequest('session.detach', { session: sessionID });
+  await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
+  await actor.sendRequest('session.detach', { session: sessionID });
 
   const event = await waitFor(() => {
-    const found = pair.events.find((e) => e.ev === 'SessionDetached');
+    const found = ctx.events.find((e) => e.ev === 'SessionDetached');
 
     if (found === undefined) {
       throw new Error('no SessionDetached yet');
@@ -881,26 +593,21 @@ test('it broadcasts SessionDetached when an attached client detaches', async () 
 });
 
 test('it broadcasts SessionDetached when an attached client disconnects', async () => {
-  await using pair = await setupTest();
+  await using ctx = await setupTest();
 
-  const sessionID = await spawnNamedSession(
-    (m, p) => pair.actor.sendRequest(m, p),
-    'focus-me',
-    '/tmp',
-  );
+  const actor = await ctx.openClient();
+  const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
 
-  await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
+  await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
   await waitFor(() => {
-    if (!pair.events.some((e) => e.ev === 'SessionAttached')) {
-      throw new Error('no SessionAttached yet');
-    }
+    expect(ctx.events).toPartiallyContain({ ev: 'SessionAttached' });
   });
 
-  pair.actor.stop();
+  actor.stop();
 
   const event = await waitFor(() => {
-    const found = pair.events.find((e) => e.ev === 'SessionDetached');
+    const found = ctx.events.find((e) => e.ev === 'SessionDetached');
 
     if (found === undefined) {
       throw new Error('no SessionDetached yet');
@@ -913,24 +620,21 @@ test('it broadcasts SessionDetached when an attached client disconnects', async 
 });
 
 test('it broadcasts no SessionDetached for a detach without an attach', async () => {
-  await using pair = await setupTest();
+  await using ctx = await setupTest();
 
-  const sessionID = await spawnNamedSession(
-    (m, p) => pair.actor.sendRequest(m, p),
-    'focus-me',
-    '/tmp',
-  );
+  const actor = await ctx.openClient();
+  const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
 
-  await pair.actor.sendRequest('session.detach', { session: sessionID });
-  await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
+  await actor.sendRequest('session.detach', { session: sessionID });
+  await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
+  // The attach follows the detach, so its event arriving shows the daemon
+  // has already handled the detach.
   await waitFor(() => {
-    if (!pair.events.some((e) => e.ev === 'SessionAttached')) {
-      throw new Error('no SessionAttached yet');
-    }
+    expect(ctx.events).toPartiallyContain({ ev: 'SessionAttached' });
   });
 
-  expect(pair.events.filter((e) => e.ev === 'SessionDetached')).toStrictEqual([]);
+  expect(ctx.events.filter((e) => e.ev === 'SessionDetached')).toBeEmpty();
 });
 
 test('it runs a configured hook with the same event JSON a watching client receives', async () => {
@@ -938,20 +642,19 @@ test('it runs a configured hook with the same event JSON a watching client recei
 
   const out = join(hookOut.dir, 'hook.out');
 
-  await using pair = await setupTest({
-    SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }],
+  await using ctx = await setupTest({
+    hooks: {
+      SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }],
+    },
   });
 
-  const sessionID = await spawnNamedSession(
-    (m, p) => pair.actor.sendRequest(m, p),
-    'focus-me',
-    '/tmp',
-  );
+  const actor = await ctx.openClient();
+  const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
 
-  await pair.actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
+  await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
   const event = await waitFor(() => {
-    const found = pair.events.find((e) => e.ev === 'SessionAttached');
+    const found = ctx.events.find((e) => e.ev === 'SessionAttached');
 
     if (found === undefined) {
       throw new Error('no SessionAttached yet');
@@ -970,48 +673,40 @@ test('it runs a configured hook with the same event JSON a watching client recei
     return written;
   });
 
-  const [payload, eventName] = text.split('\n');
+  const [payload, eventName, rest] = text.split('\n');
+  const parsed: unknown = JSON.parse(payload ?? '');
 
-  if (payload === undefined) {
-    throw new Error('hook wrote no payload line');
-  }
-
-  expect(JSON.parse(payload)).toStrictEqual(event);
-  expect(eventName).toBe('SessionAttached');
+  expect({ payload: parsed, eventName, rest }).toStrictEqual({
+    payload: event,
+    eventName: 'SessionAttached',
+    rest: '',
+  });
 });
 
 test('it answers session.get for an unknown session with no_such_session', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  expect(client.sendRequest('session.get', { session: 'nope' })).rejects.toMatchObject({
+  expect(ctx.client.sendRequest('session.get', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
   });
 });
 
 test("it reads a spawned session's prompt through session.get", async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  const spawned = await client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     prompt: 'fix the auth bug',
     cols: 80,
     rows: 24,
   });
 
-  const session = spawned['session'];
+  const id = getRecord(spawned, 'session')['id'];
 
-  if (!isRecord(session) || typeof session['id'] !== 'string') {
-    throw new Error('no session in spawn answer');
-  }
-
-  const record = await client.sendRequest('session.get', { session: session['id'] });
+  const record = await ctx.client.sendRequest('session.get', { session: id });
 
   expect(record).toStrictEqual({
-    session: expect.objectContaining({ id: session['id'] }),
+    session: expect.objectContaining({ id }),
     prompt: 'fix the auth bug',
     lastActivityAt: expect.toBeNumber(),
     pending: null,
@@ -1020,129 +715,118 @@ test("it reads a spawned session's prompt through session.get", async () => {
 });
 
 test('it answers session.read for an unknown session with no_such_session', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  expect(client.sendRequest('session.read', { session: 'nope' })).rejects.toMatchObject({
+  expect(ctx.client.sendRequest('session.read', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
   });
 });
 
 test('it answers session.read with unsupported for an agent atc cannot read the transcript of', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
+  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'worker', ctx.dir);
 
-  const id = await spawnNamedSession((m, p) => client.sendRequest(m, p), 'worker', '/tmp');
-
-  expect(client.sendRequest('session.read', { session: id })).rejects.toMatchObject({
+  expect(ctx.client.sendRequest('session.read', { session: id })).rejects.toMatchObject({
     code: 'unsupported',
   });
 });
 
 test('it rejects a session.read cursor the daemon never issued with bad_args', async () => {
-  const client = await setupClient();
-
-  await client.sendHello('atc/test-build');
+  await using ctx = await setupTest();
 
   expect(
-    client.sendRequest('session.read', { session: 'nope', cursor: 'garbage' }),
+    ctx.client.sendRequest('session.read', { session: 'nope', cursor: 'garbage' }),
   ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
 test('it rejects an events cursor passed to session.read with bad_args', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  const events = await client.sendRequest('events.read', {});
+  const events = await ctx.client.sendRequest('events.read', {});
 
   expect(
-    client.sendRequest('session.read', { session: 'nope', cursor: events['cursor'] }),
+    ctx.client.sendRequest('session.read', { session: 'nope', cursor: events['cursor'] }),
   ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
 test('it rejects a transcript cursor passed to events.read with bad_args', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
+  const cursor = encodeCursor({ kind: 'transcript', path: join(ctx.dir, 'x'), offset: 0 });
 
-  const cursor = encodeCursor({ kind: 'transcript', path: '/x', offset: 0 });
-
-  expect(client.sendRequest('events.read', { cursor })).rejects.toMatchObject({
+  expect(ctx.client.sendRequest('events.read', { cursor })).rejects.toMatchObject({
     code: 'bad_args',
   });
 });
 
 test('it answers events.read on an empty trail at once with no events and a cursor', async () => {
-  const client = await setupClient();
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
-
-  const answer = await client.sendRequest('events.read', {});
+  const answer = await ctx.client.sendRequest('events.read', {});
 
   expect(answer).toStrictEqual({ events: [], cursor: expect.any(String), more: false });
 });
 
-test('it holds events.read open for waitMs when no event arrives', async () => {
-  const client = await setupClient();
+test('it holds events.read open while no event arrives within waitMs', async () => {
+  await using ctx = await setupTest();
 
-  await client.sendHello('atc/test-build');
+  const read = ctx.client.sendRequest('events.read', { waitMs: 600_000 });
 
-  const before = Date.now();
+  // The read fails when disposal closes the client; settling it here keeps
+  // that failure from going unhandled.
+  void Promise.allSettled([read]);
 
-  const answer = await client.sendRequest('events.read', { waitMs: 300 });
+  // The ping goes out after the read on the same connection, so its answer
+  // shows the daemon has taken the read and is holding it.
+  await ctx.client.sendRequest('daemon.ping');
+
+  expect(Bun.peek.status(read)).toBe('pending');
+});
+
+test('it answers events.read with no events once waitMs passes without one', async () => {
+  await using ctx = await setupTest();
+
+  const answer = await ctx.client.sendRequest('events.read', { waitMs: 1 });
 
   expect(answer).toStrictEqual({ events: [], cursor: expect.any(String), more: false });
-  expect(Date.now()).toBeWithin(before + 250, before + 3000);
 });
 
 test('it answers daemon.hello with the same daemon id after a restart', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-daemon-'));
+  await using ctx = await setupTest();
+
+  const first = await DaemonClient.open(ctx.socketPath);
 
   onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
+    first.stop();
   });
 
-  const opts = {
-    socketPath: join(dir, 'daemon.sock'),
-    reporterSocketPath: join(dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: idleAdapter,
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
-  };
+  const firstHello = await first.sendHello(ctx.build);
 
-  const first = await startDaemon(opts);
-  const firstClient = await DaemonClient.open(opts.socketPath);
-  const firstHello = await firstClient.sendHello('atc/test-build');
+  await ctx.restart();
 
-  firstClient.stop();
-
-  await first.stop();
-
-  const second = await startDaemon(opts);
-
-  onTestFinished(async () => {
-    await second.stop();
-  });
-
-  const secondClient = await DaemonClient.open(opts.socketPath);
+  const second = await DaemonClient.open(ctx.socketPath);
 
   onTestFinished(() => {
-    secondClient.stop();
+    second.stop();
   });
 
-  const secondHello = await secondClient.sendHello('atc/test-build');
+  const secondHello = await second.sendHello(ctx.build);
 
   expect(secondHello['daemonID']).toBe(firstHello['daemonID']);
 });
 
 test('it locates a spawned session on this daemon at the local target', async () => {
-  const client = await setupClient();
-  const hello = await client.sendHello('atc/test-build');
-  const ok = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
+  await using ctx = await setupTest();
+
+  const probe = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    probe.stop();
+  });
+
+  const hello = await probe.sendHello(ctx.build);
+  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
 
   expect(ok['session']).toMatchObject({
     locator: { daemonID: hello['daemonID'], targetID: 'local' },
@@ -1150,23 +834,17 @@ test('it locates a spawned session on this daemon at the local target', async ()
 });
 
 test('it answers a kill whose fleet write meets a moved ownership epoch with stale_epoch', async () => {
-  const sockPath = await setupDaemon();
+  await using ctx = await setupTest();
 
-  const dbPath = join(dirname(sockPath), 'state.db');
-
-  const client = await DaemonClient.open(sockPath);
-
-  onTestFinished(() => {
-    client.stop();
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
   });
 
-  await client.sendHello('atc/test-build');
+  const sessionID = getRecord(spawned, 'session')['id'];
 
-  const spawned = await client.sendRequest('session.spawn', { cwd: '/tmp', cols: 80, rows: 24 });
-
-  const sessionID = getSessionID(spawned);
-
-  const db = new Database(dbPath);
+  const db = new Database(ctx.dbPath);
 
   onTestFinished(() => {
     db.close();
@@ -1174,13 +852,13 @@ test('it answers a kill whose fleet write meets a moved ownership epoch with sta
 
   await waitFor(() => {
     expect(
-      db.query('SELECT session_id FROM session_owner WHERE session_id = ?1').all(sessionID),
+      db.query('SELECT session_id FROM session_owner WHERE session_id = ?1').all(String(sessionID)),
     ).toHaveLength(1);
   });
 
-  db.run('UPDATE session_owner SET owner_epoch = 2 WHERE session_id = ?1', [sessionID]);
+  db.run('UPDATE session_owner SET owner_epoch = 2 WHERE session_id = ?1', [String(sessionID)]);
 
-  expect(client.sendRequest('session.kill', { session: sessionID })).rejects.toMatchObject({
+  expect(ctx.client.sendRequest('session.kill', { session: sessionID })).rejects.toMatchObject({
     code: 'stale_epoch',
   });
 });

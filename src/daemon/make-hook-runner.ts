@@ -17,16 +17,36 @@ export type RunHooks = (event: EventMsg, scope: HookScope | null) => void;
  * for the event's name, with the wire-event JSON on stdin and the event name
  * in `ATC_EVENT`. Hooks are observational and fire-and-forget: the daemon
  * never waits on one, a run past its timeout is killed, and a nonzero exit
- * or spawn failure is logged to stderr and otherwise ignored.
+ * or spawn failure is logged to stderr and otherwise ignored. `onSettled`
+ * runs once per call, after every command the call started has exited or
+ * failed to spawn, with the commands it started; a call that starts none
+ * settles at once with none.
  */
-export function makeHookRunner(hooks: HooksConfig): RunHooks {
+export function makeHookRunner(
+  hooks: HooksConfig,
+  onSettled: (event: EventMsg, commands: readonly string[]) => void = () => {},
+): RunHooks {
   return (event, scope) => {
-    for (const entry of hooks[event.ev] ?? []) {
-      if (entry.dir === undefined || isInScope(entry.dir, scope)) {
-        runHook(entry, event);
-      }
-    }
+    const started = (hooks[event.ev] ?? []).filter(
+      (entry) => entry.dir === undefined || isInScope(entry.dir, scope),
+    );
+
+    void runHooks(started, event, onSettled);
   };
+}
+
+// Starts every hook at once and reports the commands once all have exited.
+async function runHooks(
+  entries: readonly HookEntry[],
+  event: EventMsg,
+  onSettled: (event: EventMsg, commands: readonly string[]) => void,
+): Promise<void> {
+  await Promise.all(entries.map((entry) => runHook(entry, event)));
+
+  onSettled(
+    event,
+    entries.map((entry) => entry.command),
+  );
 }
 
 function isInScope(dir: string, scope: HookScope | null): boolean {
@@ -46,7 +66,8 @@ function isUnderDir(candidate: string, dir: string): boolean {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-function runHook(entry: HookEntry, event: EventMsg): void {
+// Resolves once the command has exited or failed to spawn.
+async function runHook(entry: HookEntry, event: EventMsg): Promise<void> {
   let proc: ReturnType<typeof Bun.spawn>;
 
   try {
@@ -70,15 +91,13 @@ function runHook(entry: HookEntry, event: EventMsg): void {
 
   timer.unref();
 
-  void (async () => {
-    try {
-      const code = await proc.exited;
+  try {
+    const code = await proc.exited;
 
-      if (code !== 0) {
-        console.error(`atc hook for ${event.ev} exited ${code}`);
-      }
-    } finally {
-      clearTimeout(timer);
+    if (code !== 0) {
+      console.error(`atc hook for ${event.ev} exited ${code}`);
     }
-  })();
+  } finally {
+    clearTimeout(timer);
+  }
 }

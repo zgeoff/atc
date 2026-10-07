@@ -1,0 +1,123 @@
+import { expect, onTestFinished, test } from 'bun:test';
+import { join } from 'node:path';
+import { openLineSocket } from './open-line-socket';
+import { setupTempDir } from './setup-temp-dir';
+
+test('it collects complete lines and buffers a split line across reads', async () => {
+  await using tmp = setupTempDir('atc-line-socket-');
+
+  const path = join(tmp.dir, 'lines.sock');
+
+  const server = Bun.listen({
+    unix: path,
+    socket: {
+      open(socket) {
+        socket.write('{"a":1}\n{"b"');
+      },
+      data(socket) {
+        socket.write(':2}\n');
+      },
+      close() {},
+      error() {},
+    },
+  });
+
+  onTestFinished(() => {
+    server.stop(true);
+  });
+
+  await using subscriber = await openLineSocket(path);
+
+  await subscriber.waitForLines(1);
+
+  subscriber.sendLine('go');
+
+  expect(subscriber.waitForLines(2)).resolves.toStrictEqual(['{"a":1}', '{"b":2}']);
+});
+
+test('it sends a line larger than one socket write whole and newline-terminated', async () => {
+  await using tmp = setupTempDir('atc-line-socket-');
+
+  const path = join(tmp.dir, 'big.sock');
+  const received: Buffer[] = [];
+  const line = 'x'.repeat(3_000_000);
+
+  const server = Bun.listen({
+    unix: path,
+    socket: {
+      data(socket, buf) {
+        received.push(Buffer.from(buf));
+
+        if (buf.at(-1) === 10) {
+          socket.write(`${Buffer.concat(received).length}\n`);
+        }
+      },
+      close() {},
+      error() {},
+    },
+  });
+
+  onTestFinished(() => {
+    server.stop(true);
+  });
+
+  await using subscriber = await openLineSocket(path);
+
+  subscriber.sendLine(line);
+
+  expect(subscriber.waitForLines(1)).resolves.toStrictEqual([String(line.length + 1)]);
+});
+
+test('it resolves closed once the peer ends the connection', async () => {
+  await using tmp = setupTempDir('atc-line-socket-');
+
+  const path = join(tmp.dir, 'closing.sock');
+
+  const server = Bun.listen({
+    unix: path,
+    socket: {
+      open(socket) {
+        socket.end();
+      },
+      data() {},
+      close() {},
+      error() {},
+    },
+  });
+
+  onTestFinished(() => {
+    server.stop(true);
+  });
+
+  await using subscriber = await openLineSocket(path);
+
+  await expect(subscriber.closed).toResolve();
+});
+
+test('it throws listing the collected lines when the count never arrives', async () => {
+  await using tmp = setupTempDir('atc-line-socket-');
+
+  const path = join(tmp.dir, 'silent.sock');
+
+  const server = Bun.listen({
+    unix: path,
+    socket: {
+      open(socket) {
+        socket.write('only\n');
+      },
+      data() {},
+      close() {},
+      error() {},
+    },
+  });
+
+  onTestFinished(() => {
+    server.stop(true);
+  });
+
+  await using subscriber = await openLineSocket(path);
+
+  expect(subscriber.waitForLines(2, 100)).rejects.toThrow(
+    'timed out waiting for 2 lines; got ["only"]',
+  );
+});
