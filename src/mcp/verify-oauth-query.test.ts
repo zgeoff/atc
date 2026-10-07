@@ -5,29 +5,32 @@ import { openMCPAuth } from './open-mcp-auth';
 import { verifyOAuthQuery } from './verify-oauth-query';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-verify-oauth-query-');
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-verify-oauth-query-'));
 
   const store = await openMCPAuth({
     dbPath: join(tmp.dir, 'mcp-auth.db'),
     origin: 'https://atc.example',
   });
 
+  stack.defer(() => store.close());
+
   const context = await store.auth.$context;
+
+  const owned = stack.move();
 
   return {
     store,
     secret: context.secret,
-    async [Symbol.asyncDispose]() {
-      await store.close();
-      await tmp[Symbol.asyncDispose]();
-    },
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it accepts the query better-auth signs for the login page', async () => {
-  await using auth = await setupTest();
+  await using ctx = await setupTest();
 
-  const created = await auth.store.auth.api.createFixedClient({
+  const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
   });
 
@@ -43,20 +46,20 @@ test('it accepts the query better-auth signs for the login page', async () => {
     code_challenge_method: 'S256',
   }).toString();
 
-  const answered = await auth.store.auth.handler(new Request(authorize.href));
+  const answered = await ctx.store.auth.handler(new Request(authorize.href));
 
   const login = new URL(answered.headers.get('location') ?? '/', 'https://atc.example');
 
-  const verified = await verifyOAuthQuery(login.search.slice(1), auth.secret);
+  const verified = await verifyOAuthQuery(login.search.slice(1), ctx.secret);
 
   expect(login.pathname).toBe('/login');
   expect(verified).toBeTrue();
 });
 
 test('it refuses a signed query with one parameter changed', async () => {
-  await using auth = await setupTest();
+  await using ctx = await setupTest();
 
-  const created = await auth.store.auth.api.createFixedClient({
+  const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
   });
 
@@ -72,13 +75,13 @@ test('it refuses a signed query with one parameter changed', async () => {
     code_challenge_method: 'S256',
   }).toString();
 
-  const answered = await auth.store.auth.handler(new Request(authorize.href));
+  const answered = await ctx.store.auth.handler(new Request(authorize.href));
 
   const login = new URL(answered.headers.get('location') ?? '/', 'https://atc.example');
 
   login.searchParams.set('state', 'state-2');
 
-  const verified = await verifyOAuthQuery(login.search.slice(1), auth.secret);
+  const verified = await verifyOAuthQuery(login.search.slice(1), ctx.secret);
 
   expect(verified).toBeFalse();
 });
@@ -88,9 +91,9 @@ test.each([
   ['client_id=c1&exp=99999999999&sig='],
   ['client_id=c1&exp=99999999999&sig=a&sig=b'],
 ])('it refuses the query %p without one valid signature', async (query) => {
-  await using auth = await setupTest();
+  await using ctx = await setupTest();
 
-  const verified = await verifyOAuthQuery(query, auth.secret);
+  const verified = await verifyOAuthQuery(query, ctx.secret);
 
   expect(verified).toBeFalse();
 });

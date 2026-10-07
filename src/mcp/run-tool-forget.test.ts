@@ -1,89 +1,68 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
-import { startDaemon } from '../daemon/daemon';
+import type { ExecutionProvider } from '../daemon/execution-provider';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
-import { collectPrincipals } from '../shared/collect-principals';
+import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { getRecord } from '../shared/get-record';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildStubDestroyingProvider } from '../test-utils/build-stub-destroying-provider';
+import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
+import { buildStubGatewayCaller } from '../test-utils/build-stub-gateway-caller';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildPrincipalCaller } from './build-principal-caller';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { runTool } from './run-tool';
 
-// A real daemon with one target and `atc mcp`'s caller in front of it. The
-// target is the plain local one, or, with `destroys`, one whose provider can
-// destroy its host and records each host it destroys.
-async function setupTest(destroys: boolean, principals?: unknown) {
-  const tmp = setupTempDir('atc-run-tool-forget-');
-  const socketPath = join(tmp.dir, 'daemon.sock');
+interface TestConfig {
+  // The provider behind the daemon's one target.
+  readonly provider: ExecutionProvider;
+}
 
-  const local = new LocalPTYProvider();
+// A real daemon with one target and `atc mcp`'s caller in front of it.
+async function setupTest(config: TestConfig) {
+  await using stack = new AsyncDisposableStack();
 
-  const destroyed: string[] = [];
-
-  const provider = destroys
-    ? {
-        kind: 'imp-like',
-        remote: false,
-        prepareHost: local.prepareHost,
-        dispose: local.dispose,
-        capabilities: { ...local.capabilities, suspend: true, destroy: true },
-        spawnHarness: local.spawnHarness,
-        transferArchive: local.transferArchive,
-        runCommand: local.runCommand,
-        suspendHost: () => Promise.resolve(),
-        destroyHost: (host: string) => {
-          destroyed.push(host);
-
-          return Promise.resolve();
+  const daemon = await startTestDaemon({
+    prefix: 'atc-run-tool-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: config.provider.kind,
+          options: {},
+          identity: 'test:local',
+          provider: config.provider,
         },
-      }
-    : local;
-
-  const daemon = await startDaemon({
-    socketPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: {
-      id: 'claude',
-      headlessRunner: null,
-      screenDetector: null,
-      takesMessages: false,
-      planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-      normalizeHook: () => ({ kind: 'heartbeat' }),
-      loadName: () => Promise.resolve(null),
-      canResume: () => true,
-      buildResumeCommand: () => null,
-    },
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    targets: [{ id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider }],
-    principals: collectPrincipals(principals).principals,
+      ],
+    }),
   });
 
-  const caller = new ReconnectingCaller(socketPath, 'atc/test-build', (path) =>
+  stack.use(daemon);
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
-  return {
-    caller,
-    cwd: tmp.dir,
-    destroyed,
-    context: { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } } as const,
-    async [Symbol.asyncDispose]() {
-      await caller.stop();
-      await daemon.stop();
+  stack.defer(() => caller.stop());
 
-      tmp[Symbol.dispose]();
-    },
+  const owned = stack.move();
+
+  return {
+    daemon,
+    caller,
+    cwd: daemon.dir,
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it hands out a token and changes nothing for a live session on a host-destroying target', async () => {
-  await using fleet = await setupTest(true);
+  const provider = buildStubDestroyingProvider();
 
-  const spawned = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  await using ctx = await setupTest({ provider });
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
@@ -91,31 +70,31 @@ test('it hands out a token and changes nothing for a live session on a host-dest
   const id = getRecord(spawned, 'session')['id'];
 
   const offered = await runTool(
-    fleet.caller,
+    ctx.caller,
     'atc_session_forget',
     { session: id, stop: true },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
-
-  const listed = await fleet.caller.sendRequest('session.list');
 
   expect(offered.structured).toStrictEqual({
     confirmToken: expect.toBeString(),
     expiresAt: expect.toBeNumber(),
   });
 
-  expect(fleet.destroyed).toBeEmpty();
+  expect(provider.destroyed).toBeEmpty();
 
-  expect(listed).toMatchObject({
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, alive: true })],
   });
 });
 
 test('it destroys the host and drops the live session when the second call carries the token', async () => {
-  await using fleet = await setupTest(true);
+  const provider = buildStubDestroyingProvider();
 
-  const spawned = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  await using ctx = await setupTest({ provider });
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
@@ -123,80 +102,99 @@ test('it destroys the host and drops the live session when the second call carri
   const id = getRecord(spawned, 'session')['id'];
 
   const offered = await runTool(
-    fleet.caller,
+    ctx.caller,
     'atc_session_forget',
     { session: id, stop: true },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
   const forgotten = await runTool(
-    fleet.caller,
+    ctx.caller,
     'atc_session_forget',
     { session: id, stop: true, confirmToken: offered.structured?.['confirmToken'] },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
-  const listed = await runTool(fleet.caller, 'atc_session_list', {}, fleet.context);
-
   expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: true });
-  expect<readonly unknown[]>(fleet.destroyed).toStrictEqual([id]);
-  expect(listed.structured).toStrictEqual({ sessions: [] });
+  expect<readonly unknown[]>(provider.destroyed).toStrictEqual([id]);
+
+  expect(
+    runTool(
+      ctx.caller,
+      'atc_session_list',
+      {},
+      { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    ),
+  ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
 });
 
 test('it hands out a token for a dead session on a host-destroying target and changes nothing', async () => {
-  await using fleet = await setupTest(true);
+  const provider = buildStubDestroyingProvider();
 
-  const spawned = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  await using ctx = await setupTest({ provider });
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await fleet.caller.sendRequest('session.kill', { session: id });
+  await ctx.caller.sendRequest('session.kill', { session: id });
 
-  const offered = await runTool(fleet.caller, 'atc_session_forget', { session: id }, fleet.context);
+  const offered = await runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: id },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
 
   expect(offered.structured).toStrictEqual({
     confirmToken: expect.toBeString(),
     expiresAt: expect.toBeNumber(),
   });
 
-  expect(fleet.destroyed).toBeEmpty();
+  expect(provider.destroyed).toBeEmpty();
 });
 
 test('it forgets a dead session on a local target in one call', async () => {
-  await using fleet = await setupTest(false);
+  await using ctx = await setupTest({ provider: new LocalPTYProvider() });
 
-  const spawned = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await fleet.caller.sendRequest('session.kill', { session: id });
+  await ctx.caller.sendRequest('session.kill', { session: id });
 
   const forgotten = await runTool(
-    fleet.caller,
+    ctx.caller,
     'atc_session_forget',
     { session: id },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
-  const listed = await runTool(fleet.caller, 'atc_session_list', {}, fleet.context);
-
   expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
-  expect(listed.structured).toStrictEqual({ sessions: [] });
+
+  expect(
+    runTool(
+      ctx.caller,
+      'atc_session_list',
+      {},
+      { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    ),
+  ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
 });
 
 test('it stops and forgets a live session on a local target in one call when stop is true', async () => {
-  await using fleet = await setupTest(false);
+  await using ctx = await setupTest({ provider: new LocalPTYProvider() });
 
-  const spawned = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
@@ -204,81 +202,89 @@ test('it stops and forgets a live session on a local target in one call when sto
   const id = getRecord(spawned, 'session')['id'];
 
   const forgotten = await runTool(
-    fleet.caller,
+    ctx.caller,
     'atc_session_forget',
     { session: id, stop: true },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
-  const listed = await runTool(fleet.caller, 'atc_session_list', {}, fleet.context);
-
   expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
-  expect(listed.structured).toStrictEqual({ sessions: [] });
+
+  expect(
+    runTool(
+      ctx.caller,
+      'atc_session_list',
+      {},
+      { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    ),
+  ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
 });
 
 test('it refuses a live session without stop and leaves it running', async () => {
-  await using fleet = await setupTest(true);
+  await using ctx = await setupTest({ provider: buildStubDestroyingProvider() });
 
-  const spawned = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
 
   const id = getRecord(spawned, 'session')['id'];
-  const refused = runTool(fleet.caller, 'atc_session_forget', { session: id }, fleet.context);
+
+  const refused = runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: id },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_live: .*stop: true/);
 
-  const listed = await fleet.caller.sendRequest('session.list');
-
-  expect(listed).toMatchObject({
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, alive: true })],
   });
 });
 
 test('it refuses a pinned session and leaves it listed', async () => {
-  await using fleet = await setupTest(false);
+  await using ctx = await setupTest({ provider: new LocalPTYProvider() });
 
-  const spawned = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await fleet.caller.sendRequest('session.update', { session: id, pinned: true });
+  await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
 
   const refused = runTool(
-    fleet.caller,
+    ctx.caller,
     'atc_session_forget',
     { session: id, stop: true },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
 
-  const listed = await fleet.caller.sendRequest('session.list');
-
-  expect(listed).toMatchObject({
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, pinned: true, alive: true })],
   });
 });
 
 test('it refuses a sub-session of a pinned session and leaves both listed', async () => {
-  await using fleet = await setupTest(false);
+  await using ctx = await setupTest({ provider: new LocalPTYProvider() });
 
-  const spawnedParent = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  const spawnedParent = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
 
   const parent = getRecord(spawnedParent, 'session')['id'];
 
-  const spawnedChild = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  const spawnedChild = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
     parent,
@@ -286,149 +292,138 @@ test('it refuses a sub-session of a pinned session and leaves both listed', asyn
 
   const child = getRecord(spawnedChild, 'session')['id'];
 
-  await fleet.caller.sendRequest('session.update', { session: parent, pinned: true });
+  await ctx.caller.sendRequest('session.update', { session: parent, pinned: true });
 
   const refused = runTool(
-    fleet.caller,
+    ctx.caller,
     'atc_session_forget',
     { session: child, stop: true },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: /);
 
-  const listed = await fleet.caller.sendRequest('session.list');
-
-  expect(listed).toMatchObject({
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id: parent }), expect.objectContaining({ id: child })],
   });
 });
 
 test('it refuses a session a pin reaches just before the forget does', async () => {
-  await using fleet = await setupTest(false);
+  await using ctx = await setupTest({ provider: new LocalPTYProvider() });
 
-  const spawned = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
 
   const id = getRecord(spawned, 'session')['id'];
 
-  const refused = runTool(
-    {
-      sendRequest: async (m, p, required, principal) => {
-        if (m === 'session.forget') {
-          await fleet.caller.sendRequest('session.update', { session: id, pinned: true });
-        }
+  // The pin lands on the daemon right before each request the tool sends,
+  // the forget among them.
+  const pinning = buildStubFleetCaller({
+    answer: async (request) => {
+      await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
 
-        return fleet.caller.sendRequest(m, p, required, principal);
-      },
-      readFeatures: () => fleet.caller.readFeatures(),
+      return ctx.caller.sendRequest(request.m, request.p, request.required, request.principal);
     },
+  });
+
+  const refused = runTool(
+    pinning,
     'atc_session_forget',
     { session: id, stop: true },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
 
-  const listed = await fleet.caller.sendRequest('session.list');
-
-  expect(listed).toMatchObject({
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, pinned: true, alive: true })],
   });
 });
 
 test('it checks the session itself and sends a plain forget to a daemon without the forget checks', async () => {
-  await using fleet = await setupTest(false);
+  await using ctx = await setupTest({ provider: new LocalPTYProvider() });
 
-  const spawned = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
 
   const id = getRecord(spawned, 'session')['id'];
-  const forgets: unknown[] = [];
+
+  const older = buildStubFleetCaller({
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.forget.preconditions'),
+    answer: (request) =>
+      ctx.caller.sendRequest(request.m, request.p, request.required, request.principal),
+  });
 
   const forgotten = await runTool(
-    {
-      sendRequest: (m, p, required, principal) => {
-        if (m === 'session.forget') {
-          forgets.push(p);
-        }
-
-        return fleet.caller.sendRequest(m, p, required, principal);
-      },
-      readFeatures: async () =>
-        new Set(
-          [...(await fleet.caller.readFeatures())].filter(
-            (feature) => feature !== 'session.forget.preconditions',
-          ),
-        ),
-    },
+    older,
     'atc_session_forget',
     { session: id, stop: true },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
   expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
-  expect(forgets).toStrictEqual([{ session: id }]);
+
+  expect(older.requests).toStrictEqual([
+    { m: 'session.get', p: { session: id } },
+    { m: 'session.forget', p: { session: id }, required: ['session.forget'] },
+  ]);
 });
 
 test('it falls back to its own check when a gateway routes the forget to a daemon without the forget checks', async () => {
-  await using fleet = await setupTest(false);
+  await using ctx = await setupTest({ provider: new LocalPTYProvider() });
 
-  const spawned = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await fleet.caller.sendRequest('session.update', { session: id, pinned: true });
+  await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
 
   const refused = runTool(
-    {
-      sendRequest: (m, p, required, principal) =>
-        required?.includes('session.forget.preconditions') === true
-          ? Promise.reject(
-              Object.assign(new Error("daemon 'old' runs an atc build without the checks"), {
-                code: 'daemon_outdated',
-                data: { daemon: 'old', feature: 'session.forget.preconditions' },
-              }),
-            )
-          : fleet.caller.sendRequest(m, p, required, principal),
-      readFeatures: () => fleet.caller.readFeatures(),
-    },
+    buildStubGatewayCaller(ctx.caller, { daemon: 'old', lacking: 'session.forget.preconditions' }),
     'atc_session_forget',
     { session: id, stop: true },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
 });
 
 test('it refuses an unknown session as no_such_session before any token exists', async () => {
-  await using fleet = await setupTest(true);
+  await using ctx = await setupTest({ provider: buildStubDestroyingProvider() });
 
   const refused = runTool(
-    fleet.caller,
+    ctx.caller,
     'atc_session_forget',
     { session: 'nope', stop: true },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
   expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
 test('it refuses a principal a session on a target it cannot use as no_such_session and keeps the session', async () => {
-  await using fleet = await setupTest(true, { outsider: { targets: ['elsewhere'] } });
+  const provider = buildStubDestroyingProvider();
 
-  const spawned = await fleet.caller.sendRequest('session.spawn', {
-    cwd: fleet.cwd,
+  await using ctx = await setupTest({ provider });
+
+  await ctx.daemon.restart(() => ({
+    adapter: buildMockAgentAdapter(),
+    targets: [{ id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider }],
+    principals: new Map([['outsider', ['elsewhere']]]),
+  }));
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
     cols: 80,
     rows: 24,
   });
@@ -436,19 +431,17 @@ test('it refuses a principal a session on a target it cannot use as no_such_sess
   const id = getRecord(spawned, 'session')['id'];
 
   const refused = runTool(
-    buildPrincipalCaller(fleet.caller, 'outsider'),
+    buildPrincipalCaller(ctx.caller, 'outsider'),
     'atc_session_forget',
     { session: id, stop: true },
-    fleet.context,
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
   expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
 
-  const listed = await fleet.caller.sendRequest('session.list');
-
-  expect(listed).toMatchObject({
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, alive: true })],
   });
 
-  expect(fleet.destroyed).toBeEmpty();
+  expect(provider.destroyed).toBeEmpty();
 });

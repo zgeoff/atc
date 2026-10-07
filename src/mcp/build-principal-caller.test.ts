@@ -1,27 +1,28 @@
 import { expect, test } from 'bun:test';
-import type { DaemonFeature } from '../protocol/daemon-features';
+import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { buildPrincipalCaller } from './build-principal-caller';
-import type { FleetCaller } from './types';
 
-test('it sends every request as the principal, only to a daemon that limits it to that principal', async () => {
-  const sent: unknown[] = [];
+test('it sends a request as the principal, only to a daemon that limits it to that principal', async () => {
+  const caller = buildStubFleetCaller();
 
-  const caller: FleetCaller = {
-    sendRequest: (m, p, required, principal) => {
-      sent.push({ m, p, required, principal });
+  await buildPrincipalCaller(caller, 'client-a').sendRequest('session.list');
 
-      return Promise.resolve({});
-    },
-    readFeatures: () => Promise.resolve(new Set<DaemonFeature>()),
-  };
+  expect(caller.requests).toStrictEqual([
+    { m: 'session.list', required: ['request.principal'], principal: 'client-a' },
+  ]);
+});
 
-  const limited = buildPrincipalCaller(caller, 'client-a');
+test('it sends a request as the principal over the principal the request asks for, keeping the features it requires', async () => {
+  const caller = buildStubFleetCaller();
 
-  await limited.sendRequest('session.list');
-  await limited.sendRequest('session.spawn', { cwd: '/tmp' }, ['spawn.target'], 'client-b');
+  await buildPrincipalCaller(caller, 'client-a').sendRequest(
+    'session.spawn',
+    { cwd: '/tmp' },
+    ['spawn.target'],
+    'client-b',
+  );
 
-  expect(sent).toStrictEqual([
-    { m: 'session.list', p: undefined, required: ['request.principal'], principal: 'client-a' },
+  expect(caller.requests).toStrictEqual([
     {
       m: 'session.spawn',
       p: { cwd: '/tmp' },
@@ -29,4 +30,12 @@ test('it sends every request as the principal, only to a daemon that limits it t
       principal: 'client-a',
     },
   ]);
+});
+
+test('it reports the features of the daemon behind it', () => {
+  const caller = buildStubFleetCaller({ features: ['report.get'] });
+
+  expect(buildPrincipalCaller(caller, 'client-a').readFeatures()).resolves.toStrictEqual(
+    new Set(['report.get']),
+  );
 });

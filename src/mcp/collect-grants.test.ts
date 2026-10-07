@@ -4,19 +4,23 @@ import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
 import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
 import { collectGrants } from './collect-grants';
 
-test('it lists a grant with its client, scopes, and when it was last used', async () => {
-  await using server = await setupMCPHTTP();
+function setupTest() {
+  return setupMCPHTTP();
+}
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+test('it lists a grant with its client and scopes and no last use before the grant is used', async () => {
+  await using ctx = await setupTest();
 
-  const authorized = await runMCPAuthorization(server, {
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
     scope: 'read message',
     ticked: ['read', 'message'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -27,24 +31,9 @@ test('it lists a grant with its client, scopes, and when it was last used', asyn
     }),
   });
 
-  const tokens = await readJSONRecord(exchanged);
-  const unused = await collectGrants(server.store.db);
+  const grants = await collectGrants(ctx.store.db);
 
-  const startedAt = Date.now();
-
-  await fetch(`${server.url}/mcp`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
-  });
-
-  const [used] = await collectGrants(server.store.db);
-
-  if (used?.lastUsedAt === null || used === undefined) {
-    throw new Error('the grant holds no last use');
-  }
-
-  expect(unused).toStrictEqual([
+  expect(grants).toStrictEqual([
     {
       grantID: expect.toBeString(),
       clientID,
@@ -54,23 +43,21 @@ test('it lists a grant with its client, scopes, and when it was last used', asyn
       lastUsedAt: null,
     },
   ]);
-
-  expect(new Date(used.lastUsedAt).getTime()).toBeWithin(startedAt - 1000, Date.now() + 1);
 });
 
-test('it leaves out a grant whose refresh token was revoked', async () => {
-  await using server = await setupMCPHTTP();
+test('it lists when a grant was last used', async () => {
+  await using ctx = await setupTest();
 
-  const clientID = await server.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
-  const authorized = await runMCPAuthorization(server, {
+  const authorized = await runMCPAuthorization(ctx, {
     clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
-    scope: 'read',
-    ticked: ['read'],
+    scope: 'read message',
+    ticked: ['read', 'message'],
   });
 
-  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -83,7 +70,56 @@ test('it leaves out a grant whose refresh token was revoked', async () => {
 
   const tokens = await readJSONRecord(exchanged);
 
-  await fetch(`${server.url}/oauth2/revoke`, {
+  const startedAt = Date.now();
+
+  await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  const grants = await collectGrants(ctx.store.db);
+
+  expect(grants).toStrictEqual([
+    {
+      grantID: expect.toBeString(),
+      clientID,
+      clientName: 'Claude',
+      scopes: ['read', 'message'],
+      createdAt: expect.toBeString(),
+      lastUsedAt: expect.toSatisfy(
+        (at: string) => Date.parse(at) >= startedAt - 1000 && Date.parse(at) <= Date.now(),
+      ),
+    },
+  ]);
+});
+
+test('it leaves out a grant whose refresh token was revoked', async () => {
+  await using ctx = await setupTest();
+
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  await fetch(`${ctx.url}/oauth2/revoke`, {
     method: 'POST',
     body: new URLSearchParams({
       token: String(tokens['refresh_token']),
@@ -92,7 +128,7 @@ test('it leaves out a grant whose refresh token was revoked', async () => {
     }),
   });
 
-  const grants = await collectGrants(server.store.db);
+  const grants = await collectGrants(ctx.store.db);
 
   expect(grants).toStrictEqual([]);
 });

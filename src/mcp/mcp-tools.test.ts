@@ -2,8 +2,6 @@ import { expect, test } from 'bun:test';
 import { z } from 'zod';
 import { MCP_TOOLS } from './mcp-tools';
 
-type ToolDefinition = (typeof MCP_TOOLS)[number];
-
 test('it declares an agents result whose kind can be any string an adapter declares', () => {
   const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_agents_list')?.outputSchema;
 
@@ -11,7 +9,7 @@ test('it declares an agents result whose kind can be any string an adapter decla
     throw new Error('the agents tool declares no output schema');
   }
 
-  const parsed = z.fromJSONSchema(schema).safeParse({
+  const result = {
     daemon: { hostname: 'host', platform: 'linux', arch: 'x64', build: 'atc/test-build' },
     agents: [
       {
@@ -50,13 +48,15 @@ test('it declares an agents result whose kind can be any string an adapter decla
         },
       },
     ],
-  });
+  };
 
-  expect(parsed.success).toBe(true);
+  const parsed = z.fromJSONSchema(schema).safeParse(result);
+
+  expect(parsed.data).toStrictEqual(result);
 });
 
 test('it gives every tool one of the four scopes', () => {
-  expect(MCP_TOOLS).toSatisfyAll((tool: ToolDefinition) =>
+  expect(MCP_TOOLS).toSatisfyAll((tool: (typeof MCP_TOOLS)[number]) =>
     ['read', 'message', 'spawn', 'kill'].includes(tool.scope),
   );
 });
@@ -180,13 +180,13 @@ test("it pins every tool's scope and safety hints", () => {
 
 test('it marks every read-scoped tool read-only', () => {
   expect(MCP_TOOLS.filter((tool) => tool.scope === 'read')).toSatisfyAll(
-    (tool: ToolDefinition) => tool.annotations.readOnlyHint,
+    (tool: (typeof MCP_TOOLS)[number]) => tool.annotations.readOnlyHint,
   );
 });
 
 test('it marks no tool outside the read scope read-only', () => {
   expect(MCP_TOOLS.filter((tool) => tool.scope !== 'read')).toSatisfyAll(
-    (tool: ToolDefinition) => !tool.annotations.readOnlyHint,
+    (tool: (typeof MCP_TOOLS)[number]) => !tool.annotations.readOnlyHint,
   );
 });
 

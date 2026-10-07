@@ -11,20 +11,26 @@ test('it lists one entry per defined tool in definition order', () => {
 
 test('it leaves out the daemons tool and every daemon input for a caller of one daemon', () => {
   const tools = buildToolList(new Set(DAEMON_FEATURES), null);
-  const spawn = tools.find((tool) => tool.name === 'atc_session_spawn') ?? null;
-  const dirs = tools.find((tool) => tool.name === 'atc_dirs_list') ?? null;
-  const spawnProperties = spawn === null ? null : spawn.inputSchema['properties'];
-  const dirsProperties = dirs === null ? null : dirs.inputSchema['properties'];
+  const spawn = tools.find((tool) => tool.name === 'atc_session_spawn');
+  const dirs = tools.find((tool) => tool.name === 'atc_dirs_list');
+
+  if (spawn === undefined || dirs === undefined) {
+    throw new Error('spawn or dirs tool missing');
+  }
 
   expect(tools.map((tool) => tool.name)).not.toContain('atc_daemons_list');
-  expect(spawnProperties).not.toContainKey('daemon');
-  expect(dirsProperties).toStrictEqual({});
+  expect(spawn.inputSchema['properties']).not.toContainKey('daemon');
+  expect(dirs.inputSchema['properties']).toStrictEqual({});
 });
 
 test('it lists the agents tool without its output schema for a caller across named daemons', () => {
   const agents = buildToolList(new Set([...DAEMON_FEATURES, 'fleet.daemons']), null).find(
     (tool) => tool.name === 'atc_agents_list',
   );
+
+  if (agents === undefined) {
+    throw new Error('agents tool missing');
+  }
 
   expect(agents).not.toContainKey('outputSchema');
 });
@@ -228,7 +234,9 @@ test('it leaves out the forget tool for a daemon that does not announce session 
   expect(buildToolList(features, null).map((tool) => tool.name)).not.toContain(
     'atc_session_forget',
   );
+});
 
+test('it lists the forget tool for a daemon that announces session forgets', () => {
   expect(buildToolList(new Set(DAEMON_FEATURES), null).map((tool) => tool.name)).toContain(
     'atc_session_forget',
   );

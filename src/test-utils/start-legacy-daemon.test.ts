@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { setupTempDir } from './setup-temp-dir';
 import { startLegacyDaemon } from './start-legacy-daemon';
+import { waitFor } from './wait-for';
 
 // A temp directory to hold the daemon's socket.
 function setupTest() {
@@ -151,5 +152,45 @@ test('it refuses a hello on another protocol version with protocol_mismatch', as
     code: 'protocol_mismatch',
     message:
       'atc/test-build speaks protocol v4, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
+  });
+});
+
+test('it counts a connection it accepted as open until the client closes it', async () => {
+  using ctx = setupTest();
+
+  const daemon = startLegacyDaemon(ctx.socketPath);
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test-build');
+
+  expect(daemon.connections).toStrictEqual({ accepted: 1, open: 1 });
+});
+
+test('it counts a connection the client closed as accepted and no longer open', async () => {
+  using ctx = setupTest();
+
+  const daemon = startLegacyDaemon(ctx.socketPath);
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  await client.sendHello('atc/test-build');
+
+  client.stop();
+
+  await waitFor(() => {
+    expect(daemon.connections).toStrictEqual({ accepted: 1, open: 0 });
   });
 });
