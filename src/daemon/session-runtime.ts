@@ -24,8 +24,6 @@ export class SessionRuntime {
 
   detectTimer: ReturnType<typeof setTimeout> | undefined;
 
-  bootTimer: ReturnType<typeof setTimeout> | undefined;
-
   headlessRun: HeadlessRunHandle | null = null;
 
   pendingEject: (() => void) | null = null;
@@ -65,11 +63,9 @@ export class SessionRuntime {
   dispose(): void {
     clearTimeout(this.resizeTimer);
     clearTimeout(this.detectTimer);
-    clearTimeout(this.bootTimer);
 
     this.resizeTimer = undefined;
     this.detectTimer = undefined;
-    this.bootTimer = undefined;
     this.screen?.stop();
     this.screen = null;
 
