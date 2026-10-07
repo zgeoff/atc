@@ -955,7 +955,15 @@ async function verifyGate(
 ): Promise<void> {
   const secrets = binding.secrets.map((secret) => secret.secret);
 
-  await verifyBrokerAuthority(host.port, { impNames: [impName], secrets }, host.impPrefix);
+  const oauthSecrets = binding.secrets
+    .filter((secret) => secret.kind === 'oauth')
+    .map((secret) => secret.secret);
+
+  await verifyBrokerAuthority(
+    host.port,
+    { impNames: [impName], secrets, oauthSecrets },
+    host.impPrefix,
+  );
 
   const held = await host.port.readSecrets();
 

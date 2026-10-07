@@ -4,12 +4,13 @@ import { verifyTokenImpAuthority } from './verify-token-imp-authority';
 
 /**
  * What a provisioning call is about to touch: the imps under their actual
- * names, as the target's runtime namespace builds them, and every secret
- * the binding grants them.
+ * names, as the target's runtime namespace builds them, every secret the
+ * binding grants them, and those of the secrets it binds as kind `oauth`.
  */
 export interface BrokerActivation {
   readonly impNames: readonly string[];
   readonly secrets: readonly string[];
+  readonly oauthSecrets?: readonly string[];
 }
 
 /**
@@ -17,7 +18,8 @@ export interface BrokerActivation {
  * impd's features, then the token's identity, and writes nothing, so a
  * refusal leaves impd as it was. It rejects unless impd has grantable
  * tokens, secret rebinds and exec requirements, so a start can refuse to
- * run without a ready broker, the token may manage each imp and reaches no
+ * run without a ready broker, and oauth secrets when the binding holds one,
+ * the token may manage each imp and reaches no
  * imp outside the namespace whose imp names start with the prefix, and the
  * token may grant every bound secret.
  * Whether each secret's rules match the binding is a separate comparison.
@@ -38,6 +40,16 @@ export async function verifyBrokerAuthority(
         secretRebind: features.secretRebind,
         execRequire: features.execRequire,
       },
+    );
+  }
+
+  const oauthSecrets = activation.oauthSecrets ?? [];
+
+  if (oauthSecrets.length > 0 && !features.oauthSecrets) {
+    throw new BrokerAuthorityError(
+      'auth_impd_too_old',
+      `impd lacks oauth secret support, which ${oauthSecrets.join(', ')} needs`,
+      { oauthSecrets: features.oauthSecrets, secrets: oauthSecrets },
     );
   }
 

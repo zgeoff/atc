@@ -81,6 +81,7 @@ export class FixtureImpPort implements ImpPort {
     grantableTokens: true,
     secretRebind: true,
     execRequire: true,
+    oauthSecrets: true,
   };
 
   // Who the port calls impd as.
@@ -214,14 +215,15 @@ export class FixtureImpPort implements ImpPort {
     this.calls.push('secrets.list');
 
     return Promise.resolve(
-      [...this.secrets.values()].map((secret) => ({
-        name: secret.name,
-        kind: secret.kind,
-        rules: secret.rules,
-        imps: [...this.imps.values()]
+      [...this.secrets.values()].map((secret): ImpSecret => {
+        const imps = [...this.imps.values()]
           .filter((imp) => imp.grants.has(secret.name))
-          .map((imp) => imp.name),
-      })),
+          .map((imp) => imp.name);
+
+        const listed = { name: secret.name, kind: secret.kind, rules: secret.rules, imps };
+
+        return secret.oauth === undefined ? listed : Object.assign(listed, { oauth: secret.oauth });
+      }),
     );
   }
 
@@ -739,6 +741,7 @@ export class FixtureImpPort implements ImpPort {
       grantableTokens: false,
       secretRebind: false,
       execRequire: false,
+      oauthSecrets: false,
     };
   }
 
@@ -753,10 +756,16 @@ export class FixtureImpPort implements ImpPort {
   }
 
   /**
-   * Adds a secret to impd, as `imp secret add` does, with its rules.
+   * Adds a secret to impd, as `imp secret add` does, with its rules, and
+   * the sign-in state impd lists for a secret of kind `oauth`.
    */
-  createSecret(name: string, kind: ImpSecret['kind'], rules: readonly ImpSecretRule[]): void {
-    this.secrets.set(name, { name, kind, rules });
+  createSecret(
+    name: string,
+    kind: ImpSecret['kind'],
+    rules: readonly ImpSecretRule[],
+    oauth?: ImpSecret['oauth'],
+  ): void {
+    this.secrets.set(name, { name, kind, rules, ...(oauth === undefined ? {} : { oauth }) });
   }
 
   /**

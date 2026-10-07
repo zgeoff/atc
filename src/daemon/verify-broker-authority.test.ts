@@ -91,7 +91,7 @@ test.each([
 ])('it refuses an impd that has only %s', async (_flag, flags) => {
   await using gate = setupTest();
 
-  gate.port.features = { sessionOffsets: true, leases: true, ...flags };
+  gate.port.features = { sessionOffsets: true, leases: true, oauthSecrets: false, ...flags };
 
   const refusal: unknown = await verifyBrokerAuthority(
     gate.port,
@@ -415,6 +415,78 @@ test('it refuses a token that may not grant every bound secret', async () => {
     code: 'auth_secret_not_grantable',
     data: { missing: ['judge'] },
   });
+
+  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+});
+
+test('it refuses an impd without oauth secrets for a binding that holds one', async () => {
+  await using gate = setupTest();
+
+  gate.port.features = { ...gate.port.features, oauthSecrets: false };
+
+  gate.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['codex-chatgpt'],
+  });
+
+  const refusal: unknown = await verifyBrokerAuthority(
+    gate.port,
+    { impNames: ['atc-s1'], secrets: ['codex-chatgpt'], oauthSecrets: ['codex-chatgpt'] },
+    'atc-',
+  ).catch((error: unknown) => error);
+
+  expect(refusal).toBeInstanceOf(BrokerAuthorityError);
+
+  expect(refusal).toMatchObject({
+    code: 'auth_impd_too_old',
+    message: 'impd lacks oauth secret support, which codex-chatgpt needs',
+    data: { oauthSecrets: false, secrets: ['codex-chatgpt'] },
+  });
+
+  expect(gate.port.calls).toStrictEqual(['system.info']);
+});
+
+test('it lets an impd without oauth secrets activate a binding that holds none', async () => {
+  await using gate = setupTest();
+
+  gate.port.features = { ...gate.port.features, oauthSecrets: false };
+
+  gate.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  await verifyBrokerAuthority(
+    gate.port,
+    { impNames: ['atc-s1'], secrets: ['glm'], oauthSecrets: [] },
+    'atc-',
+  );
+
+  expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
+});
+
+test('it lets an impd with oauth secrets activate a binding that holds one', async () => {
+  await using gate = setupTest();
+
+  gate.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['codex-chatgpt'],
+  });
+
+  await verifyBrokerAuthority(
+    gate.port,
+    { impNames: ['atc-s1'], secrets: ['codex-chatgpt'], oauthSecrets: ['codex-chatgpt'] },
+    'atc-',
+  );
 
   expect(gate.port.calls).toStrictEqual(['system.info', 'tokens.whoami']);
 });
