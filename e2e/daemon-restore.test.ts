@@ -153,29 +153,20 @@ test('it restores a killed session as exited across a daemon restart', async () 
   });
 });
 
-test('it restores nothing a second time once a restored fleet lists', async () => {
+test('it restores a stored exited row once and nothing on a second restore', async () => {
   await using ctx = await setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
 
-  const id = getString(getRecord(ok, 'session'), 'id');
+  onTestFinished(() => seed.stop());
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
+  await seed.writeFleet([buildMockFleetEntry({ cwd: ctx.home, exited: true })]);
+  await seed.stop();
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  const first = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const second = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { lastMsg: 'killed' } });
-
-  await ctx.daemon.restart('SIGKILL');
-
-  const revived = await ctx.daemon.openClient();
-
-  await revived.sendHello('atc/test');
-  await revived.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-
-  const again = await revived.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-
-  expect(again).toStrictEqual({ restored: 0 });
+  expect([first, second]).toStrictEqual([{ restored: 1 }, { restored: 0 }]);
 });
 
 test('it revives the fleet one boot at a time, gated on SessionStart', async () => {
@@ -221,6 +212,9 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
     expect.objectContaining({ id: 's-two', lastMsg: 'waiting to restore' }),
     expect.objectContaining({ id: 's-three', lastMsg: 'waiting to restore' }),
   ]);
+
+  expect(getRecords(immediate, 'sessions').filter((s) => s['kind'] === 'pty')).toHaveLength(1);
+  expect(getRecords(settled, 'sessions')).toHaveLength(3);
 
   expect(getRecords(settled, 'sessions')).toSatisfyAll(
     (session: Readonly<Record<string, unknown>>) => session['kind'] === 'pty',

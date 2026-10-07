@@ -113,7 +113,7 @@ test('it carries a message from accepted through delivered to answered', async (
   expect(delivered).toMatchObject({ s: id, message: messageID, from: 'e2e' });
   expect(reporter.exitCode).toBe(0);
   expect(answered).toMatchObject({ s: id, message: messageID, answerPreview: 'final text' });
-  expect(screen['text']).not.toInclude('ping from test');
+  expect(getString(screen, 'text')).not.toInclude('ping from test');
 });
 
 test('it delivers a message accepted before a daemon crash to the restored session', async () => {

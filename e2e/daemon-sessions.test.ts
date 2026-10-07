@@ -65,13 +65,29 @@ test('it spawns a session and broadcasts SessionAdded to every client', async ()
 
   const actor = await ctx.daemon.openClient();
 
+  const actorEvents: EventMsg[] = [];
+
+  actor.onEvent = (event) => {
+    actorEvents.push(event);
+  };
+
   await actor.sendHello('atc/test');
 
   const ok = await actor.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
   const added = await waitForEvent(ctx.events, { ev: 'SessionAdded' });
+  const actorAdded = await waitForEvent(actorEvents, { ev: 'SessionAdded' });
 
-  expect(ok).toMatchObject({ session: { kind: 'pty', alive: true } });
-  expect(added).toMatchObject({ session: { id: getRecord(ok, 'session')['id'], cwd: ctx.home } });
+  expect(ok).toStrictEqual({
+    session: expect.toSatisfy(
+      (s: Readonly<Record<string, unknown>>) => s['kind'] === 'pty' && s['alive'] === true,
+    ),
+  });
+
+  expect(added).toMatchObject({
+    session: { id: getRecord(ok, 'session')['id'], cwd: ctx.home, state: 'running' },
+  });
+
+  expect(actorAdded).toStrictEqual(added);
 });
 
 test('it turns hook notifications into SessionState broadcasts', async () => {

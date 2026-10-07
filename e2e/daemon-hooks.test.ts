@@ -352,19 +352,16 @@ test('it keeps a nested codex harness from rebinding or answering for the claude
   });
 
   await waitFor(() => {
-    expect(ctx.daemon.readStderr()).toInclude(
+    expect(ctx.daemon.readStderr()).toIncludeMultiple([
+      `atc hook event=dropped session=${id} agent=codex hook=SessionStart`,
       `atc hook event=dropped session=${id} agent=codex hook=Stop`,
-    );
+    ]);
   });
 
   const record = await ctx.client.sendRequest('session.get', { session: id });
   const message = await ctx.client.sendRequest('message.get', { message: messageID });
 
   expect([childStart.exitCode, childStop.exitCode]).toStrictEqual([0, 0]);
-
-  expect(ctx.daemon.readStderr()).toInclude(
-    `atc hook event=dropped session=${id} agent=codex hook=SessionStart`,
-  );
 
   expect(record).toMatchObject({
     session: { agentSessionID: 'fake-1', state: 'needs_you', lastMsg: 'needs permission' },

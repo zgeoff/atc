@@ -1,10 +1,7 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getRecord } from '../src/shared/get-record';
-import { toSessionID } from '../src/shared/to-session-id';
-import { StateStore } from '../src/store/state-store';
-import { buildMockFleetEntry } from '../src/test-utils/build-mock-fleet-entry';
 import { createStubClaude } from '../src/test-utils/create-stub-claude';
 import { createStubCodex } from '../src/test-utils/create-stub-codex';
 import { createStubComposer } from '../src/test-utils/create-stub-composer';
@@ -280,14 +277,15 @@ test('it restores the stored fleet by itself when the config leaves restoreFleet
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
   mkdirSync(join(ctx.home, '.local', 'state', 'atc'), { recursive: true });
 
-  const seed = await StateStore.open(join(ctx.home, '.local', 'state', 'atc', 'atc.db'));
-
-  onTestFinished(() => seed.stop());
-
-  await seed.writeFleet([
-    buildMockFleetEntry({ sessionID: toSessionID('s-one'), name: 'one', cwd: ctx.home }),
-    buildMockFleetEntry({ sessionID: toSessionID('s-two'), name: 'two', cwd: ctx.home }),
-  ]);
+  // A fleet.json from before the state store existed: the daemon imports it
+  // into atc.db on its first boot.
+  writeFileSync(
+    join(ctx.home, '.local', 'state', 'atc', 'fleet.json'),
+    JSON.stringify([
+      { name: 'one', cwd: ctx.home, agentSessionID: 'fake-a' },
+      { name: 'two', cwd: ctx.home, agentSessionID: 'fake-b' },
+    ]),
+  );
 
   await using daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
