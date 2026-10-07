@@ -35,11 +35,6 @@ async function setupTest() {
   const tmp = stack.use(setupTempDir('atc-workspace-trust-'));
   const port = stack.use(new FixtureImpPort());
 
-  // A command a test holds would keep the daemon from stopping.
-  stack.defer(() => {
-    port.stopCommandHold();
-  });
-
   // A gateway launch on an imp needs a grantable broker secret for its
   // auth profile.
   port.setIdentity({
@@ -286,7 +281,8 @@ test.each([
       }),
     });
 
-    const hold = ctx.port.startCommandHold('rev-parse');
+    using hold = ctx.port.startCommandHold('rev-parse');
+
     const root = join(ctx.dir, 'clone');
 
     const spawn = daemon.client.sendRequest('session.spawn', {
@@ -424,7 +420,7 @@ test.each([
       }),
     });
 
-    const hold = ctx.port.startCommandHold('rev-parse');
+    using hold = ctx.port.startCommandHold('rev-parse');
 
     const existing =
       '{"hasCompletedOnboarding":true,"projects":{"/previous":{"hasTrustDialogAccepted":false}},"custom":"preserve"}\n';
@@ -501,7 +497,8 @@ test.each([
 
     const parentID = String(getRecord(parent, 'session')['id']);
     const root = join(ctx.dir, 'child');
-    const hold = ctx.port.startCommandHold('rev-parse');
+
+    using hold = ctx.port.startCommandHold('rev-parse');
 
     const spawn = daemon.client.sendRequest('session.spawn', {
       ...launch,
@@ -576,7 +573,8 @@ test.each([
     });
 
     const parentID = String(getRecord(parent, 'session')['id']);
-    const hold = ctx.port.startCommandHold('rev-parse');
+
+    using hold = ctx.port.startCommandHold('rev-parse');
 
     const failed = daemon.client.sendRequest('session.spawn', {
       ...launch,

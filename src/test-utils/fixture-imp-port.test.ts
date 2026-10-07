@@ -843,6 +843,23 @@ test('it holds a matching command until its hold stops, and gives the held argv 
   expect(Buffer.from(ran.stdout).toString()).toBe('held\n');
 });
 
+test('it lets a held command run once its hold is disposed', async () => {
+  using fixture = setupTest();
+
+  await fixture.port.createImp({ name: 'imp-a' });
+
+  const hold = fixture.port.startCommandHold('echo held');
+  const result = fixture.port.runCommand('imp-a', { argv: ['sh', '-c', 'echo held'] });
+
+  await hold.entered;
+
+  hold[Symbol.dispose]();
+
+  const ran = await result;
+
+  expect(Buffer.from(ran.stdout).toString()).toBe('held\n');
+});
+
 test('it refuses a second command hold while one is active', () => {
   using fixture = setupTest();
 

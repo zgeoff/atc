@@ -1,4 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { setupTempDir } from './setup-temp-dir';
 import { subscribeToSocketLines } from './subscribe-to-socket-lines';
@@ -92,6 +93,36 @@ test('it sends a payload larger than one socket write whole', async () => {
   subscriber.write(`${line}\n`);
 
   expect(subscriber.waitForLine(1)).resolves.toStrictEqual([String(line.length + 1)]);
+});
+
+test('it throws on a write while the unsent bytes fill the queue', async () => {
+  await using tmp = setupTempDir('atc-sock-lines-');
+
+  const path = join(tmp.dir, 'stalled.sock');
+
+  // The peer never reads, so what the kernel does not take stays queued.
+  const server = createServer((peer) => {
+    peer.pause();
+  });
+
+  onTestFinished(() => {
+    server.close();
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(path, resolve);
+  });
+
+  await using subscriber = await subscribeToSocketLines(path, { queueBytes: 1024 });
+
+  subscriber.write(`${'x'.repeat(3_000_000)}\n`);
+
+  expect(() => {
+    subscriber.write('y');
+  }).toThrowWithMessage(
+    Error,
+    /^the socket refused a 1-character write: \d+ bytes are still unsent$/,
+  );
 });
 
 test('it resolves closed once the peer ends the connection', async () => {
