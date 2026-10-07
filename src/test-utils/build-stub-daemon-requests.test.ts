@@ -119,3 +119,25 @@ test('it resolves an answer only once the client has reacted to it', async () =>
 
   expect(reactions).toBe(1);
 });
+
+test('it rejects an answer when no request under the method is sent before the wait ends', () => {
+  const daemon = buildStubDaemonRequests({ countReactions: () => 0, timeoutMs: 50 });
+
+  void daemon.sendRequest('sources.list');
+
+  expect(daemon.answer('agents.list', {})).rejects.toThrowWithMessage(
+    Error,
+    'no agents.list request is waiting for an answer',
+  );
+});
+
+test('it rejects an answer the client never reacts to before the wait ends', () => {
+  const daemon = buildStubDaemonRequests({ countReactions: () => 0, timeoutMs: 50 });
+
+  void daemon.sendRequest('agents.list');
+
+  expect(daemon.answer('agents.list', {})).rejects.toThrowWithMessage(
+    Error,
+    'nothing reacted to the agents.list answer',
+  );
+});

@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectDirs, findFuzzyScore, pickMatches } from './dirs';
 
@@ -93,7 +92,13 @@ test('#collectDirs drops a directory that no longer exists', () => {
 test('#collectDirs falls back to the home directory when every source is empty', () => {
   using temp = setupTempDir('atc-dirs-');
 
-  const dirs = collectDirs({ cwd: join(temp.dir, 'gone'), recent: [], roots: [], zoxide: [] });
+  const dirs = collectDirs({
+    cwd: join(temp.dir, 'gone'),
+    recent: [],
+    roots: [],
+    zoxide: [],
+    home: join(temp.dir, 'home'),
+  });
 
-  expect(dirs).toStrictEqual([resolveHomeDir()]);
+  expect(dirs).toStrictEqual([join(temp.dir, 'home')]);
 });

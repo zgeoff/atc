@@ -8,8 +8,9 @@ import { startLegacyDaemon } from './start-legacy-daemon';
  * the state directory the way a real daemon records itself, so a client
  * that finds it by its record can stop it. Arguments: the socket path to
  * listen on and the state directory. It refuses every handshake with
- * `protocol_mismatch`, prints `up` once it listens, and runs until it is
- * killed.
+ * `protocol_mismatch` and hosts one session, a child process that sleeps for
+ * a minute. Once it listens it prints `up` and the session's pid on one
+ * line, and it runs until it is killed.
  */
 function main() {
   const socketPath = process.argv.at(2);
@@ -20,6 +21,8 @@ function main() {
   }
 
   startLegacyDaemon(socketPath, { protocol: PROTOCOL_V + 1 });
+
+  const session = Bun.spawn(['sleep', '60']);
 
   writeFileSync(
     join(stateDir, 'daemon.json'),
@@ -32,7 +35,7 @@ function main() {
     }),
   );
 
-  console.log('up');
+  console.log(`up ${session.pid}`);
 }
 
 main();

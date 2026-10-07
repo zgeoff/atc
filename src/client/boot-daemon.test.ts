@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '../daemon/daemon';
@@ -13,10 +13,13 @@ import { setupTempDir } from '../test-utils/setup-temp-dir';
  * runtime directory, so the client computes `sockPath` as the daemon's
  * socket and `stateDir` as the daemon's state directory. The client reads
  * those paths once at import, so each test boots it in a subprocess with
- * `env`. Disposal removes the directory.
+ * `env`. A test defers the release of what it starts to `stack`, so it is
+ * released before the directory is removed.
  */
 function setupTest() {
-  const tmp = setupTempDir('atc-boot-daemon-');
+  const stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-boot-daemon-'));
   const stateDir = join(tmp.dir, '.local', 'state', 'atc');
 
   // The daemon and the client both expect the state directory to exist.
@@ -27,16 +30,17 @@ function setupTest() {
     stateDir,
     sockPath: join(tmp.dir, 'atc-daemon.sock'),
     env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
-    [Symbol.dispose]: tmp[Symbol.dispose],
+    stack,
+    [Symbol.asyncDispose]: () => stack.disposeAsync(),
   };
 }
 
-test('it surfaces a codex hello as the last-used agent instead of coercing it to claude', async () => {
-  using ctx = setupTest();
+test('it reports a codex hello as the last-used agent instead of coercing it to claude', async () => {
+  await using ctx = setupTest();
 
   const store = await StateStore.open(join(ctx.dir, 'state.db'));
 
-  onTestFinished(() => store.stop());
+  ctx.stack.defer(() => store.stop());
 
   await store.writeLastUsedAgent('codex');
 
@@ -49,7 +53,7 @@ test('it surfaces a codex hello as the last-used agent instead of coercing it to
     statusPath: join(ctx.dir, 'status.json'),
   });
 
-  onTestFinished(() => daemon.stop());
+  ctx.stack.defer(() => daemon.stop());
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -74,7 +78,7 @@ boot.client.stop();
 });
 
 test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR is unset', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'run'));
 
@@ -87,7 +91,7 @@ test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR
     statusPath: join(ctx.stateDir, 'status.json'),
   });
 
-  onTestFinished(() => daemon.stop());
+  ctx.stack.defer(() => daemon.stop());
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -124,7 +128,7 @@ boot.client.stop();
 });
 
 test('it leaves a daemon on another protocol running and rejects with both builds and versions', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -136,11 +140,19 @@ test('it leaves a daemon on another protocol running and rejects with both build
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  onTestFinished(() => {
+  ctx.stack.defer(async () => {
     legacy.kill('SIGKILL');
+
+    await legacy.exited;
   });
 
-  await legacy.stdout.getReader().read();
+  const up = await legacy.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
+
+  ctx.stack.defer(() => {
+    process.kill(sessionPID, 'SIGKILL');
+  });
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -167,6 +179,7 @@ process.exit(0);
   expect(legacy.exitCode).toBeNull();
   expect(legacy.signalCode).toBeNull();
   expect(() => process.kill(legacy.pid, 0)).not.toThrow();
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
 
   expect(JSON.parse(stdout)).toStrictEqual({
     code: 'protocol_mismatch',
@@ -180,7 +193,7 @@ process.exit(0);
 });
 
 test('it stops a daemon on another protocol and boots its own build when the caller confirms the restart', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -192,11 +205,19 @@ test('it stops a daemon on another protocol and boots its own build when the cal
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  onTestFinished(() => {
+  ctx.stack.defer(async () => {
     legacy.kill('SIGKILL');
+
+    await legacy.exited;
   });
 
-  await legacy.stdout.getReader().read();
+  const up = await legacy.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
+
+  ctx.stack.defer(() => {
+    process.kill(sessionPID, 'SIGKILL');
+  });
 
   // The probe quits the daemon it booted, so nothing outlives the test.
   writeFileSync(
@@ -229,7 +250,7 @@ process.exit(0);
 });
 
 test('it leaves a daemon on another protocol running and rejects when the caller declines the restart', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -241,11 +262,19 @@ test('it leaves a daemon on another protocol running and rejects when the caller
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  onTestFinished(() => {
+  ctx.stack.defer(async () => {
     legacy.kill('SIGKILL');
+
+    await legacy.exited;
   });
 
-  await legacy.stdout.getReader().read();
+  const up = await legacy.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
+
+  ctx.stack.defer(() => {
+    process.kill(sessionPID, 'SIGKILL');
+  });
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -274,6 +303,7 @@ process.exit(0);
 
   expect(legacy.signalCode).toBeNull();
   expect(() => process.kill(legacy.pid, 0)).not.toThrow();
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
 
   expect(JSON.parse(stdout)).toStrictEqual({
     asked: [legacy.pid],
@@ -282,7 +312,7 @@ process.exit(0);
 });
 
 test('it never asks to restart a daemon on another protocol whose pid it cannot find', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -294,11 +324,19 @@ test('it never asks to restart a daemon on another protocol whose pid it cannot 
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  onTestFinished(() => {
+  ctx.stack.defer(async () => {
     legacy.kill('SIGKILL');
+
+    await legacy.exited;
   });
 
-  await legacy.stdout.getReader().read();
+  const up = await legacy.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
+
+  ctx.stack.defer(() => {
+    process.kill(sessionPID, 'SIGKILL');
+  });
 
   rmSync(join(ctx.stateDir, 'daemon.json'));
 
@@ -329,11 +367,12 @@ process.exit(0);
 
   expect(legacy.signalCode).toBeNull();
   expect(() => process.kill(legacy.pid, 0)).not.toThrow();
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
   expect(JSON.parse(stdout)).toStrictEqual({ asked: [], outcome: { code: 'protocol_mismatch' } });
 });
 
 test('it rejects with the socket it waited on, and starts no daemon, when none answers before the wait ends', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -366,11 +405,11 @@ await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
 });
 
 test('it rejects when a socket takes the connection but never answers the handshake before the wait ends', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   const silent = Bun.listen({ unix: ctx.sockPath, socket: { data: () => {} } });
 
-  onTestFinished(() => {
+  ctx.stack.defer(() => {
     silent.stop(true);
   });
 

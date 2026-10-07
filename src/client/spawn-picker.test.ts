@@ -13,8 +13,8 @@ import { SpawnPicker } from './spawn-picker';
  * directory, drawing into `screen`, and talking to a daemon that answers
  * only when a test says so. `counts` records each draw, each return to the
  * screen the flow came from, each attach, and each answer the picker
- * dropped; the daemon serves the features in `features`. Disposal removes
- * the directory.
+ * dropped; the daemon serves every feature. Disposal removes the
+ * directory.
  */
 function setupTest() {
   const tmp = setupTempDir('atc-spawn-picker-');
@@ -68,7 +68,6 @@ function setupTest() {
     daemon,
     screen,
     counts,
-    features,
     configPath,
     [Symbol.dispose]: tmp[Symbol.dispose],
   };
@@ -561,17 +560,61 @@ test('it sends the directory of a directory spawn after a flow left a repository
 });
 
 test('it shows the refusal of a remote target without a workspace root when the daemon cannot pick the directory', async () => {
-  using ctx = setupTest();
+  using tmp = setupTempDir('atc-spawn-picker-');
+
+  const screen: string[] = [];
+  const counts = { renders: 0, exits: 0, attached: 0, drops: 0 };
+
+  // A daemon that serves every feature but picking the directory itself.
+  const features = new Set<DaemonFeature>(
+    DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace.autoDir'),
+  );
+
+  const daemon = buildStubDaemonRequests({
+    countReactions: () => counts.renders + counts.exits + counts.attached + counts.drops,
+  });
+
+  const picker = new SpawnPicker<{ readonly id: string }>({
+    sendRequest: (m, p) => daemon.sendRequest(m, p),
+    ptyRows: () => 24,
+    hasDaemonFeature: (feature) => features.has(feature),
+    isLeaderKey: (buf) => buf.toString() === KEYS.ctrlRightBracket,
+    getLastUsedAgent: () => 'claude',
+    scheduleStatus: () => {
+      counts.renders += 1;
+    },
+    toBase: () => {
+      counts.exits += 1;
+    },
+    attach: () => {
+      counts.attached += 1;
+
+      return Promise.resolve();
+    },
+    toMirrorSession: () => ({ id: 's-1' }),
+    upsertMirror: () => {},
+    write: (chunk) => {
+      screen.push(chunk);
+    },
+
+    // The picker runs from the filesystem root, so typed text never
+    // fuzzy-matches the directory it lists first.
+    cwd: '/',
+
+    configPath: join(tmp.dir, 'config.json'),
+    onDropAnswer: () => {
+      counts.drops += 1;
+    },
+  });
 
   writeFileSync(
-    ctx.configPath,
+    join(tmp.dir, 'config.json'),
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.features.delete('spawn.workspace.autoDir');
-  ctx.picker.open();
+  picker.open();
 
-  await ctx.daemon.answer('agents.list', {
+  await daemon.answer('agents.list', {
     targets: [
       {
         id: 'box',
@@ -584,37 +627,81 @@ test('it shows the refusal of a remote target without a workspace root when the 
     sources: [{ id: 'fake', label: 'fake repository', kind: 'git' }],
   });
 
-  await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
+  await daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from('https://example.com/app.git'));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from('https://example.com/app.git'));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
-  await ctx.daemon.answer('git.probe', {
+  await daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
     head: 'main',
     refs: [{ name: 'main', kind: 'branch', sha: 'a'.repeat(40) }],
     resolved: null,
   });
 
-  ctx.screen.length = 0;
+  screen.length = 0;
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
-  expect(ctx.screen.join('')).toInclude('set workspaces.targets.box in config.json');
+  expect(screen.join('')).toInclude('set workspaces.targets.box in config.json');
 });
 
 test('it sends no spawn to a remote target without a workspace root when the daemon cannot pick the directory', async () => {
-  using ctx = setupTest();
+  using tmp = setupTempDir('atc-spawn-picker-');
+
+  const screen: string[] = [];
+  const counts = { renders: 0, exits: 0, attached: 0, drops: 0 };
+
+  // A daemon that serves every feature but picking the directory itself.
+  const features = new Set<DaemonFeature>(
+    DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace.autoDir'),
+  );
+
+  const daemon = buildStubDaemonRequests({
+    countReactions: () => counts.renders + counts.exits + counts.attached + counts.drops,
+  });
+
+  const picker = new SpawnPicker<{ readonly id: string }>({
+    sendRequest: (m, p) => daemon.sendRequest(m, p),
+    ptyRows: () => 24,
+    hasDaemonFeature: (feature) => features.has(feature),
+    isLeaderKey: (buf) => buf.toString() === KEYS.ctrlRightBracket,
+    getLastUsedAgent: () => 'claude',
+    scheduleStatus: () => {
+      counts.renders += 1;
+    },
+    toBase: () => {
+      counts.exits += 1;
+    },
+    attach: () => {
+      counts.attached += 1;
+
+      return Promise.resolve();
+    },
+    toMirrorSession: () => ({ id: 's-1' }),
+    upsertMirror: () => {},
+    write: (chunk) => {
+      screen.push(chunk);
+    },
+
+    // The picker runs from the filesystem root, so typed text never
+    // fuzzy-matches the directory it lists first.
+    cwd: '/',
+
+    configPath: join(tmp.dir, 'config.json'),
+    onDropAnswer: () => {
+      counts.drops += 1;
+    },
+  });
 
   writeFileSync(
-    ctx.configPath,
+    join(tmp.dir, 'config.json'),
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.features.delete('spawn.workspace.autoDir');
-  ctx.picker.open();
+  picker.open();
 
-  await ctx.daemon.answer('agents.list', {
+  await daemon.answer('agents.list', {
     targets: [
       {
         id: 'box',
@@ -627,24 +714,24 @@ test('it sends no spawn to a remote target without a workspace root when the dae
     sources: [{ id: 'fake', label: 'fake repository', kind: 'git' }],
   });
 
-  await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
+  await daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from('https://example.com/app.git'));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from('https://example.com/app.git'));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
-  await ctx.daemon.answer('git.probe', {
+  await daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
     head: 'main',
     refs: [{ name: 'main', kind: 'branch', sha: 'a'.repeat(40) }],
     resolved: null,
   });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
-  expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([]);
+  expect(daemon.collectSent('session.spawn')).toStrictEqual([]);
 });
 
 test('it holds a session whose workspace left changes behind instead of attaching it', async () => {

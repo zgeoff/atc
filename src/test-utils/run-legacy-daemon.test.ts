@@ -17,7 +17,7 @@ function setupTest() {
   };
 }
 
-test('it prints up once it listens', async () => {
+test('it prints up and the pid of the session it hosts once it listens', async () => {
   using ctx = setupTest();
 
   await using proc = Bun.spawn(
@@ -27,7 +27,21 @@ test('it prints up once it listens', async () => {
 
   const printed = await proc.stdout.getReader().read();
 
-  expect(new TextDecoder().decode(printed.value)).toBe('up\n');
+  expect(new TextDecoder().decode(printed.value)).toMatch(/^up \d+\n$/u);
+});
+
+test('it keeps the session it hosts running while it runs', async () => {
+  using ctx = setupTest();
+
+  await using proc = Bun.spawn(
+    [process.execPath, join(import.meta.dir, 'run-legacy-daemon.ts'), ctx.socketPath, ctx.dir],
+    { stdout: 'pipe', stderr: 'ignore' },
+  );
+
+  const printed = await proc.stdout.getReader().read();
+  const sessionPID = Number(new TextDecoder().decode(printed.value).trim().split(' ')[1]);
+
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
 });
 
 test('it records its pid and sockets in the state directory the way a daemon records itself', async () => {

@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { KEYS } from '../test-utils/keys';
+import { planOverlayColumns } from './plan-overlay-columns';
 import type { OverlayColumnPlan } from './plan-overlay-columns';
 import { buildOverlayHint, buildSessionRow, drawOverlay } from './ui';
 import type { OverlaySessionView, OverlayView } from './ui';
@@ -509,16 +510,15 @@ test('#buildSessionRow highlights the selected row with inverse video', () => {
   expect(row.styled).toInclude('\u001B[7m');
 });
 
-test('#buildSessionRow draws the harness and no model when the plan leaves the model no width', () => {
-  const plan: OverlayColumnPlan = {
-    nameWidth: 16,
-    dirWidth: 0,
-    targetWidth: 5,
-    harnessWidth: 6,
-    modelWidth: 0,
-    lifecycleWidth: 9,
-    eventWidth: 4,
-  };
+test('#buildSessionRow draws the harness and no model in a narrow grouped overlay', () => {
+  const plan = planOverlayColumns({
+    innerWidth: 48,
+    grouped: true,
+    showTarget: true,
+    targetMax: 5,
+    harnessMax: 6,
+    modelMax: 8,
+  });
 
   const view: OverlayView = {
     sessions: [],

@@ -8,13 +8,15 @@ import { collectRootDirs } from '../shared/collect-root-dirs';
  * to find a directory: where the client runs, then the daemon's spawn
  * history (most recent first), then the configured roots, then zoxide's
  * frecency list. A path that no longer exists is dropped, a duplicate keeps
- * its first position, and an empty merge falls back to the home directory.
+ * its first position, and an empty merge falls back to the home directory:
+ * `home` when given, otherwise the account's.
  */
 export interface DirSources {
   readonly cwd: string;
   readonly recent: readonly string[];
   readonly roots: readonly string[];
   readonly zoxide: readonly string[];
+  readonly home?: string;
 }
 
 export function collectDirs(sources: DirSources): string[] {
@@ -35,7 +37,7 @@ export function collectDirs(sources: DirSources): string[] {
   }
 
   if (found.length === 0) {
-    found.push(homedir());
+    found.push(sources.home ?? homedir());
   }
 
   return found;

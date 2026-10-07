@@ -61,8 +61,10 @@ export interface SpawnPickerDeps<TMirror> {
   // each time it opens.
   readonly configPath: string;
 
-  // Called each time an answer arrives for a flow or a request that has
-  // since moved on, and is dropped without changing anything.
+  // Called each time the flow drops an answer: one for a flow or a request
+  // that has since moved on, which changes nothing, or a listing for a
+  // source the flow has left, which fills nothing and only clears the
+  // pending listing so that source lists again when its step reopens.
   readonly onDropAnswer?: () => void;
 }
 

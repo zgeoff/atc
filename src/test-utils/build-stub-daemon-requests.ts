@@ -12,6 +12,10 @@ interface StubDaemonRequestsOptions {
   // A count the client under test raises each time it acts on something,
   // such as a draw or a callback it makes.
   readonly countReactions: () => number;
+
+  // Milliseconds each wait for a request or a reaction lasts before it
+  // rejects; five seconds when absent.
+  readonly timeoutMs?: number;
 }
 
 /**
@@ -20,7 +24,10 @@ interface StubDaemonRequestsOptions {
  * `answerOldest` resolves it. Each of those waits for a request under the
  * method to be waiting, resolves the latest or the oldest one, and then
  * waits for the client to react: to send another request, or to raise the
- * count `countReactions` reads. `collectSent` returns the params of every
+ * count `countReactions` reads. A wait that outlasts `timeoutMs` rejects:
+ * with `no <method> request is waiting for an answer` when nothing was
+ * sent under the method, and with `nothing reacted to the <method> answer`
+ * when the client never reacted. `collectSent` returns the params of every
  * request sent under a method, answered or not, in the order they were
  * sent.
  */
@@ -29,6 +36,7 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
 
   const answered = new Set<StubRequest>();
 
+  const waitOptions = { timeoutMs: options.timeoutMs ?? 5000 };
   const countAll = () => sent.length + options.countReactions();
 
   const resolveAndWait = async (request: Readonly<StubRequest>, value: DaemonAnswer) => {
@@ -41,7 +49,7 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
       if (countAll() <= before) {
         throw new Error(`nothing reacted to the ${request.m} answer`);
       }
-    });
+    }, waitOptions);
   };
 
   return {
@@ -59,7 +67,7 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
         }
 
         return latest;
-      });
+      }, waitOptions);
 
       await resolveAndWait(request, value);
     },
@@ -72,7 +80,7 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
         }
 
         return oldest;
-      });
+      }, waitOptions);
 
       await resolveAndWait(request, value);
     },

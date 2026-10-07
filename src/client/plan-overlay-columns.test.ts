@@ -127,11 +127,34 @@ test('it holds no target column while a single target is available', () => {
   });
 });
 
-test('it still draws the target column when every session sits on one target', () => {
+// Every row sits on the target `box`, so the widest target is three
+// columns, while several targets are available to spawn on.
+test('it still draws the target column at the width of the one target every session sits on', () => {
   expect(
     planOverlayColumns({
       innerWidth: 86,
       grouped: false,
+      showTarget: true,
+      targetMax: 'box'.length,
+      harnessMax: 6,
+      modelMax: 8,
+    }),
+  ).toStrictEqual({
+    nameWidth: 16,
+    dirWidth: 18,
+    targetWidth: 3,
+    harnessWidth: 6,
+    modelWidth: 8,
+    lifecycleWidth: 9,
+    eventWidth: 16,
+  });
+});
+
+test('it crowds the model column out of a narrow grouped view before the harness column', () => {
+  expect(
+    planOverlayColumns({
+      innerWidth: 48,
+      grouped: true,
       showTarget: true,
       targetMax: 5,
       harnessMax: 6,
@@ -139,12 +162,12 @@ test('it still draws the target column when every session sits on one target', (
     }),
   ).toStrictEqual({
     nameWidth: 16,
-    dirWidth: 18,
+    dirWidth: 0,
     targetWidth: 5,
     harnessWidth: 6,
-    modelWidth: 8,
+    modelWidth: 0,
     lifecycleWidth: 9,
-    eventWidth: 14,
+    eventWidth: 4,
   });
 });
 
