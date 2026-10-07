@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.42.0...@zgeoff/atc@3.0.0) (2026-10-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **config:** config.json is organised around the `agents` map. The per-harness keys (claudeBin, claudeArgs, grokBin, grokArgs, codexBin, codexArgs, claudeAuth, gateways) are deprecated, a file that sets both `agents` and an old key does not load, and `resumeInterruptedTurns` is gone. Run `atc config migrate --write` to move an old config.
+
+### Documentation
+
+* **config:** mark the agents config map as a breaking change ([#347](https://github.com/zgeoff/atc/issues/347)) ([3b33ce1](https://github.com/zgeoff/atc/commit/3b33ce1b17342561bc43d5cbc6851719b8e3280c))
+
 ## [2.42.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.41.0...@zgeoff/atc@2.42.0) (2026-10-07)
 
 ### Features
