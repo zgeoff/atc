@@ -1,7 +1,6 @@
 {
   "version": 1,
   "files": {
-    "e2e/e2e.test.ts": 90970,
     "e2e/daemon-e2e.test.ts": 34500,
     "src/daemon/daemon-tcp.test.ts": 11102,
     "src/gateway.test.ts": 8012,

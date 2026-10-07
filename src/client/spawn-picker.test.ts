@@ -7,19 +7,22 @@ import { buildStubDaemonRequests } from '../test-utils/build-stub-daemon-request
 import { KEYS } from '../test-utils/keys';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { SpawnPicker } from './spawn-picker';
+import type { DroppedAnswer } from './spawn-picker';
 
 /**
  * A spawn picker reading its config from `configPath` in a fresh temp
  * directory, drawing into `screen`, and talking to a daemon that answers
  * only when a test says so. `counts` records each draw, each return to the
  * screen the flow came from, each attach, and each answer the picker
- * dropped; the daemon serves every feature. Disposal removes the
+ * dropped, and `dropped` holds the kind of each dropped answer in order;
+ * the daemon serves every feature. Disposal removes the
  * directory.
  */
 function setupTest() {
   const tmp = setupTempDir('atc-spawn-picker-');
   const screen: string[] = [];
   const counts = { renders: 0, exits: 0, attached: 0, drops: 0 };
+  const dropped: DroppedAnswer[] = [];
 
   // A current daemon serves every feature.
   const features = new Set<DaemonFeature>(DAEMON_FEATURES);
@@ -58,8 +61,10 @@ function setupTest() {
     cwd: '/',
 
     configPath,
-    onDropAnswer: () => {
+    onDropAnswer: (kind) => {
       counts.drops += 1;
+
+      dropped.push(kind);
     },
   });
 
@@ -68,6 +73,7 @@ function setupTest() {
     daemon,
     screen,
     counts,
+    dropped,
     configPath,
     [Symbol.dispose]: tmp[Symbol.dispose],
   };
@@ -106,7 +112,7 @@ test('it drops the target and source answer that arrives after esc leaves the ag
 
   expect(ctx.counts.exits).toBe(1);
   expect(ctx.counts.renders).toBe(renders);
-  expect(ctx.counts.drops).toBe(1);
+  expect(ctx.dropped).toStrictEqual(['targets and sources']);
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([]);
 });
 
@@ -140,7 +146,7 @@ test('it drops the directory history that arrives after esc leaves a daemon with
 
   expect(ctx.counts.exits).toBe(1);
   expect(ctx.counts.renders).toBe(renders);
-  expect(ctx.counts.drops).toBe(1);
+  expect(ctx.dropped).toStrictEqual(['local directory listing']);
 });
 
 test('it drops a git listing that arrives after the leader leaves the flow', async () => {
@@ -178,7 +184,7 @@ test('it drops a git listing that arrives after the leader leaves the flow', asy
 
   expect(ctx.counts.exits).toBe(1);
   expect(ctx.counts.renders).toBe(renders);
-  expect(ctx.counts.drops).toBe(1);
+  expect(ctx.dropped).toStrictEqual(['listing']);
 });
 
 test('it drops a directory listing that arrives after the leader leaves the flow', async () => {
@@ -216,7 +222,7 @@ test('it drops a directory listing that arrives after the leader leaves the flow
 
   expect(ctx.counts.exits).toBe(1);
   expect(ctx.counts.renders).toBe(renders);
-  expect(ctx.counts.drops).toBe(1);
+  expect(ctx.dropped).toStrictEqual(['directory listing']);
 });
 
 test('it drops a reading that arrives after the leader leaves the flow', async () => {
@@ -254,7 +260,7 @@ test('it drops a reading that arrives after the leader leaves the flow', async (
 
   expect(ctx.counts.exits).toBe(1);
   expect(ctx.counts.renders).toBe(renders);
-  expect(ctx.counts.drops).toBe(1);
+  expect(ctx.dropped).toStrictEqual(['interpret']);
   expect(ctx.daemon.collectSent('sources.list')).toHaveLength(1);
 });
 
@@ -299,7 +305,7 @@ test('it drops a probe answer that arrives after esc cancels it and the leader l
 
   expect(ctx.counts.exits).toBe(1);
   expect(ctx.counts.renders).toBe(renders);
-  expect(ctx.counts.drops).toBe(1);
+  expect(ctx.dropped).toStrictEqual(['probe']);
 });
 
 test('it neither attaches nor draws a spawn that answers after esc stops waiting on it', async () => {
@@ -338,7 +344,7 @@ test('it neither attaches nor draws a spawn that answers after esc stops waiting
 
   expect(ctx.counts.exits).toBe(1);
   expect(ctx.counts.renders).toBe(renders);
-  expect(ctx.counts.drops).toBe(1);
+  expect(ctx.dropped).toStrictEqual(['spawn']);
   expect(ctx.counts.attached).toBe(0);
 });
 
@@ -1903,7 +1909,7 @@ test('it drops the target and source answer of a flow that was left and opened a
   expect(ctx.daemon.collectSent('agents.list')).toHaveLength(2);
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([]);
   expect(ctx.counts.renders).toBe(renders);
-  expect(ctx.counts.drops).toBe(1);
+  expect(ctx.dropped).toStrictEqual(['targets and sources']);
 });
 
 test('it returns esc from a git source to the agent step when one target left no choice', async () => {
