@@ -1,17 +1,70 @@
 import { expect, test } from 'bun:test';
+import { join } from 'node:path';
+import { DaemonClient } from '../client/daemon-client';
 import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
-import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectGrants } from './collect-grants';
+import { openMCPAuth } from './open-mcp-auth';
+import { ReconnectingCaller } from './reconnecting-caller';
 import { revokeGrant } from './revoke-grant';
+import { startMCPHTTPServer } from './start-mcp-http-server';
 
-function setupTest() {
-  return setupMCPHTTP();
+// `atc mcp --http` on a free port with every approval line it prints
+// collected, and its authorization server's database opened a second time
+// the way `atc grants` opens it. No test reaches the daemon, so the caller
+// points at a socket nothing listens on.
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-revoke-grant-'));
+  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const approvals: string[] = [];
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  stack.defer(() => caller.stop());
+
+  const server = await startMCPHTTPServer({
+    caller,
+    build: 'atc/test-build',
+    host: '127.0.0.1',
+    port: 0,
+    publicURL: null,
+    allowedHosts: [],
+    dbPath,
+    printApproval: (line) => {
+      approvals.push(line);
+    },
+    printRequest: () => {},
+  });
+
+  stack.defer(() => server.stop());
+
+  const store = await openMCPAuth({ dbPath, origin: null });
+
+  stack.defer(() => store.close());
+
+  const owned = stack.move();
+
+  return {
+    url: server.url,
+    origin: server.origin,
+    approvals,
+    store,
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+  };
 }
 
 test("it forgets the consent its client held along with the grant's tokens", async () => {
   await using ctx = await setupTest();
 
-  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
 
   const authorized = await runMCPAuthorization(ctx, {
     clientID,

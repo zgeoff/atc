@@ -38,6 +38,10 @@ interface MCPHTTPServerOptions {
 
   // Serves `/healthz` and `/readyz` for an orchestrator's probes.
   readonly probes?: boolean;
+
+  // The time pending approvals and the limit on approval starts run on, in
+  // epoch milliseconds; the wall clock when unset.
+  readonly now?: () => number;
 }
 
 /**
@@ -171,7 +175,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
       origin,
       resource: `${origin}/mcp`,
       store,
-      approvals: new ApprovalState(600_000, () => Date.now()),
+      approvals: new ApprovalState(600_000, options.now ?? (() => Date.now())),
       printApproval: options.printApproval,
     },
   };

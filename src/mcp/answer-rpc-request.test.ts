@@ -11,8 +11,8 @@ import { answerRPCRequest } from './answer-rpc-request';
 import { ReconnectingCaller } from './reconnecting-caller';
 
 // A real daemon whose one agent is a `claude` that is not installed and
-// whose sessions run `sleep`, and `atc mcp`'s caller in front of it, which
-// connects on its first request.
+// whose sessions run `sleep`, one session running on it, and `atc mcp`'s
+// caller in front of it.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
@@ -29,11 +29,18 @@ async function setupTest() {
 
   stack.defer(() => caller.stop());
 
+  const spawned = await caller.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    agent: 'claude',
+    cols: 80,
+    rows: 24,
+  });
+
   const owned = stack.move();
 
   return {
     caller,
-    dir: daemon.dir,
+    sessionID: String(getRecord(spawned, 'session')['id']),
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
@@ -41,21 +48,12 @@ async function setupTest() {
 test('it refuses a tool call whose scope the caller lacks and leaves the session running', async () => {
   await using ctx = await setupTest();
 
-  const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
-    agent: 'claude',
-    cols: 80,
-    rows: 24,
-  });
-
-  const id = getRecord(spawned, 'session')['id'];
-
   const outcome = await answerRPCRequest(
     {
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_session_kill', arguments: { session: id } },
+      params: { name: 'atc_session_kill', arguments: { session: ctx.sessionID } },
     },
     {
       caller: ctx.caller,
@@ -68,28 +66,19 @@ test('it refuses a tool call whose scope the caller lacks and leaves the session
   expect(outcome).toStrictEqual({ kind: 'forbidden', scope: 'kill' });
 
   expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
-    sessions: [expect.objectContaining({ id, alive: true })],
+    sessions: [expect.objectContaining({ id: ctx.sessionID, alive: true })],
   });
 });
 
 test('it refuses a forget whose scope the caller lacks and leaves the session listed', async () => {
   await using ctx = await setupTest();
 
-  const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
-    agent: 'claude',
-    cols: 80,
-    rows: 24,
-  });
-
-  const id = getRecord(spawned, 'session')['id'];
-
   const outcome = await answerRPCRequest(
     {
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_session_forget', arguments: { session: id, stop: true } },
+      params: { name: 'atc_session_forget', arguments: { session: ctx.sessionID, stop: true } },
     },
     {
       caller: ctx.caller,
@@ -102,7 +91,7 @@ test('it refuses a forget whose scope the caller lacks and leaves the session li
   expect(outcome).toStrictEqual({ kind: 'forbidden', scope: 'kill' });
 
   expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
-    sessions: [expect.objectContaining({ id, alive: true })],
+    sessions: [expect.objectContaining({ id: ctx.sessionID, alive: true })],
   });
 });
 
@@ -124,14 +113,31 @@ test('it runs a tool call whose scope the caller holds', async () => {
     },
   );
 
+  if (outcome.kind !== 'reply') {
+    throw new Error('no reply');
+  }
+
+  const result = getRecord(outcome.body, 'result');
+  const content: unknown = result['content'];
+
+  if (!Array.isArray(content) || !isRecord(content[0]) || typeof content[0]['text'] !== 'string') {
+    throw new TypeError('no text content');
+  }
+
+  expect(JSON.parse(content[0]['text'])).toStrictEqual(
+    getRecord(result, 'structuredContent')['sessions'],
+  );
+
   expect(outcome).toStrictEqual({
     kind: 'reply',
     body: {
       jsonrpc: '2.0',
       id: 1,
       result: {
-        content: [{ type: 'text', text: '[]' }],
-        structuredContent: { sessions: [] },
+        content: [{ type: 'text', text: expect.toBeString() }],
+        structuredContent: {
+          sessions: [expect.objectContaining({ id: ctx.sessionID, alive: true })],
+        },
       },
     },
   });
@@ -470,9 +476,35 @@ test('it reads a message from an older daemon when the call asks for no wait', a
     },
   );
 
-  expect(outcome).toMatchObject({
+  expect(outcome).toStrictEqual({
     kind: 'reply',
-    body: { result: { structuredContent: { message: 'm-legacy', status: 'accepted' } } },
+    body: {
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        content: [
+          {
+            type: 'text',
+            text: `{
+  "message": "m-legacy",
+  "session": "s-legacy",
+  "from": "tester",
+  "text": "hello",
+  "status": "accepted",
+  "sentAt": 1700000000000
+}`,
+          },
+        ],
+        structuredContent: {
+          message: 'm-legacy',
+          session: 's-legacy',
+          from: 'tester',
+          text: 'hello',
+          status: 'accepted',
+          sentAt: 1_700_000_000_000,
+        },
+      },
+    },
   });
 });
 
@@ -505,7 +537,34 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
     },
   );
 
-  expect(JSON.stringify(outcome)).not.toInclude('the host registered');
+  if (outcome.kind !== 'reply') {
+    throw new Error('no reply');
+  }
+
+  const tools: unknown = getRecord(outcome.body, 'result')['tools'];
+
+  if (!Array.isArray(tools)) {
+    throw new TypeError('no tools array');
+  }
+
+  const spawn: unknown = tools.find(
+    (tool) => isRecord(tool) && tool['name'] === 'atc_session_spawn',
+  );
+
+  if (!isRecord(spawn)) {
+    throw new Error('atc_session_spawn is not listed');
+  }
+
+  const properties = getRecord(getRecord(spawn, 'inputSchema'), 'properties');
+
+  expect({
+    tool: spawn['description'],
+    agent: getRecord(properties, 'agent')['description'],
+  }).toStrictEqual({
+    tool: "Spawn a new session in a directory. Optional agent is a registered agent id; omitted agent is the host's default agent (claude when it is registered, else the first registered agent), never the TUI last-used value. atc_agents_list returns the current agents, whether each is installed, and the model and effort each takes. An unregistered agent, a registered agent that is not installed, and a model or effort the agent does not take are refused before anything spawns. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.",
+    agent:
+      'Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent. atc_agents_list returns the current list.',
+  });
 });
 
 test('it lists the agents tool without an output schema to match the agents a daemon without spawn options returns', async () => {

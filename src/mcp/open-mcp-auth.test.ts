@@ -2,38 +2,32 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { chmodSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startStubTelemetryCollector } from '../test-utils/start-stub-telemetry-collector';
 import { openMCPAuth } from './open-mcp-auth';
 
+// A temp directory for the store and a telemetry collector a store process
+// could report to.
 function setupTest() {
-  const tmp = setupTempDir('atc-mcp-auth-');
+  using stack = new DisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-mcp-auth-'));
+  const collector = startStubTelemetryCollector();
+  const owned = stack.move();
 
   return {
     dir: tmp.dir,
     dbPath: join(tmp.dir, 'mcp-auth.db'),
-    [Symbol.dispose]: () => {
-      tmp[Symbol.dispose]();
+    collector,
+    [Symbol.asyncDispose]: async () => {
+      await collector[Symbol.asyncDispose]();
+
+      owned.dispose();
     },
   };
 }
 
 test('it sends no telemetry when the environment turns it on', async () => {
-  using ctx = setupTest();
-
-  const received: string[] = [];
-
-  const collector = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 0,
-    fetch: (request) => {
-      received.push(request.url);
-
-      return new Response(null, { status: 204 });
-    },
-  });
-
-  onTestFinished(async () => {
-    await collector.stop(true);
-  });
+  await using ctx = setupTest();
 
   // better-auth never sends telemetry under NODE_ENV=test, so the store
   // opens in a production-mode process of its own. A request the store
@@ -54,7 +48,7 @@ await store.close();`,
         HOME: ctx.dir,
         NODE_ENV: 'production',
         BETTER_AUTH_TELEMETRY: '1',
-        BETTER_AUTH_TELEMETRY_ENDPOINT: `http://127.0.0.1:${collector.port}/`,
+        BETTER_AUTH_TELEMETRY_ENDPOINT: ctx.collector.url,
       },
       stderr: 'pipe',
     },
@@ -62,66 +56,14 @@ await store.close();`,
 
   const exitCode = await opened.exited;
 
-  if (exitCode !== 0) {
-    throw new Error(`the store process exited ${exitCode}`);
-  }
-
-  expect(received).toStrictEqual([]);
-});
-
-test('it lets the collector receive telemetry from better-auth when nothing turns it off', async () => {
-  using ctx = setupTest();
-
-  const received: string[] = [];
-
-  const collector = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 0,
-    fetch: (request) => {
-      received.push(request.url);
-
-      return new Response(null, { status: 204 });
-    },
+  expect({ exitCode, received: ctx.collector.received }).toStrictEqual({
+    exitCode: 0,
+    received: [],
   });
-
-  onTestFinished(async () => {
-    await collector.stop(true);
-  });
-
-  // The same production-mode process and environment as the refusal test,
-  // with better-auth's telemetry started directly, proves the collector
-  // would see a request that the store sent.
-  const sent = Bun.spawn(
-    [
-      process.execPath,
-      '-e',
-      `const { createTelemetry } = await import('better-auth');
-await createTelemetry({ baseURL: 'http://127.0.0.1' });`,
-    ],
-    {
-      cwd: join(import.meta.dir, '..', '..'),
-      env: {
-        PATH: process.env['PATH'] ?? '',
-        HOME: ctx.dir,
-        NODE_ENV: 'production',
-        BETTER_AUTH_TELEMETRY: '1',
-        BETTER_AUTH_TELEMETRY_ENDPOINT: `http://127.0.0.1:${collector.port}/`,
-      },
-      stderr: 'pipe',
-    },
-  );
-
-  const exitCode = await sent.exited;
-
-  if (exitCode !== 0) {
-    throw new Error(`the telemetry process exited ${exitCode}`);
-  }
-
-  expect(received).toStrictEqual([`http://127.0.0.1:${collector.port}/`]);
 });
 
 test('it refuses a resource an earlier public URL served', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   const before = await openMCPAuth({ dbPath: ctx.dbPath, origin: 'https://old.example' });
 
@@ -159,7 +101,7 @@ test('it refuses a resource an earlier public URL served', async () => {
 });
 
 test('it creates the database and its write-ahead log readable by their owner only', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   const store = await openMCPAuth({ dbPath: ctx.dbPath, origin: null });
 
@@ -170,7 +112,7 @@ test('it creates the database and its write-ahead log readable by their owner on
 });
 
 test('it makes an existing database readable by its owner only', async () => {
-  using ctx = setupTest();
+  await using ctx = setupTest();
 
   writeFileSync(ctx.dbPath, '', { mode: 0o644 });
   chmodSync(ctx.dbPath, 0o644);

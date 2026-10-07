@@ -1,4 +1,6 @@
 import { isRecord } from '../shared/report';
+import { systemClock } from '../shared/system-clock';
+import type { Clock } from '../shared/system-clock';
 import type { FleetCaller } from './types';
 
 // The most report text one events page carries, in UTF-8 bytes: as much as
@@ -26,33 +28,34 @@ type ReportRead = Readonly<Record<string, unknown>>;
  * deadline: it then holds the cursor of the last event it keeps and `more`
  * true, so the next read starts at that report. Every other field of the
  * page, such as a gateway's `unavailable` and `truncated`, passes through
- * unchanged.
+ * unchanged. The deadline runs on `clock`, the wall clock by default.
  */
 export async function readReportTexts(
   caller: FleetCaller,
   page: Readonly<Record<string, unknown>>,
   deadlineMs: number = REPORT_READ_DEADLINE_MS,
+  clock: Clock = systemClock,
 ): Promise<Readonly<Record<string, unknown>>> {
   const raw: unknown = page['events'];
   const events = Array.isArray(raw) ? raw.filter((event) => isRecord(event)) : [];
-  const endsAt = Date.now() + deadlineMs;
+  const endsAt = clock.now() + deadlineMs;
   const timeout = Promise.withResolvers<ReportRead>();
 
-  const timer = setTimeout(() => {
+  const cancel = clock.schedule(() => {
     timeout.resolve({
       textError: `timeout: the report text did not arrive within ${deadlineMs} ms`,
     });
   }, deadlineMs);
 
-  const read = await readPageReports(caller, page, events, endsAt, timeout.promise);
+  const read = await readPageReports(caller, page, events, endsAt, timeout.promise, clock);
 
-  clearTimeout(timer);
+  cancel();
 
   return read;
 }
 
 // The page with its reports read, one at a time, until the budget or the
-// deadline at `endsAt` stops it. A read still out when `timeout` settles
+// deadline at `endsAt` on `clock` stops it. A read still out when `timeout` settles
 // gives way to the timeout it settles with.
 async function readPageReports(
   caller: FleetCaller,
@@ -60,6 +63,7 @@ async function readPageReports(
   events: readonly Readonly<Record<string, unknown>>[],
   endsAt: number,
   timeout: Readonly<Promise<ReportRead>>,
+  clock: Clock,
 ): Promise<Readonly<Record<string, unknown>>> {
   const kept: Readonly<Record<string, unknown>>[] = [];
   let used = 0;
@@ -72,7 +76,7 @@ async function readPageReports(
 
     const last = kept.at(-1);
 
-    if (last !== undefined && Date.now() >= endsAt) {
+    if (last !== undefined && clock.now() >= endsAt) {
       return { ...page, events: kept, cursor: last['cursor'], more: true };
     }
 

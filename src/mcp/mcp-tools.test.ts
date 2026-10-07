@@ -55,13 +55,68 @@ test('it declares an agents result whose kind can be any string an adapter decla
   expect(parsed.data).toStrictEqual(result);
 });
 
+test('it rejects an agents result whose installed flag is not a boolean', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_agents_list')?.outputSchema;
+
+  if (schema === undefined) {
+    throw new Error('the agents tool declares no output schema');
+  }
+
+  const result = {
+    daemon: { hostname: 'host', platform: 'linux', arch: 'x64', build: 'atc/test-build' },
+    agents: [
+      {
+        id: 'acme',
+        label: 'Acme Agent',
+        kind: 'acme-cli',
+        installed: 'yes',
+        capabilities: {
+          spawn: true,
+          readTranscript: false,
+          message: false,
+          attach: true,
+          screen: true,
+          input: true,
+        },
+        models: null,
+        spawnOptions: {
+          model: {
+            supported: true,
+            available: true,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: 'applied',
+            note: null,
+          },
+          effort: {
+            supported: false,
+            available: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+        },
+      },
+    ],
+  };
+
+  const parsed = z.fromJSONSchema(schema).safeParse(result);
+
+  expect(parsed.error?.issues).toPartiallyContain(
+    expect.objectContaining({ path: ['agents', 0, 'installed'] }),
+  );
+});
+
 test('it gives every tool one of the four scopes', () => {
   expect(MCP_TOOLS).toSatisfyAll((tool: (typeof MCP_TOOLS)[number]) =>
     ['read', 'message', 'spawn', 'kill'].includes(tool.scope),
   );
 });
 
-test("it pins every tool's scope and safety hints", () => {
+test('it gives each tool its scope and safety hints as the tool table lists them', () => {
   expect(
     Object.fromEntries(
       MCP_TOOLS.map((tool) => [tool.name, { scope: tool.scope, ...tool.annotations }]),

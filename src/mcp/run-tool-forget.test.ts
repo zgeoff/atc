@@ -17,9 +17,17 @@ import { buildPrincipalCaller } from './build-principal-caller';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { runTool } from './run-tool';
 
-// A real daemon with one local target and `atc mcp`'s caller in front of it.
+// A real daemon with two targets and `atc mcp`'s caller in front of it: the
+// default `local` target, whose sessions run on this machine, and an `imp`
+// target whose provider can destroy hosts and records each host it
+// destroys in `provider.destroyed`.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
+
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-run-tool-forget-',
@@ -33,6 +41,7 @@ async function setupTest() {
           identity: 'test:local',
           provider: new LocalPTYProvider(),
         },
+        { id: 'imp', kind: provider.kind, options: {}, identity: 'test:imp', provider },
       ],
     }),
   });
@@ -49,35 +58,18 @@ async function setupTest() {
 
   return {
     caller,
+    provider,
     cwd: daemon.dir,
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it hands out a token and changes nothing for a live session on a host-destroying target', async () => {
-  const provider = buildStubExecutionProvider({
-    kind: 'imp-like',
-    capabilities: { suspend: true, destroy: true },
-  });
+  await using ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
-    prefix: 'atc-run-tool-forget-',
-    options: () => ({
-      adapter: buildMockAgentAdapter(),
-      targets: [
-        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
-      ],
-    }),
-  });
-
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
-  );
-
-  onTestFinished(() => caller.stop());
-
-  const spawned = await caller.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
+    target: 'imp',
     cols: 80,
     rows: 24,
   });
@@ -85,7 +77,7 @@ test('it hands out a token and changes nothing for a live session on a host-dest
   const id = getRecord(spawned, 'session')['id'];
 
   const offered = await runTool(
-    caller,
+    ctx.caller,
     'atc_session_forget',
     { session: id, stop: true },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
@@ -96,37 +88,19 @@ test('it hands out a token and changes nothing for a live session on a host-dest
     expiresAt: expect.toBeNumber(),
   });
 
-  expect(provider.destroyed).toBeEmpty();
+  expect(ctx.provider.destroyed).toBeEmpty();
 
-  expect(caller.sendRequest('session.list')).resolves.toMatchObject({
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, alive: true })],
   });
 });
 
 test('it destroys the host and drops the live session when the second call carries the token', async () => {
-  const provider = buildStubExecutionProvider({
-    kind: 'imp-like',
-    capabilities: { suspend: true, destroy: true },
-  });
+  await using ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
-    prefix: 'atc-run-tool-forget-',
-    options: () => ({
-      adapter: buildMockAgentAdapter(),
-      targets: [
-        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
-      ],
-    }),
-  });
-
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
-  );
-
-  onTestFinished(() => caller.stop());
-
-  const spawned = await caller.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
+    target: 'imp',
     cols: 80,
     rows: 24,
   });
@@ -134,25 +108,25 @@ test('it destroys the host and drops the live session when the second call carri
   const id = getRecord(spawned, 'session')['id'];
 
   const offered = await runTool(
-    caller,
+    ctx.caller,
     'atc_session_forget',
     { session: id, stop: true },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
   const forgotten = await runTool(
-    caller,
+    ctx.caller,
     'atc_session_forget',
     { session: id, stop: true, confirmToken: offered.structured?.['confirmToken'] },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
   expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: true });
-  expect<readonly unknown[]>(provider.destroyed).toStrictEqual([id]);
+  expect<readonly unknown[]>(ctx.provider.destroyed).toStrictEqual([id]);
 
   expect(
     runTool(
-      caller,
+      ctx.caller,
       'atc_session_list',
       {},
       { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
@@ -161,39 +135,21 @@ test('it destroys the host and drops the live session when the second call carri
 });
 
 test('it hands out a token for a dead session on a host-destroying target and changes nothing', async () => {
-  const provider = buildStubExecutionProvider({
-    kind: 'imp-like',
-    capabilities: { suspend: true, destroy: true },
-  });
+  await using ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
-    prefix: 'atc-run-tool-forget-',
-    options: () => ({
-      adapter: buildMockAgentAdapter(),
-      targets: [
-        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
-      ],
-    }),
-  });
-
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
-  );
-
-  onTestFinished(() => caller.stop());
-
-  const spawned = await caller.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
+    target: 'imp',
     cols: 80,
     rows: 24,
   });
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await caller.sendRequest('session.kill', { session: id });
+  await ctx.caller.sendRequest('session.kill', { session: id });
 
   const offered = await runTool(
-    caller,
+    ctx.caller,
     'atc_session_forget',
     { session: id },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
@@ -204,7 +160,11 @@ test('it hands out a token for a dead session on a host-destroying target and ch
     expiresAt: expect.toBeNumber(),
   });
 
-  expect(provider.destroyed).toBeEmpty();
+  expect(ctx.provider.destroyed).toBeEmpty();
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id, alive: false })],
+  });
 });
 
 test('it forgets a dead session on a local target in one call', async () => {
@@ -270,29 +230,11 @@ test('it stops and forgets a live session on a local target in one call when sto
 });
 
 test('it refuses a live session without stop and leaves it running', async () => {
-  const provider = buildStubExecutionProvider({
-    kind: 'imp-like',
-    capabilities: { suspend: true, destroy: true },
-  });
+  await using ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
-    prefix: 'atc-run-tool-forget-',
-    options: () => ({
-      adapter: buildMockAgentAdapter(),
-      targets: [
-        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
-      ],
-    }),
-  });
-
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
-  );
-
-  onTestFinished(() => caller.stop());
-
-  const spawned = await caller.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
+    target: 'imp',
     cols: 80,
     rows: 24,
   });
@@ -300,7 +242,7 @@ test('it refuses a live session without stop and leaves it running', async () =>
   const id = getRecord(spawned, 'session')['id'];
 
   const refused = runTool(
-    caller,
+    ctx.caller,
     'atc_session_forget',
     { session: id },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
@@ -308,7 +250,7 @@ test('it refuses a live session without stop and leaves it running', async () =>
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_live: .*stop: true/);
 
-  expect(caller.sendRequest('session.list')).resolves.toMatchObject({
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, alive: true })],
   });
 });
@@ -538,29 +480,10 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
 });
 
 test('it refuses an unknown session as no_such_session before any token exists', async () => {
-  const provider = buildStubExecutionProvider({
-    kind: 'imp-like',
-    capabilities: { suspend: true, destroy: true },
-  });
-
-  await using daemon = await startTestDaemon({
-    prefix: 'atc-run-tool-forget-',
-    options: () => ({
-      adapter: buildMockAgentAdapter(),
-      targets: [
-        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
-      ],
-    }),
-  });
-
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
-  );
-
-  onTestFinished(() => caller.stop());
+  await using ctx = await setupTest();
 
   const refused = runTool(
-    caller,
+    ctx.caller,
     'atc_session_forget',
     { session: 'nope', stop: true },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
