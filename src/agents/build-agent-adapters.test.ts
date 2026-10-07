@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { parseConfig } from '../shared/config';
 import { buildAgentAdapters } from './build-agent-adapters';
 import { ClaudeAdapter } from './claude-adapter';
@@ -13,9 +14,10 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
 
   const [first, second] = buildAgentAdapters(config);
 
-  if (!(first instanceof ClaudeAdapter) || !(second instanceof ClaudeAdapter)) {
-    throw new Error('expected two claude adapters');
-  }
+  invariant(
+    first instanceof ClaudeAdapter && second instanceof ClaudeAdapter,
+    'expected two claude adapters',
+  );
 
   const firstPlan = first.planSpawn({ prompt: '', resume: false });
   const secondPlan = second.planSpawn({ prompt: '', resume: false });

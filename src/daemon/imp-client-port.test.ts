@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubImpd } from '../test-utils/start-stub-impd';
 import { waitFor } from '../test-utils/wait-for';
@@ -137,9 +138,7 @@ test('it opens a guest connection relay with the token its token file holds when
 
   const [control] = ctx.impd.controls;
 
-  if (control === undefined) {
-    throw new Error('expected a tunnel control socket');
-  }
+  invariant(control !== undefined, 'expected a tunnel control socket');
 
   control.send(JSON.stringify({ type: 'connection', id: 1 }));
 

@@ -1,5 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
@@ -214,9 +215,7 @@ test('it stops listening when disposed', () => {
 test('it answers the handshake on the TCP port it bound when given a TCP address', async () => {
   using daemon = startStubLegacyDaemon({ hostname: '127.0.0.1', port: 0 });
 
-  if (daemon.port === null) {
-    throw new Error('the daemon bound no TCP port');
-  }
+  invariant(daemon.port !== null, 'the daemon bound no TCP port');
 
   const client = await DaemonClient.open({ hostname: '127.0.0.1', port: daemon.port });
 

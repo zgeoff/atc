@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { ApprovalState } from './approval-state';
 
 test('it approves a pending request with its code typed in any case and with a dash', () => {
@@ -11,9 +12,7 @@ test('it approves a pending request with its code typed in any case and with a d
     redirectURI: 'https://dots.example/cb',
   });
 
-  if (approval === null) {
-    throw new Error('the approval was refused');
-  }
+  invariant(approval !== null, 'the approval was refused');
 
   const typed = `${approval.approvalCode.slice(0, 4)}-${approval.approvalCode.slice(4)}`;
 
@@ -46,9 +45,7 @@ test('it refuses the right code once five wrong codes locked the request', () =>
     redirectURI: 'https://dots.example/cb',
   });
 
-  if (approval === null) {
-    throw new Error('the approval was refused');
-  }
+  invariant(approval !== null, 'the approval was refused');
 
   Array.from({ length: 5 }, () => state.verifyApprovalCode('q1', 'WRONG000'));
 

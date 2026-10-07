@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { isRecord } from '../src/shared/report';
 import { setupMCPHome } from '../src/test-utils/setup-mcp-home';
 import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
@@ -106,17 +107,13 @@ test('it reads the whole text of a report its event previews through a tool call
     return listed;
   });
 
-  if (!Array.isArray(events)) {
-    throw new TypeError('the events read holds no events');
-  }
+  invariant(Array.isArray(events), 'the events read holds no events');
 
   const event: unknown = events.find(
     (candidate: unknown) => isRecord(candidate) && candidate['kind'] === 'report',
   );
 
-  if (!isRecord(event)) {
-    throw new TypeError('the events read holds no report event');
-  }
+  invariant(isRecord(event), 'the events read holds no report event');
 
   const report = await ctx.mcp.sendToolCall('atc_report_get', { report: event['cursor'] });
 

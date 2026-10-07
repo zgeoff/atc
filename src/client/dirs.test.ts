@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectDirs, findFuzzyScore, pickMatches } from './dirs';
 
@@ -32,9 +33,7 @@ test('#findFuzzyScore scores word-start and consecutive hits above scattered one
   const wordStart = findFuzzyScore('music-bot', 'mb');
   const scattered = findFuzzyScore('maberry', 'mb');
 
-  if (wordStart === null || scattered === null) {
-    throw new Error('both candidates should match');
-  }
+  invariant(wordStart !== null && scattered !== null, 'both candidates should match');
 
   expect(wordStart).toBeGreaterThan(scattered);
 });

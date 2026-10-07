@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
@@ -123,9 +124,7 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
 
   const [start] = ctx.port.sessionRequests;
 
-  if (start?.kind !== 'start') {
-    throw new Error('expected the harness start');
-  }
+  invariant(start?.kind === 'start', 'expected the harness start');
 
   const settings: unknown = JSON.parse(
     readFileSync(join(session, 'auth-r1', 'settings.json'), 'utf8'),
@@ -196,9 +195,7 @@ test('it revives a rebound session under the settings file of the next revision'
 
   const [, revived] = ctx.port.sessionRequests;
 
-  if (revived?.kind !== 'start') {
-    throw new Error('expected the revived harness start');
-  }
+  invariant(revived?.kind === 'start', 'expected the revived harness start');
 
   expect(revived.argv).toContain(join(session, 'auth-r2', 'settings.json'));
   expect(revived.argv).not.toContain(join(session, 'auth-r1', 'settings.json'));
@@ -301,9 +298,7 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
 
   const [start] = ctx.port.sessionRequests;
 
-  if (start?.kind !== 'start') {
-    throw new Error('expected the harness start');
-  }
+  invariant(start?.kind === 'start', 'expected the harness start');
 
   const written = readdirSync(session, { recursive: true, encoding: 'utf8' })
     .map((path) => join(session, path))

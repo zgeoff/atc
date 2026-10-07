@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import type { ImpSessionStarted } from '../daemon/imp-port';
 import { buildMockImpIdentity } from './build-mock-imp-identity';
 import { buildStubImpPort } from './build-stub-imp-port';
@@ -164,9 +165,7 @@ test('it resumes a running generation from the exact offset asked for', async ()
 
   const output = first[0]?.output;
 
-  if (output?.continuity !== 'offsets') {
-    throw new Error('the start carried no offsets');
-  }
+  invariant(output?.continuity === 'offsets', 'the start carried no offsets');
 
   const started: ImpSessionStarted[] = [];
   const chunks: Uint8Array[] = [];
@@ -247,9 +246,7 @@ test('it answers a resume below the ring with a gap and data from the ring start
 
   const output = first[0]?.output;
 
-  if (output?.continuity !== 'offsets') {
-    throw new Error('the start carried no offsets');
-  }
+  invariant(output?.continuity === 'offsets', 'the start carried no offsets');
 
   const started: ImpSessionStarted[] = [];
 
@@ -325,9 +322,7 @@ test('it refuses a resume past the end with INVALID_RESUME', async () => {
 
   const output = first[0]?.output;
 
-  if (output?.continuity !== 'offsets') {
-    throw new Error('the start carried no offsets');
-  }
+  invariant(output?.continuity === 'offsets', 'the start carried no offsets');
 
   const resumed = ctx.port.openSession(
     {

@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { TapRegistry } from './tap-registry';
@@ -24,9 +25,7 @@ test('it hands a message to the tap', () => {
 
   const tap = taps.findTap(session);
 
-  if (tap === null) {
-    throw new Error('expected a tap');
-  }
+  invariant(tap !== null, 'expected a tap');
 
   expect(taps.claimDelivery(session, toMessageID('m-1'), tap.generation)).toBe(client);
 });
@@ -40,9 +39,7 @@ test('it hands a message to the tap only once', () => {
 
   const tap = taps.findTap(session);
 
-  if (tap === null) {
-    throw new Error('expected a tap');
-  }
+  invariant(tap !== null, 'expected a tap');
 
   taps.claimDelivery(session, toMessageID('m-1'), tap.generation);
 
@@ -59,18 +56,14 @@ test('it hands every message again to a tap that replaces the previous one', () 
 
   const first = taps.findTap(session);
 
-  if (first === null) {
-    throw new Error('expected a tap');
-  }
+  invariant(first !== null, 'expected a tap');
 
   taps.claimDelivery(session, toMessageID('m-1'), first.generation);
   taps.attach(session, replacement);
 
   const second = taps.findTap(session);
 
-  if (second === null) {
-    throw new Error('expected a tap');
-  }
+  invariant(second !== null, 'expected a tap');
 
   expect(taps.claimDelivery(session, toMessageID('m-1'), second.generation)).toBe(replacement);
 });
@@ -84,9 +77,7 @@ test('it refuses a delivery made for a tap that another attach replaced', () => 
 
   const stale = taps.findTap(session);
 
-  if (stale === null) {
-    throw new Error('expected a tap');
-  }
+  invariant(stale !== null, 'expected a tap');
 
   taps.attach(session, { name: 'b' }, false);
 
@@ -102,9 +93,7 @@ test('it gives a tap that replaces another the next generation and its own link'
 
   const stale = taps.findTap(session);
 
-  if (stale === null) {
-    throw new Error('expected a tap');
-  }
+  invariant(stale !== null, 'expected a tap');
 
   taps.attach(session, { name: 'b' }, false);
 

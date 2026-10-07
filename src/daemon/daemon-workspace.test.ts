@@ -12,6 +12,7 @@ import {
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { $ } from 'bun';
+import invariant from 'tiny-invariant';
 import { DaemonError } from '../protocol/daemon-error';
 import { getRecord } from '../shared/get-record';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
@@ -988,9 +989,7 @@ test('it clones with the workspace credential and starts the harness without it 
 
   const [harness] = box.harnesses;
 
-  if (harness === undefined) {
-    throw new Error('the spawn started no harness');
-  }
+  invariant(harness !== undefined, 'the spawn started no harness');
 
   const tree = await $`grep -rl fixture-not-a-secret ${dest}`.nothrow().quiet().text();
   const origin = await $`git config --get remote.origin.url`.env(ctx.env).cwd(dest).text();
@@ -1083,9 +1082,7 @@ test('it starts a revived harness after a restart without the workspace credenti
   const harness = await waitFor(() => {
     const [revived] = box.harnesses;
 
-    if (revived === undefined) {
-      throw new Error('no harness revived yet');
-    }
+    invariant(revived !== undefined, 'no harness revived yet');
 
     return revived;
   });

@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
@@ -285,9 +286,7 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
 
   const printed = /PID:(?<pid>\d+):/.exec(output.join(''))?.groups?.['pid'];
 
-  if (printed === undefined) {
-    throw new Error('the harness printed no pid');
-  }
+  invariant(printed !== undefined, 'the harness printed no pid');
 
   const pid = Number(printed);
 

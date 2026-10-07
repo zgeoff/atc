@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { parseClaudeTranscriptLine } from '../agents/parse-claude-transcript-line';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
@@ -276,9 +277,7 @@ test('it has a rule for every id in a report.get answer', async () => {
 
     const found = [page['events']].flat().find((e) => isRecord(e) && e['kind'] === 'report');
 
-    if (!isRecord(found)) {
-      throw new TypeError('no report event yet');
-    }
+    invariant(isRecord(found), 'no report event yet');
 
     return found;
   });

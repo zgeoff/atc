@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
@@ -161,9 +162,7 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
 
   const [start] = ctx.port.sessionRequests;
 
-  if (start?.kind !== 'start') {
-    throw new Error('expected harness start');
-  }
+  invariant(start?.kind === 'start', 'expected harness start');
 
   expect(config).toStrictEqual({
     hasCompletedOnboarding: true,
@@ -297,9 +296,7 @@ test.each([
 
     const [id] = readdirSync(join(ctx.guestDir, 'sessions'));
 
-    if (id === undefined) {
-      throw new Error('expected prepared guest');
-    }
+    invariant(id !== undefined, 'expected prepared guest');
 
     const seed: unknown = JSON.parse(
       readFileSync(join(ctx.guestDir, 'sessions', id, 'claude-config-seed.json'), 'utf8'),
@@ -437,9 +434,7 @@ test.each([
 
     const [id] = readdirSync(join(ctx.guestDir, 'sessions'));
 
-    if (id === undefined) {
-      throw new Error('expected prepared guest');
-    }
+    invariant(id !== undefined, 'expected prepared guest');
 
     const configDir = join(ctx.guestDir, 'sessions', id, 'claude-config');
 
@@ -515,9 +510,7 @@ test.each([
       (candidate) => candidate !== parentID,
     );
 
-    if (id === undefined) {
-      throw new Error('expected child guest');
-    }
+    invariant(id !== undefined, 'expected child guest');
 
     const guest = join(ctx.guestDir, 'sessions', id);
 
@@ -592,9 +585,7 @@ test.each([
       (candidate) => candidate !== parentID,
     );
 
-    if (id === undefined) {
-      throw new Error('expected child guest');
-    }
+    invariant(id !== undefined, 'expected child guest');
 
     const guest = join(ctx.guestDir, 'sessions', id);
 

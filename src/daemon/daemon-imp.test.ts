@@ -1,5 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import { getRecord } from '../shared/get-record';
 import { toSessionID } from '../shared/to-session-id';
@@ -239,9 +240,7 @@ test('it starts a remote harness with only the variables atc sets, never the dae
 
   const [request] = ctx.port.sessionRequests;
 
-  if (request?.kind !== 'start') {
-    throw new Error('the spawn sent no start request');
-  }
+  invariant(request?.kind === 'start', 'the spawn sent no start request');
 
   expect<Readonly<Record<string, unknown>>>(request.env).toStrictEqual({
     ATC_BRIDGE: '1',
@@ -278,9 +277,7 @@ test('it revives a remote harness with only the variables atc sets, never the da
   const request = await waitFor(() => {
     const [sent] = ctx.port.sessionRequests;
 
-    if (sent?.kind !== 'start') {
-      throw new Error('the restore has sent no start request yet');
-    }
+    invariant(sent?.kind === 'start', 'the restore has sent no start request yet');
 
     return sent;
   });
@@ -318,9 +315,7 @@ test('it revives a slept session inside the same process by waking its imp', asy
 
     const match = /UP:(?<pid>\d+)/.exec(output);
 
-    if (match?.groups?.['pid'] === undefined) {
-      throw new Error('the harness has not started');
-    }
+    invariant(match?.groups?.['pid'] !== undefined, 'the harness has not started');
 
     return match.groups['pid'];
   });
@@ -479,9 +474,7 @@ test('it revives a session whose imp another owner put to sleep in the same proc
         .join(''),
     );
 
-    if (match?.groups?.['pid'] === undefined) {
-      throw new Error('the harness has not started');
-    }
+    invariant(match?.groups?.['pid'] !== undefined, 'the harness has not started');
 
     return match.groups['pid'];
   });

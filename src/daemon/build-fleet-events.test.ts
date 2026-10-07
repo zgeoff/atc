@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { decodeCursor } from '../protocol/decode-cursor';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toMessageID } from '../shared/to-message-id';
@@ -113,9 +114,7 @@ test('it gives each event a cursor that decodes to its id', () => {
     [],
   );
 
-  if (event === undefined) {
-    throw new Error('expected an event');
-  }
+  invariant(event !== undefined, 'expected an event');
 
   expect(decodeCursor(event.cursor)).toStrictEqual({ kind: 'events', id: 7 });
 });

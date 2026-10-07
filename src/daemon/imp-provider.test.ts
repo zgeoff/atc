@@ -1,5 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ImpProvider } from './imp-provider';
@@ -213,9 +214,7 @@ test('it asks impd to require the broker on a harness start that requires one', 
     harness.kill();
   });
 
-  if (harness.waitForStart === undefined) {
-    throw new Error('the imp harness reports no start');
-  }
+  invariant(harness.waitForStart !== undefined, 'the imp harness reports no start');
 
   await Promise.allSettled([harness.waitForStart()]);
 
@@ -250,9 +249,7 @@ test('it keeps a full UUID imp session name inside the session limit', async () 
     harness.kill();
   });
 
-  if (harness.waitForStart === undefined) {
-    throw new Error('the imp harness reports no start');
-  }
+  invariant(harness.waitForStart !== undefined, 'the imp harness reports no start');
 
   await Promise.allSettled([harness.waitForStart()]);
 
@@ -321,13 +318,12 @@ test('it derives one imp session name per session', async () => {
     other.kill();
   });
 
-  if (
-    first.waitForStart === undefined ||
-    repeat.waitForStart === undefined ||
-    other.waitForStart === undefined
-  ) {
-    throw new Error('the imp harness reports no start');
-  }
+  invariant(
+    first.waitForStart !== undefined &&
+      repeat.waitForStart !== undefined &&
+      other.waitForStart !== undefined,
+    'the imp harness reports no start',
+  );
 
   await Promise.allSettled([first.waitForStart(), repeat.waitForStart(), other.waitForStart()]);
 
@@ -367,17 +363,13 @@ test('it asks impd to require nothing on a harness start that requires no broker
     harness.kill();
   });
 
-  if (harness.waitForStart === undefined) {
-    throw new Error('the imp harness reports no start');
-  }
+  invariant(harness.waitForStart !== undefined, 'the imp harness reports no start');
 
   await harness.waitForStart();
 
   const [request] = ctx.port.sessionRequests;
 
-  if (request === undefined) {
-    throw new Error('expected a session request');
-  }
+  invariant(request !== undefined, 'expected a session request');
 
   expect(request).not.toContainKey('require');
 });

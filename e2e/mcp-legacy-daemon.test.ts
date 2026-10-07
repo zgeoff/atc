@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { isRecord } from '../src/shared/report';
 import { setupMCPHome } from '../src/test-utils/setup-mcp-home';
 import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
@@ -31,9 +32,7 @@ test('it leaves the agent list out of the tools for an older daemon', async () =
 
   const result = response['result'];
 
-  if (!isRecord(result) || !Array.isArray(result['tools'])) {
-    throw new TypeError('tools/list returned no tools');
-  }
+  invariant(isRecord(result) && Array.isArray(result['tools']), 'tools/list returned no tools');
 
   expect(result['tools']).not.toPartiallyContain({ name: 'atc_agents_list' });
 });

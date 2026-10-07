@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { findDaemonRecord } from '../src/shared/find-daemon-record';
 import { isRecord } from '../src/shared/report';
 import { toAgentID } from '../src/shared/to-agent-id';
@@ -123,9 +124,7 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
   const build = getString(ctx.hello, 'daemon');
   const record = findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'));
 
-  if (record === null) {
-    throw new Error('the state directory records no daemon');
-  }
+  invariant(record !== null, 'the state directory records no daemon');
 
   expect(restart.exitCode).toBe(0);
   expect(record.pid).not.toBe(oldPID);
@@ -308,9 +307,7 @@ test('it completes a restart run from inside a hosted session after the session 
         readFileSync(join(ctx.daemon.stateDir, 'restarts', 'last.json'), 'utf8'),
       );
 
-      if (!isRecord(parsed)) {
-        throw new TypeError('last.json holds no record');
-      }
+      invariant(isRecord(parsed), 'last.json holds no record');
 
       return parsed;
     },
@@ -334,9 +331,7 @@ test('it completes a restart run from inside a hosted session after the session 
 
   const record = findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'));
 
-  if (record === null) {
-    throw new Error('the state directory records no daemon');
-  }
+  invariant(record !== null, 'the state directory records no daemon');
 
   expect(last['code']).toBe(0);
   expect(record.pid).not.toBe(oldPID);
@@ -397,9 +392,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
   const runs = ctx.fake.readSystemdRunCalls();
   const record = findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'));
 
-  if (record === null) {
-    throw new Error('the state directory records no daemon');
-  }
+  invariant(record !== null, 'the state directory records no daemon');
 
   expect(restart.exitCode).toBe(0);
   expect(record.pid).not.toBe(oldPID);
@@ -463,9 +456,7 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
 
   const record = findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'));
 
-  if (record === null) {
-    throw new Error('the state directory records no daemon');
-  }
+  invariant(record !== null, 'the state directory records no daemon');
 
   expect(restart.exitCode).toBe(0);
   expect(record.pid).not.toBe(legacy.pid);

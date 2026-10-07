@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { getRecord } from '../shared/get-record';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
@@ -433,9 +434,7 @@ test('it starts a brokered harness with the variables its guest plan holds besid
   const id = String(getRecord(spawned, 'session')['id']);
   const [start] = ctx.port.sessionRequests;
 
-  if (start?.kind !== 'start') {
-    throw new Error('expected the harness start');
-  }
+  invariant(start?.kind === 'start', 'expected the harness start');
 
   expect(start.env).toMatchObject({
     ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
