@@ -253,6 +253,7 @@ test('it reads the auth profiles a config sets and registers a claude entry whos
           host: 'api.z.ai',
           header: 'authorization',
           scheme: 'bearer',
+          env: {},
           dependencies: [],
         },
       ],

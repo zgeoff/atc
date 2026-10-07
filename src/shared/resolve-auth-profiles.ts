@@ -23,7 +23,8 @@ export interface ResolvedAuthSecret {
 
 /**
  * A selection with its dependencies expanded: every profile it reaches,
- * every host those profiles send a credential to, and the rules grouped by
+ * every host those profiles send a credential to, the variables they set
+ * in the guest with the profile each came from, and the rules grouped by
  * secret, each list sorted so two selections of the same profiles resolve
  * the same.
  */
@@ -31,6 +32,8 @@ interface ResolvedAuthProfiles {
   readonly profiles: readonly string[];
   readonly hosts: readonly string[];
   readonly secrets: readonly ResolvedAuthSecret[];
+  readonly env: Readonly<Record<string, string>>;
+  readonly envOwners: Readonly<Record<string, string>>;
 }
 
 /**
@@ -40,7 +43,8 @@ interface ResolvedAuthProfiles {
  *   the config refused.
  * - `auth_dependency_cycle`: the dependencies loop back on themselves.
  * - `auth_collision`: two profiles send different credentials or rules to
- *   one host, which impd could not tell apart.
+ *   one host, which impd could not tell apart, or set one variable to
+ *   different values.
  */
 export interface AuthProfileProblem {
   readonly code: 'auth_profile_unknown' | 'auth_dependency_cycle' | 'auth_collision';
@@ -85,6 +89,9 @@ export function resolveAuthProfiles(
   const byHost = new Map<string, ProfileRule>();
   const kinds = new Map<string, AuthProfile>();
 
+  const env: Record<string, string> = {};
+  const envOwners: Record<string, string> = {};
+
   for (const profile of ordered) {
     const kindOwner = kinds.get(profile.secret);
 
@@ -97,6 +104,22 @@ export function resolveAuthProfiles(
           message: `profiles ${kindOwner.name} and ${profile.name} bind secret ${profile.secret} as different kinds`,
         },
       };
+    }
+
+    for (const [key, value] of Object.entries(profile.env)) {
+      const owner = envOwners[key];
+
+      if (owner === undefined) {
+        env[key] = value;
+        envOwners[key] = profile.name;
+      } else if (env[key] !== value) {
+        return {
+          problem: {
+            code: 'auth_collision',
+            message: `profiles ${owner} and ${profile.name} set ${key} to different values`,
+          },
+        };
+      }
     }
 
     for (const rule of getProfileRules(profile)) {
@@ -120,6 +143,8 @@ export function resolveAuthProfiles(
       profiles: ordered.map((profile) => profile.name),
       hosts: [...byHost.keys()].toSorted(),
       secrets: buildSecrets([...byHost.values()]),
+      env,
+      envOwners,
     },
   };
 }

@@ -412,3 +412,66 @@ test('it loads the same env and settings on a stock entry without auth', () => {
     errors: [],
   });
 });
+
+const ENV_PROFILES = collectAuthProfiles({
+  claude: {
+    secret: 'claude-setup-token',
+    host: 'api.anthropic.com',
+    header: 'authorization',
+    scheme: 'bearer',
+  },
+  glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  op: {
+    secret: 'op-connect',
+    host: 'op-connect.geoff.cloud',
+    header: 'authorization',
+    scheme: 'bearer',
+    env: { OP_CONNECT_TOKEN: 'imp-broker-placeholder' },
+  },
+}).profiles;
+
+test.each([
+  ['env', { env: { OP_CONNECT_TOKEN: 'x' } }],
+  ['settings.env', { settings: { env: { OP_CONNECT_TOKEN: 'x' } } }],
+])('it refuses a stock claude entry whose %s sets a variable its profile sets', (source, extra) => {
+  const result = collectAgents(
+    { claude: { ...extra, auth: { profiles: ['claude', 'op'] } } },
+    ENV_PROFILES,
+  );
+
+  expect({ agents: result.agents, errors: result.errors }).toStrictEqual({
+    agents: [],
+    errors: [`agents.claude: ${source} sets OP_CONNECT_TOKEN, which auth profile op sets`],
+  });
+});
+
+test.each([
+  ['env', { env: { OP_CONNECT_TOKEN: 'x' } }],
+  ['settings.env', { settings: { env: { OP_CONNECT_TOKEN: 'x' } } }],
+])('it refuses a gateway whose %s sets a variable its profile sets', (source, extra) => {
+  const result = collectAgents(
+    {
+      glm: {
+        kind: 'claude',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        ...extra,
+        auth: { profiles: ['glm', 'op'] },
+      },
+    },
+    ENV_PROFILES,
+  );
+
+  expect({ agents: result.agents, errors: result.errors }).toStrictEqual({
+    agents: [],
+    errors: [`agents.glm: ${source} sets OP_CONNECT_TOKEN, which auth profile op sets`],
+  });
+});
+
+test('it allows an entry to set a variable that none of its selected profiles set', () => {
+  const result = collectAgents(
+    { claude: { env: { OP_CONNECT_TOKEN: 'x' }, auth: { profiles: ['claude'] } } },
+    ENV_PROFILES,
+  );
+
+  expect(result.errors).toStrictEqual([]);
+});

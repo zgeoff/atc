@@ -598,13 +598,14 @@ impd's own client refuses an outdated impd.
   `auth_runtime_exists`. A spawn that fails after that takes back the imp it created; a take-back it
   cannot confirm answers `outcome_unknown` under an idempotency key.
 - A revive, a restore, and a sub-session joining its parent's imp check the same, and that the
-  binding is `ready` (`auth_blocked`, with the state as `data.state`), that the used profiles hash
-  as recorded (`auth_rebind_required`), that the imp is the one recorded (`auth_runtime_mismatch`),
-  and that impd holds exactly the bound grants (`auth_grant_missing`, `auth_grants_mismatch`). atc
-  never adds a missing grant back. A sub-session joins only a host bound to the same binding as its
-  own: `auth_binding_mismatch` otherwise. Both refusals of a sub-session, and the block of a binding
-  that is not `ready`, come before its workspace source resolves or its host is touched. A selection
-  the auth profiles cannot bind is `auth_binding_invalid`.
+  binding is `ready` (`auth_blocked`, with the state as `data.state`), that the used profiles, with
+  their variables when they set any, hash as recorded (`auth_rebind_required`), that the imp is the
+  one recorded (`auth_runtime_mismatch`), and that impd holds exactly the bound grants
+  (`auth_grant_missing`, `auth_grants_mismatch`). atc never adds a missing grant back. A sub-session
+  joins only a host bound to the same binding as its own: `auth_binding_mismatch` otherwise. Both
+  refusals of a sub-session, and the block of a binding that is not `ready`, come before its
+  workspace source resolves or its host is touched. A selection the auth profiles cannot bind is
+  `auth_binding_invalid`.
 - Each start and attach of such a harness is admitted under the host's binding lock: the binding
   must still be `ready`, or still provisioning under the spawn that launches, and a start must match
   the revision and hash it was planned under. An admitted request goes out only once its connection

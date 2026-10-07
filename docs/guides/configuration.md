@@ -536,14 +536,15 @@ with it:
 | `header`       | The lowercase header impd sets, such as `authorization`.                                  |
 | `scheme`       | How impd renders the value. atc binds `bearer` only.                                      |
 | `kind`         | The kind of secret impd holds: `custom`, the default, or `github`.                        |
+| `env`          | Variables a `custom` profile sets in a session that reaches it. See below.                |
 | `dependencies` | Profiles a session selecting this one needs beside it, such as a permission classifier's. |
 
 A `github` profile gives a session HTTPS git and the GitHub API. It holds `secret`, `kind` and
-`dependencies` only, since impd's `github` kind sets the rules: `Authorization: Basic` for
-`x-access-token` on `github.com`, and a bearer `authorization` header on `api.github.com` and
-`uploads.github.com`. Add the secret with `imp secret add <secret> --kind github`, list it in the
-`--grantable` secrets of the target's impd token when you make the token, and select the profile
-beside the model's:
+`dependencies` only, so it takes no `env`, since impd's `github` kind sets the rules:
+`Authorization: Basic` for `x-access-token` on `github.com`, and a bearer `authorization` header on
+`api.github.com` and `uploads.github.com`. Add the secret with
+`imp secret add <secret> --kind github`, list it in the `--grantable` secrets of the target's impd
+token when you make the token, and select the profile beside the model's:
 
 ```json
 {
@@ -563,6 +564,53 @@ beside the model's:
 impd sets `GH_TOKEN` and `GITHUB_TOKEN` to `imp-broker-placeholder` in the session, so `gh` and
 `git` run with no sign-in, and the token stays on the host. If impd changes the hosts of its
 `github` kind, a launch fails with `auth_secret_mismatch` until atc's rules match again.
+
+#### Profile variables
+
+A `custom` profile's `env` sets variables in the guest of each session that reaches the profile,
+through the entry's `auth.profiles` or a dependency. The local target never gets them. This gives a
+tool in the guest the endpoint of a service the broker authenticates, such as 1Password Connect. Add
+the secret with its value on stdin:
+
+```sh
+imp secret add op-connect --kind custom --hosts op-connect.geoff.cloud --header authorization --scheme bearer
+```
+
+Then add a profile that sets the variables, and select it in an agent's `auth.profiles`:
+
+```json
+{
+  "authProfiles": {
+    "op-connect": {
+      "secret": "op-connect",
+      "host": "op-connect.geoff.cloud",
+      "header": "authorization",
+      "scheme": "bearer",
+      "env": {
+        "OP_CONNECT_HOST": "https://op-connect.geoff.cloud",
+        "OP_CONNECT_TOKEN": "imp-broker-placeholder"
+      }
+    }
+  },
+  "agents": {
+    "claude": { "auth": { "profiles": ["claude", "op-connect"] } }
+  }
+}
+```
+
+`op` sends the placeholder as the bearer token, and the broker swaps in the real token on requests
+to that host. A value must be exactly `imp-broker-placeholder` or `https://` followed by the
+profile's own `host`, with no path and no port, so a credential is never written into the config. A
+name uses capital letters, digits and underscores, and starts with a letter or underscore. atc
+leaves out a profile, and refuses an entry that selects it, when its `env` sets:
+
+- A proxy or CA variable, any variable that overrides the subscription sign-in, `PATH`, or `HOME`.
+- `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR`, or a name starting with `ANTHROPIC_`, `CLAUDE_`,
+  or `ATC_`.
+
+Two selected profiles that set one variable to different values are refused, and so is an entry
+whose `env` or `settings.env` sets a variable that one of its profiles sets. A change to a profile's
+`env` gives the session's binding a new revision.
 
 An entry's `auth.profiles` selects profiles, and atc adds each one's dependencies.
 `auth.placeholderEnv` lists the variables that stand in for the credential, each holding

@@ -224,6 +224,7 @@ export class GatewayAdapter implements AgentAdapter {
         env: {
           ...this.gateway.env,
           ANTHROPIC_BASE_URL: this.gateway.baseURL,
+          ...guest.auth.profileEnv,
           ...guest.auth.env,
           CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
         },
@@ -253,7 +254,7 @@ export class GatewayAdapter implements AgentAdapter {
         ...buildClaudeConfigSeed(null),
         ...Object.fromEntries(bridge),
       },
-      env: { ...launch.env, ...guest.auth.env },
+      env: { ...launch.env, ...guest.auth.profileEnv, ...guest.auth.env },
     };
   }
 

@@ -72,6 +72,7 @@ test('it provisions a host through the gate, the record, a new imp and each gran
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -133,6 +134,7 @@ test('it refuses an impd without exec requirements after reading only its featur
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -177,6 +179,7 @@ test('it refuses a token that reaches every imp and records nothing', async () =
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -215,6 +218,7 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -253,6 +257,7 @@ test('it refuses an imp that already holds the name and grants nothing to it', a
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -300,6 +305,7 @@ test('it takes back the imp a refused grant left and drops the record', async ()
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -349,6 +355,7 @@ test('it verifies a bound host without granting anything again', async () => {
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -369,6 +376,7 @@ test('it verifies a bound host without granting anything again', async () => {
       },
     ],
     placeholderEnv: {},
+    profileEnv: {},
     hash: 'h1',
   });
 
@@ -403,6 +411,7 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -424,6 +433,7 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
       },
     ],
     placeholderEnv: {},
+    profileEnv: {},
     hash: 'h1',
   });
 
@@ -456,6 +466,7 @@ test('it refuses a host that holds a grant its binding does not', async () => {
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -475,6 +486,7 @@ test('it refuses a host that holds a grant its binding does not', async () => {
       },
     ],
     placeholderEnv: {},
+    profileEnv: {},
     hash: 'h1',
   });
 
@@ -509,6 +521,7 @@ test('it refuses a host whose used profiles changed before it reaches impd', asy
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -529,6 +542,7 @@ test('it refuses a host whose used profiles changed before it reaches impd', asy
       },
     ],
     placeholderEnv: {},
+    profileEnv: {},
     hash: 'h2',
   });
 
@@ -558,6 +572,7 @@ test('it refuses an imp made again under the recorded name', async () => {
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -579,6 +594,7 @@ test('it refuses an imp made again under the recorded name', async () => {
       },
     ],
     placeholderEnv: {},
+    profileEnv: {},
     hash: 'h1',
   });
 
@@ -604,6 +620,7 @@ test('it revokes every grant through the identity checks alone, without reading 
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -651,6 +668,7 @@ test('it blocks every launch on a host once its grants are revoked', async () =>
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -672,6 +690,7 @@ test('it blocks every launch on a host once its grants are revoked', async () =>
       },
     ],
     placeholderEnv: {},
+    profileEnv: {},
     hash: 'h1',
   });
 
@@ -701,6 +720,7 @@ test('it records the block of a revoke and keeps it pending when impd cannot be 
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -744,6 +764,7 @@ test('it counts a grant a secret rebind already dropped as revoked though the to
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -778,6 +799,7 @@ test('it keeps a revoke pending when the token cannot revoke a grant impd still 
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -826,6 +848,7 @@ test('it rebinds a host to the next revision, granting the new secret and revoki
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -846,6 +869,7 @@ test('it rebinds a host to the next revision, granting the new secret and revoki
       },
     ],
     placeholderEnv: {},
+    profileEnv: {},
     hash: 'h2',
   });
 
@@ -895,6 +919,7 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -943,6 +968,7 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
       },
     ],
     placeholderEnv: {},
+    profileEnv: {},
     hash: 'h2',
   });
 
@@ -985,6 +1011,7 @@ test('it takes back one attempt without touching the imp or grants of another ho
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1005,6 +1032,7 @@ test('it takes back one attempt without touching the imp or grants of another ho
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1047,6 +1075,7 @@ test('it leaves a host alone when asked to take back an attempt other than the o
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1083,6 +1112,7 @@ test('it forgets a bound host by destroying its imp and dropping the record', as
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1131,6 +1161,7 @@ test('it refuses to forget a host whose imp was made again and leaves that imp a
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1174,6 +1205,7 @@ test('it takes back a provisioning attempt no fleet entry lists as a daemon star
           },
         ],
         placeholderEnv: {},
+        profileEnv: {},
         hash: 'h1',
       },
     });
@@ -1221,6 +1253,7 @@ test('it fails a rebind a stopped daemon left in flight and revokes only the gra
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1284,6 +1317,7 @@ test('it rebinds a provisioned host whose spawn listed but never recorded its st
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1300,6 +1334,7 @@ test('it rebinds a provisioned host whose spawn listed but never recorded its st
       },
     ],
     placeholderEnv: {},
+    profileEnv: {},
     hash: 'h1',
   });
 
@@ -1339,6 +1374,7 @@ test('it refuses to rebind a host whose spawn is still provisioning before it cr
       },
     ],
     placeholderEnv: {},
+    profileEnv: {},
     hash: 'h1',
   });
 
@@ -1364,6 +1400,7 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1403,6 +1440,7 @@ test('it retries the removal of the grants a failed rebind added on a later star
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1476,6 +1514,7 @@ test('it hands a launch over before a revoke that arrives during its admission, 
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1527,6 +1566,7 @@ test('it refuses a launch whose admission waits behind a revoke, handing nothing
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1573,6 +1613,7 @@ test('it refuses a start planned under another binding hash than the ready one',
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1616,6 +1657,7 @@ test('it holds a launch admission while its connection opens and returns it once
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1685,6 +1727,7 @@ test('it returns the launch admission of each connection that fails before it op
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });
@@ -1755,6 +1798,7 @@ test('it returns the launch admission of a connection whose opening throws befor
         },
       ],
       placeholderEnv: {},
+      profileEnv: {},
       hash: 'h1',
     },
   });

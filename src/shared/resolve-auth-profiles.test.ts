@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { collectAuthProfiles } from './collect-auth-profiles';
 import { resolveAuthProfiles } from './resolve-auth-profiles';
 
 test('it resolves the dependency closure into the complete rule set grouped by secret', () => {
@@ -14,6 +15,7 @@ test('it resolves the dependency closure into the complete rule set grouped by s
             host: 'api.z.ai',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: ['glm-open', 'judge'],
           },
         ],
@@ -26,6 +28,7 @@ test('it resolves the dependency closure into the complete rule set grouped by s
             host: 'open.bigmodel.cn',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],
@@ -38,6 +41,7 @@ test('it resolves the dependency closure into the complete rule set grouped by s
             host: 'judge.example.com',
             header: 'x-api-key',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],
@@ -50,6 +54,7 @@ test('it resolves the dependency closure into the complete rule set grouped by s
             host: 'other.example.com',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],
@@ -75,6 +80,8 @@ test('it resolves the dependency closure into the complete rule set grouped by s
           rules: [{ host: 'judge.example.com', header: 'x-api-key', scheme: 'bearer' }],
         },
       ],
+      env: {},
+      envOwners: {},
     },
   });
 });
@@ -92,6 +99,7 @@ test('it refuses a selection that reaches a profile the config does not declare'
             host: 'api.z.ai',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: ['judge'],
           },
         ],
@@ -128,6 +136,7 @@ test('it refuses a dependency cycle', () => {
             host: 'a.example.com',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: ['b'],
           },
         ],
@@ -140,6 +149,7 @@ test('it refuses a dependency cycle', () => {
             host: 'b.example.com',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: ['a'],
           },
         ],
@@ -167,6 +177,7 @@ test('it refuses two profiles that a dependency brings onto one host', () => {
             host: 'api.z.ai',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: ['judge'],
           },
         ],
@@ -179,6 +190,7 @@ test('it refuses two profiles that a dependency brings onto one host', () => {
             host: 'api.z.ai',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],
@@ -206,6 +218,7 @@ test('it refuses two profiles of one secret whose rules differ for one host', ()
             host: 'api.z.ai',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],
@@ -218,6 +231,7 @@ test('it refuses two profiles of one secret whose rules differ for one host', ()
             host: 'api.z.ai',
             header: 'x-api-key',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],
@@ -245,6 +259,7 @@ test('it merges two profiles that hold the same rule for one host into one rule'
             host: 'api.z.ai',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],
@@ -257,6 +272,7 @@ test('it merges two profiles that hold the same rule for one host into one rule'
             host: 'api.z.ai',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],
@@ -274,6 +290,8 @@ test('it merges two profiles that hold the same rule for one host into one rule'
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
+      env: {},
+      envOwners: {},
     },
   });
 });
@@ -292,6 +310,7 @@ test('it resolves a deep chain of shared dependencies in one visit per profile',
           host: `${name}.example.com`,
           header: 'authorization',
           scheme: 'bearer' as const,
+          env: {},
           dependencies: names.slice(0, i),
         },
       ]),
@@ -315,12 +334,19 @@ test('it expands a github profile into the rules of the github kind beside a cus
             host: 'api.z.ai',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],
         [
           'github',
-          { name: 'github', secret: 'github-imp-agents', kind: 'github', dependencies: [] },
+          {
+            name: 'github',
+            secret: 'github-imp-agents',
+            kind: 'github',
+            env: {},
+            dependencies: [],
+          },
         ],
       ]),
       ['glm', 'github'],
@@ -350,6 +376,8 @@ test('it expands a github profile into the rules of the github kind beside a cus
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
+      env: {},
+      envOwners: {},
     },
   });
 });
@@ -367,12 +395,19 @@ test('it refuses a custom profile on a host a github profile covers', () => {
             host: 'api.github.com',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],
         [
           'github',
-          { name: 'github', secret: 'github-imp-agents', kind: 'github', dependencies: [] },
+          {
+            name: 'github',
+            secret: 'github-imp-agents',
+            kind: 'github',
+            env: {},
+            dependencies: [],
+          },
         ],
       ]),
       ['github', 'gh-api'],
@@ -389,7 +424,7 @@ test('it refuses two profiles that bind one secret as different kinds', () => {
   expect(
     resolveAuthProfiles(
       new Map([
-        ['github', { name: 'github', secret: 'shared', kind: 'github', dependencies: [] }],
+        ['github', { name: 'github', secret: 'shared', kind: 'github', env: {}, dependencies: [] }],
         [
           'judge',
           {
@@ -399,6 +434,7 @@ test('it refuses two profiles that bind one secret as different kinds', () => {
             host: 'judge.example.com',
             header: 'authorization',
             scheme: 'bearer',
+            env: {},
             dependencies: [],
           },
         ],
@@ -409,6 +445,51 @@ test('it refuses two profiles that bind one secret as different kinds', () => {
     problem: {
       code: 'auth_collision',
       message: 'profiles github and judge bind secret shared as different kinds',
+    },
+  });
+});
+
+function collectEnvProfiles(
+  hosts: Readonly<Record<string, string>>,
+  envs: Readonly<Record<string, Readonly<Record<string, string>>>>,
+) {
+  return collectAuthProfiles(
+    Object.fromEntries(
+      Object.entries(hosts).map(([name, host]) => [
+        name,
+        { secret: name, host, header: 'authorization', scheme: 'bearer', env: envs[name] },
+      ]),
+    ),
+  ).profiles;
+}
+
+test('it merges the variables of every reached profile with the profile that sets each', () => {
+  const profiles = collectEnvProfiles(
+    { a: 'a.example.com', b: 'b.example.com' },
+    {
+      a: { TOKEN: 'imp-broker-placeholder' },
+      b: { TOKEN: 'imp-broker-placeholder', B_HOST: 'https://b.example.com' },
+    },
+  );
+
+  expect(resolveAuthProfiles(profiles, ['b', 'a'])).toMatchObject({
+    resolved: {
+      env: { TOKEN: 'imp-broker-placeholder', B_HOST: 'https://b.example.com' },
+      envOwners: { TOKEN: 'a', B_HOST: 'b' },
+    },
+  });
+});
+
+test('it refuses two profiles that set one variable to different values', () => {
+  const profiles = collectEnvProfiles(
+    { a: 'a.example.com', b: 'b.example.com' },
+    { a: { SERVICE_URL: 'https://a.example.com' }, b: { SERVICE_URL: 'https://b.example.com' } },
+  );
+
+  expect(resolveAuthProfiles(profiles, ['b', 'a'])).toStrictEqual({
+    problem: {
+      code: 'auth_collision',
+      message: 'profiles a and b set SERVICE_URL to different values',
     },
   });
 });
