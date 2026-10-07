@@ -221,3 +221,15 @@ test('it lists the spawn tool without a workspace for a daemon that predates wor
 
   expect(spawn.inputSchema['properties']).not.toContainKey('workspace');
 });
+
+test('it leaves out the forget tool for a daemon that does not announce session forgets', () => {
+  const features = new Set(DAEMON_FEATURES.filter((feature) => feature !== 'session.forget'));
+
+  expect(buildToolList(features, null).map((tool) => tool.name)).not.toContain(
+    'atc_session_forget',
+  );
+
+  expect(buildToolList(new Set(DAEMON_FEATURES), null).map((tool) => tool.name)).toContain(
+    'atc_session_forget',
+  );
+});

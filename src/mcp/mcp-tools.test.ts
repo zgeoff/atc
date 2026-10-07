@@ -103,6 +103,12 @@ test("it pins every tool's scope and safety hints", () => {
       destructiveHint: true,
       openWorldHint: false,
     },
+    atc_session_forget: {
+      scope: 'kill',
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: false,
+    },
     atc_session_ack: {
       scope: 'message',
       readOnlyHint: false,

@@ -10,7 +10,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'message.idempotency': "atc_session_message's idempotencyKey",
   'message.turn': "atc_message_get's turn and answeredWith",
   'message.wait': "atc_message_get's waitMs",
-  'session.forget': 'session.forget',
+  'session.forget': 'atc_session_forget',
   'session.locator': "a session's locator",
   'session.submit': 'atc_session_input',
   'spawn.idempotency': "atc_session_spawn's idempotencyKey",
