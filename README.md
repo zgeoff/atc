@@ -98,6 +98,12 @@ fleet when you are ready. The bar shows `⟳ restarting daemon` until the restar
 running daemon speaks another protocol version, `atc` asks before it restarts the daemon, since the
 restart ends every session the daemon hosts.
 
+`atc daemon restart` does the same from a script or from inside a session: it stops the daemon,
+starts one in its place, restores the fleet, and exits 0 only when every stored row came back.
+`atc daemon restart --dry-run` prints what the restart would stop and which sessions are mid-turn.
+[Daemon architecture](./docs/architecture/daemon.md#restarting-the-daemon) covers the handoff and
+the exit codes.
+
 atc runs inside zellij or tmux. Give the pane locked mode so the leader key reaches atc.
 
 ## Grok and Codex
