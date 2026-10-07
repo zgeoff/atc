@@ -210,3 +210,32 @@ test('it stops listening when disposed', () => {
 
   expect(DaemonClient.open(ctx.socketPath)).rejects.toThrow();
 });
+
+test('it answers the handshake on the TCP port it bound when given a TCP address', async () => {
+  using daemon = startStubLegacyDaemon({ hostname: '127.0.0.1', port: 0 });
+
+  if (daemon.port === null) {
+    throw new Error('the daemon bound no TCP port');
+  }
+
+  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: daemon.port });
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const hello = await client.sendHello('atc/test-build');
+
+  expect(hello).toStrictEqual({
+    daemon: 'atc/legacy-build',
+    limits: { maxLine: 1_048_576, maxChunk: 65_536 },
+    lastUsedAgent: 'claude',
+  });
+});
+
+test('it holds no port when it listens on a unix socket', () => {
+  using ctx = setupTest();
+  using daemon = startStubLegacyDaemon(ctx.socketPath);
+
+  expect(daemon.port).toBeNull();
+});

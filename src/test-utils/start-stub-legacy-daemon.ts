@@ -1,3 +1,4 @@
+import type { SocketHandler } from 'bun';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import {
   MAX_CHUNK,
@@ -12,6 +13,13 @@ interface ReceivedRequest {
   readonly p: Readonly<Record<string, unknown>> | undefined;
 }
 
+// A TCP address to listen on in place of a unix socket; port 0 lets the
+// kernel choose one.
+interface StubLegacyDaemonTCPAddress {
+  readonly hostname: string;
+  readonly port: number;
+}
+
 interface StubLegacyDaemonOptions {
   readonly features?: readonly DaemonFeature[];
 
@@ -23,16 +31,21 @@ interface StubLegacyDaemonOptions {
 }
 
 /**
- * An older atc daemon listening on a unix socket and speaking the current
+ * An older atc daemon listening on a unix socket, or on the TCP address
+ * given in its place, and speaking the current
  * protocol version, or the one `protocol` holds. Its `daemon.hello` announces `features` when the options
  * hold that list, and announces none without it, as a daemon from before
  * features did. It answers `daemon.hello`, `daemon.ping`, and each method in
  * `replies` with that method's reply, and refuses every other method with
  * `unknown_method`. Every request it receives is recorded in `requests`, and
- * `connections` counts the connections it accepted and those still open. Stop
+ * `connections` counts the connections it accepted and those still open.
+ * `port` holds the TCP port it bound, `null` on a unix socket. Stop
  * it with `stop`, or hold it with `using`.
  */
-export function startStubLegacyDaemon(socketPath: string, options: StubLegacyDaemonOptions = {}) {
+export function startStubLegacyDaemon(
+  address: string | StubLegacyDaemonTCPAddress,
+  options: StubLegacyDaemonOptions = {},
+) {
   const answers: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
     'daemon.hello': {
       daemon: 'atc/legacy-build',
@@ -48,75 +61,106 @@ export function startStubLegacyDaemon(socketPath: string, options: StubLegacyDae
   const requests: ReceivedRequest[] = [];
   const connections = { accepted: 0, open: 0 };
 
-  const server = Bun.listen<{ buffer: string }>({
-    unix: socketPath,
-    socket: {
-      open(socket) {
-        socket.data = { buffer: '' };
-        connections.accepted += 1;
-        connections.open += 1;
-      },
-      close() {
-        connections.open -= 1;
-      },
-      data(socket, chunk) {
-        const lines = `${socket.data.buffer}${chunk.toString()}`.split('\n');
+  const handlers: SocketHandler<{ buffer: string }> = {
+    open(socket) {
+      socket.data = { buffer: '' };
+      connections.accepted += 1;
+      connections.open += 1;
+    },
+    close() {
+      connections.open -= 1;
+    },
+    data(socket, chunk) {
+      const lines = `${socket.data.buffer}${chunk.toString()}`.split('\n');
 
-        socket.data.buffer = lines.pop() ?? '';
+      socket.data.buffer = lines.pop() ?? '';
 
-        for (const line of lines) {
-          const decoded = decodeMessage(line);
+      for (const line of lines) {
+        const decoded = decodeMessage(line);
 
-          if (decoded.kind !== 'request') {
-            continue;
-          }
+        if (decoded.kind !== 'request') {
+          continue;
+        }
 
-          const req = decoded.msg;
+        const req = decoded.msg;
 
-          requests.push({ m: req.m, p: req.p });
+        requests.push({ m: req.m, p: req.p });
 
-          if (req.m === 'daemon.hello' && req.v !== protocol) {
-            const client = req.p?.['client'];
+        if (req.m === 'daemon.hello' && req.v !== protocol) {
+          const client = req.p?.['client'];
 
-            socket.write(
-              encodeMessage({
+          socket.write(
+            encodeMessage({
+              v: protocol,
+              id: req.id,
+              err: {
+                code: 'protocol_mismatch',
+                msg: `${String(client)} speaks protocol v${req.v}, daemon atc/legacy-build speaks v${protocol}; restart the daemon so both run the same build`,
+              },
+            }),
+          );
+
+          continue;
+        }
+
+        const answer = answers[req.m];
+
+        const reply =
+          answer === undefined
+            ? {
                 v: protocol,
                 id: req.id,
-                err: {
-                  code: 'protocol_mismatch',
-                  msg: `${String(client)} speaks protocol v${req.v}, daemon atc/legacy-build speaks v${protocol}; restart the daemon so both run the same build`,
-                },
-              }),
-            );
+                err: { code: 'unknown_method' as const, msg: `unknown method '${req.m}'` },
+              }
+            : { v: protocol, id: req.id, ok: answer };
 
-            continue;
-          }
-
-          const answer = answers[req.m];
-
-          const reply =
-            answer === undefined
-              ? {
-                  v: protocol,
-                  id: req.id,
-                  err: { code: 'unknown_method' as const, msg: `unknown method '${req.m}'` },
-                }
-              : { v: protocol, id: req.id, ok: answer };
-
-          socket.write(encodeMessage(reply));
-        }
-      },
+        socket.write(encodeMessage(reply));
+      }
     },
-  });
+  };
+
+  const server = startListener(address, handlers);
 
   return {
     requests,
     connections,
+    port: server.port,
     stop() {
-      server.stop(true);
+      server.stop();
     },
     [Symbol.dispose]() {
-      server.stop(true);
+      server.stop();
+    },
+  };
+}
+
+// Listens on the unix socket path, or on the TCP address in its place, and
+// returns the port bound, `null` for a unix socket.
+function startListener(
+  address: string | StubLegacyDaemonTCPAddress,
+  handlers: Readonly<SocketHandler<{ buffer: string }>>,
+): { readonly port: number | null; readonly stop: () => void } {
+  if (typeof address === 'string') {
+    const unix = Bun.listen<{ buffer: string }>({ unix: address, socket: handlers });
+
+    return {
+      port: null,
+      stop: () => {
+        unix.stop(true);
+      },
+    };
+  }
+
+  const tcp = Bun.listen<{ buffer: string }>({
+    hostname: address.hostname,
+    port: address.port,
+    socket: handlers,
+  });
+
+  return {
+    port: tcp.port,
+    stop: () => {
+      tcp.stop(true);
     },
   };
 }
