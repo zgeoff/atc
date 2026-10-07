@@ -467,3 +467,38 @@ test('it fails the spawn of a program the harness PATH does not hold', () => {
     }),
   ).toThrowWithMessage(Error, /PTY spawn failed/);
 });
+
+test('it runs a harness whose program path holds an equals sign', async () => {
+  using local = setupTest();
+
+  mkdirSync(join(local.dir, 'agent=dir'));
+
+  writeFileSync(join(local.dir, 'agent=dir', 'agent'), '#!/bin/sh\necho "RAN:[$1]"\nsleep 30\n', {
+    mode: 0o755,
+  });
+
+  const output: string[] = [];
+
+  const harness = local.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: join(local.dir, 'agent=dir', 'agent'),
+    args: ['first arg'],
+    cwd: local.dir,
+    env: { PATH: '/usr/bin:/bin' },
+    cols: 80,
+    rows: 24,
+  });
+
+  onTestFinished(() => {
+    harness.kill();
+  });
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('RAN:[first arg]');
+  });
+});

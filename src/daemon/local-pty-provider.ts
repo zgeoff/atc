@@ -58,7 +58,7 @@ export class LocalPTYProvider implements ExecutionProvider {
 
     const pty = spawn(
       ENV_BIN,
-      [...unset.flatMap((name) => ['-u', name]), '--', bin, ...spec.args],
+      buildEnvArgs(unset, buildDYLDEntries(env, process.platform), bin, spec.args),
       {
         name: 'xterm-256color',
         cols: spec.cols,
@@ -208,13 +208,12 @@ function buildPTYEnv(spec: HarnessSpec): Record<string, string> {
 // The PTY library starts its child from the environment the daemon started
 // with and lays the map over it, so the harness starts behind `env`, which
 // unsets every name the map leaves out before it replaces itself with the
-// harness. The pid stays the harness's own, and the argv holds names only.
+// harness. The pid stays the harness's own.
 const ENV_BIN = '/usr/bin/env';
 
 // The program is found on the map's PATH before the harness starts, so a
 // missing program fails the spawn as the PTY library fails it, instead of
-// starting `env` only to exit. `env` reads a word holding `=` as an
-// assignment even after `--`, so such a path never starts.
+// starting `env` only to exit.
 function resolveHarnessBin(
   bin: string,
   env: Readonly<Record<string, string>>,
@@ -222,7 +221,7 @@ function resolveHarnessBin(
 ): string {
   const resolved = Bun.which(bin, { PATH: env['PATH'] ?? '', cwd });
 
-  if (resolved === null || resolved.includes('=')) {
+  if (resolved === null) {
     throw new Error(`PTY spawn failed: ${bin} is not a program the harness can start`);
   }
 
@@ -238,6 +237,38 @@ function buildUnsetNames(
   return [...new Set(inherited)].filter(
     (name) => name !== '' && !name.includes('=') && !Object.hasOwn(env, name),
   );
+}
+
+// macOS clears every `DYLD_` variable on the way into `env`, a protected
+// system program, so the map's own ones are set again after the unsets, the
+// one place the argv holds a value.
+function buildDYLDEntries(
+  env: Readonly<Record<string, string>>,
+  platform: NodeJS.Platform,
+): string[] {
+  if (platform !== 'darwin') {
+    return [];
+  }
+
+  return Object.entries(env)
+    .filter(([name]) => name.startsWith('DYLD_'))
+    .map(([name, value]) => `${name}=${value}`);
+}
+
+// `env` reads a word holding `=` as an assignment even after `--`, so a
+// program path holding one starts through a shell that runs it by its first
+// argument.
+const SHELL_EXEC = 'exec "$0" "$@"';
+
+function buildEnvArgs(
+  unset: readonly string[],
+  entries: readonly string[],
+  bin: string,
+  args: readonly string[],
+): string[] {
+  const program = bin.includes('=') ? ['/bin/sh', '-c', SHELL_EXEC, bin] : [bin];
+
+  return [...unset.flatMap((name) => ['-u', name]), '--', ...entries, ...program, ...args];
 }
 
 // A process another user owns still runs, so only a missing process counts
