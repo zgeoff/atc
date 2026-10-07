@@ -37,8 +37,9 @@ subprocesses.
 
 - Derive a home path from `resolveHomeDir()`, never `os.homedir()`: Bun reads `HOME` for
   `os.homedir()` once at startup, so a home set after startup never moves it.
-- Never set `HOME` in a test. A module that needs a home takes the path as an argument, and the test
-  passes a path under its temp root.
+- Never move `HOME` after startup, with `updateEnv` or otherwise. A module that needs a home takes
+  the path as an argument, and the test passes a path under its temp root. A spawned child still
+  gets its own home through the environment it starts with.
 - Override an environment variable with `updateEnv(key, value)` from `src/test-utils/update-env.ts`,
   passing `undefined` to unset it, and write no restore code. The `src/test-utils/isolate-home.ts`
   preload puts every overridden variable back after each test, so a test that moves `GROK_HOME` or
