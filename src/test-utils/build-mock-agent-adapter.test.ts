@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
+import { join } from 'node:path';
 import type { RequiredKeysOf } from 'type-fest';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
+import { setupTempDir } from './setup-temp-dir';
 
 test('it builds a default agent adapter', () => {
   expect(buildMockAgentAdapter()).toStrictEqual({
@@ -67,14 +69,19 @@ test('it reads every hook as a heartbeat', () => {
 });
 
 test('it loads no name for a session', () => {
-  expect(buildMockAgentAdapter().loadName('/tmp/transcript.jsonl', 'agent')).resolves.toBeNull();
+  using tmp = setupTempDir('atc-mock-adapter-');
+
+  expect(
+    buildMockAgentAdapter().loadName(join(tmp.dir, 'transcript.jsonl'), 'agent'),
+  ).resolves.toBeNull();
 });
 
-test('it resumes any session without a resume command', () => {
-  const adapter = buildMockAgentAdapter();
+test('it resumes any session', () => {
+  expect(buildMockAgentAdapter().canResume({ agentSessionID: toAgentSessionID('c-1') })).toBeTrue();
+});
 
-  expect([
-    adapter.canResume({ agentSessionID: toAgentSessionID('c-1') }),
-    adapter.buildResumeCommand('/tmp', toAgentSessionID('c-1')),
-  ]).toStrictEqual([true, null]);
+test('it gives no resume command', () => {
+  using tmp = setupTempDir('atc-mock-adapter-');
+
+  expect(buildMockAgentAdapter().buildResumeCommand(tmp.dir, toAgentSessionID('c-1'))).toBeNull();
 });

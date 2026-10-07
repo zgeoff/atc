@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { toSessionID } from '../shared/to-session-id';
-import { buildMockSessionInfo } from './build-mock-session-info';
+import { buildMockSessionDescriptor } from './build-mock-session-descriptor';
 
-test('it builds a default session info', () => {
-  expect(buildMockSessionInfo()).toStrictEqual({
+test('it builds a default session descriptor', () => {
+  expect(buildMockSessionDescriptor()).toStrictEqual({
     id: expect.toBeString(),
     name: expect.toBeString(),
     cwd: expect.toStartWith('/'),
@@ -26,7 +26,7 @@ test('it builds a default session info', () => {
 
 test('it applies overrides on top of the defaults', () => {
   expect(
-    buildMockSessionInfo({
+    buildMockSessionDescriptor({
       name: 'alpha',
       state: 'needs_you',
       parent: toSessionID('s-parent'),

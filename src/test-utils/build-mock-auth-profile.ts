@@ -21,9 +21,9 @@ type GitHubOverrides = MockOverrides<GitHubAuthProfile, keyof GitHubAuthProfile>
 
 /**
  * An auth profile of kind `custom` that sends its secret as a bearer token
- * in the `authorization` header, or, for an override of kind `github`, a
- * GitHub profile. Either has no environment and no dependencies, and an
- * arbitrary name and secret; a custom profile's host is arbitrary too.
+ * in a header, or, for an override of kind `github`, a GitHub profile.
+ * Either has no environment and no dependencies, and an arbitrary name and
+ * secret; a custom profile's host and header name are arbitrary too.
  * Overrides merge into fresh defaults at every depth.
  */
 export function buildMockAuthProfile(overrides?: HeaderOverrides): HeaderAuthProfile;
@@ -46,7 +46,7 @@ export function buildMockAuthProfile(
           secret,
           kind: 'custom',
           host: faker.internet.domainName(),
-          header: 'authorization',
+          header: `x-${faker.string.alpha({ length: 6, casing: 'lower' })}-key`,
           scheme: 'bearer',
           env: {},
           dependencies: [],

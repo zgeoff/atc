@@ -36,7 +36,7 @@ type DefaultedKey =
  * daemon id are arbitrary. Overrides merge into fresh defaults at every
  * depth.
  */
-export function buildMockSessionInfo(
+export function buildMockSessionDescriptor(
   overrides: MockOverrides<SessionDescriptor, DefaultedKey> = {},
 ): SessionDescriptor {
   const cwd = faker.system.directoryPath();

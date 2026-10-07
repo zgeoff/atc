@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
+import { planPastedLineInput } from '../agents/plan-pasted-line-input';
 import { buildLeaderChords } from '../client/build-leader-chords';
-import { planTextEdit } from '../client/keys';
+import { KEY, planTextEdit } from '../client/keys';
 import type { TextEdit } from '../client/keys';
 import { KEYS } from './keys';
 
@@ -16,8 +17,35 @@ test('it holds only control bytes and sequences that open with one', () => {
   });
 });
 
-test('it types Ctrl-Space as the bare leader byte the TUI listens for', () => {
-  expect(buildLeaderChords(0)).toContain(KEYS.ctrlSpace);
+test.each<[string, string, number]>([
+  ['ctrlSpace', KEYS.ctrlSpace, 0],
+  ['ctrlA', KEYS.ctrlA, 1],
+  ['ctrlB', KEYS.ctrlB, 2],
+  ['ctrlRightBracket', KEYS.ctrlRightBracket, 29],
+])('it types %s as the bare leader byte the TUI listens for', (_name, key, code) => {
+  expect(buildLeaderChords(code)).toContain(key);
+});
+
+test.each<[string, string, number]>([
+  ['ctrlC', KEYS.ctrlC, KEY.ctrlC],
+  ['tab', KEYS.tab, KEY.tab],
+])('it types %s as the byte the TUI reads for it', (_name, key, byte) => {
+  expect([...Buffer.from(key)]).toStrictEqual([byte]);
+});
+
+test('it wraps a paste in the markers the agent terminal reads', () => {
+  expect(planPastedLineInput('hello', { bracketedPaste: true })).toStrictEqual([
+    `${KEYS.pasteOpen}hello${KEYS.pasteClose}`,
+    KEYS.enter,
+  ]);
+});
+
+test('it holds the exact bytes of the keys no TUI reader takes', () => {
+  expect({ bel: KEYS.bel, right: KEYS.right, left: KEYS.left }).toStrictEqual({
+    bel: '\u0007',
+    right: '\u001B[C',
+    left: '\u001B[D',
+  });
 });
 
 test.each<[string, string, TextEdit]>([

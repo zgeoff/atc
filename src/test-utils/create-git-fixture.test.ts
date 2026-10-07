@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { $ } from 'bun';
@@ -87,6 +87,8 @@ test('it lays the upstream and the work clone out in its directory', async () =>
 
 test('it removes its directory on dispose', async () => {
   const fixture = await createGitFixture();
+
+  onTestFinished(() => fixture[Symbol.asyncDispose]());
 
   await fixture[Symbol.asyncDispose]();
 

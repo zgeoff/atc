@@ -30,7 +30,9 @@ export async function createGitFixture(config: GitFixtureConfig = {}) {
 
   const template = await resolveTemplate();
 
-  const tmp = setupTempDir(config.prefix ?? 'atc-git-fixture-');
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir(config.prefix ?? 'atc-git-fixture-'));
   const upstream = join(tmp.dir, 'upstream.git');
   const work = join(tmp.dir, 'work');
 
@@ -49,13 +51,15 @@ export async function createGitFixture(config: GitFixtureConfig = {}) {
     ),
   );
 
+  const owned = stack.move();
+
   return {
     dir: tmp.dir,
     env,
     upstream,
     work,
     sha: template.sha,
-    [Symbol.asyncDispose]: tmp[Symbol.asyncDispose],
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
