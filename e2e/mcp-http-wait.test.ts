@@ -1,13 +1,14 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from './test-utils/setup-temp-dir';
-import { waitFor } from './test-utils/wait-for';
+import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
+import { setupTempDir } from '../src/test-utils/setup-temp-dir';
+import { waitFor } from '../src/test-utils/wait-for';
 
 /**
  * A fresh home whose computed daemon socket sits in it, a free loopback port
- * for the HTTP server, and the CLI entry with an environment that makes that
- * home its home and runtime directory. Disposal removes the home.
+ * for the HTTP server, and the command atc runs as with an environment that
+ * makes that home its home and runtime directory. Disposal removes the home.
  */
 function setupTest() {
   using stack = new DisposableStack();
@@ -26,7 +27,7 @@ function setupTest() {
   return {
     dir: tmp.dir,
     port,
-    cli: join(import.meta.dir, 'cli.ts'),
+    atc: resolveATCCommand(),
     env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
     [Symbol.dispose]: () => {
       owned.dispose();
@@ -38,7 +39,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
   using ctx = setupTest();
 
   await using mcp = Bun.spawn(
-    [process.execPath, ctx.cli, 'mcp', '--http', '--wait-for-daemon', '--port', String(ctx.port)],
+    [...ctx.atc, 'mcp', '--http', '--wait-for-daemon', '--port', String(ctx.port)],
     { env: ctx.env, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
   );
 
@@ -56,21 +57,18 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     expect(stderr).toEndWith('\n');
   });
 
-  await using daemon = Bun.spawn([process.execPath, ctx.cli, 'daemon'], {
+  await using daemon = Bun.spawn([...ctx.atc, 'daemon'], {
     env: ctx.env,
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
   });
 
-  const served = await waitFor(
-    async () => {
-      const response = await fetch(`http://127.0.0.1:${ctx.port}/mcp`, { method: 'POST' });
+  const served = await waitFor(async () => {
+    const response = await fetch(`http://127.0.0.1:${ctx.port}/mcp`, { method: 'POST' });
 
-      return response.status;
-    },
-    { timeoutMs: 10_000 },
-  );
+    return response.status;
+  });
 
   const record = await waitFor((): unknown =>
     JSON.parse(readFileSync(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'), 'utf8')),

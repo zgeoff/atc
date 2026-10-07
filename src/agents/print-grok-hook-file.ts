@@ -12,10 +12,15 @@ const GROK_HOOK_EVENTS = [
 
 /**
  * Print the Grok hook file to stdout. The operator copies it to
- * `$GROK_HOME/hooks/atc-reporter.json`; atc never writes that path.
+ * `$GROK_HOME/hooks/atc-reporter.json`; atc never writes that path. `write`
+ * takes the printed text, stdout by default.
  */
-export function printGrokHookFile(): void {
-  process.stdout.write(buildGrokHookFile());
+export function printGrokHookFile(
+  write: (text: string) => void = (text) => {
+    process.stdout.write(text);
+  },
+): void {
+  write(buildGrokHookFile());
 }
 
 function buildGrokHookFile(): string {

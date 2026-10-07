@@ -1,6 +1,20 @@
 import { normalizeHookEventName } from './agents/normalize-hook-event';
 import { isRecord, sendReport } from './shared/report';
 
+// Where the reporter reads its event and how it exits: stdin and the
+// process by default.
+interface HookReportIO {
+  readonly readStdin: () => Promise<string>;
+  readonly exit: (code: number) => void;
+}
+
+const PROCESS_IO: HookReportIO = {
+  readStdin: () => new Response(Bun.stdin.stream()).text(),
+  exit: (code) => {
+    process.exit(code);
+  },
+};
+
 /**
  * Runs as a hook inside wrangled sessions. Reads the hook event from stdin
  * (Claude snake_case keys or Grok camelCase keys) and forwards a PascalCase
@@ -9,12 +23,12 @@ import { isRecord, sendReport } from './shared/report';
  * session's own. Always exits 0 so it never blocks the session it reports
  * on.
  */
-export async function runHookReport(agent: string): Promise<void> {
+export async function runHookReport(agent: string, io: HookReportIO = PROCESS_IO): Promise<void> {
   const sock = process.env['ATC_SOCKET'];
   const atcId = process.env['ATC_SESSION_ID'];
 
   if (sock !== undefined && sock !== '' && atcId !== undefined && atcId !== '') {
-    const raw = await new Response(Bun.stdin.stream()).text();
+    const raw = await io.readStdin();
 
     let payload: Record<string, unknown> = {};
 
@@ -33,5 +47,5 @@ export async function runHookReport(agent: string): Promise<void> {
     await sendReport(sock, line, 2000);
   }
 
-  process.exit(0);
+  io.exit(0);
 }

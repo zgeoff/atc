@@ -19,6 +19,24 @@ interface InboxMessage {
   readonly sentAt: number;
 }
 
+// Where the tap prints and how it exits: stdout, stderr, and the process by
+// default.
+interface TapIO {
+  readonly writeStdout: (text: string) => Promise<unknown>;
+  readonly printError: (line: string) => void;
+  readonly exit: (code: number) => void;
+}
+
+const PROCESS_IO: TapIO = {
+  writeStdout: (text) => Bun.write(Bun.stdout, text),
+  printError: (line) => {
+    console.error(line);
+  },
+  exit: (code) => {
+    process.exit(code);
+  },
+};
+
 /**
  * Streams one session's inbox to stdout, one NDJSON line per message, and
  * acks each message once its line is written. It talks to the daemon that
@@ -26,15 +44,20 @@ interface InboxMessage {
  * serves, so a restart from here would take the whole fleet down. Exits 1
  * with a hint when no daemon listens or the session cannot be tapped, and
  * 0 once the daemon closes the connection or ends the subscription because
- * another tap replaced it or the session was removed.
+ * another tap replaced it or the session was removed. It dials the daemon
+ * at `socketPath`, the running daemon's socket by default.
  */
-export async function runTap(session: string): Promise<void> {
+export async function runTap(
+  session: string,
+  socketPath: string = daemonSocketPath,
+  io: TapIO = PROCESS_IO,
+): Promise<void> {
   const bridge = process.env['ATC_SOCKET'];
 
   // Inside a remote host the daemon's own socket is out of reach, and the
   // session bridge serves the tap instead.
   if (process.env['ATC_BRIDGE'] === '1' && bridge !== undefined && bridge !== '') {
-    await runBridgeTap(bridge, process.env['ATC_OUTBOX'] ?? '');
+    await runBridgeTap(bridge, process.env['ATC_OUTBOX'] ?? '', io);
 
     return;
   }
@@ -42,10 +65,12 @@ export async function runTap(session: string): Promise<void> {
   let client: DaemonClient;
 
   try {
-    client = await DaemonClient.open(daemonSocketPath);
+    client = await DaemonClient.open(socketPath);
   } catch {
-    console.error(`atc tap: no daemon at ${daemonSocketPath} — start atc first`);
-    process.exit(1);
+    io.printError(`atc tap: no daemon at ${socketPath} — start atc first`);
+    io.exit(1);
+
+    return;
   }
 
   const closed = Promise.withResolvers<void>();
@@ -83,7 +108,7 @@ export async function runTap(session: string): Promise<void> {
 
     written = (async () => {
       await previous;
-      await ackInboxMessage(client, session, msg);
+      await ackInboxMessage(client, session, msg, io);
     })();
   };
 
@@ -91,15 +116,18 @@ export async function runTap(session: string): Promise<void> {
     await client.sendHello(getBuild());
     await client.sendRequest('session.tap', { session });
   } catch (error) {
-    console.error(`atc tap: ${formatError(error)}`);
+    io.printError(`atc tap: ${formatError(error)}`);
     client.stop();
-    process.exit(1);
+    io.exit(1);
+
+    return;
   }
 
   await closed.promise;
   await written;
 
-  process.exit(0);
+  client.stop();
+  io.exit(0);
 }
 
 interface RequestSender {
@@ -110,19 +138,22 @@ async function ackInboxMessage(
   client: RequestSender,
   session: string,
   msg: InboxMessage,
+  io: TapIO,
 ): Promise<void> {
   const line = `${JSON.stringify({ id: msg.message, from: msg.from, text: msg.text, sentAt: msg.sentAt })}\n`;
 
   try {
-    await Bun.write(Bun.stdout, line);
+    await io.writeStdout(line);
   } catch {
-    process.exit(1);
+    io.exit(1);
+
+    return;
   }
 
   try {
     await client.sendRequest('message.ack', { session, message: msg.message });
   } catch (error) {
-    console.error(`atc tap: ${formatError(error)}`);
+    io.printError(`atc tap: ${formatError(error)}`);
   }
 }
 

@@ -1,165 +1,235 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { runClients } from './clients';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 
 /**
- * A fresh home for the CLI, where its authorization database lands, and the
- * environment that points a spawned CLI at it. Disposal removes the home.
+ * A temp directory that holds the authorization database the command opens.
+ * Disposal removes the directory.
  */
 function setupTest() {
-  const home = setupTempDir('atc-clients-');
+  const tmp = setupTempDir('atc-clients-');
 
   return {
-    cli: join(import.meta.dir, 'cli.ts'),
-    env: { PATH: process.env['PATH'] ?? '', HOME: home.dir },
-    [Symbol.dispose]: home[Symbol.dispose],
+    dbPath: join(tmp.dir, 'state', 'mcp-auth.db'),
+    [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
-test('it adds a client and prints its client ID', () => {
+test('it adds a client and prints its client ID', async () => {
   using ctx = setupTest();
 
-  const added = Bun.spawnSync(
-    [
-      process.execPath,
-      ctx.cli,
-      'clients',
-      'add',
-      'Claude',
-      '--redirect-uri',
-      'https://claude.ai/api/mcp/auth_callback',
-    ],
-    { env: ctx.env },
+  const printed: string[] = [];
+  const errors: string[] = [];
+  const codes: number[] = [];
+
+  await runClients(
+    { kind: 'add', name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      setExitCode: (code) => {
+        codes.push(code);
+      },
+    },
   );
 
-  expect(added.exitCode).toBe(0);
-  expect(added.stdout.toString()).toMatch(/^Added Claude\. Its client ID is \w+\n$/u);
+  expect({ errors, codes }).toStrictEqual({ errors: [], codes: [] });
+  expect(printed.join('\n')).toMatch(/^Added Claude\. Its client ID is \w+$/u);
 });
 
-test('it lists an added client with every redirect URI it was given', () => {
+test('it lists an added client with every redirect URI it was given', async () => {
   using ctx = setupTest();
 
-  const added = Bun.spawnSync(
-    [
-      process.execPath,
-      ctx.cli,
-      'clients',
-      'add',
-      'Claude',
-      '--redirect-uri',
-      'https://claude.ai/api/mcp/auth_callback',
-      '--redirect-uri=https://claude.com/api/mcp/auth_callback',
-    ],
-    { env: ctx.env },
+  const added: string[] = [];
+
+  await runClients(
+    {
+      kind: 'add',
+      name: 'Claude',
+      redirectURIs: [
+        'https://claude.ai/api/mcp/auth_callback',
+        'https://claude.com/api/mcp/auth_callback',
+      ],
+    },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: (line) => {
+        added.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+    },
   );
 
-  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
+  const clientID = /client ID is (?<id>\w+)/u.exec(added.join('\n'))?.groups?.['id'];
 
   if (clientID === undefined) {
-    throw new Error(`no client ID in: ${added.stdout.toString()}`);
+    throw new Error(`no client ID in: ${added.join('\n')}`);
   }
 
-  const listed = Bun.spawnSync([process.execPath, ctx.cli, 'clients'], { env: ctx.env });
+  const printed: string[] = [];
 
-  expect(listed.stdout.toString()).toBe(
-    `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback https://claude.com/api/mcp/auth_callback\n`,
+  await runClients(
+    { kind: 'list' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+    },
   );
+
+  expect(printed).toStrictEqual([
+    `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback https://claude.com/api/mcp/auth_callback`,
+  ]);
 });
 
-test('it removes a client and says it revoked every grant the client held', () => {
+test('it removes a client and says it revoked every grant the client held', async () => {
   using ctx = setupTest();
 
-  const added = Bun.spawnSync(
-    [
-      process.execPath,
-      ctx.cli,
-      'clients',
-      'add',
-      'Claude',
-      '--redirect-uri',
-      'https://claude.ai/api/mcp/auth_callback',
-    ],
-    { env: ctx.env },
+  const added: string[] = [];
+
+  await runClients(
+    { kind: 'add', name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: (line) => {
+        added.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+    },
   );
 
-  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
+  const clientID = /client ID is (?<id>\w+)/u.exec(added.join('\n'))?.groups?.['id'];
 
   if (clientID === undefined) {
-    throw new Error(`no client ID in: ${added.stdout.toString()}`);
+    throw new Error(`no client ID in: ${added.join('\n')}`);
   }
 
-  const removed = Bun.spawnSync([process.execPath, ctx.cli, 'clients', 'remove', clientID], {
-    env: ctx.env,
-  });
+  const printed: string[] = [];
 
-  expect(removed.stdout.toString()).toBe(
-    `Removed client ${clientID} and revoked every grant it held\n`,
+  await runClients(
+    { kind: 'remove', clientID },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+    },
   );
+
+  expect(printed).toStrictEqual([`Removed client ${clientID} and revoked every grant it held`]);
 });
 
-test('it lists no clients and how to add one once the last client is removed', () => {
+test('it lists no clients and how to add one once the last client is removed', async () => {
   using ctx = setupTest();
 
-  const added = Bun.spawnSync(
-    [
-      process.execPath,
-      ctx.cli,
-      'clients',
-      'add',
-      'Claude',
-      '--redirect-uri',
-      'https://claude.ai/api/mcp/auth_callback',
-    ],
-    { env: ctx.env },
+  const added: string[] = [];
+
+  await runClients(
+    { kind: 'add', name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: (line) => {
+        added.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+    },
   );
 
-  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
+  const clientID = /client ID is (?<id>\w+)/u.exec(added.join('\n'))?.groups?.['id'];
 
   if (clientID === undefined) {
-    throw new Error(`no client ID in: ${added.stdout.toString()}`);
+    throw new Error(`no client ID in: ${added.join('\n')}`);
   }
 
-  Bun.spawnSync([process.execPath, ctx.cli, 'clients', 'remove', clientID], { env: ctx.env });
-
-  const listed = Bun.spawnSync([process.execPath, ctx.cli, 'clients'], { env: ctx.env });
-
-  expect(listed.stdout.toString()).toBe(
-    'No clients. Add one with: atc clients add <name> --redirect-uri <uri>\n',
+  await runClients(
+    { kind: 'remove', clientID },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    { print: () => {}, printError: () => {}, setExitCode: () => {} },
   );
+
+  const printed: string[] = [];
+
+  await runClients(
+    { kind: 'list' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+    },
+  );
+
+  expect(printed).toStrictEqual([
+    'No clients. Add one with: atc clients add <name> --redirect-uri <uri>',
+  ]);
 });
 
-test('it refuses a redirect URI that is not https or loopback http', () => {
+test('it refuses a redirect URI that is not https or loopback http', async () => {
   using ctx = setupTest();
 
-  const added = Bun.spawnSync(
-    [
-      process.execPath,
-      ctx.cli,
-      'clients',
-      'add',
-      'dots',
-      '--redirect-uri',
-      'http://dots.example/cb',
+  const errors: string[] = [];
+  const codes: number[] = [];
+
+  await runClients(
+    { kind: 'add', name: 'dots', redirectURIs: ['http://dots.example/cb'] },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      setExitCode: (code) => {
+        codes.push(code);
+      },
+    },
+  );
+
+  expect({ codes, errors }).toStrictEqual({
+    codes: [1],
+    errors: [
+      "atc clients add: 'http://dots.example/cb' is not a redirect URI atc accepts; use https, or http on a loopback host, with no fragment",
     ],
-    { env: ctx.env },
-  );
-
-  expect({ exitCode: added.exitCode, stderr: added.stderr.toString() }).toStrictEqual({
-    exitCode: 1,
-    stderr:
-      "atc clients add: 'http://dots.example/cb' is not a redirect URI atc accepts; use https, or http on a loopback host, with no fragment\n",
   });
 });
 
-test('it refuses to remove an unknown client', () => {
+test('it refuses to remove an unknown client', async () => {
   using ctx = setupTest();
 
-  const removed = Bun.spawnSync([process.execPath, ctx.cli, 'clients', 'remove', 'unknown'], {
-    env: ctx.env,
-  });
+  const errors: string[] = [];
+  const codes: number[] = [];
 
-  expect({ exitCode: removed.exitCode, stderr: removed.stderr.toString() }).toStrictEqual({
-    exitCode: 1,
-    stderr: "atc clients remove: no client has the ID 'unknown'\n",
+  await runClients(
+    { kind: 'remove', clientID: 'unknown' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      setExitCode: (code) => {
+        codes.push(code);
+      },
+    },
+  );
+
+  expect({ codes, errors }).toStrictEqual({
+    codes: [1],
+    errors: ["atc clients remove: no client has the ID 'unknown'"],
   });
 });

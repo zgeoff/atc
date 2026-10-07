@@ -1,22 +1,17 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { printCodexHookFile } from './print-codex-hook-file';
 
-test('it prints Codex hook entries that report under the codex agent', async () => {
-  const cliPath = join(import.meta.dir, '..', 'cli.ts');
-  const command = `"${process.execPath}" "${cliPath}" hook-report --agent codex`;
+test('it prints Codex hook entries that report under the codex agent', () => {
+  const command = `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent codex`;
+  const printed: string[] = [];
 
-  const proc = Bun.spawn([process.execPath, cliPath, 'codex-hooks'], {
-    stdout: 'pipe',
-    stderr: 'pipe',
+  printCodexHookFile((text) => {
+    printed.push(text);
   });
 
-  const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
-
-  const file: unknown = JSON.parse(out);
-
-  expect({ code, file }).toStrictEqual({
-    code: 0,
-    file: {
+  expect(printed.map((text): unknown => JSON.parse(text))).toStrictEqual([
+    {
       hooks: {
         SessionStart: [{ hooks: [{ type: 'command', command, timeout: 5 }] }],
         UserPromptSubmit: [{ hooks: [{ type: 'command', command, timeout: 5 }] }],
@@ -25,5 +20,5 @@ test('it prints Codex hook entries that report under the codex agent', async () 
         SessionEnd: [{ hooks: [{ type: 'command', command, timeout: 3 }] }],
       },
     },
-  });
+  ]);
 });

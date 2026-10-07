@@ -18,13 +18,38 @@ interface ClientsTarget {
   readonly command: string;
 }
 
+// Where the command's lines and its exit code go: the console and the
+// process by default.
+interface ClientsIO {
+  readonly print: (line: string) => void;
+  readonly printError: (line: string) => void;
+  readonly setExitCode: (code: number) => void;
+}
+
+const PROCESS_IO: ClientsIO = {
+  print: (line) => {
+    console.log(line);
+  },
+  printError: (line) => {
+    console.error(line);
+  },
+  setExitCode: (code) => {
+    process.exitCode = code;
+  },
+};
+
 /**
  * Runs `atc clients` or `atc-gateway clients`: lists the clients that may
  * connect to the MCP HTTP server, adds one, or removes one along with every
  * token and consent it holds. It opens the authorization server's database
- * directly, so it works whether or not the server is running.
+ * directly, so it works whether or not the server is running. A refused
+ * request sets exit code 1.
  */
-export async function runClients(action: ClientsAction, target: ClientsTarget): Promise<void> {
+export async function runClients(
+  action: ClientsAction,
+  target: ClientsTarget,
+  io: ClientsIO = PROCESS_IO,
+): Promise<void> {
   if (action.kind === 'add') {
     const refused = action.redirectURIs.find((uri) => !isAllowedRedirectURI(uri));
 
@@ -34,8 +59,10 @@ export async function runClients(action: ClientsAction, target: ClientsTarget): 
           ? `${target.command} add: give at least one --redirect-uri`
           : `${target.command} add: '${refused}' is not a redirect URI atc accepts; use https, or http on a loopback host, with no fragment`;
 
-      console.error(message);
-      process.exit(1);
+      io.printError(message);
+      io.setExitCode(1);
+
+      return;
     }
   }
 
@@ -51,7 +78,7 @@ export async function runClients(action: ClientsAction, target: ClientsTarget): 
         body: { name, redirectURIs: [...action.redirectURIs] },
       });
 
-      console.log(`Added ${name}. Its client ID is ${created.clientID}`);
+      io.print(`Added ${name}. Its client ID is ${created.clientID}`);
 
       return;
     }
@@ -60,14 +87,13 @@ export async function runClients(action: ClientsAction, target: ClientsTarget): 
       const removed = await removeClient(store.db, action.clientID);
 
       if (!removed) {
-        console.error(`${target.command} remove: no client has the ID '${action.clientID}'`);
-
-        process.exitCode = 1;
+        io.printError(`${target.command} remove: no client has the ID '${action.clientID}'`);
+        io.setExitCode(1);
 
         return;
       }
 
-      console.log(`Removed client ${action.clientID} and revoked every grant it held`);
+      io.print(`Removed client ${action.clientID} and revoked every grant it held`);
 
       return;
     }
@@ -75,13 +101,13 @@ export async function runClients(action: ClientsAction, target: ClientsTarget): 
     const clients = await collectClients(store.db);
 
     if (clients.length === 0) {
-      console.log(`No clients. Add one with: ${target.command} add <name> --redirect-uri <uri>`);
+      io.print(`No clients. Add one with: ${target.command} add <name> --redirect-uri <uri>`);
 
       return;
     }
 
     for (const client of clients) {
-      console.log(`${client.clientID}  ${client.name}  ${client.redirectURIs.join(' ')}`);
+      io.print(`${client.clientID}  ${client.name}  ${client.redirectURIs.join(' ')}`);
     }
   } finally {
     await store.close();

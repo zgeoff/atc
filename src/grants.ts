@@ -1,33 +1,58 @@
 import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { collectGrants } from './mcp/collect-grants';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { revokeGrant } from './mcp/revoke-grant';
-import { mcpAuthDBFile, stateDir } from './shared/config';
+import { mcpAuthDBFile } from './shared/config';
+
+// Where the command's lines and its exit code go: the console and the
+// process by default.
+interface GrantsIO {
+  readonly print: (line: string) => void;
+  readonly printError: (line: string) => void;
+  readonly setExitCode: (code: number) => void;
+}
+
+const PROCESS_IO: GrantsIO = {
+  print: (line) => {
+    console.log(line);
+  },
+  printError: (line) => {
+    console.error(line);
+  },
+  setExitCode: (code) => {
+    process.exitCode = code;
+  },
+};
 
 /**
  * Runs `atc grants`: lists the grants clients of `atc mcp --http` hold, or
  * revokes one. A revoked grant's tokens stop working at once, and its client
  * has to go through approval again. It opens the authorization server's
- * database directly, so it works whether or not the server is running.
+ * database at `dbPath` directly, so it works whether or not the server is
+ * running. Revoking a grant that does not exist sets exit code 1.
  */
-export async function runGrants(revoke: string | null): Promise<void> {
-  mkdirSync(stateDir, { recursive: true });
+export async function runGrants(
+  revoke: string | null,
+  dbPath: string = mcpAuthDBFile,
+  io: GrantsIO = PROCESS_IO,
+): Promise<void> {
+  mkdirSync(dirname(dbPath), { recursive: true });
 
-  const store = await openMCPAuth({ dbPath: mcpAuthDBFile, origin: null });
+  const store = await openMCPAuth({ dbPath, origin: null });
 
   try {
     if (revoke !== null) {
       const revoked = await revokeGrant(store.db, revoke);
 
       if (!revoked) {
-        console.error(`atc grants: no grant has the ID '${revoke}'`);
-
-        process.exitCode = 1;
+        io.printError(`atc grants: no grant has the ID '${revoke}'`);
+        io.setExitCode(1);
 
         return;
       }
 
-      console.log(`Revoked grant ${revoke}`);
+      io.print(`Revoked grant ${revoke}`);
 
       return;
     }
@@ -35,13 +60,13 @@ export async function runGrants(revoke: string | null): Promise<void> {
     const grants = await collectGrants(store.db);
 
     if (grants.length === 0) {
-      console.log('No grants.');
+      io.print('No grants.');
 
       return;
     }
 
     for (const grant of grants) {
-      console.log(
+      io.print(
         `${grant.grantID}  ${grant.clientName}  ${grant.scopes.join(',')}  last used ${grant.lastUsedAt ?? 'never'}`,
       );
     }
