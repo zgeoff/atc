@@ -33,11 +33,9 @@ test('it chains the user statusline and appends the fleet segment', () => {
     },
   );
 
-  const line = proc.stdout.toString();
-
-  expect(line).toInclude('CHAINED-SEGMENT');
-  expect(line).toInclude('2 need you: auth-bug');
-  expect(line).toInclude('◐ 1');
+  expect(proc.stdout.toString()).toBe(
+    'CHAINED-SEGMENT \u001B[90m▏\u001B[0m \u001B[1;31m● 2 need you: auth-bug\u001B[0m \u001B[36m◐ 1\u001B[0m\n',
+  );
 });
 
 test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_DIR sets', () => {
@@ -70,8 +68,5 @@ test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_
     },
   );
 
-  const line = proc.stdout.toString();
-
-  expect(line).toInclude('CONFIG-DIR-SEGMENT');
-  expect(line).not.toInclude('HOME-SEGMENT');
+  expect(proc.stdout.toString()).toBe('CONFIG-DIR-SEGMENT\n');
 });

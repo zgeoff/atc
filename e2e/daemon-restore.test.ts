@@ -14,6 +14,7 @@ import { createStubComposer } from '../src/test-utils/create-stub-composer';
 import { createStubGrok } from '../src/test-utils/create-stub-grok';
 import { getRecords } from '../src/test-utils/get-records';
 import { getString } from '../src/test-utils/get-string';
+import { KEYS } from '../src/test-utils/keys';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
@@ -196,7 +197,7 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
     throw new Error('no restored session has a terminal');
   }
 
-  await ctx.client.sendRequest('session.input', { session: booting['id'], d: '\n' });
+  await ctx.client.sendRequest('session.input', { session: booting['id'], d: KEYS.enter });
 
   await waitForEvent(ctx.events, {
     ev: 'SessionState',

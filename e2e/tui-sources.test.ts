@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { DaemonClient } from '../src/client/daemon-client';
+import { buildStubSignedInGH } from '../src/test-utils/build-stub-signed-in-gh';
 import { buildStubSignedOutGH } from '../src/test-utils/build-stub-signed-out-gh';
 import { createGitFixture } from '../src/test-utils/create-git-fixture';
 import { createStubBin } from '../src/test-utils/create-stub-bin';
@@ -94,15 +95,17 @@ test('it drives a source the daemon composition adds from its candidates to the 
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('tab GitHub repository');
+  await ctx.waitFor('spawn: directory on the daemon host');
 
+  ctx.reset();
   ctx.write(KEYS.tab);
 
-  await ctx.waitFor('tab git URL');
+  await ctx.waitFor('spawn: GitHub repository');
 
+  ctx.reset();
   ctx.write(KEYS.tab);
 
-  await ctx.waitFor('tab fixture repository');
+  await ctx.waitFor('spawn: git URL');
 
   ctx.reset();
   ctx.write(KEYS.tab);
@@ -148,15 +151,17 @@ test('it spawns the repository a composed source reads typed text as, through to
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('tab GitHub repository');
+  await ctx.waitFor('spawn: directory on the daemon host');
 
+  ctx.reset();
   ctx.write(KEYS.tab);
 
-  await ctx.waitFor('tab git URL');
+  await ctx.waitFor('spawn: GitHub repository');
 
+  ctx.reset();
   ctx.write(KEYS.tab);
 
-  await ctx.waitFor('tab fixture repository');
+  await ctx.waitFor('spawn: git URL');
 
   ctx.reset();
   ctx.write(KEYS.tab);
@@ -299,7 +304,9 @@ test('it offers the local directory flow alone when the daemon offers no sources
 
   await ctx.waitFor('spawn: directory');
 
-  expect(ctx.read()).not.toInclude('tab ');
+  // The picker offers another source only through the tab hint on the
+  // step's last row, so its absence is the offer under test.
+  expect(ctx.read()).not.toInclude(' · tab ');
   expect(ctx.read()).not.toInclude('on the daemon host');
 
   ctx.reset();
@@ -320,16 +327,7 @@ test('it offers the local directory flow alone when the daemon offers no sources
 test('it lists an owner typed in the directory step through the source that reads it', async () => {
   await using ctx = setupTest();
 
-  createStubBin(
-    join(ctx.home, 'bin'),
-    'gh',
-    `#!/bin/sh
-case "$1" in
-  config) echo https ;;
-  *) echo '[{"nameWithOwner":"acme/app","description":"","isPrivate":true,"url":"https://github.com/acme/app","sshUrl":"git@github.com:acme/app.git"}]' ;;
-esac
-`,
-  );
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedInGH());
 
   ctx.boot();
 
@@ -410,8 +408,6 @@ test('it opens the sources in the order the config gives', async () => {
   ctx.write(KEYS.enter);
 
   await ctx.waitFor('spawn: git URL');
-
-  expect(ctx.read()).toInclude('tab directory on the daemon host');
 
   ctx.reset();
   ctx.write(`${fixture.upstream}${KEYS.enter}`);

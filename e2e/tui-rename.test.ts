@@ -23,6 +23,7 @@ test('it renames a session from the claude transcript custom-title', async () =>
 
   await spawnClaudeSession(ctx, 'typedname');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('claude-named');

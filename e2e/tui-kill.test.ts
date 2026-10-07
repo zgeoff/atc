@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { test } from 'bun:test';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { KEYS } from '../src/test-utils/keys';
@@ -9,18 +9,6 @@ function setupTest() {
   return startTUIHarness();
 }
 
-test('it starts claude with the settings file atc generates', async () => {
-  await using ctx = setupTest();
-
-  ctx.boot();
-
-  await ctx.waitFor('atc — control tower');
-
-  await spawnClaudeSession(ctx, 'withsettings');
-
-  expect(ctx.read()).toMatch(/FAKE_CLAUDE_UP args: [^\r\n]*--settings /u);
-});
-
 test('it kills a needs-you session from the overlay on confirm', async () => {
   await using ctx = setupTest();
 
@@ -30,9 +18,11 @@ test('it kills a needs-you session from the overlay on confirm', async () => {
 
   await spawnClaudeSession(ctx, 'testsess');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: testsess');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.write('K');
 
@@ -43,25 +33,6 @@ test('it kills a needs-you session from the overlay on confirm', async () => {
 
   await ctx.waitFor('killed');
 }, 15_000);
-
-test('it quits the client on q from the overlay', async () => {
-  await using ctx = setupTest();
-
-  ctx.boot();
-
-  await ctx.waitFor('atc — control tower');
-
-  ctx.reset();
-  ctx.write(KEYS.ctrlSpace);
-
-  await ctx.waitFor('no sessions — n to spawn');
-
-  ctx.write('q');
-
-  const exitCode = await ctx.waitForExit();
-
-  expect(exitCode).toBe(0);
-});
 
 test('it revives a killed session in place with a fresh terminal', async () => {
   await using ctx = setupTest();
@@ -78,9 +49,11 @@ test('it revives a killed session in place with a fresh terminal', async () => {
 
   await spawnClaudeSession(ctx, 'revivable');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: revivable');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.write('K');
 
@@ -112,9 +85,11 @@ test('it explains a revive that has no saved transcript instead of failing silen
 
   await spawnClaudeSession(ctx, 'transcriptless');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: transcriptless');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.write('K');
 

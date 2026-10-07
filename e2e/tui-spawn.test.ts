@@ -5,6 +5,7 @@ import { $ } from 'bun';
 import { DaemonClient } from '../src/client/daemon-client';
 import { createGitFixture } from '../src/test-utils/create-git-fixture';
 import { KEYS } from '../src/test-utils/keys';
+import { spawnClaudeSession } from '../src/test-utils/spawn-claude-session';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 
 function setupTest() {
@@ -283,3 +284,15 @@ test('it sends a dirty local directory to a target off the daemon machine as a p
   expect(ctx.read()).not.toInclude('workspace_dirty');
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
 }, 20_000);
+
+test('it starts claude with the settings file atc generates', async () => {
+  await using ctx = setupTest();
+
+  ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  await spawnClaudeSession(ctx, 'withsettings');
+
+  expect(ctx.read()).toMatch(/FAKE_CLAUDE_UP args: [^\r\n]*--settings /u);
+});

@@ -12,7 +12,7 @@ test('it adopts a session with --resume and yanks its resume command', async () 
 
   ctx.boot();
 
-  await ctx.waitFor('adopt an existing session');
+  await ctx.waitFor('atc — control tower');
 
   ctx.write('r');
 
@@ -26,16 +26,17 @@ test('it adopts a session with --resume and yanks its resume command', async () 
 
   await ctx.waitFor('adopt: name');
 
+  ctx.reset();
   ctx.write(`adopted${KEYS.enter}`);
 
   await ctx.waitFor('FAKE_CLAUDE_UP');
 
-  expect(ctx.read()).toInclude('--resume');
+  expect(ctx.read()).toMatch(/FAKE_CLAUDE_UP args: [^\r\n]*--resume/u);
 
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: adopted');
-  await ctx.waitFor('y yank');
+  await ctx.waitFor('\u001B[7madopted');
 
   ctx.reset();
   ctx.write('y');
@@ -52,7 +53,7 @@ test('it adopts grok with --no-leader and without --resume', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('adopt an existing session');
+  await ctx.waitFor('atc — control tower');
 
   ctx.write('r');
 

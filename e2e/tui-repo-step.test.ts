@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { DaemonClient } from '../src/client/daemon-client';
+import { buildStubSignedInGH } from '../src/test-utils/build-stub-signed-in-gh';
 import { buildStubSignedOutGH } from '../src/test-utils/build-stub-signed-out-gh';
 import { createGitFixture } from '../src/test-utils/create-git-fixture';
 import { createStubBin } from '../src/test-utils/create-stub-bin';
@@ -151,18 +152,7 @@ test('it filters refs by name and refuses an abbreviated commit id on the ref st
 test("it lists the gh account's repositories and an owner's on request, and leaves on esc", async () => {
   await using ctx = setupTest();
 
-  createStubBin(
-    join(ctx.home, 'bin'),
-    'gh',
-    `#!/bin/sh
-printf '%s\\n' "$*" >> '${join(ctx.home, 'gh-argv')}'
-case "$1 $3" in
-  "config "*) echo https ;;
-  "repo --limit") echo '[{"nameWithOwner":"me/dots","description":"dotfiles","isPrivate":false,"url":"https://github.com/me/dots","sshUrl":"git@github.com:me/dots.git"}]' ;;
-  *) echo '[{"nameWithOwner":"acme/app","description":"","isPrivate":true,"url":"https://github.com/acme/app","sshUrl":"git@github.com:acme/app.git"}]' ;;
-esac
-`,
-  );
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedInGH());
 
   ctx.boot();
 

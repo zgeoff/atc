@@ -47,8 +47,13 @@ test('it sends a message to a session that has not started', async () => {
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
   const result = await ctx.mcp.sendToolCall('atc_session_message', { session, text: 'hello' });
 
-  expect(result.isError).toBeUndefined();
-  expect(result.text).toInclude('"status": "accepted"');
+  const message = result.structured?.['message'];
+
+  expect(result).toStrictEqual({
+    isError: undefined,
+    text: JSON.stringify({ message, status: 'accepted' }, null, 2),
+    structured: { message: expect.stringMatching(/^m-[\da-f-]{36}$/u), status: 'accepted' },
+  });
 });
 
 test('it reads a sent message back through a tool call', async () => {
@@ -82,7 +87,7 @@ test('it reads a sent message back through a tool call', async () => {
   });
 });
 
-test('it holds a message read until its wait ends', async () => {
+test('it holds a message read open while its wait runs', async () => {
   await using ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
@@ -96,10 +101,44 @@ test('it holds a message read until its wait ends', async () => {
   });
 
   const message = sent.structured?.['message'];
-  const start = Date.now();
+  const held = ctx.mcp.sendToolCall('atc_message_get', { message, waitMs: 30_000 });
 
-  const got = await ctx.mcp.sendToolCall('atc_message_get', { message, waitMs: 200 });
+  // The read fails when disposal stops the server; settling it here keeps
+  // that failure from going unhandled.
+  void Promise.allSettled([held]);
 
-  expect(got.structured).toMatchObject({ message, status: 'accepted' });
-  expect(Date.now()).toBeGreaterThanOrEqual(start + 200);
+  // The second read goes out after the held one and takes the same path, so
+  // its answer shows the held read has reached the daemon's wait.
+  await ctx.mcp.sendToolCall('atc_message_get', { message });
+
+  expect(Bun.peek.status(held)).toBe('pending');
+});
+
+test('it answers a message read with the unanswered message once its wait ends', async () => {
+  await using ctx = await setupTest();
+
+  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+
+  const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
+
+  const sent = await ctx.mcp.sendToolCall('atc_session_message', {
+    session,
+    text: 'hello',
+    from: 'tester',
+  });
+
+  const message = sent.structured?.['message'];
+
+  const got = await ctx.mcp.sendToolCall('atc_message_get', { message, waitMs: 1 });
+
+  expect(got.structured).toStrictEqual({
+    message,
+    session,
+    from: 'tester',
+    text: 'hello',
+    status: 'accepted',
+    sentAt: expect.toBeNumber(),
+    turn: null,
+    answeredWith: [],
+  });
 });

@@ -20,9 +20,11 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 
   await spawnClaudeSession(ctx, 'alpha');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: alpha');
+  await ctx.waitFor('┌ sessions ');
 
   // Attaching alpha stops it being the urgent session in the status bar;
   // the attach jiggle repaints the fake.
@@ -34,7 +36,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('sessions');
+  await ctx.waitFor('┌ sessions ');
 
   await spawnClaudeSession(ctx, 'bravo');
 
@@ -45,7 +47,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 
   ctx.write('/');
 
-  await ctx.waitFor('type to filter');
+  await ctx.waitFor('/ \u001B[93m█');
 
   ctx.reset();
   ctx.write('brav');
@@ -53,7 +55,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
   await ctx.waitFor('/ brav');
   await ctx.waitFor('bravo');
 
-  expect(ctx.read()).not.toInclude('alpha        ');
+  expect(ctx.read()).not.toInclude('alpha');
 });
 
 test('it opens the overlay with a configured leader key', async () => {
@@ -62,17 +64,19 @@ test('it opens the overlay with a configured leader key', async () => {
   ctx.writeConfig({ leader: 'ctrl-]' });
   ctx.boot();
 
-  // The home screen draws its key hints after the title, so the test waits
-  // for the hint row itself.
-  await ctx.waitFor('^]      session list');
+  await ctx.waitFor('atc — control tower');
+
+  // The home screen's status bar ends with the leader's label; an attached
+  // session draws no status bar.
+  await ctx.waitFor('▏^] ');
 
   await spawnClaudeSession(ctx, 'leadertest');
 
   ctx.reset();
   ctx.write(KEYS.ctrlRightBracket);
 
+  await ctx.waitFor('┌ sessions ');
   await ctx.waitFor('leadertest');
-  await ctx.waitFor('sessions');
 });
 
 test('it pins a session from the overlay and marks its row', async () => {
@@ -84,9 +88,11 @@ test('it pins a session from the overlay and marks its row', async () => {
 
   await spawnClaudeSession(ctx, 'pinme');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: pinme');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.reset();
   ctx.write('p');
@@ -107,9 +113,11 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   await spawnClaudeSession(ctx, 'first');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: first');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.write('n');
 
@@ -198,9 +206,11 @@ test('it preselects the focused session when the overlay opens', async () => {
 
   await spawnClaudeSession(ctx, 'first');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: first');
+  await ctx.waitFor('┌ sessions ');
 
   await spawnClaudeSession(ctx, 'second');
 
@@ -221,13 +231,15 @@ test('it opens the key reference from the overlay and returns on esc', async () 
 
   await spawnClaudeSession(ctx, 'helptest');
 
+  ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('need you: helptest');
+  await ctx.waitFor('┌ sessions ');
 
   ctx.write('?');
 
-  await ctx.waitFor('adopt an external session');
+  await ctx.waitFor('┌ keys ');
 
   ctx.reset();
   ctx.write(KEYS.esc);

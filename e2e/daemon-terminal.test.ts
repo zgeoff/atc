@@ -11,6 +11,7 @@ import { createStubCodex } from '../src/test-utils/create-stub-codex';
 import { createStubComposer } from '../src/test-utils/create-stub-composer';
 import { createStubGrok } from '../src/test-utils/create-stub-grok';
 import { getString } from '../src/test-utils/get-string';
+import { KEYS } from '../src/test-utils/keys';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
@@ -90,7 +91,7 @@ test('it streams pty output to an attached client with increasing seq', async ()
   const id = getString(getRecord(ok, 'session'), 'id');
 
   await ctx.client.sendRequest('session.attach', { session: id, cols: 100, rows: 30 });
-  await ctx.client.sendRequest('session.input', { session: id, d: 'hello\n' });
+  await ctx.client.sendRequest('session.input', { session: id, d: `hello${KEYS.enter}` });
 
   await waitForEvent(ctx.events, { ev: 'SessionOutput', d: expect.stringContaining('GOT:hello') });
 
@@ -120,7 +121,7 @@ test('it stops streaming to a detached client while others keep receiving', asyn
   await ctx.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
   await leaver.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
   await leaver.sendRequest('session.detach', { session: id });
-  await ctx.client.sendRequest('session.input', { session: id, d: 'ping\n' });
+  await ctx.client.sendRequest('session.input', { session: id, d: `ping${KEYS.enter}` });
 
   await waitForEvent(ctx.events, { ev: 'SessionOutput', d: expect.stringContaining('GOT:ping') });
 
@@ -197,7 +198,7 @@ test('it reads the current screen of a session as plain text without attaching',
     expect(read['text']).toInclude('FAKE_CLAUDE_UP');
   });
 
-  await ctx.client.sendRequest('session.input', { session: id, d: 'hello\n' });
+  await ctx.client.sendRequest('session.input', { session: id, d: `hello${KEYS.enter}` });
 
   const screen = await waitFor(async () => {
     const read = await ctx.client.sendRequest('session.screen', { session: id });
@@ -454,7 +455,7 @@ test('it writes raw input to a codex session byte for byte', async () => {
     d: expect.stringContaining('FAKE_COMPOSER_READY'),
   });
 
-  await ctx.client.sendRequest('session.input', { session: id, d: 'abc\u001B[Ax\n' });
+  await ctx.client.sendRequest('session.input', { session: id, d: `abc${KEYS.up}x${KEYS.enter}` });
 
   const received = await waitFor(() => {
     const output = ctx.events
@@ -462,10 +463,10 @@ test('it writes raw input to a codex session byte for byte', async () => {
       .map((e) => String(e['d']))
       .join('');
 
-    expect(output).toMatch(/RECEIVED:.*\\n"\r/);
+    expect(output).toMatch(/RECEIVED:.*\\r"\r/);
 
     return output;
   });
 
-  expect(received.match(/RECEIVED:.*/g)?.at(-1)).toBe(String.raw`RECEIVED:"abc\u001b[Ax\n"`);
+  expect(received.match(/RECEIVED:.*/g)?.at(-1)).toBe(String.raw`RECEIVED:"abc\u001b[Ax\r"`);
 });

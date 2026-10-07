@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { buildStubSignedOutGH } from '../src/test-utils/build-stub-signed-out-gh';
@@ -9,15 +9,46 @@ import { KEYS } from '../src/test-utils/keys';
 import { openRepoStep } from '../src/test-utils/open-repo-step';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 
+/**
+ * The client's harness with a signed-out `gh` on the PATH of the client and
+ * its daemons.
+ */
 function setupTest() {
-  return startTUIHarness();
+  using setup = new DisposableStack();
+
+  const tui = startTUIHarness();
+
+  // A step below that throws stops the harness; the setup is synchronous,
+  // so it starts that stop without waiting for it.
+  setup.defer(() => {
+    void tui[Symbol.asyncDispose]();
+  });
+
+  // The repository step lists the account's repositories through gh; a
+  // signed-out one keeps the step from reaching the host's own gh.
+  createStubBin(join(tui.home, 'bin'), 'gh', buildStubSignedOutGH());
+
+  // The test holds the harness from here, so its disposal stops it.
+  setup.move();
+
+  return tui;
 }
 
 test('it returns a spawn into an existing destination to the confirm screen with a suffix offered', async () => {
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  writeFileSync(join(fixture.work, 'notes.md'), 'from the upstream\n');
+
+  await $`git add notes.md`.env(fixture.env).cwd(fixture.work).quiet();
+  await $`git commit --quiet --no-gpg-sign -m notes`.env(fixture.env).cwd(fixture.work).quiet();
+  await $`git push --quiet origin main`.env(fixture.env).cwd(fixture.work).quiet();
+
+  const sha = await $`git rev-parse HEAD`
+    .env(fixture.env)
+    .cwd(fixture.work)
+    .text()
+    .then((text) => text.trim());
 
   const dest = join(
     ctx.home,
@@ -25,7 +56,7 @@ test('it returns a spawn into an existing destination to the confirm screen with
     'share',
     'atc',
     'workspaces',
-    `upstream-main-${fixture.sha.slice(0, 7)}`,
+    `upstream-main-${sha.slice(0, 7)}`,
   );
 
   mkdirSync(dest, { recursive: true });
@@ -74,14 +105,12 @@ test('it returns a spawn into an existing destination to the confirm screen with
 
   await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
 
-  expect(readFileSync(join(`${dest}-2`, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(`${dest}-2`, 'notes.md'), 'utf8')).toBe('from the upstream\n');
 }, 30_000);
 
 test('it returns a spawn whose clone fails to the repository step', async () => {
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
-
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.boot();
 
@@ -118,8 +147,6 @@ test('it returns a spawn whose clone fails to the repository step', async () => 
 test('it returns a spawn whose commit left the upstream to the ref step with the refs re-read', async () => {
   await using ctx = setupTest();
   await using fixture = await createGitFixture();
-
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.boot();
 
