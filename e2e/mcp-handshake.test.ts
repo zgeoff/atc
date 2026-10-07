@@ -1,4 +1,6 @@
 import { expect, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { isRecord } from '../src/shared/report';
 import { setupMCPHome } from '../src/test-utils/setup-mcp-home';
@@ -8,6 +10,18 @@ async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
   const mcpHome = stack.use(setupMCPHome());
+
+  // A codex binary on the host would change the served tool descriptions.
+  writeFileSync(
+    join(mcpHome.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      claudeBin: mcpHome.claudeBin,
+      claudeArgs: [],
+      grokBin: mcpHome.grokBin,
+      grokArgs: [],
+      codexBin: '/nonexistent/codex',
+    }),
+  );
 
   const mcp = await startMCPStdio({ home: mcpHome.home });
 
