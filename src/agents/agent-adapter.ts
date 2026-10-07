@@ -43,9 +43,11 @@ export interface SpawnPlan {
  * host, null when the host has none, and the folder the session's own
  * files unpack into. `auth` is given when the harness takes its credential
  * from impd's broker: the revision of the host's runtime auth binding it
- * launches under, which keys any settings the agent writes for it, and the
- * placeholder variables the harness holds in place of a credential, and
- * the variables its auth profiles set.
+ * launches under, which keys any settings the agent writes for it, the
+ * placeholder variables the harness holds in place of a credential, the
+ * variables its auth profiles set, and, when the binding holds a secret of
+ * kind `oauth`, the sign-in state impd lists for each such secret, keyed by
+ * the secret's name.
  */
 export interface GuestPaths {
   readonly atc: string | null;
@@ -54,7 +56,18 @@ export interface GuestPaths {
     readonly revision: number;
     readonly env: Readonly<Record<string, string>>;
     readonly profileEnv: Readonly<Record<string, string>>;
+    readonly oauth?: Readonly<Record<string, GuestOAuthState>>;
   };
+}
+
+/**
+ * Where the sign-in of an `oauth` secret stands in impd: `ready` while impd
+ * holds an access token for it, and the payload of its last ID token,
+ * identifiers and never a credential, or null before impd has one.
+ */
+export interface GuestOAuthState {
+  readonly status: 'pending' | 'ready' | 'needs_login';
+  readonly idClaims: Readonly<Record<string, unknown>> | null;
 }
 
 /**

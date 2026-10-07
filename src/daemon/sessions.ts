@@ -46,6 +46,7 @@ import type {
 } from './execution-provider';
 import { findExecutionRefusal } from './find-execution-refusal';
 import type { BridgeBinding } from './is-binding-current';
+import { loadOAuthStates } from './load-oauth-states';
 import { LocalPTYProvider } from './local-pty-provider';
 import { mintSessionID } from './mint-session-id';
 import { pickSessionState } from './pick-session-state';
@@ -982,7 +983,7 @@ export class SessionManager {
       if (!isLocalTrust && !isGuestTrust) {
         throw new DaemonError(
           'unsupported',
-          'trustClonedWorkspace requires stock Claude on the local target, or stock Claude or a Claude gateway signed in through the broker on an imp target',
+          'trustClonedWorkspace requires stock Claude on the local target, or stock Claude, a Claude gateway, or Codex signed in through the broker on an imp target',
         );
       }
     }
@@ -2014,7 +2015,7 @@ export class SessionManager {
         : {
             atc: guest.atc,
             dir,
-            auth: await this.planGuestAuth(hostKey, auth.mode, auth.binding),
+            auth: await this.planGuestAuth(hostKey, auth),
           };
 
     const plan =
@@ -2096,18 +2097,22 @@ export class SessionManager {
 
   // The binding revision and placeholders a guest plan behind the broker
   // launches under: the next host's first revision, or the revision the
-  // shared host holds.
+  // shared host holds, with the sign-in state impd lists for each oauth
+  // secret the binding holds.
   private async planGuestAuth(
     hostKey: SessionID,
-    mode: HarnessAuthSetup['mode'],
-    binding: Pick<AuthBinding, 'placeholderEnv' | 'profileEnv'>,
+    auth: HarnessAuthSetup,
   ): Promise<NonNullable<GuestPaths['auth']>> {
-    const held = mode === 'create' ? null : await this.requireAuthBinder().findBinding(hostKey);
+    const held =
+      auth.mode === 'create' ? null : await this.requireAuthBinder().findBinding(hostKey);
+
+    const oauth = await loadOAuthStates(auth.host, auth.binding);
 
     return {
       revision: held?.revision ?? 1,
-      env: binding.placeholderEnv,
-      profileEnv: binding.profileEnv,
+      env: auth.binding.placeholderEnv,
+      profileEnv: auth.binding.profileEnv,
+      ...(oauth === undefined ? {} : { oauth }),
     };
   }
 

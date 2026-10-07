@@ -16,7 +16,7 @@ export function buildAgentAdapters(
 ): AgentAdapter[] {
   return config.agents.map((entry): AgentAdapter => {
     if (entry.kind === 'codex') {
-      return new CodexAdapter(entry);
+      return new CodexAdapter(entry, config);
     }
 
     if (entry.kind === 'grok') {
