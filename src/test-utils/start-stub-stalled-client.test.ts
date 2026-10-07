@@ -1,59 +1,32 @@
-import { expect, test } from 'bun:test';
-import { createServer } from 'node:net';
-import type { Socket } from 'node:net';
+import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { setupTempDir } from './setup-temp-dir';
+import { startStubAnsweringListener } from './start-stub-answering-listener';
 import { startStubStalledClient } from './start-stub-stalled-client';
 import { waitFor } from './wait-for';
 
-/**
- * A temp directory and a unix socket server in it that answers the first
- * line each connection sends with one line of its own, and records each
- * connection it accepts in `peers` and each line it receives in `lines`.
- */
+// A temp directory and a unix socket server in it that answers the first
+// read of each connection with one line and records each connection and that
+// first read. Disposal closes the server, then removes the directory.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-stub-stalled-client-'));
   const path = join(tmp.dir, 'daemon.sock');
-  const peers: Socket[] = [];
-  const lines: string[] = [];
 
-  const server = createServer((peer) => {
-    peers.push(peer);
+  const listener = await startStubAnsweringListener(path);
 
-    peer.once('data', (data) => {
-      lines.push(data.toString());
-      peer.write('answer\n');
-    });
-  });
-
-  const listening = Promise.withResolvers<void>();
-
-  server.listen(path, () => {
-    listening.resolve();
-  });
-
-  await listening.promise;
-
-  stack.defer(async () => {
-    for (const peer of peers) {
-      peer.destroy();
-    }
-
-    const closed = Promise.withResolvers<void>();
-
-    server.close(() => {
-      closed.resolve();
-    });
-
-    await closed.promise;
-  });
+  stack.use(listener);
 
   const owned = stack.move();
 
-  return { path, peers, lines, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return {
+    path,
+    peers: listener.peers,
+    lines: listener.lines,
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+  };
 }
 
 test('it sends a hello with no auth under the client name it is given', async () => {
@@ -61,10 +34,10 @@ test('it sends a hello with no auth under the client name it is given', async ()
   using client = await startStubStalledClient(ctx.path, 'atc/stub');
 
   expect({
-    chunks: client.chunks.length,
+    chunks: client.chunks,
     lines: ctx.lines.map((line) => JSON.parse(line) as unknown),
   }).toStrictEqual({
-    chunks: 1,
+    chunks: [Buffer.from('answer\n')],
     lines: [
       {
         v: expect.toBeNumber(),
@@ -97,6 +70,10 @@ test('it closes its connection once disposed', async () => {
   await using ctx = await setupTest();
 
   const client = await startStubStalledClient(ctx.path, 'atc/stub');
+
+  onTestFinished(() => {
+    client[Symbol.dispose]();
+  });
 
   const [peer] = ctx.peers;
 

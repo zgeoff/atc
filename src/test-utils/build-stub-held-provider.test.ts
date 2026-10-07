@@ -12,9 +12,7 @@ test('it records the host of each preparation in the order it began', () => {
 
   void stub.provider.prepareHost({ host: 'h1', daemonID: 'd1' });
   void stub.provider.prepareHost({ host: 'h2', daemonID: 'd1' });
-  const recorded = stub.prepares;
-
-  expect(recorded).toStrictEqual(['h1', 'h2']);
+  expect(stub.prepares).toStrictEqual(['h1', 'h2']);
 });
 
 test('it finishes a held host preparation once its host is released', async () => {

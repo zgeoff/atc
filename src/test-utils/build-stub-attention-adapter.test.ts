@@ -2,17 +2,14 @@ import { expect, test } from 'bun:test';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildStubAttentionAdapter } from './build-stub-attention-adapter';
-import { setupTempDir } from './setup-temp-dir';
 
 test('it builds an adapter whose sessions take messages and resume with claude', () => {
-  using tmp = setupTempDir('atc-stub-attention-adapter-');
-
   const adapter = buildStubAttentionAdapter();
 
   expect({
     id: adapter.id,
     takesMessages: adapter.takesMessages,
-    resume: adapter.buildResumeCommand(tmp.dir, toAgentSessionID('c-1')),
+    resume: adapter.buildResumeCommand('/nonexistent', toAgentSessionID('c-1')),
   }).toStrictEqual({ id: 'claude', takesMessages: true, resume: 'claude --resume' });
 });
 

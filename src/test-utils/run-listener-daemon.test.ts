@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
@@ -51,23 +51,19 @@ async function setupTest() {
 test('it prints the loopback port its TCP listener bound', async () => {
   await using ctx = await setupTest();
 
-  const connecting = Bun.connect({
+  const socket = await Bun.connect({
     hostname: '127.0.0.1',
     port: Number(ctx.printed.trim()),
-    socket: {
-      open(socket) {
-        socket.end();
-      },
-      data() {},
-    },
+    socket: { data() {} },
   });
 
-  expect(ctx.printed).toMatch(/^[1-9]\d*\n$/);
+  onTestFinished(() => socket.end());
 
-  await expect(connecting).toResolve();
+  expect(ctx.printed).toMatch(/^[1-9]\d*\n$/);
+  expect(socket.remotePort).toBe(Number(ctx.printed.trim()));
 });
 
-test('it keeps its daemon socket in the test directory', async () => {
+test('it answers a hello on the daemon socket in its test directory', async () => {
   await using ctx = await setupTest();
 
   const hello = await ctx.client.sendHello('atc/test-build');
@@ -112,12 +108,12 @@ test('it logs a refused handshake on its stderr', async () => {
 
   const closed = Promise.withResolvers<void>();
 
-  await Bun.connect({
+  const socket = await Bun.connect({
     hostname: '127.0.0.1',
     port: Number(ctx.printed.trim()),
     socket: {
-      open(socket) {
-        socket.write('not a handshake\n');
+      open(opened) {
+        opened.write('not a handshake\n');
       },
       data() {},
       close() {
@@ -125,6 +121,8 @@ test('it logs a refused handshake on its stderr', async () => {
       },
     },
   });
+
+  onTestFinished(() => socket.end());
 
   await closed.promise;
 

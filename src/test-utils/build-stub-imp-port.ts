@@ -153,6 +153,9 @@ class StubImpPort implements ImpPort {
     readonly done: PromiseWithResolvers<void>;
   } | null = null;
 
+  // How many commands wait on a command hold.
+  private heldCommands = 0;
+
   // Commands whose argv holds this text exit 1 without running, or null.
   private commandFailure: string | null = null;
 
@@ -591,7 +594,11 @@ class StubImpPort implements ImpPort {
     if (hold !== null && line.includes(hold.match)) {
       hold.entered.resolve(line);
 
+      this.heldCommands += 1;
+
       await hold.done.promise;
+
+      this.heldCommands -= 1;
     }
 
     if (this.commandFailure !== null && line.includes(this.commandFailure)) {
@@ -1052,6 +1059,11 @@ class StubImpPort implements ImpPort {
     };
 
     return { entered: hold.entered.promise, stop, [Symbol.dispose]: stop };
+  }
+
+  // How many commands wait for their command hold to stop.
+  countHeldCommands(): number {
+    return this.heldCommands;
   }
 
   // Lets every command the active hold holds run, and the next at once.
