@@ -11,6 +11,7 @@ import { buildStubChannelOpener } from '../test-utils/build-stub-channel-opener'
 import { buildStubTimeoutScheduler } from '../test-utils/build-stub-timeout-scheduler';
 import { startCutProxy } from '../test-utils/start-cut-proxy';
 import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
+import { startStubUnansweringListener } from '../test-utils/start-stub-unanswering-listener';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { DaemonCaller } from './daemon-caller';
@@ -379,11 +380,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
 });
 
 test('it refuses a daemon that never answers the handshake as daemon_unavailable once the connect time passes', () => {
-  const silent = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
-
-  onTestFinished(() => {
-    silent.stop(true);
-  });
+  using silent = startStubUnansweringListener();
 
   const timers = buildStubTimeoutScheduler();
 

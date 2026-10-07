@@ -1,8 +1,6 @@
 import { expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DAEMON_FEATURES } from '../protocol/daemon-features';
-import type { DaemonFeature } from '../protocol/daemon-features';
 import { buildStubDaemonRequests } from '../test-utils/build-stub-daemon-requests';
 import { buildStubPickerHost } from '../test-utils/build-stub-picker-host';
 import { buildStubTerminal } from '../test-utils/build-stub-terminal';
@@ -10,14 +8,14 @@ import { KEYS } from '../test-utils/keys';
 import { SpawnPicker } from './spawn-picker';
 
 /**
- * A spawn picker reading its config from `configPath` in a fresh temp
- * directory, which is also the client's own directory `cwd`, drawing into
- * `terminal` with `ptyRows` rows, and talking to a daemon that answers only
- * when a test says so and serves the daemon `features`, every one until a
- * test removes some. `counts` records each draw, each return to the screen
- * the flow came from, each attach, and each answer the picker dropped, and
- * `dropped` holds the kind of each dropped answer in order. Disposal
- * removes the directory.
+ * What a spawn picker needs besides its scenario: a config at `configPath`
+ * in a fresh temp directory, which is also the client's own directory
+ * `cwd`, a stub `terminal` it draws into, and a daemon that answers only
+ * when a test says so. `deps` wires them for the picker's constructor.
+ * `counts` records each draw, each return to the screen the flow came
+ * from, each attach, and each answer the picker dropped, and `dropped`
+ * holds the kind of each dropped answer in order. Disposal removes the
+ * directory.
  */
 function setupTest() {
   using stack = new DisposableStack();
@@ -32,23 +30,14 @@ function setupTest() {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  const features = new Set<DaemonFeature>(DAEMON_FEATURES);
-
-  const ptyRows = 24;
   const host = buildStubPickerHost();
   const terminal = buildStubTerminal();
   const daemon = buildStubDaemonRequests({ countReactions: host.countReactions });
   const configPath = join(cwd, 'config.json');
 
-  const picker = new SpawnPicker<{ readonly id: string }>({
-    sendRequest: (m, p) => daemon.sendRequest(m, p),
-    ptyRows: () => ptyRows,
-    hasDaemonFeature: (feature) => features.has(feature),
-    isLeaderKey: (buf) => buf.toString() === KEYS.ctrlRightBracket,
-
-    // The agent step preselects Claude when several agents are installed.
-    getLastUsedAgent: () => 'claude',
-
+  const deps = {
+    sendRequest: (m: string, p?: Readonly<Record<string, unknown>>) => daemon.sendRequest(m, p),
+    isLeaderKey: (buf: Buffer) => buf.toString() === KEYS.ctrlRightBracket,
     scheduleStatus: host.scheduleStatus,
     toBase: host.toBase,
     attach: host.attach,
@@ -58,19 +47,17 @@ function setupTest() {
     cwd,
     configPath,
     onDropAnswer: host.onDropAnswer,
-  });
+  };
 
   const owned = stack.move();
 
   return {
-    picker,
+    deps,
     daemon,
     terminal,
     counts: host.counts,
     dropped: host.dropped,
     cwd,
-    ptyRows,
-    features,
     configPath,
     [Symbol.dispose]: () => {
       owned.dispose();
@@ -81,6 +68,13 @@ function setupTest() {
 test('it drops the target and source answer that arrives after esc leaves the agent step', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
@@ -90,9 +84,9 @@ test('it drops the target and source answer that arrives after esc leaves the ag
     }),
   );
 
-  ctx.picker.open();
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
+  picker.open();
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.esc));
 
   const renders = ctx.counts.renders;
 
@@ -118,12 +112,19 @@ test('it drops the target and source answer that arrives after esc leaves the ag
 test('it drops the directory history that arrives after esc leaves a daemon without sources', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -137,7 +138,7 @@ test('it drops the directory history that arrives after esc leaves a daemon with
     ],
   });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.esc));
 
   const renders = ctx.counts.renders;
 
@@ -151,12 +152,19 @@ test('it drops the directory history that arrives after esc leaves a daemon with
 test('it drops a git listing that arrives after the leader leaves the flow', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -171,7 +179,7 @@ test('it drops a git listing that arrives after the leader leaves the flow', asy
     sources: [{ id: 'fake', label: 'fake repository', kind: 'git' }],
   });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
 
   const renders = ctx.counts.renders;
 
@@ -189,12 +197,19 @@ test('it drops a git listing that arrives after the leader leaves the flow', asy
 test('it drops a directory listing that arrives after the leader leaves the flow', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -209,7 +224,7 @@ test('it drops a directory listing that arrives after the leader leaves the flow
     sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
   });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
 
   const renders = ctx.counts.renders;
 
@@ -227,12 +242,19 @@ test('it drops a directory listing that arrives after the leader leaves the flow
 test('it drops a reading that arrives after the leader leaves the flow', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -249,9 +271,9 @@ test('it drops a reading that arrives after the leader leaves the flow', async (
 
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from('acme/'));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  picker.applyKey(Buffer.from('acme/'));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
 
   const renders = ctx.counts.renders;
 
@@ -269,12 +291,19 @@ test('it drops a reading that arrives after the leader leaves the flow', async (
 test('it drops a probe answer that arrives after esc cancels it and the leader leaves', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -291,10 +320,10 @@ test('it drops a probe answer that arrives after esc cancels it and the leader l
 
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from('https://example.com/app.git'));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
-  ctx.picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  picker.applyKey(Buffer.from('https://example.com/app.git'));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
 
   const renders = ctx.counts.renders;
 
@@ -313,12 +342,19 @@ test('it drops a probe answer that arrives after esc cancels it and the leader l
 test('it neither attaches nor draws a spawn that answers after esc stops waiting on it', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -335,10 +371,10 @@ test('it neither attaches nor draws a spawn that answers after esc stops waiting
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.esc));
 
   const renders = ctx.counts.renders;
 
@@ -353,12 +389,19 @@ test('it neither attaches nor draws a spawn that answers after esc stops waiting
 test('it materializes a directory on the one target when that target is remote', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -375,9 +418,9 @@ test('it materializes a directory on the one target when that target is remote',
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
     {
@@ -385,7 +428,7 @@ test('it materializes a directory on the one target when that target is remote',
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       agent: 'claude',
       target: 'box',
       workspace: { kind: 'path', path: ctx.cwd },
@@ -396,12 +439,19 @@ test('it materializes a directory on the one target when that target is remote',
 test("it shows the daemon's pick for the destination of a repository on a remote target with no destination typed", async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -418,8 +468,8 @@ test("it shows the daemon's pick for the destination of a repository on a remote
 
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from('https://example.com/app.git'));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from('https://example.com/app.git'));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
@@ -430,7 +480,7 @@ test("it shows the daemon's pick for the destination of a repository on a remote
 
   const mark = ctx.terminal.mark();
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.terminal.getTextSince(mark)).toInclude(
     'dest    box:~/.local/share/atc/workspaces/app-main-aaaaaaa',
@@ -440,12 +490,19 @@ test("it shows the daemon's pick for the destination of a repository on a remote
 test('it spawns a repository on a remote target with no destination typed and leaves the directory to the daemon', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -462,8 +519,8 @@ test('it spawns a repository on a remote target with no destination typed and le
 
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from('https://example.com/app.git'));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from('https://example.com/app.git'));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
@@ -472,17 +529,17 @@ test('it spawns a repository on a remote target with no destination typed and le
     resolved: null,
   });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
     {
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       agent: 'claude',
       target: 'box',
       workspace: {
@@ -498,12 +555,19 @@ test('it spawns a repository on a remote target with no destination typed and le
 test('it sends the directory of a directory spawn after a flow left a repository to the daemon', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -520,8 +584,8 @@ test('it sends the directory of a directory spawn after a flow left a repository
 
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from('https://example.com/app.git'));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from('https://example.com/app.git'));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
@@ -530,9 +594,9 @@ test('it sends the directory of a directory spawn after a flow left a repository
     resolved: null,
   });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
-  ctx.picker.open();
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -549,9 +613,9 @@ test('it sends the directory of a directory spawn after a flow left a repository
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
     {
@@ -559,7 +623,7 @@ test('it sends the directory of a directory spawn after a flow left a repository
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       agent: 'claude',
       target: 'box',
       workspace: { kind: 'path', path: ctx.cwd },
@@ -571,14 +635,19 @@ test('it shows the refusal of a remote target without a workspace root when the 
   using ctx = setupTest();
 
   // A daemon that serves every feature but picking the directory itself.
-  ctx.features.delete('spawn.workspace.autoDir');
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: (feature) => feature !== 'spawn.workspace.autoDir',
+    getLastUsedAgent: () => 'claude',
+  });
 
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -595,8 +664,8 @@ test('it shows the refusal of a remote target without a workspace root when the 
 
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from('https://example.com/app.git'));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from('https://example.com/app.git'));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
@@ -607,7 +676,7 @@ test('it shows the refusal of a remote target without a workspace root when the 
 
   const mark = ctx.terminal.mark();
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.terminal.getTextSince(mark)).toInclude('set workspaces.targets.box in config.json');
 });
@@ -616,14 +685,19 @@ test('it sends no spawn to a remote target without a workspace root when the dae
   using ctx = setupTest();
 
   // A daemon that serves every feature but picking the directory itself.
-  ctx.features.delete('spawn.workspace.autoDir');
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: (feature) => feature !== 'spawn.workspace.autoDir',
+    getLastUsedAgent: () => 'claude',
+  });
 
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -640,8 +714,8 @@ test('it sends no spawn to a remote target without a workspace root when the dae
 
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from('https://example.com/app.git'));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from('https://example.com/app.git'));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
@@ -650,10 +724,10 @@ test('it sends no spawn to a remote target without a workspace root when the dae
     resolved: null,
   });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([]);
 });
@@ -661,12 +735,19 @@ test('it sends no spawn to a remote target without a workspace root when the dae
 test('it holds a session whose workspace left changes behind instead of attaching it', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -683,9 +764,9 @@ test('it holds a session whose workspace left changes behind instead of attachin
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('session.spawn', {
     session: { id: 's-1' },
@@ -701,12 +782,19 @@ test('it holds a session whose workspace left changes behind instead of attachin
 test('it attaches a held session whose workspace left changes behind on enter', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -723,9 +811,9 @@ test('it attaches a held session whose workspace left changes behind on enter', 
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('session.spawn', {
     session: { id: 's-1' },
@@ -734,7 +822,7 @@ test('it attaches a held session whose workspace left changes behind on enter', 
     ],
   });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.counts.attached).toBe(1);
   expect(ctx.counts.exits).toBe(0);
@@ -743,12 +831,19 @@ test('it attaches a held session whose workspace left changes behind on enter', 
 test('it shows the whole note of a workspace that left changes behind, wrapped to the picker', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -765,9 +860,9 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   const mark = ctx.terminal.mark();
 
@@ -788,12 +883,19 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
 test('it leaves a session whose workspace left changes behind running when esc returns', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -810,9 +912,9 @@ test('it leaves a session whose workspace left changes behind running when esc r
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('session.spawn', {
     session: { id: 's-1' },
@@ -821,7 +923,7 @@ test('it leaves a session whose workspace left changes behind running when esc r
     ],
   });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.esc));
 
   expect(ctx.counts.attached).toBe(0);
   expect(ctx.counts.exits).toBe(1);
@@ -832,7 +934,7 @@ test('it leaves a session whose workspace left changes behind running when esc r
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       agent: 'claude',
       target: 'box',
       workspace: { kind: 'path', path: ctx.cwd },
@@ -843,12 +945,19 @@ test('it leaves a session whose workspace left changes behind running when esc r
 test('it attaches a session spawned without warnings at once', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -865,9 +974,9 @@ test('it attaches a session spawned without warnings at once', async () => {
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('session.spawn', { session: { id: 's-1' } });
 
@@ -877,12 +986,19 @@ test('it attaches a session spawned without warnings at once', async () => {
 test('it runs a directory in place on the one target when that target is local', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -899,9 +1015,9 @@ test('it runs a directory in place on the one target when that target is local',
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
     {
@@ -909,7 +1025,7 @@ test('it runs a directory in place on the one target when that target is local',
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       agent: 'claude',
       target: 'local',
     },
@@ -919,12 +1035,19 @@ test('it runs a directory in place on the one target when that target is local',
 test('it adopts in place on the one local target it offers', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open(true);
+  picker.open(true);
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -948,8 +1071,8 @@ test('it adopts in place on the one local target it offers', async () => {
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
     {
@@ -957,7 +1080,7 @@ test('it adopts in place on the one local target it offers', async () => {
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       resume: true,
       agent: 'claude',
       target: 'local',
@@ -968,12 +1091,19 @@ test('it adopts in place on the one local target it offers', async () => {
 test('it offers an agent that takes the broker credential only the targets that reach the broker', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     agents: [{ id: 'claude', brokerAuth: true }],
@@ -999,9 +1129,9 @@ test('it offers an agent that takes the broker credential only the targets that 
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
     {
@@ -1009,7 +1139,7 @@ test('it offers an agent that takes the broker credential only the targets that 
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       agent: 'claude',
       target: 'box',
       workspace: { kind: 'path', path: ctx.cwd },
@@ -1020,12 +1150,19 @@ test('it offers an agent that takes the broker credential only the targets that 
 test('it offers an agent that takes no broker credential every target', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     agents: [{ id: 'claude', brokerAuth: false }],
@@ -1051,10 +1188,10 @@ test('it offers an agent that takes no broker credential every target', async ()
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
     {
@@ -1062,7 +1199,7 @@ test('it offers an agent that takes no broker credential every target', async ()
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       agent: 'claude',
       target: 'local',
     },
@@ -1072,12 +1209,19 @@ test('it offers an agent that takes no broker credential every target', async ()
 test('it offers every target to an agent whose broker credential is optional', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     agents: [{ id: 'claude', brokerAuth: true, brokerRequired: false }],
@@ -1103,10 +1247,10 @@ test('it offers every target to an agent whose broker credential is optional', a
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
     {
@@ -1114,7 +1258,7 @@ test('it offers every target to an agent whose broker credential is optional', a
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       agent: 'claude',
       target: 'local',
     },
@@ -1124,12 +1268,19 @@ test('it offers every target to an agent whose broker credential is optional', a
 test('it lists a scope read from typed text once, on the target chosen after it', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1156,14 +1307,14 @@ test('it lists a scope read from typed text once, on the target chosen after it'
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from('acme/'));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from('acme/'));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('sources.interpret', { kind: 'none' });
   await ctx.daemon.answer('sources.interpret', { kind: 'browse', scope: 'acme' });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.down));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.down));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([
     { source: 'dirs' },
@@ -1174,12 +1325,19 @@ test('it lists a scope read from typed text once, on the target chosen after it'
 test('it starts a new flow on the default target, not the one the last flow chose', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1203,15 +1361,15 @@ test('it starts a new flow on the default target, not the one the last flow chos
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.down));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.down));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('session.spawn', { session: { id: 's-1' } });
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1235,10 +1393,10 @@ test('it starts a new flow on the default target, not the one the last flow chos
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
     {
@@ -1246,7 +1404,7 @@ test('it starts a new flow on the default target, not the one the last flow chos
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       agent: 'claude',
       target: 'box',
       workspace: { kind: 'path', path: ctx.cwd },
@@ -1256,7 +1414,7 @@ test('it starts a new flow on the default target, not the one the last flow chos
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       agent: 'claude',
       target: 'local',
     },
@@ -1266,12 +1424,19 @@ test('it starts a new flow on the default target, not the one the last flow chos
 test('it lists a git source again when the flow left it before its listing answered', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1289,11 +1454,11 @@ test('it lists a git source again when the flow left it before its listing answe
     ],
   });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.tab));
+  picker.applyKey(Buffer.from(KEYS.tab));
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.tab));
+  picker.applyKey(Buffer.from(KEYS.tab));
 
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([
     { source: 'fake', target: 'local' },
@@ -1305,18 +1470,32 @@ test('it lists a git source again when the flow left it before its listing answe
 test('it reads the targets and sources at once when one agent is installed', () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   expect(ctx.daemon.collectSent('agents.list')).toStrictEqual([{}]);
 });
 
 test('it waits on the agent choice when more than one agent is installed', () => {
   using ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
 
   writeFileSync(
     ctx.configPath,
@@ -1327,7 +1506,7 @@ test('it waits on the agent choice when more than one agent is installed', () =>
     }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   expect(ctx.daemon.collectSent('agents.list')).toStrictEqual([]);
 });
@@ -1335,12 +1514,19 @@ test('it waits on the agent choice when more than one agent is installed', () =>
 test('it shows how to install an agent when none is installed', () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: 'no-claude', grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   expect(ctx.terminal.getText()).toInclude('no agent CLI found');
   expect(ctx.daemon.collectSent('agents.list')).toStrictEqual([]);
@@ -1349,6 +1535,13 @@ test('it shows how to install an agent when none is installed', () => {
 test('it reads the targets and sources once when enter repeats on the agent step', () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
@@ -1358,10 +1551,10 @@ test('it reads the targets and sources once when enter repeats on the agent step
     }),
   );
 
-  ctx.picker.open();
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.down));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.open();
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.down));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('agents.list')).toStrictEqual([{}]);
 });
@@ -1369,6 +1562,13 @@ test('it reads the targets and sources once when enter repeats on the agent step
 test('it returns esc from the directory step to the agent step when more than one agent is installed', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
@@ -1378,8 +1578,8 @@ test('it returns esc from the directory step to the agent step when more than on
     }),
   );
 
-  ctx.picker.open();
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.open();
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1398,7 +1598,7 @@ test('it returns esc from the directory step to the agent step when more than on
 
   const mark = ctx.terminal.mark();
 
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.esc));
 
   expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: agent');
   expect(ctx.counts.exits).toBe(0);
@@ -1407,12 +1607,19 @@ test('it returns esc from the directory step to the agent step when more than on
 test('it leaves the flow on esc from the directory step when one agent is installed', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1429,7 +1636,7 @@ test('it leaves the flow on esc from the directory step when one agent is instal
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.esc));
 
   expect(ctx.counts.exits).toBe(1);
 });
@@ -1437,12 +1644,19 @@ test('it leaves the flow on esc from the directory step when one agent is instal
 test('it opens the name step after the directory when one agent and one target leave no choice', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1461,7 +1675,7 @@ test('it opens the name step after the directory when one agent and one target l
 
   const mark = ctx.terminal.mark();
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   const shown = ctx.terminal.getTextSince(mark);
 
@@ -1472,12 +1686,19 @@ test('it opens the name step after the directory when one agent and one target l
 test('it returns esc from the name step to the directory step when one target left no choice', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1494,11 +1715,11 @@ test('it returns esc from the name step to the directory step when one target le
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   const mark = ctx.terminal.mark();
 
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.esc));
 
   expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: directory on the daemon host');
   expect(ctx.counts.exits).toBe(0);
@@ -1507,12 +1728,19 @@ test('it returns esc from the name step to the directory step when one target le
 test('it lists a git source for the one target without a key when one agent and one target leave no choice', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1535,12 +1763,19 @@ test('it lists a git source for the one target without a key when one agent and 
 test('it leaves the flow on esc from a git source when one agent and one target leave no choice', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1557,7 +1792,7 @@ test('it leaves the flow on esc from a git source when one agent and one target 
 
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.esc));
 
   expect(ctx.counts.exits).toBe(1);
 });
@@ -1565,12 +1800,19 @@ test('it leaves the flow on esc from a git source when one agent and one target 
 test('it takes the one available target for a directory when the other is unavailable', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1594,9 +1836,9 @@ test('it takes the one available target for a directory when the other is unavai
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
     {
@@ -1604,7 +1846,7 @@ test('it takes the one available target for a directory when the other is unavai
       name: '',
       prompt: '',
       cols: expect.any(Number),
-      rows: ctx.ptyRows,
+      rows: 24,
       agent: 'claude',
       target: 'local',
     },
@@ -1614,12 +1856,19 @@ test('it takes the one available target for a directory when the other is unavai
 test('it takes the one target that takes a workspace for a repository', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1641,12 +1890,19 @@ test('it takes the one target that takes a workspace for a repository', async ()
 test('it offers both targets for a directory when only one takes a workspace', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1666,7 +1922,7 @@ test('it offers both targets for a directory when only one takes a workspace', a
 
   const mark = ctx.terminal.mark();
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: target');
 });
@@ -1674,12 +1930,19 @@ test('it offers both targets for a directory when only one takes a workspace', a
 test('it shows why no target can run a directory when the one target is unavailable', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1698,7 +1961,7 @@ test('it shows why no target can run a directory when the one target is unavaila
 
   const mark = ctx.terminal.mark();
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   const shown = ctx.terminal.getTextSince(mark);
 
@@ -1709,12 +1972,19 @@ test('it shows why no target can run a directory when the one target is unavaila
 test('it shows why no target can run a repository when none takes a workspace', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1730,12 +2000,19 @@ test('it shows why no target can run a repository when none takes a workspace', 
 test('it shows why no target can run an agent whose broker no target reaches', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     agents: [{ id: 'claude', brokerAuth: true }],
@@ -1755,7 +2032,7 @@ test('it shows why no target can run an agent whose broker no target reaches', a
 
   const mark = ctx.terminal.mark();
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.terminal.getTextSince(mark)).toInclude(
     'no target reaches the credential broker claude needs',
@@ -1767,12 +2044,19 @@ test('it shows why no target can run an agent whose broker no target reaches', a
 test('it shows why no target can adopt when none runs on the daemon host', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open(true);
+  picker.open(true);
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1791,7 +2075,7 @@ test('it shows why no target can adopt when none runs on the daemon host', async
 
   const mark = ctx.terminal.mark();
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.terminal.getTextSince(mark)).toInclude('no target on this host can adopt a session');
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([]);
@@ -1800,12 +2084,19 @@ test('it shows why no target can adopt when none runs on the daemon host', async
 test('it returns esc from a target step with no usable target to the directory step', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
+  picker.open();
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1822,11 +2113,11 @@ test('it returns esc from a target step with no usable target to the directory s
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   const mark = ctx.terminal.mark();
 
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.esc));
 
   expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: directory on the daemon host');
   expect(ctx.counts.exits).toBe(0);
@@ -1835,14 +2126,21 @@ test('it returns esc from a target step with no usable target to the directory s
 test('it drops the target and source answer of a flow that was left and opened again', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
   );
 
-  ctx.picker.open();
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
-  ctx.picker.open();
+  picker.open();
+  picker.applyKey(Buffer.from(KEYS.esc));
+  picker.open();
 
   const renders = ctx.counts.renders;
 
@@ -1868,6 +2166,13 @@ test('it drops the target and source answer of a flow that was left and opened a
 test('it returns esc from a git source to the agent step when one target left no choice', async () => {
   using ctx = setupTest();
 
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
@@ -1877,8 +2182,8 @@ test('it returns esc from a git source to the agent step when one target left no
     }),
   );
 
-  ctx.picker.open();
-  ctx.picker.applyKey(Buffer.from(KEYS.enter));
+  picker.open();
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('agents.list', {
     targets: [
@@ -1900,7 +2205,7 @@ test('it returns esc from a git source to the agent step when one target left no
 
   const mark = ctx.terminal.mark();
 
-  ctx.picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.esc));
 
   expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: agent');
   expect(ctx.counts.exits).toBe(0);

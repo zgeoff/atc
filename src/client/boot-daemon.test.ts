@@ -7,14 +7,14 @@ import { getBuild } from '../shared/get-build';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startStubUnansweringUnixListener } from '../test-utils/start-stub-unanswering-unix-listener';
 
 /**
  * A fresh home for a client process: `dir` serves as both its home and its
  * runtime directory, so the client computes `sockPath` as the daemon's
  * socket and `stateDir` as the daemon's state directory. The client reads
  * those paths once at import, so each test boots it in a subprocess with
- * `env`. A test defers the release of what it starts to `stack`, which
- * disposal releases before it removes the directory.
+ * `env`. Disposal removes the directory.
  */
 function setupTest() {
   using stack = new DisposableStack();
@@ -27,28 +27,21 @@ function setupTest() {
 
   const owned = stack.move();
 
-  const started = new AsyncDisposableStack();
-
   return {
     dir: tmp.dir,
     stateDir,
     sockPath: join(tmp.dir, 'atc-daemon.sock'),
     env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
-    stack: started,
-    [Symbol.asyncDispose]: async () => {
-      await started.disposeAsync();
-
+    [Symbol.dispose]: () => {
       owned.dispose();
     },
   };
 }
 
 test('it reports a codex hello as the last-used agent instead of coercing it to claude', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
-  const store = await StateStore.open(join(ctx.dir, 'state.db'));
-
-  ctx.stack.use(store);
+  await using store = await StateStore.open(join(ctx.dir, 'state.db'));
 
   await store.writeLastUsedAgent('codex');
 
@@ -61,7 +54,7 @@ test('it reports a codex hello as the last-used agent instead of coercing it to 
     statusPath: join(ctx.dir, 'status.json'),
   });
 
-  ctx.stack.defer(() => daemon.stop());
+  onTestFinished(() => daemon.stop());
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -90,7 +83,7 @@ boot.client.stop();
 });
 
 test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR is unset', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'run'));
 
@@ -103,7 +96,7 @@ test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR
     statusPath: join(ctx.stateDir, 'status.json'),
   });
 
-  ctx.stack.defer(() => daemon.stop());
+  onTestFinished(() => daemon.stop());
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -144,7 +137,7 @@ boot.client.stop();
 });
 
 test('it leaves a daemon on another protocol running and rejects with both builds and versions', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -156,7 +149,7 @@ test('it leaves a daemon on another protocol running and rejects with both build
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  ctx.stack.defer(async () => {
+  onTestFinished(async () => {
     legacy.kill('SIGTERM');
 
     await legacy.exited;
@@ -209,7 +202,7 @@ process.exit(0);
 });
 
 test('it stops a daemon on another protocol and boots its own build when the caller confirms the restart', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -221,7 +214,7 @@ test('it stops a daemon on another protocol and boots its own build when the cal
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  ctx.stack.defer(async () => {
+  onTestFinished(async () => {
     legacy.kill('SIGTERM');
 
     await legacy.exited;
@@ -264,7 +257,7 @@ process.exit(0);
 });
 
 test('it leaves a daemon on another protocol running and rejects when the caller declines the restart', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -276,7 +269,7 @@ test('it leaves a daemon on another protocol running and rejects when the caller
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  ctx.stack.defer(async () => {
+  onTestFinished(async () => {
     legacy.kill('SIGTERM');
 
     await legacy.exited;
@@ -326,7 +319,7 @@ process.exit(0);
 });
 
 test('it never asks to restart a daemon on another protocol whose pid it cannot find', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -338,7 +331,7 @@ test('it never asks to restart a daemon on another protocol whose pid it cannot 
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  ctx.stack.defer(async () => {
+  onTestFinished(async () => {
     legacy.kill('SIGTERM');
 
     await legacy.exited;
@@ -386,7 +379,7 @@ process.exit(0);
 });
 
 test('it rejects with the socket it waited on, and starts no daemon, when none answers before the wait ends', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   // The wait polls every 100 ms of the stepped clock, so a 300 ms wait
   // misses four polls: the probe steps past three of them and the fourth
@@ -448,12 +441,12 @@ await booting.catch((error: Error) => {
 });
 
 test('it rejects when a socket takes the connection but never answers the handshake before the wait ends', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
-  const silent = Bun.listen({ unix: ctx.sockPath, socket: { data: () => {} } });
+  const silent = startStubUnansweringUnixListener(ctx.sockPath);
 
-  ctx.stack.defer(() => {
-    silent.stop(true);
+  onTestFinished(() => {
+    silent[Symbol.dispose]();
   });
 
   // The socket takes the connection, so the boot waits on the handshake
@@ -505,7 +498,7 @@ await booting.catch((error: Error) => {
 });
 
 test('it reports the start of a wait once across every poll of that wait', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   // The wait polls every 100 ms of the stepped clock, so a 500 ms wait
   // misses six polls: the probe steps past five of them and the sixth ends
@@ -553,7 +546,7 @@ process.exit(0);
 });
 
 test('it never reports a wait when a daemon answers on the first try', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const daemon = await startDaemon({
     socketPath: ctx.sockPath,
@@ -564,7 +557,7 @@ test('it never reports a wait when a daemon answers on the first try', async () 
     statusPath: join(ctx.dir, 'status.json'),
   });
 
-  ctx.stack.defer(() => daemon.stop());
+  onTestFinished(() => daemon.stop());
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),

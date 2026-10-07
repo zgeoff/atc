@@ -6,16 +6,11 @@ import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { updateEnv } from '../test-utils/update-env';
 import { GrokAdapter } from './grok-adapter';
 
 // A Grok home of the test's own, where the adapter looks for session summaries.
 function setupTest() {
-  const temp = setupTempDir('atc-grok-home-');
-
-  updateEnv('GROK_HOME', temp.dir);
-
-  return temp;
+  return setupTempDir('atc-grok-home-');
 }
 
 test('it plans a new spawn without resume or -p and appends --no-leader', () => {
@@ -233,7 +228,7 @@ test('it treats idle_prompt after a submitted prompt as turn-done', () => {
 test('it captures SessionStart without a transcript path', () => {
   using ctx = setupTest();
 
-  const ev = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok')).normalizeHook({
+  const ev = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'), ctx.dir).normalizeHook({
     atcId: toSessionID('s1'),
     event: 'SessionStart',
     payload: { sessionId: 'g1', cwd: '/tmp/proj' },
@@ -247,7 +242,7 @@ test('it captures SessionStart without a transcript path', () => {
 });
 
 test('it loads a manual title over a user-typed name', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const file = join(ctx.dir, 'summary.json');
 
@@ -269,7 +264,7 @@ test('it loads a manual title over a user-typed name', async () => {
 });
 
 test('it loads an auto title when the session was not user-named', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const file = join(ctx.dir, 'summary.json');
 
@@ -287,7 +282,7 @@ test('it loads an auto title when the session was not user-named', async () => {
 });
 
 test('it keeps a user-typed name over an auto title', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const file = join(ctx.dir, 'summary.json');
 
@@ -356,7 +351,7 @@ test('it does not resume a session with no captured id', () => {
 test('it carries the whole last assistant message of a finished turn as its result', () => {
   using ctx = setupTest();
 
-  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'));
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'), ctx.dir);
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),

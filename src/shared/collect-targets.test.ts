@@ -162,17 +162,10 @@ test('it leaves no default when a malformed local entry is the one the default w
 });
 
 test('it leaves no default and an error for a defaultTarget that is a target the map does not hold', () => {
-  expect(
-    collectTargets({ local: { provider: 'local-pty' }, broken: { provider: 3 } }, 'gone'),
-  ).toStrictEqual({
+  expect(collectTargets({ local: { provider: 'local-pty' } }, 'gone')).toStrictEqual({
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
     defaultTarget: null,
     errors: [
-      {
-        scope: 'target',
-        target: 'broken',
-        problem: 'target "broken" must be an object with a non-empty string provider',
-      },
       {
         scope: 'defaultTarget',
         problem: 'defaultTarget: matches no well-formed target in targets',
@@ -202,34 +195,18 @@ test('it leaves no default and an error for a defaultTarget that is a malformed 
 });
 
 test('it leaves no default and an error for a defaultTarget that is a number', () => {
-  expect(
-    collectTargets({ local: { provider: 'local-pty' }, broken: { provider: 3 } }, 4),
-  ).toStrictEqual({
+  expect(collectTargets({ local: { provider: 'local-pty' } }, 4)).toStrictEqual({
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
     defaultTarget: null,
-    errors: [
-      {
-        scope: 'target',
-        target: 'broken',
-        problem: 'target "broken" must be an object with a non-empty string provider',
-      },
-      { scope: 'defaultTarget', problem: 'defaultTarget: expected a string, got a number' },
-    ],
+    errors: [{ scope: 'defaultTarget', problem: 'defaultTarget: expected a string, got a number' }],
   });
 });
 
 test('it leaves no default and an error for a defaultTarget that is an object', () => {
-  expect(
-    collectTargets({ local: { provider: 'local-pty' }, broken: { provider: 3 } }, { token: 'x' }),
-  ).toStrictEqual({
+  expect(collectTargets({ local: { provider: 'local-pty' } }, { token: 'x' })).toStrictEqual({
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
     defaultTarget: null,
     errors: [
-      {
-        scope: 'target',
-        target: 'broken',
-        problem: 'target "broken" must be an object with a non-empty string provider',
-      },
       { scope: 'defaultTarget', problem: 'defaultTarget: expected a string, got an object' },
     ],
   });

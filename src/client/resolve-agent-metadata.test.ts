@@ -137,11 +137,13 @@ test('it leaves a __proto__ model alias out of the map', () => {
   });
 });
 
-test('it reports no entries under constructor for a plain answer', () => {
-  const meta = resolveAgentMetadata(parseConfig({ gateways: {} }), { agents: [{ id: 'claude' }] });
+test('it keeps an agent with the id constructor as an entry of its own', () => {
+  const meta = resolveAgentMetadata(parseConfig({ gateways: {} }), {
+    agents: [{ id: 'constructor', label: 'Ctor', models: { opus: 'ctor-model' } }],
+  });
 
   expect(meta).toStrictEqual({
-    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex' },
-    models: {},
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex', constructor: 'Ctor' },
+    models: { constructor: { opus: 'ctor-model' } },
   });
 });

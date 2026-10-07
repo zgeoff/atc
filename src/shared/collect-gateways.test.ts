@@ -413,10 +413,6 @@ test.each([
     { settings: { env: { SSL_CERT_FILE: '/tmp/ca.pem' } } },
     'gateways.glm: settings.env must not set SSL_CERT_FILE',
   ],
-  [
-    { auth: { profiles: ['glm'], placeholderEnv: {} }, env: { ANTHROPIC_AUTH_TOKEN: 'sk-real' } },
-    'gateways.glm: env must not set ANTHROPIC_AUTH_TOKEN',
-  ],
   [{ env: { ANTHROPIC_API_KEY: 'sk-real' } }, 'gateways.glm: env must not set ANTHROPIC_API_KEY'],
   [
     { env: { ANTHROPIC_BASE_URL: 'https://other.example.com' } },
@@ -452,6 +448,30 @@ test.each([
       authProfiles,
     ),
   ).toStrictEqual({ gateways: [], errors: [error] });
+});
+
+test('it refuses a gateway with auth and no placeholder whose env sets ANTHROPIC_AUTH_TOKEN', () => {
+  const authProfiles = new Map<string, AuthProfile>([
+    ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai' })],
+  ]);
+
+  expect(
+    collectGateways(
+      {
+        glm: {
+          baseURL: 'https://api.z.ai/api/anthropic',
+          auth: { profiles: ['glm'], placeholderEnv: {} },
+          env: { ANTHROPIC_AUTH_TOKEN: 'sk-real' },
+        },
+      },
+      'claude',
+      [],
+      authProfiles,
+    ),
+  ).toStrictEqual({
+    gateways: [],
+    errors: ['gateways.glm: env must not set ANTHROPIC_AUTH_TOKEN'],
+  });
 });
 
 test.each([

@@ -3,7 +3,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
-// A temp directory that holds the host config a test hands the script.
+// A temp directory that holds the host config a test hands the script, and
+// the directory outside any repository that the script's command runs in.
 function setupTest() {
   return setupTempDir('atc-with-test-home-');
 }
@@ -19,7 +20,7 @@ test('it keeps a host XDG git config away from a command it runs', () => {
   const read = Bun.spawnSync(
     ['bash', join(import.meta.dir, 'with-test-home.sh'), 'git', 'config', '--get', 'atc.canary'],
     {
-      cwd: join(import.meta.dir, '..'),
+      cwd: ctx.dir,
       env: { ...process.env, XDG_CONFIG_HOME: host },
       stdout: 'pipe',
       stderr: 'pipe',

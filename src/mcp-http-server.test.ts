@@ -98,11 +98,11 @@ test('it prints no hint to add a client once one can connect', async () => {
 
   const store = await openMCPAuth({ dbPath: ctx.dbPath, origin: null });
 
+  onTestFinished(() => store.close());
+
   await store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
   });
-
-  await store.close();
 
   const printed: string[] = [];
 
