@@ -556,7 +556,7 @@ test('it ends a connection whose output handler throws with a local error and ke
       kind: 'start',
       name: 'imp-a',
       session: 's1',
-      argv: ['bash', '-c', `echo $$ > ${join(ctx.dir, 'pid')}; echo hi; exec sleep 30`],
+      argv: ['bash', '-c', 'echo $$ > "$1"; echo hi; exec sleep 30', 'bash', join(ctx.dir, 'pid')],
       env: {},
       cwd: ctx.dir,
       cols: 80,
