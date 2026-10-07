@@ -1,8 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
+import { collectProcessTree } from '../test-utils/collect-process-tree';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
 import { startGitHTTPServer } from '../test-utils/start-git-http-server';
@@ -231,35 +233,61 @@ test('it authenticates with an env credential through the askpass helper', async
   );
 });
 
-test('it refuses an upstream that does not answer within its time limit and leaves no git process behind', async () => {
-  const server = Bun.serve({
-    port: 0,
-    hostname: '127.0.0.1',
-    fetch: () => new Promise<Response>(() => {}),
-  });
+// The git processes are read from /proc, which only Linux has.
+test.skipIf(process.platform !== 'linux')(
+  'it refuses an upstream that does not answer within its time limit and leaves no git process behind',
+  async () => {
+    const recorded = Promise.withResolvers<number[]>();
 
-  onTestFinished(async () => {
-    await server.stop(true);
-  });
+    // The server holds every request forever. While it holds the first, it
+    // records the processes that carry its URL: git and its HTTP helper.
+    const server = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch: async () => {
+        const tree = await collectProcessTree(process.pid);
 
-  const access = await checkRepositoryAccess({
-    url: `http://127.0.0.1:${server.port}/silent.git`,
-    timeoutMs: 300,
-    transports: ['https', 'ssh', 'http', 'file'],
-  });
+        recorded.resolve(
+          tree
+            .filter((entry) => entry.argv.join(' ').includes(`127.0.0.1:${server.port}/`))
+            .map((entry) => entry.pid),
+        );
 
-  expect(access).toStrictEqual({
-    ok: false,
-    code: 'clone_failed',
-    message: 'git ls-remote did not answer within 0.3 s',
-  });
+        return new Promise<Response>(() => {});
+      },
+    });
 
-  // A killed process group is gone once the kernel reaps it, a moment after
-  // the signal. The server's own port keeps the match to this test's git.
-  await waitFor(() => {
-    expect(Bun.spawnSync(['pgrep', '-f', `127.0.0.1:${server.port}/`]).stdout.toString()).toBe('');
-  });
-});
+    onTestFinished(async () => {
+      await server.stop(true);
+    });
+
+    const started = Date.now();
+
+    const access = await checkRepositoryAccess({
+      url: `http://127.0.0.1:${server.port}/silent.git`,
+      timeoutMs: 1000,
+      transports: ['https', 'ssh', 'http', 'file'],
+    });
+
+    const elapsed = Date.now() - started;
+
+    const pids = await recorded.promise;
+
+    expect(access).toStrictEqual({
+      ok: false,
+      code: 'clone_failed',
+      message: 'git ls-remote did not answer within 1 s',
+    });
+
+    expect(elapsed).toBeLessThan(5000);
+    expect(pids).not.toBeEmpty();
+
+    // A killed process is gone once it is reaped, a moment after the signal.
+    await waitFor(() => {
+      expect(pids).toSatisfyAll((pid: number) => !existsSync(join('/proc', String(pid))));
+    });
+  },
+);
 
 test.each([
   [
