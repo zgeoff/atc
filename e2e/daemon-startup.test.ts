@@ -26,19 +26,23 @@ test('it lets exactly one of two daemons started at once serve a state directory
   await using second = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const loserCode = await Promise.race([first.proc.exited, second.proc.exited]);
-  const client = await first.openClient();
-
-  await client.sendHello('atc/test');
 
   const live = [first, second].filter((daemon) => daemon.proc.exitCode === null);
+  const [winner] = live;
+
+  invariant(winner !== undefined, 'both daemons exited');
+
+  // The loser can exit before the winner binds its socket, so the client
+  // waits on the daemon that still runs.
+  const client = await winner.openClient();
+
+  await client.sendHello('atc/test');
 
   expect(loserCode).toBe(1);
   expect(live).toHaveLength(1);
 
-  invariant(live[0]);
-
   expect(findDaemonRecord(join(first.stateDir, 'daemon.json'))).toStrictEqual({
-    pid: live[0].proc.pid,
+    pid: winner.proc.pid,
     socketPath: first.socketPath,
     reporterSocketPath: first.reporterSocketPath,
     eventsSocketPath: join(ctx.home, 'atc-events.sock'),
