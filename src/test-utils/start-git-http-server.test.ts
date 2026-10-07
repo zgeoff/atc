@@ -93,3 +93,30 @@ test('it holds each authenticated request for the delay it is given', async () =
   expect(listed.exitCode).toBe(0);
   expect(Date.now() - started).toBeGreaterThanOrEqual(400);
 });
+
+test('it calls back once for each authenticated request', async () => {
+  using ctx = await setupTest();
+
+  let calls = 0;
+
+  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+    onRequest: () => {
+      calls += 1;
+    },
+  });
+
+  onTestFinished(async () => {
+    await hooked.stop();
+  });
+
+  const url = new URL('upstream.git', hooked.url);
+
+  url.username = 'x-access-token';
+  url.password = 'fixture-not-a-secret';
+
+  const listed = await $`git ls-remote ${url.href}`.env(ctx.env).nothrow().quiet();
+
+  expect(listed.exitCode).toBe(0);
+  expect(hooked.authorizations).not.toBeEmpty();
+  expect(calls).toBe(hooked.authorizations.length);
+});

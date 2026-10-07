@@ -13,12 +13,17 @@ interface GitHTTPServer {
  * carries no basic auth, so a client only clones by authenticating. The
  * backend runs with the environment it is given. With a delay, each
  * authenticated request waits that long before it is served, which makes a
- * clone through it slow.
+ * clone through it slow. An `onRequest` callback runs, and is awaited, while
+ * each authenticated request is held, so it sees the client that sent the
+ * request still running.
  */
 export function startGitHTTPServer(
   root: string,
   env: Readonly<Record<string, string | undefined>>,
-  options: { readonly delayMs?: number } = {},
+  options: {
+    readonly delayMs?: number;
+    readonly onRequest?: () => Promise<void> | void;
+  } = {},
 ): GitHTTPServer {
   const authorizations: string[] = [];
 
@@ -40,6 +45,8 @@ export function startGitHTTPServer(
       if (options.delayMs !== undefined) {
         await Bun.sleep(options.delayMs);
       }
+
+      await options.onRequest?.();
 
       const url = new URL(request.url);
 

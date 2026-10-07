@@ -1,27 +1,7 @@
 import { expect, test } from 'bun:test';
 import { $ } from 'bun';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { createGitFixture } from '../test-utils/create-git-fixture';
 import { checkURLCredentials } from './check-url-credentials';
-
-// A repository whose own config holds the rewrites a test adds, with the
-// host's system and global config kept out of every fixture command.
-async function setupTest() {
-  const tmp = setupTempDir('atc-url-credentials-');
-
-  const env = {
-    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-  };
-
-  await $`git init --quiet --template= ${tmp.dir}`.env(env).quiet();
-
-  return {
-    env,
-    dir: tmp.dir,
-    [Symbol.dispose]: tmp[Symbol.dispose],
-  };
-}
 
 test.each([
   ['an https URL', 'https://github.com/owner/repo.git'],
@@ -29,9 +9,9 @@ test.each([
   ['an scp-style URL', 'git@github.com:owner/repo.git'],
   ['a local path', '/srv/git/repo.git'],
 ])('it accepts %s that carries no credential', async (_, url) => {
-  using repo = await setupTest();
+  await using fixture = await createGitFixture();
 
-  const finding = await checkURLCredentials(url, repo.dir);
+  const finding = await checkURLCredentials(url, fixture.work);
 
   expect(finding).toStrictEqual({ ok: true });
 });
@@ -43,35 +23,44 @@ test.each([
   ['a fragment', 'https://github.com/owner/repo.git#tok-1'],
   ['an ssh password', 'ssh://git:tok-1@github.com/owner/repo.git'],
 ])('it refuses a URL whose %s carries a credential', async (_, url) => {
-  using repo = await setupTest();
+  await using fixture = await createGitFixture();
 
-  const finding = await checkURLCredentials(url, repo.dir);
+  const finding = await checkURLCredentials(url, fixture.work);
 
-  expect(finding).toMatchObject({ ok: false, code: 'credential_in_url' });
+  expect(finding).toStrictEqual({
+    ok: false,
+    code: 'credential_in_url',
+    message: 'the repository URL carries a credential; pass it as a credentialRef instead',
+  });
 });
 
 test('it refuses a URL an insteadOf rewrite expands into one with a token', async () => {
-  using repo = await setupTest();
+  await using fixture = await createGitFixture();
 
   await $`git config url.https://x-access-token:tok-1@github.com/.insteadOf https://github.com/`
-    .env(repo.env)
-    .cwd(repo.dir)
+    .env(fixture.env)
+    .cwd(fixture.work)
     .quiet();
 
-  const finding = await checkURLCredentials('https://github.com/owner/repo.git', repo.dir);
+  const finding = await checkURLCredentials('https://github.com/owner/repo.git', fixture.work);
 
-  expect(finding).toMatchObject({ ok: false, code: 'credential_in_url' });
+  expect(finding).toStrictEqual({
+    ok: false,
+    code: 'credential_in_url',
+    message:
+      'a url.<base>.insteadOf rewrite in the host git config puts a credential into the repository URL; remove the rewrite or pass the credential as a credentialRef',
+  });
 });
 
 test('it accepts a URL an insteadOf rewrite expands into one without a token', async () => {
-  using repo = await setupTest();
+  await using fixture = await createGitFixture();
 
   await $`git config url.https://mirror.example.com/.insteadOf https://github.com/`
-    .env(repo.env)
-    .cwd(repo.dir)
+    .env(fixture.env)
+    .cwd(fixture.work)
     .quiet();
 
-  const finding = await checkURLCredentials('https://github.com/owner/repo.git', repo.dir);
+  const finding = await checkURLCredentials('https://github.com/owner/repo.git', fixture.work);
 
   expect(finding).toStrictEqual({ ok: true });
 });

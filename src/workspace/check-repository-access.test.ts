@@ -1,138 +1,126 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
+import { createGitFixture } from '../test-utils/create-git-fixture';
+import { createStubBin } from '../test-utils/create-stub-bin';
 import { startGitHTTPServer } from '../test-utils/start-git-http-server';
 import { updateEnv } from '../test-utils/update-env';
+import { waitFor } from '../test-utils/wait-for';
 import { checkRepositoryAccess } from './check-repository-access';
 
-// The transports a fixture upstream is reached over: a local path, and
-// smart HTTP on the loopback.
-const FIXTURE_TRANSPORTS = ['https', 'ssh', 'http', 'file'];
-
-// A bare upstream with one commit on main, a work clone that pushes to it,
-// and the upstream served over smart HTTP behind basic auth. Fixture git
-// commands read neither the host's system nor its global git config.
+// The fixture upstream served over smart HTTP behind basic auth.
 async function setupTest() {
-  const dir = await mkdtemp(join(tmpdir(), 'atc-repo-access-test-'));
+  await using stack = new AsyncDisposableStack();
 
-  const env = {
-    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_AUTHOR_NAME: 'atc',
-    GIT_AUTHOR_EMAIL: 'atc@example.com',
-    GIT_COMMITTER_NAME: 'atc',
-    GIT_COMMITTER_EMAIL: 'atc@example.com',
-  };
+  const fixture = await createGitFixture({ prefix: 'atc-repo-access-test-' });
 
-  const upstream = join(dir, 'upstream.git');
-  const work = join(dir, 'work');
+  stack.use(fixture);
 
-  await $`git init --quiet --bare --template= --initial-branch=main ${upstream}`.env(env).quiet();
-  await $`git clone --quiet --template= ${upstream} ${work}`.env(env).quiet();
+  const server = startGitHTTPServer(fixture.dir, fixture.env);
 
-  await writeFile(join(work, 'README.md'), 'hello\n');
+  stack.defer(() => server.stop());
 
-  await $`git add README.md`.env(env).cwd(work).quiet();
-  await $`git commit --quiet --no-gpg-sign -m initial`.env(env).cwd(work).quiet();
-  await $`git push --quiet origin main`.env(env).cwd(work).quiet();
-
-  const server = startGitHTTPServer(dir, env);
+  const owned = stack.move();
 
   return {
-    dir,
-    env,
-    upstream,
-    work,
+    dir: fixture.dir,
+    env: fixture.env,
+    upstream: fixture.upstream,
+    work: fixture.work,
+    sha: fixture.sha,
     httpURL: `${server.url}upstream.git`,
     authorizations: server.authorizations,
-    async [Symbol.asyncDispose]() {
-      await server.stop();
-
-      await rm(dir, { recursive: true, force: true });
-    },
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it resolves a branch to the commit it points at and lists the upstream refs', async () => {
-  await using project = await setupTest();
-
-  const sha = await $`git rev-parse HEAD`
-    .env(project.env)
-    .cwd(project.work)
-    .text()
-    .then((text) => text.trim());
+  await using ctx = await setupTest();
 
   const access = await checkRepositoryAccess({
-    transports: FIXTURE_TRANSPORTS,
-    url: project.upstream,
+    transports: ['https', 'ssh', 'http', 'file'],
+    url: ctx.upstream,
     ref: 'main',
   });
 
   expect(access).toStrictEqual({
     ok: true,
-    url: project.upstream,
+    url: ctx.upstream,
     head: 'main',
-    refs: [{ name: 'main', kind: 'branch', sha }],
-    resolved: { sha, branch: 'main' },
+    refs: [{ name: 'main', kind: 'branch', sha: ctx.sha }],
+    resolved: { sha: ctx.sha, branch: 'main' },
   });
 });
 
 test('it resolves an annotated tag to the commit it points at', async () => {
-  await using project = await setupTest();
+  await using ctx = await setupTest();
 
-  await $`git tag --no-sign -a v1 -m release`.env(project.env).cwd(project.work).quiet();
-  await $`git push --quiet origin v1`.env(project.env).cwd(project.work).quiet();
-
-  const sha = await $`git rev-parse HEAD`
-    .env(project.env)
-    .cwd(project.work)
-    .text()
-    .then((text) => text.trim());
+  await $`git tag --no-sign -a v1 -m release`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git push --quiet origin v1`.env(ctx.env).cwd(ctx.work).quiet();
 
   const access = await checkRepositoryAccess({
-    transports: FIXTURE_TRANSPORTS,
-    url: project.upstream,
+    transports: ['https', 'ssh', 'http', 'file'],
+    url: ctx.upstream,
     ref: 'v1',
   });
 
-  expect(access).toMatchObject({ ok: true, resolved: { sha, branch: null } });
+  expect(access).toStrictEqual({
+    ok: true,
+    url: ctx.upstream,
+    head: 'main',
+    refs: [
+      { name: 'main', kind: 'branch', sha: ctx.sha },
+      { name: 'v1', kind: 'tag', sha: ctx.sha },
+    ],
+    resolved: { sha: ctx.sha, branch: null },
+  });
 });
 
 test('it answers a probe without a ref with the refs alone', async () => {
-  await using project = await setupTest();
+  await using ctx = await setupTest();
 
   const access = await checkRepositoryAccess({
-    transports: FIXTURE_TRANSPORTS,
-    url: project.upstream,
+    transports: ['https', 'ssh', 'http', 'file'],
+    url: ctx.upstream,
   });
 
-  expect(access).toMatchObject({ ok: true, head: 'main', resolved: null });
+  expect(access).toStrictEqual({
+    ok: true,
+    url: ctx.upstream,
+    head: 'main',
+    refs: [{ name: 'main', kind: 'branch', sha: ctx.sha }],
+    resolved: null,
+  });
 });
 
 test('it takes a full commit id as it is', async () => {
-  await using project = await setupTest();
+  await using ctx = await setupTest();
 
   const sha = 'f'.repeat(40);
 
   const access = await checkRepositoryAccess({
-    transports: FIXTURE_TRANSPORTS,
-    url: project.upstream,
+    transports: ['https', 'ssh', 'http', 'file'],
+    url: ctx.upstream,
     sha,
   });
 
-  expect(access).toMatchObject({ ok: true, resolved: { sha, branch: null } });
+  expect(access).toStrictEqual({
+    ok: true,
+    url: ctx.upstream,
+    head: 'main',
+    refs: [{ name: 'main', kind: 'branch', sha: ctx.sha }],
+    resolved: { sha, branch: null },
+  });
 });
 
 test('it refuses a ref the upstream does not have', async () => {
-  await using project = await setupTest();
+  await using ctx = await setupTest();
 
   const access = await checkRepositoryAccess({
-    transports: FIXTURE_TRANSPORTS,
-    url: project.upstream,
+    transports: ['https', 'ssh', 'http', 'file'],
+    url: ctx.upstream,
     ref: 'nope',
   });
 
@@ -162,18 +150,22 @@ test('it refuses a URL that carries a credential', async () => {
     transports: DEFAULT_GIT_TRANSPORTS,
   });
 
-  expect(access).toMatchObject({ ok: false, code: 'credential_in_url' });
+  expect(access).toStrictEqual({
+    ok: false,
+    code: 'credential_in_url',
+    message: 'the repository URL carries a credential; pass it as a credentialRef instead',
+  });
 });
 
 test("it refuses an upstream that asks for a sign-in the host cannot give, with git's own message", async () => {
-  await using project = await setupTest();
+  await using ctx = await setupTest();
 
   const access = await checkRepositoryAccess({
-    transports: FIXTURE_TRANSPORTS,
-    url: project.httpURL,
+    transports: ['https', 'ssh', 'http', 'file'],
+    url: ctx.httpURL,
   });
 
-  expect(access).toMatchObject({
+  expect(access).toStrictEqual({
     ok: false,
     code: 'clone_failed',
     message: expect.toInclude('could not read Username'),
@@ -181,45 +173,59 @@ test("it refuses an upstream that asks for a sign-in the host cannot give, with 
 });
 
 test('it authenticates through a credential helper in the host git config', async () => {
-  await using project = await setupTest();
+  await using ctx = await setupTest();
 
   await writeFile(
-    join(project.dir, 'gitconfig'),
+    join(ctx.dir, 'gitconfig'),
     '[credential]\n\thelper = "!f() { echo username=atc; echo password=host-tok; }; f"\n',
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(project.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
 
   const access = await checkRepositoryAccess({
-    transports: FIXTURE_TRANSPORTS,
-    url: project.httpURL,
+    transports: ['https', 'ssh', 'http', 'file'],
+    url: ctx.httpURL,
     ref: 'main',
   });
 
-  expect(access).toMatchObject({ ok: true, resolved: { branch: 'main' } });
-  expect(project.authorizations).not.toBeEmpty();
+  expect(access).toStrictEqual({
+    ok: true,
+    url: ctx.httpURL,
+    head: 'main',
+    refs: [{ name: 'main', kind: 'branch', sha: ctx.sha }],
+    resolved: { sha: ctx.sha, branch: 'main' },
+  });
 
-  expect(project.authorizations).toSatisfyAll(
+  expect(ctx.authorizations).not.toBeEmpty();
+
+  expect(ctx.authorizations).toSatisfyAll(
     (header: string) => header === `Basic ${Buffer.from('atc:host-tok').toString('base64')}`,
   );
 });
 
 test('it authenticates with an env credential through the askpass helper', async () => {
-  await using project = await setupTest();
+  await using ctx = await setupTest();
 
   updateEnv('ATC_TEST_PROBE_TOKEN', 'tok-77a1');
 
   const access = await checkRepositoryAccess({
-    url: project.httpURL,
-    transports: FIXTURE_TRANSPORTS,
+    url: ctx.httpURL,
+    transports: ['https', 'ssh', 'http', 'file'],
     ref: 'main',
     credential: { kind: 'env', name: 'ATC_TEST_PROBE_TOKEN' },
   });
 
-  expect(access).toMatchObject({ ok: true, resolved: { branch: 'main' } });
-  expect(project.authorizations).not.toBeEmpty();
+  expect(access).toStrictEqual({
+    ok: true,
+    url: ctx.httpURL,
+    head: 'main',
+    refs: [{ name: 'main', kind: 'branch', sha: ctx.sha }],
+    resolved: { sha: ctx.sha, branch: 'main' },
+  });
 
-  expect(project.authorizations).toSatisfyAll(
+  expect(ctx.authorizations).not.toBeEmpty();
+
+  expect(ctx.authorizations).toSatisfyAll(
     (header: string) =>
       header === `Basic ${Buffer.from('x-access-token:tok-77a1').toString('base64')}`,
   );
@@ -236,20 +242,11 @@ test('it refuses an upstream that does not answer within its time limit and leav
     await server.stop(true);
   });
 
-  const marker = `silent-${crypto.randomUUID()}`;
-  const started = Date.now();
-
   const access = await checkRepositoryAccess({
-    url: `http://127.0.0.1:${server.port}/${marker}.git`,
+    url: `http://127.0.0.1:${server.port}/silent.git`,
     timeoutMs: 300,
-    transports: FIXTURE_TRANSPORTS,
+    transports: ['https', 'ssh', 'http', 'file'],
   });
-
-  // A killed process group is gone once the kernel reaps it, which takes a
-  // moment after the signal.
-  await Bun.sleep(300);
-
-  const left = Bun.spawnSync(['pgrep', '-f', marker]).stdout.toString();
 
   expect(access).toStrictEqual({
     ok: false,
@@ -257,55 +254,72 @@ test('it refuses an upstream that does not answer within its time limit and leav
     message: 'git ls-remote did not answer within 0.3 s',
   });
 
-  expect(Date.now() - started).toBeLessThan(5000);
-  expect(left).toBe('');
+  // A killed process group is gone once the kernel reaps it, a moment after
+  // the signal. The server's own port keeps the match to this test's git.
+  await waitFor(() => {
+    expect(Bun.spawnSync(['pgrep', '-f', `127.0.0.1:${server.port}/`]).stdout.toString()).toBe('');
+  });
 });
 
 test.each([
-  ['a file URL', 'file:///srv/git/app.git'],
-  ['an ext helper that runs a command', 'ext::sh -c touch% /tmp/atc-ext'],
-  ['an fd helper', 'fd::17'],
-  ['a local path', '/srv/git/app.git'],
-  ['a URL that reads as an option', '-uhttps://example.com/app.git'],
-])('it refuses %s before any git runs', async (_, url) => {
-  await using project = await setupTest();
+  [
+    'a file URL',
+    'file:///srv/git/app.git',
+    "git transport 'file' is not allowed; the daemon fetches over https and ssh",
+  ],
+  [
+    'an ext helper that runs a command',
+    'ext::sh -c touch% /tmp/atc-ext',
+    'not a git repository URL',
+  ],
+  [
+    'an fd helper',
+    'fd::17',
+    "git transport 'fd' is not allowed; the daemon fetches over https and ssh",
+  ],
+  [
+    'a local path',
+    '/srv/git/app.git',
+    "git transport 'file' is not allowed; the daemon fetches over https and ssh",
+  ],
+  [
+    'a URL that reads as an option',
+    '-uhttps://example.com/app.git',
+    'a git URL must not start with -',
+  ],
+])('it refuses %s before any git runs', async (_, url, message) => {
+  await using ctx = await setupTest();
 
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
-  await writeFile(
-    join(project.dir, 'git'),
-    `#!/bin/sh\necho ran >> '${join(project.dir, 'git-ran')}'\n`,
-    {
-      mode: 0o755,
-    },
-  );
-
-  updateEnv('PATH', `${project.dir}:${process.env['PATH'] ?? ''}`);
+  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho ran >> '${join(ctx.dir, 'git-ran')}'\n`);
+  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
 
   const access = await checkRepositoryAccess({ url, transports: DEFAULT_GIT_TRANSPORTS });
-  const ran = await Bun.file(join(project.dir, 'git-ran')).exists();
+  const ran = await Bun.file(join(ctx.dir, 'git-ran')).exists();
 
-  expect(access).toMatchObject({ ok: false, code: 'invalid_git_url' });
+  expect(access).toStrictEqual({ ok: false, code: 'invalid_git_url', message });
   expect(ran).toBeFalse();
 });
 
 test('it refuses an https URL the host git config rewrites to a local repository, in git', async () => {
-  await using project = await setupTest();
+  await using ctx = await setupTest();
 
   await writeFile(
-    join(project.dir, 'gitconfig'),
-    `[url "file://${project.upstream}"]\n\tinsteadOf = https://example.invalid/upstream.git\n`,
+    join(ctx.dir, 'gitconfig'),
+    `[url "file://${ctx.upstream}"]\n\tinsteadOf = https://example.invalid/upstream.git\n`,
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(project.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
 
   const access = await checkRepositoryAccess({
     url: 'https://example.invalid/upstream.git',
     transports: DEFAULT_GIT_TRANSPORTS,
   });
 
-  const message = access.ok ? '' : access.message;
-
-  expect(access).toMatchObject({ ok: false, code: 'clone_failed' });
-  expect(message).toInclude("transport 'file' not allowed");
+  expect(access).toStrictEqual({
+    ok: false,
+    code: 'clone_failed',
+    message: expect.toInclude("transport 'file' not allowed"),
+  });
 });
