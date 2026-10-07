@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.1.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.0.0...@zgeoff/atc@3.1.0) (2026-10-07)
+
+### Features
+
+- **geo-121:** sign codex in on imps through impd's oauth secret
+  ([#348](https://github.com/zgeoff/atc/issues/348))
+  ([0581b51](https://github.com/zgeoff/atc/commit/0581b5117815bea0f35333b12ea13fe1902073d9))
+
 ## [3.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.42.0...@zgeoff/atc@3.0.0) (2026-10-07)
 
 ### ⚠ BREAKING CHANGES
