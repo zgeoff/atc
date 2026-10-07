@@ -1,7 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
 import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -71,9 +73,7 @@ test('it provisions a host through the gate, the record, a new imp and each gran
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -82,10 +82,8 @@ test('it provisions a host through the gate, the record, a new imp and each gran
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   expect(ctx.port.calls).toStrictEqual([
@@ -102,10 +100,12 @@ test('it provisions a host through the gate, the record, a new imp and each gran
   const grants = await ctx.store.collectAuthGrants(toSessionID('s1'));
   const imp = await ctx.port.readImp('atc-s1');
 
+  invariant(imp);
+
   expect<Record<string, unknown>>({ binding, grants }).toStrictEqual({
     binding: expect.objectContaining({
       impName: 'atc-s1',
-      impID: imp?.id,
+      impID: imp.id,
       revision: 1,
       bindingHash: 'h1',
       state: 'provisioning',
@@ -152,9 +152,7 @@ test('it refuses an impd without exec requirements after reading only its featur
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -163,10 +161,8 @@ test('it refuses an impd without exec requirements after reading only its featur
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   expect(created).rejects.toMatchObject({
@@ -196,9 +192,7 @@ test('it refuses a token that reaches every imp and records nothing', async () =
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -207,10 +201,8 @@ test('it refuses a token that reaches every imp and records nothing', async () =
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   expect(created).rejects.toMatchObject({ code: 'auth_token_too_broad' });
@@ -249,9 +241,7 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -260,10 +250,8 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   expect(created).rejects.toMatchObject({ code: 'auth_secret_mismatch' });
@@ -305,9 +293,7 @@ test('it refuses an imp that already holds the name and grants nothing to it', a
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -316,10 +302,8 @@ test('it refuses an imp that already holds the name and grants nothing to it', a
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   expect(created).rejects.toMatchObject({ code: 'auth_runtime_exists' });
@@ -370,9 +354,7 @@ test('it takes back the imp a refused grant left and drops the record', async ()
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -381,10 +363,8 @@ test('it takes back the imp a refused grant left and drops the record', async ()
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   expect(created).rejects.toMatchObject({
@@ -441,9 +421,7 @@ test('it verifies a bound host without granting anything again', async () => {
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -452,31 +430,29 @@ test('it verifies a bound host without granting anything again', async () => {
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
   ctx.port.calls.length = 0;
 
-  const verified = await ctx.binder.verifyBinding(ctx.host, toSessionID('s1'), {
-    agent: 'glm',
-    baseURL: 'https://api.z.ai/api/anthropic',
-    profiles: ['glm'],
-    secrets: [
-      {
-        secret: 'glm',
-        kind: 'custom',
-        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const verified = await ctx.binder.verifyBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  );
 
   expect<Record<string, unknown>>({ state: verified.state, calls: ctx.port.calls }).toStrictEqual({
     state: 'ready',
@@ -516,9 +492,7 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -527,10 +501,8 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -538,21 +510,21 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
 
   ctx.port.calls.length = 0;
 
-  const verified = ctx.binder.verifyBinding(ctx.host, toSessionID('s1'), {
-    agent: 'glm',
-    baseURL: 'https://api.z.ai/api/anthropic',
-    profiles: ['glm'],
-    secrets: [
-      {
-        secret: 'glm',
-        kind: 'custom',
-        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const verified = ctx.binder.verifyBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  );
 
   expect(verified).rejects.toMatchObject({
     code: 'auth_grant_missing',
@@ -588,9 +560,7 @@ test('it refuses a host that holds a grant its binding does not', async () => {
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -599,30 +569,28 @@ test('it refuses a host that holds a grant its binding does not', async () => {
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
   await ctx.port.createGrant('atc-s1', 'judge');
 
-  const verified = ctx.binder.verifyBinding(ctx.host, toSessionID('s1'), {
-    agent: 'glm',
-    baseURL: 'https://api.z.ai/api/anthropic',
-    profiles: ['glm'],
-    secrets: [
-      {
-        secret: 'glm',
-        kind: 'custom',
-        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const verified = ctx.binder.verifyBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  );
 
   expect(verified).rejects.toMatchObject({
     code: 'auth_grants_mismatch',
@@ -660,9 +628,7 @@ test('it refuses a host whose used profiles changed before it reaches impd', asy
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -671,31 +637,29 @@ test('it refuses a host whose used profiles changed before it reaches impd', asy
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
   ctx.port.calls.length = 0;
 
-  const verified = ctx.binder.verifyBinding(ctx.host, toSessionID('s1'), {
-    agent: 'glm',
-    baseURL: 'https://api.z.ai/api/anthropic',
-    profiles: ['glm'],
-    secrets: [
-      {
-        secret: 'glm',
-        kind: 'custom',
-        rules: [{ host: 'api.z.ai', header: 'x-api-key', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h2',
-  });
+  const verified = ctx.binder.verifyBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'x-api-key', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h2',
+    }),
+  );
 
   expect(verified).rejects.toMatchObject({ code: 'auth_rebind_required' });
   expect(ctx.port.calls).toStrictEqual([]);
@@ -727,9 +691,7 @@ test('it refuses an imp made again under the recorded name', async () => {
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -738,10 +700,8 @@ test('it refuses an imp made again under the recorded name', async () => {
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -749,21 +709,21 @@ test('it refuses an imp made again under the recorded name', async () => {
   await ctx.port.createImp({ name: 'atc-s1' });
   await ctx.port.createGrant('atc-s1', 'glm');
 
-  const verified = ctx.binder.verifyBinding(ctx.host, toSessionID('s1'), {
-    agent: 'glm',
-    baseURL: 'https://api.z.ai/api/anthropic',
-    profiles: ['glm'],
-    secrets: [
-      {
-        secret: 'glm',
-        kind: 'custom',
-        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const verified = ctx.binder.verifyBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  );
 
   expect(verified).rejects.toMatchObject({ code: 'auth_runtime_mismatch' });
 });
@@ -794,9 +754,7 @@ test('it revokes every grant through the identity checks alone, without reading 
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -805,10 +763,8 @@ test('it revokes every grant through the identity checks alone, without reading 
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -861,9 +817,7 @@ test('it blocks every launch on a host once its grants are revoked', async () =>
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -872,10 +826,8 @@ test('it blocks every launch on a host once its grants are revoked', async () =>
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -883,21 +835,21 @@ test('it blocks every launch on a host once its grants are revoked', async () =>
 
   ctx.port.calls.length = 0;
 
-  const verified = ctx.binder.verifyBinding(ctx.host, toSessionID('s1'), {
-    agent: 'glm',
-    baseURL: 'https://api.z.ai/api/anthropic',
-    profiles: ['glm'],
-    secrets: [
-      {
-        secret: 'glm',
-        kind: 'custom',
-        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const verified = ctx.binder.verifyBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  );
 
   expect(verified).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'revoked' } });
   expect(ctx.port.calls).toStrictEqual([]);
@@ -929,9 +881,7 @@ test('it records the block of a revoke and keeps it pending when impd cannot be 
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -940,10 +890,8 @@ test('it records the block of a revoke and keeps it pending when impd cannot be 
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -990,9 +938,7 @@ test('it counts a grant a secret rebind already dropped as revoked though the to
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1001,10 +947,8 @@ test('it counts a grant a secret rebind already dropped as revoked though the to
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -1044,9 +988,7 @@ test('it keeps a revoke pending when the token cannot revoke a grant impd still 
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1055,10 +997,8 @@ test('it keeps a revoke pending when the token cannot revoke a grant impd still 
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -1110,9 +1050,7 @@ test('it rebinds a host to the next revision, granting the new secret and revoki
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1121,31 +1059,29 @@ test('it rebinds a host to the next revision, granting the new secret and revoki
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
   ctx.port.calls.length = 0;
 
-  const revision = await ctx.binder.updateBinding(ctx.host, toSessionID('s1'), {
-    agent: 'glm',
-    baseURL: 'https://judge.example',
-    profiles: ['judge'],
-    secrets: [
-      {
-        secret: 'judge',
-        kind: 'custom',
-        rules: [{ host: 'judge.example', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h2',
-  });
+  const revision = await ctx.binder.updateBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['judge'],
+      secrets: [
+        {
+          secret: 'judge',
+          kind: 'custom',
+          rules: [{ host: 'judge.example', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h2',
+    }),
+  );
 
   expect<Record<string, unknown>>({
     revision,
@@ -1200,9 +1136,7 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1211,10 +1145,8 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -1239,31 +1171,31 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
     { host: 'zeta.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const rebound = ctx.binder.updateBinding(ctx.host, toSessionID('s1'), {
-    agent: 'glm',
-    baseURL: 'https://api.z.ai/api/anthropic',
-    profiles: ['glm', 'judge', 'zeta'],
-    secrets: [
-      {
-        secret: 'glm',
-        kind: 'custom',
-        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-      },
-      {
-        secret: 'judge',
-        kind: 'custom',
-        rules: [{ host: 'judge.example', header: 'authorization', scheme: 'bearer' }],
-      },
-      {
-        secret: 'zeta',
-        kind: 'custom',
-        rules: [{ host: 'zeta.example', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h2',
-  });
+  const rebound = ctx.binder.updateBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm', 'judge', 'zeta'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+        {
+          secret: 'judge',
+          kind: 'custom',
+          rules: [{ host: 'judge.example', header: 'authorization', scheme: 'bearer' }],
+        },
+        {
+          secret: 'zeta',
+          kind: 'custom',
+          rules: [{ host: 'zeta.example', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h2',
+    }),
+  );
 
   expect(rebound).rejects.toMatchObject({ code: 'host_unavailable' });
 
@@ -1308,9 +1240,7 @@ test('it takes back one attempt without touching the imp or grants of another ho
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1319,19 +1249,15 @@ test('it takes back one attempt without touching the imp or grants of another ho
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.createBinding(ctx.host, {
     hostKey: toSessionID('s2'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1340,10 +1266,8 @@ test('it takes back one attempt without touching the imp or grants of another ho
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   ctx.port.calls.length = 0;
@@ -1391,9 +1315,7 @@ test('it leaves a host alone when asked to take back an attempt other than the o
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1402,10 +1324,8 @@ test('it leaves a host alone when asked to take back an attempt other than the o
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   ctx.port.calls.length = 0;
@@ -1447,9 +1367,7 @@ test('it forgets a bound host by destroying its imp and dropping the record', as
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1458,10 +1376,8 @@ test('it forgets a bound host by destroying its imp and dropping the record', as
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -1515,9 +1431,7 @@ test('it refuses to forget a host whose imp was made again and leaves that imp a
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1526,10 +1440,8 @@ test('it refuses to forget a host whose imp was made again and leaves that imp a
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -1576,9 +1488,7 @@ test('it takes back a provisioning attempt no fleet entry lists as a daemon star
       hostKey: toSessionID(hostKey),
       target: 'box',
       targetIdentity: 'imp:test',
-      binding: {
-        agent: 'glm',
-        baseURL: 'https://api.z.ai/api/anthropic',
+      binding: buildMockAuthBinding({
         profiles: ['glm'],
         secrets: [
           {
@@ -1587,10 +1497,8 @@ test('it takes back a provisioning attempt no fleet entry lists as a daemon star
             rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
           },
         ],
-        placeholderEnv: {},
-        profileEnv: {},
         hash: 'h1',
-      },
+      }),
     });
   }
 
@@ -1643,9 +1551,7 @@ test('it fails a rebind a stopped daemon left in flight and revokes only the gra
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1654,10 +1560,8 @@ test('it fails a rebind a stopped daemon left in flight and revokes only the gra
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -1726,9 +1630,7 @@ test('it rebinds a provisioned host whose spawn listed but never recorded its st
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1737,27 +1639,25 @@ test('it rebinds a provisioned host whose spawn listed but never recorded its st
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
-  const revision = await ctx.binder.updateBinding(ctx.host, toSessionID('s1'), {
-    agent: 'glm',
-    baseURL: 'https://api.z.ai/api/anthropic',
-    profiles: ['glm'],
-    secrets: [
-      {
-        secret: 'glm',
-        kind: 'custom',
-        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const revision = await ctx.binder.updateBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  );
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
@@ -1802,21 +1702,21 @@ test('it refuses to rebind a host whose spawn is still provisioning before it cr
     1000,
   );
 
-  const rebound = ctx.binder.updateBinding(ctx.host, toSessionID('s1'), {
-    agent: 'glm',
-    baseURL: 'https://api.z.ai/api/anthropic',
-    profiles: ['glm'],
-    secrets: [
-      {
-        secret: 'glm',
-        kind: 'custom',
-        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const rebound = ctx.binder.updateBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  );
 
   expect(rebound).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'provisioning' } });
 });
@@ -1847,9 +1747,7 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1858,10 +1756,8 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.port.createImp({ name: 'atc-new-s1' });
@@ -1914,9 +1810,7 @@ test('it keeps the grants a failed rebind added while impd cannot be reached', a
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -1925,10 +1819,8 @@ test('it keeps the grants a failed rebind added while impd cannot be reached', a
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -1993,9 +1885,7 @@ test('it retries the removal of the grants a failed rebind added on a later star
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -2004,10 +1894,8 @@ test('it retries the removal of the grants a failed rebind added on a later star
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -2082,9 +1970,7 @@ test('it hands a launch over before a revoke that arrives during its admission, 
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -2093,10 +1979,8 @@ test('it hands a launch over before a revoke that arrives during its admission, 
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -2158,9 +2042,7 @@ test('it refuses a launch whose admission waits behind a revoke, handing nothing
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -2169,10 +2051,8 @@ test('it refuses a launch whose admission waits behind a revoke, handing nothing
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -2221,9 +2101,7 @@ test('it refuses a start planned under another binding hash than the ready one',
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -2232,10 +2110,8 @@ test('it refuses a start planned under another binding hash than the ready one',
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -2281,9 +2157,7 @@ test('it holds a launch admission while its connection opens and returns it once
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -2292,10 +2166,8 @@ test('it holds a launch admission while its connection opens and returns it once
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -2389,9 +2261,7 @@ test('it returns the launch admission of each connection that fails before it op
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -2400,10 +2270,8 @@ test('it returns the launch admission of each connection that fails before it op
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
@@ -2483,9 +2351,7 @@ test('it returns the launch admission of a connection whose opening throws befor
     hostKey: toSessionID('s1'),
     target: 'box',
     targetIdentity: 'imp:test',
-    binding: {
-      agent: 'glm',
-      baseURL: 'https://api.z.ai/api/anthropic',
+    binding: buildMockAuthBinding({
       profiles: ['glm'],
       secrets: [
         {
@@ -2494,10 +2360,8 @@ test('it returns the launch admission of a connection whose opening throws befor
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: {},
-      profileEnv: {},
       hash: 'h1',
-    },
+    }),
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
