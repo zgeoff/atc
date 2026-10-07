@@ -359,7 +359,10 @@ test('it rejects with the socket it waited on, and starts no daemon, when none a
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
+await bootDaemonClient({
+  waitForDaemonMs: 300,
+  onWaitForDaemon: () => { process.stdout.write('waiting without starting a daemon\\n'); },
+}).catch((error: Error) => {
   process.stderr.write(error.message);
   process.exit(3);
 });
@@ -368,14 +371,18 @@ await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
 
   const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
     env: ctx.env,
-    stdout: 'ignore',
+    stdout: 'pipe',
     stderr: 'pipe',
   });
 
-  const stderr = await new Response(proc.stderr).text();
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
 
   await proc.exited;
 
+  expect(stdout).toBe('waiting without starting a daemon\n');
   expect(proc.exitCode).toBe(3);
 
   expect(stderr).toBe(
