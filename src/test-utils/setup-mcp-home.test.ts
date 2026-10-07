@@ -51,6 +51,34 @@ test('it stops the daemon its pid file holds before removing the home', async ()
   });
 });
 
+test('it kills a process still running with its home before removing it', async () => {
+  const mcpHome = setupMCPHome();
+  const straggler = Bun.spawn(['sleep', '30'], { env: { HOME: mcpHome.home } });
+
+  onTestFinished(() => {
+    straggler.kill();
+  });
+
+  await mcpHome[Symbol.asyncDispose]();
+
+  await straggler.exited;
+
+  expect(straggler.signalCode).toBe('SIGKILL');
+});
+
+test('it never kills a process running with another home', async () => {
+  const mcpHome = setupMCPHome();
+  const bystander = Bun.spawn(['sleep', '30'], { env: { HOME: `${mcpHome.home}-other` } });
+
+  onTestFinished(() => {
+    bystander.kill();
+  });
+
+  await mcpHome[Symbol.asyncDispose]();
+
+  expect(isProcessAlive(bystander.pid)).toBeTrue();
+});
+
 test('it removes a home that holds no daemon pid', async () => {
   const mcpHome = setupMCPHome();
 
