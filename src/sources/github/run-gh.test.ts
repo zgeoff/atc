@@ -4,8 +4,10 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { buildStubForkingGH } from '../../test-utils/build-stub-forking-gh';
 import { buildStubGH } from '../../test-utils/build-stub-gh';
+import { collectProcessTree } from '../../test-utils/collect-process-tree';
 import { createStubBin } from '../../test-utils/create-stub-bin';
 import { setupTempDir } from '../../test-utils/setup-temp-dir';
+import { updateEnv } from '../../test-utils/update-env';
 import { waitFor } from '../../test-utils/wait-for';
 import { runGH } from './run-gh';
 
@@ -45,9 +47,23 @@ test('it stops a gh at once when the signal aborted before the call', async () =
 
   const gh = createStubBin(ctx.dir, 'gh', buildStubGH({ replies: { repo: 'hang' } }));
 
+  // gh inherits this environment, so the mark picks out the process this
+  // call started among everything else the test process runs.
+  const mark = crypto.randomUUID();
+
+  updateEnv('ATC_TEST_GH_MARK', mark);
+
   const run = await runGH(gh, AbortSignal.abort(), ['repo', 'list']);
 
   expect(run).toStrictEqual({ exitCode: -1, stdout: '', stderr: '', timedOut: true });
+
+  // A killed gh lingers until it is reaped, and one that escaped the kill
+  // hangs far longer than this wait.
+  await waitFor(async () => {
+    const tree = await collectProcessTree(process.pid);
+
+    expect(tree.filter((proc) => proc.env['ATC_TEST_GH_MARK'] === mark)).toStrictEqual([]);
+  });
 });
 
 test('it stops every process a gh that is still running at abort started', async () => {

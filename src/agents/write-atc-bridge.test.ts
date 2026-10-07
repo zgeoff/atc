@@ -36,6 +36,20 @@ test('it writes the mod files and the atc command into the folder', () => {
   });
 });
 
+test("it renders this install's own atc command by default", () => {
+  using ctx = setupTest();
+
+  writeATCBridge(ctx.empty);
+
+  // Under bun, this install's command runs the source entry with the running
+  // bun.
+  const argv = [process.execPath, join(import.meta.dir, '..', 'cli.ts')];
+
+  expect(readFileSync(join(ctx.empty, 'hooks', 'atc-cli.ts'), 'utf8')).toBe(
+    `export const ATC_CLI: readonly string[] = ${JSON.stringify(argv)};\n`,
+  );
+});
+
 test('it leaves a file whose content already matches untouched', () => {
   using ctx = setupTest();
 

@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { join } from 'node:path';
 import pkg from '../../package.json';
 import { buildCLIArgv } from './build-cli-argv';
 
@@ -7,7 +8,7 @@ test('it runs the source entry under bun outside a compiled binary', () => {
   const run = Bun.spawnSync([...argv, '--version']);
 
   expect({ argv, version: run.stdout.toString() }).toStrictEqual({
-    argv: [process.execPath, expect.toEndWith('/src/cli.ts')],
+    argv: [process.execPath, join(import.meta.dir, '..', 'cli.ts')],
     version: `${pkg.version}\n`,
   });
 });

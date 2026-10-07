@@ -122,7 +122,8 @@ test('it refuses a gh that is signed out as not authenticated', async () => {
     ok: false,
     code: 'github_unavailable',
     problem: 'not_authenticated',
-    message: 'gh is not signed in on the daemon host; run gh auth login there: gh auth login',
+    message:
+      'gh is not signed in on the daemon host; run gh auth login there: To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.',
   });
 });
 

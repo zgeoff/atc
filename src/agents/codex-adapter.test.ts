@@ -6,6 +6,7 @@ import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { updateEnv } from '../test-utils/update-env';
 import { CodexAdapter } from './codex-adapter';
 
 // A folder for the files a test writes: a Codex home with its session index,
@@ -192,6 +193,25 @@ test('it loads the latest indexed thread name', async () => {
   const name = await adapter.loadName('c-1', 'auto');
 
   expect(name).toStrictEqual({ name: 'renamed title' });
+});
+
+test('it loads the indexed thread name from CODEX_HOME when built without a Codex home', async () => {
+  using ctx = setupTest();
+
+  updateEnv('CODEX_HOME', ctx.dir);
+
+  writeFileSync(
+    join(ctx.dir, 'session_index.jsonl'),
+    '{"id":"c-1","thread_name":"env title","updated_at":"2026-08-20T00:00:00Z"}\n',
+  );
+
+  const config = parseConfig({});
+
+  const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
+
+  const name = await adapter.loadName('c-1', 'auto');
+
+  expect(name).toStrictEqual({ name: 'env title' });
 });
 
 test('it never loads an indexed thread name over a user-typed name', async () => {
