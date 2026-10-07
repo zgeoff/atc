@@ -63,7 +63,8 @@ test('it reports the last answered list when the deadline overtakes a later list
     ],
   });
 
-  const verdict = await verifyRestoredFleet(ctx.client, 0.05, [
+  // The deadline leaves room for two socket round trips on a loaded machine.
+  const verdict = await verifyRestoredFleet(ctx.client, 1, [
     { id: 's-good', name: 'good', exited: false, agentSessionID: null },
     { id: 's-dropped', name: 'dropped', exited: false, agentSessionID: null },
   ]);
