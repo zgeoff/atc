@@ -1,13 +1,17 @@
-import type { PartialDeep } from 'type-fest';
+import type { MockOverrides } from './mock-overrides';
 
 /**
  * A copy of the defaults with each override laid over it: a plain object
  * on both sides merges key by key at every depth, and any other value,
  * arrays and class instances included, replaces the default whole. Neither
  * argument changes. A mock factory passes its fresh defaults here, so a
- * nested override keeps every default beside it.
+ * nested override keeps every default beside it. `K` holds the keys the
+ * defaults set; an override of any other key must be whole.
  */
-export function mergeDeep<T extends object>(defaults: T, overrides: PartialDeep<T>): T {
+export function mergeDeep<T extends object, K extends keyof T = keyof T>(
+  defaults: T,
+  overrides: MockOverrides<T, K>,
+): T {
   // oxlint-disable-next-line no-unsafe-type-assertion -- merging a deep partial of T over a whole T yields a whole T
   return mergeRecords(defaults, overrides) as T;
 }

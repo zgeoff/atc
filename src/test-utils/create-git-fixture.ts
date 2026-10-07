@@ -26,7 +26,7 @@ interface GitFixtureConfig {
  * `await using`.
  */
 export async function createGitFixture(config: GitFixtureConfig = {}) {
-  const env = buildGitEnv();
+  const env = buildGitEnv(process.env);
 
   const template = await resolveTemplate();
 
@@ -59,9 +59,11 @@ export async function createGitFixture(config: GitFixtureConfig = {}) {
   };
 }
 
-function buildGitEnv(): Record<string, string | undefined> {
+function buildGitEnv(
+  source: Readonly<Record<string, string | undefined>>,
+): Record<string, string | undefined> {
   return {
-    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
+    ...Object.fromEntries(Object.entries(source).filter(([name]) => !name.startsWith('GIT_'))),
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_CONFIG_GLOBAL: '/dev/null',
   };
@@ -84,7 +86,7 @@ function resolveTemplate(): Promise<GitTemplate> {
 // The template lives under the test home, which the test script removes
 // when the run ends.
 async function createTemplate(): Promise<GitTemplate> {
-  const env = buildGitEnv();
+  const env = buildGitEnv(process.env);
   const home = process.env['ATC_TEST_HOME'];
 
   if (home === undefined) {

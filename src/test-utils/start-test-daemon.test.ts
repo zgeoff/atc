@@ -115,11 +115,30 @@ test('it collects the daemon log lines', async () => {
     },
   });
 
-  const client = await harness.openTCPClient();
+  const port = harness.daemon.listenPort;
 
-  expect(client.sendHello('atc/test-gateway', 'wrong-token')).rejects.toMatchObject({
-    code: 'unauthorized',
+  if (port === null) {
+    throw new Error('the daemon started without a TCP listener');
+  }
+
+  const closed = Promise.withResolvers<void>();
+
+  await Bun.connect({
+    hostname: '127.0.0.1',
+    port,
+    socket: {
+      open(socket) {
+        socket.end('not a handshake\n');
+      },
+      close() {
+        closed.resolve();
+      },
+      data() {},
+      error() {},
+    },
   });
+
+  await closed.promise;
 
   await waitFor(() => {
     expect(harness.logs).toPartiallyContain(expect.stringContaining('atc tcp'));
@@ -144,11 +163,30 @@ test('it leaves the log to the options when they set one', async () => {
     },
   });
 
-  const client = await harness.openTCPClient();
+  const port = harness.daemon.listenPort;
 
-  expect(client.sendHello('atc/test-gateway', 'wrong-token')).rejects.toMatchObject({
-    code: 'unauthorized',
+  if (port === null) {
+    throw new Error('the daemon started without a TCP listener');
+  }
+
+  const closed = Promise.withResolvers<void>();
+
+  await Bun.connect({
+    hostname: '127.0.0.1',
+    port,
+    socket: {
+      open(socket) {
+        socket.end('not a handshake\n');
+      },
+      close() {
+        closed.resolve();
+      },
+      data() {},
+      error() {},
+    },
   });
+
+  await closed.promise;
 
   await waitFor(() => {
     expect(lines).not.toBeEmpty();
@@ -162,7 +200,7 @@ test('it collects the events the main client receives', async () => {
     options: () => ({ adapter: buildStubAgentAdapter() }),
   });
 
-  await harness.client.sendRequest('session.spawn', { cwd: '/tmp', name: 'alpha' });
+  await harness.client.sendRequest('session.spawn', { cwd: harness.dir, name: 'alpha' });
 
   await waitFor(() => {
     expect(harness.events).toPartiallyContain({ ev: 'SessionAdded' });
@@ -205,7 +243,10 @@ test('it delivers hook lines to the session they report on', async () => {
     }),
   });
 
-  const spawned = await harness.client.sendRequest('session.spawn', { cwd: '/tmp', name: 'alpha' });
+  const spawned = await harness.client.sendRequest('session.spawn', {
+    cwd: harness.dir,
+    name: 'alpha',
+  });
 
   const session = spawned['session'];
 
@@ -216,7 +257,46 @@ test('it delivers hook lines to the session they report on', async () => {
   await harness.sendHookLines({ atcId: session.id, event: 'Notification', payload: {} });
 
   await waitFor(() => {
-    expect(seen).toPartiallyContain({ event: 'Notification' });
+    expect(seen).toPartiallyContain({ atcId: session.id, event: 'Notification' });
+  });
+});
+
+test('it delivers every hook line of a large batch', async () => {
+  const seen: HookEvent[] = [];
+
+  await using harness = await startTestDaemon({
+    options: () => ({
+      adapter: buildStubAgentAdapter({
+        normalizeHook: (event) => {
+          seen.push(event);
+
+          return { kind: 'heartbeat' };
+        },
+      }),
+    }),
+  });
+
+  const spawned = await harness.client.sendRequest('session.spawn', {
+    cwd: harness.dir,
+    name: 'alpha',
+  });
+
+  const session = spawned['session'];
+
+  if (typeof session !== 'object' || session === null || !('id' in session)) {
+    throw new Error('the spawn returned no session');
+  }
+
+  await harness.sendHookLines(
+    ...Array.from({ length: 10_000 }, (_, index) => ({
+      atcId: session.id,
+      event: 'Notification',
+      payload: { index },
+    })),
+  );
+
+  await waitFor(() => {
+    expect(seen).toHaveLength(10_000);
   });
 });
 
@@ -268,7 +348,10 @@ test('it keeps the stored fleet across a restart', async () => {
     options: () => ({ adapter: buildStubAgentAdapter() }),
   });
 
-  const spawned = await harness.client.sendRequest('session.spawn', { cwd: '/tmp', name: 'alpha' });
+  const spawned = await harness.client.sendRequest('session.spawn', {
+    cwd: harness.dir,
+    name: 'alpha',
+  });
 
   const session = spawned['session'];
 
@@ -294,8 +377,9 @@ test('it boots on the state written while the daemon is stopped', async () => {
 
   const store = await StateStore.open(harness.dbPath);
 
+  onTestFinished(() => store.stop());
+
   await store.writeFleet([buildMockFleetEntry({ name: 'seeded', exited: true })]);
-  await store.stop();
   await harness.restart();
   await harness.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 

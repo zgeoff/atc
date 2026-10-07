@@ -1,5 +1,6 @@
-import { expect, test } from 'bun:test';
+import { expect, expectTypeOf, test } from 'bun:test';
 import { mergeDeep } from './merge-deep';
+import type { MockOverrides } from './mock-overrides';
 
 test('it keeps every default an override leaves out', () => {
   expect(mergeDeep({ name: 'a', cwd: '/tmp' }, { name: 'b' })).toStrictEqual({
@@ -45,4 +46,22 @@ test('it leaves the defaults unchanged', () => {
   mergeDeep(defaults, { env: { A: '2' } });
 
   expect(defaults).toStrictEqual({ env: { A: '1' } });
+});
+
+test('it takes a whole value for a key the defaults leave out', () => {
+  expect(
+    mergeDeep<
+      { id: string; auth?: { profiles: string[]; placeholderEnv: Record<string, string> } },
+      'id'
+    >({ id: 'a' }, { auth: { profiles: ['glm'], placeholderEnv: {} } }),
+  ).toStrictEqual({ id: 'a', auth: { profiles: ['glm'], placeholderEnv: {} } });
+});
+
+test('it refuses a partial value for a key the defaults leave out', () => {
+  expectTypeOf({ auth: { profiles: ['glm'] } }).not.toExtend<
+    MockOverrides<
+      { id: string; auth?: { profiles: string[]; placeholderEnv: Record<string, string> } },
+      'id'
+    >
+  >();
 });

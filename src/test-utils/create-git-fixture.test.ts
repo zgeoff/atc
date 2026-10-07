@@ -75,11 +75,11 @@ test('it lays the upstream and the work clone out in its directory', async () =>
   await using fixture = await createGitFixture({ prefix: 'atc-layout-' });
 
   expect({
-    prefix: basename(fixture.dir).slice(0, 'atc-layout-'.length),
+    name: basename(fixture.dir),
     upstream: fixture.upstream,
     work: fixture.work,
   }).toStrictEqual({
-    prefix: 'atc-layout-',
+    name: expect.toStartWith('atc-layout-'),
     upstream: join(fixture.dir, 'upstream.git'),
     work: join(fixture.dir, 'work'),
   });
@@ -91,4 +91,24 @@ test('it removes its directory on dispose', async () => {
   await fixture[Symbol.asyncDispose]();
 
   expect(existsSync(fixture.dir)).toBeFalse();
+});
+
+test('it refuses to build its template outside the test home', () => {
+  const result = Bun.spawnSync(
+    [
+      process.execPath,
+      '-e',
+      "import { createGitFixture } from './test/create-git-fixture.ts'; await createGitFixture();",
+    ],
+    {
+      cwd: join(import.meta.dir, '..'),
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(([name]) => name !== 'ATC_TEST_HOME'),
+      ),
+    },
+  );
+
+  expect(result.stderr.toString()).toInclude(
+    'a git fixture needs the test home; run `bun run test`',
+  );
 });

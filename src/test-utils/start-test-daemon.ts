@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import type { Socket } from 'bun';
 import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle, DaemonOptions } from '../daemon/daemon';
@@ -88,7 +89,11 @@ export async function startTestDaemon(config: TestDaemonConfig = {}) {
 
     clients.add(client);
 
-    await client.sendRequest('daemon.hello', { client: BUILD, ...hello });
+    await client.sendRequest('daemon.hello', {
+      client: BUILD,
+      auth: { scheme: 'none' },
+      ...hello,
+    });
 
     return client;
   };
@@ -166,15 +171,27 @@ export async function startTestDaemon(config: TestDaemonConfig = {}) {
       return client;
     },
     async sendHookLines(...lines: readonly Readonly<Record<string, unknown>>[]): Promise<void> {
+      const payload = Buffer.from(lines.map((line) => `${JSON.stringify(line)}\n`).join(''));
       const closed = Promise.withResolvers<void>();
+      let sent = 0;
+
+      // A socket write accepts only what fits its buffer, so the rest goes
+      // out as the socket drains, and the connection ends once all of it
+      // has gone.
+      // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket is a live handle
+      const sendRemainder = (socket: Socket) => {
+        sent += socket.write(payload.subarray(sent));
+
+        if (sent === payload.length) {
+          socket.end();
+        }
+      };
 
       await Bun.connect({
         unix: paths.reporterSocketPath,
         socket: {
-          open(socket) {
-            socket.write(lines.map((line) => `${JSON.stringify(line)}\n`).join(''));
-            socket.end();
-          },
+          open: sendRemainder,
+          drain: sendRemainder,
           close() {
             closed.resolve();
           },

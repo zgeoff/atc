@@ -33,3 +33,13 @@ test('it applies overrides on top of the defaults', () => {
     dependencies: ['github'],
   });
 });
+
+test('it builds a github profile for an override of that kind', () => {
+  expect(buildMockAuthProfile({ kind: 'github', name: 'gh' })).toStrictEqual({
+    name: 'gh',
+    secret: expect.toSatisfy((value: string) => /^[a-z]{8}$/u.test(value)),
+    kind: 'github',
+    env: {},
+    dependencies: [],
+  });
+});

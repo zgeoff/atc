@@ -75,12 +75,12 @@ test('it replaces the members an override gives', () => {
   expect([adapter.id, adapter.takesMessages]).toStrictEqual(['grok', true]);
 });
 
-test('it keeps a real daemon session alive', async () => {
+test('it spawns a session the real daemon reports alive', async () => {
   await using harness = await startTestDaemon({
     options: () => ({ adapter: buildStubAgentAdapter() }),
   });
 
-  await harness.client.sendRequest('session.spawn', { cwd: '/tmp', name: 'alpha' });
+  await harness.client.sendRequest('session.spawn', { cwd: harness.dir, name: 'alpha' });
 
   const listed = await waitFor(async () => {
     const answer = await harness.client.sendRequest('session.list');

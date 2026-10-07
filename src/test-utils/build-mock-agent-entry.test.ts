@@ -19,6 +19,7 @@ test('it applies overrides on top of the defaults', () => {
       id: 'zai',
       baseURL: 'https://api.z.ai/api/anthropic',
       env: { ANTHROPIC_MODEL: 'glm-4.6' },
+      auth: { profiles: ['glm'], placeholderEnv: {} },
     }),
   ).toStrictEqual({
     id: 'zai',
@@ -29,5 +30,6 @@ test('it applies overrides on top of the defaults', () => {
     args: [],
     env: { ANTHROPIC_MODEL: 'glm-4.6' },
     baseURL: 'https://api.z.ai/api/anthropic',
+    auth: { profiles: ['glm'], placeholderEnv: {} },
   });
 });
