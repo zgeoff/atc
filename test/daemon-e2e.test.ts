@@ -1022,6 +1022,66 @@ sleep 30
   expect(getRecords(settled, 'sessions').filter((s) => s['kind'] === 'pty')).toHaveLength(3);
 });
 
+test('it restores the stored fleet by itself when the config leaves restoreFleetOnRestart unset', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
+
+  onTestFinished(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  mkdirSync(join(home, '.config', 'atc'), { recursive: true });
+  mkdirSync(join(home, '.local', 'state', 'atc'), { recursive: true });
+
+  // Each revive records its start, announces itself, then idles.
+  const fakeClaude = join(home, 'fake-claude');
+
+  writeFileSync(
+    fakeClaude,
+    `#!/usr/bin/env bash
+echo "$ATC_SESSION_ID" >> "$HOME/starts.log"
+printf '{"hook_event_name":"SessionStart","session_id":"'"$ATC_SESSION_ID"'","transcript_path":"/nonexistent"}' | ${hookReportCommand}
+sleep 30
+`,
+    { mode: 0o755 },
+  );
+
+  writeFileSync(
+    join(home, '.config', 'atc', 'config.json'),
+    JSON.stringify({ claudeBin: fakeClaude, claudeArgs: [] }),
+  );
+
+  writeFileSync(
+    join(home, '.local', 'state', 'atc', 'fleet.json'),
+    JSON.stringify([
+      { name: 'one', cwd: home, agentSessionID: 'fake-a' },
+      { name: 'two', cwd: home, agentSessionID: 'fake-b' },
+    ]),
+  );
+
+  const ctx = setupDaemonProc(home);
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  // The client sends no fleet.restore: the daemon brings the fleet back on
+  // its own.
+  const sessions = await waitFor(async () => {
+    const reply = await client.sendRequest('session.list');
+
+    const listed = getRecords(reply, 'sessions');
+
+    expect(listed.filter((s) => s['kind'] === 'pty')).toHaveLength(2);
+
+    return listed;
+  });
+
+  expect({
+    names: sessions.map((s) => String(s['name'])).toSorted((a, b) => a.localeCompare(b)),
+    starts: readFileSync(join(home, 'starts.log'), 'utf8').trim().split('\n').length,
+  }).toStrictEqual({ names: ['one', 'two'], starts: 2 });
+});
+
 test('it moves on to the next revive when one dies before announcing itself', async () => {
   const home = mkdtempSync(join(tmpdir(), 'atc-daemon-e2e-'));
 

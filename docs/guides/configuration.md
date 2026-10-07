@@ -46,8 +46,8 @@ client attaches and resizes it. The restore is the one `Shift+R` on the home scr
 attach one at a time in recency order, and a `Shift+R` pressed while that stagger runs joins it and
 starts nothing more.
 
-Set `restoreFleetOnRestart` to `false` to keep the restored sessions listed without a terminal until
-you press `Shift+R`.
+Set `restoreFleetOnRestart` to `false` to leave the stored sessions out of the list until you press
+`Shift+R`.
 
 A config that still sets `resumeInterruptedTurns` loads with a warning from `atc daemon`, and atc
 ignores the key. `atc config migrate` drops it.

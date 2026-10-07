@@ -147,7 +147,7 @@ test('it restores the stored sessions after a restart with no client request and
   expect({ pendingA, pendingB }).toStrictEqual({ pendingA: [], pendingB: [] });
 });
 
-test('it leaves the stored sessions without a terminal until fleet.restore when the option is unset', async () => {
+test('it lists none of the stored sessions until fleet.restore when the option is unset', async () => {
   await using daemon = await setupTest();
 
   const seed = await StateStore.open(daemon.dbPath);
@@ -185,7 +185,7 @@ test('it leaves the stored sessions without a terminal until fleet.restore when 
   });
 });
 
-test('it leaves the stored sessions without a terminal when the option is false', async () => {
+test('it lists none of the stored sessions when the option is false', async () => {
   await using daemon = await setupTest();
 
   const seed = await StateStore.open(daemon.dbPath);
