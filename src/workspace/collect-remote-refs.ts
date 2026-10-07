@@ -41,13 +41,15 @@ const REMOTE_TIMEOUT_MS = 20_000;
  * askpass helper for an env credential. git never prompts. A listing git
  * cannot read is refused as `clone_failed` with git's own message, and so
  * is one that takes longer than the time limit, 20 s unless given. git
- * fetches only over `transports`.
+ * fetches only over `transports`. `onSpawn` is called with the pid of the
+ * listing's git as it starts.
  */
 export async function collectRemoteRefs(
   url: string,
   credential: GitCredential | undefined,
   transports: readonly string[],
   timeoutMs: number = REMOTE_TIMEOUT_MS,
+  onSpawn?: (pid: number) => void,
 ): Promise<RemoteRefListing | RemoteRefRefusal> {
   const askpass = await createGitAskpass(credential);
 
@@ -72,7 +74,7 @@ export async function collectRemoteRefs(
         'refs/heads/*',
         'refs/tags/*',
       ],
-      { env: { ...askpass.env, ...sshEnv }, timeoutMs, transports },
+      { env: { ...askpass.env, ...sshEnv }, timeoutMs, transports, onSpawn },
     );
   } finally {
     await askpass[Symbol.asyncDispose]();

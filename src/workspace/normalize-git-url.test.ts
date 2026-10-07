@@ -23,12 +23,12 @@ test.each([
 });
 
 test.each([
-  '',
-  'not a url',
-  './relative/path',
-  'zgeoff/atc',
-  'user:secret@host:owner/repo',
-  'https://exa mple.com/x',
-])('it refuses %p as a repository URL', (raw) => {
-  expect(normalizeGitURL(raw)).toMatchObject({ ok: false, code: 'invalid_git_url' });
+  ['', 'not a git repository URL'],
+  ['not a url', 'not a git repository URL'],
+  ['./relative/path', 'not a git repository URL'],
+  ['zgeoff/atc', 'not a git repository URL'],
+  ['user:secret@host:owner/repo', 'not a git repository URL'],
+  ['https://exa mple.com/x', 'not a parseable repository URL'],
+])('it refuses %p as %p', (raw, message) => {
+  expect(normalizeGitURL(raw)).toStrictEqual({ ok: false, code: 'invalid_git_url', message });
 });

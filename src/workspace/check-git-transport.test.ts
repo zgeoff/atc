@@ -28,13 +28,15 @@ test.each([
   });
 });
 
-test('it allows exactly the transports it is given', () => {
-  const transports = ['https', 'file'];
+test('it allows a transport it is given beyond the defaults', () => {
+  expect(checkGitTransport('/srv/git/app.git', ['https', 'file'])).toStrictEqual({ ok: true });
+});
 
-  expect(checkGitTransport('/srv/git/app.git', transports)).toStrictEqual({ ok: true });
-
-  expect(checkGitTransport('ssh://git@github.com/acme/app.git', transports)).toMatchObject({
+test('it refuses a default transport it is not given', () => {
+  expect(checkGitTransport('ssh://git@github.com/acme/app.git', ['https', 'file'])).toStrictEqual({
     ok: false,
+    code: 'invalid_git_url',
+    message: "git transport 'ssh' is not allowed; the daemon fetches over https and file",
   });
 });
 

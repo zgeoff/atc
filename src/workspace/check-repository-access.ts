@@ -21,6 +21,9 @@ interface AccessRequest {
 
   // The transports the URL may use and git may fetch over.
   readonly transports: readonly string[];
+
+  // Called with the pid of the listing's git as it starts.
+  readonly onSpawn?: ((pid: number) => void) | undefined;
 }
 
 interface RepositoryAccess {
@@ -77,6 +80,7 @@ export async function checkRepositoryAccess(
       request.credential,
       request.transports,
       request.timeoutMs,
+      request.onSpawn,
     );
 
     if (!listing.ok) {
