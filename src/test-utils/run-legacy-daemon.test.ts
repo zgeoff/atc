@@ -8,27 +8,27 @@ import { waitFor } from './wait-for';
 
 // The legacy daemon started on a socket in a temp directory, which is also
 // its state directory. Disposal kills the daemon, then removes the directory.
-function setupTest() {
-  using setup = new DisposableStack();
+// oxlint-disable-next-line require-await -- the await is the `await using` declaration that releases the stack when a later setup step throws
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
-  const tmp = setup.use(setupTempDir('atc-run-legacy-'));
+  const tmp = stack.use(setupTempDir('atc-run-legacy-'));
   const socketPath = join(tmp.dir, 'daemon.sock');
 
-  const proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'run-legacy-daemon.ts'), socketPath, tmp.dir],
-    { stdout: 'pipe', stderr: 'ignore' },
+  const proc = stack.use(
+    Bun.spawn(
+      [process.execPath, join(import.meta.dir, 'run-legacy-daemon.ts'), socketPath, tmp.dir],
+      { stdout: 'pipe', stderr: 'ignore' },
+    ),
   );
 
-  const owned = new AsyncDisposableStack();
-
-  owned.use(setup.move());
-  owned.use(proc);
+  const owned = stack.move();
 
   return { dir: tmp.dir, socketPath, proc, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
 test('it prints up and the pid of the session it hosts once it listens', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
 
   const printed = await ctx.proc.stdout.getReader().read();
 
@@ -36,7 +36,7 @@ test('it prints up and the pid of the session it hosts once it listens', async (
 });
 
 test('it keeps the session it hosts running while it runs', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
 
   const printed = await ctx.proc.stdout.getReader().read();
 
@@ -46,7 +46,7 @@ test('it keeps the session it hosts running while it runs', async () => {
 });
 
 test('it records its pid and sockets in the state directory the way a daemon records itself', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
 
   await ctx.proc.stdout.getReader().read();
 
@@ -62,7 +62,7 @@ test('it records its pid and sockets in the state directory the way a daemon rec
 });
 
 test('it refuses a handshake on the current protocol with protocol_mismatch', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
 
   await ctx.proc.stdout.getReader().read();
 
@@ -93,7 +93,7 @@ test('it stops with a usage error when given no socket path and state directory'
 test.each([['SIGTERM'], ['SIGINT']] as const)(
   'it ends the session it hosts when %p stops it',
   async (signal) => {
-    await using ctx = setupTest();
+    await using ctx = await setupTest();
 
     const printed = await ctx.proc.stdout.getReader().read();
 
@@ -110,7 +110,7 @@ test.each([['SIGTERM'], ['SIGINT']] as const)(
 );
 
 test('it dies of the signal that stopped it', async () => {
-  await using ctx = setupTest();
+  await using ctx = await setupTest();
 
   await ctx.proc.stdout.getReader().read();
 

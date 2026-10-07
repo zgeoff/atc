@@ -77,7 +77,7 @@ test('it stops the daemon process on dispose', async () => {
 
   await daemon[Symbol.asyncDispose]();
 
-  expect(() => process.kill(daemon.pid, 0)).toThrow();
+  expect(() => process.kill(daemon.pid, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
 });
 
 test('it rejects when the daemon exits before it listens', async () => {

@@ -39,15 +39,11 @@ async function setupTest() {
 
   stack.defer(() => server.stop());
 
-  // Every authorization runs for a registered client, added through the
-  // authorization database the way `atc clients` opens it.
+  // The authorization database opened the way `atc clients` opens it, to
+  // register clients through.
   const store = await openMCPAuth({ dbPath, origin: null });
 
   stack.defer(() => store.close());
-
-  const created = await store.auth.api.createFixedClient({
-    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
-  });
 
   const owned = stack.move();
 
@@ -55,7 +51,7 @@ async function setupTest() {
     url: server.url,
     origin: server.origin,
     approvals,
-    clientID: created.clientID,
+    store,
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
@@ -63,8 +59,12 @@ async function setupTest() {
 test('it returns at the redirect URI with an authorization code its verifier exchanges for tokens', async () => {
   await using ctx = await setupTest();
 
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
+  });
+
   const authorized = await runMCPAuthorization(ctx, {
-    clientID: ctx.clientID,
+    clientID: created.clientID,
     redirectURI: 'https://dots.example/cb',
     scope: 'read',
     ticked: ['read'],
@@ -76,7 +76,7 @@ test('it returns at the redirect URI with an authorization code its verifier exc
       grant_type: 'authorization_code',
       code: authorized.code,
       redirect_uri: 'https://dots.example/cb',
-      client_id: ctx.clientID,
+      client_id: created.clientID,
       code_verifier: authorized.verifier,
     }),
   });
@@ -90,8 +90,12 @@ test('it returns at the redirect URI with an authorization code its verifier exc
 test('it throws when the authorization stops short of the login page', async () => {
   await using ctx = await setupTest();
 
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
+  });
+
   const authorizing = runMCPAuthorization(ctx, {
-    clientID: ctx.clientID,
+    clientID: created.clientID,
     redirectURI: 'https://dots.example/cb',
     scope: 'read write',
     ticked: ['read'],
@@ -106,10 +110,14 @@ test('it throws when the authorization stops short of the login page', async () 
 test('it throws when the server printed no approval code', async () => {
   await using ctx = await setupTest();
 
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
+  });
+
   const authorizing = runMCPAuthorization(
     { url: ctx.url, origin: ctx.origin, approvals: [] },
     {
-      clientID: ctx.clientID,
+      clientID: created.clientID,
       redirectURI: 'https://dots.example/cb',
       scope: 'read',
       ticked: ['read'],
@@ -122,6 +130,10 @@ test('it throws when the server printed no approval code', async () => {
 test('it throws when the approval code does not reach the consent page', async () => {
   await using ctx = await setupTest();
 
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
+  });
+
   const authorizing = runMCPAuthorization(
     {
       url: ctx.url,
@@ -129,7 +141,7 @@ test('it throws when the approval code does not reach the consent page', async (
       approvals: ['Approve dots (returns to dots.example) with code 0000-0000'],
     },
     {
-      clientID: ctx.clientID,
+      clientID: created.clientID,
       redirectURI: 'https://dots.example/cb',
       scope: 'read',
       ticked: ['read'],
@@ -145,8 +157,12 @@ test('it throws when the approval code does not reach the consent page', async (
 test('it throws when the consent redirect holds no authorization code', async () => {
   await using ctx = await setupTest();
 
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
+  });
+
   const authorizing = runMCPAuthorization(ctx, {
-    clientID: ctx.clientID,
+    clientID: created.clientID,
     redirectURI: 'https://dots.example/cb',
     scope: 'read',
     ticked: [],
@@ -161,8 +177,12 @@ test('it throws when the consent redirect holds no authorization code', async ()
 test('it throws when the consent page answers without a redirect', async () => {
   await using ctx = await setupTest();
 
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
+  });
+
   const authorizing = runMCPAuthorization(ctx, {
-    clientID: ctx.clientID,
+    clientID: created.clientID,
     redirectURI: 'https://dots.example/cb',
     scope: 'read',
     ticked: ['message'],

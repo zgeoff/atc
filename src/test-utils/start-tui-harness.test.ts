@@ -94,7 +94,7 @@ test('it writes the fake binaries and transports with the fields given laid over
   });
 });
 
-test('it reads a decision the client logs without drawing it', async () => {
+test('it moves the mark past a line the client logs after it', async () => {
   await using ctx = await setupTest();
 
   ctx.tui.reset();
@@ -151,7 +151,7 @@ test('it stops the daemon the client started on dispose', async () => {
 
   await ctx.tui[Symbol.asyncDispose]();
 
-  expect(() => process.kill(pid, 0)).toThrow();
+  expect(() => process.kill(pid, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
 });
 
 test('it removes its home on dispose', async () => {

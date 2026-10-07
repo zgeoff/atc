@@ -132,7 +132,13 @@ test('it lays the config variables over the environment of the daemon', async ()
 
   expect(
     findDaemonRecord(join(ctx.dir, 'other', '.local', 'state', 'atc', 'daemon.json')),
-  ).toMatchObject({ pid: daemon.proc.pid });
+  ).toStrictEqual({
+    pid: daemon.proc.pid,
+    socketPath: join(ctx.dir, 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.dir, 'atc.sock'),
+    eventsSocketPath: join(ctx.dir, 'atc-events.sock'),
+    listenPort: null,
+  });
 });
 
 test('it removes a variable the config sets to undefined from the environment of the daemon', async () => {
@@ -154,7 +160,13 @@ test('it removes a variable the config sets to undefined from the environment of
     return found;
   });
 
-  expect(record).toMatchObject({ socketPath: join(daemon.stateDir, 'atc-daemon.sock') });
+  expect(record).toStrictEqual({
+    pid: daemon.proc.pid,
+    socketPath: join(daemon.stateDir, 'atc-daemon.sock'),
+    reporterSocketPath: join(daemon.stateDir, 'atc.sock'),
+    eventsSocketPath: join(daemon.stateDir, 'atc-events.sock'),
+    listenPort: null,
+  });
 });
 
 test('it restarts the daemon on the same home after the signal stops it', async () => {
