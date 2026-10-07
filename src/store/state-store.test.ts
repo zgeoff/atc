@@ -1,8 +1,9 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createMigratedStateDB } from '../../test/create-migrated-state-db';
+import { setupTempDir } from '../../test/setup-temp-dir';
 import { buildTargetIdentity } from '../daemon/build-target-identity';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toMessageID } from '../shared/to-message-id';
@@ -11,100 +12,27 @@ import type { FleetEntry } from './fleet-entry';
 import type { MessageRecord } from './message-record';
 import { StateStore } from './state-store';
 
-const UUID = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/;
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
-function isUUID(value: unknown): boolean {
-  return typeof value === 'string' && UUID.test(value);
-}
+  const tmp = stack.use(setupTempDir('atc-store-'));
+  const dbPath = join(tmp.dir, 'state.db');
 
-function setupDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-store-'));
+  await createMigratedStateDB(dbPath);
 
-  onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
+  const store = await StateStore.open(dbPath);
 
-  return dir;
-}
+  stack.defer(() => store.stop());
 
-interface ColumnInfo {
-  name: string;
-  type: string;
-  notnull: number;
-  dflt_value: unknown;
-}
+  const owned = stack.move();
 
-interface TableSchema {
-  table: string;
-  columns: ColumnInfo[];
-}
-
-function collectSchema(db: Database): TableSchema[] {
-  return db
-    .query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type = 'table'")
-    .all()
-    .map((row) => row.name)
-    .toSorted()
-    .map((table) => ({ table, columns: collectTableColumns(db, table) }));
-}
-
-function collectTableColumns(db: Database, table: string): ColumnInfo[] {
-  return db
-    .query<ColumnInfo, []>(`PRAGMA table_info(${table})`)
-    .all()
-    .map((column) => ({
-      name: column.name,
-      type: column.type,
-      notnull: column.notnull,
-      dflt_value: column.dflt_value,
-    }))
-    .toSorted((a, b) => a.name.localeCompare(b.name));
-}
-
-interface MigrationRecord {
-  name: string;
-  appliedAt: string;
-}
-
-function collectMigrationLedger(dbPath: string): MigrationRecord[] {
-  const db = new Database(dbPath, { readonly: true });
-
-  const rows = db
-    .query<{ name: string; timestamp: string }, []>(
-      'SELECT name, timestamp FROM kysely_migration ORDER BY name',
-    )
-    .all();
-
-  db.close();
-
-  return rows.map((row) => ({ name: row.name, appliedAt: row.timestamp }));
-}
-
-function updateMigrationLedger(dbPath: string, stamp: string): void {
-  const db = new Database(dbPath);
-
-  db.run('UPDATE kysely_migration SET timestamp = ?1', [stamp]);
-  db.close();
-}
-
-function readLegacyColumn(dbPath: string, column: string): unknown[] {
-  const db = new Database(dbPath, { readonly: true });
-
-  const rows = db.query<Record<string, unknown>, []>(`SELECT ${column} FROM fleet`).all();
-
-  db.close();
-
-  return rows.map((row) => row[column]);
+  return { dbPath, store, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
 test('it round-trips the fleet', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-c1'),
       name: 'auth-bug',
@@ -121,7 +49,7 @@ test('it round-trips the fleet', async () => {
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -142,13 +70,9 @@ test('it round-trips the fleet', async () => {
 });
 
 test('it keeps a stored row that a later write does not cover', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-c1'),
       name: 'one',
@@ -158,7 +82,7 @@ test('it keeps a stored row that a later write does not cover', async () => {
     },
   ]);
 
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-c2'),
       name: 'two',
@@ -168,7 +92,7 @@ test('it keeps a stored row that a later write does not cover', async () => {
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -189,23 +113,19 @@ test('it keeps a stored row that a later write does not cover', async () => {
 });
 
 test('it drops the row of a session the write removes', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     { sessionID: toSessionID('s-c1'), name: 'one', cwd: '/x', agent: 'claude' },
     { sessionID: toSessionID('s-c2'), name: 'two', cwd: '/y', agent: 'claude' },
   ]);
 
-  await store.writeFleet(
+  await ctx.store.writeFleet(
     [{ sessionID: toSessionID('s-c2'), name: 'two', cwd: '/y', agent: 'claude' }],
     [toSessionID('s-c1')],
   );
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     { sessionID: toSessionID('s-c2'), name: 'two', cwd: '/y', agent: 'claude' },
@@ -213,13 +133,9 @@ test('it drops the row of a session the write removes', async () => {
 });
 
 test('it drops a stored row whose agent session id a written entry holds', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-old'),
       name: 'old',
@@ -230,7 +146,7 @@ test('it drops a stored row whose agent session id a written entry holds', async
     },
   ]);
 
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-new'),
       name: 'resumed',
@@ -240,7 +156,7 @@ test('it drops a stored row whose agent session id a written entry holds', async
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -254,13 +170,9 @@ test('it drops a stored row whose agent session id a written entry holds', async
 });
 
 test('it relinks a stored sub-session to the session that replaced its parent', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-old'),
       name: 'parent',
@@ -280,7 +192,7 @@ test('it relinks a stored sub-session to the session that replaced its parent', 
     },
   ]);
 
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-new'),
       name: 'resumed',
@@ -290,7 +202,7 @@ test('it relinks a stored sub-session to the session that replaced its parent', 
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -313,11 +225,7 @@ test('it relinks a stored sub-session to the session that replaced its parent', 
 });
 
 test('it never lets two overlapping writes leave a mixed or half-written fleet', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   // A seeded fleet is what makes the between-read meaningful: with rows
   // already stored, an empty result can only mean a read landed between a
@@ -352,26 +260,23 @@ test('it never lets two overlapping writes leave a mixed or half-written fleet',
     },
   ];
 
-  await store.writeFleet(seed);
+  await ctx.store.writeFleet(seed);
 
-  const writeFirst = store.writeFleet(first);
-  const readBetween = store.loadFleet();
-  const writeSecond = store.writeFleet(second);
+  const writeFirst = ctx.store.writeFleet(first);
+  const readBetween = ctx.store.loadFleet();
+  const writeSecond = ctx.store.writeFleet(second);
 
   await Promise.all([writeFirst, writeSecond]);
 
   const between = await readBetween;
-  const final = await store.loadFleet();
+  const final = await ctx.store.loadFleet();
 
   expect(between).toBeOneOf([seed, first, second]);
   expect(final).toBeOneOf([first, second]);
 });
 
-test('it resolves stop only after an unawaited writeFleet lands', async () => {
-  const dir = setupDir();
-  const dbPath = join(dir, 'state.db');
-
-  const store = await StateStore.open(dbPath);
+test('it resolves stop only after an unawaited fleet write lands', async () => {
+  await using ctx = await setupTest();
 
   const entries: FleetEntry[] = [
     {
@@ -383,13 +288,13 @@ test('it resolves stop only after an unawaited writeFleet lands', async () => {
     },
   ];
 
-  const write = store.writeFleet(entries);
+  const write = ctx.store.writeFleet(entries);
 
-  await store.stop();
+  await ctx.store.stop();
 
   await write;
 
-  const db = new Database(dbPath, { readonly: true });
+  const db = new Database(ctx.dbPath, { readonly: true });
 
   onTestFinished(() => {
     db.close();
@@ -401,22 +306,23 @@ test('it resolves stop only after an unawaited writeFleet lands', async () => {
 });
 
 test('it seeds the fleet from a legacy fleet.json once', async () => {
-  const dir = setupDir();
-  const legacy = join(dir, 'fleet.json');
+  await using tmp = setupTempDir('atc-store-');
+
+  const legacy = join(tmp.dir, 'fleet.json');
 
   writeFileSync(legacy, JSON.stringify([{ name: 'seeded', cwd: '/z', claudeId: 'c9' }]));
 
-  const store = await StateStore.open(join(dir, 'state.db'), legacy);
+  const store = await StateStore.open(join(tmp.dir, 'state.db'), legacy);
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  onTestFinished(() => store.stop());
 
   const fleet = await store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'seeded',
       cwd: '/z',
       agentSessionID: toAgentSessionID('c9'),
@@ -426,13 +332,16 @@ test('it seeds the fleet from a legacy fleet.json once', async () => {
 });
 
 test('it never overwrites an existing fleet table from the legacy file', async () => {
-  const dir = setupDir();
-  const legacy = join(dir, 'fleet.json');
-  const dbPath = join(dir, 'state.db');
+  await using tmp = setupTempDir('atc-store-');
+
+  const legacy = join(tmp.dir, 'fleet.json');
+  const dbPath = join(tmp.dir, 'state.db');
 
   writeFileSync(legacy, JSON.stringify([{ name: 'stale', cwd: '/old', claudeId: 'c0' }]));
 
   const first = await StateStore.open(dbPath, legacy);
+
+  onTestFinished(() => first.stop());
 
   await first.writeFleet([
     {
@@ -448,15 +357,15 @@ test('it never overwrites an existing fleet table from the legacy file', async (
 
   const second = await StateStore.open(dbPath, legacy);
 
-  onTestFinished(async () => {
-    await second.stop();
-  });
+  onTestFinished(() => second.stop());
 
   const fleet = await second.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'stale',
       cwd: '/old',
       agentSessionID: toAgentSessionID('c0'),
@@ -473,22 +382,15 @@ test('it never overwrites an existing fleet table from the legacy file', async (
 });
 
 test('it records hook events into the trail', async () => {
-  const dir = setupDir();
-  const dbPath = join(dir, 'state.db');
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(dbPath);
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent({
+  await ctx.store.recordEvent({
     atcId: toSessionID('s1'),
     event: 'Notification',
     payload: { message: 'needs permission', session_id: 'c1' },
   });
 
-  const db = new Database(dbPath, { readonly: true });
+  const db = new Database(ctx.dbPath, { readonly: true });
 
   onTestFinished(() => {
     db.close();
@@ -506,22 +408,15 @@ test('it records hook events into the trail', async () => {
 });
 
 test('it records a Grok session id from the camelCase payload key', async () => {
-  const dir = setupDir();
-  const dbPath = join(dir, 'state.db');
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(dbPath);
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent({
+  await ctx.store.recordEvent({
     atcId: toSessionID('s1'),
     event: 'SessionStart',
     payload: { hookEventName: 'session_start', sessionId: 'g1' },
   });
 
-  const db = new Database(dbPath, { readonly: true });
+  const db = new Database(ctx.dbPath, { readonly: true });
 
   onTestFinished(() => {
     db.close();
@@ -539,34 +434,23 @@ test('it records a Grok session id from the camelCase payload key', async () => 
 });
 
 test('it reports recency for a Grok session id', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent({
+  await ctx.store.recordEvent({
     atcId: toSessionID('s1'),
     event: 'SessionStart',
     payload: { hookEventName: 'session_start', sessionId: 'g1' },
   });
 
-  const recency = await store.collectFleetRecency();
+  const recency = await ctx.store.collectFleetRecency();
 
   expect([...recency.keys()]).toStrictEqual([toAgentSessionID('g1')]);
 });
 
 test('it reports the latest event timestamp per agent session', async () => {
-  const dir = setupDir();
-  const dbPath = join(dir, 'state.db');
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(dbPath);
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  const db = new Database(dbPath);
+  const db = new Database(ctx.dbPath);
 
   onTestFinished(() => {
     db.close();
@@ -580,7 +464,7 @@ test('it reports the latest event timestamp per agent session', async () => {
       "('2026-08-14T00:00:04.000Z', 's3', 'SessionStart', NULL, NULL)",
   );
 
-  const recency = await store.collectFleetRecency();
+  const recency = await ctx.store.collectFleetRecency();
 
   expect(recency).toStrictEqual(
     new Map([
@@ -591,16 +475,9 @@ test('it reports the latest event timestamp per agent session', async () => {
 });
 
 test('it returns an empty recency map when no event carries a session id', async () => {
-  const dir = setupDir();
-  const dbPath = join(dir, 'state.db');
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(dbPath);
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  const db = new Database(dbPath);
+  const db = new Database(ctx.dbPath);
 
   onTestFinished(() => {
     db.close();
@@ -612,27 +489,19 @@ test('it returns an empty recency map when no event carries a session id', async
       "('2026-08-14T00:00:02.000Z', 's2', 'SessionStart', NULL, NULL)",
   );
 
-  const recency = await store.collectFleetRecency();
+  const recency = await ctx.store.collectFleetRecency();
 
   expect(recency).toStrictEqual(new Map());
 });
 
 test('it lists spawn directories most recent first without duplicates', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await ctx.store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' }, 1000);
+  await ctx.store.recordSpawnDir('/b', { target: 'local', targetIdentity: 'local-pty:x' }, 2000);
+  await ctx.store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' }, 3000);
 
-  await store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' });
-
-  // The recency ordering key has millisecond resolution.
-  await Bun.sleep(2);
-  await store.recordSpawnDir('/b', { target: 'local', targetIdentity: 'local-pty:x' });
-  await Bun.sleep(2);
-  await store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' });
-
-  const dirs = await store.collectSpawnDirs();
+  const dirs = await ctx.store.collectSpawnDirs();
 
   expect(dirs).toStrictEqual([
     { cwd: '/a', grant: { target: 'local', targetIdentity: 'local-pty:x' } },
@@ -641,21 +510,13 @@ test('it lists spawn directories most recent first without duplicates', async ()
 });
 
 test('it lists a spawn directory once for each target it was spawned on', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await ctx.store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' }, 1000);
+  await ctx.store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'imp:y' }, 2000);
+  await ctx.store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'imp:z' }, 3000);
 
-  await store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' });
-
-  // The recency ordering key has millisecond resolution.
-  await Bun.sleep(2);
-  await store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'imp:y' });
-  await Bun.sleep(2);
-  await store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'imp:z' });
-
-  const dirs = await store.collectSpawnDirs();
+  const dirs = await ctx.store.collectSpawnDirs();
 
   expect(dirs).toStrictEqual([
     { cwd: '/a', grant: { target: 'box', targetIdentity: 'imp:z' } },
@@ -665,9 +526,15 @@ test('it lists a spawn directory once for each target it was spawned on', async 
 });
 
 test('it carries spawn directories from before their target was recorded over as spawns on the default local target', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
 
   db.run('CREATE TABLE spawn_history (cwd TEXT PRIMARY KEY, last_spawn INTEGER NOT NULL);');
   db.run("INSERT INTO spawn_history (cwd, last_spawn) VALUES ('/old', 1000), ('/older', 500);");
@@ -675,9 +542,7 @@ test('it carries spawn directories from before their target was recorded over as
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  onTestFinished(() => store.stop());
 
   const dirs = await store.collectSpawnDirs();
 
@@ -694,13 +559,9 @@ test('it carries spawn directories from before their target was recorded over as
 });
 
 test('it round-trips a grok fleet row', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-g1'),
       name: 'mixed',
@@ -710,7 +571,7 @@ test('it round-trips a grok fleet row', async () => {
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -724,13 +585,9 @@ test('it round-trips a grok fleet row', async () => {
 });
 
 test('it round-trips an exited fleet row', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-c1'),
       name: 'archived',
@@ -748,7 +605,7 @@ test('it round-trips an exited fleet row', async () => {
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -770,13 +627,9 @@ test('it round-trips an exited fleet row', async () => {
 });
 
 test('it round-trips a sub-session fleet row', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-c1'),
       name: 'wrangler',
@@ -794,7 +647,7 @@ test('it round-trips a sub-session fleet row', async () => {
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -816,13 +669,9 @@ test('it round-trips a sub-session fleet row', async () => {
 });
 
 test('it round-trips a fleet row with its model and effort', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-c1'),
       name: 'tuned',
@@ -834,7 +683,7 @@ test('it round-trips a fleet row with its model and effort', async () => {
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -850,13 +699,9 @@ test('it round-trips a fleet row with its model and effort', async () => {
 });
 
 test('it round-trips a fleet row with what the operator asked of it and its host', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-c1'),
       name: 'sleeper',
@@ -879,7 +724,7 @@ test('it round-trips a fleet row with what the operator asked of it and its host
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -906,13 +751,9 @@ test('it round-trips a fleet row with what the operator asked of it and its host
 });
 
 test('it round-trips a fleet row with its execution target and identity', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-c1'),
       name: 'remote',
@@ -931,7 +772,7 @@ test('it round-trips a fleet row with its execution target and identity', async 
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -954,9 +795,15 @@ test('it round-trips a fleet row with its execution target and identity', async 
 });
 
 test('it adds parent to a fleet row that predates it', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
 
   db.run(`
     CREATE TABLE fleet (
@@ -978,15 +825,15 @@ test('it adds parent to a fleet row that predates it', async () => {
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  onTestFinished(() => store.stop());
 
   const fleet = await store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'old',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c1'),
@@ -997,43 +844,44 @@ test('it adds parent to a fleet row that predates it', async () => {
   ]);
 });
 
-test('it defaults last-used agent to claude and round-trips a write', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+test('it loads claude as the last-used agent before any write', async () => {
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  const agent = await ctx.store.loadLastUsedAgent();
 
-  const defaultAgent = await store.loadLastUsedAgent();
+  expect(agent).toBe('claude');
+});
 
-  expect(defaultAgent).toBe('claude');
+test('it loads the last-used agent a write recorded', async () => {
+  await using ctx = await setupTest();
 
-  await store.writeLastUsedAgent('grok');
+  await ctx.store.writeLastUsedAgent('grok');
 
-  const afterGrok = await store.loadLastUsedAgent();
+  const agent = await ctx.store.loadLastUsedAgent();
 
-  expect(afterGrok).toBe('grok');
+  expect(agent).toBe('grok');
+});
 
-  await store.writeLastUsedAgent('claude');
+test('it loads the later of two last-used agent writes', async () => {
+  await using ctx = await setupTest();
 
-  const afterClaude = await store.loadLastUsedAgent();
+  await ctx.store.writeLastUsedAgent('grok');
+  await ctx.store.writeLastUsedAgent('claude');
 
-  expect(afterClaude).toBe('claude');
+  const agent = await ctx.store.loadLastUsedAgent();
+
+  expect(agent).toBe('claude');
 });
 
 test('it loads last-used agent from a reopened store', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using ctx = await setupTest();
 
-  const first = await StateStore.open(dbPath);
+  await ctx.store.writeLastUsedAgent('grok');
+  await ctx.store.stop();
 
-  await first.writeLastUsedAgent('grok');
-  await first.stop();
+  const second = await StateStore.open(ctx.dbPath);
 
-  const second = await StateStore.open(dbPath);
-
-  onTestFinished(async () => {
-    await second.stop();
-  });
+  onTestFinished(() => second.stop());
 
   const agent = await second.loadLastUsedAgent();
 
@@ -1041,9 +889,15 @@ test('it loads last-used agent from a reopened store', async () => {
 });
 
 test('it renames the id column and defaults agent for a store written before both', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
 
   db.run(`
     CREATE TABLE fleet (
@@ -1059,15 +913,23 @@ test('it renames the id column and defaults agent for a store written before bot
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  onTestFinished(() => store.stop());
 
   const fleet = await store.loadFleet();
 
+  const reader = new Database(dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    reader.close();
+  });
+
+  const legacyColumn = reader.query('SELECT grp FROM fleet').all();
+
   expect(fleet).toStrictEqual([
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'old',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c1'),
@@ -1075,13 +937,19 @@ test('it renames the id column and defaults agent for a store written before bot
     },
   ]);
 
-  expect(readLegacyColumn(dbPath, 'grp')).toStrictEqual(['squad-a']);
+  expect(legacyColumn).toStrictEqual([{ grp: 'squad-a' }]);
 });
 
 test('it adds pinned to a fleet row that predates it', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
 
   db.run(`
     CREATE TABLE fleet (
@@ -1102,15 +970,15 @@ test('it adds pinned to a fleet row that predates it', async () => {
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  onTestFinished(() => store.stop());
 
   const fleet = await store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'old',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c1'),
@@ -1121,10 +989,16 @@ test('it adds pinned to a fleet row that predates it', async () => {
   ]);
 });
 
-test('it adds last_attached to a fleet row that predates it', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+test('it adds the last-attached time to a fleet row that predates it', async () => {
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
 
   db.run(`
     CREATE TABLE fleet (
@@ -1145,15 +1019,15 @@ test('it adds last_attached to a fleet row that predates it', async () => {
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  onTestFinished(() => store.stop());
 
   const fleet = await store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'old',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c1'),
@@ -1165,9 +1039,15 @@ test('it adds last_attached to a fleet row that predates it', async () => {
 });
 
 test('it adds agent to a fleet row that predates it', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
 
   db.run(`
     CREATE TABLE fleet (
@@ -1188,15 +1068,15 @@ test('it adds agent to a fleet row that predates it', async () => {
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  onTestFinished(() => store.stop());
 
   const fleet = await store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'old',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c1'),
@@ -1209,9 +1089,15 @@ test('it adds agent to a fleet row that predates it', async () => {
 });
 
 test('it adds exited to a fleet row that predates it', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
 
   db.run(`
     CREATE TABLE fleet (
@@ -1232,15 +1118,15 @@ test('it adds exited to a fleet row that predates it', async () => {
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  onTestFinished(() => store.stop());
 
   const fleet = await store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'old',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c1'),
@@ -1252,9 +1138,15 @@ test('it adds exited to a fleet row that predates it', async () => {
 });
 
 test('it opens a database twice without re-running migrations or corrupting data', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
 
   const legacy = new Database(dbPath);
+
+  onTestFinished(() => {
+    legacy.close();
+  });
 
   legacy.run(`
     CREATE TABLE fleet (
@@ -1268,6 +1160,9 @@ test('it opens a database twice without re-running migrations or corrupting data
   legacy.close();
 
   const first = await StateStore.open(dbPath);
+
+  onTestFinished(() => first.stop());
+
   const seededFleet = await first.loadFleet();
 
   await first.writeFleet([
@@ -1283,9 +1178,18 @@ test('it opens a database twice without re-running migrations or corrupting data
 
   await first.stop();
 
-  const ledgerAfterFirstOpen = collectMigrationLedger(dbPath);
+  const ledger = new Database(dbPath);
 
-  expect(ledgerAfterFirstOpen.map((row) => row.name)).toStrictEqual([
+  onTestFinished(() => {
+    ledger.close();
+  });
+
+  const namesAfterFirstOpen = ledger
+    .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
+    .all()
+    .map((row) => row.name);
+
+  expect(namesAfterFirstOpen).toStrictEqual([
     '001_create_initial_schema',
     '002_rename_fleet_claude_id_to_agent_session_id',
     '003_add_fleet_pinned',
@@ -1314,14 +1218,19 @@ test('it opens a database twice without re-running migrations or corrupting data
     '026_add_fleet_resume_interrupted_turns',
   ]);
 
-  updateMigrationLedger(dbPath, 'sentinel');
+  ledger.run("UPDATE kysely_migration SET timestamp = 'sentinel'");
 
   const second = await StateStore.open(dbPath);
+
+  onTestFinished(() => second.stop());
+
   const fleet = await second.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'first',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c1'),
@@ -1338,16 +1247,27 @@ test('it opens a database twice without re-running migrations or corrupting data
 
   await second.stop();
 
-  expect(collectMigrationLedger(dbPath).map((row) => row.appliedAt)).toStrictEqual(
-    Array.from({ length: ledgerAfterFirstOpen.length }, () => 'sentinel'),
+  const stamps = ledger
+    .query<{ timestamp: string }, []>('SELECT timestamp FROM kysely_migration')
+    .all()
+    .map((row) => row.timestamp);
+
+  expect(stamps).toStrictEqual(
+    Array.from({ length: namesAfterFirstOpen.length }, () => 'sentinel'),
   );
 });
 
 test('it ends a fresh database at the same fleet schema as a fully migrated old one', async () => {
-  const freshPath = join(setupDir(), 'fresh.db');
-  const oldPath = join(setupDir(), 'old.db');
+  await using tmp = setupTempDir('atc-store-');
+
+  const freshPath = join(tmp.dir, 'fresh.db');
+  const oldPath = join(tmp.dir, 'old.db');
 
   const old = new Database(oldPath);
+
+  onTestFinished(() => {
+    old.close();
+  });
 
   old.run(`
     CREATE TABLE fleet (
@@ -1365,29 +1285,64 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
   old.close();
 
   const freshStore = await StateStore.open(freshPath);
+
+  onTestFinished(() => freshStore.stop());
+
   const oldStore = await StateStore.open(oldPath);
+
+  onTestFinished(() => oldStore.stop());
 
   await freshStore.stop();
   await oldStore.stop();
 
   const freshDB = new Database(freshPath, { readonly: true });
-  const oldDB = new Database(oldPath, { readonly: true });
 
   onTestFinished(() => {
     freshDB.close();
+  });
+
+  const oldDB = new Database(oldPath, { readonly: true });
+
+  onTestFinished(() => {
     oldDB.close();
   });
 
-  const freshSchema = collectSchema(freshDB);
-  const oldSchema = collectSchema(oldDB);
+  const [freshSchema, oldSchema] = [freshDB, oldDB].map((db) =>
+    db
+      .query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all()
+      .map((row) => row.name)
+      .toSorted()
+      .map((table) => ({
+        table,
+        columns: db
+          .query<{ name: string; type: string; notnull: number; dflt_value: unknown }, []>(
+            `PRAGMA table_info(${table})`,
+          )
+          .all()
+          .map((column) => ({
+            name: column.name,
+            type: column.type,
+            notnull: column.notnull,
+            dflt_value: column.dflt_value,
+          }))
+          .toSorted((a, b) => a.name.localeCompare(b.name)),
+      })),
+  );
 
   expect(freshSchema).toStrictEqual(oldSchema);
 });
 
-test('it creates prefs for a database that predates the table', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+test('it loads claude as the last-used agent from a database that predates prefs', async () => {
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
 
   db.run(`
     CREATE TABLE fleet (
@@ -1419,29 +1374,65 @@ test('it creates prefs for a database that predates the table', async () => {
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
+  onTestFinished(() => store.stop());
+
+  const agent = await store.loadLastUsedAgent();
+
+  expect(agent).toBe('claude');
+});
+
+test('it records a last-used agent in a database that predates prefs', async () => {
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
+
+  const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
   });
 
-  const defaultAgent = await store.loadLastUsedAgent();
+  db.run(`
+    CREATE TABLE fleet (
+      claude_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL
+    );
+  `);
 
-  expect(defaultAgent).toBe('claude');
+  db.run(`
+    CREATE TABLE events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts TEXT NOT NULL,
+      atc_id TEXT NOT NULL,
+      event TEXT NOT NULL,
+      message TEXT,
+      session_id TEXT
+    );
+  `);
+
+  db.run(`
+    CREATE TABLE spawn_history (
+      cwd TEXT PRIMARY KEY,
+      last_spawn INTEGER NOT NULL
+    );
+  `);
+
+  db.close();
+
+  const store = await StateStore.open(dbPath);
+
+  onTestFinished(() => store.stop());
 
   await store.writeLastUsedAgent('grok');
 
-  const afterGrok = await store.loadLastUsedAgent();
+  const agent = await store.loadLastUsedAgent();
 
-  expect(afterGrok).toBe('grok');
+  expect(agent).toBe('grok');
 });
 
 test("it round-trips a fleet row's prompt, result, and transcript path", async () => {
-  const dir = setupDir();
-
-  const store = await StateStore.open(join(dir, 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const entry: FleetEntry = {
     sessionID: toSessionID('s-c1'),
@@ -1454,28 +1445,22 @@ test("it round-trips a fleet row's prompt, result, and transcript path", async (
     transcriptPath: '/t/c1.jsonl',
   };
 
-  await store.writeFleet([entry]);
+  await ctx.store.writeFleet([entry]);
 
-  const stored = await store.loadFleet();
+  const stored = await ctx.store.loadFleet();
 
   expect(stored).toStrictEqual([entry]);
 });
 
 test('it records a hook event with its normalized kind and detail', async () => {
-  const dir = setupDir();
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(join(dir, 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'c1' } },
     { kind: 'turn-done', detail: 'all green' },
   );
 
-  const events = await store.collectLatestEvents(10);
+  const events = await ctx.store.collectLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -1490,20 +1475,14 @@ test('it records a hook event with its normalized kind and detail', async () => 
 });
 
 test('it falls back to the hook message for an event recorded without a detail', async () => {
-  const dir = setupDir();
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(join(dir, 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'Notification', payload: { message: 'needs permission' } },
     { kind: 'needs-input' },
   );
 
-  const events = await store.collectLatestEvents(10);
+  const events = await ctx.store.collectLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -1518,138 +1497,139 @@ test('it falls back to the hook message for an event recorded without a detail',
 });
 
 test('it leaves heartbeats and unclassified events out of the event reads', async () => {
-  const dir = setupDir();
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(join(dir, 'state.db'));
+  await ctx.store.recordEvent({ atcId: toSessionID('s1'), event: 'Statusline', payload: {} });
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent({ atcId: toSessionID('s1'), event: 'Statusline', payload: {} });
-
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'Other', payload: {} },
     { kind: 'heartbeat' },
   );
 
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
     { kind: 'started' },
   );
 
-  const events = await store.collectLatestEvents(10);
+  const events = await ctx.store.collectLatestEvents(10);
 
-  expect(events.map((event) => event.kind)).toStrictEqual(['started']);
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'started',
+      detail: null,
+    },
+  ]);
 });
 
 test('it collects events after an id oldest first, up to the limit', async () => {
-  const dir = setupDir();
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(join(dir, 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
     { kind: 'started', detail: 'one' },
   );
 
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
     { kind: 'turn-done', detail: 'two' },
   );
 
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionEnd', payload: {} },
     { kind: 'ended', detail: 'three' },
   );
 
-  const [first] = await store.collectLatestEvents(10);
+  const [first] = await ctx.store.collectLatestEvents(10);
 
   if (first === undefined) {
     throw new Error('expected events');
   }
 
-  const after = await store.collectEventsAfter(first.id, 1);
+  const after = await ctx.store.collectEventsAfter(first.id, 1);
 
-  expect(after.map((event) => event.detail)).toStrictEqual(['two']);
+  expect(after).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'turn-done',
+      detail: 'two',
+    },
+  ]);
 });
 
 test('it collects the latest events oldest first', async () => {
-  const dir = setupDir();
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(join(dir, 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
     { kind: 'started', detail: 'one' },
   );
 
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
     { kind: 'turn-done', detail: 'two' },
   );
 
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionEnd', payload: {} },
     { kind: 'ended', detail: 'three' },
   );
 
-  const latest = await store.collectLatestEvents(2);
+  const latest = await ctx.store.collectLatestEvents(2);
 
-  expect(latest.map((event) => event.detail)).toStrictEqual(['two', 'three']);
+  expect(latest).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'turn-done',
+      detail: 'two',
+    },
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'ended',
+      detail: 'three',
+    },
+  ]);
 });
 
 test("it loads a session's last activity time by its agent session id", async () => {
-  const dir = setupDir();
-
-  const store = await StateStore.open(join(dir, 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const before = Date.now();
 
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s-old'), event: 'Stop', payload: { session_id: 'c1' } },
     { kind: 'turn-done' },
   );
 
-  const at = await store.loadLastActivityAt(toSessionID('s-new'), toAgentSessionID('c1'));
+  const at = await ctx.store.loadLastActivityAt(toSessionID('s-new'), toAgentSessionID('c1'));
 
   expect(at).toBeWithin(before, Date.now() + 1);
 });
 
 test('it loads no last activity time for a session that never reported', async () => {
-  const dir = setupDir();
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(join(dir, 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  const at = await store.loadLastActivityAt(toSessionID('s1'), undefined);
+  const at = await ctx.store.loadLastActivityAt(toSessionID('s1'), undefined);
 
   expect(at).toBeNull();
 });
 
 test('it updates one fleet row without touching its siblings', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-a1'),
       name: 'a',
@@ -1666,12 +1646,12 @@ test('it updates one fleet row without touching its siblings', async () => {
     },
   ]);
 
-  await store.updateFleetEntry(toSessionID('s-a1'), {
+  await ctx.store.updateFleetEntry(toSessionID('s-a1'), {
     result: 'done',
     transcriptPath: '/a.jsonl',
   });
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toIncludeSameMembers([
     {
@@ -1694,65 +1674,78 @@ test('it updates one fleet row without touching its siblings', async () => {
 });
 
 test('it ignores an update for a session with no fleet row', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await ctx.store.updateFleetEntry(toSessionID('ghost'), { result: 'done' });
 
-  await store.updateFleetEntry(toSessionID('ghost'), { result: 'done' });
-
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([]);
 });
 
-test('it serves the event-trail lookups from indexes', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+test('it serves the trail read after an id from an index', async () => {
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(dbPath);
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  const sqlite = new Database(dbPath, { readonly: true });
+  const sqlite = new Database(ctx.dbPath, { readonly: true });
 
   onTestFinished(() => {
     sqlite.close();
   });
 
-  const plan = (query: string) =>
-    sqlite
-      .query<{ detail: string }, []>(`EXPLAIN QUERY PLAN ${query}`)
-      .all()
-      .map((row) => row.detail)
-      .join('\n');
+  const plan = sqlite
+    .query<{ detail: string }, []>(
+      "EXPLAIN QUERY PLAN SELECT id FROM events WHERE id > 5 AND kind IS NOT NULL AND kind != 'heartbeat' ORDER BY id LIMIT 5",
+    )
+    .all()
+    .map((row) => row.detail)
+    .join('\n');
 
-  expect(
-    plan(
-      "SELECT id FROM events WHERE id > 5 AND kind IS NOT NULL AND kind != 'heartbeat' ORDER BY id LIMIT 5",
-    ),
-  ).toInclude('USING INDEX events_trail');
+  expect(plan).toInclude('USING INDEX events_trail');
+});
 
-  expect(
-    plan(
-      "SELECT id FROM events WHERE kind IS NOT NULL AND kind != 'heartbeat' ORDER BY id DESC LIMIT 5",
-    ),
-  ).toInclude('USING INDEX events_trail');
+test('it serves the latest trail read from an index', async () => {
+  await using ctx = await setupTest();
 
-  const activityPlan = plan("SELECT MAX(ts) FROM events WHERE atc_id = 'a' OR session_id = 'b'");
+  const sqlite = new Database(ctx.dbPath, { readonly: true });
 
-  expect(activityPlan).toInclude('USING INDEX events_atc_id_ts');
-  expect(activityPlan).toInclude('USING INDEX events_session_id_ts');
+  onTestFinished(() => {
+    sqlite.close();
+  });
+
+  const plan = sqlite
+    .query<{ detail: string }, []>(
+      "EXPLAIN QUERY PLAN SELECT id FROM events WHERE kind IS NOT NULL AND kind != 'heartbeat' ORDER BY id DESC LIMIT 5",
+    )
+    .all()
+    .map((row) => row.detail)
+    .join('\n');
+
+  expect(plan).toInclude('USING INDEX events_trail');
+});
+
+test('it serves the last activity lookup from an index on each id', async () => {
+  await using ctx = await setupTest();
+
+  const sqlite = new Database(ctx.dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    sqlite.close();
+  });
+
+  const plan = sqlite
+    .query<{ detail: string }, []>(
+      "EXPLAIN QUERY PLAN SELECT MAX(ts) FROM events WHERE atc_id = 'a' OR session_id = 'b'",
+    )
+    .all()
+    .map((row) => row.detail)
+    .join('\n');
+
+  expect(plan).toInclude('USING INDEX events_atc_id_ts');
+  expect(plan).toInclude('USING INDEX events_session_id_ts');
 });
 
 test('it lists an accepted message as pending for the session it was sent to', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -1763,19 +1756,15 @@ test('it lists an accepted message as pending for the session it was sent to', a
     sentAt: 1000,
   };
 
-  await store.writeMessage(record);
+  await ctx.store.writeMessage(record);
 
-  const pending = await store.collectPendingMessages({ atcID: toSessionID('s1') });
+  const pending = await ctx.store.collectPendingMessages({ atcID: toSessionID('s1') });
 
   expect(pending).toStrictEqual([record]);
 });
 
 test('it lists pending messages in the order they were sent', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const first: MessageRecord = {
     id: toMessageID('m-z'),
@@ -1804,21 +1793,17 @@ test('it lists pending messages in the order they were sent', async () => {
     sentAt: 1001,
   };
 
-  await store.writeMessage(first);
-  await store.writeMessage(second);
-  await store.writeMessage(third);
+  await ctx.store.writeMessage(first);
+  await ctx.store.writeMessage(second);
+  await ctx.store.writeMessage(third);
 
-  const pending = await store.collectPendingMessages({ atcID: toSessionID('s1') });
+  const pending = await ctx.store.collectPendingMessages({ atcID: toSessionID('s1') });
 
   expect(pending).toStrictEqual([first, second, third]);
 });
 
 test('it finds pending messages by agent session id under a new atc id', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -1830,9 +1815,9 @@ test('it finds pending messages by agent session id under a new atc id', async (
     agentSessionID: toAgentSessionID('a1'),
   };
 
-  await store.writeMessage(record);
+  await ctx.store.writeMessage(record);
 
-  const pending = await store.collectPendingMessages({
+  const pending = await ctx.store.collectPendingMessages({
     atcID: toSessionID('s2'),
     agentSessionID: toAgentSessionID('a1'),
   });
@@ -1840,12 +1825,8 @@ test('it finds pending messages by agent session id under a new atc id', async (
   expect(pending).toStrictEqual([record]);
 });
 
-test('it moves an accepted message to delivered once', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+test('it moves an accepted message to delivered', async () => {
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -1858,25 +1839,59 @@ test('it moves an accepted message to delivered once', async () => {
 
   const owner = { atcID: toSessionID('s1') };
 
-  await store.writeMessage(record);
+  await ctx.store.writeMessage(record);
 
-  const first = await store.updateMessageDelivered(record.id, owner, 2000);
-  const second = await store.updateMessageDelivered(record.id, owner, 3000);
+  const delivered = await ctx.store.updateMessageDelivered(record.id, owner, 2000);
 
-  expect(first).toStrictEqual({ ...record, status: 'delivered', deliveredAt: 2000 });
+  expect(delivered).toStrictEqual({ ...record, status: 'delivered', deliveredAt: 2000 });
+});
+
+test('it refuses to deliver a message a second time', async () => {
+  await using ctx = await setupTest();
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  const owner = { atcID: toSessionID('s1') };
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessageDelivered(record.id, owner, 2000);
+
+  const second = await ctx.store.updateMessageDelivered(record.id, owner, 3000);
+
   expect(second).toBeNull();
+});
 
-  const pending = await store.collectPendingMessages(owner);
+test('it drops a delivered message from the pending list', async () => {
+  await using ctx = await setupTest();
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  const owner = { atcID: toSessionID('s1') };
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessageDelivered(record.id, owner, 2000);
+
+  const pending = await ctx.store.collectPendingMessages(owner);
 
   expect(pending).toStrictEqual([]);
 });
 
 test('it moves a delivered message to answered with the final text', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -1889,10 +1904,10 @@ test('it moves a delivered message to answered with the final text', async () =>
 
   const owner = { atcID: toSessionID('s1') };
 
-  await store.writeMessage(record);
-  await store.updateMessageDelivered(record.id, owner, 2000);
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessageDelivered(record.id, owner, 2000);
 
-  const answered = await store.updateMessagesAnswered([record.id], owner, 'done', 3000);
+  const answered = await ctx.store.updateMessagesAnswered([record.id], owner, 'done', 3000);
 
   expect(answered).toStrictEqual([
     {
@@ -1906,11 +1921,7 @@ test('it moves a delivered message to answered with the final text', async () =>
 });
 
 test('it answers an accepted message that was never acked', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -1923,9 +1934,9 @@ test('it answers an accepted message that was never acked', async () => {
 
   const owner = { atcID: toSessionID('s1') };
 
-  await store.writeMessage(record);
+  await ctx.store.writeMessage(record);
 
-  const answered = await store.updateMessagesAnswered([record.id], owner, 'done', 3000);
+  const answered = await ctx.store.updateMessagesAnswered([record.id], owner, 'done', 3000);
 
   expect(answered).toStrictEqual([
     {
@@ -1938,11 +1949,7 @@ test('it answers an accepted message that was never acked', async () => {
 });
 
 test('it refuses to deliver a message owned by another session', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -1953,19 +1960,19 @@ test('it refuses to deliver a message owned by another session', async () => {
     sentAt: 1000,
   };
 
-  await store.writeMessage(record);
+  await ctx.store.writeMessage(record);
 
-  const updated = await store.updateMessageDelivered(record.id, { atcID: toSessionID('s2') }, 2000);
+  const updated = await ctx.store.updateMessageDelivered(
+    record.id,
+    { atcID: toSessionID('s2') },
+    2000,
+  );
 
   expect(updated).toBeNull();
 });
 
 test('it refuses to answer a message owned by another session', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -1976,9 +1983,9 @@ test('it refuses to answer a message owned by another session', async () => {
     sentAt: 1000,
   };
 
-  await store.writeMessage(record);
+  await ctx.store.writeMessage(record);
 
-  const updated = await store.updateMessagesAnswered(
+  const updated = await ctx.store.updateMessagesAnswered(
     [record.id],
     { atcID: toSessionID('s2') },
     'done',
@@ -1989,11 +1996,7 @@ test('it refuses to answer a message owned by another session', async () => {
 });
 
 test('it gives messages sent before SessionStart their agent session id', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -2004,10 +2007,10 @@ test('it gives messages sent before SessionStart their agent session id', async 
     sentAt: 1000,
   };
 
-  await store.writeMessage(record);
-  await store.updateMessageOwner(toSessionID('s1'), undefined, toAgentSessionID('a1'));
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessageOwner(toSessionID('s1'), undefined, toAgentSessionID('a1'));
 
-  const found = await store.findMessage(record.id, {
+  const found = await ctx.store.findMessage(record.id, {
     atcID: toSessionID('s2'),
     agentSessionID: toAgentSessionID('a1'),
   });
@@ -2016,11 +2019,7 @@ test('it gives messages sent before SessionStart their agent session id', async 
 });
 
 test('it moves messages to a changed agent session id', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -2032,10 +2031,15 @@ test('it moves messages to a changed agent session id', async () => {
     agentSessionID: toAgentSessionID('a1'),
   };
 
-  await store.writeMessage(record);
-  await store.updateMessageOwner(toSessionID('s2'), toAgentSessionID('a1'), toAgentSessionID('a2'));
+  await ctx.store.writeMessage(record);
 
-  const found = await store.findMessage(record.id, {
+  await ctx.store.updateMessageOwner(
+    toSessionID('s2'),
+    toAgentSessionID('a1'),
+    toAgentSessionID('a2'),
+  );
+
+  const found = await ctx.store.findMessage(record.id, {
     atcID: toSessionID('s3'),
     agentSessionID: toAgentSessionID('a2'),
   });
@@ -2044,7 +2048,7 @@ test('it moves messages to a changed agent session id', async () => {
 });
 
 test('it keeps messages across a store reopen', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -2055,16 +2059,12 @@ test('it keeps messages across a store reopen', async () => {
     sentAt: 1000,
   };
 
-  const first = await StateStore.open(dbPath);
+  await ctx.store.writeMessage(record);
+  await ctx.store.stop();
 
-  await first.writeMessage(record);
-  await first.stop();
+  const second = await StateStore.open(ctx.dbPath);
 
-  const second = await StateStore.open(dbPath);
-
-  onTestFinished(async () => {
-    await second.stop();
-  });
+  onTestFinished(() => second.stop());
 
   const pending = await second.collectPendingMessages({ atcID: toSessionID('s1') });
 
@@ -2072,11 +2072,7 @@ test('it keeps messages across a store reopen', async () => {
 });
 
 test('it finds a message for its own session', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -2087,19 +2083,15 @@ test('it finds a message for its own session', async () => {
     sentAt: 1000,
   };
 
-  await store.writeMessage(record);
+  await ctx.store.writeMessage(record);
 
-  const own = await store.findMessage(record.id, { atcID: toSessionID('s1') });
+  const own = await ctx.store.findMessage(record.id, { atcID: toSessionID('s1') });
 
   expect(own).toStrictEqual(record);
 });
 
 test('it finds no message for another session', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -2110,53 +2102,55 @@ test('it finds no message for another session', async () => {
     sentAt: 1000,
   };
 
-  await store.writeMessage(record);
+  await ctx.store.writeMessage(record);
 
-  const other = await store.findMessage(record.id, { atcID: toSessionID('s2') });
+  const other = await ctx.store.findMessage(record.id, { atcID: toSessionID('s2') });
 
   expect(other).toBeNull();
 });
 
-test('it answers the owner lookups for pending messages from an index', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+test('it serves the pending messages of an atc id from an index', async () => {
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(dbPath);
-
-  await store.stop();
-
-  const db = new Database(dbPath, { readonly: true });
+  const db = new Database(ctx.dbPath, { readonly: true });
 
   onTestFinished(() => {
     db.close();
   });
 
-  const byAtcID = db
+  const plan = db
     .query<{ detail: string }, []>(
       "EXPLAIN QUERY PLAN SELECT * FROM messages WHERE status = 'accepted' AND atc_id = 's1' ORDER BY sent_at",
     )
-    .all();
+    .all()
+    .map((row) => row.detail)
+    .join('\n');
 
-  const byAgentSessionID = db
+  expect(plan).toInclude('USING INDEX messages_atc_id_status_sent_at');
+});
+
+test('it serves the pending messages of an agent session id from an index', async () => {
+  await using ctx = await setupTest();
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    db.close();
+  });
+
+  const plan = db
     .query<{ detail: string }, []>(
       "EXPLAIN QUERY PLAN SELECT * FROM messages WHERE status = 'accepted' AND agent_session_id = 'a1' ORDER BY sent_at",
     )
-    .all();
+    .all()
+    .map((row) => row.detail)
+    .join('\n');
 
-  expect(byAtcID.map((row) => row.detail).join('\n')).toInclude(
-    'USING INDEX messages_atc_id_status_sent_at',
-  );
-
-  expect(byAgentSessionID.map((row) => row.detail).join('\n')).toInclude(
-    'USING INDEX messages_agent_session_id_status_sent_at',
-  );
+  expect(plan).toInclude('USING INDEX messages_agent_session_id_status_sent_at');
 });
 
-test('it finds a message by its id alone and misses an unknown id', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+test('it finds a message by its id alone', async () => {
+  await using ctx = await setupTest();
 
   const record: MessageRecord = {
     id: toMessageID('m-1'),
@@ -2167,23 +2161,36 @@ test('it finds a message by its id alone and misses an unknown id', async () => 
     sentAt: 1000,
   };
 
-  await store.writeMessage(record);
+  await ctx.store.writeMessage(record);
 
-  const found = await store.findMessageByID(record.id);
-  const missing = await store.findMessageByID(toMessageID('m-2'));
+  const found = await ctx.store.findMessageByID(record.id);
 
   expect(found).toStrictEqual(record);
+});
+
+test('it finds no message for an unknown id', async () => {
+  await using ctx = await setupTest();
+
+  const record: MessageRecord = {
+    id: toMessageID('m-1'),
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    text: 'hello m-1',
+    status: 'accepted',
+    sentAt: 1000,
+  };
+
+  await ctx.store.writeMessage(record);
+
+  const missing = await ctx.store.findMessageByID(toMessageID('m-2'));
+
   expect(missing).toBeNull();
 });
 
 test('it records a message status change into the trail with its message id', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordTrailEntry({
+  await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: toAgentSessionID('c1'),
@@ -2192,7 +2199,7 @@ test('it records a message status change into the trail with its message id', as
     detail: 'hello',
   });
 
-  const events = await store.collectLatestEvents(10);
+  const events = await ctx.store.collectLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -2208,13 +2215,9 @@ test('it records a message status change into the trail with its message id', as
 });
 
 test('it records a report into the trail with its label', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordTrailEntry({
+  await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
@@ -2224,7 +2227,7 @@ test('it records a report into the trail with its label', async () => {
     text: 'need review',
   });
 
-  const events = await store.collectLatestEvents(10);
+  const events = await ctx.store.collectLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -2240,13 +2243,9 @@ test('it records a report into the trail with its label', async () => {
 });
 
 test('it stores a report resent under the same report id once', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  const first = await store.recordTrailEntry({
+  const first = await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
@@ -2257,7 +2256,7 @@ test('it stores a report resent under the same report id once', async () => {
     reportID: 'r-1',
   });
 
-  const resent = await store.recordTrailEntry({
+  const resent = await ctx.store.recordTrailEntry({
     at: 2000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
@@ -2268,7 +2267,7 @@ test('it stores a report resent under the same report id once', async () => {
     reportID: 'r-1',
   });
 
-  const events = await store.collectLatestEvents(10);
+  const events = await ctx.store.collectLatestEvents(10);
 
   expect({ first, resent, events }).toStrictEqual({
     first: true,
@@ -2288,13 +2287,9 @@ test('it stores a report resent under the same report id once', async () => {
 });
 
 test('it stores every report that carries no report id', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordTrailEntry({
+  await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
@@ -2304,7 +2299,7 @@ test('it stores every report that carries no report id', async () => {
     text: 'need review',
   });
 
-  const second = await store.recordTrailEntry({
+  const second = await ctx.store.recordTrailEntry({
     at: 2000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
@@ -2314,19 +2309,37 @@ test('it stores every report that carries no report id', async () => {
     text: 'need review',
   });
 
-  const events = await store.collectLatestEvents(10);
+  const events = await ctx.store.collectLatestEvents(10);
 
-  expect({ second, count: events.length }).toStrictEqual({ second: true, count: 2 });
+  expect({ second, events }).toStrictEqual({
+    second: true,
+    events: [
+      {
+        id: expect.toBeNumber(),
+        at: 1000,
+        atcID: toSessionID('s1'),
+        agentSessionID: null,
+        kind: 'report',
+        detail: 'need review',
+        label: 'blocked',
+      },
+      {
+        id: expect.toBeNumber(),
+        at: 2000,
+        atcID: toSessionID('s1'),
+        agentSessionID: null,
+        kind: 'report',
+        detail: 'need review',
+        label: 'blocked',
+      },
+    ],
+  });
 });
 
 test("it finds a report's whole text by its trail id", async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordTrailEntry({
+  await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: toAgentSessionID('c1'),
@@ -2336,13 +2349,13 @@ test("it finds a report's whole text by its trail id", async () => {
     text: 'pick one of three options',
   });
 
-  const [event] = await store.collectLatestEvents(1);
+  const [event] = await ctx.store.collectLatestEvents(1);
 
   if (event === undefined) {
     throw new Error('no event');
   }
 
-  const report = await store.findReport(event.id);
+  const report = await ctx.store.findReport(event.id);
 
   expect(report).toStrictEqual({
     id: event.id,
@@ -2356,36 +2369,28 @@ test("it finds a report's whole text by its trail id", async () => {
 });
 
 test('it misses a trail id whose row is not a report', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
     { kind: 'started' },
   );
 
-  const [event] = await store.collectLatestEvents(1);
+  const [event] = await ctx.store.collectLatestEvents(1);
 
   if (event === undefined) {
     throw new Error('no event');
   }
 
-  const report = await store.findReport(event.id);
+  const report = await ctx.store.findReport(event.id);
 
   expect(report).toBeNull();
 });
 
 test('it misses a report of a session outside the scope', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordTrailEntry({
+  await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
@@ -2395,13 +2400,13 @@ test('it misses a report of a session outside the scope', async () => {
     text: 'hidden',
   });
 
-  const [event] = await store.collectLatestEvents(1);
+  const [event] = await ctx.store.collectLatestEvents(1);
 
   if (event === undefined) {
     throw new Error('no event');
   }
 
-  const report = await store.findReport(event.id, {
+  const report = await ctx.store.findReport(event.id, {
     atcIDs: [toSessionID('s2')],
     agentSessionIDs: [],
   });
@@ -2410,11 +2415,9 @@ test('it misses a report of a session outside the scope', async () => {
 });
 
 test('it finds the preview of a report recorded without its whole text', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using ctx = await setupTest();
 
-  const first = await StateStore.open(dbPath);
-
-  await first.recordTrailEntry({
+  await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
@@ -2424,18 +2427,20 @@ test('it finds the preview of a report recorded without its whole text', async (
     text: 'the preview and the rest',
   });
 
-  await first.stop();
+  await ctx.store.stop();
 
-  const db = new Database(dbPath);
+  const db = new Database(ctx.dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
 
   db.run('UPDATE events SET report_text = NULL');
   db.close();
 
-  const store = await StateStore.open(dbPath);
+  const store = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  onTestFinished(() => store.stop());
 
   const [event] = await store.collectLatestEvents(1);
 
@@ -2445,25 +2450,26 @@ test('it finds the preview of a report recorded without its whole text', async (
 
   const report = await store.findReport(event.id);
 
-  expect(report).toMatchObject({
+  expect(report).toStrictEqual({
+    id: event.id,
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    label: 'decision',
     text: 'the preview',
     complete: false,
   });
 });
 
 test('it reads the trail in order across hook events and message entries', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
     { kind: 'started' },
   );
 
-  await store.recordTrailEntry({
+  await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
@@ -2472,24 +2478,46 @@ test('it reads the trail in order across hook events and message entries', async
     detail: 'hello',
   });
 
-  await store.recordEvent(
+  await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
     { kind: 'turn-done' },
   );
 
-  const events = await store.collectLatestEvents(10);
+  const events = await ctx.store.collectLatestEvents(10);
 
-  expect(events.map((e) => e.kind)).toStrictEqual(['started', 'message-accepted', 'turn-done']);
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'started',
+      detail: null,
+    },
+    {
+      id: expect.toBeNumber(),
+      at: 1000,
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'message-accepted',
+      detail: 'hello',
+      message: toMessageID('m-1'),
+    },
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'turn-done',
+      detail: null,
+    },
+  ]);
 });
 
 test('it stamps trail entries recorded before the agent session id was known', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordTrailEntry({
+  await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
@@ -2498,7 +2526,7 @@ test('it stamps trail entries recorded before the agent session id was known', a
     detail: 'hello',
   });
 
-  await store.recordTrailEntry({
+  await ctx.store.recordTrailEntry({
     at: 2000,
     atcID: toSessionID('s2'),
     agentSessionID: null,
@@ -2508,9 +2536,9 @@ test('it stamps trail entries recorded before the agent session id was known', a
     text: 'other session',
   });
 
-  await store.updateTrailOwner(toSessionID('s1'), toAgentSessionID('c1'));
+  await ctx.store.updateTrailOwner(toSessionID('s1'), toAgentSessionID('c1'));
 
-  const events = await store.collectLatestEvents(10);
+  const events = await ctx.store.collectLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -2535,13 +2563,9 @@ test('it stamps trail entries recorded before the agent session id was known', a
 });
 
 test("it counts a trail entry toward its session's last activity time", async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.recordTrailEntry({
+  await ctx.store.recordTrailEntry({
     at: 5000,
     atcID: toSessionID('s-old'),
     agentSessionID: toAgentSessionID('c1'),
@@ -2551,17 +2575,13 @@ test("it counts a trail entry toward its session's last activity time", async ()
     text: 'need review',
   });
 
-  const at = await store.loadLastActivityAt(toSessionID('s-new'), toAgentSessionID('c1'));
+  const at = await ctx.store.loadLastActivityAt(toSessionID('s-new'), toAgentSessionID('c1'));
 
   expect(at).toBe(5000);
 });
 
 test('it answers every message of one turn in one call and returns them oldest first', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const owner = { atcID: toSessionID('s1') };
 
@@ -2571,10 +2591,10 @@ test('it answers every message of one turn in one call and returns them oldest f
     status: 'accepted' as const,
   };
 
-  await store.writeMessage({ ...base, id: toMessageID('m-2'), text: 'two', sentAt: 2000 });
-  await store.writeMessage({ ...base, id: toMessageID('m-1'), text: 'one', sentAt: 1000 });
+  await ctx.store.writeMessage({ ...base, id: toMessageID('m-2'), text: 'two', sentAt: 2000 });
+  await ctx.store.writeMessage({ ...base, id: toMessageID('m-1'), text: 'one', sentAt: 1000 });
 
-  const answered = await store.updateMessagesAnswered(
+  const answered = await ctx.store.updateMessagesAnswered(
     [toMessageID('m-2'), toMessageID('m-1')],
     owner,
     'both',
@@ -2582,28 +2602,67 @@ test('it answers every message of one turn in one call and returns them oldest f
     't-1',
   );
 
-  const [oldest] = answered;
+  expect(answered).toStrictEqual([
+    {
+      id: toMessageID('m-1'),
+      atcID: toSessionID('s1'),
+      from: 'alice',
+      text: 'one',
+      status: 'answered',
+      sentAt: 1000,
+      answeredAt: 3000,
+      answer: 'both',
+      turn: 't-1',
+    },
+    {
+      id: toMessageID('m-2'),
+      atcID: toSessionID('s1'),
+      from: 'alice',
+      text: 'two',
+      status: 'answered',
+      sentAt: 2000,
+      answeredAt: 3000,
+      answer: 'both',
+      turn: 't-1',
+    },
+  ]);
+});
 
-  if (oldest === undefined) {
-    throw new Error('nothing answered');
+test('it lists the other messages answered in the same turn as siblings', async () => {
+  await using ctx = await setupTest();
+
+  const owner = { atcID: toSessionID('s1') };
+
+  const base = {
+    atcID: toSessionID('s1'),
+    from: 'alice',
+    status: 'accepted' as const,
+  };
+
+  await ctx.store.writeMessage({ ...base, id: toMessageID('m-2'), text: 'two', sentAt: 2000 });
+  await ctx.store.writeMessage({ ...base, id: toMessageID('m-1'), text: 'one', sentAt: 1000 });
+
+  await ctx.store.updateMessagesAnswered(
+    [toMessageID('m-2'), toMessageID('m-1')],
+    owner,
+    'both',
+    3000,
+    't-1',
+  );
+
+  const oldest = await ctx.store.findMessage(toMessageID('m-1'), owner);
+
+  if (oldest === null) {
+    throw new Error('oldest message missing');
   }
 
-  const siblings = await store.collectTurnSiblings(oldest);
-
-  expect(answered.map((record) => [record.id, record.turn])).toStrictEqual([
-    [toMessageID('m-1'), 't-1'],
-    [toMessageID('m-2'), 't-1'],
-  ]);
+  const siblings = await ctx.store.collectTurnSiblings(oldest);
 
   expect(siblings).toStrictEqual([{ id: toMessageID('m-2'), atcID: toSessionID('s1') }]);
 });
 
 test('it lists the other messages of one turn in send order when they share a send time', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const owner = { atcID: toSessionID('s1') };
 
@@ -2614,11 +2673,11 @@ test('it lists the other messages of one turn in send order when they share a se
     sentAt: 1000,
   };
 
-  await store.writeMessage({ ...base, id: toMessageID('m-c'), text: 'first' });
-  await store.writeMessage({ ...base, id: toMessageID('m-b'), text: 'second' });
-  await store.writeMessage({ ...base, id: toMessageID('m-a'), text: 'third' });
+  await ctx.store.writeMessage({ ...base, id: toMessageID('m-c'), text: 'first' });
+  await ctx.store.writeMessage({ ...base, id: toMessageID('m-b'), text: 'second' });
+  await ctx.store.writeMessage({ ...base, id: toMessageID('m-a'), text: 'third' });
 
-  await store.updateMessagesAnswered(
+  await ctx.store.updateMessagesAnswered(
     [toMessageID('m-c'), toMessageID('m-b'), toMessageID('m-a')],
     owner,
     'all',
@@ -2626,13 +2685,13 @@ test('it lists the other messages of one turn in send order when they share a se
     't-1',
   );
 
-  const first = await store.findMessage(toMessageID('m-c'), owner);
+  const first = await ctx.store.findMessage(toMessageID('m-c'), owner);
 
   if (first === null) {
     throw new Error('first message missing');
   }
 
-  const siblings = await store.collectTurnSiblings(first);
+  const siblings = await ctx.store.collectTurnSiblings(first);
 
   expect(siblings).toStrictEqual([
     { id: toMessageID('m-b'), atcID: toSessionID('s1') },
@@ -2641,8 +2700,9 @@ test('it lists the other messages of one turn in send order when they share a se
 });
 
 test('it links a legacy fleet.json sub-session to its parent by the minted session id', async () => {
-  const dir = setupDir();
-  const legacy = join(dir, 'fleet.json');
+  await using tmp = setupTempDir('atc-store-');
+
+  const legacy = join(tmp.dir, 'fleet.json');
 
   writeFileSync(
     legacy,
@@ -2652,11 +2712,9 @@ test('it links a legacy fleet.json sub-session to its parent by the minted sessi
     ]),
   );
 
-  const store = await StateStore.open(join(dir, 'state.db'), legacy);
+  const store = await StateStore.open(join(tmp.dir, 'state.db'), legacy);
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  onTestFinished(() => store.stop());
 
   const fleet = await store.loadFleet();
 
@@ -2671,9 +2729,15 @@ test('it links a legacy fleet.json sub-session to its parent by the minted sessi
 });
 
 test('it rebuilds a fleet at the model-and-effort shape keyed by a minted session id', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
 
   db.run(`
     CREATE TABLE fleet (
@@ -2759,11 +2823,20 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  onTestFinished(() => store.stop());
 
   const fleet = await store.loadFleet();
+
+  const reader = new Database(dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    reader.close();
+  });
+
+  const ledger = reader
+    .query<{ name: string }, []>('SELECT name FROM kysely_migration')
+    .all()
+    .map((row) => row.name);
 
   const parent = fleet.find((entry) => entry.name === 'wrangler');
 
@@ -2773,7 +2846,9 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
 
   expect(fleet).toIncludeSameMembers([
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'wrangler',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c-parent'),
@@ -2787,7 +2862,9 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
       effort: 'high',
     },
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'worker',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c-child'),
@@ -2796,14 +2873,18 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
       parent: parent.sessionID,
     },
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'stray',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c-orphan'),
       agent: 'grok',
     },
     {
-      sessionID: expect.toSatisfy(isUUID),
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
       name: 'unreported',
       cwd: '/x',
       agent: 'claude',
@@ -2812,24 +2893,17 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
   ]);
 
   expect(new Set(fleet.map((entry) => entry.sessionID)).size).toBe(4);
-
-  expect(collectMigrationLedger(dbPath).map((row) => row.name)).toContain(
-    '015_rebuild_fleet_keyed_by_session_id',
-  );
+  expect(ledger).toContain('015_rebuild_fleet_keyed_by_session_id');
 });
 
 test('it keeps a fleet row that has no agent session id', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     { sessionID: toSessionID('s-new'), name: 'booting', cwd: '/x', agent: 'claude' },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     { sessionID: toSessionID('s-new'), name: 'booting', cwd: '/x', agent: 'claude' },
@@ -2837,13 +2911,9 @@ test('it keeps a fleet row that has no agent session id', async () => {
 });
 
 test('it keeps the later of two fleet entries that share an agent session id', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-first'),
       name: 'first',
@@ -2860,7 +2930,7 @@ test('it keeps the later of two fleet entries that share an agent session id', a
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -2874,28 +2944,30 @@ test('it keeps the later of two fleet entries that share an agent session id', a
 });
 
 test('it keeps the same daemon id across a reopen', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using ctx = await setupTest();
 
-  const first = await StateStore.open(dbPath);
+  const firstID = ctx.store.daemonID;
 
-  const firstID = first.daemonID;
+  await ctx.store.stop();
 
-  await first.stop();
+  const second = await StateStore.open(ctx.dbPath);
 
-  const second = await StateStore.open(dbPath);
+  onTestFinished(() => second.stop());
 
-  onTestFinished(async () => {
-    await second.stop();
-  });
-
-  expect(firstID).toSatisfy(isUUID);
+  expect(firstID).toMatch(/^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/);
   expect(second.daemonID).toBe(firstID);
 });
 
 test('it records this daemon as the owner of every fleet row it migrates', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
+
+  onTestFinished(() => {
+    db.close();
+  });
 
   db.run(`
     CREATE TABLE fleet (
@@ -2917,6 +2989,8 @@ test('it records this daemon as the owner of every fleet row it migrates', async
   db.close();
 
   const store = await StateStore.open(dbPath);
+
+  onTestFinished(() => store.stop());
 
   const daemonID = store.daemonID;
 
@@ -2944,15 +3018,13 @@ test('it records this daemon as the owner of every fleet row it migrates', async
 });
 
 test("it rewrites only this daemon's fleet rows and leaves another daemon's in place", async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(dbPath);
+  const other = new Database(ctx.dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
+  onTestFinished(() => {
+    other.close();
   });
-
-  const other = new Database(dbPath);
 
   other.run(
     "INSERT INTO fleet (session_id, agent_session_id, name, cwd) VALUES ('s-theirs', 'c-theirs', 'theirs', '/z')",
@@ -2964,16 +3036,16 @@ test("it rewrites only this daemon's fleet rows and leaves another daemon's in p
 
   other.close();
 
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     { sessionID: toSessionID('s-mine'), name: 'mine', cwd: '/x', agent: 'claude' },
   ]);
 
-  await store.writeFleet(
+  await ctx.store.writeFleet(
     [{ sessionID: toSessionID('s-next'), name: 'next', cwd: '/y', agent: 'claude' }],
     [toSessionID('s-mine')],
   );
 
-  const reader = new Database(dbPath, { readonly: true });
+  const reader = new Database(ctx.dbPath, { readonly: true });
 
   onTestFinished(() => {
     reader.close();
@@ -2984,7 +3056,7 @@ test("it rewrites only this daemon's fleet rows and leaves another daemon's in p
     .all()
     .map((row) => row.session_id);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(stored).toStrictEqual(['s-next', 's-theirs']);
 
@@ -2994,30 +3066,28 @@ test("it rewrites only this daemon's fleet rows and leaves another daemon's in p
 });
 
 test('it rejects a fleet write for a session whose ownership epoch moved on as stale_epoch', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(dbPath);
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     { sessionID: toSessionID('s-1'), name: 'before', cwd: '/x', agent: 'claude' },
   ]);
 
-  const other = new Database(dbPath);
+  const other = new Database(ctx.dbPath);
+
+  onTestFinished(() => {
+    other.close();
+  });
 
   other.run("UPDATE session_owner SET owner_epoch = 2 WHERE session_id = 's-1'");
   other.close();
 
-  const write = store.writeFleet([
+  const write = ctx.store.writeFleet([
     { sessionID: toSessionID('s-1'), name: 'after', cwd: '/x', agent: 'claude' },
   ]);
 
   expect(write).rejects.toMatchObject({ code: 'stale_epoch' });
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     { sessionID: toSessionID('s-1'), name: 'before', cwd: '/x', agent: 'claude' },
@@ -3025,15 +3095,13 @@ test('it rejects a fleet write for a session whose ownership epoch moved on as s
 });
 
 test('it rejects a fleet write for a session another daemon owns as stale_epoch', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(dbPath);
+  const other = new Database(ctx.dbPath);
 
-  onTestFinished(async () => {
-    await store.stop();
+  onTestFinished(() => {
+    other.close();
   });
-
-  const other = new Database(dbPath);
 
   other.run(
     "INSERT INTO session_owner (session_id, daemon_id, updated_at) VALUES ('s-theirs', 'd-other', 1)",
@@ -3041,7 +3109,7 @@ test('it rejects a fleet write for a session another daemon owns as stale_epoch'
 
   other.close();
 
-  const write = store.writeFleet([
+  const write = ctx.store.writeFleet([
     { sessionID: toSessionID('s-theirs'), name: 'stolen', cwd: '/x', agent: 'claude' },
   ]);
 
@@ -3049,34 +3117,28 @@ test('it rejects a fleet write for a session another daemon owns as stale_epoch'
 });
 
 test('it rejects a fleet row update for a session whose ownership epoch moved on as stale_epoch', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using ctx = await setupTest();
 
-  const store = await StateStore.open(dbPath);
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     { sessionID: toSessionID('s-1'), name: 'one', cwd: '/x', agent: 'claude' },
   ]);
 
-  const other = new Database(dbPath);
+  const other = new Database(ctx.dbPath);
+
+  onTestFinished(() => {
+    other.close();
+  });
 
   other.run("UPDATE session_owner SET owner_epoch = 2 WHERE session_id = 's-1'");
   other.close();
 
-  expect(store.updateFleetEntry(toSessionID('s-1'), { result: 'late' })).rejects.toMatchObject({
+  expect(ctx.store.updateFleetEntry(toSessionID('s-1'), { result: 'late' })).rejects.toMatchObject({
     code: 'stale_epoch',
   });
 });
 
-test('it claims a free idempotency key and hands back the record of a held one', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+test('it claims a free idempotency key', async () => {
+  await using ctx = await setupTest();
 
   const claim = {
     principal: 'local',
@@ -3087,12 +3149,28 @@ test('it claims a free idempotency key and hands back the record of a held one',
     at: 1000,
   };
 
-  const first = await store.claimIdempotencyKey(claim);
-  const second = await store.claimIdempotencyKey({ ...claim, effectRef: 's-2', at: 2000 });
+  const claimed = await ctx.store.claimIdempotencyKey(claim);
 
-  expect(first).toBeNull();
+  expect(claimed).toBeNull();
+});
 
-  expect(second).toStrictEqual({
+test('it hands back the record of a held idempotency key', async () => {
+  await using ctx = await setupTest();
+
+  const claim = {
+    principal: 'local',
+    operation: 'session.spawn',
+    key: 'k-1',
+    payloadHash: 'h-1',
+    effectRef: 's-1',
+    at: 1000,
+  };
+
+  await ctx.store.claimIdempotencyKey(claim);
+
+  const held = await ctx.store.claimIdempotencyKey({ ...claim, effectRef: 's-2', at: 2000 });
+
+  expect(held).toStrictEqual({
     principal: 'local',
     operation: 'session.spawn',
     key: 'k-1',
@@ -3107,11 +3185,7 @@ test('it claims a free idempotency key and hands back the record of a held one',
 });
 
 test("it keeps the target a completed key's effect was bound to", async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const claim = {
     principal: 'local',
@@ -3122,82 +3196,114 @@ test("it keeps the target a completed key's effect was bound to", async () => {
     at: 1000,
   };
 
-  await store.claimIdempotencyKey(claim);
+  await ctx.store.claimIdempotencyKey(claim);
 
-  await store.updateIdempotencyCompleted(claim, '{}', 2000, {
+  await ctx.store.updateIdempotencyCompleted(claim, '{}', 2000, {
     target: 'box',
     targetIdentity: 'local-pty:0123456789abcdef',
   });
 
-  const held = await store.claimIdempotencyKey(claim);
+  const held = await ctx.store.claimIdempotencyKey(claim);
 
-  expect(held).toMatchObject({
+  expect(held).toStrictEqual({
+    principal: 'local',
+    operation: 'session.spawn',
+    key: 'k-1',
+    payloadHash: 'h-1',
     state: 'completed',
+    effectRef: 's-1',
+    result: '{}',
     effectTarget: { target: 'box', targetIdentity: 'local-pty:0123456789abcdef' },
+    createdAt: 1000,
+    updatedAt: 2000,
   });
 });
 
 test('it reconciles an interrupted spawn key by whether its session reached the fleet', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const claim = { principal: 'local', operation: 'session.spawn', payloadHash: 'h', at: 1000 };
 
-  await store.claimIdempotencyKey({ ...claim, key: 'landed', effectRef: 's-landed' });
-  await store.claimIdempotencyKey({ ...claim, key: 'lost', effectRef: 's-lost' });
+  await ctx.store.claimIdempotencyKey({ ...claim, key: 'landed', effectRef: 's-landed' });
+  await ctx.store.claimIdempotencyKey({ ...claim, key: 'lost', effectRef: 's-lost' });
 
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     { sessionID: toSessionID('s-landed'), name: 'landed', cwd: '/x', agent: 'claude' },
   ]);
 
-  await store.reconcileIdempotencyKeys(5000);
+  await ctx.store.reconcileIdempotencyKeys(5000);
 
-  const landed = await store.claimIdempotencyKey({ ...claim, key: 'landed', effectRef: 'x' });
-  const lost = await store.claimIdempotencyKey({ ...claim, key: 'lost', effectRef: 'x' });
+  const landed = await ctx.store.claimIdempotencyKey({ ...claim, key: 'landed', effectRef: 'x' });
+  const lost = await ctx.store.claimIdempotencyKey({ ...claim, key: 'lost', effectRef: 'x' });
 
-  expect(landed).toMatchObject({ state: 'completed', updatedAt: 5000 });
-  expect(lost).toMatchObject({ state: 'outcome_unknown', updatedAt: 5000 });
+  expect({ landed, lost }).toStrictEqual({
+    landed: {
+      principal: 'local',
+      operation: 'session.spawn',
+      key: 'landed',
+      payloadHash: 'h',
+      state: 'completed',
+      effectRef: 's-landed',
+      result: null,
+      effectTarget: null,
+      createdAt: 1000,
+      updatedAt: 5000,
+    },
+    lost: {
+      principal: 'local',
+      operation: 'session.spawn',
+      key: 'lost',
+      payloadHash: 'h',
+      state: 'outcome_unknown',
+      effectRef: 's-lost',
+      result: null,
+      effectTarget: null,
+      createdAt: 1000,
+      updatedAt: 5000,
+    },
+  });
 });
 
 test('it expires completed idempotency keys and keeps unknown outcomes of the same age', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   const claim = { principal: 'local', operation: 'session.spawn', payloadHash: 'h', at: 1000 };
 
-  await store.claimIdempotencyKey({ ...claim, key: 'done', effectRef: 's-done' });
+  await ctx.store.claimIdempotencyKey({ ...claim, key: 'done', effectRef: 's-done' });
 
-  await store.updateIdempotencyCompleted(
+  await ctx.store.updateIdempotencyCompleted(
     { principal: 'local', operation: 'session.spawn', key: 'done' },
     '{}',
     1000,
   );
 
-  await store.claimIdempotencyKey({ ...claim, key: 'unknown', effectRef: 's-unknown' });
-  await store.reconcileIdempotencyKeys(1000);
-  await store.removeExpiredIdempotencyKeys(2000);
+  await ctx.store.claimIdempotencyKey({ ...claim, key: 'unknown', effectRef: 's-unknown' });
+  await ctx.store.reconcileIdempotencyKeys(1000);
+  await ctx.store.removeExpiredIdempotencyKeys(2000);
 
-  const done = await store.claimIdempotencyKey({ ...claim, key: 'done', effectRef: 's-new' });
-  const unknown = await store.claimIdempotencyKey({ ...claim, key: 'unknown', effectRef: 'x' });
+  const done = await ctx.store.claimIdempotencyKey({ ...claim, key: 'done', effectRef: 's-new' });
+  const unknown = await ctx.store.claimIdempotencyKey({ ...claim, key: 'unknown', effectRef: 'x' });
 
   expect(done).toBeNull();
-  expect(unknown).toMatchObject({ state: 'outcome_unknown' });
+
+  expect(unknown).toStrictEqual({
+    principal: 'local',
+    operation: 'session.spawn',
+    key: 'unknown',
+    payloadHash: 'h',
+    state: 'outcome_unknown',
+    effectRef: 's-unknown',
+    result: null,
+    effectTarget: null,
+    createdAt: 1000,
+    updatedAt: 1000,
+  });
 });
 
 test('it writes no row as its own parent when every row in a chain shares one agent session id', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-top'),
       name: 'top',
@@ -3223,7 +3329,7 @@ test('it writes no row as its own parent when every row in a chain shares one ag
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -3237,13 +3343,9 @@ test('it writes no row as its own parent when every row in a chain shares one ag
 });
 
 test('it moves the sub-sessions of a replaced row up to the parent of the sub-session that replaced it', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-other'),
       name: 'other',
@@ -3276,25 +3378,41 @@ test('it moves the sub-sessions of a replaced row up to the parent of the sub-se
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
-  expect(fleet.map((entry) => [entry.sessionID, entry.parent])).toStrictEqual([
-    [toSessionID('s-other'), undefined],
-    [toSessionID('s-worker'), toSessionID('s-other')],
-    [toSessionID('s-resumed'), toSessionID('s-other')],
+  expect(fleet).toStrictEqual([
+    {
+      sessionID: toSessionID('s-other'),
+      name: 'other',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-other'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-worker'),
+      name: 'worker',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-worker'),
+      agent: 'claude',
+      parent: toSessionID('s-other'),
+    },
+    {
+      sessionID: toSessionID('s-resumed'),
+      name: 'resumed',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c1'),
+      agent: 'claude',
+      parent: toSessionID('s-other'),
+    },
   ]);
 });
 
 test('it breaks the cycle two crossed resumes make by keeping the earlier row top-level', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
-
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await using ctx = await setupTest();
 
   // R resumes P's agent session under Q, and S resumes Q's under P: replacing
   // P with R and Q with S links R under S and S under R.
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-p'),
       name: 'p',
@@ -3327,18 +3445,32 @@ test('it breaks the cycle two crossed resumes make by keeping the earlier row to
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
-  expect(fleet.map((entry) => [entry.sessionID, entry.parent])).toStrictEqual([
-    [toSessionID('s-r'), undefined],
-    [toSessionID('s-s'), toSessionID('s-r')],
+  expect(fleet).toStrictEqual([
+    {
+      sessionID: toSessionID('s-r'),
+      name: 'r',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-a'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-s'),
+      name: 's',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-b'),
+      agent: 'claude',
+      parent: toSessionID('s-r'),
+    },
   ]);
 });
 
-test('it writes every relinked fleet as a one-level hierarchy of rows it holds', async () => {
-  const fixtures: FleetEntry[][] = [
-    // A resume under the session whose agent session it resumes.
-    [
+test.each([
+  {
+    shape: 'a resume under the session whose agent session it resumes',
+    kept: ['w', 'r'],
+    fixture: [
       {
         sessionID: toSessionID('p'),
         name: 'p',
@@ -3362,10 +3494,12 @@ test('it writes every relinked fleet as a one-level hierarchy of rows it holds',
         agent: 'claude',
         parent: toSessionID('p'),
       },
-    ],
-
-    // Two crossed resumes.
-    [
+    ] satisfies FleetEntry[],
+  },
+  {
+    shape: 'two crossed resumes',
+    kept: ['r', 's'],
+    fixture: [
       {
         sessionID: toSessionID('p'),
         name: 'p',
@@ -3396,10 +3530,12 @@ test('it writes every relinked fleet as a one-level hierarchy of rows it holds',
         agent: 'claude',
         parent: toSessionID('p'),
       },
-    ],
-
-    // Three resumes crossed in a ring, each with a worker under the row it replaces.
-    [
+    ] satisfies FleetEntry[],
+  },
+  {
+    shape: 'three resumes crossed in a ring, each with a worker under the row it replaces',
+    kept: ['wp', 'wq', 'r', 's', 'u'],
+    fixture: [
       {
         sessionID: toSessionID('p'),
         name: 'p',
@@ -3461,10 +3597,12 @@ test('it writes every relinked fleet as a one-level hierarchy of rows it holds',
         agent: 'claude',
         parent: toSessionID('p'),
       },
-    ],
-
-    // A chain where every row shares one agent session id.
-    [
+    ] satisfies FleetEntry[],
+  },
+  {
+    shape: 'a chain where every row shares one agent session id',
+    kept: ['res'],
+    fixture: [
       {
         sessionID: toSessionID('top'),
         name: 'top',
@@ -3488,10 +3626,12 @@ test('it writes every relinked fleet as a one-level hierarchy of rows it holds',
         agent: 'claude',
         parent: toSessionID('sub'),
       },
-    ],
-
-    // A worker under a sub-session that took over its parent's place.
-    [
+    ] satisfies FleetEntry[],
+  },
+  {
+    shape: "a worker under a sub-session that took over its parent's place",
+    kept: ['o', 'w', 'r'],
+    fixture: [
       {
         sessionID: toSessionID('o'),
         name: 'o',
@@ -3522,10 +3662,12 @@ test('it writes every relinked fleet as a one-level hierarchy of rows it holds',
         agent: 'claude',
         parent: toSessionID('o'),
       },
-    ],
-
-    // A link to a row the write does not hold.
-    [
+    ] satisfies FleetEntry[],
+  },
+  {
+    shape: 'a link to a row the write does not hold',
+    kept: ['orphan'],
+    fixture: [
       {
         sessionID: toSessionID('orphan'),
         name: 'orphan',
@@ -3534,46 +3676,37 @@ test('it writes every relinked fleet as a one-level hierarchy of rows it holds',
         agent: 'claude',
         parent: toSessionID('gone'),
       },
-    ],
+    ] satisfies FleetEntry[],
+  },
+])('it writes $shape as a one-level hierarchy of rows it holds', async (row) => {
+  await using ctx = await setupTest();
+
+  await ctx.store.writeFleet(row.fixture);
+
+  const fleet = await ctx.store.loadFleet();
+
+  const parents = new Map(fleet.map((entry) => [entry.sessionID, entry.parent]));
+
+  const violations = [
+    ...fleet
+      .filter((entry) => entry.parent === entry.sessionID)
+      .map((entry) => `${entry.sessionID} is its own parent`),
+    ...fleet
+      .filter((entry) => entry.parent !== undefined && !parents.has(entry.parent))
+      .map((entry) => `${entry.sessionID} has a parent the fleet lacks`),
+    ...fleet
+      .filter((entry) => entry.parent !== undefined && parents.get(entry.parent) !== undefined)
+      .map((entry) => `${entry.sessionID} sits two levels deep or in a cycle`),
   ];
 
-  const violations: string[] = [];
-
-  for (const [index, fixture] of fixtures.entries()) {
-    const store = await StateStore.open(join(setupDir(), `state-${index}.db`));
-
-    await store.writeFleet(fixture);
-
-    const fleet = await store.loadFleet();
-
-    await store.stop();
-
-    const parents = new Map(fleet.map((entry) => [entry.sessionID, entry.parent]));
-
-    violations.push(
-      ...fleet
-        .filter((entry) => entry.parent === entry.sessionID)
-        .map((entry) => `fixture ${index}: ${entry.sessionID} is its own parent`),
-      ...fleet
-        .filter((entry) => entry.parent !== undefined && !parents.has(entry.parent))
-        .map((entry) => `fixture ${index}: ${entry.sessionID} has a parent the fleet lacks`),
-      ...fleet
-        .filter((entry) => entry.parent !== undefined && parents.get(entry.parent) !== undefined)
-        .map((entry) => `fixture ${index}: ${entry.sessionID} sits two levels deep or in a cycle`),
-    );
-  }
-
   expect(violations).toStrictEqual([]);
+  expect(fleet.map((entry) => entry.sessionID)).toIncludeSameMembers(row.kept);
 });
 
 test("it moves a row that replaced its own parent under that parent's parent", async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s-top'),
       name: 'top',
@@ -3599,22 +3732,31 @@ test("it moves a row that replaced its own parent under that parent's parent", a
     },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
-  expect(fleet.map((entry) => [entry.sessionID, entry.parent])).toStrictEqual([
-    [toSessionID('s-top'), undefined],
-    [toSessionID('s-resumed'), toSessionID('s-top')],
+  expect(fleet).toStrictEqual([
+    {
+      sessionID: toSessionID('s-top'),
+      name: 'top',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-top'),
+      agent: 'claude',
+    },
+    {
+      sessionID: toSessionID('s-resumed'),
+      name: 'resumed',
+      cwd: '/x',
+      agentSessionID: toAgentSessionID('c-a'),
+      agent: 'claude',
+      parent: toSessionID('s-top'),
+    },
   ]);
 });
 
 test('it records a workspace materialization through its phases', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.createMaterialization(
+  await ctx.store.createMaterialization(
     {
       sessionID: toSessionID('s-ws'),
       target: 'box',
@@ -3625,19 +3767,19 @@ test('it records a workspace materialization through its phases', async () => {
     1000,
   );
 
-  await store.updateMaterialization(
+  await ctx.store.updateMaterialization(
     toSessionID('s-ws'),
     { phase: 'cloning', repoURL: 'https://example.com/r.git', sha: 'a'.repeat(40), ref: 'main' },
     2000,
   );
 
-  await store.updateMaterialization(
+  await ctx.store.updateMaterialization(
     toSessionID('s-ws'),
     { phase: 'ready', materializedAt: 3000 },
     3000,
   );
 
-  const row = await store.findMaterialization(toSessionID('s-ws'));
+  const row = await ctx.store.findMaterialization(toSessionID('s-ws'));
 
   expect(row).toStrictEqual({
     sessionID: toSessionID('s-ws'),
@@ -3657,11 +3799,9 @@ test('it records a workspace materialization through its phases', async () => {
 });
 
 test('it fails every materialization a stopped daemon left short of ready', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using ctx = await setupTest();
 
-  const first = await StateStore.open(dbPath);
-
-  await first.createMaterialization(
+  await ctx.store.createMaterialization(
     {
       sessionID: toSessionID('s-resolving'),
       target: 'box',
@@ -3672,7 +3812,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     1000,
   );
 
-  await first.createMaterialization(
+  await ctx.store.createMaterialization(
     {
       sessionID: toSessionID('s-cloning'),
       target: 'box',
@@ -3683,7 +3823,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     1000,
   );
 
-  await first.createMaterialization(
+  await ctx.store.createMaterialization(
     {
       sessionID: toSessionID('s-transferring'),
       target: 'box',
@@ -3694,7 +3834,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     1000,
   );
 
-  await first.createMaterialization(
+  await ctx.store.createMaterialization(
     {
       sessionID: toSessionID('s-verifying'),
       target: 'box',
@@ -3705,7 +3845,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     1000,
   );
 
-  await first.createMaterialization(
+  await ctx.store.createMaterialization(
     {
       sessionID: toSessionID('s-ready'),
       target: 'box',
@@ -3716,7 +3856,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     1000,
   );
 
-  await first.createMaterialization(
+  await ctx.store.createMaterialization(
     {
       sessionID: toSessionID('s-failed'),
       target: 'box',
@@ -3727,24 +3867,28 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     1000,
   );
 
-  await first.updateMaterialization(toSessionID('s-cloning'), { phase: 'cloning' }, 1000);
-  await first.updateMaterialization(toSessionID('s-transferring'), { phase: 'transferring' }, 1000);
-  await first.updateMaterialization(toSessionID('s-verifying'), { phase: 'verifying' }, 1000);
-  await first.updateMaterialization(toSessionID('s-ready'), { phase: 'ready' }, 1000);
+  await ctx.store.updateMaterialization(toSessionID('s-cloning'), { phase: 'cloning' }, 1000);
 
-  await first.updateMaterialization(
+  await ctx.store.updateMaterialization(
+    toSessionID('s-transferring'),
+    { phase: 'transferring' },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(toSessionID('s-verifying'), { phase: 'verifying' }, 1000);
+  await ctx.store.updateMaterialization(toSessionID('s-ready'), { phase: 'ready' }, 1000);
+
+  await ctx.store.updateMaterialization(
     toSessionID('s-failed'),
     { phase: 'failed', errorCode: 'clone_failed' },
     1000,
   );
 
-  await first.stop();
+  await ctx.store.stop();
 
-  const second = await StateStore.open(dbPath);
+  const second = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(async () => {
-    await second.stop();
-  });
+  onTestFinished(() => second.stop());
 
   await second.reconcileMaterializations(5000);
 
@@ -3754,44 +3898,104 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     ),
   );
 
-  expect(rows).toMatchObject([
+  expect(rows).toStrictEqual([
     {
-      sessionID: 's-resolving',
+      sessionID: toSessionID('s-resolving'),
+      target: 'box',
+      dir: '/w/s-resolving',
+      sourceKind: 'path',
       phase: 'failed',
+      repoURL: null,
+      sha: null,
+      ref: null,
       errorCode: 'workspace_interrupted',
+      startedAt: 1000,
       updatedAt: 5000,
+      materializedAt: null,
+      withheldEnv: [],
     },
     {
-      sessionID: 's-cloning',
+      sessionID: toSessionID('s-cloning'),
+      target: 'box',
+      dir: '/w/s-cloning',
+      sourceKind: 'path',
       phase: 'failed',
+      repoURL: null,
+      sha: null,
+      ref: null,
       errorCode: 'workspace_interrupted',
+      startedAt: 1000,
       updatedAt: 5000,
+      materializedAt: null,
+      withheldEnv: [],
     },
     {
-      sessionID: 's-transferring',
+      sessionID: toSessionID('s-transferring'),
+      target: 'box',
+      dir: '/w/s-transferring',
+      sourceKind: 'path',
       phase: 'failed',
+      repoURL: null,
+      sha: null,
+      ref: null,
       errorCode: 'workspace_interrupted',
+      startedAt: 1000,
       updatedAt: 5000,
+      materializedAt: null,
+      withheldEnv: [],
     },
     {
-      sessionID: 's-verifying',
+      sessionID: toSessionID('s-verifying'),
+      target: 'box',
+      dir: '/w/s-verifying',
+      sourceKind: 'path',
       phase: 'failed',
+      repoURL: null,
+      sha: null,
+      ref: null,
       errorCode: 'workspace_interrupted',
+      startedAt: 1000,
       updatedAt: 5000,
+      materializedAt: null,
+      withheldEnv: [],
     },
-    { sessionID: 's-ready', phase: 'ready', errorCode: null, updatedAt: 1000 },
-    { sessionID: 's-failed', phase: 'failed', errorCode: 'clone_failed', updatedAt: 1000 },
+    {
+      sessionID: toSessionID('s-ready'),
+      target: 'box',
+      dir: '/w/s-ready',
+      sourceKind: 'path',
+      phase: 'ready',
+      repoURL: null,
+      sha: null,
+      ref: null,
+      errorCode: null,
+      startedAt: 1000,
+      updatedAt: 1000,
+      materializedAt: null,
+      withheldEnv: [],
+    },
+    {
+      sessionID: toSessionID('s-failed'),
+      target: 'box',
+      dir: '/w/s-failed',
+      sourceKind: 'path',
+      phase: 'failed',
+      repoURL: null,
+      sha: null,
+      ref: null,
+      errorCode: 'clone_failed',
+      startedAt: 1000,
+      updatedAt: 1000,
+      materializedAt: null,
+      withheldEnv: [],
+    },
   ]);
 });
 
 test('it loads a fleet row with its ready workspace and withheld variables, and none short of ready', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.createMaterialization(
+  await ctx.store.createMaterialization(
     {
       sessionID: toSessionID('s-ready'),
       target: 'local',
@@ -3802,7 +4006,7 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
     1000,
   );
 
-  await store.createMaterialization(
+  await ctx.store.createMaterialization(
     {
       sessionID: toSessionID('s-verifying'),
       target: 'local',
@@ -3813,7 +4017,7 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
     1000,
   );
 
-  await store.updateMaterialization(
+  await ctx.store.updateMaterialization(
     toSessionID('s-ready'),
     {
       phase: 'ready',
@@ -3825,19 +4029,19 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
     2000,
   );
 
-  await store.updateMaterialization(
+  await ctx.store.updateMaterialization(
     toSessionID('s-verifying'),
     { phase: 'verifying', repoURL: 'https://example.com/r.git', sha: 'b'.repeat(40), ref: null },
     2000,
   );
 
-  await store.writeFleet([
+  await ctx.store.writeFleet([
     { sessionID: toSessionID('s-ready'), name: 'ready', cwd: '/w/s-ready', agent: 'claude' },
     { sessionID: toSessionID('s-verifying'), name: 'mid', cwd: '/w/s-verifying', agent: 'claude' },
     { sessionID: toSessionID('s-plain'), name: 'plain', cwd: '/x', agent: 'claude' },
   ]);
 
-  const fleet = await store.loadFleet();
+  const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
@@ -3858,11 +4062,9 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
 });
 
 test('it upgrades a database from before runtime auth and keeps every existing row', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using ctx = await setupTest();
 
-  const first = await StateStore.open(dbPath);
-
-  await first.writeFleet([
+  await ctx.store.writeFleet([
     {
       sessionID: toSessionID('s1'),
       name: 'auth-bug',
@@ -3873,29 +4075,46 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     },
   ]);
 
-  await first.recordSpawnDir('/x', { target: 'box', targetIdentity: 'imp:0123456789abcdef' });
-  await first.stop();
+  await ctx.store.recordSpawnDir(
+    '/x',
+    { target: 'box', targetIdentity: 'imp:0123456789abcdef' },
+    1000,
+  );
 
-  const older = new Database(dbPath);
+  await ctx.store.stop();
+
+  const older = new Database(ctx.dbPath);
+
+  onTestFinished(() => {
+    older.close();
+  });
 
   older.run('DROP TABLE runtime_auth_grant');
   older.run('DROP TABLE runtime_auth_binding');
   older.run("DELETE FROM kysely_migration WHERE name = '025_create_runtime_auth'");
   older.close();
 
-  const upgraded = await StateStore.open(dbPath);
+  const upgraded = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(async () => {
-    await upgraded.stop();
+  onTestFinished(() => upgraded.stop());
+
+  const reader = new Database(ctx.dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    reader.close();
   });
+
+  const ledger = reader
+    .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
+    .all()
+    .map((row) => row.name)
+    .slice(-2);
 
   expect({
     fleet: await upgraded.loadFleet(),
     dirs: await upgraded.collectSpawnDirs(),
     binding: await upgraded.findAuthBinding(toSessionID('s1')),
-    ledger: collectMigrationLedger(dbPath)
-      .map((row) => row.name)
-      .slice(-2),
+    ledger,
   }).toStrictEqual({
     fleet: [
       {
@@ -3914,13 +4133,9 @@ test('it upgrades a database from before runtime auth and keeps every existing r
 });
 
 test('it records a runtime auth binding as provisioning at its first revision', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.createAuthBinding(
+  await ctx.store.createAuthBinding(
     {
       hostKey: toSessionID('s1'),
       target: 'box',
@@ -3933,7 +4148,7 @@ test('it records a runtime auth binding as provisioning at its first revision', 
     1000,
   );
 
-  const binding = await store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
   expect(binding).toStrictEqual({
     hostKey: toSessionID('s1'),
@@ -3955,13 +4170,9 @@ test('it records a runtime auth binding as provisioning at its first revision', 
 });
 
 test('it keeps the old revision of a binding whose rebind failed beside the failed attempt', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.createAuthBinding(
+  await ctx.store.createAuthBinding(
     {
       hostKey: toSessionID('s1'),
       target: 'box',
@@ -3974,13 +4185,13 @@ test('it keeps the old revision of a binding whose rebind failed beside the fail
     1000,
   );
 
-  await store.updateAuthBinding(
+  await ctx.store.updateAuthBinding(
     toSessionID('s1'),
     { state: 'ready', impID: 'imp-id-1', impCreatedByAttempt: true },
     2000,
   );
 
-  await store.updateAuthBinding(
+  await ctx.store.updateAuthBinding(
     toSessionID('s1'),
     {
       state: 'rebind_failed',
@@ -3994,7 +4205,7 @@ test('it keeps the old revision of a binding whose rebind failed beside the fail
     3000,
   );
 
-  const binding = await store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
   expect(binding).toStrictEqual({
     hostKey: toSessionID('s1'),
@@ -4021,13 +4232,9 @@ test('it keeps the old revision of a binding whose rebind failed beside the fail
 });
 
 test('it marks a binding revoked with the time of the revocation', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.createAuthBinding(
+  await ctx.store.createAuthBinding(
     {
       hostKey: toSessionID('s1'),
       target: 'box',
@@ -4040,29 +4247,37 @@ test('it marks a binding revoked with the time of the revocation', async () => {
     1000,
   );
 
-  await store.updateAuthBinding(
+  await ctx.store.updateAuthBinding(
     toSessionID('s1'),
     { state: 'revocation_pending', revokedAt: 2000 },
     2000,
   );
 
-  const binding = await store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect(binding).toMatchObject({
+  expect(binding).toStrictEqual({
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:0123456789abcdef',
+    impName: 'atc-s1',
+    impID: null,
+    revision: 1,
+    bindingHash: 'a'.repeat(64),
+    bindingJSON: '{"secrets":[]}',
     state: 'revocation_pending',
-    revokedAt: 2000,
+    attemptID: 'attempt-1',
+    impCreatedByAttempt: false,
+    rebind: null,
+    createdAt: 1000,
     updatedAt: 2000,
+    revokedAt: 2000,
   });
 });
 
 test('it writes a grant row per secret and moves it through its phases in place', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.upsertAuthGrant(
+  await ctx.store.upsertAuthGrant(
     {
       hostKey: toSessionID('s1'),
       secret: 'judge',
@@ -4074,7 +4289,7 @@ test('it writes a grant row per secret and moves it through its phases in place'
     1000,
   );
 
-  await store.upsertAuthGrant(
+  await ctx.store.upsertAuthGrant(
     {
       hostKey: toSessionID('s1'),
       secret: 'glm',
@@ -4086,7 +4301,7 @@ test('it writes a grant row per secret and moves it through its phases in place'
     1000,
   );
 
-  await store.upsertAuthGrant(
+  await ctx.store.upsertAuthGrant(
     {
       hostKey: toSessionID('s1'),
       secret: 'judge',
@@ -4098,7 +4313,7 @@ test('it writes a grant row per secret and moves it through its phases in place'
     2000,
   );
 
-  const grants = await store.collectAuthGrants(toSessionID('s1'));
+  const grants = await ctx.store.collectAuthGrants(toSessionID('s1'));
 
   expect(grants).toStrictEqual([
     {
@@ -4123,13 +4338,9 @@ test('it writes a grant row per secret and moves it through its phases in place'
 });
 
 test('it removes a binding and its grants and leaves another host untouched', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
-
-  await store.createAuthBinding(
+  await ctx.store.createAuthBinding(
     {
       hostKey: toSessionID('s1'),
       target: 'box',
@@ -4142,7 +4353,7 @@ test('it removes a binding and its grants and leaves another host untouched', as
     1000,
   );
 
-  await store.createAuthBinding(
+  await ctx.store.createAuthBinding(
     {
       hostKey: toSessionID('s2'),
       target: 'box',
@@ -4155,7 +4366,7 @@ test('it removes a binding and its grants and leaves another host untouched', as
     1000,
   );
 
-  await store.upsertAuthGrant(
+  await ctx.store.upsertAuthGrant(
     {
       hostKey: toSessionID('s1'),
       secret: 'glm',
@@ -4167,7 +4378,7 @@ test('it removes a binding and its grants and leaves another host untouched', as
     1000,
   );
 
-  await store.upsertAuthGrant(
+  await ctx.store.upsertAuthGrant(
     {
       hostKey: toSessionID('s2'),
       secret: 'glm',
@@ -4179,13 +4390,13 @@ test('it removes a binding and its grants and leaves another host untouched', as
     1000,
   );
 
-  await store.removeAuthBinding(toSessionID('s1'));
+  await ctx.store.removeAuthBinding(toSessionID('s1'));
 
   expect({
-    removed: await store.findAuthBinding(toSessionID('s1')),
-    removedGrants: await store.collectAuthGrants(toSessionID('s1')),
-    kept: await store.findAuthBinding(toSessionID('s2')),
-    keptGrants: await store.collectAuthGrants(toSessionID('s2')),
+    removed: await ctx.store.findAuthBinding(toSessionID('s1')),
+    removedGrants: await ctx.store.collectAuthGrants(toSessionID('s1')),
+    kept: await ctx.store.findAuthBinding(toSessionID('s2')),
+    keptGrants: await ctx.store.collectAuthGrants(toSessionID('s2')),
   }).toStrictEqual({
     removed: null,
     removedGrants: [],
@@ -4221,11 +4432,9 @@ test('it removes a binding and its grants and leaves another host untouched', as
 });
 
 test('it reconciles a grant a stopped daemon left granting as uncertain and leaves settled grants alone', async () => {
-  const dbPath = join(setupDir(), 'state.db');
+  await using ctx = await setupTest();
 
-  const first = await StateStore.open(dbPath);
-
-  await first.upsertAuthGrant(
+  await ctx.store.upsertAuthGrant(
     {
       hostKey: toSessionID('s1'),
       secret: 'glm',
@@ -4237,7 +4446,7 @@ test('it reconciles a grant a stopped daemon left granting as uncertain and leav
     1000,
   );
 
-  await first.upsertAuthGrant(
+  await ctx.store.upsertAuthGrant(
     {
       hostKey: toSessionID('s1'),
       secret: 'judge',
@@ -4249,13 +4458,11 @@ test('it reconciles a grant a stopped daemon left granting as uncertain and leav
     1000,
   );
 
-  await first.stop();
+  await ctx.store.stop();
 
-  const second = await StateStore.open(dbPath);
+  const second = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(async () => {
-    await second.stop();
-  });
+  onTestFinished(() => second.stop());
 
   await second.reconcileAuthBindings(5000);
 
@@ -4284,31 +4491,70 @@ test('it reconciles a grant a stopped daemon left granting as uncertain and leav
 });
 
 test('it collects every host binding by host key', async () => {
-  const store = await StateStore.open(join(setupDir(), 'state.db'));
+  await using ctx = await setupTest();
 
-  onTestFinished(async () => {
-    await store.stop();
-  });
+  await ctx.store.createAuthBinding(
+    {
+      hostKey: toSessionID('s2'),
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      impName: 'harness-s2',
+      bindingHash: 'a'.repeat(64),
+      bindingJSON: '{"secrets":[]}',
+      attemptID: 'attempt-s2',
+    },
+    1000,
+  );
 
-  for (const hostKey of ['s2', 's1']) {
-    await store.createAuthBinding(
-      {
-        hostKey: toSessionID(hostKey),
-        target: 'box',
-        targetIdentity: 'imp:0123456789abcdef',
-        impName: `harness-${hostKey}`,
-        bindingHash: 'a'.repeat(64),
-        bindingJSON: '{"secrets":[]}',
-        attemptID: `attempt-${hostKey}`,
-      },
-      1000,
-    );
-  }
+  await ctx.store.createAuthBinding(
+    {
+      hostKey: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      impName: 'harness-s1',
+      bindingHash: 'a'.repeat(64),
+      bindingJSON: '{"secrets":[]}',
+      attemptID: 'attempt-s1',
+    },
+    1000,
+  );
 
-  const bindings = await store.collectAuthBindings();
+  const bindings = await ctx.store.collectAuthBindings();
 
-  expect(bindings.map((binding) => [binding.hostKey, binding.impName])).toStrictEqual([
-    ['s1', 'harness-s1'],
-    ['s2', 'harness-s2'],
+  expect(bindings).toStrictEqual([
+    {
+      hostKey: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      impName: 'harness-s1',
+      impID: null,
+      revision: 1,
+      bindingHash: 'a'.repeat(64),
+      bindingJSON: '{"secrets":[]}',
+      state: 'provisioning',
+      attemptID: 'attempt-s1',
+      impCreatedByAttempt: false,
+      rebind: null,
+      createdAt: 1000,
+      updatedAt: 1000,
+      revokedAt: null,
+    },
+    {
+      hostKey: toSessionID('s2'),
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      impName: 'harness-s2',
+      impID: null,
+      revision: 1,
+      bindingHash: 'a'.repeat(64),
+      bindingJSON: '{"secrets":[]}',
+      state: 'provisioning',
+      attemptID: 'attempt-s2',
+      impCreatedByAttempt: false,
+      rebind: null,
+      createdAt: 1000,
+      updatedAt: 1000,
+      revokedAt: null,
+    },
   ]);
 });

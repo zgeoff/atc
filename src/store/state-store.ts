@@ -539,14 +539,14 @@ export class StateStore {
     return row?.ts === null || row?.ts === undefined ? null : Date.parse(row.ts);
   }
 
-  async recordSpawnDir(cwd: string, grant: SpawnTarget): Promise<void> {
+  async recordSpawnDir(cwd: string, grant: SpawnTarget, at: number): Promise<void> {
     await this.db
       .insertInto('spawn_history')
       .values({
         cwd,
         target: grant.target,
         target_identity: grant.targetIdentity,
-        last_spawn: Date.now(),
+        last_spawn: at,
       })
       .onConflict((oc) =>
         oc

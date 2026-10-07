@@ -1112,7 +1112,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       runtime.pendingLastUsed = true;
     }
 
-    void store.recordSpawnDir(s.cwd, { target: s.target, targetIdentity: s.targetIdentity });
+    void store.recordSpawnDir(
+      s.cwd,
+      { target: s.target, targetIdentity: s.targetIdentity },
+      Date.now(),
+    );
 
     return getDescriptor(mgr, s.id);
   };
