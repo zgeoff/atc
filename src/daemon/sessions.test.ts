@@ -5,7 +5,9 @@ import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubHostProvider } from '../test-utils/build-stub-host-provider';
+import { buildStubLog } from '../test-utils/build-stub-log';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
@@ -39,7 +41,7 @@ async function setupTest() {
     box.dispose();
   });
 
-  const lines: string[] = [];
+  const recorder = buildStubLog();
   const owned = stack.move();
 
   return {
@@ -57,10 +59,8 @@ async function setupTest() {
       },
       { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: box },
     ],
-    lines,
-    log: (line: string) => {
-      lines.push(line);
-    },
+    lines: recorder.lines,
+    log: recorder.log,
     defer: (teardown: () => void) => {
       owned.defer(teardown);
     },
@@ -85,13 +85,15 @@ test('it restores an entry whose agent id is registered as waiting for its termi
     mgr.detachAll();
   });
 
-  const session = mgr.restore({
-    sessionID: toSessionID('s-c-1'),
-    name: 'claude work',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-1'),
-    agent: 'claude',
-  });
+  const session = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-1'),
+      name: 'claude work',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-1'),
+      agent: 'claude',
+    }),
+  );
 
   expect(session.lastMsg).toBe('waiting to restore');
 });
@@ -113,13 +115,15 @@ test('it restores an entry whose agent id is unregistered with a message that th
     mgr.detachAll();
   });
 
-  const session = mgr.restore({
-    sessionID: toSessionID('s-z-1'),
-    name: 'glm work',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('z-1'),
-    agent: 'zai',
-  });
+  const session = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-z-1'),
+      name: 'glm work',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('z-1'),
+      agent: 'zai',
+    }),
+  );
 
   expect(session.lastMsg).toBe("no adapter for 'zai'");
 });
@@ -141,13 +145,15 @@ test('it never revives a restored entry whose agent id is unregistered as anothe
     mgr.detachAll();
   });
 
-  const session = mgr.restore({
-    sessionID: toSessionID('s-z-1'),
-    name: 'glm work',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('z-1'),
-    agent: 'zai',
-  });
+  const session = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-z-1'),
+      name: 'glm work',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('z-1'),
+      agent: 'zai',
+    }),
+  );
 
   const adopted = await mgr.adoptTerminal(session.id, 80, 24);
 
@@ -275,22 +281,26 @@ test('it links a restored sub-session to the parent already registered under its
     mgr.detachAll();
   });
 
-  const parent = mgr.restore({
-    sessionID: toSessionID('s-c-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-  });
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
 
-  const child = mgr.restore({
-    sessionID: toSessionID('s-c-child'),
-    name: 'worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-child'),
-    agent: 'claude',
-    parent: toSessionID('s-c-parent'),
-  });
+  const child = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
 
   expect(child.parent).toBe(parent.id);
 });
@@ -312,14 +322,16 @@ test('it restores a sub-session whose parent is absent as a top-level session', 
     mgr.detachAll();
   });
 
-  const child = mgr.restore({
-    sessionID: toSessionID('s-c-child'),
-    name: 'worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-child'),
-    agent: 'claude',
-    parent: toSessionID('s-c-gone'),
-  });
+  const child = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-gone'),
+    }),
+  );
 
   expect(child.parent).toBeNull();
 });
@@ -341,13 +353,15 @@ test('it persists a sub-session link by the parent atc session id', async () => 
     mgr.detachAll();
   });
 
-  const parent = mgr.restore({
-    sessionID: toSessionID('s-c-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-  });
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
 
   const child = await mgr.spawn(
     ctx.dir,
@@ -390,6 +404,69 @@ test('it persists a sub-session link by the parent atc session id', async () => 
   ]);
 });
 
+test('it stores a sub-session under a sub-session that resumed their parent agent session', async () => {
+  await using ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-parent'),
+      name: 'wrangler',
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-parent'),
+      exited: true,
+    }),
+  );
+
+  const child = await mgr.spawn(
+    ctx.dir,
+    'worker',
+    '',
+    80,
+    24,
+    toAgentSessionID('c-child'),
+    'user',
+    'claude',
+    parent.id,
+  );
+
+  // Spawned under the session whose agent session it resumes, so the row
+  // it replaces is its own parent.
+  const resumed = await mgr.spawn(
+    ctx.dir,
+    'wrangler',
+    '',
+    80,
+    24,
+    toAgentSessionID('c-parent'),
+    'user',
+    'claude',
+    parent.id,
+  );
+
+  await mgr.writeFleet();
+
+  const stored = await ctx.store.loadFleet();
+
+  expect(stored.map((entry) => [entry.sessionID, entry.parent])).toStrictEqual([
+    [child.id, resumed.id],
+    [resumed.id, undefined],
+  ]);
+});
+
 test('it refuses to pin a sub-session and leaves it unpinned', async () => {
   await using ctx = await setupTest();
 
@@ -407,22 +484,26 @@ test('it refuses to pin a sub-session and leaves it unpinned', async () => {
     mgr.detachAll();
   });
 
-  mgr.restore({
-    sessionID: toSessionID('s-c-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
 
-  const child = mgr.restore({
-    sessionID: toSessionID('s-c-child'),
-    name: 'worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-child'),
-    agent: 'claude',
-    parent: toSessionID('s-c-parent'),
-  });
+  const child = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
 
   const pinned = mgr.updateSession(child.id, undefined, true);
 
@@ -449,22 +530,26 @@ test('it pins a parent that has a sub-session', async () => {
     mgr.detachAll();
   });
 
-  const parent = mgr.restore({
-    sessionID: toSessionID('s-c-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-  });
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
 
-  mgr.restore({
-    sessionID: toSessionID('s-c-child'),
-    name: 'worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-child'),
-    agent: 'claude',
-    parent: toSessionID('s-c-parent'),
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
 
   expect(mgr.updateSession(parent.id, undefined, true)).toBeTrue();
 });
@@ -515,24 +600,28 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
     mgr.detachAll();
   });
 
-  const parent = mgr.restore({
-    sessionID: toSessionID('s-c-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-    exited: true,
-  });
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+      exited: true,
+    }),
+  );
 
-  mgr.restore({
-    sessionID: toSessionID('s-c-dead'),
-    name: 'dead worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-dead'),
-    agent: 'claude',
-    exited: true,
-    parent: toSessionID('s-c-parent'),
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-dead'),
+      name: 'dead worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-dead'),
+      agent: 'claude',
+      exited: true,
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
 
   const live = await mgr.spawn(
     ctx.dir,
@@ -570,28 +659,32 @@ test('it keeps an exited sub-session on a host-destroying target when a second k
     mgr.detachAll();
   });
 
-  mgr.restore({
-    sessionID: toSessionID('s-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-    exited: true,
-    target: 'local',
-    targetIdentity: buildTargetIdentity('local-pty', {}),
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+      exited: true,
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
+    }),
+  );
 
-  const remote = mgr.restore({
-    sessionID: toSessionID('s-remote'),
-    name: 'remote worker',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-remote'),
-    agent: 'claude',
-    exited: true,
-    parent: toSessionID('s-parent'),
-    target: 'box',
-    targetIdentity: 'imp-like:test',
-  });
+  const remote = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote'),
+      name: 'remote worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-remote'),
+      agent: 'claude',
+      exited: true,
+      parent: toSessionID('s-parent'),
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  );
 
   await mgr.kill(toSessionID('s-parent'));
 
@@ -617,31 +710,35 @@ test("it refuses to forget a session kept asleep inside its parent's host and ke
     mgr.detachAll();
   });
 
-  mgr.restore({
-    sessionID: toSessionID('s-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-    exited: true,
-    desired: 'sleep',
-    target: 'box',
-    targetIdentity: 'imp-like:test',
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+      exited: true,
+      desired: 'sleep',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  );
 
-  mgr.restore({
-    sessionID: toSessionID('s-guest'),
-    name: 'guest',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-guest'),
-    agent: 'claude',
-    exited: true,
-    desired: 'sleep',
-    parent: toSessionID('s-parent'),
-    hostKey: toSessionID('s-parent'),
-    target: 'box',
-    targetIdentity: 'imp-like:test',
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-guest'),
+      name: 'guest',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-guest'),
+      agent: 'claude',
+      exited: true,
+      desired: 'sleep',
+      parent: toSessionID('s-parent'),
+      hostKey: toSessionID('s-parent'),
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  );
 
   const forgotten = mgr.forget(toSessionID('s-guest'));
 
@@ -673,29 +770,33 @@ test("it forgets an exited session on its parent's host while that host is not a
     mgr.detachAll();
   });
 
-  mgr.restore({
-    sessionID: toSessionID('s-parent'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-parent'),
-    agent: 'claude',
-    exited: true,
-    target: 'box',
-    targetIdentity: 'imp-like:test',
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+      exited: true,
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  );
 
-  mgr.restore({
-    sessionID: toSessionID('s-guest'),
-    name: 'guest',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-guest'),
-    agent: 'claude',
-    exited: true,
-    parent: toSessionID('s-parent'),
-    hostKey: toSessionID('s-parent'),
-    target: 'box',
-    targetIdentity: 'imp-like:test',
-  });
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-guest'),
+      name: 'guest',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-guest'),
+      agent: 'claude',
+      exited: true,
+      parent: toSessionID('s-parent'),
+      hostKey: toSessionID('s-parent'),
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  );
 
   const destroyed = await mgr.forget(toSessionID('s-guest'));
 
@@ -847,16 +948,18 @@ test("it restores an entry's prompt, result, and transcript path onto the sessio
     mgr.detachAll();
   });
 
-  const session = mgr.restore({
-    sessionID: toSessionID('s-c-1'),
-    name: 'wrangler',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-1'),
-    agent: 'claude',
-    prompt: 'go',
-    result: 'done',
-    transcriptPath: '/t.jsonl',
-  });
+  const session = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-1'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-1'),
+      agent: 'claude',
+      prompt: 'go',
+      result: 'done',
+      transcriptPath: '/t.jsonl',
+    }),
+  );
 
   expect(session).toMatchObject({ prompt: 'go', result: 'done', transcriptPath: '/t.jsonl' });
   expect(session.transcriptSource).toBeUndefined();
@@ -944,13 +1047,15 @@ test('it restores an entry under the session id its row holds', async () => {
     mgr.detachAll();
   });
 
-  const session = mgr.restore({
-    sessionID: toSessionID('7d3f0c1e-2b4a-4c5d-8e9f-0a1b2c3d4e5f'),
-    name: 'claude work',
-    cwd: '/work/proj',
-    agentSessionID: toAgentSessionID('c-1'),
-    agent: 'claude',
-  });
+  const session = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('7d3f0c1e-2b4a-4c5d-8e9f-0a1b2c3d4e5f'),
+      name: 'claude work',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-1'),
+      agent: 'claude',
+    }),
+  );
 
   expect(session.id).toBe(toSessionID('7d3f0c1e-2b4a-4c5d-8e9f-0a1b2c3d4e5f'));
 });

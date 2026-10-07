@@ -15,9 +15,8 @@ import { SessionManager } from './sessions';
 
 /**
  * A session manager whose `local` target prepares each host only once the
- * test releases it, over a real state store holding a stored fleet of
- * three sessions, `s-a`, `s-b`, and `s-c`, in that order. No session holds
- * a runtime, so the stagger waits on no boot.
+ * test releases it, over a real state store. No session holds a runtime,
+ * so the stagger waits on no boot.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
@@ -50,17 +49,12 @@ async function setupTest() {
     mgr.detachAll();
   });
 
-  await store.writeFleet(
-    ['s-a', 's-b', 's-c'].map((id) =>
-      buildMockFleetEntry({ sessionID: toSessionID(id), cwd: tmp.dir }),
-    ),
-  );
-
   const runtimes = new Map<SessionID, SessionRuntime>();
 
   const moved = stack.move();
 
   return {
+    dir: tmp.dir,
     store,
     mgr,
     held,
@@ -71,6 +65,12 @@ async function setupTest() {
 
 test('it starts no harness once the daemon stopped before the restore began', async () => {
   await using ctx = await setupTest();
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: ctx.dir }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: ctx.dir }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-c'), cwd: ctx.dir }),
+  ]);
 
   const result = await restoreFleet({
     mgr: ctx.mgr,
@@ -92,6 +92,12 @@ test('it starts no harness once the daemon stopped before the restore began', as
 
 test('it starts no harness once the daemon stops while the first one starts', async () => {
   await using ctx = await setupTest();
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: ctx.dir }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: ctx.dir }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-c'), cwd: ctx.dir }),
+  ]);
 
   let stopped = false;
 
@@ -124,6 +130,12 @@ test('it starts no harness once the daemon stops while the first one starts', as
 
 test('it starts no harness once the daemon stops while the last queued one starts', async () => {
   await using ctx = await setupTest();
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: ctx.dir }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: ctx.dir }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-c'), cwd: ctx.dir }),
+  ]);
 
   let stopped = false;
 

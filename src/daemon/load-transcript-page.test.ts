@@ -5,10 +5,16 @@ import { parseClaudeTranscriptLine } from '../agents/parse-claude-transcript-lin
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { loadTranscriptPage } from './load-transcript-page';
 
-test('it reads every row from the start of a transcript', async () => {
-  using temp = setupTempDir('atc-transcript-');
+function setupTest() {
+  const tmp = setupTempDir('atc-transcript-');
 
-  const path = join(temp.dir, 't.jsonl');
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+}
+
+test('it reads every row from the start of a transcript', async () => {
+  using ctx = setupTest();
+
+  const path = join(ctx.dir, 't.jsonl');
 
   const content =
     '{"type":"user","message":{"role":"user","content":"one"}}\n' +
@@ -25,15 +31,20 @@ test('it reads every row from the start of a transcript', async () => {
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(page.rows.map((row) => row.text)).toStrictEqual(['one', 'two', 'three']);
+  expect(page.rows).toStrictEqual([
+    { role: 'user', text: 'one', tools: [], at: null },
+    { role: 'user', text: 'two', tools: [], at: null },
+    { role: 'user', text: 'three', tools: [], at: null },
+  ]);
+
   expect(page.offset).toBe(Buffer.byteLength(content));
   expect(page.more).toBe(false);
 });
 
 test('it stops at the row limit and reports more rows', async () => {
-  using temp = setupTempDir('atc-transcript-');
+  using ctx = setupTest();
 
-  const path = join(temp.dir, 't.jsonl');
+  const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
     path,
@@ -50,14 +61,18 @@ test('it stops at the row limit and reports more rows', async () => {
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(page.rows.map((row) => row.text)).toStrictEqual(['one', 'two']);
+  expect(page.rows).toStrictEqual([
+    { role: 'user', text: 'one', tools: [], at: null },
+    { role: 'user', text: 'two', tools: [], at: null },
+  ]);
+
   expect(page.more).toBe(true);
 });
 
 test('it resumes from the offset a page at the row limit returns', async () => {
-  using temp = setupTempDir('atc-transcript-');
+  using ctx = setupTest();
 
-  const path = join(temp.dir, 't.jsonl');
+  const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
     path,
@@ -82,14 +97,14 @@ test('it resumes from the offset a page at the row limit returns', async () => {
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(second.rows.map((row) => row.text)).toStrictEqual(['three']);
+  expect(second.rows).toStrictEqual([{ role: 'user', text: 'three', tools: [], at: null }]);
   expect(second.more).toBe(false);
 });
 
 test('it picks up rows appended after the last read', async () => {
-  using temp = setupTempDir('atc-transcript-');
+  using ctx = setupTest();
 
-  const path = join(temp.dir, 't.jsonl');
+  const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(path, '{"type":"user","message":{"role":"user","content":"one"}}\n');
 
@@ -111,13 +126,13 @@ test('it picks up rows appended after the last read', async () => {
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(second.rows.map((row) => row.text)).toStrictEqual(['two']);
+  expect(second.rows).toStrictEqual([{ role: 'user', text: 'two', tools: [], at: null }]);
 });
 
 test('it leaves a trailing partial line unread', async () => {
-  using temp = setupTempDir('atc-transcript-');
+  using ctx = setupTest();
 
-  const path = join(temp.dir, 't.jsonl');
+  const path = join(ctx.dir, 't.jsonl');
   const complete = '{"type":"user","message":{"role":"user","content":"one"}}\n';
 
   writeFileSync(path, `${complete}{"type":"user","message":{"role":"user","content":"two"}}`);
@@ -130,14 +145,14 @@ test('it leaves a trailing partial line unread', async () => {
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(page.rows.map((row) => row.text)).toStrictEqual(['one']);
+  expect(page.rows).toStrictEqual([{ role: 'user', text: 'one', tools: [], at: null }]);
   expect(page.offset).toBe(Buffer.byteLength(complete));
 });
 
 test('it reads a partial line once a later write completes it', async () => {
-  using temp = setupTempDir('atc-transcript-');
+  using ctx = setupTest();
 
-  const path = join(temp.dir, 't.jsonl');
+  const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
     path,
@@ -163,13 +178,13 @@ test('it reads a partial line once a later write completes it', async () => {
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(second.rows.map((row) => row.text)).toStrictEqual(['two']);
+  expect(second.rows).toStrictEqual([{ role: 'user', text: 'two', tools: [], at: null }]);
 });
 
 test('it skips lines it cannot parse while advancing past them', async () => {
-  using temp = setupTempDir('atc-transcript-');
+  using ctx = setupTest();
 
-  const path = join(temp.dir, 't.jsonl');
+  const path = join(ctx.dir, 't.jsonl');
 
   const content =
     '{"type":"user","message":{"role":"user","content":"one"}}\ngarbage\n{"type":"user","message":{"role":"user","content":"two"}}\n';
@@ -184,14 +199,18 @@ test('it skips lines it cannot parse while advancing past them', async () => {
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(page.rows.map((row) => row.text)).toStrictEqual(['one', 'two']);
+  expect(page.rows).toStrictEqual([
+    { role: 'user', text: 'one', tools: [], at: null },
+    { role: 'user', text: 'two', tools: [], at: null },
+  ]);
+
   expect(page.offset).toBe(Buffer.byteLength(content));
 });
 
 test('it stops at the byte budget but always returns at least one row', async () => {
-  using temp = setupTempDir('atc-transcript-');
+  using ctx = setupTest();
 
-  const path = join(temp.dir, 't.jsonl');
+  const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
     path,
@@ -207,14 +226,14 @@ test('it stops at the byte budget but always returns at least one row', async ()
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(page.rows.map((row) => row.text)).toStrictEqual(['one']);
+  expect(page.rows).toStrictEqual([{ role: 'user', text: 'one', tools: [], at: null }]);
   expect(page.more).toBe(true);
 });
 
 test('it reads from the start when the cursor belongs to another file', async () => {
-  using temp = setupTempDir('atc-transcript-');
+  using ctx = setupTest();
 
-  const path = join(temp.dir, 't.jsonl');
+  const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
     path,
@@ -230,13 +249,16 @@ test('it reads from the start when the cursor belongs to another file', async ()
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(page.rows.map((row) => row.text)).toStrictEqual(['one', 'two']);
+  expect(page.rows).toStrictEqual([
+    { role: 'user', text: 'one', tools: [], at: null },
+    { role: 'user', text: 'two', tools: [], at: null },
+  ]);
 });
 
 test('it reads from the start when the cursor runs past the end of the file', async () => {
-  using temp = setupTempDir('atc-transcript-');
+  using ctx = setupTest();
 
-  const path = join(temp.dir, 't.jsonl');
+  const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
     path,
@@ -252,14 +274,17 @@ test('it reads from the start when the cursor runs past the end of the file', as
     parseLine: parseClaudeTranscriptLine,
   });
 
-  expect(page.rows.map((row) => row.text)).toStrictEqual(['one', 'two']);
+  expect(page.rows).toStrictEqual([
+    { role: 'user', text: 'one', tools: [], at: null },
+    { role: 'user', text: 'two', tools: [], at: null },
+  ]);
 });
 
 test('it answers a missing transcript with an empty page', async () => {
-  using temp = setupTempDir('atc-transcript-');
+  using ctx = setupTest();
 
   const page = await loadTranscriptPage({
-    path: join(temp.dir, 'missing.jsonl'),
+    path: join(ctx.dir, 'missing.jsonl'),
     from: null,
     limit: 50,
     maxBytes: 262_144,
@@ -270,9 +295,9 @@ test('it answers a missing transcript with an empty page', async () => {
 });
 
 test('it returns when the file shrinks while it is being read', async () => {
-  using temp = setupTempDir('atc-transcript-');
+  using ctx = setupTest();
 
-  const path = join(temp.dir, 't.jsonl');
+  const path = join(ctx.dir, 't.jsonl');
   const line = '{"type":"user","message":{"role":"user","content":"row"}}\n';
 
   // The file spans more than one 1 MiB read window, so a read runs after the

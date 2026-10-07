@@ -65,7 +65,16 @@ test('it carries only a preview of a long text and a long answer', () => {
     answer: 'a'.repeat(5000),
   });
 
-  expect(event['textPreview']).toBe(`${'q'.repeat(599)}…`);
-  expect(event['answerPreview']).toBe(`${'a'.repeat(599)}…`);
-  expect(event).not.toContainKeys(['text', 'answer']);
+  expect(event).toStrictEqual({
+    v: 4,
+    ev: 'SessionMessage',
+    s: 's1',
+    message: 'm-1',
+    status: 'answered',
+    from: 'alice',
+    textPreview: `${'q'.repeat(599)}…`,
+    sentAt: 1000,
+    answeredAt: 3000,
+    answerPreview: `${'a'.repeat(599)}…`,
+  });
 });

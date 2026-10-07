@@ -4,10 +4,16 @@ import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { readImpToken } from './read-imp-token';
 
-test('it reads a token file without its one trailing newline', () => {
-  using tmp = setupTempDir('atc-read-imp-token-');
+function setupTest() {
+  const tmp = setupTempDir('atc-read-imp-token-');
 
-  const tokenPath = join(tmp.dir, 'imp-token');
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+}
+
+test('it reads a token file without its one trailing newline', () => {
+  using ctx = setupTest();
+
+  const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token\n\n');
 
@@ -15,9 +21,9 @@ test('it reads a token file without its one trailing newline', () => {
 });
 
 test('it reads a token file without a trailing newline as written', () => {
-  using tmp = setupTempDir('atc-read-imp-token-');
+  using ctx = setupTest();
 
-  const tokenPath = join(tmp.dir, 'imp-token');
+  const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token');
 
@@ -25,9 +31,9 @@ test('it reads a token file without a trailing newline as written', () => {
 });
 
 test('it refuses an empty token file as unauthorized', () => {
-  using tmp = setupTempDir('atc-read-imp-token-');
+  using ctx = setupTest();
 
-  const tokenPath = join(tmp.dir, 'imp-token');
+  const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, '\n');
 
@@ -40,9 +46,9 @@ test('it refuses an empty token file as unauthorized', () => {
 });
 
 test('it refuses a missing token file as unauthorized, giving the read error code', () => {
-  using tmp = setupTempDir('atc-read-imp-token-');
+  using ctx = setupTest();
 
-  const tokenPath = join(tmp.dir, 'imp-token');
+  const tokenPath = join(ctx.dir, 'imp-token');
 
   expect(() => readImpToken(tokenPath)).toThrow(
     expect.objectContaining({

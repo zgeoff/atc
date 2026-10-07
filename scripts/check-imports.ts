@@ -8,8 +8,10 @@
 // comments, strings, and template literals never hide or invent one. The
 // tokens before a slash decide whether it starts a regular expression, so a
 // slash right after a class body or a function expression's closing brace can
-// be misread. Prints every finding and exits 1 when there is one.
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+// be misread. The packages that belong to one owner are also checked in
+// e2e/, scripts/, and mods/, outside node_modules, whose modules follow no
+// other rule here. Prints every finding and exits 1 when there is one.
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { SyntaxKind, createScanner, tokenIsIdentifierOrKeyword } from 'typescript/unstable/ast';
 
@@ -21,6 +23,13 @@ function main(): void {
   const graph = new Map<string, string[]>();
 
   const findings: string[] = [];
+  const outside = OUTSIDE_DIRS.flatMap((dir) => collectSourceFiles(root, dir));
+
+  for (const file of outside) {
+    for (const specifier of collectImports(readFileSync(join(root, file), 'utf8')).specifiers) {
+      findings.push(...checkConfinement(file, specifier));
+    }
+  }
 
   for (const file of files) {
     const imports = collectImports(readFileSync(join(root, file), 'utf8'));
@@ -59,7 +68,7 @@ function main(): void {
   }
 
   console.log(
-    `check-imports: ${files.length} files, ${cycles.length} cycles, ${findings.length - cycles.length} other findings`,
+    `check-imports: ${files.length + outside.length} files, ${cycles.length} cycles, ${findings.length - cycles.length} other findings`,
   );
 
   if (findings.length > 0) {
@@ -67,15 +76,29 @@ function main(): void {
   }
 }
 
+// The directories outside src/ whose modules the confinement rule covers.
+const OUTSIDE_DIRS = ['e2e', 'scripts', 'mods'];
+const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs'];
+
+// Every source module under the directory, in sorted order, skipping
+// installed packages; a directory that does not exist holds none.
 function collectSourceFiles(root: string, dir: string): string[] {
   const files: string[] = [];
+
+  if (!existsSync(join(root, dir))) {
+    return files;
+  }
 
   for (const entry of readdirSync(join(root, dir)).toSorted()) {
     const path = `${dir}/${entry}`;
 
+    if (entry === 'node_modules') {
+      continue;
+    }
+
     if (statSync(join(root, path)).isDirectory()) {
       files.push(...collectSourceFiles(root, path));
-    } else if (path.endsWith('.ts')) {
+    } else if (SOURCE_EXTENSIONS.some((extension) => path.endsWith(extension))) {
       files.push(path);
     }
   }
@@ -367,13 +390,15 @@ function resolveImport(file: string, specifier: string, known: ReadonlySet<strin
 
 const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
   // the fake impd runs its guests in real PTYs, as impd does, the TUI
-  // harness runs the real client in one, as a terminal does, and the stub
-  // composer's raw-mode reads need a real terminal to run in
+  // harness runs the real client in one, as a terminal does, the stub
+  // composer's raw-mode reads need a real terminal to run in, and the
+  // environment probe reports the version it ran against
   'bun-pty': [
     'src/daemon/local-pty-provider.ts',
     'src/test-utils/build-stub-imp-port.ts',
     'src/test-utils/start-tui-harness.ts',
     'src/test-utils/create-stub-composer.test.ts',
+    'scripts/probe-pty-env.ts',
   ],
   '@zgeoff/imp-client': ['src/daemon/imp-client-port.ts'],
   '@anthropic-ai/claude-agent-sdk': [

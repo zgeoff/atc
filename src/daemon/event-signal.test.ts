@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { EventSignal } from './event-signal';
 
@@ -89,33 +89,46 @@ test('it resolves every wait after dispose at once', async () => {
 });
 
 test('it counts each wait still pending', () => {
-  const signal = new EventSignal();
+  const signal = new EventSignal(buildStubClock(0));
 
-  onTestFinished(() => {
-    signal.dispose();
-  });
+  const waits = [
+    signal.waitForNext(signal.generation, 10_000),
+    signal.waitForNext(signal.generation, 10_000),
+  ];
 
-  void signal.waitForNext(signal.generation, 10_000);
-  void signal.waitForNext(signal.generation, 10_000);
-  expect(signal.countWaiters()).toBe(2);
+  expect({
+    waiters: signal.countWaiters(),
+    waits: waits.map((wait) => Bun.peek.status(wait)),
+  }).toStrictEqual({ waiters: 2, waits: ['pending', 'pending'] });
 });
 
 test('it counts no wait once an event wakes every pending one', () => {
-  const signal = new EventSignal();
+  const signal = new EventSignal(buildStubClock(0));
 
-  void signal.waitForNext(signal.generation, 10_000);
-  void signal.waitForNext(signal.generation, 10_000);
+  const waits = [
+    signal.waitForNext(signal.generation, 10_000),
+    signal.waitForNext(signal.generation, 10_000),
+  ];
+
   signal.emit();
 
-  expect(signal.countWaiters()).toBe(0);
+  expect({
+    waiters: signal.countWaiters(),
+    waits: waits.map((wait) => Bun.peek.status(wait)),
+  }).toStrictEqual({ waiters: 0, waits: ['fulfilled', 'fulfilled'] });
 });
 
 test('it counts no wait that resolved at once', () => {
-  const signal = new EventSignal();
+  const signal = new EventSignal(buildStubClock(0));
 
   const generation = signal.generation;
 
   signal.emit();
-  void signal.waitForNext(generation, 10_000);
-  expect(signal.countWaiters()).toBe(0);
+
+  const wait = signal.waitForNext(generation, 10_000);
+
+  expect({ waiters: signal.countWaiters(), wait: Bun.peek.status(wait) }).toStrictEqual({
+    waiters: 0,
+    wait: 'fulfilled',
+  });
 });

@@ -36,6 +36,7 @@ async function setupTest() {
   const owned = stack.move();
 
   return {
+    dir: tmp.dir,
     store,
     port,
     host: provider.brokerAuth,
@@ -392,11 +393,15 @@ test('it takes back the imp a refused grant left and drops the record', async ()
   });
 
   expect<Record<string, unknown>>({
-    calls: ctx.port.calls.slice(4),
+    calls: ctx.port.calls,
     imps: ctx.port.collectImpNames(),
     binding: await ctx.store.findAuthBinding(toSessionID('s1')),
   }).toStrictEqual({
     calls: [
+      'system.info',
+      'tokens.whoami',
+      'secrets.list',
+      'imps.get atc-s1',
       'imps.create atc-s1',
       'grants.list atc-s1',
       'grants.add atc-s1 glm',
@@ -1262,19 +1267,18 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
 
   expect(rebound).rejects.toMatchObject({ code: 'host_unavailable' });
 
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
   expect<Record<string, unknown>>({
     imps: ctx.port.collectImpNames(),
     grants: await ctx.port.readGrants('atc-s1'),
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toMatchObject({
+    binding,
+    rebind: binding?.rebind,
+  }).toStrictEqual({
     imps: ['atc-s1'],
     grants: ['glm'],
-    binding: {
-      state: 'rebind_failed',
-      revision: 1,
-      bindingHash: 'h1',
-      rebind: { revision: 2, bindingHash: 'h2' },
-    },
+    binding: expect.objectContaining({ state: 'rebind_failed', revision: 1, bindingHash: 'h1' }),
+    rebind: expect.objectContaining({ revision: 2, bindingHash: 'h2' }),
   });
 });
 
@@ -1757,9 +1761,9 @@ test('it rebinds a provisioned host whose spawn listed but never recorded its st
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect<Record<string, unknown>>({ revision, binding }).toMatchObject({
+  expect<Record<string, unknown>>({ revision, binding }).toStrictEqual({
     revision: 2,
-    binding: { state: 'ready', revision: 2, rebind: null },
+    binding: expect.objectContaining({ state: 'ready', revision: 2, rebind: null }),
   });
 });
 
@@ -1878,7 +1882,10 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
   expect<Record<string, unknown>>({
     imps: ctx.port.collectImpNames().toSorted(),
     binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toMatchObject({ imps: ['atc-new-s1', 'atc-s1'], binding: { state: 'rollback_pending' } });
+  }).toStrictEqual({
+    imps: ['atc-new-s1', 'atc-s1'],
+    binding: expect.objectContaining({ state: 'rollback_pending' }),
+  });
 });
 
 test('it keeps the grants a failed rebind added while impd cannot be reached', async () => {
@@ -2043,9 +2050,9 @@ test('it retries the removal of the grants a failed rebind added on a later star
   expect<Record<string, unknown>>({
     grants: await ctx.port.readGrants('atc-s1'),
     binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toMatchObject({
+  }).toStrictEqual({
     grants: ['glm'],
-    binding: { state: 'rebind_failed', revision: 1 },
+    binding: expect.objectContaining({ state: 'rebind_failed', revision: 1 }),
   });
 });
 
@@ -2304,7 +2311,7 @@ test('it holds a launch admission while its connection opens and returns it once
       session: 's2',
       argv: ['sleep', '30'],
       env: {},
-      cwd: '/tmp',
+      cwd: ctx.dir,
       cols: 80,
       rows: 24,
       require: ['broker'],
@@ -2340,7 +2347,20 @@ test('it holds a launch admission while its connection opens and returns it once
 
   expect(held).toBe(1);
   expect(ctx.binder.countPendingAdmissions(toSessionID('s1'))).toBe(0);
-  expect(ctx.port.sessionRequests).toMatchObject([{ kind: 'start', name: 'imp-x', session: 's2' }]);
+
+  expect(ctx.port.sessionRequests).toStrictEqual([
+    {
+      kind: 'start',
+      name: 'imp-x',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+  ]);
 });
 
 test('it returns the launch admission of each connection that fails before it opens', async () => {
@@ -2402,7 +2422,7 @@ test('it returns the launch admission of each connection that fails before it op
         session,
         argv: ['sleep', '30'],
         env: {},
-        cwd: '/tmp',
+        cwd: ctx.dir,
         cols: 80,
         rows: 24,
         require: ['broker'],
@@ -2493,7 +2513,7 @@ test('it returns the launch admission of a connection whose opening throws befor
       session: 's2',
       argv: ['sleep', '30'],
       env: {},
-      cwd: '/tmp',
+      cwd: ctx.dir,
       cols: 80,
       rows: 24,
       require: ['broker'],

@@ -1,62 +1,24 @@
 import { expect, mock, test } from 'bun:test';
-import type { SessionID } from '../shared/session-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
-import type { MessageRecord } from '../store/message-record';
-import type { TapClient } from './daemon-context';
+import { buildStubHeldInboxSource } from '../test-utils/build-stub-held-inbox-source';
 import { drainInbox } from './drain-inbox';
-import { TapRegistry } from './tap-registry';
-
-/**
- * An empty tap registry and an inbox source over it whose pending-message
- * read waits until the test answers it: `reading` settles once the read
- * starts, and `read` answers it with the given messages.
- */
-function setupTest() {
-  const taps = new TapRegistry<TapClient>();
-
-  const pending = Promise.withResolvers<MessageRecord[]>();
-  const reading = Promise.withResolvers<void>();
-
-  return {
-    taps,
-    source: {
-      taps,
-
-      // A drain reads only for a session the daemon holds; this one holds
-      // every session under one agent session id.
-      findLinkedOwner: (sessionID: SessionID) => ({
-        atcID: sessionID,
-        agentSessionID: toAgentSessionID('a-shared'),
-      }),
-      collectPendingMessages: () => {
-        reading.resolve();
-
-        return pending.promise;
-      },
-    },
-    reading: reading.promise,
-    read: (records: readonly MessageRecord[]) => {
-      pending.resolve([...records]);
-    },
-  };
-}
 
 test("it sends a principal's tap that replaced the owner's during the read no message the owner's read found", async () => {
-  const ctx = setupTest();
+  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-shared'));
   const owner = { sendEvent: mock() };
   const principal = { sendEvent: mock() };
 
-  ctx.taps.attach(toSessionID('s-shown'), owner, true);
+  inbox.source.taps.attach(toSessionID('s-shown'), owner, true);
 
-  const drain = drainInbox(toSessionID('s-shown'), ctx.source);
+  const drain = drainInbox(toSessionID('s-shown'), inbox.source);
 
-  await ctx.reading;
+  await inbox.reading;
 
-  ctx.taps.attach(toSessionID('s-shown'), principal, false);
+  inbox.source.taps.attach(toSessionID('s-shown'), principal, false);
 
-  ctx.read([
+  inbox.read([
     {
       id: toMessageID('m-hidden'),
       atcID: toSessionID('s-hidden'),
@@ -75,19 +37,19 @@ test("it sends a principal's tap that replaced the owner's during the read no me
 });
 
 test('it sends a tap that replaced the one a drain read for nothing from that drain', async () => {
-  const ctx = setupTest();
+  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-shared'));
   const first = { sendEvent: mock() };
   const second = { sendEvent: mock() };
 
-  ctx.taps.attach(toSessionID('s-shown'), first, true);
+  inbox.source.taps.attach(toSessionID('s-shown'), first, true);
 
-  const drain = drainInbox(toSessionID('s-shown'), ctx.source);
+  const drain = drainInbox(toSessionID('s-shown'), inbox.source);
 
-  await ctx.reading;
+  await inbox.reading;
 
-  ctx.taps.attach(toSessionID('s-shown'), second, true);
+  inbox.source.taps.attach(toSessionID('s-shown'), second, true);
 
-  ctx.read([
+  inbox.read([
     {
       id: toMessageID('m-1'),
       atcID: toSessionID('s-shown'),
@@ -105,14 +67,14 @@ test('it sends a tap that replaced the one a drain read for nothing from that dr
 });
 
 test("it sends an unlinked tap no message sent to another session's atc id", async () => {
-  const ctx = setupTest();
+  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-shared'));
   const tap = { sendEvent: mock() };
 
-  ctx.taps.attach(toSessionID('s-shown'), tap, false);
+  inbox.source.taps.attach(toSessionID('s-shown'), tap, false);
 
-  const drain = drainInbox(toSessionID('s-shown'), ctx.source);
+  const drain = drainInbox(toSessionID('s-shown'), inbox.source);
 
-  ctx.read([
+  inbox.read([
     {
       id: toMessageID('m-hidden'),
       atcID: toSessionID('s-hidden'),

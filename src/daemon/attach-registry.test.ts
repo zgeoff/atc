@@ -87,6 +87,8 @@ test('it keeps other sessions when one is removed', () => {
 
   registry.attach(toSessionID('s1'), 'a', { cols: 80, rows: 24 });
   registry.attach(toSessionID('s2'), 'a', { cols: 80, rows: 24 });
+
+  // The client watches both sessions, so only its attachment to s1 may go.
   registry.removeSession(toSessionID('s1'));
 
   expect({
