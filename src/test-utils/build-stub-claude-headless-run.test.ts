@@ -1,8 +1,8 @@
 import { expect, mock, test } from 'bun:test';
-import { buildStubHeadlessRunner } from './build-stub-headless-runner';
+import { buildStubClaudeHeadlessRun } from './build-stub-claude-headless-run';
 
 test('it records the request and hooks it was called with', () => {
-  const runner = buildStubHeadlessRunner();
+  const runner = buildStubClaudeHeadlessRun();
   const hooks = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
 
   runner({ cwd: '/work', prompt: 'go', claudeBin: 'claude' }, hooks);
@@ -14,7 +14,7 @@ test('it records the request and hooks it was called with', () => {
 });
 
 test('it fires none of the event hooks', () => {
-  const runner = buildStubHeadlessRunner();
+  const runner = buildStubClaudeHeadlessRun();
   const onOutput = mock(() => {});
   const onDone = mock(() => {});
   const onNeedsYou = mock(() => {});
@@ -29,7 +29,7 @@ test('it fires none of the event hooks', () => {
 });
 
 test('it returns a handle whose stop returns without throwing', () => {
-  const runner = buildStubHeadlessRunner();
+  const runner = buildStubClaudeHeadlessRun();
 
   const handle = runner(
     { cwd: '/work', prompt: 'go', claudeBin: 'claude' },

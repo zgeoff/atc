@@ -8,6 +8,6 @@ import type { ClaudeHeadlessRun } from '../agents/make-claude-headless-runner';
  * hands back a handle whose stop does nothing. A test reads what the
  * adapter asked for through the mock matchers.
  */
-export function buildStubHeadlessRunner(): Mock<ClaudeHeadlessRun> {
+export function buildStubClaudeHeadlessRun(): Mock<ClaudeHeadlessRun> {
   return mock<ClaudeHeadlessRun>(() => ({ stop: () => {} }));
 }

@@ -5,7 +5,7 @@ import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildMockGatewayConfig } from '../test-utils/build-mock-gateway-config';
-import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
+import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-headless-run';
 import { KEYS } from '../test-utils/keys';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
@@ -75,7 +75,7 @@ test('it takes inbox messages', () => {
 test("it runs a headless turn through the gateway's binary and settings file under the auto permission mode with the atc-bridge mod", () => {
   using ctx = setupTest();
 
-  const runner = buildStubHeadlessRunner();
+  const runner = buildStubClaudeHeadlessRun();
 
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({ id: 'zai', bin: '/opt/zai/bin/claude' }),
@@ -160,7 +160,7 @@ test('it profiles a gateway whose env sets no model with no models', () => {
 test("it runs a headless turn under the permission mode the gateway's settings default to", () => {
   using ctx = setupTest();
 
-  const runner = buildStubHeadlessRunner();
+  const runner = buildStubClaudeHeadlessRun();
 
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
@@ -195,7 +195,7 @@ test("it runs a headless turn under the permission mode the gateway's settings d
 test("it runs a headless turn under a gateway's explicit permission-mode argument over its settings default", () => {
   using ctx = setupTest();
 
-  const runner = buildStubHeadlessRunner();
+  const runner = buildStubClaudeHeadlessRun();
 
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
@@ -285,7 +285,7 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
 test("it runs a headless turn with the gateway's settings file, its permission hook and mode included", () => {
   using ctx = setupTest();
 
-  const runner = buildStubHeadlessRunner();
+  const runner = buildStubClaudeHeadlessRun();
 
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
@@ -477,7 +477,7 @@ test('it gives a gateway with auth no headless runner', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({ id: 'glm', auth: { profiles: ['glm'], placeholderEnv: {} } }),
     parseConfig({}),
-    buildStubHeadlessRunner(),
+    buildStubClaudeHeadlessRun(),
   );
 
   expect(adapter.headlessRunner).toBeNull();
@@ -487,7 +487,7 @@ test('it gives a gateway with auth no resume command', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({ id: 'glm', auth: { profiles: ['glm'], placeholderEnv: {} } }),
     parseConfig({}),
-    buildStubHeadlessRunner(),
+    buildStubClaudeHeadlessRun(),
   );
 
   expect(adapter.buildResumeCommand('/work', toAgentSessionID('a1'))).toBeNull();

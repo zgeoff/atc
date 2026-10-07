@@ -5,7 +5,7 @@ import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildMockAgentEntry } from '../test-utils/build-mock-agent-entry';
-import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
+import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-headless-run';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { KEYS } from '../test-utils/keys';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -96,7 +96,7 @@ test('it takes inbox messages', () => {
 test('it runs a headless turn through the configured claude binary under the auto permission mode with the atc-bridge mod', () => {
   using ctx = setupTest();
 
-  const runner = buildStubHeadlessRunner();
+  const runner = buildStubClaudeHeadlessRun();
 
   const adapter = new ClaudeAdapter(
     getAgentEntry(parseConfig({}), 'claude'),
@@ -170,7 +170,7 @@ test('it advertises no default model or effort when the configured arguments set
 test('it runs a headless turn under the permission mode its configured arguments set', () => {
   using ctx = setupTest();
 
-  const runner = buildStubHeadlessRunner();
+  const runner = buildStubClaudeHeadlessRun();
   const config = parseConfig({ claudeArgs: ['--permission-mode', 'plan'] });
 
   const adapter = new ClaudeAdapter(
