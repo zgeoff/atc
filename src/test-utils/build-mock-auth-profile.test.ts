@@ -1,0 +1,35 @@
+import { expect, test } from 'bun:test';
+import { buildMockAuthProfile } from './build-mock-auth-profile';
+
+test('it builds a default auth profile', () => {
+  expect(buildMockAuthProfile()).toStrictEqual({
+    name: expect.toSatisfy((value: string) => /^[a-z]{8}$/u.test(value)),
+    secret: expect.toSatisfy((value: string) => /^[a-z]{8}$/u.test(value)),
+    kind: 'custom',
+    host: expect.toBeString(),
+    header: 'authorization',
+    scheme: 'bearer',
+    env: {},
+    dependencies: [],
+  });
+});
+
+test('it applies overrides on top of the defaults', () => {
+  expect(
+    buildMockAuthProfile({
+      name: 'glm',
+      host: 'api.z.ai',
+      env: { ZAI_REGION: 'intl' },
+      dependencies: ['github'],
+    }),
+  ).toStrictEqual({
+    name: 'glm',
+    secret: expect.toSatisfy((value: string) => /^[a-z]{8}$/u.test(value)),
+    kind: 'custom',
+    host: 'api.z.ai',
+    header: 'authorization',
+    scheme: 'bearer',
+    env: { ZAI_REGION: 'intl' },
+    dependencies: ['github'],
+  });
+});
