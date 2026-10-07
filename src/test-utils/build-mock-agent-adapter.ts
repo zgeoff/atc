@@ -1,7 +1,7 @@
 import type { AgentAdapter } from '../agents/agent-adapter';
 
 /**
- * A stand-in agent adapter for daemon tests: id `claude`, a spawn that runs
+ * An agent adapter for daemon tests: id `claude`, a spawn that runs
  * `sleep 30` so the session stays alive with no agent CLI behind it, every
  * hook read as a heartbeat, no name, no resume command, no headless runner,
  * no screen detector, and no inbox messages. Every optional member is
@@ -9,7 +9,7 @@ import type { AgentAdapter } from '../agents/agent-adapter';
  * `agents.list` reports the adapter as not installed. An override replaces
  * the member it names.
  */
-export function buildStubAgentAdapter(overrides: Partial<AgentAdapter> = {}): AgentAdapter {
+export function buildMockAgentAdapter(overrides: Partial<AgentAdapter> = {}): AgentAdapter {
   return {
     id: 'claude',
     headlessRunner: null,

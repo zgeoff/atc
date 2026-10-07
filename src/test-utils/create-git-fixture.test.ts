@@ -98,10 +98,10 @@ test('it refuses to build its template outside the test home', () => {
     [
       process.execPath,
       '-e',
-      "import { createGitFixture } from './test/create-git-fixture.ts'; await createGitFixture();",
+      "import { createGitFixture } from './create-git-fixture.ts'; await createGitFixture();",
     ],
     {
-      cwd: join(import.meta.dir, '..'),
+      cwd: import.meta.dir,
       env: Object.fromEntries(
         Object.entries(process.env).filter(([name]) => name !== 'ATC_TEST_HOME'),
       ),

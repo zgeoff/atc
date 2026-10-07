@@ -4,8 +4,8 @@ import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import type { HookEvent } from '../protocol/hook-event';
 import { StateStore } from '../store/state-store';
+import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 import { buildMockFleetEntry } from './build-mock-fleet-entry';
-import { buildStubAgentAdapter } from './build-stub-agent-adapter';
 import { startTestDaemon } from './start-test-daemon';
 import { waitFor } from './wait-for';
 
@@ -67,8 +67,8 @@ test('it hands the options builder the daemon paths', async () => {
 test('it boots the daemon with the adapters the options give', async () => {
   await using harness = await startTestDaemon({
     options: () => ({
-      adapter: buildStubAgentAdapter(),
-      adapters: [buildStubAgentAdapter({ id: 'grok' })],
+      adapter: buildMockAgentAdapter(),
+      adapters: [buildMockAgentAdapter({ id: 'grok' })],
     }),
   });
 
@@ -197,7 +197,7 @@ test('it leaves the log to the options when they set one', async () => {
 
 test('it collects the events the main client receives', async () => {
   await using harness = await startTestDaemon({
-    options: () => ({ adapter: buildStubAgentAdapter() }),
+    options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
   await harness.client.sendRequest('session.spawn', { cwd: harness.dir, name: 'alpha' });
@@ -233,7 +233,7 @@ test('it delivers hook lines to the session they report on', async () => {
 
   await using harness = await startTestDaemon({
     options: () => ({
-      adapter: buildStubAgentAdapter({
+      adapter: buildMockAgentAdapter({
         normalizeHook: (event) => {
           seen.push(event);
 
@@ -266,7 +266,7 @@ test('it delivers every hook line of a large batch', async () => {
 
   await using harness = await startTestDaemon({
     options: () => ({
-      adapter: buildStubAgentAdapter({
+      adapter: buildMockAgentAdapter({
         normalizeHook: (event) => {
           seen.push(event);
 
@@ -345,7 +345,7 @@ test('it closes the clients of the replaced daemon on restart', async () => {
 
 test('it keeps the stored fleet across a restart', async () => {
   await using harness = await startTestDaemon({
-    options: () => ({ adapter: buildStubAgentAdapter() }),
+    options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
   const spawned = await harness.client.sendRequest('session.spawn', {
@@ -370,7 +370,7 @@ test('it keeps the stored fleet across a restart', async () => {
 
 test('it boots on the state written while the daemon is stopped', async () => {
   await using harness = await startTestDaemon({
-    options: () => ({ adapter: buildStubAgentAdapter() }),
+    options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
   await harness.stop();
@@ -390,12 +390,12 @@ test('it boots on the state written while the daemon is stopped', async () => {
 
 test('it boots with the options a restart gives', async () => {
   await using harness = await startTestDaemon({
-    options: () => ({ adapter: buildStubAgentAdapter() }),
+    options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
   await harness.restart(() => ({
-    adapter: buildStubAgentAdapter(),
-    adapters: [buildStubAgentAdapter({ id: 'grok' })],
+    adapter: buildMockAgentAdapter(),
+    adapters: [buildMockAgentAdapter({ id: 'grok' })],
   }));
 
   const listed = await harness.client.sendRequest('agents.list');
