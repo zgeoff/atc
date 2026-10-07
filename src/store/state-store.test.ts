@@ -342,7 +342,6 @@ test('it never overwrites an existing fleet table from the legacy file', async (
   const first = await StateStore.open(dbPath, legacy);
 
   onTestFinished(() => first.stop());
-  onTestFinished(() => first.stop());
 
   await first.writeFleet([
     {
@@ -358,7 +357,6 @@ test('it never overwrites an existing fleet table from the legacy file', async (
 
   const second = await StateStore.open(dbPath, legacy);
 
-  onTestFinished(() => second.stop());
   onTestFinished(() => second.stop());
 
   const fleet = await second.loadFleet();
@@ -1515,7 +1513,16 @@ test('it leaves heartbeats and unclassified events out of the event reads', asyn
 
   const events = await ctx.store.collectLatestEvents(10);
 
-  expect(events.map((event) => event.kind)).toStrictEqual(['started']);
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'started',
+      detail: null,
+    },
+  ]);
 });
 
 test('it collects events after an id oldest first, up to the limit', async () => {
@@ -1544,7 +1551,16 @@ test('it collects events after an id oldest first, up to the limit', async () =>
 
   const after = await ctx.store.collectEventsAfter(first.id, 1);
 
-  expect(after.map((event) => event.detail)).toStrictEqual(['two']);
+  expect(after).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'turn-done',
+      detail: 'two',
+    },
+  ]);
 });
 
 test('it collects the latest events oldest first', async () => {
@@ -1567,7 +1583,24 @@ test('it collects the latest events oldest first', async () => {
 
   const latest = await ctx.store.collectLatestEvents(2);
 
-  expect(latest.map((event) => event.detail)).toStrictEqual(['two', 'three']);
+  expect(latest).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'turn-done',
+      detail: 'two',
+    },
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'ended',
+      detail: 'three',
+    },
+  ]);
 });
 
 test("it loads a session's last activity time by its agent session id", async () => {
@@ -2452,7 +2485,33 @@ test('it reads the trail in order across hook events and message entries', async
 
   const events = await ctx.store.collectLatestEvents(10);
 
-  expect(events.map((e) => e.kind)).toStrictEqual(['started', 'message-accepted', 'turn-done']);
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'started',
+      detail: null,
+    },
+    {
+      id: expect.toBeNumber(),
+      at: 1000,
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'message-accepted',
+      detail: 'hello',
+      message: toMessageID('m-1'),
+    },
+    {
+      id: expect.toBeNumber(),
+      at: expect.toBeNumber(),
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'turn-done',
+      detail: null,
+    },
+  ]);
 });
 
 test('it stamps trail entries recorded before the agent session id was known', async () => {
@@ -3410,6 +3469,7 @@ test('it breaks the cycle two crossed resumes make by keeping the earlier row to
 test.each([
   {
     shape: 'a resume under the session whose agent session it resumes',
+    kept: ['w', 'r'],
     fixture: [
       {
         sessionID: toSessionID('p'),
@@ -3438,6 +3498,7 @@ test.each([
   },
   {
     shape: 'two crossed resumes',
+    kept: ['r', 's'],
     fixture: [
       {
         sessionID: toSessionID('p'),
@@ -3473,6 +3534,7 @@ test.each([
   },
   {
     shape: 'three resumes crossed in a ring, each with a worker under the row it replaces',
+    kept: ['wp', 'wq', 'r', 's', 'u'],
     fixture: [
       {
         sessionID: toSessionID('p'),
@@ -3539,6 +3601,7 @@ test.each([
   },
   {
     shape: 'a chain where every row shares one agent session id',
+    kept: ['res'],
     fixture: [
       {
         sessionID: toSessionID('top'),
@@ -3567,6 +3630,7 @@ test.each([
   },
   {
     shape: "a worker under a sub-session that took over its parent's place",
+    kept: ['o', 'w', 'r'],
     fixture: [
       {
         sessionID: toSessionID('o'),
@@ -3602,6 +3666,7 @@ test.each([
   },
   {
     shape: 'a link to a row the write does not hold',
+    kept: ['orphan'],
     fixture: [
       {
         sessionID: toSessionID('orphan'),
@@ -3635,6 +3700,7 @@ test.each([
   ];
 
   expect(violations).toStrictEqual([]);
+  expect(fleet.map((entry) => entry.sessionID)).toIncludeSameMembers(row.kept);
 });
 
 test("it moves a row that replaced its own parent under that parent's parent", async () => {

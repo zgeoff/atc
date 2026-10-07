@@ -47,7 +47,7 @@ test('it omits parent when the row carries an empty one', () => {
   });
 });
 
-test('it omits pinned, lastAttachedAt, and exited when the row does not carry them', () => {
+test('it leaves out the pinned flag, last-attached time, and exited flag when the row does not carry them', () => {
   expect(
     parseFleetEntry({ name: 'fix the bug', cwd: '/repo', agentSessionID: 'c-1' }),
   ).toStrictEqual({
@@ -58,7 +58,7 @@ test('it omits pinned, lastAttachedAt, and exited when the row does not carry th
   });
 });
 
-test('it falls back to the legacy claudeId key when agentSessionID is absent', () => {
+test('it reads the legacy claude id key of an old fleet file as the agent session id', () => {
   expect(
     parseFleetEntry({ name: 'fix the bug', cwd: '/repo', claudeId: 'legacy-1' }),
   ).toStrictEqual({
@@ -69,7 +69,7 @@ test('it falls back to the legacy claudeId key when agentSessionID is absent', (
   });
 });
 
-test('it prefers agentSessionID over a legacy claudeId when both are present', () => {
+test('it prefers the agent session id key over the legacy claude id key of a fleet file', () => {
   expect(
     parseFleetEntry({
       name: 'fix the bug',
