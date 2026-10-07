@@ -76,6 +76,23 @@ test('it rejects a client with the daemon stderr when the daemon exits before it
   );
 });
 
+test('it rejects a client at once with the daemon stderr when the daemon exited before the client was opened', async () => {
+  using ctx = setupTest();
+
+  await using daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.dir,
+    args: ['--listen', '127.0.0.1:0'],
+  });
+
+  await daemon.proc.exited;
+
+  expect(daemon.openClient()).rejects.toThrowWithMessage(
+    Error,
+    /^the daemon exited \(1\) before it listened:\n.*--listen and --token-file go together/s,
+  );
+});
+
 test('it opens a client on the socket a replacement holds when the daemon exits before it listens', async () => {
   using ctx = setupTest();
 
