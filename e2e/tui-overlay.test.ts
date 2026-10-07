@@ -66,10 +66,11 @@ test('it opens the overlay with a configured leader key', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  await spawnClaudeSession(ctx, 'leadertest');
-
-  // The status bar of the attached session ends with the leader's label.
+  // The home screen's status bar ends with the leader's label; an attached
+  // session draws no status bar.
   await ctx.waitFor('▏^] ');
+
+  await spawnClaudeSession(ctx, 'leadertest');
 
   ctx.reset();
   ctx.write(KEYS.ctrlRightBracket);
