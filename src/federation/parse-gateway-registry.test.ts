@@ -97,11 +97,19 @@ test('it refuses a defaultDaemon that is not in the registry', () => {
 });
 
 test.each([
-  ['Cloud', "daemon name 'Cloud' must match ^[a-z][a-z0-9-]{0,30}$"],
-  ['cloud.two', "daemon name 'cloud.two' must match ^[a-z][a-z0-9-]{0,30}$"],
-  ['1cloud', "daemon name '1cloud' must match ^[a-z][a-z0-9-]{0,30}$"],
-  [`c${'x'.repeat(31)}`, `daemon name 'c${'x'.repeat(31)}' must match ^[a-z][a-z0-9-]{0,30}$`],
-])('it refuses the daemon name %p', (name, error) => {
+  ['Cloud', 'ATC_GATEWAY_TOKEN_CLOUD', "daemon name 'Cloud' must match ^[a-z][a-z0-9-]{0,30}$"],
+  [
+    'cloud.two',
+    'ATC_GATEWAY_TOKEN_CLOUD.TWO',
+    "daemon name 'cloud.two' must match ^[a-z][a-z0-9-]{0,30}$",
+  ],
+  ['1cloud', 'ATC_GATEWAY_TOKEN_1CLOUD', "daemon name '1cloud' must match ^[a-z][a-z0-9-]{0,30}$"],
+  [
+    `c${'x'.repeat(31)}`,
+    `ATC_GATEWAY_TOKEN_C${'X'.repeat(31)}`,
+    `daemon name 'c${'x'.repeat(31)}' must match ^[a-z][a-z0-9-]{0,30}$`,
+  ],
+])('it refuses the daemon name %p', (name, tokenVar, error) => {
   const parsed = parseGatewayRegistry(
     {
       daemons: {
@@ -109,7 +117,7 @@ test.each([
       },
       defaultDaemon: name,
     },
-    {},
+    { [tokenVar]: 't' },
   );
 
   expect(parsed).toStrictEqual({ ok: false, errors: [error] });

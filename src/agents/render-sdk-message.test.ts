@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { renderSdkMessage } from './start-claude-headless-run';
+import { renderSDKMessage } from './render-sdk-message';
 
 test('it renders assistant text verbatim with pty line endings', () => {
-  const rendered = renderSdkMessage({
+  const rendered = renderSDKMessage({
     type: 'assistant',
     message: { content: [{ type: 'text', text: 'first line\nsecond line' }] },
   });
@@ -11,7 +11,7 @@ test('it renders assistant text verbatim with pty line endings', () => {
 });
 
 test('it renders a tool call as a compact one-liner', () => {
-  const rendered = renderSdkMessage({
+  const rendered = renderSDKMessage({
     type: 'assistant',
     message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'bun test' } }] },
   });
@@ -20,7 +20,7 @@ test('it renders a tool call as a compact one-liner', () => {
 });
 
 test('it renders a successful result as a closing line', () => {
-  const rendered = renderSdkMessage({
+  const rendered = renderSDKMessage({
     type: 'result',
     subtype: 'success',
     result: 'done and verified',
@@ -30,21 +30,21 @@ test('it renders a successful result as a closing line', () => {
 });
 
 test('it renders a failed result with its subtype', () => {
-  const rendered = renderSdkMessage({ type: 'result', subtype: 'error_max_turns' });
+  const rendered = renderSDKMessage({ type: 'result', subtype: 'error_max_turns' });
 
   expect(rendered).toBe('— headless turn stopped: error_max_turns');
 });
 
 test('it renders nothing for a system message', () => {
-  expect(renderSdkMessage({ type: 'system', subtype: 'init' })).toBeNull();
+  expect(renderSDKMessage({ type: 'system', subtype: 'init' })).toBeNull();
 });
 
 test('it renders nothing for an assistant message without content', () => {
-  expect(renderSdkMessage({ type: 'assistant', message: { content: [] } })).toBeNull();
+  expect(renderSDKMessage({ type: 'assistant', message: { content: [] } })).toBeNull();
 });
 
 test('it truncates an oversized tool input summary', () => {
-  const rendered = renderSdkMessage({
+  const rendered = renderSDKMessage({
     type: 'assistant',
     message: { content: [{ type: 'tool_use', name: 'Write', input: { data: 'x'.repeat(400) } }] },
   });

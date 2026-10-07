@@ -691,6 +691,7 @@ test('it shows the consent page on every authorization of a client', async () =>
     ticked: ['read'],
   });
 
+  expect(`${second.consent.origin}${second.consent.pathname}`).toBe(`${ctx.url}/consent`);
   expect(second.code).not.toBe(first.code);
 });
 
@@ -1915,7 +1916,7 @@ test('it serves a token refreshed after the session that approved it expires', a
   expect(pinged.status).toBe(200);
 });
 
-test('it refuses the tokens of a removed client', async () => {
+test('it refuses the access token of a removed client', async () => {
   await using ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
@@ -1953,6 +1954,41 @@ test('it refuses the tokens of a removed client', async () => {
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
+  expect(pinged.status).toBe(401);
+});
+
+test('it refuses the refresh token of a removed client', async () => {
+  await using ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+  const removed = await removeClient(ctx.store.db, clientID);
+
+  invariant(removed, 'the client was not removed');
+
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
@@ -1962,7 +1998,6 @@ test('it refuses the tokens of a removed client', async () => {
     }),
   });
 
-  expect(pinged.status).toBe(401);
   expect(refreshed.status).toBe(400);
 });
 

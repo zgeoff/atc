@@ -31,7 +31,7 @@
     "test": "bash scripts/with-test-home.sh bun test --parallel --timings=bun-test-timings.json",
     "test:timings": "bash scripts/with-test-home.sh bun test --parallel --timings=bun-test-timings.json --update-timings",
     "test:binary": "bash scripts/with-test-home.sh bun test --timeout 20000 e2e/daemon-*.test.ts",
-    "test:gateway-binary": "bash scripts/with-test-home.sh bun test --timeout 20000 src/gateway.test.ts",
+    "test:gateway-binary": "bash scripts/with-test-home.sh bun test --timeout 20000 e2e/gateway-*.test.ts",
     "test:atc-bridge": "bash scripts/with-test-home.sh bash scripts/test-atc-bridge.sh",
     "test:isolation": "bash scripts/check-test-isolation.sh",
     "typecheck": "tsc -p tsconfig.json --noEmit",

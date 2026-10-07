@@ -301,11 +301,11 @@ test('it restores the stored fleet by itself when the config leaves restoreFleet
 
     const listed = getRecords(reply, 'sessions');
 
-    expect({
-      terminals: listed.filter((s) => s['kind'] === 'pty').length,
-      starts: readFileSync(join(ctx.home, 'fake-claude-starts.log'), 'utf8').trim().split('\n')
-        .length,
-    }).toStrictEqual({ terminals: 2, starts: 2 });
+    expect(listed.map((s) => s['kind'])).toStrictEqual(['pty', 'pty']);
+
+    expect(
+      readFileSync(join(ctx.home, 'fake-claude-starts.log'), 'utf8').trim().split('\n'),
+    ).toHaveLength(2);
 
     return listed;
   });

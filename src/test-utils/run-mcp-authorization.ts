@@ -18,6 +18,9 @@ interface MCPAuthorizationRequest {
 }
 
 interface MCPAuthorization {
+  // The consent page the approval code sent the browser to.
+  readonly consent: URL;
+
   // Where the consent page sent the browser back to.
   readonly callback: URL;
   readonly code: string;
@@ -29,9 +32,9 @@ interface MCPAuthorization {
  * browser and the operator do: opens the authorization request with PKCE,
  * types the approval code the server printed into the login page, and ticks
  * the given scopes on the consent page. Each request starts with no cookies,
- * as a fresh browser would. Returns where the browser landed and what a token
- * request needs, and throws when any step's response lacks the value the next
- * step depends on.
+ * as a fresh browser would. Returns the consent page it passed, where the
+ * browser landed, and what a token request needs, and throws when any step's
+ * response lacks the value the next step depends on.
  */
 export async function runMCPAuthorization(
   server: MCPAuthorizationServer,
@@ -114,5 +117,5 @@ export async function runMCPAuthorization(
     throw new Error(`the consent redirect holds no authorization code: ${location}`);
   }
 
-  return { callback, code, verifier };
+  return { consent, callback, code, verifier };
 }

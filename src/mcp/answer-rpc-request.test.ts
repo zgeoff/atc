@@ -613,7 +613,19 @@ test('it names the registered agents in the spawn tool to a caller holding the r
     },
   );
 
-  expect(JSON.stringify(outcome)).toInclude('the host registered: claude (not installed).');
+  invariant(outcome.kind === 'reply', 'no reply');
+
+  const tools: unknown = getRecord(outcome.body, 'result')['tools'];
+
+  invariant(Array.isArray(tools), 'no tools array');
+
+  const spawn: unknown = tools.find(
+    (tool) => isRecord(tool) && tool['name'] === 'atc_session_spawn',
+  );
+
+  invariant(isRecord(spawn), 'atc_session_spawn is not listed');
+
+  expect(spawn['description']).toInclude('the host registered: claude (not installed).');
 });
 
 test('it names no agent in the spawn tool to a caller without the read scope', async () => {

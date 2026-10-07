@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { DaemonClient } from './client/daemon-client';
+import { toSessionID } from './shared/to-session-id';
+import { buildMockSessionDescriptor } from './test-utils/build-mock-session-descriptor';
 import { buildMockStoredRow } from './test-utils/build-mock-stored-row';
 import { buildStubClock } from './test-utils/build-stub-clock';
 import { setupTempDir } from './test-utils/setup-temp-dir';
@@ -32,8 +34,14 @@ test('it reports the last answered list when the deadline overtakes a later list
 
   ctx.daemon.lists.push({
     sessions: [
-      { id: 's-good', kind: 'pty', alive: true, state: 'running', lastMsg: null },
-      { id: 's-dropped', kind: 'stub', alive: false, state: 'running', lastMsg: 'no adapter' },
+      buildMockSessionDescriptor({ id: toSessionID('s-good'), kind: 'pty', alive: true }),
+      buildMockSessionDescriptor({
+        id: toSessionID('s-dropped'),
+        kind: 'headless',
+        alive: false,
+        state: 'running',
+        lastMsg: 'no adapter',
+      }),
     ],
   });
 
