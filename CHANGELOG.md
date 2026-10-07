@@ -2,11 +2,14 @@
 
 ## [2.41.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.40.0...@zgeoff/atc@2.41.0) (2026-10-07)
 
-
 ### Features
 
-* **geo-120:** set a profile's variables in brokered imp sessions ([#342](https://github.com/zgeoff/atc/issues/342)) ([cbb4b06](https://github.com/zgeoff/atc/commit/cbb4b0618609607257c298502d1112a1a51594f0))
-* **geo-122:** let a brokered gateway carry tool placeholders ([#341](https://github.com/zgeoff/atc/issues/341)) ([4d1307b](https://github.com/zgeoff/atc/commit/4d1307bbf73a42e0f93daf9263b243f3dff6a615))
+- **geo-120:** set a profile's variables in brokered imp sessions
+  ([#342](https://github.com/zgeoff/atc/issues/342))
+  ([cbb4b06](https://github.com/zgeoff/atc/commit/cbb4b0618609607257c298502d1112a1a51594f0))
+- **geo-122:** let a brokered gateway carry tool placeholders
+  ([#341](https://github.com/zgeoff/atc/issues/341))
+  ([4d1307b](https://github.com/zgeoff/atc/commit/4d1307bbf73a42e0f93daf9263b243f3dff6a615))
 
 ## [2.40.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.39.0...@zgeoff/atc@2.40.0) (2026-10-07)
 
