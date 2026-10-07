@@ -106,7 +106,7 @@ test('it exits 0 and forwards no event name when both event name keys are missin
   });
 });
 
-test('it forwards the agent its command line gives it', async () => {
+test('it forwards the agent it is given', async () => {
   using ctx = setupTest();
 
   updateEnv('ATC_SOCKET', ctx.sock);

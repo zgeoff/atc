@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { runConfigMigrate } from './run-config-migrate';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 
@@ -72,9 +73,7 @@ test('it backs the file up, rewrites it, and prints both paths with --write', ()
 
   const [backupName, ...others] = readdirSync(ctx.dir).filter((name) => name !== 'config.json');
 
-  if (backupName === undefined) {
-    throw new Error('the migration wrote no backup');
-  }
+  invariant(backupName !== undefined, 'the migration wrote no backup');
 
   const backup = join(ctx.dir, backupName);
 

@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
@@ -37,9 +38,7 @@ test('it adds, lists, and removes a client through atc clients', () => {
 
   const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
 
-  if (clientID === undefined) {
-    throw new Error(`no client ID in: ${added.stdout.toString()}`);
-  }
+  invariant(clientID !== undefined, `no client ID in: ${added.stdout.toString()}`);
 
   const listed = Bun.spawnSync([...ctx.atc, 'clients'], { env: ctx.env });
 

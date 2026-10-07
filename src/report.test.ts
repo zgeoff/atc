@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { runReport } from './report';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 import { startStubReporterSocket } from './test-utils/start-stub-reporter-socket';
@@ -348,9 +349,7 @@ test('it keeps a bridge report in the outbox when the bridge closes without answ
 
   const [name, ...others] = readdirSync(outbox);
 
-  if (name === undefined) {
-    throw new Error('the report left the outbox');
-  }
+  invariant(name !== undefined, 'the report left the outbox');
 
   const report: unknown = JSON.parse(readFileSync(join(outbox, name), 'utf8'));
 

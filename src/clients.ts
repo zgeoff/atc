@@ -18,12 +18,13 @@ interface ClientsTarget {
   readonly command: string;
 }
 
-// Where the command's lines and its exit code go: the console and the
-// process by default.
+// Where the command's lines and its exit code go, and how it exits: the
+// console and the process by default.
 interface ClientsIO {
   readonly print: (line: string) => void;
   readonly printError: (line: string) => void;
   readonly setExitCode: (code: number) => void;
+  readonly exit: (code: number) => void;
 }
 
 const PROCESS_IO: ClientsIO = {
@@ -36,6 +37,9 @@ const PROCESS_IO: ClientsIO = {
   setExitCode: (code) => {
     process.exitCode = code;
   },
+  exit: (code) => {
+    process.exit(code);
+  },
 };
 
 /**
@@ -43,7 +47,7 @@ const PROCESS_IO: ClientsIO = {
  * connect to the MCP HTTP server, adds one, or removes one along with every
  * token and consent it holds. It opens the authorization server's database
  * directly, so it works whether or not the server is running. A refused
- * request sets exit code 1.
+ * add exits 1 at once, and a refused remove sets exit code 1.
  */
 export async function runClients(
   action: ClientsAction,
@@ -60,7 +64,7 @@ export async function runClients(
           : `${target.command} add: '${refused}' is not a redirect URI atc accepts; use https, or http on a loopback host, with no fragment`;
 
       io.printError(message);
-      io.setExitCode(1);
+      io.exit(1);
 
       return;
     }

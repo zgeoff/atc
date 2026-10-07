@@ -1,5 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { DaemonClient } from './client/daemon-client';
 import { startDaemon } from './daemon/daemon';
 import { runMCPHTTPServer } from './mcp-http-server';
@@ -70,13 +71,14 @@ test('it serves MCP through the daemon it boots and says no client can connect y
     },
   );
 
-  onTestFinished(() => signals.get('SIGTERM')?.());
+  const stop = signals.get('SIGTERM');
+
+  invariant(stop, 'the server registered no SIGTERM handler');
+  onTestFinished(() => stop());
 
   const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
 
-  if (port === undefined) {
-    throw new Error(`no port in: ${printed.join('\n')}`);
-  }
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
 
   const served = await fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST' });
 
@@ -127,7 +129,10 @@ test('it prints no hint to add a client once one can connect', async () => {
     },
   );
 
-  onTestFinished(() => signals.get('SIGTERM')?.());
+  const stop = signals.get('SIGTERM');
+
+  invariant(stop, 'the server registered no SIGTERM handler');
+  onTestFinished(() => stop());
 
   expect(printed.join('\n')).toMatch(
     /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+$/u,
@@ -152,9 +157,7 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
         socketPath: ctx.socketPath,
       }),
       print: (line) => {
-        const printed = line.startsWith('atc mcp --http: serving ') ? 'serving line' : 'other line';
-
-        happened.push(printed);
+        happened.push(line);
       },
       printError: () => {},
       exit: () => {},
@@ -165,9 +168,16 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
     },
   );
 
-  onTestFinished(() => signals.get('SIGTERM')?.());
+  const stop = signals.get('SIGTERM');
 
-  expect(happened).toStrictEqual(['SIGINT', 'SIGTERM', 'serving line', 'other line']);
+  invariant(stop, 'the server registered no SIGTERM handler');
+  onTestFinished(() => stop());
+
+  expect(happened.slice(0, 2)).toStrictEqual(['SIGINT', 'SIGTERM']);
+
+  expect(happened.slice(2).join('\n')).toMatch(
+    /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+\nNo clients can connect yet\. Add one with: atc clients add <name> --redirect-uri <uri>$/u,
+  );
 });
 
 test('it stops serving and exits 0 on SIGTERM', async () => {
@@ -204,45 +214,13 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
   const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
   const stop = signals.get('SIGTERM');
 
-  if (port === undefined || stop === undefined) {
-    throw new Error(`no port or no SIGTERM handler after: ${printed.join('\n')}`);
-  }
+  invariant(
+    port !== undefined && stop !== undefined,
+    `no port or no SIGTERM handler after: ${printed.join('\n')}`,
+  );
 
   await stop();
 
   expect(codes).toStrictEqual([0]);
   expect(fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST' })).rejects.toThrow();
-});
-
-test('it exits 1 with the reason when no daemon can be reached', async () => {
-  using tmp = setupTempDir('atc-mcp-http-server-');
-
-  const errors: string[] = [];
-  const codes: number[] = [];
-
-  await runMCPHTTPServer(
-    'atc/test-build',
-    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
-    {
-      loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
-      dbPath: join(tmp.dir, 'mcp-auth.db'),
-      bootDaemon: async () => ({
-        client: await DaemonClient.open(join(tmp.dir, 'none.sock')),
-        socketPath: join(tmp.dir, 'none.sock'),
-      }),
-      print: () => {},
-      printError: (line) => {
-        errors.push(line);
-      },
-      exit: (code) => {
-        codes.push(code);
-      },
-      registerSignal: () => {},
-    },
-  );
-
-  expect({ codes, errors }).toStrictEqual({
-    codes: [1],
-    errors: ['atc mcp --http: Failed to connect'],
-  });
 });

@@ -181,8 +181,12 @@ test('it refuses to revoke an unknown grant', async () => {
 test('it sets the process exit code to 1 when it refuses to revoke by default', async () => {
   await using ctx = await setupTest();
 
+  // Bun ignores an assignment of undefined, so an unset exit code goes back
+  // as 0, the code an unset one exits with.
+  const exitCode = process.exitCode ?? 0;
+
   onTestFinished(() => {
-    process.exitCode = 0;
+    process.exitCode = exitCode;
   });
 
   await runGrants('unknown', ctx.server.dbPath);
