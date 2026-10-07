@@ -4,11 +4,16 @@ import { join } from 'node:path';
 import { StateStore } from '../store/state-store';
 import { createMigratedStateDB } from './create-migrated-state-db';
 import { setupTempDir } from './setup-temp-dir';
+import { updateEnv } from './update-env';
+
+function setupTest() {
+  return setupTempDir('atc-migrated-state-');
+}
 
 test('it creates a database the store opens without running a migration', async () => {
-  await using tmp = setupTempDir('atc-migrated-state-');
+  using ctx = setupTest();
 
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(ctx.dir, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -40,10 +45,10 @@ test('it creates a database the store opens without running a migration', async 
 });
 
 test('it creates a database whose migration ledger holds every migration', async () => {
-  await using tmp = setupTempDir('atc-migrated-state-');
+  using ctx = setupTest();
 
-  const freshPath = join(tmp.dir, 'fresh.db');
-  const copyPath = join(tmp.dir, 'copy.db');
+  const freshPath = join(ctx.dir, 'fresh.db');
+  const copyPath = join(ctx.dir, 'copy.db');
 
   const fresh = await StateStore.open(freshPath);
 
@@ -71,10 +76,10 @@ test('it creates a database whose migration ledger holds every migration', async
 });
 
 test('it creates a separate file for each call', async () => {
-  await using tmp = setupTempDir('atc-migrated-state-');
+  using ctx = setupTest();
 
-  const firstPath = join(tmp.dir, 'first.db');
-  const secondPath = join(tmp.dir, 'second.db');
+  const firstPath = join(ctx.dir, 'first.db');
+  const secondPath = join(ctx.dir, 'second.db');
 
   await createMigratedStateDB(firstPath);
   await createMigratedStateDB(secondPath);
@@ -95,5 +100,15 @@ test('it creates a separate file for each call', async () => {
 
   expect(second.query("SELECT value FROM prefs WHERE key = 'last_used_agent'").all()).toStrictEqual(
     [],
+  );
+});
+
+test('it rejects when the test home is unset', () => {
+  using ctx = setupTest();
+
+  updateEnv('ATC_TEST_HOME', undefined);
+
+  expect(createMigratedStateDB(join(ctx.dir, 'state.db'))).rejects.toThrow(
+    'ATC_TEST_HOME is unset; run the tests through `bun run test`',
   );
 });

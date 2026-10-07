@@ -11,6 +11,7 @@ export const KEYS = Object.freeze({
   ctrlC: '\u0003',
   bel: '\u0007',
   tab: '\u0009',
+  ctrlJ: '\u000A',
   enter: '\u000D',
   ctrlU: '\u0015',
   esc: '\u001B',

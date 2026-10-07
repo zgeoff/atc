@@ -5,9 +5,9 @@ import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubBin } from '../test-utils/create-stub-bin';
 import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -17,7 +17,7 @@ import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
 /**
- * A fixture imp port whose impd an operator prepared, and the targets a
+ * A stub imp port whose impd an operator prepared, and the targets a
  * daemon runs with over it: `local`, and an imp target `box` whose guest
  * folders live under `g`. The guest has an atc stand-in, so a Claude
  * gateway plans a real guest spawn. `fakeClaude` is a fake claude that
@@ -27,7 +27,7 @@ function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-gateway-guest-auth-'));
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
 
   // Every brokered spawn checks that the token may manage atc imps and
   // grant glm, and that impd holds glm for api.z.ai as a bearer secret.

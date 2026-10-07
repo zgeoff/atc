@@ -1,7 +1,12 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { buildTargetIdentity } from '../daemon/build-target-identity';
+import { LocalPTYProvider } from '../daemon/local-pty-provider';
 import { buildStubTargets } from './build-stub-targets';
 import { setupTempDir } from './setup-temp-dir';
+
+function setupTest() {
+  return setupTempDir('atc-stub-targets-');
+}
 
 test('it builds a target with a provider for each local-pty entry and none for another kind', () => {
   const [local, box] = buildStubTargets(
@@ -12,14 +17,24 @@ test('it builds a target with a provider for each local-pty entry and none for a
     { spawned: [] },
   );
 
-  expect(local).toMatchObject({
+  expect(local).toStrictEqual({
     id: 'local',
     kind: 'local-pty',
     options: {},
     identity: buildTargetIdentity('local-pty', {}),
+    provider: {
+      kind: 'local-pty',
+      remote: false,
+      capabilities: new LocalPTYProvider().capabilities,
+      prepareHost: expect.toBeFunction(),
+      spawnHarness: expect.toBeFunction(),
+      transferArchive: expect.toBeFunction(),
+      runCommand: expect.toBeFunction(),
+      suspendHost: expect.toBeFunction(),
+      destroyHost: expect.toBeFunction(),
+      dispose: expect.toBeFunction(),
+    },
   });
-
-  expect(local?.provider?.kind).toBe('local-pty');
 
   expect(box).toStrictEqual({
     id: 'box',
@@ -31,7 +46,7 @@ test('it builds a target with a provider for each local-pty entry and none for a
 });
 
 test('it records the target of each spawn', () => {
-  using tmp = setupTempDir('atc-stub-targets-');
+  using ctx = setupTest();
 
   const spawned: string[] = [];
 
@@ -44,7 +59,7 @@ test('it records the target of each spawn', () => {
     host: 's-1',
     bin: 'true',
     args: [],
-    cwd: tmp.dir,
+    cwd: ctx.dir,
     env: {},
     cols: 80,
     rows: 24,
@@ -67,8 +82,6 @@ test('it gives a target the host operations named for it', async () => {
 
   await target?.provider?.suspendHost('h-1');
 
-  expect({
-    suspend: target?.provider?.capabilities.suspend,
-    calls: suspendHost.mock.calls.length,
-  }).toStrictEqual({ suspend: true, calls: 1 });
+  expect(target?.provider?.capabilities.suspend).toBeTrue();
+  expect(suspendHost).toHaveBeenCalledExactlyOnceWith('h-1');
 });

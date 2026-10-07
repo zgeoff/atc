@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildStubRecordingATC } from './build-stub-recording-atc';
 import { createStubBin } from './create-stub-bin';
 import { createStubGuestCLIs } from './create-stub-guest-clis';
 import { setupTempDir } from './setup-temp-dir';
@@ -22,8 +23,7 @@ test('it creates both tools under the directory', () => {
 test('it creates an atc that runs the CLI of this source tree', () => {
   using ctx = setupTest();
 
-  const clis = createStubGuestCLIs(ctx.dir);
-  const result = Bun.spawnSync([clis.atc, 'help']);
+  const result = Bun.spawnSync([createStubGuestCLIs(ctx.dir).atc, 'help']);
 
   expect(result.stdout.toString()).toInclude('Terminal control tower for coding-agent sessions');
 });
@@ -31,8 +31,9 @@ test('it creates an atc that runs the CLI of this source tree', () => {
 test('it creates a claude that prints its pid, then echoes each line it reads', () => {
   using ctx = setupTest();
 
-  const clis = createStubGuestCLIs(ctx.dir);
-  const result = Bun.spawnSync([clis.claude], { stdin: Buffer.from('hello\n') });
+  const result = Bun.spawnSync([createStubGuestCLIs(ctx.dir).claude], {
+    stdin: Buffer.from('hello\n'),
+  });
 
   expect(result.stdout.toString()).toMatch(/^UP:\d+\nGOT:hello\n$/);
 });
@@ -53,7 +54,7 @@ test('it reports a SessionStart with a transcript only the host holds for start'
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
-  createStubBin(ctx.dir, 'atc', buildRecorderScript(log));
+  createStubBin(ctx.dir, 'atc', buildStubRecordingATC(log));
 
   Bun.spawnSync([clis.claude], {
     stdin: Buffer.from('start c-1\n'),
@@ -71,7 +72,7 @@ test('it reports a Notification carrying the text for notify', () => {
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
-  createStubBin(ctx.dir, 'atc', buildRecorderScript(log));
+  createStubBin(ctx.dir, 'atc', buildStubRecordingATC(log));
 
   Bun.spawnSync([clis.claude], {
     stdin: Buffer.from('notify needs you\n'),
@@ -89,7 +90,7 @@ test('it reports a SessionStart from a nested Codex harness for nested', () => {
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
-  createStubBin(ctx.dir, 'atc', buildRecorderScript(log));
+  createStubBin(ctx.dir, 'atc', buildStubRecordingATC(log));
 
   Bun.spawnSync([clis.claude], {
     stdin: Buffer.from('nested x-1\n'),
@@ -107,7 +108,7 @@ test('it reports a Notification as another atc session for forge', () => {
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
-  createStubBin(ctx.dir, 'atc', buildRecorderScript(log));
+  createStubBin(ctx.dir, 'atc', buildStubRecordingATC(log));
 
   Bun.spawnSync([clis.claude], {
     stdin: Buffer.from('forge s-other\n'),
@@ -125,7 +126,7 @@ test('it answers the message with the text for answer', () => {
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
-  createStubBin(ctx.dir, 'atc', buildRecorderScript(log));
+  createStubBin(ctx.dir, 'atc', buildStubRecordingATC(log));
 
   Bun.spawnSync([clis.claude], {
     stdin: Buffer.from('answer m-1 the answer\n'),
@@ -143,7 +144,7 @@ test('it reports a note labelled progress for note', () => {
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
-  createStubBin(ctx.dir, 'atc', buildRecorderScript(log));
+  createStubBin(ctx.dir, 'atc', buildStubRecordingATC(log));
 
   Bun.spawnSync([clis.claude], {
     stdin: Buffer.from('note half way\n'),
@@ -161,7 +162,7 @@ test('it runs the tap in the background, printing into the file, for tap', async
   const clis = createStubGuestCLIs(ctx.dir);
   const tapFile = join(ctx.dir, 'tap.log');
 
-  createStubBin(ctx.dir, 'atc', buildRecorderScript('/dev/stdout'));
+  createStubBin(ctx.dir, 'atc', buildStubRecordingATC('/dev/stdout'));
 
   Bun.spawnSync([clis.claude], {
     stdin: Buffer.from(`tap ${tapFile}\n`),
@@ -172,11 +173,3 @@ test('it runs the tap in the background, printing into the file, for tap', async
     expect(readFileSync(tapFile, 'utf8')).toBe('args:tap --session s-own\nsession:s-own\nstdin:\n');
   });
 });
-
-// An atc that appends its arguments, the atc session it runs as, and what it
-// read from stdin to the log.
-function buildRecorderScript(log: string): string {
-  return `#!/bin/sh
-{ printf 'args:%s\\n' "$*"; printf 'session:%s\\n' "$ATC_SESSION_ID"; printf 'stdin:'; cat; printf '\\n'; } >> '${log}'
-`;
-}

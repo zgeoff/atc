@@ -2,6 +2,10 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { buildStubSoftKillProvider } from './build-stub-soft-kill-provider';
 import { setupTempDir } from './setup-temp-dir';
 
+function setupTest() {
+  return setupTempDir('atc-soft-kill-');
+}
+
 test('it declares the capabilities of a local terminal', () => {
   expect(buildStubSoftKillProvider().capabilities).toStrictEqual({
     spawn: true,
@@ -18,14 +22,14 @@ test('it declares the capabilities of a local terminal', () => {
 });
 
 test('it starts a harness that has no forced kill', () => {
-  using tmp = setupTempDir('atc-soft-kill-');
+  using ctx = setupTest();
 
   const harness = buildStubSoftKillProvider().spawnHarness({
     session: 's-1',
     host: 's-1',
     bin: 'sleep',
     args: ['30'],
-    cwd: tmp.dir,
+    cwd: ctx.dir,
     env: {},
     cols: 80,
     rows: 24,

@@ -6,19 +6,19 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubBin } from '../test-utils/create-stub-bin';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 // A real daemon whose one target `box` runs on the imp provider over a
-// fixture imp port, with the daemon id its lease labels carry.
+// stub imp port, with the daemon id its lease labels carry.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-imp-',

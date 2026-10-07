@@ -5,9 +5,9 @@ import { $ } from 'bun';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -16,7 +16,7 @@ import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 /**
- * A real daemon whose only target is the imp target `box`, over a fixture
+ * A real daemon whose only target is the imp target `box`, over a stub
  * imp port, with two agents that sign in through impd's broker: `claude` on
  * a subscription and the gateway `glm`. Both run a fake Claude that appends
  * a line to `marker` when it starts. Beside it, `work` is a git clone with
@@ -42,7 +42,7 @@ async function setupTest() {
 
   // The imp provider hands the guest this atc binary.
   const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
 
   // A brokered spawn needs a token that may grant each agent's secret, and
   // the secrets themselves.

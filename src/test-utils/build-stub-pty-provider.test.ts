@@ -4,6 +4,10 @@ import { buildStubPTYProvider } from './build-stub-pty-provider';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
+function setupTest() {
+  return setupTempDir('atc-stub-pty-provider-');
+}
+
 test('it reports the local provider kind and capabilities by default', () => {
   const provider = buildStubPTYProvider();
 
@@ -23,7 +27,7 @@ test('it reports the kind and capabilities the test gives it', () => {
 });
 
 test('it reports each spec and runs the harness on a real terminal', async () => {
-  using tmp = setupTempDir('atc-stub-pty-provider-');
+  using ctx = setupTest();
 
   const onSpawn = mock(() => {});
   const provider = buildStubPTYProvider({ onSpawn });
@@ -34,7 +38,7 @@ test('it reports each spec and runs the harness on a real terminal', async () =>
     host: 's-1',
     bin: 'printf',
     args: ['stub-harness-ran'],
-    cwd: tmp.dir,
+    cwd: ctx.dir,
     env: {},
     cols: 80,
     rows: 24,
@@ -57,18 +61,30 @@ test('it reports each spec and runs the harness on a real terminal', async () =>
   expect(onSpawn).toHaveBeenCalledExactlyOnceWith(spec);
 });
 
-test('it takes the host operations the test gives it', async () => {
+test('it readies a host through the operation the test gives it', async () => {
   const prepareHost = mock(() => Promise.resolve());
-  const suspendHost = mock(() => Promise.resolve());
-  const destroyHost = mock(() => Promise.resolve());
-  const provider = buildStubPTYProvider({ prepareHost, suspendHost, destroyHost });
+  const provider = buildStubPTYProvider({ prepareHost });
 
   await provider.prepareHost({ host: 'h-1', daemonID: 'd-1' });
-  await provider.suspendHost('h-1');
-  await provider.destroyHost('h-1');
 
   expect(prepareHost).toHaveBeenCalledExactlyOnceWith({ host: 'h-1', daemonID: 'd-1' });
+});
+
+test('it puts a host to sleep through the operation the test gives it', async () => {
+  const suspendHost = mock(() => Promise.resolve());
+  const provider = buildStubPTYProvider({ suspendHost });
+
+  await provider.suspendHost('h-1');
+
   expect(suspendHost).toHaveBeenCalledExactlyOnceWith('h-1');
+});
+
+test('it destroys a host through the operation the test gives it', async () => {
+  const destroyHost = mock(() => Promise.resolve());
+  const provider = buildStubPTYProvider({ destroyHost });
+
+  await provider.destroyHost('h-1');
+
   expect(destroyHost).toHaveBeenCalledExactlyOnceWith('h-1');
 });
 

@@ -6,8 +6,8 @@ import { openBridgeSocket } from '../protocol/open-bridge-socket';
 import { sendBridgeRequest } from '../protocol/send-bridge-request';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubGuestCLIs } from '../test-utils/create-stub-guest-clis';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -15,7 +15,7 @@ import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 // A real daemon whose one target `box`, its default, runs Claude sessions
-// on the imp provider over a fixture imp port, with the guest folder under
+// on the imp provider over a stub imp port, with the guest folder under
 // a temp directory, the stub guest atc running this source tree, and the
 // stub claude as Claude's binary.
 async function setupTest() {
@@ -24,7 +24,7 @@ async function setupTest() {
   const tmp = stack.use(setupTempDir('atc-imp-bridge-'));
   const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
   const guestDir = join(tmp.dir, 'g');
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
   const config = parseConfig({ claudeBin: clis.claude });
 
   const daemon = await startTestDaemon({

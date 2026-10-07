@@ -1,11 +1,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { buildTargetList } from './build-target-list';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
 test('it lists an imp target as reaching the broker', () => {
-  using port = new FixtureImpPort();
+  using port = buildStubImpPort();
 
   const provider = new ImpProvider(port, {}, { atcBinary: null });
 

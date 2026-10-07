@@ -6,8 +6,8 @@ import { parseConfig } from '../shared/config';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
@@ -16,7 +16,7 @@ import type { RestoreSettled } from './restore-fleet';
 
 /**
  * A real daemon with a `local` target and an imp target `box` over a
- * fixture imp port, and two gateways whose binary is a fake Claude that
+ * stub imp port, and two gateways whose binary is a fake Claude that
  * records each start in `marker`: `glm` takes its credential through
  * `auth`, and `zai` takes none. `settles` records each fleet restore once
  * its terminal adoption ends.
@@ -24,7 +24,7 @@ import type { RestoreSettled } from './restore-fleet';
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
   const settles: RestoreSettled[] = [];
 
   const daemon = await startTestDaemon({

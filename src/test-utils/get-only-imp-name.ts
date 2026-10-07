@@ -1,11 +1,13 @@
-import type { FixtureImpPort } from './fixture-imp-port';
+import type { buildStubImpPort } from './build-stub-imp-port';
 
 /**
- * Returns the name of the one imp a fixture imp port holds, and throws when
+ * Returns the name of the one imp a stub imp port holds, and throws when
  * it holds none or several, so a test that expects one spawn's imp never
  * reads another's.
  */
-export function getOnlyImpName(port: Readonly<Pick<FixtureImpPort, 'collectImpNames'>>): string {
+export function getOnlyImpName(
+  port: Readonly<Pick<ReturnType<typeof buildStubImpPort>, 'collectImpNames'>>,
+): string {
   const names = port.collectImpNames();
   const [name] = names;
 

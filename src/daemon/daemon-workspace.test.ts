@@ -19,10 +19,10 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
-import { FixtureDirProvider } from '../test-utils/fixture-dir-provider';
 import { startGitHTTPServer } from '../test-utils/start-git-http-server';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
@@ -60,7 +60,7 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -234,7 +234,7 @@ test('it verifies the target checkout itself when the daemon env points git at a
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -258,7 +258,7 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
   await using ctx = await setupTest();
 
   // The unpack on the host leaves one tracked file out.
-  const box = new FixtureDirProvider({
+  const box = buildStubDirProvider({
     afterTransfer: async (dir) => {
       await rm(join(dir, 'README.md'));
     },
@@ -320,7 +320,7 @@ test('it removes only the directory it created when a symlink in the requested p
 
   // The unpack leaves a tracked file out, and the requested path's symlink
   // moves to another directory before the rollback removes the checkout.
-  const box = new FixtureDirProvider({
+  const box = buildStubDirProvider({
     afterTransfer: async (dir) => {
       await rm(join(dir, 'README.md'));
 
@@ -381,7 +381,7 @@ test('it records a ready workspace and lists it again on the session after a res
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -413,7 +413,7 @@ test('it records a ready workspace and lists it again on the session after a res
         kind: 'fixture-dir',
         options: {},
         identity: 'test:box',
-        provider: new FixtureDirProvider(),
+        provider: buildStubDirProvider(),
       },
     ],
   }));
@@ -428,7 +428,7 @@ test('it records a ready workspace and lists it again on the session after a res
 test('it refuses a path source whose HEAD was never pushed, transferring nothing', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -470,7 +470,7 @@ test('it refuses a path source whose HEAD was never pushed, transferring nothing
 test('it refuses a path source with uncommitted changes as workspace_dirty when dirt is refused', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -528,7 +528,7 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -593,7 +593,7 @@ test('it materializes the committed HEAD of a dirty path source when dirt is all
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -626,7 +626,7 @@ test('it materializes the committed HEAD of a dirty path source when dirt is all
 test('it refuses a dirty path source whose HEAD was never pushed, transferring nothing', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -667,7 +667,7 @@ test('it refuses a dirty path source whose HEAD was never pushed, transferring n
 test('it refuses a path source that uses submodules, transferring nothing', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -710,7 +710,7 @@ test('it refuses a path source that uses submodules, transferring nothing', asyn
 test('it refuses a git source that tracks LFS paths, transferring nothing and leaving no directory', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -755,7 +755,7 @@ test('it refuses a git source that tracks LFS paths, transferring nothing and le
 test('it refuses a path source whose git config rewrites its origin into a URL with a token', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -795,7 +795,7 @@ test('it refuses a path source whose git config rewrites its origin into a URL w
 test('it refuses a git source whose URL carries a token', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -848,7 +848,7 @@ test('it keeps a workspace credential out of every row, the session, the fleet, 
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -900,7 +900,7 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -952,7 +952,7 @@ test('it clones with the workspace credential and starts the harness without it 
   updateEnv('GIT_ASKPASS', '/fixture/askpass');
   updateEnv('ATC_GIT_ASKPASS_SECRET', 'fixture-not-a-secret');
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1021,7 +1021,7 @@ test('it starts a revived harness after a restart without the workspace credenti
   updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
   mkdirSync(dest, { recursive: true });
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1107,7 +1107,7 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
   const pinned = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
 
   // The host's checkout lands on another commit than the one sent.
-  const box = new FixtureDirProvider({
+  const box = buildStubDirProvider({
     afterTransfer: async (dir) => {
       await Bun.write(join(dir, '.git', 'HEAD'), parent);
     },
@@ -1165,7 +1165,7 @@ test.each([['transfer'], ['run']] as const)(
   async (capability) => {
     await using ctx = await setupTest();
 
-    const box = new FixtureDirProvider({ lacking: [capability] });
+    const box = buildStubDirProvider({ lacking: [capability] });
 
     await using daemon = await startTestDaemon({
       prefix: 'atc-workspace-daemon-',
@@ -1220,7 +1220,7 @@ test('it fails a materialization that a restart interrupts and lists no session 
     held.resolve(undefined);
   });
 
-  const box = new FixtureDirProvider({ afterTransfer: () => held.promise });
+  const box = buildStubDirProvider({ afterTransfer: () => held.promise });
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1269,7 +1269,7 @@ test('it fails a materialization that a restart interrupts and lists no session 
         kind: 'fixture-dir',
         options: {},
         identity: 'test:box',
-        provider: new FixtureDirProvider(),
+        provider: buildStubDirProvider(),
       },
     ],
   }));
@@ -1297,7 +1297,7 @@ test('it fails a materialization that a restart interrupts and lists no session 
 test('it refuses to materialize into a directory that already exists and leaves it as it was', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1441,7 +1441,7 @@ test.each([
     const transferred = Promise.withResolvers<void>();
     const released = Promise.withResolvers<void>();
 
-    const box = new FixtureDirProvider({
+    const box = buildStubDirProvider({
       afterTransfer: async (dir) => {
         unlinkSync(join(dir, 'README.md'));
 
@@ -1503,7 +1503,7 @@ test.each([
 test('it refuses a workspace spawn whose cwd is relative before anything runs', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1538,7 +1538,7 @@ test('it refuses a workspace spawn whose cwd is relative before anything runs', 
 test('it refuses a directory outside git as the workspace of a target off the daemon host', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1595,7 +1595,7 @@ test('it runs a local session in a directory outside git as it stands', async ()
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -1641,7 +1641,7 @@ test('it refuses to run a local repository in place when git cannot read its con
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -1681,7 +1681,7 @@ test('it refuses to run a local repository in place when git does not trust its 
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -1726,7 +1726,7 @@ test('it runs a local spawn without a workspace in a repository git cannot read'
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -1763,7 +1763,7 @@ test('it refuses a local directory outside git as the workspace of a spawn elsew
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -1806,7 +1806,7 @@ test('it materializes a git source on the local target like on any other', async
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -1856,7 +1856,7 @@ test('it materializes a git source without a cwd under the home on the local tar
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -1915,7 +1915,7 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -1970,7 +1970,7 @@ test('it lands a git source without a cwd under the root the config sets for its
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -1989,8 +1989,7 @@ test('it refuses a git source without a cwd whose root it cannot write after one
   await using ctx = await setupTest();
 
   const root = join(ctx.dir, 'read-only');
-
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   mkdirSync(root, { mode: 0o555 });
 
@@ -2053,7 +2052,7 @@ test('it refuses a spawn without a cwd or a workspace as bad_args', async () => 
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -2072,7 +2071,7 @@ test('it refuses a spawn without a cwd or a workspace as bad_args', async () => 
 test('it refuses a spawn without a cwd whose workspace is not a git source before anything runs', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2128,7 +2127,7 @@ test('it runs a local spawn without a workspace in its directory as it stands', 
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -2171,7 +2170,7 @@ test('it checks out the sha of a git source that holds both on the branch its re
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -2215,7 +2214,7 @@ test('it checks out the sha of a git source that holds both on the branch its re
 test('it refuses a git source on a local transport before it runs git, transferring nothing', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2262,7 +2261,7 @@ test('it refuses a git source on a local transport before it runs git, transferr
 test('it refuses a path source whose origin is a local repository, in git, transferring nothing', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2299,7 +2298,7 @@ test('it refuses a path source whose origin is a local repository, in git, trans
 test('it holds a probe to the configured transports whatever transports it carries', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2334,7 +2333,7 @@ test('it holds a probe to the configured transports whatever transports it carri
 test('it holds a spawn to the configured transports whatever transports it carries', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2369,7 +2368,7 @@ test('it holds a spawn to the configured transports whatever transports it carri
 test('it refuses a git source that carries transports of its own as bad_args', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2411,7 +2410,7 @@ test('it holds git to the configured transports whatever the daemon environment 
   updateEnv('GIT_ALLOW_PROTOCOL', 'https:ssh:file');
   updateEnv('ATC_GIT_ALLOW_PROTOCOL', 'https:ssh:file');
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2475,7 +2474,7 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -2497,7 +2496,7 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
 test('it refuses a probe under an invalid transport list before any git runs', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2545,7 +2544,7 @@ test('it refuses a probe under an invalid transport list before any git runs', a
 test('it refuses a git spawn under an invalid transport list before any git runs', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2594,7 +2593,7 @@ test('it refuses a git spawn under an invalid transport list before any git runs
 test('it refuses a checkout spawn under an invalid transport list before any git runs', async () => {
   await using ctx = await setupTest();
 
-  const box = new FixtureDirProvider();
+  const box = buildStubDirProvider();
 
   await using daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2664,7 +2663,7 @@ test('it spawns a local session under an invalid transport list', async () => {
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),
@@ -2702,7 +2701,7 @@ test('it spawns a local session in a directory outside git under an invalid tran
           kind: 'fixture-dir',
           options: {},
           identity: 'test:box',
-          provider: new FixtureDirProvider(),
+          provider: buildStubDirProvider(),
         },
       ],
     }),

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { spawn } from 'bun-pty';
 import { createStubComposer } from './create-stub-composer';
+import { KEYS } from './keys';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -54,7 +55,7 @@ test('it submits the typed text on a lone carriage return', async () => {
     expect(ctx.output.text).toInclude('RECEIVED:"hello"');
   });
 
-  ctx.pty.write('\r');
+  ctx.pty.write(KEYS.enter);
 
   await waitFor(() => {
     expect(ctx.output.text).toInclude('SUBMIT:"hello"\r');
@@ -80,15 +81,15 @@ test('it prints every byte received so far after each read', async () => {
 test('it keeps the line breaks of a bracketed paste in the submission', async () => {
   await using ctx = await setupTest();
 
-  ctx.pty.write('\u001B[200~first\rsecond\u001B[201~');
+  ctx.pty.write(`${KEYS.pasteOpen}first${KEYS.enter}second${KEYS.pasteClose}`);
 
   await waitFor(() => {
     expect(ctx.output.text).toInclude(
-      `RECEIVED:${JSON.stringify('\u001B[200~first\rsecond\u001B[201~')}`,
+      `RECEIVED:${JSON.stringify(`${KEYS.pasteOpen}first${KEYS.enter}second${KEYS.pasteClose}`)}`,
     );
   });
 
-  ctx.pty.write('\r');
+  ctx.pty.write(KEYS.enter);
 
   await waitFor(() => {
     expect(ctx.output.text).toInclude(String.raw`SUBMIT:"first\nsecond"`);
@@ -104,7 +105,7 @@ test('it adds a line break for a lone line feed instead of submitting', async ()
     expect(ctx.output.text).toInclude('RECEIVED:"first"');
   });
 
-  ctx.pty.write('\n');
+  ctx.pty.write(KEYS.ctrlJ);
 
   await waitFor(() => {
     expect(ctx.output.text).toInclude(String.raw`RECEIVED:"first\n"`);
@@ -116,7 +117,7 @@ test('it adds a line break for a lone line feed instead of submitting', async ()
     expect(ctx.output.text).toInclude(String.raw`RECEIVED:"first\nsecond"`);
   });
 
-  ctx.pty.write('\r');
+  ctx.pty.write(KEYS.enter);
 
   await waitFor(() => {
     expect(ctx.output.text).toInclude(String.raw`SUBMIT:"first\nsecond"`);
@@ -126,13 +127,13 @@ test('it adds a line break for a lone line feed instead of submitting', async ()
 test('it keeps the line breaks of an unbracketed burst in the composer', async () => {
   await using ctx = await setupTest();
 
-  ctx.pty.write('first\rsecond');
+  ctx.pty.write(`first${KEYS.enter}second`);
 
   await waitFor(() => {
     expect(ctx.output.text).toInclude(String.raw`RECEIVED:"first\rsecond"`);
   });
 
-  ctx.pty.write('\r');
+  ctx.pty.write(KEYS.enter);
 
   await waitFor(() => {
     expect(ctx.output.text).toInclude(String.raw`SUBMIT:"first\nsecond"`);
@@ -142,19 +143,19 @@ test('it keeps the line breaks of an unbracketed burst in the composer', async (
 test('it holds a paste marker split across two reads', async () => {
   await using ctx = await setupTest();
 
-  ctx.pty.write('\u001B[20');
+  ctx.pty.write(KEYS.pasteOpen.slice(0, 4));
 
   await waitFor(() => {
     expect(ctx.output.text).toInclude(String.raw`RECEIVED:"\u001b[20"`);
   });
 
-  ctx.pty.write('0~a\rb\u001B[201~');
+  ctx.pty.write(`${KEYS.pasteOpen.slice(4)}a${KEYS.enter}b${KEYS.pasteClose}`);
 
   await waitFor(() => {
     expect(ctx.output.text).toInclude(String.raw`\u001b[201~"`);
   });
 
-  ctx.pty.write('\r');
+  ctx.pty.write(KEYS.enter);
 
   await waitFor(() => {
     expect(ctx.output.text).toInclude(String.raw`SUBMIT:"a\nb"`);

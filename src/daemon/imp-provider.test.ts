@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import type { HarnessHandle } from './execution-provider';
 import { ImpProvider } from './imp-provider';
@@ -8,7 +8,7 @@ import type { ImpTargetOptions } from './imp-provider';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
 /**
- * A fixture imp port and a temp directory. `createProvider` builds a
+ * A stub imp port and a temp directory. `createProvider` builds a
  * provider over the port with its guest directory under the temp directory
  * and a guest atc that no imp holds, plus the target options given, and
  * disposes it before the port and the directory.
@@ -17,7 +17,7 @@ function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-imp-provider-'));
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
   const owned = stack.move();
 
   return {

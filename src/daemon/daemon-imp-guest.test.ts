@@ -5,8 +5,8 @@ import { ClaudeAdapter } from '../agents/claude-adapter';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubGuestCLIs } from '../test-utils/create-stub-guest-clis';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -14,13 +14,13 @@ import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 // The fixed parts every imp guest test shares: the stub guest tools and the
-// guest folder under a temp directory, and a fixture imp port.
+// guest folder under a temp directory, and a stub imp port.
 function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-imp-guest-'));
   const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
   const owned = stack.move();
 
   return {
@@ -39,7 +39,7 @@ test('it refuses a remote Claude spawn when the host has no atc and the daemon h
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -84,7 +84,7 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -148,7 +148,7 @@ test("it takes a remote session's hook reports from a socket that serves that se
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -213,7 +213,7 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -279,7 +279,7 @@ test('it copies its own atc binary into an imp that has none', async () => {
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -316,7 +316,7 @@ test('it refuses a remote spawn whose agent is not signed in on the host, before
   using ctx = setupTest();
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -362,7 +362,7 @@ test('it destroys the host of its own that a remote spawn readied when its agent
   using ctx = setupTest();
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -417,7 +417,7 @@ test('it answers outcome_unknown for a spawn whose agent is not signed in on a h
   using ctx = setupTest();
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -461,7 +461,7 @@ test('it keeps the key of a spawn whose agent is not signed in on a host it cann
   using ctx = setupTest();
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -514,7 +514,7 @@ test('it revives a slept remote session whose transcript only its imp holds', as
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -572,7 +572,7 @@ test('it refuses a remote Claude spawn when the atc the target names is missing 
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -617,7 +617,7 @@ test('it refuses a remote spawn of an agent that never runs remotely, without bl
   using ctx = setupTest();
 
   // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the fixture imp port.
+  // provider over the stub imp port.
   await using daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
