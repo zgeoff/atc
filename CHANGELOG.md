@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.40.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.39.0...@zgeoff/atc@2.40.0) (2026-10-07)
+
+### Features
+
+- **geo-132:** restore the fleet after a daemon restart
+  ([#339](https://github.com/zgeoff/atc/issues/339))
+  ([52af732](https://github.com/zgeoff/atc/commit/52af7326b902e5b6de0531e02685e3d7ed0d600a))
+
 ## [2.39.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.38.0...@zgeoff/atc@2.39.0) (2026-10-06)
 
 ### Features
