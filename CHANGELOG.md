@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.2.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.1.1...@zgeoff/atc@3.2.0) (2026-10-07)
+
+### Features
+
+- **geo-147:** check pinned and live in the daemon step that forgets
+  ([#355](https://github.com/zgeoff/atc/issues/355))
+  ([d7a79c0](https://github.com/zgeoff/atc/commit/d7a79c0ba9c3b570f4bfcf778d74d645c0fa5f18))
+
+### Bug Fixes
+
+- **geo-86:** stop local pty sessions inheriting the startup environment
+  ([#354](https://github.com/zgeoff/atc/issues/354))
+  ([82d8252](https://github.com/zgeoff/atc/commit/82d82524459d70e90dd1eafda0ea3475444e0330))
+
 ## [3.1.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.1.0...@zgeoff/atc@3.1.1) (2026-10-07)
 
 ### Bug Fixes
