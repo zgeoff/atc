@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { getEventListeners } from 'node:events';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -58,6 +58,12 @@ test('it stops every process a gh that is still running at abort started', async
   const controller = new AbortController();
 
   const running = runGH(ctx.gh, controller.signal, ['repo', 'list']);
+
+  onTestFinished(async () => {
+    controller.abort();
+
+    await running;
+  });
 
   const pids = await waitFor(() => readFile(ctx.pids, 'utf8'));
 
