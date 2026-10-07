@@ -66,6 +66,7 @@ test('it replays only the visible screen for a session on the alternate buffer',
 
   const replay = await ctx.model.renderReplay();
 
+  expect(replay).toInclude('altscreen content');
   expect(replay).not.toInclude('\u001B[?1049h');
   expect(replay).not.toInclude('normal residue');
 });

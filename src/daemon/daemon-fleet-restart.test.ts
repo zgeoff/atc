@@ -44,10 +44,6 @@ test('it restores the stored sessions by itself after a restart', async () => {
 
   clock.advance(10);
 
-  await Bun.sleep(500);
-
-  console.log('DBG', clock.collectPending(), daemon.logs, settles);
-
   await waitFor(() => {
     expect(settles).toHaveLength(1);
   });
