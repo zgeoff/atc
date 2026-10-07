@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { claimDaemonLock } from './claim-daemon-lock';
@@ -23,9 +24,7 @@ test('it refuses the lock while another holder keeps it past the wait', async ()
     first?.dispose();
   });
 
-  if (first === null) {
-    throw new Error('the first claim found the lock held');
-  }
+  invariant(first !== null, 'the first claim found the lock held');
 
   const claim = claimDaemonLock(lockPath, 100, clock);
 
@@ -43,9 +42,7 @@ test('it grants the lock once the previous holder lets go', async () => {
 
   const first = await claimDaemonLock(lockPath, 0);
 
-  if (first === null) {
-    throw new Error('the first claim found the lock held');
-  }
+  invariant(first !== null, 'the first claim found the lock held');
 
   first.dispose();
 
@@ -66,9 +63,7 @@ test('it waits for a holder that lets go within the wait', async () => {
 
   const first = await claimDaemonLock(lockPath, 0, clock);
 
-  if (first === null) {
-    throw new Error('the first claim found the lock held');
-  }
+  invariant(first !== null, 'the first claim found the lock held');
 
   const claim = claimDaemonLock(lockPath, 2000, clock);
 

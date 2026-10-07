@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubClock } from '../test-utils/build-stub-clock';
@@ -505,9 +506,10 @@ test('it refuses a tool call for a scope the operator left unticked with insuffi
 
   const tokens = await readJSONRecord(exchanged);
 
-  if (tokens['scope'] !== 'read offline_access') {
-    throw new Error('the grant holds more than the ticked scope');
-  }
+  invariant(
+    tokens['scope'] === 'read offline_access',
+    'the grant holds more than the ticked scope',
+  );
 
   const spawned = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -577,9 +579,7 @@ test('it refuses consent to a scope the client did not request', async () => {
 
   const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
 
-  if (consent.pathname !== '/consent') {
-    throw new Error('the approval code did not reach the consent page');
-  }
+  invariant(consent.pathname === '/consent', 'the approval code did not reach the consent page');
 
   const cookie = signedIn.headers
     .getSetCookie()
@@ -841,9 +841,7 @@ test('it asks a browser that kept its owner session for a fresh approval code', 
     .map((line) => line.split(';')[0])
     .join('; ');
 
-  if (!cookie.includes('session_token=')) {
-    throw new Error('the login set no owner session');
-  }
+  invariant(cookie.includes('session_token='), 'the login set no owner session');
 
   const second = await fetch(authorize, { redirect: 'manual', headers: { cookie } });
 
@@ -883,9 +881,7 @@ test('it refuses an access token once its grant is revoked', async () => {
   const tokens = await readJSONRecord(exchanged);
   const [grant] = await collectGrants(ctx.store.db);
 
-  if (grant === undefined) {
-    throw new Error('the exchange left no grant');
-  }
+  invariant(grant !== undefined, 'the exchange left no grant');
 
   const before = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -893,9 +889,7 @@ test('it refuses an access token once its grant is revoked', async () => {
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  if (before.status !== 200) {
-    throw new Error('the token did not work before the revoke');
-  }
+  invariant(before.status === 200, 'the token did not work before the revoke');
 
   await revokeGrant(ctx.store.db, grant.grantID);
 
@@ -938,9 +932,7 @@ test('it refuses to refresh a token once its grant is revoked', async () => {
   const tokens = await readJSONRecord(exchanged);
   const [grant] = await collectGrants(ctx.store.db);
 
-  if (grant === undefined) {
-    throw new Error('the exchange left no grant');
-  }
+  invariant(grant !== undefined, 'the exchange left no grant');
 
   const before = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -948,9 +940,7 @@ test('it refuses to refresh a token once its grant is revoked', async () => {
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  if (before.status !== 200) {
-    throw new Error('the token did not work before the revoke');
-  }
+  invariant(before.status === 200, 'the token did not work before the revoke');
 
   await revokeGrant(ctx.store.db, grant.grantID);
 
@@ -995,9 +985,7 @@ test('it shows the consent page again to a client whose grant was revoked', asyn
 
   const [grant] = await collectGrants(ctx.store.db);
 
-  if (grant === undefined) {
-    throw new Error('the exchange left no grant');
-  }
+  invariant(grant !== undefined, 'the exchange left no grant');
 
   await revokeGrant(ctx.store.db, grant.grantID);
 
@@ -1236,9 +1224,7 @@ test('it refuses a reused authorization code and revokes what the first use issu
 
   const first = await fetch(`${ctx.url}/oauth2/token`, { method: 'POST', body: exchange });
 
-  if (first.status !== 200) {
-    throw new Error('the first exchange failed');
-  }
+  invariant(first.status === 200, 'the first exchange failed');
 
   const tokens = await readJSONRecord(first);
   const second = await fetch(`${ctx.url}/oauth2/token`, { method: 'POST', body: exchange });
@@ -1959,9 +1945,7 @@ test('it refuses the tokens of a removed client', async () => {
   const tokens = await readJSONRecord(exchanged);
   const removed = await removeClient(ctx.store.db, clientID);
 
-  if (!removed) {
-    throw new Error('the client was not removed');
-  }
+  invariant(removed, 'the client was not removed');
 
   const pinged = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -2152,9 +2136,7 @@ test('it refuses a consent answer for a request whose approval code was never ty
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
-  if (signedIn.status !== 302) {
-    throw new Error('the approval code did not sign in');
-  }
+  invariant(signedIn.status === 302, 'the approval code did not sign in');
 
   const cookie = signedIn.headers
     .getSetCookie()
@@ -2250,9 +2232,10 @@ test("it refuses a consent answer carrying another approval's owner session", as
 
   const secondConsent = new URL(secondSignedIn.headers.get('location') ?? '/', ctx.url);
 
-  if (secondConsent.pathname !== '/consent') {
-    throw new Error('the second approval did not reach the consent page');
-  }
+  invariant(
+    secondConsent.pathname === '/consent',
+    'the second approval did not reach the consent page',
+  );
 
   const form = new URLSearchParams({
     oauth_query: secondConsent.search.slice(1),
@@ -2304,9 +2287,10 @@ test('it refuses a consent answer whose query still asks for a login', async () 
 
   const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
 
-  if (login.searchParams.get('prompt') !== 'login consent') {
-    throw new Error('the login query does not ask for a login');
-  }
+  invariant(
+    login.searchParams.get('prompt') === 'login consent',
+    'the login query does not ask for a login',
+  );
 
   const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
@@ -2511,9 +2495,7 @@ test('it shows an error page instead of the consent page to a browser with no ow
 
   const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
 
-  if (consent.pathname !== '/consent') {
-    throw new Error('the approval code did not reach the consent page');
-  }
+  invariant(consent.pathname === '/consent', 'the approval code did not reach the consent page');
 
   const page = await fetch(consent);
 
@@ -2576,9 +2558,7 @@ test('it refuses a second consent answer from one login', async () => {
     }),
   });
 
-  if (first.status !== 302) {
-    throw new Error('the first consent answer was refused');
-  }
+  invariant(first.status === 302, 'the first consent answer was refused');
 
   const second = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
@@ -2642,9 +2622,7 @@ test('it deletes the owner session when the operator denies the request', async 
 
   const before = await ctx.store.db.selectFrom('session').select('id').execute();
 
-  if (before.length !== 1) {
-    throw new Error('the login left no owner session');
-  }
+  invariant(before.length === 1, 'the login left no owner session');
 
   const denied = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
@@ -2679,9 +2657,7 @@ test('it keeps the owner session no longer than the authorization code it approv
 
   const [session] = sessions;
 
-  if (session === undefined) {
-    throw new Error('the consent left no owner session');
-  }
+  invariant(session !== undefined, 'the consent left no owner session');
 
   expect(sessions).toBeArrayOfSize(1);
   expect(Date.parse(session.expiresAt)).toBeLessThanOrEqual(Date.now() + 600_000);
@@ -2714,9 +2690,7 @@ test('it deletes the owner session once its authorization code is exchanged', as
     }),
   });
 
-  if (exchanged.status !== 200) {
-    throw new Error('the exchange failed');
-  }
+  invariant(exchanged.status === 200, 'the exchange failed');
 
   const sessions = await ctx.store.db.selectFrom('session').select('id').execute();
 

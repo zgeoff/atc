@@ -1,5 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import { PROTOCOL_V } from '../protocol/protocol';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -104,9 +105,10 @@ test('it refuses a filtered read unsent when an older daemon replaced the one it
 
   const features = await ctx.caller.readFeatures();
 
-  if (!features.has('events.session')) {
-    throw new Error('the first daemon does not announce the session filter');
-  }
+  invariant(
+    features.has('events.session'),
+    'the first daemon does not announce the session filter',
+  );
 
   await ctx.daemon.stop();
 
