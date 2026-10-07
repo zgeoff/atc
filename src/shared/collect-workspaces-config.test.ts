@@ -46,7 +46,16 @@ test.each([
 test.each([[{ sources: 'dirs' }], [{ sources: ['dirs', 7] }], [{ sources: ['dirs', ''] }]])(
   'it reads the default source order from %p',
   (raw) => {
-    expect(collectWorkspacesConfig(raw).workspaces.sources).toBeNull();
+    expect(collectWorkspacesConfig(raw)).toStrictEqual({
+      workspaces: {
+        githubOwner: null,
+        sources: null,
+        gitTransports: ['https', 'ssh'],
+        root: null,
+        targetRoots: new Map(),
+      },
+      errors: [],
+    });
   },
 );
 

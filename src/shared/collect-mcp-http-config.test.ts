@@ -33,5 +33,10 @@ test('it drops wrong-typed settings and entries', () => {
 });
 
 test.each([0, 65_536, 80.5])('it falls back to port 8414 for a configured port of %p', (port) => {
-  expect(collectMCPHTTPConfig({ port })).toMatchObject({ port: 8414 });
+  expect(collectMCPHTTPConfig({ port })).toStrictEqual({
+    publicURL: null,
+    host: '127.0.0.1',
+    port: 8414,
+    allowedHosts: [],
+  });
 });

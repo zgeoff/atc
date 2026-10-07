@@ -14,9 +14,12 @@ test('it refuses the lock while another holder keeps it', async () => {
     first?.dispose();
   });
 
+  if (first === null) {
+    throw new Error('the first claim found the lock held');
+  }
+
   const second = await claimDaemonLock(lockPath, 100);
 
-  expect(first).not.toBeNull();
   expect(second).toBeNull();
 });
 
@@ -53,11 +56,11 @@ test('it waits for a holder that lets go within the wait', async () => {
     throw new Error('the first claim found the lock held');
   }
 
-  setTimeout(() => {
-    first.dispose();
-  }, 100);
+  const claim = claimDaemonLock(lockPath, 2000);
 
-  const second = await claimDaemonLock(lockPath, 2000);
+  first.dispose();
+
+  const second = await claim;
 
   onTestFinished(() => {
     second?.dispose();

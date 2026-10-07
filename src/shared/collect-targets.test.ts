@@ -31,7 +31,14 @@ test('it reads each named target with its provider and the rest of its keys as o
 test('it defaults to the local entry of a targets map without a defaultTarget', () => {
   expect(
     collectTargets({ box: { provider: 'imp' }, local: { provider: 'local-pty' } }, undefined),
-  ).toMatchObject({ defaultTarget: 'local', errors: [] });
+  ).toStrictEqual({
+    targets: [
+      { id: 'box', provider: 'imp', options: {} },
+      { id: 'local', provider: 'local-pty', options: {} },
+    ],
+    defaultTarget: 'local',
+    errors: [],
+  });
 });
 
 test('it leaves no default for a targets map without local or a defaultTarget', () => {
@@ -106,10 +113,15 @@ test.each([
   (_label, rawDefault, problem) => {
     expect(
       collectTargets({ local: { provider: 'local-pty' }, broken: { provider: 3 } }, rawDefault),
-    ).toMatchObject({
+    ).toStrictEqual({
+      targets: [{ id: 'local', provider: 'local-pty', options: {} }],
       defaultTarget: null,
       errors: [
-        { scope: 'target', target: 'broken' },
+        {
+          scope: 'target',
+          target: 'broken',
+          problem: 'target "broken" must be an object with a non-empty string provider',
+        },
         { scope: 'defaultTarget', problem },
       ],
     });

@@ -30,9 +30,10 @@ const HOOK_ENTRY_SCHEMA = z.object({
  * is left out; an event name with no valid entries is dropped. Unknown event
  * names are kept as written — they never fire, and a future daemon that
  * emits them starts firing without a config change. A `dir` is stored with
- * `~` expanded and trailing slashes trimmed, ready for path matching.
+ * `~` expanded to `home` and trailing slashes trimmed, ready for path
+ * matching.
  */
-export function collectHooks(raw: unknown): HooksConfig {
+export function collectHooks(raw: unknown, home: string = homedir()): HooksConfig {
   if (!isRecord(raw)) {
     return {};
   }
@@ -55,7 +56,7 @@ export function collectHooks(raw: unknown): HooksConfig {
 
       entries.push({
         command: parsed.data.command,
-        ...(parsed.data.dir === undefined ? {} : { dir: normalizeHookDir(parsed.data.dir) }),
+        ...(parsed.data.dir === undefined ? {} : { dir: normalizeHookDir(parsed.data.dir, home) }),
         ...(parsed.data.timeout === undefined ? {} : { timeout: parsed.data.timeout }),
       });
     }
@@ -68,8 +69,8 @@ export function collectHooks(raw: unknown): HooksConfig {
   return hooks;
 }
 
-function normalizeHookDir(dir: string): string {
-  const expanded = dir === '~' ? homedir() : dir.replace(/^~\//u, `${homedir()}/`);
+function normalizeHookDir(dir: string, home: string): string {
+  const expanded = dir === '~' ? home : dir.replace(/^~\//u, `${home}/`);
   const trimmed = expanded.replace(/\/+$/u, '');
 
   return trimmed === '' ? '/' : trimmed;

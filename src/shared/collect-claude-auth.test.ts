@@ -1,17 +1,16 @@
 import { expect, test } from 'bun:test';
-import { collectAuthProfiles } from './collect-auth-profiles';
+import { buildMockAuthProfile } from '../test-utils/build-mock-auth-profile';
+import type { AuthProfile } from './collect-auth-profiles';
 import { collectClaudeAuth } from './collect-claude-auth';
 
 test('it reads a selection whose profiles send a bearer authorization header to the Anthropic API', () => {
-  const profiles = collectAuthProfiles({
-    claude: {
-      secret: 'claude-setup-token',
-      host: 'api.anthropic.com',
-      header: 'authorization',
-      scheme: 'bearer',
-    },
-    github: { secret: 'github-imp-agents', kind: 'github' },
-  }).profiles;
+  const profiles = new Map<string, AuthProfile>([
+    [
+      'claude',
+      buildMockAuthProfile({ name: 'claude', host: 'api.anthropic.com', header: 'authorization' }),
+    ],
+    ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+  ]);
 
   expect(collectClaudeAuth({ profiles: ['claude', 'github'] }, profiles)).toStrictEqual({
     auth: { profiles: ['claude', 'github'], mcpServers: [] },
@@ -37,14 +36,12 @@ test.each([
 });
 
 test('it refuses an entry that sets the endpoint or the placeholder itself', () => {
-  const profiles = collectAuthProfiles({
-    claude: {
-      secret: 'claude-setup-token',
-      host: 'api.anthropic.com',
-      header: 'authorization',
-      scheme: 'bearer',
-    },
-  }).profiles;
+  const profiles = new Map<string, AuthProfile>([
+    [
+      'claude',
+      buildMockAuthProfile({ name: 'claude', host: 'api.anthropic.com', header: 'authorization' }),
+    ],
+  ]);
 
   expect(
     collectClaudeAuth(
@@ -60,15 +57,18 @@ test('it refuses an entry that sets the endpoint or the placeholder itself', () 
 });
 
 test('it refuses a selection that reaches a profile the config does not hold', () => {
-  const result = collectClaudeAuth({ profiles: ['claude'] }, new Map());
-
-  expect(result).toStrictEqual({ auth: null, errors: [expect.toStartWith('claudeAuth: ')] });
+  expect(collectClaudeAuth({ profiles: ['claude'] }, new Map())).toStrictEqual({
+    auth: null,
+    errors: [
+      'claudeAuth: profile claude is selected, but authProfiles has no usable profile by that name',
+    ],
+  });
 });
 
 test('it refuses a selection whose profiles send no credential to the Anthropic API', () => {
-  const profiles = collectAuthProfiles({
-    github: { secret: 'github-imp-agents', kind: 'github' },
-  }).profiles;
+  const profiles = new Map<string, AuthProfile>([
+    ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+  ]);
 
   expect(collectClaudeAuth({ profiles: ['github'] }, profiles)).toStrictEqual({
     auth: null,
@@ -79,14 +79,12 @@ test('it refuses a selection whose profiles send no credential to the Anthropic 
 });
 
 test('it refuses a selection that sends the Anthropic API a header other than authorization', () => {
-  const profiles = collectAuthProfiles({
-    claude: {
-      secret: 'claude-api-key',
-      host: 'api.anthropic.com',
-      header: 'x-api-key',
-      scheme: 'bearer',
-    },
-  }).profiles;
+  const profiles = new Map<string, AuthProfile>([
+    [
+      'claude',
+      buildMockAuthProfile({ name: 'claude', host: 'api.anthropic.com', header: 'x-api-key' }),
+    ],
+  ]);
 
   expect(collectClaudeAuth({ profiles: ['claude'] }, profiles)).toStrictEqual({
     auth: null,
@@ -97,20 +95,16 @@ test('it refuses a selection that sends the Anthropic API a header other than au
 });
 
 test("it reads an MCP server on a selected profile's host with that profile's header", () => {
-  const profiles = collectAuthProfiles({
-    claude: {
-      secret: 'claude-setup-token',
-      host: 'api.anthropic.com',
-      header: 'authorization',
-      scheme: 'bearer',
-    },
-    linear: {
-      secret: 'linear-imp-agents',
-      host: 'mcp.linear.app',
-      header: 'authorization',
-      scheme: 'bearer',
-    },
-  }).profiles;
+  const profiles = new Map<string, AuthProfile>([
+    [
+      'claude',
+      buildMockAuthProfile({ name: 'claude', host: 'api.anthropic.com', header: 'authorization' }),
+    ],
+    [
+      'linear',
+      buildMockAuthProfile({ name: 'linear', host: 'mcp.linear.app', header: 'authorization' }),
+    ],
+  ]);
 
   expect(
     collectClaudeAuth(
@@ -181,27 +175,21 @@ test.each([
   ],
   [['linear'], 'claudeAuth.mcpServers must be an object of named servers'],
 ])('it leaves out the MCP servers %p and keeps the sign-in', (mcpServers, error) => {
-  const profiles = collectAuthProfiles({
-    claude: {
-      secret: 'claude-setup-token',
-      host: 'api.anthropic.com',
-      header: 'authorization',
-      scheme: 'bearer',
-    },
-    linear: {
-      secret: 'linear-imp-agents',
-      host: 'mcp.linear.app',
-      header: 'authorization',
-      scheme: 'bearer',
-    },
-    unselected: {
-      secret: 'linear-imp-agents',
-      host: 'mcp.linear.app',
-      header: 'authorization',
-      scheme: 'bearer',
-    },
-    github: { secret: 'github-imp-agents', kind: 'github' },
-  }).profiles;
+  const profiles = new Map<string, AuthProfile>([
+    [
+      'claude',
+      buildMockAuthProfile({ name: 'claude', host: 'api.anthropic.com', header: 'authorization' }),
+    ],
+    [
+      'linear',
+      buildMockAuthProfile({ name: 'linear', host: 'mcp.linear.app', header: 'authorization' }),
+    ],
+    [
+      'unselected',
+      buildMockAuthProfile({ name: 'unselected', host: 'mcp.linear.app', header: 'authorization' }),
+    ],
+    ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+  ]);
 
   expect(
     collectClaudeAuth({ profiles: ['claude', 'linear', 'github'], mcpServers }, profiles),

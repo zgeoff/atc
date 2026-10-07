@@ -236,29 +236,71 @@ test('it refuses a profile that is not an object, and keeps its well-formed sibl
   });
 });
 
-const OP_CONNECT = {
-  secret: 'op-connect',
-  host: 'op-connect.geoff.cloud',
-  header: 'authorization',
-  scheme: 'bearer',
-} as const;
-
 test('it keeps the variables of a custom profile set to the placeholder or its own host', () => {
-  const env = {
-    OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
-    OP_CONNECT_TOKEN: 'imp-broker-placeholder',
-  };
-
-  expect(collectAuthProfiles({ op: { ...OP_CONNECT, env } })).toStrictEqual({
+  expect(
+    collectAuthProfiles({
+      op: {
+        secret: 'op-connect',
+        host: 'op-connect.geoff.cloud',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: {
+          OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+          OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+        },
+      },
+    }),
+  ).toStrictEqual({
     profiles: new Map([
-      ['op', { name: 'op', ...OP_CONNECT, kind: 'custom', env, dependencies: [] }],
+      [
+        'op',
+        {
+          name: 'op',
+          secret: 'op-connect',
+          kind: 'custom',
+          host: 'op-connect.geoff.cloud',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: {
+            OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+            OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+          },
+          dependencies: [],
+        },
+      ],
     ]),
     errors: [],
   });
 });
 
 test('it gives a profile that sets no variables an empty env', () => {
-  expect(collectAuthProfiles({ op: OP_CONNECT }).profiles.get('op')).toHaveProperty('env', {});
+  expect(
+    collectAuthProfiles({
+      op: {
+        secret: 'op-connect',
+        host: 'op-connect.geoff.cloud',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    }),
+  ).toStrictEqual({
+    profiles: new Map([
+      [
+        'op',
+        {
+          name: 'op',
+          secret: 'op-connect',
+          kind: 'custom',
+          host: 'op-connect.geoff.cloud',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: {},
+          dependencies: [],
+        },
+      ],
+    ]),
+    errors: [],
+  });
 });
 
 test.each([
@@ -293,7 +335,17 @@ test.each([
   ],
   ['x', 'env must be an object of variable names'],
 ])('it refuses a profile whose env is %p', (env, error) => {
-  expect(collectAuthProfiles({ op: { ...OP_CONNECT, env } })).toStrictEqual({
+  expect(
+    collectAuthProfiles({
+      op: {
+        secret: 'op-connect',
+        host: 'op-connect.geoff.cloud',
+        header: 'authorization',
+        scheme: 'bearer',
+        env,
+      },
+    }),
+  ).toStrictEqual({
     profiles: new Map(),
     errors: [`authProfiles.op: ${error}`],
   });
@@ -317,7 +369,15 @@ test.each([
   'HOME',
 ])('it refuses a profile that sets the reserved variable %s', (name) => {
   expect(
-    collectAuthProfiles({ op: { ...OP_CONNECT, env: { [name]: 'imp-broker-placeholder' } } }),
+    collectAuthProfiles({
+      op: {
+        secret: 'op-connect',
+        host: 'op-connect.geoff.cloud',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: { [name]: 'imp-broker-placeholder' },
+      },
+    }),
   ).toStrictEqual({
     profiles: new Map(),
     errors: [`authProfiles.op: env.${name} cannot be set: atc or impd sets or reserves it`],

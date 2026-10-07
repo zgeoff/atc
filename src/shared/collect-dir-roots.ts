@@ -5,9 +5,9 @@ import { isRecord } from './report';
  * Reads `dirs.roots`: the directories whose children the spawn picker
  * lists. A non-string entry is dropped, a leading `~` expands to the home
  * directory, and trailing slashes are trimmed so a root compares equal to
- * the paths under it.
+ * the paths under it. `home` is the directory a `~` expands to.
  */
-export function collectDirRoots(raw: unknown): readonly string[] {
+export function collectDirRoots(raw: unknown, home: string = homedir()): readonly string[] {
   if (!isRecord(raw) || !Array.isArray(raw['roots'])) {
     return [];
   }
@@ -19,14 +19,14 @@ export function collectDirRoots(raw: unknown): readonly string[] {
       continue;
     }
 
-    roots.push(normalizeRoot(item));
+    roots.push(normalizeRoot(item, home));
   }
 
   return roots;
 }
 
-function normalizeRoot(dir: string): string {
-  const expanded = dir === '~' ? homedir() : dir.replace(/^~\//u, `${homedir()}/`);
+function normalizeRoot(dir: string, home: string): string {
+  const expanded = dir === '~' ? home : dir.replace(/^~\//u, `${home}/`);
   const trimmed = expanded.replace(/\/+$/u, '');
 
   return trimmed === '' ? '/' : trimmed;
