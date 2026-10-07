@@ -7,7 +7,7 @@ import type { EventMsg } from '../protocol/protocol';
 import { sortGroupedSessionViews } from '../protocol/sort-grouped-session-views';
 import { sortSessionViews } from '../protocol/sort-session-views';
 import type { AgentID } from '../shared/agent-id';
-import { loadConfig } from '../shared/config';
+import { configFile, loadConfig } from '../shared/config';
 import { makeSingleFlight } from '../shared/make-single-flight';
 import { bootDaemonClient } from './boot-daemon';
 import { buildClientMachine } from './build-client-machine';
@@ -341,6 +341,11 @@ const picker = new SpawnPicker<MirrorSession>({
   toMirrorSession,
   upsertMirror,
   hasDaemonFeature,
+  write: (chunk) => {
+    process.stdout.write(chunk);
+  },
+  cwd: process.cwd(),
+  configPath: configFile,
 });
 
 function openPicker(resume: boolean) {

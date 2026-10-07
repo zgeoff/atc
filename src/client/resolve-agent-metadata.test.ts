@@ -2,23 +2,20 @@ import { expect, test } from 'bun:test';
 import { parseConfig } from '../shared/config';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
 
-// The config every test starts from: no gateways, so each case adds the one
-// it is about.
-function buildConfig(gateways: unknown): ReturnType<typeof parseConfig> {
-  return parseConfig({ gateways });
-}
-
 test('it labels the built-in agents by name', () => {
-  const meta = resolveAgentMetadata(buildConfig({}), {});
+  const meta = resolveAgentMetadata(parseConfig({ gateways: {} }), {});
 
-  expect(meta.labels['claude']).toBe('Claude');
-  expect(meta.labels['grok']).toBe('Grok');
-  expect(meta.labels['codex']).toBe('Codex');
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex' },
+    models: {},
+  });
 });
 
 test('it labels a configured gateway by its configured label', () => {
   const meta = resolveAgentMetadata(
-    buildConfig({ zai: { label: 'GLM (z.ai)', baseURL: 'https://api.z.ai/api/anthropic' } }),
+    parseConfig({
+      gateways: { zai: { label: 'GLM (z.ai)', baseURL: 'https://api.z.ai/api/anthropic' } },
+    }),
     {},
   );
 
@@ -27,7 +24,7 @@ test('it labels a configured gateway by its configured label', () => {
 
 test('it labels a gateway without a label by its id', () => {
   const meta = resolveAgentMetadata(
-    buildConfig({ kimi: { baseURL: 'https://example.invalid/api/anthropic' } }),
+    parseConfig({ gateways: { kimi: { baseURL: 'https://example.invalid/api/anthropic' } } }),
     {},
   );
 
@@ -36,7 +33,9 @@ test('it labels a gateway without a label by its id', () => {
 
 test('it lets the agents.list answer win over the config label', () => {
   const meta = resolveAgentMetadata(
-    buildConfig({ zai: { label: 'GLM (z.ai)', baseURL: 'https://api.z.ai/api/anthropic' } }),
+    parseConfig({
+      gateways: { zai: { label: 'GLM (z.ai)', baseURL: 'https://api.z.ai/api/anthropic' } },
+    }),
     { agents: [{ id: 'zai', label: 'GLM staged' }] },
   );
 
@@ -45,7 +44,9 @@ test('it lets the agents.list answer win over the config label', () => {
 
 test('it keeps the config label when the answer entry carries none', () => {
   const meta = resolveAgentMetadata(
-    buildConfig({ zai: { label: 'GLM (z.ai)', baseURL: 'https://api.z.ai/api/anthropic' } }),
+    parseConfig({
+      gateways: { zai: { label: 'GLM (z.ai)', baseURL: 'https://api.z.ai/api/anthropic' } },
+    }),
     { agents: [{ id: 'zai' }] },
   );
 
@@ -53,7 +54,7 @@ test('it keeps the config label when the answer entry carries none', () => {
 });
 
 test('it reads an agents.list model alias map', () => {
-  const meta = resolveAgentMetadata(buildConfig({}), {
+  const meta = resolveAgentMetadata(parseConfig({ gateways: {} }), {
     agents: [{ id: 'zai', models: { opus: 'glm-5.3' } }],
   });
 
@@ -61,7 +62,7 @@ test('it reads an agents.list model alias map', () => {
 });
 
 test('it keeps the non-string values of an agents.list model map out', () => {
-  const meta = resolveAgentMetadata(buildConfig({}), {
+  const meta = resolveAgentMetadata(parseConfig({ gateways: {} }), {
     agents: [{ id: 'zai', models: { opus: 7, sonnet: 'glm-5.2' } }],
   });
 
@@ -69,44 +70,48 @@ test('it keeps the non-string values of an agents.list model map out', () => {
 });
 
 test('it reports no model map for an agent whose answer entry has none', () => {
-  const meta = resolveAgentMetadata(buildConfig({}), { agents: [{ id: 'claude' }] });
+  const meta = resolveAgentMetadata(parseConfig({ gateways: {} }), { agents: [{ id: 'claude' }] });
 
-  expect(meta.models['claude']).toBeUndefined();
+  expect(meta.models).not.toContainKey('claude');
 });
 
 test('it falls back to the config alone when the answer holds no agents array', () => {
   const meta = resolveAgentMetadata(
-    buildConfig({ zai: { label: 'GLM (z.ai)', baseURL: 'https://api.z.ai/api/anthropic' } }),
+    parseConfig({
+      gateways: { zai: { label: 'GLM (z.ai)', baseURL: 'https://api.z.ai/api/anthropic' } },
+    }),
     'not an answer',
   );
 
-  expect(meta.labels['zai']).toBe('GLM (z.ai)');
-  expect(meta.models['zai']).toBeUndefined();
+  expect(meta).toStrictEqual({
+    labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex', zai: 'GLM (z.ai)' },
+    models: {},
+  });
 });
 
 test('it leaves a __proto__ agent id out instead of changing the prototype', () => {
-  const meta = resolveAgentMetadata(buildConfig({}), {
+  const meta = resolveAgentMetadata(parseConfig({ gateways: {} }), {
     agents: [{ id: '__proto__', label: 'Sneaky', models: { opus: 'sneaky-model' } }],
   });
 
   expect(Object.getPrototypeOf(meta.labels)).toBe(Object.prototype);
-  expect(Object.hasOwn(meta.labels, '__proto__')).toBe(false);
-  expect(Object.hasOwn(meta.models, '__proto__')).toBe(false);
+  expect(meta.labels).not.toContainKey('__proto__');
+  expect(meta.models).not.toContainKey('__proto__');
 });
 
 test('it leaves a __proto__ model alias out of the map', () => {
-  const models = { opus: 'glm-5.3', ['__proto__']: 'sneaky-model' };
+  const models: unknown = JSON.parse('{"opus":"glm-5.3","__proto__":"sneaky-model"}');
 
-  expect(Object.hasOwn(models, '__proto__')).toBe(true);
-
-  const meta = resolveAgentMetadata(buildConfig({}), { agents: [{ id: 'zai', models }] });
+  const meta = resolveAgentMetadata(parseConfig({ gateways: {} }), {
+    agents: [{ id: 'zai', models }],
+  });
 
   expect(meta.models['zai']).toStrictEqual({ opus: 'glm-5.3' });
 });
 
 test('it reports no entries under constructor for a plain answer', () => {
-  const meta = resolveAgentMetadata(buildConfig({}), { agents: [{ id: 'claude' }] });
+  const meta = resolveAgentMetadata(parseConfig({ gateways: {} }), { agents: [{ id: 'claude' }] });
 
-  expect(Object.hasOwn(meta.labels, 'constructor')).toBe(false);
-  expect(Object.hasOwn(meta.models, 'constructor')).toBe(false);
+  expect(meta.labels).not.toContainKey('constructor');
+  expect(meta.models).not.toContainKey('constructor');
 });

@@ -43,7 +43,7 @@ test('it puts an exact directory match ahead of the longer names it prefixes', (
   ]);
 });
 
-test('it shows hidden directories only when the segment starts with a dot', () => {
+test('it leaves hidden directories out when the segment does not start with a dot', () => {
   using temp = setupTempDir('atc-complete-');
 
   mkdirSync(join(temp.dir, '.worktrees'));
@@ -53,21 +53,35 @@ test('it shows hidden directories only when the segment starts with a dot', () =
     temp.dir,
     join(temp.dir, 'src'),
   ]);
+});
+
+test('it shows hidden directories when the segment starts with a dot', () => {
+  using temp = setupTempDir('atc-complete-');
+
+  mkdirSync(join(temp.dir, '.worktrees'));
+  mkdirSync(join(temp.dir, 'src'));
 
   expect(collectPathCompletions(`${temp.dir}/.w`, '/cwd', '/home/u')).toStrictEqual([
     join(temp.dir, '.worktrees'),
   ]);
 });
 
-test('it completes a tilde path under the given home and a relative path under the cwd', () => {
+test('it completes a tilde path under the given home', () => {
   using temp = setupTempDir('atc-complete-');
 
   mkdirSync(join(temp.dir, 'home', 'projects'), { recursive: true });
-  mkdirSync(join(temp.dir, 'cwd', 'api'), { recursive: true });
+  mkdirSync(join(temp.dir, 'cwd', 'projects'), { recursive: true });
 
   expect(
     collectPathCompletions('~/pro', join(temp.dir, 'cwd'), join(temp.dir, 'home')),
   ).toStrictEqual([join(temp.dir, 'home', 'projects')]);
+});
+
+test('it completes a relative path under the given working directory', () => {
+  using temp = setupTempDir('atc-complete-');
+
+  mkdirSync(join(temp.dir, 'home', 'api'), { recursive: true });
+  mkdirSync(join(temp.dir, 'cwd', 'api'), { recursive: true });
 
   expect(
     collectPathCompletions('./a', join(temp.dir, 'cwd'), join(temp.dir, 'home')),

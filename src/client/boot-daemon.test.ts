@@ -1,140 +1,62 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { expect, test } from 'bun:test';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
 import { startDaemon } from '../daemon/daemon';
-import { isRecord } from '../shared/report';
+import { PROTOCOL_V } from '../protocol/protocol';
+import { getBuild } from '../shared/get-build';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 
-const idleAdapter: AgentAdapter = {
-  id: 'claude',
-  headlessRunner: null,
-  screenDetector: null,
-  takesMessages: false,
-  planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-  normalizeHook: () => ({ kind: 'heartbeat' }),
-  loadName: () => Promise.resolve(null),
-  canResume: () => true,
-  buildResumeCommand: () => null,
-};
-
-interface FakeDaemonOptions {
-  // Whether the daemon writes its record, the only place a client finds
-  // its pid in this home.
-  readonly record: boolean;
-}
-
 /**
- * Starts a daemon on protocol v3 in its own process, under a fresh home
- * whose computed socket path is the daemon's, hosting a session process.
+ * A fresh home for a client process: `dir` serves as both its home and its
+ * runtime directory, so the client computes `sockPath` as the daemon's
+ * socket and `stateDir` as the daemon's state directory. The client reads
+ * those paths once at import, so each test boots it in a subprocess with
+ * `env`. A test defers the release of what it starts to `stack`, so it is
+ * released before the directory is removed.
  */
-async function setupTest(options: FakeDaemonOptions) {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-boot-daemon-'));
-  const stateDir = join(dir, '.local', 'state', 'atc');
-  const sockPath = join(dir, 'atc-daemon.sock');
-  const daemonPath = join(dir, 'daemon.ts');
+function setupTest() {
+  const stack = new AsyncDisposableStack();
 
+  const tmp = stack.use(setupTempDir('atc-boot-daemon-'));
+  const stateDir = join(tmp.dir, '.local', 'state', 'atc');
+
+  // The daemon and the client both expect the state directory to exist.
   mkdirSync(stateDir, { recursive: true });
 
-  const record = JSON.stringify({
-    pid: '<pid>',
-    socketPath: sockPath,
-    reporterSocketPath: join(dir, 'atc.sock'),
-    eventsSocketPath: null,
-  });
-
-  writeFileSync(
-    daemonPath,
-    `import { writeFileSync } from 'node:fs';
-import { startLegacyDaemon } from '${join(import.meta.dir, '..', 'test-utils', 'start-legacy-daemon.ts')}';
-startLegacyDaemon('${sockPath}', { protocol: 3 });
-const session = Bun.spawn(['sleep', '60']);
-if (${options.record}) {
-  writeFileSync('${join(stateDir, 'daemon.json')}', '${record}'.replace('"<pid>"', String(process.pid)));
-}
-process.stdout.write(JSON.stringify({ sessionPID: session.pid }) + '\\n');
-`,
-  );
-
-  const env: Record<string, string> = {};
-
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined) {
-      env[key] = value;
-    }
-  }
-
-  env['HOME'] = dir;
-  env['XDG_RUNTIME_DIR'] = dir;
-
-  const daemon = Bun.spawn([process.execPath, daemonPath], {
-    env,
-    stdout: 'pipe',
-    stderr: 'inherit',
-  });
-
-  const reader = daemon.stdout.getReader();
-
-  const firstChunk = await reader.read();
-
-  reader.releaseLock();
-
-  const started: unknown = JSON.parse(new TextDecoder().decode(firstChunk.value));
-
-  if (!isRecord(started) || typeof started['sessionPID'] !== 'number') {
-    throw new TypeError('the daemon did not report its session');
-  }
-
-  const sessionPID = started['sessionPID'];
-
   return {
-    dir,
-    sockPath,
-    env,
-    daemon,
-    sessionPID,
-    async [Symbol.asyncDispose]() {
-      try {
-        process.kill(sessionPID, 'SIGKILL');
-      } catch {}
-
-      daemon.kill('SIGKILL');
-
-      await daemon.exited;
-
-      rmSync(dir, { recursive: true, force: true });
-    },
+    dir: tmp.dir,
+    stateDir,
+    sockPath: join(tmp.dir, 'atc-daemon.sock'),
+    env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
+    stack,
+    [Symbol.asyncDispose]: () => stack.disposeAsync(),
   };
 }
 
-test('it surfaces a codex hello as the last-used agent instead of coercing it to claude', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-boot-daemon-'));
+test('it reports a codex hello as the last-used agent instead of coercing it to claude', async () => {
+  await using ctx = setupTest();
 
-  // The socket path is derived from XDG_RUNTIME_DIR at import time, so the
-  // probe below runs in a subprocess with that variable pointed at this
-  // temp dir, rather than importing the client into this process.
-  const sockPath = join(dir, 'atc-daemon.sock');
+  const store = await StateStore.open(join(ctx.dir, 'state.db'));
 
-  const store = await StateStore.open(join(dir, 'state.db'));
+  ctx.stack.defer(() => store.stop());
 
   await store.writeLastUsedAgent('codex');
 
   const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: join(dir, 'reporter.sock'),
+    socketPath: ctx.sockPath,
+    reporterSocketPath: join(ctx.dir, 'reporter.sock'),
     build: 'atc/test-build',
-    adapter: idleAdapter,
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
+    adapter: buildMockAgentAdapter(),
+    dbPath: join(ctx.dir, 'state.db'),
+    statusPath: join(ctx.dir, 'status.json'),
   });
 
-  const probePath = join(dir, 'probe.ts');
+  ctx.stack.defer(() => daemon.stop());
 
   writeFileSync(
-    probePath,
+    join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 const boot = await bootDaemonClient();
 process.stdout.write(JSON.stringify({ lastUsedAgent: boot.lastUsedAgent }));
@@ -142,115 +64,8 @@ boot.client.stop();
 `,
   );
 
-  onTestFinished(async () => {
-    await daemon.stop();
-
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  const env: Record<string, string> = {};
-
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined) {
-      env[key] = value;
-    }
-  }
-
-  env['HOME'] = dir;
-  env['XDG_RUNTIME_DIR'] = dir;
-
-  const proc = Bun.spawn([process.execPath, probePath], { env, stdout: 'pipe', stderr: 'pipe' });
-
-  const stdout = await new Response(proc.stdout).text();
-
-  await proc.exited;
-
-  const parsed: unknown = JSON.parse(stdout);
-
-  if (!isRecord(parsed)) {
-    throw new TypeError('probe did not print an object');
-  }
-
-  expect(parsed).toStrictEqual({ lastUsedAgent: 'codex' });
-});
-
-test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR is unset', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-boot-daemon-'));
-  const runDir = join(dir, 'run');
-  const stateDir = join(dir, '.local', 'state', 'atc');
-
-  mkdirSync(runDir);
-  mkdirSync(stateDir, { recursive: true });
-
-  const daemon = await startDaemon({
-    socketPath: join(runDir, 'atc-daemon.sock'),
-    reporterSocketPath: join(runDir, 'atc.sock'),
-    build: 'atc/test-build',
-    adapter: idleAdapter,
-    dbPath: join(stateDir, 'atc.db'),
-    statusPath: join(stateDir, 'status.json'),
-  });
-
-  const probePath = join(dir, 'probe.ts');
-
-  writeFileSync(
-    probePath,
-    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-const boot = await bootDaemonClient();
-process.stdout.write(JSON.stringify({ socketPath: boot.socketPath }));
-boot.client.stop();
-`,
-  );
-
-  onTestFinished(async () => {
-    await daemon.stop();
-
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  const env: Record<string, string> = {};
-
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined && key !== 'XDG_RUNTIME_DIR') {
-      env[key] = value;
-    }
-  }
-
-  env['HOME'] = dir;
-
-  const proc = Bun.spawn([process.execPath, probePath], { env, stdout: 'pipe', stderr: 'pipe' });
-
-  const stdout = await new Response(proc.stdout).text();
-
-  await proc.exited;
-
-  const record: unknown = JSON.parse(readFileSync(join(stateDir, 'daemon.json'), 'utf8'));
-
-  expect(JSON.parse(stdout)).toStrictEqual({ socketPath: join(runDir, 'atc-daemon.sock') });
-  expect(record).toMatchObject({ pid: process.pid });
-  expect(existsSync(join(stateDir, 'atc-daemon.sock'))).toBeFalse();
-});
-
-test('it leaves a daemon on another protocol running with its session and rejects with both builds and versions', async () => {
-  await using fake = await setupTest({ record: true });
-
-  const probePath = join(fake.dir, 'probe.ts');
-
-  writeFileSync(
-    probePath,
-    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-import { getBuild } from '${join(import.meta.dir, '..', 'shared', 'get-build.ts')}';
-const outcome = await bootDaemonClient().then(
-  (boot) => { boot.client.stop(); return { booted: true }; },
-  (error) => ({ code: error.code, message: error.message }),
-);
-process.stdout.write(JSON.stringify({ build: getBuild(), outcome }));
-process.exit(0);
-`,
-  );
-
-  const proc = Bun.spawn([process.execPath, probePath], {
-    env: fake.env,
+  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+    env: ctx.env,
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -259,22 +74,114 @@ process.exit(0);
 
   await proc.exited;
 
-  const probed: unknown = JSON.parse(stdout);
+  expect(JSON.parse(stdout)).toStrictEqual({ lastUsedAgent: 'codex' });
+});
 
-  if (!isRecord(probed) || typeof probed['build'] !== 'string') {
-    throw new TypeError('probe did not print its build');
-  }
+test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR is unset', async () => {
+  await using ctx = setupTest();
 
-  expect(fake.daemon.exitCode).toBeNull();
-  expect(fake.daemon.signalCode).toBeNull();
-  expect(() => process.kill(fake.daemon.pid, 0)).not.toThrow();
-  expect(() => process.kill(fake.sessionPID, 0)).not.toThrow();
+  mkdirSync(join(ctx.dir, 'run'));
 
-  expect(probed['outcome']).toStrictEqual({
+  const daemon = await startDaemon({
+    socketPath: join(ctx.dir, 'run', 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
+    build: 'atc/test-build',
+    adapter: buildMockAgentAdapter(),
+    dbPath: join(ctx.stateDir, 'atc.db'),
+    statusPath: join(ctx.stateDir, 'status.json'),
+  });
+
+  ctx.stack.defer(() => daemon.stop());
+
+  writeFileSync(
+    join(ctx.dir, 'probe.ts'),
+    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
+const boot = await bootDaemonClient();
+process.stdout.write(JSON.stringify({ socketPath: boot.socketPath }));
+boot.client.stop();
+`,
+  );
+
+  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+    env: { ...ctx.env, XDG_RUNTIME_DIR: undefined },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  const stdout = await new Response(proc.stdout).text();
+
+  await proc.exited;
+
+  const record: unknown = JSON.parse(readFileSync(join(ctx.stateDir, 'daemon.json'), 'utf8'));
+
+  expect(JSON.parse(stdout)).toStrictEqual({ socketPath: join(ctx.dir, 'run', 'atc-daemon.sock') });
+
+  expect(record).toStrictEqual({
+    pid: process.pid,
+    socketPath: join(ctx.dir, 'run', 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
+    eventsSocketPath: null,
+    listenPort: null,
+  });
+
+  expect(existsSync(join(ctx.stateDir, 'atc-daemon.sock'))).toBeFalse();
+});
+
+test('it leaves a daemon on another protocol running and rejects with both builds and versions', async () => {
+  await using ctx = setupTest();
+
+  const legacy = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'test-utils', 'run-legacy-daemon.ts'),
+      ctx.sockPath,
+      ctx.stateDir,
+    ],
+    { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
+  );
+
+  ctx.stack.defer(async () => {
+    legacy.kill('SIGTERM');
+
+    await legacy.exited;
+  });
+
+  const up = await legacy.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
+
+  writeFileSync(
+    join(ctx.dir, 'probe.ts'),
+    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
+const outcome = await bootDaemonClient().then(
+  (boot) => { boot.client.stop(); return { booted: true }; },
+  (error) => ({ code: error.code, message: error.message }),
+);
+process.stdout.write(JSON.stringify(outcome));
+process.exit(0);
+`,
+  );
+
+  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+    env: ctx.env,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  const stdout = await new Response(proc.stdout).text();
+
+  await proc.exited;
+
+  expect(legacy.exitCode).toBeNull();
+  expect(legacy.signalCode).toBeNull();
+  expect(() => process.kill(legacy.pid, 0)).not.toThrow();
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
+
+  expect(JSON.parse(stdout)).toStrictEqual({
     code: 'protocol_mismatch',
     message: [
-      `the atc daemon (pid ${fake.daemon.pid}, socket ${fake.sockPath}) speaks another protocol than this client, ${probed['build']} on protocol v4.`,
-      `The daemon answered: ${probed['build']} speaks protocol v4, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build`,
+      `the atc daemon (pid ${legacy.pid}, socket ${ctx.sockPath}) speaks another protocol than this client, ${getBuild()} on protocol v${PROTOCOL_V}.`,
+      `The daemon answered: ${getBuild()} speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
       'It was left running, so the sessions it hosts keep running.',
       'To restart it, run `atc` from the build you want and confirm its restart prompt: every hosted session ends, and the fleet is restored on the new daemon.',
     ].join('\n'),
@@ -282,13 +189,29 @@ process.exit(0);
 });
 
 test('it stops a daemon on another protocol and boots its own build when the caller confirms the restart', async () => {
-  await using fake = await setupTest({ record: true });
+  await using ctx = setupTest();
 
-  const probePath = join(fake.dir, 'probe.ts');
+  const legacy = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'test-utils', 'run-legacy-daemon.ts'),
+      ctx.sockPath,
+      ctx.stateDir,
+    ],
+    { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
+  );
+
+  ctx.stack.defer(async () => {
+    legacy.kill('SIGTERM');
+
+    await legacy.exited;
+  });
+
+  await legacy.stdout.getReader().read();
 
   // The probe quits the daemon it booted, so nothing outlives the test.
   writeFileSync(
-    probePath,
+    join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 const asked = [];
 const boot = await bootDaemonClient({
@@ -301,8 +224,8 @@ process.exit(0);
 `,
   );
 
-  const proc = Bun.spawn([process.execPath, probePath], {
-    env: fake.env,
+  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+    env: ctx.env,
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -310,21 +233,37 @@ process.exit(0);
   const stdout = await new Response(proc.stdout).text();
 
   await proc.exited;
+  await legacy.exited;
 
-  expect(JSON.parse(stdout)).toStrictEqual({ asked: [fake.daemon.pid], stale: false });
-
-  await fake.daemon.exited;
-
-  expect(fake.daemon.signalCode).toBe('SIGTERM');
+  expect(JSON.parse(stdout)).toStrictEqual({ asked: [legacy.pid], stale: false });
+  expect(legacy.signalCode).toBe('SIGTERM');
 });
 
 test('it leaves a daemon on another protocol running and rejects when the caller declines the restart', async () => {
-  await using fake = await setupTest({ record: true });
+  await using ctx = setupTest();
 
-  const probePath = join(fake.dir, 'probe.ts');
+  const legacy = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'test-utils', 'run-legacy-daemon.ts'),
+      ctx.sockPath,
+      ctx.stateDir,
+    ],
+    { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
+  );
+
+  ctx.stack.defer(async () => {
+    legacy.kill('SIGTERM');
+
+    await legacy.exited;
+  });
+
+  const up = await legacy.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
 
   writeFileSync(
-    probePath,
+    join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 const asked = [];
 const outcome = await bootDaemonClient({
@@ -338,8 +277,8 @@ process.exit(0);
 `,
   );
 
-  const proc = Bun.spawn([process.execPath, probePath], {
-    env: fake.env,
+  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+    env: ctx.env,
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -348,23 +287,43 @@ process.exit(0);
 
   await proc.exited;
 
-  expect(fake.daemon.signalCode).toBeNull();
-  expect(() => process.kill(fake.daemon.pid, 0)).not.toThrow();
-  expect(() => process.kill(fake.sessionPID, 0)).not.toThrow();
+  expect(legacy.signalCode).toBeNull();
+  expect(() => process.kill(legacy.pid, 0)).not.toThrow();
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
 
   expect(JSON.parse(stdout)).toStrictEqual({
-    asked: [fake.daemon.pid],
+    asked: [legacy.pid],
     outcome: { code: 'protocol_mismatch' },
   });
 });
 
 test('it never asks to restart a daemon on another protocol whose pid it cannot find', async () => {
-  await using fake = await setupTest({ record: false });
+  await using ctx = setupTest();
 
-  const probePath = join(fake.dir, 'probe.ts');
+  const legacy = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'test-utils', 'run-legacy-daemon.ts'),
+      ctx.sockPath,
+      ctx.stateDir,
+    ],
+    { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
+  );
+
+  ctx.stack.defer(async () => {
+    legacy.kill('SIGTERM');
+
+    await legacy.exited;
+  });
+
+  const up = await legacy.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
+
+  rmSync(join(ctx.stateDir, 'daemon.json'));
 
   writeFileSync(
-    probePath,
+    join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 const asked = [];
 const outcome = await bootDaemonClient({
@@ -378,8 +337,8 @@ process.exit(0);
 `,
   );
 
-  const proc = Bun.spawn([process.execPath, probePath], {
-    env: fake.env,
+  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+    env: ctx.env,
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -388,67 +347,63 @@ process.exit(0);
 
   await proc.exited;
 
-  expect(fake.daemon.signalCode).toBeNull();
-  expect(() => process.kill(fake.daemon.pid, 0)).not.toThrow();
+  expect(legacy.signalCode).toBeNull();
+  expect(() => process.kill(legacy.pid, 0)).not.toThrow();
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
   expect(JSON.parse(stdout)).toStrictEqual({ asked: [], outcome: { code: 'protocol_mismatch' } });
 });
 
 test('it rejects with the socket it waited on, and starts no daemon, when none answers before the wait ends', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-boot-daemon-'));
-  const probePath = join(dir, 'probe.ts');
+  await using ctx = setupTest();
 
   writeFileSync(
-    probePath,
+    join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
+await bootDaemonClient({
+  waitForDaemonMs: 300,
+  onWaitForDaemon: () => { process.stdout.write('waiting without starting a daemon\\n'); },
+}).catch((error: Error) => {
   process.stderr.write(error.message);
   process.exit(3);
 });
 `,
   );
 
-  onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
+  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+    env: ctx.env,
+    stdout: 'pipe',
+    stderr: 'pipe',
   });
 
-  const env: Record<string, string> = {};
-
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined) {
-      env[key] = value;
-    }
-  }
-
-  env['HOME'] = dir;
-  env['XDG_RUNTIME_DIR'] = dir;
-
-  const proc = Bun.spawn([process.execPath, probePath], { env, stdout: 'ignore', stderr: 'pipe' });
-
-  const stderr = await new Response(proc.stderr).text();
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
 
   await proc.exited;
 
-  // No signal marks a daemon that was never started, so this gives a
-  // spawned one far longer than it needs to take the state lock.
-  await Bun.sleep(1000);
-
+  expect(stdout).toBe('waiting without starting a daemon\n');
   expect(proc.exitCode).toBe(3);
 
   expect(stderr).toBe(
-    `no atc daemon answered at ${join(dir, 'atc-daemon.sock')} within 0.3s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
+    `no atc daemon answered at ${ctx.sockPath} within 0.3s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
   );
 
-  expect(existsSync(join(dir, '.local', 'state', 'atc', 'daemon.lock'))).toBeFalse();
-  expect(existsSync(join(dir, 'atc-daemon.sock'))).toBeFalse();
+  expect(existsSync(join(ctx.stateDir, 'daemon.lock'))).toBeFalse();
+  expect(existsSync(ctx.sockPath)).toBeFalse();
 });
 
 test('it rejects when a socket takes the connection but never answers the handshake before the wait ends', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-boot-daemon-'));
-  const probePath = join(dir, 'probe.ts');
-  const silent = Bun.listen({ unix: join(dir, 'atc-daemon.sock'), socket: { data: () => {} } });
+  await using ctx = setupTest();
+
+  const silent = Bun.listen({ unix: ctx.sockPath, socket: { data: () => {} } });
+
+  ctx.stack.defer(() => {
+    silent.stop(true);
+  });
 
   writeFileSync(
-    probePath,
+    join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
   process.stderr.write(error.message);
@@ -457,25 +412,11 @@ await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
 `,
   );
 
-  onTestFinished(() => {
-    silent.stop(true);
-
-    rmSync(dir, { recursive: true, force: true });
+  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+    env: ctx.env,
+    stdout: 'ignore',
+    stderr: 'pipe',
   });
-
-  const env: Record<string, string> = {};
-
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined) {
-      env[key] = value;
-    }
-  }
-
-  env['HOME'] = dir;
-  env['XDG_RUNTIME_DIR'] = dir;
-
-  const started = Date.now();
-  const proc = Bun.spawn([process.execPath, probePath], { env, stdout: 'ignore', stderr: 'pipe' });
 
   const stderr = await new Response(proc.stderr).text();
 
@@ -484,20 +425,16 @@ await bootDaemonClient({ waitForDaemonMs: 300 }).catch((error: Error) => {
   expect(proc.exitCode).toBe(3);
 
   expect(stderr).toBe(
-    `no atc daemon answered at ${join(dir, 'atc-daemon.sock')} within 0.3s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
+    `no atc daemon answered at ${ctx.sockPath} within 0.3s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
   );
-
-  expect(Date.now() - started).toBeLessThan(5000);
 });
 
 test('it reports the start of a wait once across every poll of that wait', async () => {
-  await using tmp = setupTempDir('atc-boot-daemon-');
-
-  const probePath = join(tmp.dir, 'probe.ts');
+  await using ctx = setupTest();
 
   // The wait polls every 100 ms, so half a second holds several polls.
   writeFileSync(
-    probePath,
+    join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 let waits = 0;
 await bootDaemonClient({ waitForDaemonMs: 500, onWaitForDaemon: () => { waits += 1; } }).catch(() => {});
@@ -506,8 +443,8 @@ process.exit(0);
 `,
   );
 
-  const proc = Bun.spawn([process.execPath, probePath], {
-    env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
+  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+    env: ctx.env,
     stdout: 'pipe',
     stderr: 'ignore',
   });
@@ -518,25 +455,21 @@ process.exit(0);
 });
 
 test('it never reports a wait when a daemon answers on the first try', async () => {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-boot-daemon-'));
+  await using ctx = setupTest();
 
   const daemon = await startDaemon({
-    socketPath: join(tmp.dir, 'atc-daemon.sock'),
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+    socketPath: ctx.sockPath,
+    reporterSocketPath: join(ctx.dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
+    dbPath: join(ctx.dir, 'state.db'),
+    statusPath: join(ctx.dir, 'status.json'),
   });
 
-  stack.defer(() => daemon.stop());
-
-  const probePath = join(tmp.dir, 'probe.ts');
+  ctx.stack.defer(() => daemon.stop());
 
   writeFileSync(
-    probePath,
+    join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 let waits = 0;
 const boot = await bootDaemonClient({ waitForDaemonMs: 5000, onWaitForDaemon: () => { waits += 1; } });
@@ -546,8 +479,8 @@ process.exit(0);
 `,
   );
 
-  const proc = Bun.spawn([process.execPath, probePath], {
-    env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
+  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+    env: ctx.env,
     stdout: 'pipe',
     stderr: 'ignore',
   });

@@ -77,7 +77,17 @@ test('it reads a target that reaches the broker as one', () => {
     ],
   });
 
-  expect(picks).toMatchObject([{ id: 'box', brokerAuth: true }]);
+  expect(picks).toStrictEqual([
+    {
+      id: 'box',
+      provider: 'imp',
+      available: true,
+      isDefault: false,
+      takesWorkspace: true,
+      inPlace: false,
+      brokerAuth: true,
+    },
+  ]);
 });
 
 test.each([
